@@ -1,6 +1,7 @@
 import { authHandlers } from "./auth.handlers";
 import { commentHandlers } from "./comment.handlers";
 import { documentHandlers } from "./document.handlers";
+import { filterPresetHandlers } from "./filterPreset.handlers";
 import { guildHandlers } from "./guild.handlers";
 import { initiativeHandlers } from "./initiative.handlers";
 import { projectHandlers } from "./project.handlers";
@@ -15,6 +16,7 @@ export const handlers = [
   ...guildHandlers,
   ...initiativeHandlers,
   ...projectHandlers,
+  ...filterPresetHandlers,
   ...taskHandlers,
   ...tagHandlers,
   ...settingsHandlers,

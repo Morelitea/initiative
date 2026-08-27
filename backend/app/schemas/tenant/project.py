@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
@@ -14,6 +14,12 @@ from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.comment import CommentAuthor
+
+
+# The task views a project can open on. Kept as a Literal rather than a
+# database enum so growing it is a code change, not an ALTER TYPE in every
+# guild schema.
+ProjectViewMode = Literal["table", "kanban", "calendar"]
 
 
 class ProjectBase(SanitizedBaseModel):
@@ -45,6 +51,10 @@ class ProjectUpdate(SanitizedBaseModel):
     icon: Optional[str] = None
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
+    # Which task view the project opens on. Send ``null`` to clear it and fall
+    # back to the client default. The vocabulary lives here rather than in a
+    # database enum — see the column's note on Project.
+    default_view_mode: Optional[ProjectViewMode] = None
     # Send ``null`` to clear a date; omit the field to leave it untouched.
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -80,6 +90,7 @@ class ProjectRead(ProjectBase):
     is_template: bool
     archived_at: Optional[datetime] = None
     pinned_at: Optional[datetime] = None
+    default_view_mode: Optional[str] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
     initiative: Optional[InitiativeRead] = None
     sort_order: Optional[float] = None

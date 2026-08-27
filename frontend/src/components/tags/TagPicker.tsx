@@ -34,6 +34,9 @@ const DEFAULT_TAG_COLORS = [
 ];
 
 interface TagPickerProps {
+  /** Ties the trigger to a `<Label htmlFor>`. A `combobox` takes no accessible
+   *  name from its own contents, so without this the control is unnamed. */
+  id?: string;
   selectedTags: TagSummary[];
   onChange: (tags: TagSummary[]) => void;
   placeholder?: string;
@@ -44,6 +47,7 @@ interface TagPickerProps {
 }
 
 export function TagPicker({
+  id,
   selectedTags,
   onChange,
   placeholder,
@@ -139,6 +143,7 @@ export function TagPicker({
         {variant === "filter" ? (
           <button
             type="button"
+            id={id}
             role="combobox"
             aria-expanded={open}
             disabled={disabled}

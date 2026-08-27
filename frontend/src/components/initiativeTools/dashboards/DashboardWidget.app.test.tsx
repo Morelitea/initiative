@@ -46,7 +46,7 @@ const widget = { id: "w1", type: WIDGET_TYPE, grid: { x: 0, y: 0, w: 6, h: 4 } }
 const binding: WidgetBinding = {
   source: "app",
   app_uid: APP_UID,
-  source_id: "orders_summary",
+  endpoint_id: "app.acme.shop.orders-summary",
 };
 
 const CATALOG = {
@@ -62,16 +62,16 @@ const CATALOG = {
           id: "summary",
           meta: { name: { en: "Summary" } },
           module_source: MODULE,
-          sources: ["orders_summary"],
-          sample_data: { orders_summary: [{ day: "mon", total: 4 }] },
+          endpoints: ["app.acme.shop.orders-summary"],
+          sample_data: { "app.acme.shop.orders-summary": [{ day: "mon", total: 4 }] },
         },
       ],
-      data_sources: [
+      endpoints: [
         {
-          id: "orders_summary",
+          id: "app.acme.shop.orders-summary",
           visibility: "member",
           cache_ttl_seconds: 60,
-          params_schema: [],
+          params: [],
         },
       ],
     },
@@ -79,7 +79,7 @@ const CATALOG = {
 };
 
 const catalogUrl = (url: string) => url.endsWith("/apps/widget-catalog");
-const dataUrl = (url: string) => url.includes("/data/");
+const dataUrl = (url: string) => url.includes("/endpoints/");
 
 beforeEach(() => {
   apiGet.mockReset();
@@ -143,7 +143,7 @@ describe("DashboardWidget with an app source", () => {
       string,
       { params: Record<string, unknown> },
     ];
-    expect(url).toBe("/g/2/apps/3/data/orders_summary");
+    expect(url).toBe("/g/2/apps/3/endpoints/app.acme.shop.orders-summary");
     expect(config.params.dashboard_id).toBe(11);
   });
 

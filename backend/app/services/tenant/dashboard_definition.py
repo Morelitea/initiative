@@ -40,7 +40,11 @@ from app.services.marketplace.manifest_values import (
     IDENTIFIER_CHARS,
     MAX_IDENTIFIER_LENGTH,
 )
-from app.services.marketplace.service_apps import APP_WIDGET_TYPE_PREFIX
+from app.services.marketplace.service_apps import (
+    APP_WIDGET_TYPE_PREFIX,
+    ENDPOINT_ID_CHARS,
+    MAX_ENDPOINT_ID_LENGTH,
+)
 
 SCHEMA_VERSION = 1
 
@@ -275,7 +279,7 @@ APP_WIDGET_SPEC = WidgetSpec(
 
 #: What one app binding may carry, mirroring the manifest's per-source cap.
 MAX_APP_BINDING_PARAMS = 12
-#: A parameter value is a scalar the source declared a type for. Checked again
+#: A parameter value is a scalar the endpoint declared a type for. Checked again
 #: against that type at fetch time; bounded here so a definition stays small.
 MAX_APP_PARAM_LENGTH = 2_000
 
@@ -285,6 +289,22 @@ def _check_identifier(value: Any) -> str:
         _fail(DashboardMessages.BINDING_INVALID)
     for character in value:
         if character not in IDENTIFIER_CHARS:
+            _fail(DashboardMessages.BINDING_INVALID)
+    return value
+
+
+def _check_endpoint_id(value: Any) -> str:
+    """One endpoint id on a binding.
+
+    A different character set from an identifier: an endpoint id is namespaced
+    under its app's service id, so it carries dots. The prefix itself is checked
+    where the manifest is normalized — a dashboard definition is not the place
+    that knows which app it belongs to.
+    """
+    if not isinstance(value, str) or not value or len(value) > MAX_ENDPOINT_ID_LENGTH:
+        _fail(DashboardMessages.BINDING_INVALID)
+    for character in value:
+        if character not in ENDPOINT_ID_CHARS:
             _fail(DashboardMessages.BINDING_INVALID)
     return value
 
@@ -324,14 +344,14 @@ def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[st
     """An ``app`` binding: which installed app, which source, which parameters.
 
     ``app_uid`` has to be the app the widget came from. A widget is one app's
-    module and its sources are that app's, so letting a definition point one
+    module and its endpoints are that app's, so letting a definition point one
     app's widget at another app's data would be a definition choosing what
     crosses between two vendors.
     """
     declared_uid = _check_uid(binding.get("app_uid"), DashboardMessages.BINDING_INVALID)
     if declared_uid != listing_uid:
         _fail(DashboardMessages.BINDING_INVALID)
-    source_id = _check_identifier(binding.get("source_id"))
+    endpoint_id = _check_endpoint_id(binding.get("endpoint_id"))
 
     raw_params = binding.get("params")
     params: dict[str, Any] = {}
@@ -344,7 +364,7 @@ def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[st
     cleaned: dict[str, Any] = {
         "source": APP_BINDING_SOURCE,
         "app_uid": listing_uid,
-        "source_id": source_id,
+        "endpoint_id": endpoint_id,
     }
     if params:
         cleaned["params"] = params

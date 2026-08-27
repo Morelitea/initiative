@@ -441,7 +441,7 @@
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Diesen Ereignistyp hat die App nicht angegeben.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "Dieses Ereignis ist größer, als diese Version übertragen kann.",
   "APP_CHANNEL_INVALID_CONFIG_STATE": "Dieser App-Dienst hat einen Status gemeldet, den diese Version nicht kennt.",
-  "APP_DATA_SOURCE_NOT_FOUND": "Dieses Widget ist an Daten gebunden, die die App nicht mehr anbietet.",
+  "APP_DATA_ENDPOINT_NOT_FOUND": "Dieses Widget ist an Daten gebunden, die die App nicht mehr anbietet.",
   "APP_DATA_ADMIN_ONLY": "Nur die Gildenadministration sieht die Daten dieser App.",
   "APP_DATA_APP_DISABLED": "Diese App ist in dieser Gilde ausgeschaltet, ihre Widgets haben also nichts anzuzeigen.",
   "APP_DATA_SERVICE_NOT_REGISTERED": "Diese App ist auf dieser Installation nicht eingerichtet. Wende dich an deine Administration.",
@@ -454,5 +454,11 @@
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
   "APP_DATA_RATE_LIMITED": "Diese App wurde zu oft in kurzer Zeit abgefragt. Versuch es gleich noch einmal.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Dieser Ereignistyp existiert nicht. Prüfe die Liste der verfügbaren Ereignisse.",
-  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht."
+  "WEBHOOK_UNKNOWN_FIELD": "Dieses Feld existiert bei den ausgewählten Ereignissen nicht.",
+  "PROJECT_ADMIN_REQUIRED": "Das können nur Projektleitung, Projektinhaber:in oder Gilden-Admins ändern.",
+  "FILTER_PRESET_NOT_FOUND": "Diese Filter-Voreinstellung gibt es nicht mehr.",
+  "FILTER_PRESET_DUPLICATE_ID": "Dieselbe Voreinstellung wurde zweimal aufgeführt.",
+  "FILTER_PRESET_SLUG_TAKEN": "In diesem Projekt gibt es bereits eine Voreinstellung mit diesem Namen.",
+  "FILTER_PRESET_INVALID_FILTERS": "Diese Filter lassen sich nicht als Voreinstellung speichern.",
+  "FILTER_PRESET_LIMIT_REACHED": "Dieses Projekt hat bereits die maximale Anzahl an Filter-Voreinstellungen."
 }

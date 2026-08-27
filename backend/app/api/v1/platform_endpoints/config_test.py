@@ -38,6 +38,34 @@ async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypa
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    ("case", "provider", "secret"),
+    [
+        ("no provider", None, "secret-key"),
+        # Provider and site key but no secret is half-configured: nothing could
+        # validate the tokens the widget would produce.
+        ("no secret", "hcaptcha", None),
+        # A typo in the provider name must not render an unknown widget.
+        ("unrecognised provider", "definitely-not-real", "secret-key"),
+    ],
+    ids=lambda v: v if isinstance(v, str) and " " in v else "",
+)
+async def test_config_reports_no_captcha_unless_it_is_fully_configured(
+    client: AsyncClient, monkeypatch, case: str, provider, secret
+):
+    """The SPA gets ``captcha: null`` and skips the widget, matching the
+    verifier's own silent-disable behaviour."""
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", provider)
+    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", secret)
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["captcha"] is None
+
+
+@pytest.mark.integration
 async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypatch):
     """With a URL configured, the SPA gets the base URL to build its
     link-out buttons. The operator route reports itself unavailable until its
@@ -81,55 +109,6 @@ async def test_config_endpoint_is_unauthenticated(client: AsyncClient):
 
 
 # --- Captcha exposure -----------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_config_captcha_null_when_provider_unset(
-    client: AsyncClient, monkeypatch
-):
-    """No provider env var → SPA gets ``captcha: null`` and skips the
-    widget, matching the verifier's silent-disable behaviour."""
-    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
-    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
-    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "secret-key")
-
-    response = await client.get("/api/v1/config")
-
-    assert response.status_code == 200
-    assert response.json()["captcha"] is None
-
-
-@pytest.mark.integration
-async def test_config_captcha_null_when_secret_missing(
-    client: AsyncClient, monkeypatch
-):
-    """Provider + site key without a secret is half-configured — the
-    verifier can't actually validate tokens. Treat as disabled instead
-    of pretending it works."""
-    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", "hcaptcha")
-    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
-    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", None)
-
-    response = await client.get("/api/v1/config")
-
-    assert response.status_code == 200
-    assert response.json()["captcha"] is None
-
-
-@pytest.mark.integration
-async def test_config_captcha_null_when_provider_unrecognised(
-    client: AsyncClient, monkeypatch
-):
-    """Typos in CAPTCHA_PROVIDER (e.g. ``"hcaptcha-v2"``) shouldn't
-    silently render an unknown widget — bail out safely instead."""
-    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", "definitely-not-real")
-    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
-    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "secret-key")
-
-    response = await client.get("/api/v1/config")
-
-    assert response.status_code == 200
-    assert response.json()["captcha"] is None
 
 
 @pytest.mark.integration

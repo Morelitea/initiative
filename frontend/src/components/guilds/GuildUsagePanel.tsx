@@ -1,12 +1,11 @@
 import { useTranslation } from "react-i18next";
 
-import { createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost } from "@/api/generated/guilds/guilds";
 import { useReadStorageUsageApiV1GGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { useAppConfig } from "@/hooks/useAppConfig";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes } from "@/lib/fileUtils";
 
@@ -22,9 +21,9 @@ const ratioPct = (used: number, max: number | null): number | null =>
  * (caps, plan label), which the API sends to admins alone — as does the
  * storage-usage endpoint below. */
 export const GuildUsagePanel = () => {
-  const { t, i18n } = useTranslation(["guilds", "common"]);
+  const { t } = useTranslation(["guilds", "common"]);
   const { activeGuild } = useGuilds();
-  const { billing } = useAppConfig();
+  const { billing, openPortal } = useBillingPortal();
 
   const guildId = activeGuild?.id;
   const { data: usage } = useReadStorageUsageApiV1GGuildIdStorageUsageGet(guildId ?? 0, {
@@ -42,26 +41,6 @@ export const GuildUsagePanel = () => {
   const storagePct = ratioPct(usedBytes, maxBytes);
   const memberPct = ratioPct(members, maxUsers);
   const tierLabel = activeGuild.tier_name ?? t("usagePanel.selfHosted");
-
-  const lang = i18n.resolvedLanguage ?? i18n.language;
-
-  const openPortal = async (page: "manage" | "upgrade") => {
-    if (!billing) return;
-    const base = `${billing.url}/${page}?guild=${activeGuild.id}&lang=${encodeURIComponent(lang)}`;
-    const tab = window.open("about:blank", "_blank");
-    if (tab) tab.opener = null;
-    try {
-      const { handoff_token } = await createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost(
-        activeGuild.id
-      );
-      const url = `${base}#handoff=${encodeURIComponent(handoff_token)}`;
-      if (tab) tab.location.href = url;
-      else window.open(url, "_blank", "noopener,noreferrer");
-    } catch {
-      if (tab) tab.location.href = base;
-      else window.open(base, "_blank", "noopener,noreferrer");
-    }
-  };
 
   return (
     <Card>
@@ -105,10 +84,14 @@ export const GuildUsagePanel = () => {
                 <span className="font-semibold">{tierLabel}</span>
               </p>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => openPortal("upgrade")}>
+                <Button size="sm" onClick={() => void openPortal(activeGuild.id, "upgrade")}>
                   {t("usagePanel.upgrade")}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => openPortal("manage")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void openPortal(activeGuild.id, "manage")}
+                >
                   {t("usagePanel.manageBilling")}
                 </Button>
               </div>

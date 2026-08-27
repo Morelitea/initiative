@@ -56,9 +56,9 @@ export const QueueItemRow = ({
       onDoubleClick={() => onSetActive(item.id)}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition",
-        "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        isActive && "border-primary bg-primary/5 ring-1 ring-primary/20"
+        "group flex w-full items-center gap-3 rounded-lg border bg-card px-4 py-3 text-left transition",
+        "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        isActive && "border-primary bg-primary/10 ring-1 ring-primary/20"
       )}
     >
       {/* Position number */}

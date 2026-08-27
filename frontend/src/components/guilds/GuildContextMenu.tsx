@@ -1,5 +1,14 @@
 import { useRouter } from "@tanstack/react-router";
-import { Copy, FolderOpen, LogOut, Plus, Settings, UserPlus, Users } from "lucide-react";
+import {
+  Copy,
+  FolderOpen,
+  GripVertical,
+  LogOut,
+  Plus,
+  Settings,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,27 +22,43 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
 interface GuildContextMenuProps {
   guild: GuildRead;
   children: ReactNode;
+  /**
+   * When provided, the menu offers a "Reorder guilds" action. Touch devices
+   * have no drag affordance of their own (press-and-hold belongs to this
+   * menu), so this is the way in to reorder mode there.
+   */
+  onReorder?: () => void;
 }
 
-export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => {
+export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMenuProps) => {
   const router = useRouter();
   const { t } = useTranslation(["guilds", "nav"]);
   const { switchGuild, activeGuildId } = useGuilds();
+  const { billing, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const isAdmin = guild.role === "admin";
   const [creatingInvite, setCreatingInvite] = useState(false);
+  // A guild at its seat cap mints no invite (the server refuses), so the item
+  // says so rather than handing back an error toast. Both fields are
+  // admin-only on the payload, and null max_users means uncapped.
+  const atUserLimit = guild.max_users != null && guild.member_count >= guild.max_users;
+  // Where a billing portal exists the cap travels with the plan, so a full
+  // guild leads there instead of dead-ending on an admin who can't lift it.
+  const upgradeForSeats = atUserLimit && billing != null;
 
   const handleInviteMembers = async () => {
-    if (creatingInvite) return;
+    if (creatingInvite || atUserLimit) return;
     setCreatingInvite(true);
     try {
       const data = (await createGuildInviteApiV1GuildsGuildIdInvitesPost(
@@ -45,7 +70,7 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
       toast.success(t("inviteLinkCopied"));
     } catch (err) {
       console.error("Failed to create invite", err);
-      toast.error(t("failedToCreateInvite"));
+      toast.error(getErrorMessage(err, "guilds:failedToCreateInvite"));
     } finally {
       setCreatingInvite(false);
     }
@@ -85,6 +110,12 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
     });
   };
 
+  const inviteLabel = upgradeForSeats
+    ? t("inviteMembersUpgrade")
+    : atUserLimit
+      ? t("inviteMembersGuildFull")
+      : t("inviteMembers");
+
   const handleCopyGuildId = () => {
     navigator.clipboard.writeText(String(guild.id));
     toast.success(t("guildIdCopied"));
@@ -108,9 +139,14 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
                 {t("viewMembers")}
               </ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem onClick={handleInviteMembers} disabled={creatingInvite}>
+              <ContextMenuItem
+                onClick={
+                  upgradeForSeats ? () => void openPortal(guild.id, "upgrade") : handleInviteMembers
+                }
+                disabled={creatingInvite || (atUserLimit && !upgradeForSeats)}
+              >
                 <UserPlus className="mr-2 h-4 w-4" />
-                {creatingInvite ? t("creatingInvite") : t("inviteMembers")}
+                {creatingInvite ? t("creatingInvite") : inviteLabel}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleCreateInitiative}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -123,6 +159,12 @@ export const GuildContextMenu = ({ guild, children }: GuildContextMenuProps) => 
             </>
           )}
           <ContextMenuSeparator />
+          {onReorder ? (
+            <ContextMenuItem onClick={onReorder}>
+              <GripVertical className="mr-2 h-4 w-4" />
+              {t("reorderGuilds")}
+            </ContextMenuItem>
+          ) : null}
           <ContextMenuItem onClick={handleCopyGuildId}>
             <Copy className="mr-2 h-4 w-4" />
             {t("copyGuildId")}

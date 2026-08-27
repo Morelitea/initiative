@@ -106,6 +106,14 @@ class InitiativeMessages:
     OVERRIDE_PM_ONLY = "INITIATIVE_OVERRIDE_PM_ONLY"
 
 
+class FilterPresetMessages:
+    NOT_FOUND = "FILTER_PRESET_NOT_FOUND"
+    DUPLICATE_ID = "FILTER_PRESET_DUPLICATE_ID"
+    SLUG_TAKEN = "FILTER_PRESET_SLUG_TAKEN"
+    INVALID_FILTERS = "FILTER_PRESET_INVALID_FILTERS"
+    LIMIT_REACHED = "FILTER_PRESET_LIMIT_REACHED"
+
+
 class ProjectMessages:
     NOT_FOUND = "PROJECT_NOT_FOUND"
     INITIATIVE_NOT_FOUND = "PROJECT_INITIATIVE_NOT_FOUND"
@@ -117,6 +125,9 @@ class ProjectMessages:
     INITIATIVE_REQUIRED = "PROJECT_INITIATIVE_REQUIRED"
     CREATE_PERMISSION_REQUIRED = "PROJECT_CREATE_PERMISSION_REQUIRED"
     PIN_PERMISSION_REQUIRED = "PROJECT_PIN_PERMISSION_REQUIRED"
+    # Configuring the project itself (pinning, default view, filter
+    # presets) — a project manager, the project owner, or a guild admin.
+    ADMIN_REQUIRED = "PROJECT_ADMIN_REQUIRED"
     DOCUMENT_NOT_FOUND = "PROJECT_DOCUMENT_NOT_FOUND"
     DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
     CANNOT_ASSIGN_OWNER = "PROJECT_CANNOT_ASSIGN_OWNER"
@@ -701,7 +712,7 @@ class AppDataMessages:
 
     #: The install names no such data source, or the pinned definition is not a
     #: service app's at all.
-    SOURCE_NOT_FOUND = "APP_DATA_SOURCE_NOT_FOUND"
+    ENDPOINT_NOT_FOUND = "APP_DATA_ENDPOINT_NOT_FOUND"
     #: The source is declared for guild admins and the caller is a member.
     ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
     #: The install is turned off in this guild.

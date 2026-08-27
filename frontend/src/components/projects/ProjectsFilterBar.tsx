@@ -120,7 +120,7 @@ export const ProjectsFilterBar = ({
           >
             {t("filters.favorites")}
           </Label>
-          <div className="flex h-10 items-center gap-3 rounded-md border bg-background/60 px-3">
+          <div className="flex h-9 items-center gap-3 rounded-md border bg-background/60 px-3">
             <Switch
               id="favorites-only"
               checked={favoritesOnly}

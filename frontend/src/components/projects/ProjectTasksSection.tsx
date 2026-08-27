@@ -8,14 +8,23 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Calendar, Kanban, Plus, Table } from "lucide-react";
+import {
+  Archive,
+  BookmarkPlus,
+  Calendar,
+  Kanban,
+  Plus,
+  RotateCcw,
+  Save,
+  Table,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  FilterCondition,
-  ListTasksApiV1GGuildIdTasksGetParams,
+  TaskFilterSpec as ApiTaskFilterSpec,
   TaskListRead,
   TaskRead,
   TaskReorderRequest,
@@ -31,12 +40,14 @@ import {
 } from "@/components/calendar";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolPresetSelect } from "@/components/initiativeTools/shared/ToolPresetSelect";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { ProjectFilterPresetDialog } from "@/components/projects/ProjectFilterPresetDialog";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
-import { type DueFilterOption, priorityVariant } from "@/components/projects/projectTasksConfig";
+import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import {
   computeMidpoint,
   isDraggingDown,
@@ -54,12 +65,18 @@ import {
   serializeTaskFormValue,
   type TaskFormValue,
 } from "@/components/tasks/TaskForm";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  useCreateFilterPreset,
+  useFilterPresets,
+  useUpdateFilterPreset,
+} from "@/hooks/useFilterPresets";
 import { useTags } from "@/hooks/useTags";
 import {
   useArchiveDoneTasks,
@@ -73,31 +90,59 @@ import {
 } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
+import { resolvePresetState } from "@/lib/filters/presets";
+import {
+  buildTaskConditions,
+  buildTaskListParams,
+  EMPTY_TASK_FILTERS,
+  matchesDueWindow,
+  specFromApi,
+  specToApi,
+  TASK_VIEW_MODES,
+  type TaskFilterSpec,
+  type TaskViewMode,
+  taskFilterCount,
+  taskFiltersEqual,
+} from "@/lib/filters/taskFilters";
 import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 
-type ViewMode = "table" | "kanban" | "calendar";
+type ViewMode = TaskViewMode;
 
-type StoredFilters = {
+/**
+ * What this project's task view remembers for one person: the filter values,
+ * which view they were in, and which preset (if any) those filters came from.
+ *
+ * The filter half IS {@link TaskFilterSpec} — the same object a saved preset
+ * holds and the same one the URL names — so a preset can be applied, tweaked,
+ * and saved back without translating between shapes.
+ */
+type StoredFilters = TaskFilterSpec & {
   viewMode: ViewMode;
-  assigneeFilters: string[];
-  dueFilter: DueFilterOption;
-  statusFilters: number[];
-  tagFilters: number[];
-  propertyFilters: PropertyFilterCondition[];
-  showArchived: boolean;
+  /** The preset these values came from, or null once they were tweaked. */
+  activePresetSlug: string | null;
 };
 
 const DEFAULT_FILTERS: StoredFilters = {
+  ...EMPTY_TASK_FILTERS,
   viewMode: "table",
-  assigneeFilters: [],
-  dueFilter: "all",
-  statusFilters: [],
-  tagFilters: [],
-  propertyFilters: [],
-  showArchived: false,
+  activePresetSlug: null,
 };
+
+/** The pre-preset key names, still on disk for anyone who has used the app.
+ *  Read once and written back in the new shape, so nobody loses their filters. */
+type LegacyStoredFilters = {
+  assigneeFilters?: unknown;
+  dueFilter?: unknown;
+  statusFilters?: unknown;
+  tagFilters?: unknown;
+  propertyFilters?: unknown;
+  showArchived?: unknown;
+};
+
+const numberList = (raw: unknown): number[] | undefined =>
+  Array.isArray(raw) ? raw.filter((v): v is number => typeof v === "number") : undefined;
 
 /**
  * Coerce whatever shape comes back from the server (or a legacy
@@ -106,38 +151,39 @@ const DEFAULT_FILTERS: StoredFilters = {
  */
 function sanitizeStoredFilters(raw: unknown): StoredFilters {
   if (raw === null || typeof raw !== "object") return DEFAULT_FILTERS;
-  const parsed = raw as Partial<StoredFilters>;
-  const out: StoredFilters = { ...DEFAULT_FILTERS };
-  if (
-    parsed.viewMode === "table" ||
-    parsed.viewMode === "kanban" ||
-    parsed.viewMode === "calendar"
-  ) {
-    out.viewMode = parsed.viewMode;
+  const parsed = raw as Partial<StoredFilters> & LegacyStoredFilters;
+  const out: StoredFilters = {
+    ...DEFAULT_FILTERS,
+    ...specFromApi(parsed as ApiTaskFilterSpec),
+  };
+  if (TASK_VIEW_MODES.includes(parsed.viewMode as ViewMode)) {
+    out.viewMode = parsed.viewMode as ViewMode;
   }
-  if (Array.isArray(parsed.assigneeFilters)) {
-    out.assigneeFilters = parsed.assigneeFilters.filter((v): v is string => typeof v === "string");
+  if (typeof parsed.activePresetSlug === "string") {
+    out.activePresetSlug = parsed.activePresetSlug;
   }
-  if (parsed.dueFilter) {
-    out.dueFilter = parsed.dueFilter;
+
+  // Legacy key names, used only when the modern one is absent.
+  if (parsed.assignees === undefined && Array.isArray(parsed.assigneeFilters)) {
+    out.assignees = parsed.assigneeFilters.filter((v): v is string => typeof v === "string");
   }
-  if (Array.isArray(parsed.statusFilters)) {
-    out.statusFilters = parsed.statusFilters.filter((v): v is number => typeof v === "number");
+  if (parsed.due === undefined && typeof parsed.dueFilter === "string") {
+    out.due = parsed.dueFilter === "all" ? null : (parsed.dueFilter as StoredFilters["due"]);
   }
-  if (Array.isArray(parsed.tagFilters)) {
-    out.tagFilters = parsed.tagFilters.filter((v): v is number => typeof v === "number");
+  if (parsed.status_ids === undefined) {
+    out.status_ids = numberList(parsed.statusFilters) ?? out.status_ids;
   }
-  if (Array.isArray(parsed.propertyFilters)) {
-    out.propertyFilters = parsed.propertyFilters.filter(
-      (entry): entry is PropertyFilterCondition =>
-        entry !== null &&
-        typeof entry === "object" &&
-        typeof (entry as PropertyFilterCondition).property_id === "number" &&
-        typeof (entry as PropertyFilterCondition).op === "string"
+  if (parsed.tag_ids === undefined) {
+    out.tag_ids = numberList(parsed.tagFilters) ?? out.tag_ids;
+  }
+  if (parsed.properties === undefined && Array.isArray(parsed.propertyFilters)) {
+    out.properties = (parsed.propertyFilters as PropertyFilterCondition[]).filter(
+      (entry) =>
+        entry !== null && typeof entry === "object" && typeof entry.property_id === "number"
     );
   }
-  if (typeof parsed.showArchived === "boolean") {
-    out.showArchived = parsed.showArchived;
+  if (parsed.include_archived === undefined && typeof parsed.showArchived === "boolean") {
+    out.include_archived = parsed.showArchived;
   }
   return out;
 }
@@ -159,6 +205,9 @@ type ProjectTasksSectionProps = {
    */
   initiativeId: number;
   taskStatuses: TaskStatusRead[];
+  /** The project's configured default view, used only when this person has no
+   *  view of their own yet and the URL doesn't name one. */
+  projectDefaultViewMode?: string | null;
   canEditTaskDetails: boolean;
   canWriteProject: boolean;
   projectIsArchived: boolean;
@@ -172,6 +221,7 @@ export const ProjectTasksSection = ({
   projectId,
   initiativeId,
   taskStatuses,
+  projectDefaultViewMode,
   canEditTaskDetails,
   canWriteProject,
   projectIsArchived,
@@ -195,53 +245,195 @@ export const ProjectTasksSection = ({
   // all into one create POST.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const filterStorageKey = `project:${projectId}:view-filters`;
+  // `null` fallback on purpose: "nothing saved yet" has to stay distinguishable
+  // from "saved, and happens to equal the defaults", or someone's first visit
+  // would shadow the project's own default preset with an empty one.
   const [storedFilters, setStoredFilters, { isLoaded: filtersLoaded }] =
-    useViewPreference<StoredFilters>(filterStorageKey, DEFAULT_FILTERS);
-  const filters = useMemo(() => sanitizeStoredFilters(storedFilters), [storedFilters]);
-  const {
-    viewMode,
-    assigneeFilters,
-    dueFilter,
-    statusFilters,
-    tagFilters,
-    propertyFilters,
-    showArchived,
-  } = filters;
+    useViewPreference<StoredFilters | null>(filterStorageKey, null);
+  const stored = useMemo(
+    () => (storedFilters ? sanitizeStoredFilters(storedFilters) : null),
+    [storedFilters]
+  );
   const patchFilters = useCallback(
-    (patch: Partial<StoredFilters>) => setStoredFilters((prev) => ({ ...prev, ...patch })),
+    (patch: Partial<StoredFilters>) =>
+      setStoredFilters((prev) => ({ ...sanitizeStoredFilters(prev), ...patch })),
     [setStoredFilters]
   );
 
-  // Fetch guild tags for filtering
-  const { data: tags = [] } = useTags();
+  // The project's shared presets. `can_manage` is computed server-side — a
+  // project manager, the project owner, or a guild admin — and is what gates
+  // every curation affordance below.
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as { preset?: string; view?: ViewMode };
+  const presetsQuery = useFilterPresets(projectId);
+  const presetsLoaded = presetsQuery.isSuccess;
+  const canManagePresets = presetsQuery.data?.can_manage ?? false;
+  const presets = useMemo(
+    () =>
+      (presetsQuery.data?.items ?? []).map((preset) => ({
+        ...preset,
+        filters: specFromApi(preset.filters),
+      })),
+    [presetsQuery.data]
+  );
 
-  // Prune saved filters that reference items the user no longer has access
-  // to (deleted tag, removed status, ex-member). The hook value is the
-  // source of truth for filters; once the lookup data resolves we strip
-  // any dangling IDs and write the cleaned blob back, so future loads
-  // don't have to re-pay for the diff.
-  const tagsLoaded = tags !== undefined;
-  useEffect(() => {
-    if (!filtersLoaded || !tagsLoaded) return;
-    const tagIds = new Set(tags.map((tg) => tg.id));
-    const statusIds = new Set(sortedTaskStatuses.map((s) => s.id));
-    const cleaned: StoredFilters = {
-      ...filters,
-      tagFilters: filters.tagFilters.filter((id) => tagIds.has(id)),
-      statusFilters: filters.statusFilters.filter((id) => statusIds.has(id)),
-    };
-    if (
-      cleaned.tagFilters.length !== filters.tagFilters.length ||
-      cleaned.statusFilters.length !== filters.statusFilters.length
-    ) {
-      setStoredFilters(cleaned);
+  // URL first (a link means the same thing for whoever opens it), then what
+  // this person last had, then the project's default. See lib/filters/presets.
+  const { spec, viewMode, activeSlug, modified, unresolvedPreset } = useMemo(
+    () =>
+      resolvePresetState<TaskFilterSpec, ViewMode>({
+        search,
+        presets,
+        stored:
+          filtersLoaded && stored
+            ? {
+                spec: stored,
+                viewMode: stored.viewMode,
+                activePresetSlug: stored.activePresetSlug,
+              }
+            : null,
+        allowedViews: TASK_VIEW_MODES,
+        defaultView: projectDefaultViewMode,
+        fallbackView: "table",
+        emptySpec: EMPTY_TASK_FILTERS,
+        equals: taskFiltersEqual,
+      }),
+    [search, presets, stored, filtersLoaded, projectDefaultViewMode]
+  );
+
+  // Fetch guild tags for filtering
+  const { data: tags = [], isSuccess: tagsLoaded, isError: tagsFailed } = useTags();
+
+  /**
+   * The filters actually applied, with ids that no longer resolve dropped.
+   *
+   * A deleted tag or a removed status does NOT quietly stop narrowing: it is
+   * still sent as `tag_ids in (42)`, which matches nothing, so the list goes
+   * empty and the control that would explain why has no option left to render.
+   *
+   * Pruning is derived rather than written back — the values may have come
+   * from a shared preset, and rewriting that on someone's behalf (or marking
+   * it modified) is not this component's call. Editing any filter persists the
+   * pruned set, so it heals on the first change.
+   *
+   * The two lookups fail differently. Statuses arrive as a prop, so an empty
+   * list means "not loaded yet" and nothing is pruned. Tags are fetched: while
+   * that request is in flight the filter stands, but if it *fails* the tag
+   * filter is dropped rather than trusted, because an id that cannot be
+   * checked is an id that may be hiding every task in the project. Showing
+   * more than was asked for is recoverable; showing an unexplained empty list
+   * is not.
+   */
+  const appliedSpec = useMemo(() => {
+    const statusIds = new Set(sortedTaskStatuses.map((status) => status.id));
+    const status_ids =
+      sortedTaskStatuses.length > 0
+        ? spec.status_ids.filter((id) => statusIds.has(id))
+        : spec.status_ids;
+
+    let tag_ids = spec.tag_ids;
+    if (tagsLoaded) {
+      const tagIds = new Set(tags.map((tag) => tag.id));
+      tag_ids = spec.tag_ids.filter((id) => tagIds.has(id));
+    } else if (tagsFailed) {
+      tag_ids = [];
     }
-    // Assignee filters are NOT pruned here — the full roster is no longer
-    // fetched (the picker searches server-side), and a dangling assignee id
-    // simply matches no tasks in the `assignee_ids in (...)` filter. Property
-    // filter pruning lives in the property filter UI itself (it needs the
-    // property definitions, which aren't fetched here).
-  }, [filtersLoaded, tagsLoaded, tags, sortedTaskStatuses, filters, setStoredFilters]);
+
+    if (tag_ids.length === spec.tag_ids.length && status_ids.length === spec.status_ids.length) {
+      return spec;
+    }
+    return { ...spec, tag_ids, status_ids };
+  }, [spec, tags, tagsLoaded, tagsFailed, sortedTaskStatuses]);
+
+  // A preset named in the URL becomes this person's current view, so coming
+  // back without the param finds it as they left it. Written once per slug:
+  // the preference write is debounced and optimistic, and re-firing it every
+  // render would race the router.
+  const appliedPresetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!filtersLoaded || !presetsLoaded) return;
+    const slug = search.preset ?? null;
+    if (slug === null || appliedPresetRef.current === slug) return;
+    const preset = presets.find((candidate) => candidate.slug === slug);
+    if (!preset) return;
+    appliedPresetRef.current = slug;
+    patchFilters({ ...preset.filters, activePresetSlug: slug });
+  }, [search.preset, presets, filtersLoaded, presetsLoaded, patchFilters]);
+
+  const setSearchParams = useCallback(
+    (next: { preset?: string; view?: ViewMode }) => {
+      // replace: the back button is for moving between resources, not for
+      // stepping back through filter edits.
+      // resetScroll: naming the preset in the URL is bookkeeping about the
+      // list you are already looking at — the router's default would throw you
+      // back to the top of it on every pick.
+      void navigate({
+        to: ".",
+        search: ((prev: Record<string, unknown>) => ({ ...prev, ...next })) as never,
+        replace: true,
+        resetScroll: false,
+      });
+    },
+    [navigate]
+  );
+
+  /**
+   * Apply ad-hoc filter values.
+   *
+   * The preset stays recorded as where these values came from — that is what
+   * lets the picker say "Incomplete · modified" and offer to fold the change
+   * back into it. But it comes off the URL immediately: a link saying
+   * `?preset=incomplete` has to show the preset, not one person's edit of it.
+   */
+  const applySpec = useCallback(
+    (next: TaskFilterSpec) => {
+      // Record the resolved view and origin preset alongside the values: this
+      // may be the first thing ever written for this person, and the project's
+      // defaults are what they were looking at when they made the edit.
+      patchFilters({ ...next, viewMode, activePresetSlug: activeSlug });
+      setSearchParams({ preset: undefined });
+    },
+    [patchFilters, setSearchParams, viewMode, activeSlug]
+  );
+
+  const selectPreset = useCallback(
+    (slug: string | null) => {
+      const preset = slug ? presets.find((candidate) => candidate.slug === slug) : null;
+      appliedPresetRef.current = slug;
+      patchFilters(
+        preset ? { ...preset.filters, activePresetSlug: preset.slug } : { activePresetSlug: null }
+      );
+      setSearchParams({ preset: preset?.slug });
+    },
+    [presets, patchFilters, setSearchParams]
+  );
+
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const createPreset = useCreateFilterPreset(projectId, {
+    onSuccess: (created) => {
+      setPresetDialogOpen(false);
+      appliedPresetRef.current = created.slug;
+      patchFilters({ activePresetSlug: created.slug });
+      setSearchParams({ preset: created.slug });
+      toast.success(t("filters.presetSaved"));
+    },
+  });
+  const updatePreset = useUpdateFilterPreset(projectId, {
+    onSuccess: () => toast.success(t("filters.presetSaved")),
+  });
+
+  const activePresetName = presets.find((preset) => preset.slug === activeSlug)?.name ?? "";
+
+  /** Fold the current, tweaked filters back into the preset they came from. */
+  const updateActivePreset = useCallback(() => {
+    const active = presets.find((preset) => preset.slug === activeSlug);
+    if (!active) return;
+    updatePreset.mutate({
+      presetId: active.id,
+      data: { filters: specToApi(appliedSpec) },
+    });
+  }, [presets, activeSlug, appliedSpec, updatePreset]);
+
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -249,26 +441,9 @@ export const ProjectTasksSection = ({
   // Badges the filter button while the panel is closed. Archived-included
   // counts: it widens what the list shows, which is as much a departure from
   // the default as narrowing it.
-  const activeFilterCount =
-    assigneeFilters.length +
-    statusFilters.length +
-    tagFilters.length +
-    propertyFilters.length +
-    (dueFilter !== "all" ? 1 : 0) +
-    (showArchived ? 1 : 0);
+  const activeFilterCount = taskFilterCount(appliedSpec);
 
-  const clearFilters = useCallback(
-    () =>
-      patchFilters({
-        assigneeFilters: [],
-        dueFilter: "all",
-        statusFilters: [],
-        tagFilters: [],
-        propertyFilters: [],
-        showArchived: false,
-      }),
-    [patchFilters]
-  );
+  const clearFilters = useCallback(() => applySpec(EMPTY_TASK_FILTERS), [applySpec]);
 
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
@@ -305,30 +480,16 @@ export const ProjectTasksSection = ({
   );
   const [calendarFocusDate, setCalendarFocusDate] = useState(() => new Date());
 
-  // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
-  const conditions: FilterCondition[] = [
-    { field: "project_id", op: "eq", value: projectId },
-    ...(assigneeFilters.length > 0
-      ? [{ field: "assignee_ids", op: "in_" as const, value: assigneeFilters }]
-      : []),
-    ...(statusFilters.length > 0
-      ? [{ field: "task_status_id", op: "in_" as const, value: statusFilters }]
-      : []),
-    ...(tagFilters.length > 0 ? [{ field: "tag_ids", op: "in_" as const, value: tagFilters }] : []),
-    ...propertyFilters.map((entry) => ({
-      field: "property_values" as const,
-      op: entry.op as FilterCondition["op"],
-      value: { property_id: entry.property_id, value: entry.value },
-    })),
-  ];
-  const taskListParams: ListTasksApiV1GGuildIdTasksGetParams = {
-    conditions,
-    page_size: 0,
-    ...(showArchived && { include_archived: true }),
-  };
+  // Fetch tasks with server-side filtering (page_size=0 fetches all for
+  // drag-and-drop). buildTaskListParams is shared with the route loader's
+  // prefetch and the CSV export, so all three ask the same question.
+  const taskListParams = useMemo(
+    () => buildTaskListParams(appliedSpec, { projectId }),
+    [appliedSpec, projectId]
+  );
 
   const tasksQuery = useTasks(taskListParams, {
-    enabled: Number.isFinite(projectId) && filtersLoaded,
+    enabled: Number.isFinite(projectId) && filtersLoaded && presetsLoaded,
   });
 
   const projectTasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -355,34 +516,11 @@ export const ProjectTasksSection = ({
   }, [sortedTaskStatuses]);
 
   const handleViewModeChange = (value: string) => {
-    if (value === "table" || value === "kanban" || value === "calendar") {
-      patchFilters({ viewMode: value });
+    if (TASK_VIEW_MODES.includes(value as ViewMode)) {
+      patchFilters({ viewMode: value as ViewMode });
+      setSearchParams({ view: value as ViewMode });
     }
   };
-  const handleAssigneeFiltersChange = useCallback(
-    (v: string[]) => patchFilters({ assigneeFilters: v }),
-    [patchFilters]
-  );
-  const handleDueFilterChange = useCallback(
-    (v: DueFilterOption) => patchFilters({ dueFilter: v }),
-    [patchFilters]
-  );
-  const handleStatusFiltersChange = useCallback(
-    (v: number[]) => patchFilters({ statusFilters: v }),
-    [patchFilters]
-  );
-  const handleTagFiltersChange = useCallback(
-    (v: number[]) => patchFilters({ tagFilters: v }),
-    [patchFilters]
-  );
-  const handlePropertyFiltersChange = useCallback(
-    (v: PropertyFilterCondition[]) => patchFilters({ propertyFilters: v }),
-    [patchFilters]
-  );
-  const handleShowArchivedChange = useCallback(
-    (v: boolean) => patchFilters({ showArchived: v }),
-    [patchFilters]
-  );
 
   useEffect(() => {
     setLocalOverride(null);
@@ -473,24 +611,43 @@ export const ProjectTasksSection = ({
     setIsComposerOpen(false);
   }, [defaultStatusId]);
 
+  /**
+   * Whether an updated row still belongs in the filtered list.
+   *
+   * Covers the filters that can be decided from the row on its own — status,
+   * its category, and the due window. Anything needing data the row does not
+   * carry (tags, properties) is left to the refetch; the point is that an edit
+   * which moves a task out of view does not leave it sitting there until the
+   * round trip lands.
+   */
+  const stillMatchesFilters = useCallback(
+    (task: TaskRead) => {
+      const { status_ids, status_categories, due } = appliedSpec;
+      if (status_ids.length > 0 && !status_ids.includes(task.task_status_id)) return false;
+      if (status_categories.length > 0 && !status_categories.includes(task.task_status.category)) {
+        return false;
+      }
+      return matchesDueWindow(task.due_date, due);
+    },
+    [appliedSpec]
+  );
+
   // Patch the locally-overridden task list with a server-confirmed update so
-  // the board/calendar reflects it immediately (and drop the task if it no
-  // longer matches the active status filter).
+  // the board/calendar reflects it immediately, dropping the task when it no
+  // longer belongs.
   const applyTaskUpdateToLocal = useCallback(
     (updatedTask: TaskRead) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
-        const matchesFilters =
-          statusFilters.length === 0 || statusFilters.includes(updatedTask.task_status_id);
-        if (matchesFilters) {
+        if (stillMatchesFilters(updatedTask)) {
           const row = taskReadToListRow(updatedTask);
           return base.map((task) => (task.id === row.id ? row : task));
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
     },
-    [projectTasks, statusFilters]
+    [projectTasks, stillMatchesFilters]
   );
 
   const updateTaskStatus = useUpdateTask({
@@ -557,60 +714,24 @@ export const ProjectTasksSection = ({
     [projectTasks, activeTaskId]
   );
 
-  // Client-side filtering for due date (not yet supported server-side)
-  const filteredTasks = useMemo(() => {
-    if (dueFilter === "all") {
-      return tasks;
-    }
-    const now = new Date();
-    return tasks.filter((task) => {
-      if (!task.due_date) {
-        return false;
-      }
-      const taskDueDate = new Date(task.due_date);
-      if (Number.isNaN(taskDueDate.getTime())) {
-        return false;
-      }
-      if (dueFilter === "overdue") {
-        if (taskDueDate >= now) {
-          return false;
-        }
-      } else if (dueFilter === "today") {
-        if (
-          taskDueDate.getFullYear() !== now.getFullYear() ||
-          taskDueDate.getMonth() !== now.getMonth() ||
-          taskDueDate.getDate() !== now.getDate()
-        ) {
-          return false;
-        }
-      } else {
-        const days = dueFilter === "7_days" ? 7 : 30;
-        const windowEnd = new Date(now.getTime());
-        windowEnd.setDate(windowEnd.getDate() + days);
-        if (taskDueDate < now || taskDueDate > windowEnd) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [tasks, dueFilter]);
-
+  // Due-date windows are applied server-side now (see buildTaskConditions), so
+  // the board, the archive count, and the CSV export all agree with the list.
   const groupedTasks = useMemo(() => {
     const groups: Record<number, TaskListRead[]> = {};
     sortedTaskStatuses.forEach((status) => {
       groups[status.id] = [];
     });
-    filteredTasks.forEach((task) => {
+    tasks.forEach((task) => {
       if (!groups[task.task_status_id]) {
         groups[task.task_status_id] = [];
       }
       groups[task.task_status_id].push(task);
     });
     return groups;
-  }, [filteredTasks, sortedTaskStatuses]);
+  }, [tasks, sortedTaskStatuses]);
 
-  // Status filtering is now done server-side, so statusFilteredTasks is just filteredTasks
-  const statusFilteredTasks = filteredTasks;
+  // Filtering is entirely server-side now.
+  const statusFilteredTasks = tasks;
 
   // Map tasks to CalendarEntry[] for the generic CalendarView. Shares the
   // helper used by the initiative calendar so start/due markers, same-day
@@ -651,9 +772,8 @@ export const ProjectTasksSection = ({
 
   // Count of archivable done tasks (non-archived tasks in done category)
   const archivableDoneTasksCount = useMemo(() => {
-    return filteredTasks.filter((task) => task.task_status.category === "done" && !task.is_archived)
-      .length;
-  }, [filteredTasks]);
+    return tasks.filter((task) => task.task_status.category === "done" && !task.is_archived).length;
+  }, [tasks]);
 
   // Count of archivable tasks per done status
   const archivableCountByStatus = useMemo(() => {
@@ -915,7 +1035,10 @@ export const ProjectTasksSection = ({
             /* resumePending: this is the view's single adopter of a stored
                in-flight job (the selection button must not double-handle it). */
             <ExportTasksButton
-              params={{ conditions, include_archived: showArchived }}
+              params={{
+                conditions: buildTaskConditions(appliedSpec, { projectId }),
+                include_archived: appliedSpec.include_archived,
+              }}
               resumePending
             />
           }
@@ -943,29 +1066,73 @@ export const ProjectTasksSection = ({
           }
         />
 
+        {unresolvedPreset ? (
+          <Alert variant="default" className="mb-2">
+            <AlertDescription>{t("filters.presetUnavailable")}</AlertDescription>
+          </Alert>
+        ) : null}
+
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
           title={t("tasks.filtersHeading")}
           onClear={clearFilters}
           activeCount={activeFilterCount}
+          leading={
+            <ToolPresetSelect
+              presets={presets}
+              activeSlug={activeSlug}
+              modified={modified}
+              onSelect={selectPreset}
+              label={t("filters.preset")}
+              customLabel={t("filters.customFilters")}
+              modifiedLabel={t("filters.modified")}
+            />
+          }
+          actions={
+            <>
+              {/* Picking the preset again in the select can't undo an edit —
+                  it is already the selected value — so getting back to it is
+                  its own control, and it is for everyone, not just curators. */}
+              {activeSlug && modified ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => selectPreset(activeSlug)}
+                  title={activePresetName}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {t("filters.resetToPreset")}
+                </Button>
+              ) : null}
+              {canManagePresets ? (
+                <>
+                  {activeSlug && modified ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={updateActivePreset}
+                      disabled={updatePreset.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                      {t("filters.updatePreset", { name: activePresetName })}
+                    </Button>
+                  ) : null}
+                  <Button variant="ghost" size="sm" onClick={() => setPresetDialogOpen(true)}>
+                    <BookmarkPlus className="h-4 w-4" />
+                    {t("filters.saveAsPreset")}
+                  </Button>
+                </>
+              ) : null}
+            </>
+          }
         >
           <ProjectTasksFilters
             taskStatuses={sortedTaskStatuses}
             projectId={projectId}
             tags={tags}
-            assigneeFilters={assigneeFilters}
-            dueFilter={dueFilter}
-            statusFilters={statusFilters}
-            tagFilters={tagFilters}
-            propertyFilters={propertyFilters}
-            showArchived={showArchived}
-            onAssigneeFiltersChange={handleAssigneeFiltersChange}
-            onDueFilterChange={handleDueFilterChange}
-            onStatusFiltersChange={handleStatusFiltersChange}
-            onTagFiltersChange={handleTagFiltersChange}
-            onPropertyFiltersChange={handlePropertyFiltersChange}
-            onShowArchivedChange={handleShowArchivedChange}
+            value={appliedSpec}
+            onChange={applySpec}
           />
         </ToolFilterPanel>
 
@@ -1005,7 +1172,7 @@ export const ProjectTasksSection = ({
                 conditions: [{ field: "id", op: "in_", value: selectedTasks.map((t) => t.id) }],
                 // Selection came from the visible list, which may include
                 // archived rows when the toggle is on.
-                include_archived: showArchived,
+                include_archived: appliedSpec.include_archived,
               }}
               onEdit={() => setIsBulkEditDialogOpen(true)}
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
@@ -1148,6 +1315,19 @@ export const ProjectTasksSection = ({
               onCancel={() => setIsBulkEditDialogOpen(false)}
             />
           </Dialog>
+          <ProjectFilterPresetDialog
+            open={presetDialogOpen}
+            onOpenChange={setPresetDialogOpen}
+            isSubmitting={createPreset.isPending}
+            onSubmit={({ name, isDefault }) =>
+              createPreset.mutate({
+                name,
+                is_default: isDefault,
+                filters: specToApi(appliedSpec),
+              })
+            }
+          />
+
           <BulkEditTaskTagsDialog
             open={isBulkEditTagsDialogOpen}
             onOpenChange={setIsBulkEditTagsDialogOpen}

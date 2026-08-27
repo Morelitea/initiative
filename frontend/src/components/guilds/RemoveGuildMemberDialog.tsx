@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -43,6 +44,7 @@ export const RemoveGuildMemberDialog = ({
 }: RemoveGuildMemberDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
   const guildId = useActiveGuildId();
+  const { refreshGuilds } = useGuilds();
   const [removing, setRemoving] = useState(false);
 
   const handleRemove = async () => {
@@ -51,6 +53,10 @@ export const RemoveGuildMemberDialog = ({
     try {
       await deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId);
       void invalidateGuildMembers();
+      // The guild entry carries member_count, which the invite surfaces read
+      // to tell a full guild from one with a seat free. It is provider state,
+      // not a query, so it refreshes rather than invalidates.
+      void refreshGuilds();
       toast.success(t("removeMember.removed", { email }));
       onSuccess?.();
       onOpenChange(false);

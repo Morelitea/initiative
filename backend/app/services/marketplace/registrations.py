@@ -26,6 +26,8 @@ request-path write grant.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -43,6 +45,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.db import session as db_session
 from app.core.encryption import SALT_APP_SERVICE_SECRET, decrypt_field, encrypt_field
 from app.core.messages import AppServiceMessages
 from app.core.security import app_platform_signing_enabled
@@ -68,6 +71,7 @@ __all__ = [
     "normalize_base_url",
     "normalize_delegation_jwks",
     "normalize_embed_origin",
+    "sign_for_app",
     "normalize_grants",
     "normalize_origin",
     "normalize_origins",
@@ -381,6 +385,36 @@ async def _by_public_id(
         )
     )
     return result.first()
+
+
+async def sign_for_app(public_id: str, message: str) -> Optional[str]:
+    """MAC one value under an app's shared secret, without handing it over.
+
+    The registration's secret is how Initiative and one app already prove things
+    to each other, and this borrows it for a value that travels through a
+    *browser* rather than over the channel: the address an app sends a member
+    back to when a vendor flow ends.
+
+    Signed rather than merely stated because the browser carries it, so anybody
+    can propose one. An app that followed whatever the query string offered
+    would be a redirector on a hostname people trust, reached through a real
+    vendor login — so the app checks this MAC and refuses an address Initiative
+    did not write.
+
+    Runs on the system engine, like everything else that touches this table, and
+    returns the MAC alone: the secret does not leave this function. ``None``
+    means there is nothing to sign with — no such registration, or one wired up
+    without a secret — and the caller sends no address rather than an unsigned
+    one.
+    """
+    async with db_session.AdminSessionLocal() as session:
+        row = await _by_public_id(session, public_id)
+        if row is None or not row.secret_encrypted:
+            return None
+        secret = decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET)
+    return hmac.new(
+        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
 
 
 def decrypt_secret(row: AppServiceRegistration) -> str:

@@ -663,14 +663,19 @@ async def create_guild_invite(
         user_id=current_user.id,
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
-    invite = await guilds_service.create_guild_invite(
-        session,
-        guild_id=guild_id,
-        created_by=current_user.id,
-        expires_at=invite_in.expires_at,
-        max_uses=invite_in.max_uses,
-        invitee_email=invite_in.invitee_email,
-    )
+    try:
+        invite = await guilds_service.create_guild_invite(
+            session,
+            guild_id=guild_id,
+            created_by=current_user.id,
+            expires_at=invite_in.expires_at,
+            max_uses=invite_in.max_uses,
+            invitee_email=invite_in.invitee_email,
+        )
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     await session.commit()
     return GuildInviteRead.model_validate(invite)
 

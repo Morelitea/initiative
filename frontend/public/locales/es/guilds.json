@@ -13,11 +13,18 @@
   "guildsHeading": "Gremios",
   "expandGuilds": "Expandir lista de gremios",
   "collapseGuilds": "Contraer lista de gremios",
+  "reorder": "Reordenar",
+  "reorderGuilds": "Reordenar gremios",
+  "doneReordering": "Listo",
+  "reorderHint": "Arrastra los gremios para reordenarlos y luego toca Listo.",
+  "dragToReorder": "Arrastra para reordenar {{name}}",
   "memberCount_one": "{{count}} miembro",
   "memberCount_other": "{{count}} miembros",
   "viewInitiatives": "Ver iniciativas",
   "viewMembers": "Ver miembros",
   "inviteMembers": "Invitar miembros",
+  "inviteMembersGuildFull": "Invitar miembros (gremio lleno)",
+  "inviteMembersUpgrade": "Mejorar para invitar",
   "creatingInvite": "Creando invitación...",
   "createInitiative": "Crear iniciativa",
   "copyGuildId": "Copiar ID del gremio",
@@ -131,6 +138,11 @@
     "noActiveInvites": "No hay invitaciones activas.",
     "unableToLoadInvites": "No se pudieron cargar las invitaciones.",
     "unableToCreateInvite": "No se pudo crear la invitación.",
+    "inviteSeatsFull": "Las {{max}} plazas están ocupadas. Elimina a un miembro o pide a un administrador de la plataforma que aumente el límite antes de crear otra invitación.",
+    "inviteSeatsFullPlan_one": "El plan {{plan}} incluye una sola plaza y ya está ocupada. Mejora tu plan para invitar a gente a este gremio.",
+    "inviteSeatsFullPlan_other": "Las {{count}} plazas del plan {{plan}} están ocupadas. Mejora tu plan para invitar a más gente.",
+    "inviteSeatsFullUpgrade_one": "Tu plan incluye una sola plaza y ya está ocupada. Mejora tu plan para invitar a gente a este gremio.",
+    "inviteSeatsFullUpgrade_other": "Las {{count}} plazas de tu plan están ocupadas. Mejora tu plan para invitar a más gente.",
     "unableToDeleteInvite": "No se pudo eliminar la invitación.",
     "inviteLinkCopied": "Enlace de invitación copiado al portapapeles.",
     "copyInviteLink": "Copiar enlace de invitación",
@@ -251,6 +263,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} está actualmente en modo de solo lectura. Puedes consultar todo, pero los cambios están desactivados."
+  },
+  "billingSetup": {
+    "opening": "Abriendo la facturación para que elijas un plan para {{guild}}."
   },
   "usagePanel": {
     "title": "Uso",

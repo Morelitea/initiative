@@ -13,11 +13,18 @@
   "guildsHeading": "Guilds",
   "expandGuilds": "Expand guild list",
   "collapseGuilds": "Collapse guild list",
+  "reorder": "Reorder",
+  "reorderGuilds": "Reorder guilds",
+  "doneReordering": "Done",
+  "reorderHint": "Drag guilds to reorder them, then tap Done.",
+  "dragToReorder": "Drag to reorder {{name}}",
   "memberCount_one": "{{count}} member",
   "memberCount_other": "{{count}} members",
   "viewInitiatives": "View initiatives",
   "viewMembers": "View members",
   "inviteMembers": "Invite members",
+  "inviteMembersGuildFull": "Invite members (guild full)",
+  "inviteMembersUpgrade": "Upgrade to invite members",
   "creatingInvite": "Creating invite...",
   "createInitiative": "Create initiative",
   "copyGuildId": "Copy guild ID",
@@ -131,6 +138,11 @@
     "noActiveInvites": "No active invites.",
     "unableToLoadInvites": "Unable to load invites.",
     "unableToCreateInvite": "Unable to create invite.",
+    "inviteSeatsFull": "All {{max}} seats are in use. Remove a member, or ask a platform admin to raise the limit, before creating another invite.",
+    "inviteSeatsFullPlan_one": "The {{plan}} plan includes a single seat, and it's taken. Upgrade to invite people into this guild.",
+    "inviteSeatsFullPlan_other": "All {{count}} seats on the {{plan}} plan are in use. Upgrade to invite more people.",
+    "inviteSeatsFullUpgrade_one": "Your plan includes a single seat, and it's taken. Upgrade to invite people into this guild.",
+    "inviteSeatsFullUpgrade_other": "All {{count}} seats on your plan are in use. Upgrade to invite more people.",
     "unableToDeleteInvite": "Unable to delete invite.",
     "inviteLinkCopied": "Invite link copied to clipboard.",
     "copyInviteLink": "Copy invite link",
@@ -251,6 +263,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} is currently read-only. You can browse everything, but changes are disabled."
+  },
+  "billingSetup": {
+    "opening": "Opening billing so you can choose a plan for {{guild}}."
   },
   "usagePanel": {
     "title": "Usage",

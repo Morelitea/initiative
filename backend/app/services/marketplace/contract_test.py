@@ -1,30 +1,30 @@
-"""The schema describes the manifest the validator actually accepts.
+"""The vendored contract, and the manifest this build actually accepts.
 
-Two kinds of case, and the second is the one that earns its keep:
+The vocabulary is declared once, in the app-kit, and vendored here. The kit
+generates a JSON Schema from the same file. So there are three things that must
+agree, and this module is where they are made to:
 
-* **Derivation** — every vocabulary and cap in the schema reads from the
-  constant it came from, so widening a rule in one place cannot leave the schema
-  describing the old one.
+* **Derivation** — every vocabulary and cap this validator enforces reads from
+  the vendored contract, and the vendored schema was built from that same
+  contract. A schema and contract vendored from different kit revisions fail
+  here.
 * **Agreement** — a corpus of manifests run through both. Anything the validator
   accepts must satisfy the schema, or an author would be told their working
   manifest is wrong; anything the schema rejects for a reason it *can* express
   must be refused by the validator too, or the schema would be inventing a rule.
 
-The asymmetry is deliberate and stated in the module: schema-valid is necessary,
-not sufficient. The cases at the bottom pin the specific rules that only the
-validator enforces, so that boundary is written down rather than discovered.
-"""
+The asymmetry is deliberate: schema-valid is necessary, not sufficient. The
+cases at the bottom pin the specific rules that only the validator enforces, so
+that boundary is written down rather than discovered.
 
-import json
-from pathlib import Path
+The field inventory — every term the contract declares having a handler here,
+and every handler having a term — lives in :mod:`contract_coverage_test`.
+"""
 
 import pytest
 from jsonschema import Draft202012Validator
 
-from app.services.marketplace.manifest_schema import (
-    SCHEMA_ID,
-    build_manifest_schema,
-)
+from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
     MAX_PATH_LENGTH,
@@ -33,17 +33,21 @@ from app.services.marketplace.manifest_values import (
 from app.services.marketplace.definitions import normalize_listing_definition
 from app.services.marketplace.widget_meta import MAX_LOCALES, MAX_TEXT_LENGTH
 from app.services.marketplace.service_apps import (
+    ACTOR_KINDS,
     APP_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
+    DIRECTIONS,
     EMBED_CAPABILITIES,
     FEATURES,
     FIELD_TYPES,
     GUILD_WIDE_VISIBILITIES,
     MAX_CONNECTIONS,
-    MAX_DATA_SOURCES,
+    MAX_ENDPOINTS,
+    MAX_RETURNS_PER_ENDPOINT,
     MAX_EMBEDS,
     MAX_WIDGETS,
     PARAM_TYPES,
+    RETURN_TYPES,
     SURFACE_SCOPES,
     VISIBILITIES,
 )
@@ -59,14 +63,11 @@ def platform_accepts(manifest) -> None:
     normalize_listing_definition("app", manifest)
 
 
-SCHEMA_FILE = Path(__file__).resolve().parents[3] / "schemas" / "app-manifest.json"
-
-
 # Unannotated on purpose: `jsonschema` builds its validator classes at runtime,
 # so the name is not a type the checker can resolve.
 @pytest.fixture(scope="module")
 def validator():
-    schema = build_manifest_schema()
+    schema = contract.manifest_schema()
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
@@ -87,14 +88,14 @@ def _manifest(**overrides):
 
 @pytest.mark.unit
 def test_the_schema_is_a_valid_2020_12_document():
-    Draft202012Validator.check_schema(build_manifest_schema())
+    Draft202012Validator.check_schema(contract.manifest_schema())
 
 
 @pytest.mark.unit
 def test_every_ref_resolves():
     """A `$ref` naming a definition that isn't there fails at use rather than at
     load, so it would survive a test that only validated the happy path."""
-    schema = build_manifest_schema()
+    schema = contract.manifest_schema()
     defs = set(schema["$defs"])
 
     def walk(node):
@@ -113,12 +114,20 @@ def test_every_ref_resolves():
 
 
 @pytest.mark.unit
-def test_the_committed_file_matches_the_generator():
-    """CI regenerates and diffs; this says the same thing where it is cheap to
-    read, so a vocabulary change with no re-export fails beside the change."""
-    assert SCHEMA_FILE.exists(), f"{SCHEMA_FILE} is missing"
-    on_disk = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
-    assert on_disk == build_manifest_schema()
+def test_the_vendored_pair_came_from_one_contract():
+    """The schema is generated from the contract, so the two are vendored as a
+    pair. Refreshing one without the other leaves this build enforcing a
+    vocabulary the schema does not describe."""
+    schema_caps = {
+        contract.cap("connections"): contract.manifest_schema()["properties"][
+            "connections"
+        ]["maxItems"],
+        contract.cap("endpoints"): contract.manifest_schema()["properties"][
+            "endpoints"
+        ]["maxItems"],
+    }
+    for from_contract, from_schema in schema_caps.items():
+        assert from_contract == from_schema
 
 
 # --- derived, not restated --------------------------------------------------
@@ -126,7 +135,7 @@ def test_the_committed_file_matches_the_generator():
 
 @pytest.mark.unit
 def test_vocabularies_come_from_the_validator():
-    schema = build_manifest_schema()
+    schema = contract.manifest_schema()
     props = schema["properties"]
     defs = schema["$defs"]
 
@@ -136,8 +145,11 @@ def test_vocabularies_come_from_the_validator():
     )
     assert set(defs["connection"]["properties"]["scope"]["enum"]) == CONNECTION_SCOPES
     assert set(defs["connectionField"]["properties"]["type"]["enum"]) == FIELD_TYPES
-    assert set(defs["sourceParam"]["properties"]["type"]["enum"]) == PARAM_TYPES
-    assert set(defs["dataSource"]["properties"]["visibility"]["enum"]) == (
+    assert set(defs["endpointParam"]["properties"]["type"]["enum"]) == PARAM_TYPES
+    assert set(defs["endpointReturn"]["properties"]["type"]["enum"]) == RETURN_TYPES
+    assert set(defs["endpoint"]["properties"]["direction"]["enum"]) == DIRECTIONS
+    assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
+    assert set(defs["endpoint"]["properties"]["visibility"]["enum"]) == (
         GUILD_WIDE_VISIBILITIES
     )
     assert set(defs["embed"]["properties"]["visibility"]["enum"]) == VISIBILITIES
@@ -149,9 +161,15 @@ def test_vocabularies_come_from_the_validator():
 
 @pytest.mark.unit
 def test_caps_come_from_the_validator():
-    props = build_manifest_schema()["properties"]
+    props = contract.manifest_schema()["properties"]
     assert props["connections"]["maxItems"] == MAX_CONNECTIONS
-    assert props["data_sources"]["maxItems"] == MAX_DATA_SOURCES
+    assert props["endpoints"]["maxItems"] == MAX_ENDPOINTS
+    assert (
+        contract.manifest_schema()["$defs"]["endpoint"]["properties"]["returns"][
+            "maxItems"
+        ]
+        == MAX_RETURNS_PER_ENDPOINT
+    )
     assert props["widgets"]["maxItems"] == MAX_WIDGETS
     assert props["embeds"]["maxItems"] == MAX_EMBEDS
 
@@ -160,21 +178,21 @@ def test_caps_come_from_the_validator():
 def test_a_secret_is_not_a_query_parameter():
     """`secret` is a connection field type and deliberately not a param type;
     the schema must not blur the two by sharing one field definition."""
-    defs = build_manifest_schema()["$defs"]
+    defs = contract.manifest_schema()["$defs"]
     assert "secret" in defs["connectionField"]["properties"]["type"]["enum"]
-    assert "secret" not in defs["sourceParam"]["properties"]["type"]["enum"]
+    assert "secret" not in defs["endpointParam"]["properties"]["type"]["enum"]
     # And only a connection field is written back by the app.
     assert "managed" in defs["connectionField"]["properties"]
-    assert "managed" not in defs["sourceParam"]["properties"]
+    assert "managed" not in defs["endpointParam"]["properties"]
 
 
 @pytest.mark.unit
 def test_lengths_come_from_the_validator():
-    defs = build_manifest_schema()["$defs"]
+    defs = contract.manifest_schema()["$defs"]
     assert defs["identifier"]["maxLength"] == MAX_IDENTIFIER_LENGTH
     assert defs["path"]["maxLength"] == MAX_PATH_LENGTH
     assert (
-        build_manifest_schema()["properties"]["service"]["properties"]["public_id"][
+        contract.manifest_schema()["properties"]["service"]["properties"]["public_id"][
             "maxLength"
         ]
         == MAX_PUBLIC_ID_LENGTH
@@ -183,8 +201,12 @@ def test_lengths_come_from_the_validator():
 
 @pytest.mark.unit
 def test_the_schema_names_itself_stably():
-    """The SDK keys generated types on this; a drifting `$id` invalidates them."""
-    assert build_manifest_schema()["$id"] == SCHEMA_ID
+    """An author points a `$schema` at this and a generator keys a cache on it,
+    so a drifting `$id` invalidates both."""
+    assert (
+        contract.manifest_schema()["$id"]
+        == "https://initiative.morels.me/schemas/app-manifest-v1.json"
+    )
 
 
 # --- the two agree ----------------------------------------------------------
@@ -193,7 +215,7 @@ ACCEPTED = [
     pytest.param(_manifest(), id="minimal"),
     pytest.param(
         _manifest(
-            features=["data"],
+            features=["endpoints"],
             connections=[
                 {
                     "id": "api",
@@ -205,13 +227,13 @@ ACCEPTED = [
                     "access_hint": {"api": "GitHub", "scopes": ["repo:read"]},
                 }
             ],
-            data_sources=[
+            endpoints=[
                 {
-                    "id": "issues",
-                    "path": "/data/issues",
+                    "id": "app.acme.tracker.issues",
+                    "direction": "read",
                     "visibility": "member",
                     "cache_ttl_seconds": 300,
-                    "params_schema": [
+                    "params": [
                         {
                             "key": "state",
                             "type": "select",
@@ -223,7 +245,7 @@ ACCEPTED = [
                 }
             ],
         ),
-        id="static-connection-and-source",
+        id="static-connection-and-read",
     ),
     pytest.param(
         _manifest(
@@ -253,11 +275,20 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["events", "automations"],
-            events=["app.acme.tracker.issue-opened"],
-            automation={"nodes": [{"anything": "the service understands"}]},
+            features=["endpoints"],
+            endpoints=[
+                {"id": "app.acme.tracker.issue-opened", "direction": "emit"},
+                {
+                    "id": "app.acme.tracker.issue-open",
+                    "direction": "write",
+                    "actors": ["member", "installation"],
+                    "params": [
+                        {"key": "title", "type": "string", "label": {"en": "T"}}
+                    ],
+                },
+            ],
         ),
-        id="events-and-opaque-automation",
+        id="every-direction-in-one-block",
     ),
     # The three the platform takes rather than refuses. Each was a real
     # over-strict rule in the first cut of this schema, caught in review: a
@@ -265,15 +296,27 @@ ACCEPTED = [
     # is broken.
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "/d", "cache_ttl_seconds": 10_000_000}],
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
+                    "cache_ttl_seconds": 10_000_000,
+                }
+            ],
         ),
         id="cache-ttl-clamped-not-refused",
     ),
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "/d", "invented_by_a_newer_app": 1}],
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
+                    "invented_by_a_newer_app": 1,
+                }
+            ],
             some_future_block={"whatever": True},
         ),
         id="unknown-keys-dropped-not-refused",
@@ -289,7 +332,7 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["data"],
+            features=["endpoints"],
             connections=[
                 {
                     "id": "api",
@@ -298,10 +341,10 @@ ACCEPTED = [
                     "fields": [{"key": "t", "type": "secret", "label": {"en": "T"}}],
                 }
             ],
-            data_sources=[
+            endpoints=[
                 {
-                    "id": "s",
-                    "path": "/d",
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
                     # One operator plus a key from a newer manifest revision.
                     # The platform reads the operator and drops the rest, so a
                     # rule that counted properties would refuse this.
@@ -313,14 +356,14 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["data", "widgets", "dashboards"],
-            data_sources=[{"id": "s", "path": "/d"}],
+            features=["endpoints", "widgets", "dashboards"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
             widgets=[
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
                     "module_source": "export default () => ({});",
-                    "sources": ["s"],
+                    "endpoints": ["app.acme.tracker.s"],
                 }
             ],
             dashboards=[
@@ -339,7 +382,7 @@ ACCEPTED = [
                             "title": "One",
                             "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
                             "binding": {
-                                "source_id": "s",
+                                "endpoint_id": "app.acme.tracker.s",
                                 "params": {"label": "bug", "limit": 5, "open": True},
                             },
                         }
@@ -351,14 +394,14 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["data", "widgets", "dashboards"],
-            data_sources=[{"id": "s", "path": "/d"}],
+            features=["endpoints", "widgets", "dashboards"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
             widgets=[
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
                     "module_source": "export default () => ({});",
-                    "sources": ["s"],
+                    "endpoints": ["app.acme.tracker.s"],
                 }
             ],
             dashboards=[
@@ -368,7 +411,9 @@ ACCEPTED = [
                     "name": "Overview",
                     # No description, layout, widget id or grid: a publisher who
                     # wants one tile per widget writes almost nothing.
-                    "widgets": [{"type": "w", "binding": {"source_id": "s"}}],
+                    "widgets": [
+                        {"type": "w", "binding": {"endpoint_id": "app.acme.tracker.s"}}
+                    ],
                 }
             ],
         ),
@@ -402,17 +447,22 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "https://elsewhere.test/data"}],
+            features=["endpoints"],
+            # Direction decides who may call it and whether an answer may be
+            # cached, so a value outside the closed set is not a nuance the
+            # platform could resolve later.
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "sideways"}],
         ),
-        id="path-that-is-an-address",
+        id="direction-outside-the-vocabulary",
     ),
     pytest.param(
-        _manifest(features=["data"], data_sources=[{"id": "s", "path": "/a/../b"}]),
+        _manifest(features=["endpoints"], endpoints=[{"id": "app.acme.tracker.s"}]),
         id="path-climbing-out",
     ),
     pytest.param(
-        _manifest(features=["data"], data_sources=[{"id": "UPPER", "path": "/x"}]),
+        _manifest(
+            features=["endpoints"], endpoints=[{"id": "UPPER", "direction": "read"}]
+        ),
         id="identifier-out-of-charset",
     ),
     pytest.param(
@@ -433,11 +483,11 @@ REFUSED_BY_BOTH = [
     # counts its properties.
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[
+            features=["endpoints"],
+            endpoints=[
                 {
-                    "id": "s",
-                    "path": "/d",
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
                     "requires": {"all_of": ["a"], "any_of": ["b"]},
                 }
             ],
@@ -446,8 +496,10 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(
-            features=["data"],
-            data_sources=[{"id": "s", "path": "/d", "requires": {}}],
+            features=["endpoints"],
+            endpoints=[
+                {"id": "app.acme.tracker.s", "direction": "read", "requires": {}}
+            ],
         ),
         id="requires-naming-no-operator",
     ),
@@ -508,27 +560,30 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
     "manifest,why",
     [
         (
-            _manifest(features=["data"]),
+            _manifest(features=["endpoints"]),
             "a declared feature with no block behind it",
         ),
         (
             _manifest(
-                features=["widgets", "data"],
-                data_sources=[{"id": "known", "path": "/d"}],
+                features=["widgets", "endpoints"],
+                endpoints=[{"id": "app.acme.tracker.known", "direction": "read"}],
                 widgets=[
                     {
                         "id": "w",
                         "meta": {"name": {"en": "W"}},
                         "module_source": "export default () => ({})",
-                        "sources": ["absent"],
+                        "endpoints": ["app.acme.tracker.absent"],
                     }
                 ],
             ),
-            "a widget binding a data source that does not exist",
+            "a widget binding a read endpoint that does not exist",
         ),
         (
-            _manifest(features=["events"], events=["app.someone-else.thing"]),
-            "an event namespaced under another app",
+            _manifest(
+                features=["endpoints"],
+                endpoints=[{"id": "app.someone-else.thing", "direction": "emit"}],
+            ),
+            "an endpoint namespaced under another app",
         ),
     ],
 )
@@ -538,3 +593,41 @@ def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):
     assert list(validator.iter_errors(manifest)) == [], f"schema caught it: {why}"
     with pytest.raises(ValueError):
         platform_accepts(manifest)
+
+
+@pytest.mark.unit
+def test_a_return_is_not_a_control():
+    """A select is a control, and the value behind one is a string — so it is a
+    param type and never a return type. The schema must not blur the two."""
+    defs = contract.manifest_schema()["$defs"]
+    assert "select" in defs["endpointParam"]["properties"]["type"]["enum"]
+    assert "select" not in defs["endpointReturn"]["properties"]["type"]["enum"]
+    assert "secret" not in defs["endpointReturn"]["properties"]["type"]["enum"]
+
+
+@pytest.mark.unit
+def test_every_direction_may_describe_itself_and_its_answer():
+    """``label`` and ``returns`` sit on the endpoint rather than beside the
+    caller-side keys, because an emission has neither caller nor response and
+    still needs both — it is the one endpoint chosen without being called."""
+    endpoint = contract.manifest_schema()["$defs"]["endpoint"]["properties"]
+    for key in ("label", "description", "returns", "group", "needs_subject"):
+        assert key in endpoint, key
+    # None of them is required: an app that says nothing is still a valid app.
+    assert set(contract.manifest_schema()["$defs"]["endpoint"]["required"]) == {
+        "id",
+        "direction",
+    }
+
+
+@pytest.mark.unit
+def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
+    """A manifest describes the API. The control a consumer draws is the
+    consumer's, written in its own words — so nothing here names one."""
+    defs = contract.manifest_schema()["$defs"]
+    param = defs["endpointParam"]["properties"]
+    assert "list" in param
+    for drawn in ("picker", "resource", "source", "constraints"):
+        assert drawn not in param, drawn
+    # A credential is typed once; there is no list of them.
+    assert "list" not in defs["connectionField"]["properties"]

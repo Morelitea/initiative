@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.3] - 2026-08-26
+
+### Added
+
+- **Projects have saved filter presets, and a task view can be linked.** Every project now starts with four presets — All, Incomplete, Unassigned, and Mine — at the top of the task filters, and picking one puts it in the address bar, so a link shows a teammate the same tasks it showed you. The view (table, board, calendar) is linkable the same way. Edit the filters of a preset you are showing and it says so; "Reset to preset" puts them back. Project managers, the project's owner, and guild admins can save the filters currently on screen as a new preset for everyone, fold changes back into an existing one, rename or reorder them, and set which preset and which view the project opens on, under the project's Views settings. Everyone else picks from them and keeps their own filters as before.
+- **Tasks can be filtered by whether anyone is on them.** The assignee filter gains "Assigned to me" and "Unassigned" alongside the people in it. Neither names a user — the server works out who is asking, and who nobody is — so a filter built on them means the same thing for whoever opens the link. Dashboard widgets can filter on unassigned work too.
+- **The status filter can ask by category as well as by name.** Under the project's own statuses, the same dropdown now offers Backlog / To do / In progress / Done. Those ask about the *kind* of column rather than a named one, so a preset built on them keeps meaning the same thing in a project whose columns are named differently. Picking from both halves widens the list rather than contradicting itself.
+
+### Changed
+
+- **Due-date filters now apply everywhere the list does.** Filtering by overdue or due-soon was applied only to the visible list, so the board's per-column counts, the "archive done tasks" count, and CSV exports all quietly ignored it. The filter is now applied when the tasks are fetched, so everything agrees. "Overdue" now means due before today rather than before this exact moment.
+- Adjusted background colors to reduce banding in Chrome based browsers.
+- **A full guild no longer hands out invites.** When a guild has as many members as its user limit allows, the invite it would mint could only fail when someone tried to redeem it. Creating one is now refused, and both places an admin makes an invite — the guild's context menu and Settings → Users — say the guild is full instead of offering the action.
+
+### Fixed
+
+- **Several filter dropdowns had no name for screen readers.** The assignee, status and tag filters each sat beside a label that pointed at nothing, so all three were announced unnamed. They are now properly labelled, on project tasks and everywhere else those pickers are used.
+- **The project page prefetched the wrong task list.** Opening a project prefetched tasks with filters that had drifted from the ones the page actually applies — it dropped tag and property filters and encoded the rest differently — so the prefetched result was never used and the list was always fetched a second time. Both now ask the same question.
+- **Deleting a task drops you back in its project.** Confirming a delete on a task's page sent you out to the initiative's projects list, away from the sibling tasks you were working through. It now returns to the project the task was in.
+- **Holding a guild on a phone opens its menu again.** Press-and-hold on a guild in the left rail was being taken as the start of a drag, so the guild menu — invite members, guild settings, leave guild — could not be reached by touch at all. Holding now opens the menu, and reordering has its own way in: pick "Reorder guilds" from that menu, or tap Reorder in the expanded guild list. While reordering, guilds can be dragged with a finger and a tap moves a guild instead of switching to it, until you tap Done. Reordering with a mouse is unchanged.
+
 ## [0.63.2] - 2026-08-25
 
 ### Added

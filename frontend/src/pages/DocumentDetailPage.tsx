@@ -1299,8 +1299,8 @@ export const DocumentDetailPage = () => {
         ) : (
           <div
             className={cn(
-              isFullscreen &&
-                "fixed inset-0 z-50 m-0! flex flex-col gap-4 overflow-hidden bg-background p-4"
+              "flex flex-col gap-4",
+              isFullscreen && "fixed inset-0 z-50 m-0! overflow-hidden bg-background p-4"
             )}
           >
             {/* Collaboration status - shown between featured image and editor.
@@ -1409,7 +1409,10 @@ export const DocumentDetailPage = () => {
                   onSerializedChange={handleContentChange}
                   readOnly={!canEditDocument}
                   showToolbar={canEditDocument}
-                  className={cn("max-h-[80vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
+                  className={cn(
+                    "max-h-[80vh] bg-card",
+                    isFullscreen && "h-full max-h-none min-h-0 flex-1"
+                  )}
                   collaborative={collaborationEnabled && collaboration.isReady}
                   providerFactory={collaboration.providerFactory}
                   // Always track changes so contentState stays updated for periodic saves

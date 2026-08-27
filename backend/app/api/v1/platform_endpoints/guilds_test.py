@@ -682,6 +682,66 @@ async def test_create_guild_invite_as_member_forbidden(
 
 
 @pytest.mark.integration
+async def test_create_guild_invite_at_user_limit_forbidden(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild whose membership has reached ``max_users`` mints no new invite."""
+    user = await create_user(session, email="full-admin@example.com")
+    guild = await create_guild(session, name="Full Guild", max_users=1)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/invites",
+        headers=get_auth_headers(user),
+        json={"max_uses": 1},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+@pytest.mark.integration
+async def test_create_guild_invite_below_user_limit_allowed(
+    client: AsyncClient, session: AsyncSession
+):
+    """A seat still free leaves invite minting untouched."""
+    user = await create_user(session, email="roomy-admin@example.com")
+    guild = await create_guild(session, name="Roomy Guild", max_users=2)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/invites",
+        headers=get_auth_headers(user),
+        json={"max_uses": 1},
+    )
+
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.integration
+async def test_create_guild_invite_uncapped_guild_allowed(
+    client: AsyncClient, session: AsyncSession
+):
+    """A ``NULL`` cap is unlimited, however many members the guild already has."""
+    user = await create_user(session, email="uncapped-admin@example.com")
+    guild = await create_guild(session, name="Uncapped Guild")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    for index in range(3):
+        member = await create_user(session, email=f"uncapped-{index}@example.com")
+        await create_guild_membership(
+            session, user=member, guild=guild, role=GuildRole.member
+        )
+
+    response = await client.post(
+        f"/api/v1/guilds/{guild.id}/invites",
+        headers=get_auth_headers(user),
+        json={"max_uses": 1},
+    )
+
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.integration
 async def test_list_guild_invites_as_admin(client: AsyncClient, session: AsyncSession):
     """Test that admin can list guild invites."""
     from app.services.platform import guilds as guild_service
@@ -854,11 +914,13 @@ async def test_accept_invite_blocked_when_guild_full(
     invitee = await create_user(session, email="full-invitee@example.com")
     guild = await create_guild(session, name="Full Guild", max_users=1)
 
-    await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
-    )
+    # Minted while the seat is still free, redeemed after it is taken — minting
+    # itself is capacity-gated, so the order here is the scenario.
     invite = await guild_service.create_guild_invite(
         session, guild_id=guild.id, created_by=creator.id, max_uses=5
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
     )
     await session.commit()
 

@@ -55,10 +55,15 @@ __all__ = [
     "mint_context_token",
 ]
 
-#: What a token may authorize. Closed, and pinned per call: ``data`` fetches a
-#: source, ``action`` performs one declared operation, ``lifecycle`` tells an app
-#: an install changed. A token minted for one is not usable for another.
-CONTEXT_SCOPES: frozenset[str] = frozenset({"data", "action", "lifecycle"})
+#: What a token may authorize. Closed, and pinned per call: ``endpoint`` reaches
+#: one declared endpoint, ``lifecycle`` tells an app an install changed. A token
+#: minted for one is not usable for the other.
+#:
+#: One scope covers reads and writes because both are calls to a declared
+#: endpoint, and ``endpoint_id`` is what narrows it: a token minted to read the
+#: issue count cannot be spent closing an issue. The endpoint's own ``direction``
+#: says which it was, and the app knows it without being told.
+CONTEXT_SCOPES: frozenset[str] = frozenset({"endpoint", "lifecycle"})
 
 #: About a minute. Long enough to survive a slow round trip and a little clock
 #: skew, short enough that a captured token is spent before it is useful.
@@ -86,8 +91,7 @@ def mint_context_token(
     guild_id: int,
     app_install_id: int,
     scope: str,
-    source_id: Optional[str] = None,
-    action_id: Optional[str] = None,
+    endpoint_id: Optional[str] = None,
     connection_refs: Optional[Mapping[str, str]] = None,
     lifetime: timedelta = CONTEXT_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
@@ -117,10 +121,8 @@ def mint_context_token(
     }
     # Each optional claim appears only when it means something, so an app can
     # read presence rather than having to distinguish null from absent.
-    if source_id is not None:
-        payload["source_id"] = source_id
-    if action_id is not None:
-        payload["action_id"] = action_id
+    if endpoint_id is not None:
+        payload["endpoint_id"] = endpoint_id
     if refs:
         payload["connection_refs"] = refs
 

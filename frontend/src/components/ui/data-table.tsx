@@ -654,7 +654,7 @@ export function DataTable<TData extends RowData>({
         })()}
       <div
         className={cn(
-          "overflow-hidden rounded-md border",
+          "overflow-hidden rounded-md border bg-card",
           selectionModeActive && "border-primary ring-2 ring-primary/20"
         )}
       >

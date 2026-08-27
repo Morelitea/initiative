@@ -81,6 +81,7 @@ from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
+from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.task_completion import sync_completed_at
 from app.services import ai_generation as ai_generation_service
@@ -259,6 +260,8 @@ def _build_task_filter_fields(
     Virtual fields that require subqueries (``status_category``,
     ``assignee_ids``, ``tag_ids``, ``initiative_ids``) are added as
     callable handlers that receive ``(op, value)`` and return a SA clause.
+    ``assignee_ids`` also answers ``is_null`` — true for tasks with no
+    assignee at all, which no id list can express.
     """
     # Auto-populate from model columns
     fields: dict = {col.name: getattr(Task, col.name) for col in Task.__table__.columns}
@@ -271,6 +274,12 @@ def _build_task_filter_fields(
         return Task.task_status_id.in_(subq)
 
     def _assignee_ids_handler(op: FilterOp, value):
+        # "Unassigned": no row in task_assignees at all. Answered before the
+        # emptiness guard below, which is there to skip an empty id list.
+        # ``negate`` inverts it, so "has any assignee" comes free.
+        if op == FilterOp.is_null:
+            has_assignee = Task.id.in_(select(TaskAssignee.task_id))
+            return ~has_assignee if value else has_assignee
         if not value:
             return None
         user_ids = []
@@ -1851,6 +1860,11 @@ async def create_task(
 
     position = await _next_position(session, task_in.project_id)
     await task_statuses_service.ensure_default_statuses(session, project.id)
+    # Same safety net as the statuses above: a project that somehow reached
+    # here without its defaults gets them on the first write, since the read
+    # path deliberately never seeds (a read-only grantee, or a frozen guild,
+    # routes into a SELECT-only role and could not).
+    await filter_presets_service.ensure_default_presets(session, project.id)
     selected_status = None
     if task_in.task_status_id is not None:
         selected_status = await task_statuses_service.get_project_status(

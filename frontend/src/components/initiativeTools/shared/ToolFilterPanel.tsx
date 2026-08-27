@@ -60,6 +60,12 @@ type ToolFilterPanelProps = {
   /** How many filters are currently narrowing the list. Only used to tell
    *  "Clear all" whether it has anything to do. */
   activeCount?: number;
+  /** Controls rendered beside "Clear all" — saving the current filters as a
+   *  preset, and updating the one they came from. */
+  actions?: ReactNode;
+  /** Leads the control row above the fields — the preset picker, for a list
+   *  that has one. It sets every field below it, so it comes first. */
+  leading?: ReactNode;
   children: ReactNode;
 };
 
@@ -78,20 +84,22 @@ export const ToolFilterPanel = ({
   title,
   onClear,
   activeCount = 0,
+  actions,
+  leading,
   children,
 }: ToolFilterPanelProps) => {
   const { t } = useTranslation("common");
   const isCompact = useIsCompactViewport();
 
-  const fields = (footer?: ReactNode) => (
+  const fields = (controls?: ReactNode) => (
     <div
       className={cn(
         "flex flex-col gap-3 rounded-md border border-muted bg-background/40 p-3",
         "max-sm:border-0 max-sm:bg-transparent max-sm:p-0"
       )}
     >
+      {controls}
       {children}
-      {footer}
     </div>
   );
 
@@ -111,7 +119,14 @@ export const ToolFilterPanel = ({
           <SheetHeader className="mb-4 text-left">
             <SheetTitle>{title}</SheetTitle>
           </SheetHeader>
-          {fields()}
+          {fields(
+            leading || actions ? (
+              <div className="flex flex-wrap items-end gap-2 border-muted border-b pb-3">
+                {leading}
+                <div className="flex flex-wrap gap-2 sm:ml-auto">{actions}</div>
+              </div>
+            ) : null
+          )}
           <div
             className="mt-6 flex gap-2"
             style={{ paddingBottom: "var(--safe-area-inset-bottom)" }}
@@ -141,8 +156,14 @@ export const ToolFilterPanel = ({
   return (
     <div className={open ? undefined : "hidden"}>
       {fields(
-        clearButton ? (
-          <div className="flex justify-end border-muted border-t pt-3">{clearButton}</div>
+        leading || actions || clearButton ? (
+          <div className="flex flex-wrap items-end gap-2 border-muted border-b pb-3">
+            {leading}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {actions}
+              {clearButton}
+            </div>
+          </div>
         ) : null
       )}
     </div>

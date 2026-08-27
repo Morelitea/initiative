@@ -357,7 +357,7 @@ def _app_widget(**overrides) -> dict:
         "binding": {
             "source": "app",
             "app_uid": APP_UID,
-            "source_id": "orders_summary",
+            "endpoint_id": "app.acme.shop.orders-summary",
         },
         **overrides,
     }
@@ -371,7 +371,7 @@ def test_an_app_widget_keeps_its_namespaced_type():
     assert widget["binding"] == {
         "source": "app",
         "app_uid": APP_UID,
-        "source_id": "orders_summary",
+        "endpoint_id": "app.acme.shop.orders-summary",
     }
     # It still gets a grid, from the app-widget floor rather than a primitive's.
     assert widget["grid"]["w"] >= 2 and widget["grid"]["h"] >= 2
@@ -404,7 +404,7 @@ def test_declared_parameters_are_kept_as_the_scalars_they_are():
                 binding={
                     "source": "app",
                     "app_uid": APP_UID,
-                    "source_id": "orders",
+                    "endpoint_id": "app.acme.shop.orders",
                     "params": {"range": "30d", "limit": 5, "detailed": True},
                 }
             )
@@ -426,7 +426,7 @@ def test_an_app_widget_cannot_bind_another_apps_data():
                     binding={
                         "source": "app",
                         "app_uid": OTHER_UID,
-                        "source_id": "orders",
+                        "endpoint_id": "app.acme.shop.orders",
                     }
                 )
             )
@@ -454,7 +454,7 @@ def test_a_builtin_widget_cannot_bind_the_app_source():
                     "binding": {
                         "source": "app",
                         "app_uid": APP_UID,
-                        "source_id": "orders",
+                        "endpoint_id": "app.acme.shop.orders",
                     },
                 }
             )
@@ -491,20 +491,25 @@ def test_a_malformed_app_widget_type_is_refused(widget_type):
 @pytest.mark.parametrize(
     "binding",
     [
-        {"source": "app", "source_id": "orders"},  # no app named
+        {"source": "app", "endpoint_id": "app.acme.shop.orders"},  # no app named
         {"source": "app", "app_uid": APP_UID},  # no source named
-        {"source": "app", "app_uid": APP_UID, "source_id": "Orders!"},
-        {"source": "app", "app_uid": APP_UID, "source_id": "orders", "params": []},
+        {"source": "app", "app_uid": APP_UID, "endpoint_id": "Orders!"},
         {
             "source": "app",
             "app_uid": APP_UID,
-            "source_id": "orders",
+            "endpoint_id": "app.acme.shop.orders",
+            "params": [],
+        },
+        {
+            "source": "app",
+            "app_uid": APP_UID,
+            "endpoint_id": "app.acme.shop.orders",
             "params": {"range": {"nested": 1}},
         },
         {
             "source": "app",
             "app_uid": APP_UID,
-            "source_id": "orders",
+            "endpoint_id": "app.acme.shop.orders",
             "params": {"bad key": "x"},
         },
     ],
@@ -524,7 +529,7 @@ def test_an_app_binding_still_has_nowhere_to_put_an_address():
                 binding={
                     "source": "app",
                     "app_uid": APP_UID,
-                    "source_id": "orders",
+                    "endpoint_id": "app.acme.shop.orders",
                     "url": "https://evil.test/steal",
                     "base_url": "https://evil.test",
                 }
@@ -532,4 +537,4 @@ def test_an_app_binding_still_has_nowhere_to_put_an_address():
         )
     )
     binding = result["widgets"][0]["binding"]
-    assert set(binding) == {"source", "app_uid", "source_id"}
+    assert set(binding) == {"source", "app_uid", "endpoint_id"}

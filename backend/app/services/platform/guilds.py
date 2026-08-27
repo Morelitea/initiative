@@ -192,7 +192,9 @@ async def ensure_membership(
 _MEMBER_CAP_LOCK_NAMESPACE = 0x55534552  # 1431193938
 
 
-async def _assert_member_capacity(session: AsyncSession, *, guild_id: int) -> None:
+async def _assert_member_capacity(
+    session: AsyncSession, *, guild_id: int, claiming_seat: bool = True
+) -> None:
     """Raise ``GuildCapacityError`` if the guild is at its ``max_users`` cap.
 
     A ``NULL`` cap means unlimited and short-circuits before any lock or count.
@@ -200,21 +202,27 @@ async def _assert_member_capacity(session: AsyncSession, *, guild_id: int) -> No
     rows (system engine, or an RLS context routed to this guild) — the same
     precondition ``count_members`` documents.
 
-    Must run in the SAME transaction that then inserts the membership and
-    commits. When a cap is set it takes a transaction-scoped advisory lock keyed
-    on the guild before counting, so the count check and the insert that follows
-    cannot interleave with a concurrent join — without it, two joins to a
-    near-full guild could each read the pre-insert count and collectively exceed
-    the cap (a TOCTOU race). The lock releases on commit/rollback and only
-    serializes joins to the SAME guild (mirrors ``enforce_storage_quota``).
+    ``claiming_seat`` (the default) is the join path: the call must run in the
+    SAME transaction that then inserts the membership and commits, and when a
+    cap is set it takes a transaction-scoped advisory lock keyed on the guild
+    before counting, so the count check and the insert that follows cannot
+    interleave with a concurrent join and collectively exceed the cap. The lock
+    releases on commit/rollback and only serializes joins to the SAME guild
+    (mirrors ``enforce_storage_quota``).
+
+    Pass ``claiming_seat=False`` when the caller only reads the cap and takes no
+    seat in the same transaction (minting an invite): the answer is a
+    point-in-time reading either way, so serializing joins against it would buy
+    nothing. The join path stays the authoritative gate.
     """
     administration = await get_administration(session, guild_id=guild_id)
     if administration.max_users is None:
         return
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-        params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
-    )
+    if claiming_seat:
+        await session.exec(
+            text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+            params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
+        )
     if await count_members(session, guild_id=guild_id) >= administration.max_users:
         raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
 
@@ -665,6 +673,9 @@ async def create_guild_invite(
     max_uses: int | None = 1,
     invitee_email: str | None = None,
 ) -> GuildInvite:
+    # A full guild mints no new invites: every seat is taken, so any code handed
+    # out now could only fail at redemption. Raises ``GuildCapacityError``.
+    await _assert_member_capacity(session, guild_id=guild_id, claiming_seat=False)
     code = await _generate_unique_invite_code(session)
     if expires_at is None:
         expiry = datetime.now(timezone.utc) + timedelta(

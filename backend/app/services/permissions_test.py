@@ -1,618 +1,480 @@
-"""Tests for Discretionary Access Control (DAC) — project and document permissions.
+"""Tests for Discretionary Access Control (DAC) — the final privilege gate.
 
-Tests cover:
-- Generic helpers (effective_permission_level)
-- Project permission computation and enforcement
-- Document permission computation and enforcement
-
-Uses SimpleNamespace mocks to simulate eagerly-loaded ORM objects.
+Every case here runs against real rows: a real guild schema, a real initiative,
+real ``resource_grants``, loaded through the same ``RESOURCE_ACCESS`` loader the
+endpoints use. The engine is one registry-driven function, so the cases are
+parametrized over ``DAC_RESOURCES`` rather than written once per tool — a tool
+added later inherits the coverage by registering.
 """
 
 import pathlib
-from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
-
-from app.core.messages import DocumentMessages, ProjectMessages
-from app.models.tenant.document import DocumentPermissionLevel
-from app.models.tenant.project import ProjectPermissionLevel
-from app.models.platform.user import UserRole
 from sqlalchemy import ColumnElement
+from sqlmodel import delete, select
 
+from app.api import resource_access
 from app.core.pam_context import set_active_grant
-from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.role_context import (
+    set_active_role,
+    set_content_read_only_guild,
+    set_override_sharing_initiatives,
+)
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
+from app.models.platform.user import UserRole
 from app.models.tenant.document import Document
+from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
+from app.models.tenant.project import ProjectPermissionLevel as PL
 from app.models.tenant.queue import Queue
+from app.models.tenant.resource_grant import ResourceGrant
 from app.services.permissions import (
     DAC_RESOURCES,
     PROJECT_LEVEL_ORDER,
     compute_permission,
     dac_scope_clause,
-    require_access,
-    compute_document_permission,
-    compute_project_permission,
     effective_permission_level,
     has_project_write_access,
-    require_document_access,
-    require_project_access,
+    require_access,
 )
+from app.testing import factories
+
+# The tools whose rows are gated on initiative membership as well as on grants
+# (``scope_gate``); the rest are guild-level and skip that leg.
+SCOPE_GATED = [t for t, r in DAC_RESOURCES.items() if r.scope_gate]
+ALL_TOOLS = list(DAC_RESOURCES)
+
+_TOOL_FACTORIES = {
+    Tool.project: "create_project",
+    Tool.document: "create_document",
+    Tool.queue: "create_queue",
+    Tool.counter_group: "create_counter_group",
+    Tool.calendar: "create_calendar",
+    Tool.dashboard: "create_dashboard",
+}
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# ── Building a real world ────────────────────────────────────────────────────
 
 
-def _make_user(user_id: int = 1, role: UserRole = UserRole.member) -> SimpleNamespace:
-    return SimpleNamespace(id=user_id, role=role)
+class World:
+    """One guild, one initiative, one resource of ``tool``, and four actors."""
 
+    def __init__(self, session, tool, guild, initiative, row, owner, co_member, admin):
+        self.session = session
+        self.tool = tool
+        self.resource = DAC_RESOURCES[tool]
+        self.guild = guild
+        self.initiative = initiative
+        self.row = row
+        # Captured once: the tests expire the identity map to force a real
+        # re-read, and an expired instance cannot answer for its own id.
+        self.row_id = row.id
+        self.initiative_id = getattr(row, "initiative_id", None)
+        self.owner = owner
+        self.co_member = co_member
+        self.admin = admin
 
-def _make_project(
-    *,
-    user_id: int | None = None,
-    user_level: ProjectPermissionLevel | None = None,
-    role_permissions: list | None = None,
-    memberships: list | None = None,
-    guild_id: int = 1,
-    member: bool = True,
-) -> SimpleNamespace:
-    """Build a mock project with eagerly-loaded relationships.
+    async def load(self):
+        """Re-read the resource through the loader the endpoints use, so the
+        eager-loaded shape under test is production's."""
+        loader = resource_access.RESOURCE_ACCESS[self.tool].loader
+        assert loader is not None, f"{self.tool.value} has no loader"
+        # Expire just the resource: the loader re-reads it with its grants
+        # eagerly loaded, and the actors stay usable (expiring them would make
+        # every later attribute read a lazy load from sync code).
+        self.session.expire(self.row)
+        return await loader(self.session, self.row_id)
 
-    By default the permission-holding user is also an initiative member
-    (the normal production state); pass ``member=False`` to model a stale
-    permission row left behind after removal from the initiative.
-    """
-    grants = []
-    all_memberships = list(memberships or [])
-    if user_id is not None and user_level is not None:
-        grants.append(SimpleNamespace(user_id=user_id, role_id=None, level=user_level))
-        if member:
-            all_memberships.append(SimpleNamespace(user_id=user_id, role_id=None))
-    for rp in role_permissions or []:
-        grants.append(
-            SimpleNamespace(
-                user_id=None,
-                role_id=getattr(rp, "initiative_role_id", getattr(rp, "role_id", None)),
-                level=rp.level,
+    async def grant(self, level, *, user=None, role_id=None, everyone=False):
+        """Replace the resource's grants with exactly the ones named."""
+        await self.session.exec(
+            delete(ResourceGrant).where(
+                ResourceGrant.resource_type == self.tool.value,
+                ResourceGrant.resource_id == self.row_id,
             )
         )
-    return SimpleNamespace(
-        guild_id=guild_id,
-        grants=grants,
-        initiative=SimpleNamespace(memberships=all_memberships),
+        if level is not None:
+            self.session.add(
+                ResourceGrant(
+                    guild_id=self.guild.id,
+                    initiative_id=self.initiative_id,
+                    resource_type=self.tool,
+                    resource_id=self.row_id,
+                    user_id=user.id if user is not None else None,
+                    role_id=role_id,
+                    all_initiative_members=everyone,
+                    level=level,
+                )
+            )
+        await self.session.commit()
+        return await self.load()
+
+
+async def build_world(session, acting_user, tool: Tool) -> World:
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    initiative, guild = owner.initiative, owner.guild
+    for t in Tool:
+        if hasattr(initiative, t.view_permission):
+            setattr(initiative, t.view_permission, True)
+    session.add(initiative)
+    await session.commit()
+
+    co_member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=guild,
+        initiative=initiative,
+        initiative_role="member",
     )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
+
+    factory = getattr(factories, _TOOL_FACTORIES[tool])
+    row = await factory(session, initiative, owner.user)
+    return World(session, tool, guild, initiative, row, owner, co_member, admin)
 
 
-def _make_document(
-    *,
-    user_id: int | None = None,
-    user_level: DocumentPermissionLevel | None = None,
-    role_permissions: list | None = None,
-    memberships: list | None = None,
-    guild_id: int = 1,
-    member: bool = True,
-) -> SimpleNamespace:
-    """Build a mock document with eagerly-loaded relationships.
+@pytest.fixture
+def clean_context():
+    """Every DAC decision reads request context; start and leave it empty."""
+    set_active_role(None, None)
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_content_read_only_guild(None)
+    yield
+    set_active_role(None, None)
+    set_active_grant(None, None)
+    set_override_sharing_initiatives(None)
+    set_content_read_only_guild(None)
 
-    By default the permission-holding user is also an initiative member
-    (the normal production state); pass ``member=False`` to model a stale
-    permission row left behind after removal from the initiative.
-    """
-    grants = []
-    all_memberships = list(memberships or [])
-    if user_id is not None and user_level is not None:
-        grants.append(SimpleNamespace(user_id=user_id, role_id=None, level=user_level))
-        if member:
-            all_memberships.append(SimpleNamespace(user_id=user_id, role_id=None))
-    for rp in role_permissions or []:
-        grants.append(
-            SimpleNamespace(
-                user_id=None,
-                role_id=getattr(rp, "initiative_role_id", getattr(rp, "role_id", None)),
-                level=rp.level,
+
+def refused(resource, row, user, **kwargs) -> HTTPException:
+    with pytest.raises(HTTPException) as exc:
+        require_access(resource, row, user, **kwargs)
+    assert exc.value.status_code == 403
+    return exc.value
+
+
+async def _role_id_of(session, initiative, user) -> int:
+    row = (
+        await session.exec(
+            select(InitiativeMember.role_id).where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id == user.id,
             )
         )
-    return SimpleNamespace(
-        guild_id=guild_id,
-        grants=grants,
-        initiative=SimpleNamespace(memberships=all_memberships),
+    ).one()
+    role_id = row[0] if isinstance(row, tuple) else row
+    assert role_id is not None
+    return role_id
+
+
+async def _remove_from_initiative(session, initiative, user) -> None:
+    await session.exec(
+        delete(InitiativeMember).where(
+            InitiativeMember.initiative_id == initiative.id,
+            InitiativeMember.user_id == user.id,
+        )
+    )
+    await session.commit()
+
+
+# ── effective_permission_level (pure helper) ─────────────────────────────────
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("user_level", "role_level", "expected"),
+    [
+        (None, None, None),
+        (PL.read, None, PL.read),
+        (None, PL.write, PL.write),
+        (PL.read, PL.owner, PL.owner),
+        (PL.owner, PL.read, PL.owner),
+    ],
+)
+def test_effective_permission_level_takes_the_higher_of_the_two(
+    user_level, role_level, expected
+):
+    """The user's own grant and their role's grant combine by taking the higher,
+    in either order."""
+    assert (
+        effective_permission_level(user_level, role_level, PROJECT_LEVEL_ORDER)
+        == expected
     )
 
 
-# ---------------------------------------------------------------------------
-# effective_permission_level (generic helper)
-# ---------------------------------------------------------------------------
+# ── Every tool resolves sharing through the same engine ──────────────────────
 
 
-@pytest.mark.unit
-def test_effective_permission_level_both_none():
-    result = effective_permission_level(None, None, PROJECT_LEVEL_ORDER)
-    assert result is None
+@pytest.mark.integration
+@pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
+async def test_every_tool_resolves_sharing_through_one_engine(
+    session, acting_user, clean_context, tool: Tool
+):
+    """Each tool answers the same questions the same way, with the refusal
+    messages its registry entry names.
 
+    A tool reaches the engine through its ``DAC_RESOURCES`` entry and its
+    ``RESOURCE_ACCESS`` loader, so a tool added later inherits this behaviour by
+    registering rather than by re-implementing it.
+    """
+    w = await build_world(session, acting_user, tool)
+    resource = w.resource
 
-@pytest.mark.unit
-def test_effective_permission_level_user_only():
-    result = effective_permission_level(
-        ProjectPermissionLevel.read,
-        None,
-        PROJECT_LEVEL_ORDER,
+    # The holder of the owner grant.
+    loaded = await w.grant("owner", user=w.owner.user)
+    set_active_role(w.guild.id, GuildRole.member.value)
+    require_access(resource, loaded, w.owner.user, access="write")
+    assert compute_permission(resource, loaded, w.owner.user.id) == "owner"
+
+    # An initiative co-member with no grant on this resource.
+    assert compute_permission(resource, loaded, w.co_member.user.id) is None
+    assert (
+        refused(resource, loaded, w.co_member.user, access="read").detail
+        == resource.denied_msg
     )
-    assert result == ProjectPermissionLevel.read
 
+    # A guild admin needs no grant at all.
+    set_active_role(w.guild.id, GuildRole.admin.value)
+    require_access(resource, loaded, w.admin.user, access="write")
+    require_access(resource, loaded, w.admin.user, require_owner=True)
+    assert compute_permission(resource, loaded, w.admin.user.id) == "owner"
 
-@pytest.mark.unit
-def test_effective_permission_level_role_only():
-    result = effective_permission_level(
-        None,
-        ProjectPermissionLevel.write,
-        PROJECT_LEVEL_ORDER,
+    # A PAM read grant opens the guild for reading only. The grantee holds no
+    # grant row, so the write stops at the same "nothing shared with you" answer
+    # a stranger gets rather than at the level check.
+    set_active_role(None, None)
+    set_active_grant(w.guild.id, "read")
+    require_access(resource, loaded, w.co_member.user, access="read")
+    assert (
+        refused(resource, loaded, w.co_member.user, access="write").detail
+        == resource.denied_msg
     )
-    assert result == ProjectPermissionLevel.write
 
-
-@pytest.mark.unit
-def test_effective_permission_level_takes_higher():
-    result = effective_permission_level(
-        ProjectPermissionLevel.read,
-        ProjectPermissionLevel.owner,
-        PROJECT_LEVEL_ORDER,
+    # Holding a read grant of their own is where the level check answers, and it
+    # names the tool's own write message.
+    set_active_grant(None, None)
+    set_active_role(w.guild.id, GuildRole.member.value)
+    loaded = await w.grant("read", user=w.co_member.user)
+    require_access(resource, loaded, w.co_member.user, access="read")
+    assert (
+        refused(resource, loaded, w.co_member.user, access="write").detail
+        == resource.write_msg
     )
-    assert result == ProjectPermissionLevel.owner
-
-    # Also verify the reverse: user > role
-    result2 = effective_permission_level(
-        ProjectPermissionLevel.owner,
-        ProjectPermissionLevel.read,
-        PROJECT_LEVEL_ORDER,
+    assert (
+        refused(resource, loaded, w.co_member.user, require_owner=True).detail
+        == resource.owner_msg
     )
-    assert result2 == ProjectPermissionLevel.owner
 
 
-# ---------------------------------------------------------------------------
-# compute_project_permission
-# ---------------------------------------------------------------------------
+# ── How a grant resolves ─────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
-def test_compute_project_permission_guild_admin_gets_owner():
-    """A guild admin has full access to all of their guild's data regardless of
-    DAC, so ``my_permission_level`` reports ``owner`` — otherwise the UI would
-    hide edit/delete affordances the API actually honors."""
-    from app.core.role_context import set_active_role
+@pytest.mark.integration
+async def test_a_role_grant_elevates_over_a_users_own(
+    session, acting_user, clean_context
+):
+    """A grant to an initiative role the user holds outranks their own lower
+    grant — the two combine by taking the higher."""
+    w = await build_world(session, acting_user, Tool.project)
+    set_active_role(w.guild.id, GuildRole.member.value)
 
-    project = _make_project()  # no DAC permission for user_id=1
-    try:
-        set_active_role(1, "admin")
-        result = compute_project_permission(project, user_id=1)
-    finally:
-        set_active_role(None, None)
-    assert result == "owner"
+    role_id = await _role_id_of(session, w.initiative, w.co_member.user)
+    loaded = await w.grant("read", user=w.co_member.user)
+    assert compute_permission(w.resource, loaded, w.co_member.user.id) == "read"
 
-
-@pytest.mark.unit
-def test_compute_project_permission_user_read():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.read)
-    result = compute_project_permission(project, user_id=1)
-    assert result == "read"
-
-
-@pytest.mark.unit
-def test_compute_project_permission_no_access():
-    project = _make_project()
-    result = compute_project_permission(project, user_id=1)
-    assert result is None
-
-
-@pytest.mark.unit
-def test_compute_project_permission_role_elevates():
-    """Role-based permission higher than user permission should take effect."""
-    role_id = 10
-    project = _make_project(
-        user_id=1,
-        user_level=ProjectPermissionLevel.read,
-        role_permissions=[
-            SimpleNamespace(
-                initiative_role_id=role_id, level=ProjectPermissionLevel.write
-            ),
-        ],
-        memberships=[
-            SimpleNamespace(user_id=1, role_id=role_id),
-        ],
+    session.add(
+        ResourceGrant(
+            guild_id=w.guild.id,
+            initiative_id=w.initiative_id,
+            resource_type=Tool.project,
+            resource_id=w.row_id,
+            role_id=role_id,
+            level="write",
+        )
     )
-    result = compute_project_permission(project, user_id=1)
-    assert result == "write"
-
-
-# ---------------------------------------------------------------------------
-# require_project_access
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_require_project_access_read_allowed():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.read)
-    user = _make_user(user_id=1)
-    require_project_access(project, user, access="read")  # should not raise
-
-
-@pytest.mark.unit
-def test_require_project_access_write_denied_for_reader():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.read)
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_project_access(project, user, access="write")
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == ProjectMessages.WRITE_ACCESS_REQUIRED
-
-
-@pytest.mark.unit
-def test_require_project_access_no_access():
-    project = _make_project()  # no permissions for user_id=1
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_project_access(project, user, access="read")
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == ProjectMessages.NO_ACCESS
-
-
-@pytest.mark.unit
-def test_require_project_access_owner_required():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.write)
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_project_access(project, user, require_owner=True)
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == ProjectMessages.OWNER_REQUIRED
-
-
-@pytest.mark.unit
-def test_require_project_access_owner_passes():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.owner)
-    user = _make_user(user_id=1)
-    require_project_access(project, user, require_owner=True)  # should not raise
-
-
-@pytest.mark.unit
-def test_require_project_access_guild_admin_no_dac_full_access():
-    """A guild admin gets read/write/owner access to any project in their guild
-    without a permission row or initiative membership."""
-    from app.core.role_context import set_active_role
-
-    project = _make_project()  # no permissions, no membership for user_id=1
-    user = _make_user(user_id=1)
-    try:
-        set_active_role(1, "admin")
-        require_project_access(project, user, access="read")
-        require_project_access(project, user, access="write")
-        require_project_access(project, user, require_owner=True)  # none should raise
-    finally:
-        set_active_role(None, None)
-
-
-@pytest.mark.unit
-def test_require_project_access_guild_member_no_dac_denied():
-    """A plain guild member (non-admin) still needs DAC — the admin bypass is
-    strictly guild-admin-scoped."""
-    from app.core.role_context import set_active_role
-
-    project = _make_project()  # no permissions for user_id=1
-    user = _make_user(user_id=1)
-    try:
-        set_active_role(1, "member")
-        with pytest.raises(HTTPException) as exc_info:
-            require_project_access(project, user, access="read")
-    finally:
-        set_active_role(None, None)
-    assert exc_info.value.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# has_project_write_access
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_has_project_write_access_true_for_write():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.write)
-    user = _make_user(user_id=1)
-    assert has_project_write_access(project, user) is True
-
-
-@pytest.mark.unit
-def test_has_project_write_access_true_for_owner():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.owner)
-    user = _make_user(user_id=1)
-    assert has_project_write_access(project, user) is True
-
-
-@pytest.mark.unit
-def test_has_project_write_access_false_for_read():
-    project = _make_project(user_id=1, user_level=ProjectPermissionLevel.read)
-    user = _make_user(user_id=1)
-    assert has_project_write_access(project, user) is False
-
-
-@pytest.mark.unit
-def test_has_project_write_access_false_for_none():
-    project = _make_project()  # no permissions
-    user = _make_user(user_id=1)
-    assert has_project_write_access(project, user) is False
-
-
-# ---------------------------------------------------------------------------
-# compute_document_permission
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_compute_document_permission_guild_admin_gets_owner():
-    """A guild admin has full access to all of their guild's data regardless of
-    DAC, so ``my_permission_level`` reports ``owner``."""
-    from app.core.role_context import set_active_role
-
-    doc = _make_document()  # no DAC permission for user_id=1
-    try:
-        set_active_role(1, "admin")
-        result = compute_document_permission(doc, user_id=1)
-    finally:
-        set_active_role(None, None)
-    assert result == "owner"
-
-
-@pytest.mark.unit
-def test_compute_document_permission_user_write():
-    doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.write)
-    result = compute_document_permission(doc, user_id=1)
-    assert result == "write"
-
-
-@pytest.mark.unit
-def test_compute_document_permission_no_access():
-    doc = _make_document()
-    result = compute_document_permission(doc, user_id=1)
-    assert result is None
-
-
-# ---------------------------------------------------------------------------
-# require_document_access
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_require_document_access_read_allowed():
-    doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.read)
-    user = _make_user(user_id=1)
-    require_document_access(doc, user, access="read")  # should not raise
-
-
-@pytest.mark.unit
-def test_require_document_access_write_denied():
-    doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.read)
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_document_access(doc, user, access="write")
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == DocumentMessages.WRITE_ACCESS_REQUIRED
-
-
-@pytest.mark.unit
-def test_require_document_access_no_access():
-    doc = _make_document()  # no permissions for user
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_document_access(doc, user, access="read")
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == DocumentMessages.NO_ACCESS
-
-
-@pytest.mark.unit
-def test_require_document_access_owner_required():
-    doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.write)
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_document_access(doc, user, require_owner=True)
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == DocumentMessages.OWNER_REQUIRED
-
-
-@pytest.mark.unit
-def test_require_document_access_owner_passes():
-    doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.owner)
-    user = _make_user(user_id=1)
-    require_document_access(doc, user, require_owner=True)  # should not raise
-
-
-# ---------------------------------------------------------------------------
-# my_permission_level reflects an active PAM grant (drives edit affordances)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_compute_project_permission_lifts_to_grant():
-    """A grantee has no permission row; ``my_permission_level`` must reflect the
-    grant so the UI shows edit affordances for a read_write grant."""
-    from app.core.pam_context import set_active_grant
-
-    project = _make_project()  # no DAC permission rows
-    project.guild_id = 7
-    try:
-        set_active_grant(None, None)
-        assert compute_project_permission(project, 99) is None
-
-        set_active_grant(7, "read")
-        assert compute_project_permission(project, 99) == "read"
-
-        set_active_grant(7, "read_write")
-        assert compute_project_permission(project, 99) == "write"
-
-        # A grant never confers owner, and never bleeds across guilds.
-        set_active_grant(8, "read_write")
-        assert compute_project_permission(project, 99) is None
-    finally:
-        set_active_grant(None, None)
-
-
-@pytest.mark.unit
-def test_compute_document_permission_lifts_to_grant():
-    from app.core.pam_context import set_active_grant
-
-    doc = _make_document()
-    doc.guild_id = 7
-    try:
-        set_active_grant(7, "read_write")
-        assert compute_document_permission(doc, 99) == "write"
-        set_active_grant(7, "read")
-        assert compute_document_permission(doc, 99) == "read"
-    finally:
-        set_active_grant(None, None)
-
-
-@pytest.mark.unit
-def test_compute_project_permission_grant_does_not_downgrade_dac():
-    """An explicit owner permission outranks the grant (no downgrade to write)."""
-    from app.core.pam_context import set_active_grant
-
-    project = _make_project(user_id=99, user_level=ProjectPermissionLevel.owner)
-    project.guild_id = 7
-    try:
-        set_active_grant(7, "read_write")
-        assert compute_project_permission(project, 99) == "owner"
-    finally:
-        set_active_grant(None, None)
-
-
-# ---------------------------------------------------------------------------
-# Initiative-scope gate (replacement for the dropped RESTRICTIVE RLS layer)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_stale_document_permission_denied_without_membership():
-    """An explicit permission row left behind after initiative removal must
-    not grant access (the old DB RESTRICTIVE policy enforced this)."""
-    doc = _make_document(
-        user_id=1, user_level=DocumentPermissionLevel.write, member=False
+    await session.commit()
+    loaded = await w.load()
+    assert compute_permission(w.resource, loaded, w.co_member.user.id) == "write"
+
+
+@pytest.mark.integration
+async def test_general_access_covers_the_initiatives_members_only(
+    session, acting_user, clean_context
+):
+    """An all-initiative-members grant reaches every member without naming them,
+    and stops at the initiative boundary."""
+    w = await build_world(session, acting_user, Tool.project)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=w.guild)
+    set_active_role(w.guild.id, GuildRole.member.value)
+
+    loaded = await w.grant("write", everyone=True)
+    assert compute_permission(w.resource, loaded, w.co_member.user.id) == "write"
+    require_access(w.resource, loaded, w.co_member.user, access="write")
+
+    assert compute_permission(w.resource, loaded, outsider.user.id) is None
+    refused(w.resource, loaded, outsider.user, access="read")
+
+
+@pytest.mark.integration
+async def test_membership_alone_grants_nothing(session, acting_user, clean_context):
+    """The gate is an AND-layer: being in the initiative is not access to its
+    resources."""
+    w = await build_world(session, acting_user, Tool.project)
+    set_active_role(w.guild.id, GuildRole.member.value)
+    loaded = await w.grant(None)
+    assert compute_permission(w.resource, loaded, w.co_member.user.id) is None
+    refused(w.resource, loaded, w.co_member.user, access="read")
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("tool", SCOPE_GATED, ids=lambda t: t.value)
+async def test_a_grant_left_behind_after_removal_is_denied(
+    session, acting_user, clean_context, tool: Tool
+):
+    """A grant row outliving the user's initiative membership must not carry
+    access — the scope gate is checked before the grant is read."""
+    w = await build_world(session, acting_user, tool)
+    set_active_role(w.guild.id, GuildRole.member.value)
+    loaded = await w.grant("owner", user=w.co_member.user)
+    require_access(w.resource, loaded, w.co_member.user, access="read")
+
+    await _remove_from_initiative(session, w.initiative, w.co_member.user)
+    loaded = await w.load()
+    assert refused(w.resource, loaded, w.co_member.user, access="read").detail == (
+        w.resource.denied_msg
     )
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_document_access(doc, user, access="read")
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == DocumentMessages.NO_ACCESS
 
 
-@pytest.mark.unit
-def test_stale_project_permission_denied_without_membership():
-    project = _make_project(
-        user_id=1, user_level=ProjectPermissionLevel.owner, member=False
+@pytest.mark.integration
+async def test_has_project_write_access_tracks_the_level(
+    session, acting_user, clean_context
+):
+    """The synchronous filter helper agrees with the engine about who may write."""
+    w = await build_world(session, acting_user, Tool.project)
+    set_active_role(w.guild.id, GuildRole.member.value)
+    for level, expected in (("owner", True), ("write", True), ("read", False)):
+        loaded = await w.grant(level, user=w.co_member.user)
+        assert has_project_write_access(loaded, w.co_member.user) is expected
+    loaded = await w.grant(None)
+    assert has_project_write_access(loaded, w.co_member.user) is False
+
+
+# ── The overrides that sit above sharing ─────────────────────────────────────
+
+
+@pytest.mark.integration
+async def test_a_guild_admin_bypasses_the_scope_gate(
+    session, acting_user, clean_context
+):
+    """Guild admin is full authority over the guild, by role context or by the
+    explicit parameter, membership or not."""
+    w = await build_world(session, acting_user, Tool.project)
+    loaded = await w.grant(None)
+    await _remove_from_initiative(session, w.initiative, w.co_member.user)
+    loaded = await w.load()
+
+    require_access(
+        w.resource, loaded, w.co_member.user, access="write", guild_role="admin"
     )
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_project_access(project, user, access="read")
-    assert exc_info.value.status_code == 403
+
+    set_active_role(w.guild.id, GuildRole.admin.value)
+    require_access(w.resource, loaded, w.co_member.user, require_owner=True)
 
 
-@pytest.mark.unit
-def test_guild_admin_bypasses_initiative_scope_via_param():
-    """A guild admin holding an explicit permission keeps access without
-    membership (mirrors the old policy's IS_ADMIN leg)."""
-    doc = _make_document(
-        user_id=1, user_level=DocumentPermissionLevel.read, member=False
+@pytest.mark.integration
+async def test_admin_of_another_guild_unlocks_nothing_here(
+    session, acting_user, clean_context
+):
+    """Role context is keyed by guild, so admin of guild A grants nothing in B."""
+    w = await build_world(session, acting_user, Tool.project)
+    loaded = await w.grant(None)
+    set_active_role(w.guild.id + 1000, GuildRole.admin.value)
+    refused(w.resource, loaded, w.co_member.user, access="read")
+
+
+@pytest.mark.integration
+async def test_a_platform_owner_holds_no_standing_bypass(
+    session, acting_user, clean_context
+):
+    """``data.bypass`` is the right to break glass, not an ambient reach — a
+    platform owner with no membership and no live grant is refused."""
+    w = await build_world(session, acting_user, Tool.project)
+    loaded = await w.grant(None)
+    w.co_member.user.role = UserRole.owner
+    session.add(w.co_member.user)
+    await session.commit()
+    refused(w.resource, loaded, w.co_member.user, access="read")
+
+
+@pytest.mark.integration
+async def test_a_pam_grant_lifts_the_level_and_never_bleeds(
+    session, acting_user, clean_context
+):
+    """A grantee holds no grant row, so the level the client sees has to come
+    from the PAM grant — at the level it was issued, in its guild only, and
+    never as owner.
+
+    One tool stands for all of them: the lift reads the guild off the row and
+    never consults the resource, and the per-tool sweep above already covers
+    each tool reaching the engine.
+    """
+    w = await build_world(session, acting_user, Tool.project)
+    loaded = await w.grant(None)
+    stranger_id = w.co_member.user.id
+
+    assert compute_permission(w.resource, loaded, stranger_id) is None
+
+    set_active_grant(w.guild.id, "read")
+    assert compute_permission(w.resource, loaded, stranger_id) == "read"
+
+    set_active_grant(w.guild.id, "read_write")
+    assert compute_permission(w.resource, loaded, stranger_id) == "write"
+
+    set_active_grant(w.guild.id + 1000, "read_write")
+    assert compute_permission(w.resource, loaded, stranger_id) is None
+
+
+@pytest.mark.integration
+async def test_a_pam_grant_never_downgrades_an_owner(
+    session, acting_user, clean_context
+):
+    """An explicit owner grant outranks the write a read_write grant implies."""
+    w = await build_world(session, acting_user, Tool.project)
+    loaded = await w.grant("owner", user=w.co_member.user)
+    set_active_grant(w.guild.id, "read_write")
+    assert compute_permission(w.resource, loaded, w.co_member.user.id) == "owner"
+
+
+@pytest.mark.integration
+async def test_a_frozen_guild_caps_everyone_at_read(
+    session, acting_user, clean_context
+):
+    """A read_only guild caps the level the client sees and refuses every write
+    — checked before the admin leg, so full authority does not clear the hold.
+
+    ``guild_suspension_test`` covers the same hold end-to-end through an
+    endpoint; this pins where in the engine the cap sits.
+    """
+    w = await build_world(session, acting_user, Tool.project)
+    loaded = await w.grant("owner", user=w.owner.user)
+
+    set_active_role(w.guild.id, GuildRole.member.value)
+    set_content_read_only_guild(w.guild.id)
+
+    assert compute_permission(w.resource, loaded, w.owner.user.id) == "read"
+    require_access(w.resource, loaded, w.owner.user, access="read")
+    assert (
+        refused(w.resource, loaded, w.owner.user, access="write").detail
+        == w.resource.write_msg
     )
-    user = _make_user(user_id=1)
-    require_document_access(
-        doc, user, access="read", guild_role="admin"
-    )  # should not raise
+    refused(w.resource, loaded, w.owner.user, require_owner=True)
 
-
-@pytest.mark.unit
-def test_guild_admin_bypasses_initiative_scope_via_role_context():
-    from app.core.role_context import set_active_role
-
-    doc = _make_document(
-        user_id=1, user_level=DocumentPermissionLevel.read, member=False, guild_id=7
-    )
-    user = _make_user(user_id=1)
-    try:
-        set_active_role(7, "admin")
-        require_document_access(doc, user, access="read")  # should not raise
-    finally:
-        set_active_role(None, None)
-
-
-@pytest.mark.unit
-def test_require_document_access_guild_admin_no_dac_full_access():
-    """A guild admin gets read/write/owner access to any document in their guild
-    without a permission row or initiative membership."""
-    from app.core.role_context import set_active_role
-
-    doc = _make_document(guild_id=7)  # no permissions, no membership for user_id=1
-    user = _make_user(user_id=1)
-    try:
-        set_active_role(7, "admin")
-        require_document_access(doc, user, access="read")
-        require_document_access(doc, user, access="write")
-        require_document_access(doc, user, require_owner=True)  # none should raise
-    finally:
-        set_active_role(None, None)
-
-
-@pytest.mark.unit
-def test_role_context_for_other_guild_does_not_bypass():
-    """An admin role recorded for guild A must not unlock guild B's entities
-    (cross-guild gathers)."""
-    from app.core.role_context import set_active_role
-
-    doc = _make_document(
-        user_id=1, user_level=DocumentPermissionLevel.read, member=False, guild_id=8
-    )
-    user = _make_user(user_id=1)
-    try:
-        set_active_role(7, "admin")
-        with pytest.raises(HTTPException):
-            require_document_access(doc, user, access="read")
-    finally:
-        set_active_role(None, None)
-
-
-@pytest.mark.unit
-def test_data_bypass_no_longer_bypasses_initiative_scope():
-    """Phase 3: ``data.bypass`` is no longer a standing all-guild bypass. An
-    owner/admin who isn't a member and holds no live grant is DENIED — they must
-    break-glass into a grant first (covered by
-    ``test_pam_grant_bypasses_initiative_scope``)."""
-    doc = _make_document(user_id=1, member=False)
-    user = _make_user(user_id=1, role=UserRole.owner)
-    with pytest.raises(HTTPException) as exc_info:
-        require_document_access(doc, user, access="read")
-    assert exc_info.value.status_code == 403
-
-
-@pytest.mark.unit
-def test_pam_grant_bypasses_initiative_scope():
-    """A live grant acts as membership of every initiative in the guild."""
-    from app.core.pam_context import set_active_grant
-
-    doc = _make_document(guild_id=7)
-    user = _make_user(user_id=99)
-    try:
-        set_active_grant(7, "read")
-        require_document_access(doc, user, access="read")  # should not raise
-    finally:
-        set_active_grant(None, None)
-
-
-@pytest.mark.unit
-def test_membership_without_permission_row_still_denied():
-    """The gate is an AND-layer: membership alone grants nothing."""
-    doc = _make_document(memberships=[SimpleNamespace(user_id=1, role_id=None)])
-    user = _make_user(user_id=1)
-    with pytest.raises(HTTPException) as exc_info:
-        require_document_access(doc, user, access="read")
-    assert exc_info.value.status_code == 403
+    set_active_role(w.guild.id, GuildRole.admin.value)
+    assert compute_permission(w.resource, loaded, w.admin.user.id) == "read"
+    refused(w.resource, loaded, w.admin.user, access="write")
 
 
 # ── dac_scope_clause: the query-shaped half of the DAC decision ──────────────
@@ -740,103 +602,3 @@ def test_the_grants_subquery_has_one_caller():
         "these modules reach for the grants subquery directly instead of "
         f"permissions.dac_scope_clause: {offenders}"
     )
-
-
-# ── Every tool resolves sharing through the same engine ─────────────────────
-
-_TOOL_FACTORIES = {
-    Tool.project: "create_project",
-    Tool.document: "create_document",
-    Tool.queue: "create_queue",
-    Tool.counter_group: "create_counter_group",
-    Tool.calendar: "create_calendar",
-    Tool.dashboard: "create_dashboard",
-}
-
-
-async def _only_the_owner_holds_a_grant(session, tool: Tool, resource_id: int) -> None:
-    """Drop the factory's default all-initiative-members grant."""
-    from sqlmodel import delete
-
-    from app.models.tenant.resource_grant import ResourceGrant
-
-    await session.exec(
-        delete(ResourceGrant).where(
-            ResourceGrant.resource_type == tool.value,
-            ResourceGrant.resource_id == resource_id,
-            ResourceGrant.level != "owner",
-        )
-    )
-    await session.commit()
-
-
-@pytest.mark.integration
-@pytest.mark.parametrize("tool", list(Tool), ids=lambda t: t.value)
-async def test_every_tool_resolves_sharing_through_one_engine(
-    session, acting_user, tool: Tool
-):
-    """Each tool answers the same four questions the same way.
-
-    A tool reaches the engine through its ``DAC_RESOURCES`` entry and its
-    ``RESOURCE_ACCESS`` loader, so a tool added later inherits this behaviour by
-    registering rather than by re-implementing it.
-    """
-    from app.api import resource_access
-    from app.testing import factories
-
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-    initiative, guild = owner.initiative, owner.guild
-    for t in Tool:
-        if hasattr(initiative, t.view_permission):
-            setattr(initiative, t.view_permission, True)
-    session.add(initiative)
-    await session.commit()
-
-    co_member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=guild,
-        initiative=initiative,
-        initiative_role="member",
-    )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
-
-    factory = getattr(factories, _TOOL_FACTORIES[tool])
-    row = await factory(session, initiative, owner.user)
-    await _only_the_owner_holds_a_grant(session, tool, row.id)
-
-    loader = resource_access.RESOURCE_ACCESS[tool].loader
-    assert loader is not None, f"{tool.value} has no loader"
-    resource = DAC_RESOURCES[tool]
-
-    def _refused(user):
-        with pytest.raises(HTTPException) as exc:
-            require_access(resource, loaded, user, access="read")
-        assert exc.value.status_code == 403
-
-    set_override_sharing_initiatives(None)
-    try:
-        # The holder of the owner grant.
-        set_active_role(guild.id, GuildRole.member.value)
-        set_active_grant(None, None)
-        loaded = await loader(session, row.id)
-        require_access(resource, loaded, owner.user, access="write")
-        assert compute_permission(resource, loaded, owner.user.id) == "owner"
-
-        # An initiative co-member with no grant on this resource.
-        _refused(co_member.user)
-        assert compute_permission(resource, loaded, co_member.user.id) is None
-
-        # A guild admin.
-        set_active_role(guild.id, GuildRole.admin.value)
-        require_access(resource, loaded, admin.user, access="write")
-        assert compute_permission(resource, loaded, admin.user.id) == "owner"
-
-        # A read grant: reads, not writes.
-        set_active_role(None, None)
-        set_active_grant(guild.id, "read")
-        require_access(resource, loaded, co_member.user, access="read")
-        with pytest.raises(HTTPException):
-            require_access(resource, loaded, co_member.user, access="write")
-    finally:
-        set_active_role(None, None)
-        set_active_grant(None, None)

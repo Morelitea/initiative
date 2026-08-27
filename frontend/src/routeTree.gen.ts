@@ -18,6 +18,7 @@ import { Route as ServerRequiredRegisterRouteImport } from './routes/_serverRequ
 import { Route as ServerRequiredResetPasswordRouteImport } from './routes/_serverRequired/reset-password'
 import { Route as ServerRequiredVerifyEmailRouteImport } from './routes/_serverRequired/verify-email'
 import { Route as ServerRequiredWelcomeRouteImport } from './routes/_serverRequired/welcome'
+import { Route as AppsConnectedRouteImport } from './routes/apps.connected'
 import { Route as ServerRequiredAuthenticatedIndexRouteImport } from './routes/_serverRequired/_authenticated/index'
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
@@ -153,6 +154,11 @@ const ServerRequiredWelcomeRoute = ServerRequiredWelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
   getParentRoute: () => ServerRequiredRoute,
+} as any)
+const AppsConnectedRoute = AppsConnectedRouteImport.update({
+  id: '/apps/connected',
+  path: '/apps/connected',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ServerRequiredAuthenticatedIndexRoute =
   ServerRequiredAuthenticatedIndexRouteImport.update({
@@ -769,6 +775,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ServerRequiredResetPasswordRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
+  '/apps/connected': typeof AppsConnectedRoute
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -866,6 +873,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ServerRequiredResetPasswordRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
+  '/apps/connected': typeof AppsConnectedRoute
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -959,6 +967,7 @@ export interface FileRoutesById {
   '/_serverRequired/reset-password': typeof ServerRequiredResetPasswordRoute
   '/_serverRequired/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/_serverRequired/welcome': typeof ServerRequiredWelcomeRoute
+  '/apps/connected': typeof AppsConnectedRoute
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -1059,6 +1068,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/welcome'
+    | '/apps/connected'
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
@@ -1156,6 +1166,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/welcome'
+    | '/apps/connected'
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
@@ -1248,6 +1259,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/reset-password'
     | '/_serverRequired/verify-email'
     | '/_serverRequired/welcome'
+    | '/apps/connected'
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
@@ -1341,6 +1353,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ServerRequiredRoute: typeof ServerRequiredRouteWithChildren
   ConnectRoute: typeof ConnectRoute
+  AppsConnectedRoute: typeof AppsConnectedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1407,6 +1420,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/welcome'
       preLoaderRoute: typeof ServerRequiredWelcomeRouteImport
       parentRoute: typeof ServerRequiredRoute
+    }
+    '/apps/connected': {
+      id: '/apps/connected'
+      path: '/apps/connected'
+      fullPath: '/apps/connected'
+      preLoaderRoute: typeof AppsConnectedRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_serverRequired/_authenticated/': {
       id: '/_serverRequired/_authenticated/'
@@ -2412,6 +2432,7 @@ const ServerRequiredRouteWithChildren = ServerRequiredRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ServerRequiredRoute: ServerRequiredRouteWithChildren,
   ConnectRoute: ConnectRoute,
+  AppsConnectedRoute: AppsConnectedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

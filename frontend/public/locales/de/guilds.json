@@ -13,11 +13,18 @@
   "guildsHeading": "Gilden",
   "expandGuilds": "Gildenliste erweitern",
   "collapseGuilds": "Gildenliste einklappen",
+  "reorder": "Sortieren",
+  "reorderGuilds": "Gilden sortieren",
+  "doneReordering": "Fertig",
+  "reorderHint": "Ziehe die Gilden in die gewünschte Reihenfolge und tippe dann auf Fertig.",
+  "dragToReorder": "{{name}} zum Sortieren ziehen",
   "memberCount_one": "{{count}} Mitglied",
   "memberCount_other": "{{count}} Mitglieder",
   "viewInitiatives": "Initiativen anzeigen",
   "viewMembers": "Mitglieder anzeigen",
   "inviteMembers": "Mitglieder einladen",
+  "inviteMembersGuildFull": "Mitglieder einladen (Gilde voll)",
+  "inviteMembersUpgrade": "Für Einladungen upgraden",
   "creatingInvite": "Einladung wird erstellt...",
   "createInitiative": "Initiative erstellen",
   "copyGuildId": "Gilden-ID kopieren",
@@ -131,6 +138,11 @@
     "noActiveInvites": "Keine aktiven Einladungen.",
     "unableToLoadInvites": "Einladungen konnten nicht geladen werden.",
     "unableToCreateInvite": "Einladung konnte nicht erstellt werden.",
+    "inviteSeatsFull": "Alle {{max}} Plätze sind belegt. Entferne ein Mitglied oder bitte einen Plattform-Administrator, das Limit zu erhöhen, bevor du eine weitere Einladung erstellst.",
+    "inviteSeatsFullPlan_one": "Der Tarif {{plan}} umfasst nur einen Platz, und der ist belegt. Mach ein Upgrade, um Leute in diese Gilde einzuladen.",
+    "inviteSeatsFullPlan_other": "Alle {{count}} Plätze im Tarif {{plan}} sind belegt. Mach ein Upgrade, um weitere Leute einzuladen.",
+    "inviteSeatsFullUpgrade_one": "Dein Tarif umfasst nur einen Platz, und der ist belegt. Mach ein Upgrade, um Leute in diese Gilde einzuladen.",
+    "inviteSeatsFullUpgrade_other": "Alle {{count}} Plätze in deinem Tarif sind belegt. Mach ein Upgrade, um weitere Leute einzuladen.",
     "unableToDeleteInvite": "Einladung konnte nicht gelöscht werden.",
     "inviteLinkCopied": "Einladungslink in die Zwischenablage kopiert.",
     "copyInviteLink": "Einladungslink kopieren",
@@ -251,6 +263,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} ist derzeit schreibgeschützt. Du kannst alles ansehen, aber Änderungen sind deaktiviert."
+  },
+  "billingSetup": {
+    "opening": "Abrechnung wird geöffnet, damit du einen Tarif für {{guild}} wählen kannst."
   },
   "usagePanel": {
     "title": "Nutzung",

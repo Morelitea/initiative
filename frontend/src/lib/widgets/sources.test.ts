@@ -67,7 +67,7 @@ describe("unboundSlots", () => {
   });
 
   it("names an app binding's two slots", () => {
-    expect(unboundSlots(binding({ source: "app" }))).toEqual(["app_uid", "source_id"]);
+    expect(unboundSlots(binding({ source: "app" }))).toEqual(["app_uid", "endpoint_id"]);
   });
 });
 

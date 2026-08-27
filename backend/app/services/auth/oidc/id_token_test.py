@@ -284,35 +284,23 @@ def test_azp_mismatch_rejected():
 
 
 # --- caller misconfiguration (programming errors → ValueError) --------------
-
-
-def test_empty_algorithm_allowlist_is_value_error():
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        # An allowlist that names nothing, or names an algorithm this verifier
+        # will not accept, is refused before any token is read.
+        {"algorithms": []},
+        {"algorithms": ["HS256"]},
+        {"algorithms": ["none"]},
+        # The values every token is checked against cannot themselves be blank.
+        {"issuer": ""},
+        {"audience": ""},
+        {"nonce": ""},
+    ],
+    ids=lambda k: ",".join(f"{a}={b!r}" for a, b in k.items()),
+)
+def test_verifying_with_an_unusable_setting_is_a_caller_error(kwargs):
+    """These are our misuse, not a bad token, so they surface as ``ValueError``
+    rather than as a rejected login."""
     with pytest.raises(ValueError):
-        _verify(_encode(_claims()), algorithms=[])
-
-
-def test_symmetric_algorithm_in_allowlist_refused():
-    """Refuse to even run with an HMAC alg in the allowlist — that would reopen
-    the confusion bypass. This is a ValueError (our misuse), not a rejected token."""
-    with pytest.raises(ValueError):
-        _verify(_encode(_claims()), algorithms=["HS256"])
-
-
-def test_none_algorithm_in_allowlist_refused():
-    with pytest.raises(ValueError):
-        _verify(_encode(_claims()), algorithms=["none"])
-
-
-def test_empty_issuer_is_value_error():
-    with pytest.raises(ValueError):
-        _verify(_encode(_claims()), issuer="")
-
-
-def test_empty_audience_is_value_error():
-    with pytest.raises(ValueError):
-        _verify(_encode(_claims()), audience="")
-
-
-def test_empty_nonce_is_value_error():
-    with pytest.raises(ValueError):
-        _verify(_encode(_claims()), nonce="")
+        _verify(_encode(_claims()), **kwargs)

@@ -129,6 +129,9 @@ from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
     ensure_default_initiative,
 )
+from app.services.tenant.filter_presets import (  # noqa: E402
+    ensure_default_presets,
+)
 from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
@@ -337,6 +340,7 @@ class IDTracker:
             "project_favorites": [],
             "recent_views": [],
             "task_statuses": [],
+            "project_filter_presets": [],
             "tasks": [],
             "subtasks": [],
             "task_assignees": [],
@@ -2436,6 +2440,11 @@ async def seed() -> None:
         g1_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g1_projects:
             statuses = await ensure_default_statuses(session, proj.id)
+            # The seed builds Project rows directly rather than going through
+            # the create endpoint, so it owns every default that endpoint would
+            # have applied — the filter presets included.
+            for preset in await ensure_default_presets(session, proj.id):
+                ids.add("project_filter_presets", preset.id)
             cat_map = {}
             for s in statuses:
                 cat_map[s.category] = s
@@ -4283,6 +4292,11 @@ async def seed() -> None:
         g2_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g2_projects:
             statuses = await ensure_default_statuses(session, proj.id)
+            # The seed builds Project rows directly rather than going through
+            # the create endpoint, so it owns every default that endpoint would
+            # have applied — the filter presets included.
+            for preset in await ensure_default_presets(session, proj.id):
+                ids.add("project_filter_presets", preset.id)
             cat_map = {}
             for s in statuses:
                 cat_map[s.category] = s
@@ -5616,6 +5630,11 @@ async def seed() -> None:
         g3_status_maps: dict[int, dict[str, TaskStatus]] = {}
         for proj in g3_projects:
             statuses = await ensure_default_statuses(session, proj.id)
+            # The seed builds Project rows directly rather than going through
+            # the create endpoint, so it owns every default that endpoint would
+            # have applied — the filter presets included.
+            for preset in await ensure_default_presets(session, proj.id):
+                ids.add("project_filter_presets", preset.id)
             cat_map = {}
             for s in statuses:
                 cat_map[s.category] = s

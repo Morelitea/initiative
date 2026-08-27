@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
   "title": "Initiative app manifest (the 'definition' body)",
-  "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (a widget's data sources, a requires term's connection, an event's service prefix), the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the conditional rules for connect_path and initiative visibility are enforced by the platform on publish and are not expressible here.",
+  "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the conditional rules for connect_path and initiative visibility are enforced by the platform on publish and are not expressible here.",
   "type": "object",
   "required": [
     "app_kind",
@@ -36,14 +36,12 @@
     },
     "features": {
       "type": "array",
-      "maxItems": 6,
+      "maxItems": 4,
       "items": {
         "enum": [
-          "automations",
           "dashboards",
-          "data",
           "embeds",
-          "events",
+          "endpoints",
           "widgets"
         ]
       },
@@ -60,11 +58,11 @@
         "$ref": "#/$defs/connection"
       }
     },
-    "data_sources": {
+    "endpoints": {
       "type": "array",
-      "maxItems": 24,
+      "maxItems": 64,
       "items": {
-        "$ref": "#/$defs/dataSource"
+        "$ref": "#/$defs/endpoint"
       }
     },
     "widgets": {
@@ -80,20 +78,6 @@
       "items": {
         "$ref": "#/$defs/embed"
       }
-    },
-    "events": {
-      "type": "array",
-      "maxItems": 50,
-      "items": {
-        "type": "string",
-        "maxLength": 200,
-        "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
-        "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the emitting registration at ingress."
-      }
-    },
-    "automation": {
-      "type": "object",
-      "description": "The automation service's own block. Opaque to the platform: checked for shape and size, stored verbatim, and described by no vocabulary here."
     },
     "dashboards": {
       "type": "array",
@@ -236,7 +220,7 @@
         ]
       }
     },
-    "sourceParam": {
+    "endpointParam": {
       "type": "object",
       "required": [
         "key",
@@ -251,6 +235,7 @@
         "type": {
           "enum": [
             "bool",
+            "datetime",
             "int",
             "select",
             "string",
@@ -266,13 +251,18 @@
         },
         "options": {
           "type": "array",
-          "description": "Required when type is 'select'.",
+          "description": "Required when type is 'select'. The values themselves — a consumer that shows a menu writes its own words for them.",
           "maxItems": 24,
           "minItems": 1,
           "items": {
             "type": "string",
             "maxLength": 120
           }
+        },
+        "list": {
+          "type": "boolean",
+          "default": false,
+          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, an app wanting several of something declares a string and documents a comma — which nothing downstream can validate or complete."
         }
       },
       "if": {
@@ -289,6 +279,35 @@
         "required": [
           "options"
         ]
+      }
+    },
+    "endpointReturn": {
+      "type": "object",
+      "required": [
+        "key",
+        "type"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": [
+            "bool",
+            "datetime",
+            "int",
+            "string",
+            "url"
+          ],
+          "description": "The parameter vocabulary minus 'select', because a select is a control and the value behind one is a string."
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "list": {
+          "type": "boolean",
+          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one — a form field, a tile's number — which is why it is a flag rather than a second set of types."
+        }
       }
     },
     "connection": {
@@ -329,40 +348,92 @@
         }
       }
     },
-    "dataSource": {
+    "namespacedId": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
+      "description": "Namespaced under the app's own service id — 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
+    },
+    "endpoint": {
       "type": "object",
       "required": [
         "id",
-        "path"
+        "direction"
       ],
       "properties": {
         "id": {
-          "$ref": "#/$defs/identifier"
+          "$ref": "#/$defs/namespacedId"
         },
-        "path": {
-          "$ref": "#/$defs/path"
+        "label": {
+          "$ref": "#/$defs/localizedText",
+          "description": "What this endpoint IS, in words somebody picks it out of a list by. Every direction, and an emission most of all: it is the one thing here chosen without ever being called."
+        },
+        "description": {
+          "$ref": "#/$defs/localizedText",
+          "description": "A second line, where the label needs one."
+        },
+        "returns": {
+          "type": "array",
+          "maxItems": 24,
+          "items": {
+            "$ref": "#/$defs/endpointReturn"
+          },
+          "description": "What this hands back, by name and type — the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
+        },
+        "group": {
+          "$ref": "#/$defs/identifier",
+          "description": "Where a consumer that groups an app's endpoints should file this one. Opaque here: the grouping is the consumer's, and an endpoint that says nothing sits in the flat list."
+        },
+        "needs_subject": {
+          "$ref": "#/$defs/identifier",
+          "description": "What a caller must already have in hand for this to mean anything. Opaque here — the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
+        },
+        "direction": {
+          "enum": [
+            "emit",
+            "read",
+            "write"
+          ],
+          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way — the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
+        },
+        "params": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/endpointParam"
+          },
+          "description": "What a caller may send. Read and write only."
+        },
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "enum": [
+              "installation",
+              "member"
+            ]
+          },
+          "description": "Whose credential the call runs on, best first. Read and write only. An endpoint offering only 'member' refuses when that member has connected nothing, rather than quietly acting as the app instead."
+        },
+        "requires": {
+          "$ref": "#/$defs/requires"
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "default": 0,
+          "description": "Read only. How long a response may be reused. Clamped into 0..86400 rather than refused, so a value outside that range is accepted and takes effect at the bound — which is why no range is asserted here."
         },
         "visibility": {
           "enum": [
             "guild_admin",
             "member"
           ],
-          "description": "A source is fetched for a guild rather than an initiative, so the initiative rung is not on offer."
+          "description": "Read only. An endpoint is called for a guild rather than an initiative, so the initiative rung is not on offer."
         },
-        "cache_ttl_seconds": {
-          "type": "integer",
-          "default": 0,
-          "description": "How long a response may be reused. Clamped into 0..86400 rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
-        },
-        "params_schema": {
-          "type": "array",
-          "maxItems": 12,
-          "items": {
-            "$ref": "#/$defs/sourceParam"
-          }
-        },
-        "requires": {
-          "$ref": "#/$defs/requires"
+        "identity": {
+          "$ref": "#/$defs/endpointIdentity",
+          "description": "'write' and 'emit': what this touched, or what it is about. Read endpoints have none — they touched nothing, so there is no echo to suppress."
         }
       }
     },
@@ -386,17 +457,17 @@
           "minLength": 1,
           "description": "The widget's browser-side module. Stored as an opaque string and executed only inside the sandbox; the platform never parses it. Capped in UTF-8 bytes, which this schema cannot express."
         },
-        "sources": {
+        "endpoints": {
           "type": "array",
           "maxItems": 8,
           "items": {
-            "$ref": "#/$defs/identifier"
+            "$ref": "#/$defs/namespacedId"
           },
-          "description": "Data source ids this manifest also declares."
+          "description": "Read endpoint ids this manifest also declares. Only a read answers with something to draw."
         },
         "sample_data": {
           "type": "object",
-          "description": "Rows keyed by declared source id, so a preview renders with no network call. Keys naming an undeclared source are dropped."
+          "description": "Rows keyed by declared read endpoint id, so a preview renders with no network call. Keys naming an undeclared endpoint are dropped."
         },
         "requires": {
           "$ref": "#/$defs/requires"
@@ -440,7 +511,7 @@
             "initiative_manager",
             "member"
           ],
-          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative \u2014 a rule the platform enforces, not this schema."
+          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative — a rule the platform enforces, not this schema."
         },
         "capabilities": {
           "type": "array",
@@ -477,14 +548,14 @@
           "minLength": 14,
           "maxLength": 14,
           "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]+$",
-          "description": "This dashboard's own catalog id \u2014 publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
+          "description": "This dashboard's own catalog id — publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
         },
         "public_id": {
           "type": "string",
           "minLength": 1,
           "maxLength": 120,
           "pattern": "^[\\-.0123456789_abcdefghijklmnopqrstuvwxyz]+$",
-          "description": "'<publisher>.<slug>', and not the app's own \u2014 a bundled dashboard is a separate listing."
+          "description": "'<publisher>.<slug>', and not the app's own — a bundled dashboard is a separate listing."
         },
         "name": {
           "type": "string",
@@ -527,7 +598,7 @@
         },
         "type": {
           "$ref": "#/$defs/identifier",
-          "description": "One of this manifest's own widget ids \u2014 bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
+          "description": "One of this manifest's own widget ids — bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
         },
         "title": {
           "type": "string",
@@ -559,12 +630,12 @@
         "binding": {
           "type": "object",
           "required": [
-            "source_id"
+            "endpoint_id"
           ],
           "properties": {
-            "source_id": {
-              "$ref": "#/$defs/identifier",
-              "description": "One of this manifest's own data source ids."
+            "endpoint_id": {
+              "$ref": "#/$defs/namespacedId",
+              "description": "One of this manifest's own read endpoint ids. Only a read answers with something to draw."
             },
             "params": {
               "type": "object",
@@ -581,6 +652,30 @@
           }
         }
       }
+    },
+    "endpointIdentity": {
+      "type": "object",
+      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for an app there was no key — so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
+      "required": [
+        "kind",
+        "key"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/identifier",
+          "description": "Your own word for what sort of thing this is ('issue'). Namespaced by your public id downstream, because two apps declaring the same kind mean two different things."
+        },
+        "key": {
+          "type": "array",
+          "description": "Returns of this endpoint, in order, joined to form the address. Every one must be a single value rather than a list — half an address matches nothing, and one built from the parts that happened to be there matches the wrong thing.",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

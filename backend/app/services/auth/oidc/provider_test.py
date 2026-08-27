@@ -211,88 +211,44 @@ async def test_token_response_non_object_rejected():
     assert err.value.code == "token_request_failed"
 
 
-async def test_id_token_with_unknown_kid_rejected():
-    idp = FakeIdp()
+@pytest.mark.parametrize(
+    ("case", "idp_kwargs", "mint", "code"),
+    [
+        # Names a key the JWKS does not carry, so nothing can verify it.
+        ("unknown kid", {}, {"kid": "not-in-jwks"}, "id_token_unverifiable"),
+        # Resolves a key, then fails against it.
+        ("wrong signing key", {}, {"priv": OTHER_KEY}, "id_token_rejected"),
+        ("replayed nonce", {}, {"nonce": "a-replayed-nonce"}, "id_token_rejected"),
+        ("another audience", {}, {"aud": "another-client"}, "id_token_rejected"),
+        # Discovery advertising only HMAC is an OidcFlowError rather than a
+        # fallback that accepts HMAC, or a raw ValueError.
+        ("symmetric algs only", {"algs": ("HS256",)}, {}, "id_token_rejected"),
+        # Advertises ES256; an RS256 token is outside the set.
+        (
+            "alg outside the advertised set",
+            {"algs": ("ES256",)},
+            {},
+            "id_token_rejected",
+        ),
+    ],
+    ids=lambda v: v if isinstance(v, str) and " " in v else "",
+)
+async def test_an_id_token_we_cannot_trust_is_rejected(case, idp_kwargs, mint, code):
+    """Every id_token the provider cannot tie to this flow and this issuer's
+    advertised keys comes back as an ``OidcFlowError`` carrying why."""
+    idp = FakeIdp(**idp_kwargs)
     provider = _provider(idp)
     begun = await provider.begin()
-    nonce = decode_flow_state(begun.state).nonce
+    claims = {"nonce": decode_flow_state(begun.state).nonce, **mint}
     idp.token_response = httpx.Response(
-        200, json={"id_token": _mint_id_token(nonce=nonce, kid="not-in-jwks")}
+        200, json={"id_token": _mint_id_token(**claims)}
     )
     with pytest.raises(OidcFlowError) as err:
         await provider.complete(code="c", state=begun.state)
-    assert err.value.code == "id_token_unverifiable"
-
-
-async def test_id_token_signed_by_wrong_key_rejected():
-    """Same kid, different private key: resolves a key but the signature fails."""
-    idp = FakeIdp()
-    provider = _provider(idp)
-    begun = await provider.begin()
-    nonce = decode_flow_state(begun.state).nonce
-    idp.token_response = httpx.Response(
-        200, json={"id_token": _mint_id_token(nonce=nonce, priv=OTHER_KEY)}
-    )
-    with pytest.raises(OidcFlowError) as err:
-        await provider.complete(code="c", state=begun.state)
-    assert err.value.code == "id_token_rejected"
-
-
-async def test_id_token_with_wrong_nonce_rejected():
-    idp = FakeIdp()
-    provider = _provider(idp)
-    begun = await provider.begin()
-    idp.token_response = httpx.Response(
-        200, json={"id_token": _mint_id_token(nonce="a-replayed-nonce")}
-    )
-    with pytest.raises(OidcFlowError) as err:
-        await provider.complete(code="c", state=begun.state)
-    assert err.value.code == "id_token_rejected"
-
-
-async def test_id_token_for_other_audience_rejected():
-    idp = FakeIdp()
-    provider = _provider(idp)
-    begun = await provider.begin()
-    nonce = decode_flow_state(begun.state).nonce
-    idp.token_response = httpx.Response(
-        200, json={"id_token": _mint_id_token(nonce=nonce, aud="another-client")}
-    )
-    with pytest.raises(OidcFlowError) as err:
-        await provider.complete(code="c", state=begun.state)
-    assert err.value.code == "id_token_rejected"
+    assert err.value.code == code
 
 
 # --- algorithm negotiation --------------------------------------------------------
-
-
-async def test_provider_advertising_only_symmetric_algs_rejected():
-    """A discovery doc advertising only HMAC algs must be an OidcFlowError —
-    never a fallback to accepting HMAC, and never a raw ValueError."""
-    idp = FakeIdp(algs=("HS256",))
-    provider = _provider(idp)
-    begun = await provider.begin()
-    nonce = decode_flow_state(begun.state).nonce
-    idp.token_response = httpx.Response(
-        200, json={"id_token": _mint_id_token(nonce=nonce)}
-    )
-    with pytest.raises(OidcFlowError) as err:
-        await provider.complete(code="c", state=begun.state)
-    assert err.value.code == "id_token_rejected"
-
-
-async def test_token_alg_outside_advertised_set_rejected():
-    """Discovery advertises ES256 only; an RS256 id_token must be refused."""
-    idp = FakeIdp(algs=("ES256",))
-    provider = _provider(idp)
-    begun = await provider.begin()
-    nonce = decode_flow_state(begun.state).nonce
-    idp.token_response = httpx.Response(
-        200, json={"id_token": _mint_id_token(nonce=nonce)}
-    )
-    with pytest.raises(OidcFlowError) as err:
-        await provider.complete(code="c", state=begun.state)
-    assert err.value.code == "id_token_rejected"
 
 
 async def test_no_advertised_algs_uses_default_pair():

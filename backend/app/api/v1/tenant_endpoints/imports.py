@@ -31,6 +31,7 @@ from app.schemas.tenant.import_data import (
 from app.core.messages import ImportMessages
 from app.services.tenant import import_service
 from app.services import permissions as permissions_service
+from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,7 @@ async def import_from_todoist(
 
     # Ensure default statuses exist
     await task_statuses_service.ensure_default_statuses(session, project.id)
+    await filter_presets_service.ensure_default_presets(session, project.id)
 
     # Validate that all mapped status IDs belong to the project
     project_statuses = await task_statuses_service.list_statuses(session, project.id)
@@ -191,6 +193,7 @@ async def import_from_vikunja(
 
     # Ensure default statuses exist
     await task_statuses_service.ensure_default_statuses(session, project.id)
+    await filter_presets_service.ensure_default_presets(session, project.id)
 
     # Validate that all mapped status IDs belong to the project
     project_statuses = await task_statuses_service.list_statuses(session, project.id)
@@ -259,6 +262,7 @@ async def import_from_ticktick(
 
     # Ensure default statuses exist
     await task_statuses_service.ensure_default_statuses(session, project.id)
+    await filter_presets_service.ensure_default_presets(session, project.id)
 
     # Validate that all mapped status IDs belong to the project
     project_statuses = await task_statuses_service.list_statuses(session, project.id)

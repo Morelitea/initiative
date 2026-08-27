@@ -24,6 +24,10 @@ token exists — and because a deployment with no signing key must fail closed
 rather than mint something no app can verify.
 """
 
+import hashlib
+import hmac
+from urllib.parse import parse_qs, urlsplit
+
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -873,11 +877,12 @@ class TestConnectLaunch:
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["connect_url"] == (
-            "https://widgetco.example.test/connect/github"
-            f"?connection_ref={body['connection_ref']}"
-            f"&guild_id={a.guild.id}"
+        assert body["connect_url"].startswith(
+            "https://widgetco.example.test/connect/github?"
         )
+        query = parse_qs(urlsplit(body["connect_url"]).query)
+        assert query["connection_ref"] == [body["connection_ref"]]
+        assert query["guild_id"] == [str(a.guild.id)]
 
     async def test_the_url_uses_the_browser_address(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -919,11 +924,93 @@ class TestConnectLaunch:
         ).json()
         query = body["connect_url"].split("?", 1)[1]
         # Pinned exactly, so anything added to this URL is added deliberately.
-        assert query == (
-            f"connection_ref={body['connection_ref']}&guild_id={a.guild.id}"
-        )
+        # The return address is signed rather than secret — a MAC over a public
+        # URL, which is why it travels here and the secret does not.
+        assert set(parse_qs(query)) == {
+            "connection_ref",
+            "guild_id",
+            "return_url",
+            "return_sig",
+        }
         for smell in ("token", "jwt", "secret", "Bearer", "eyJ"):
             assert smell not in query
+
+    async def test_the_app_is_told_where_to_send_them_back(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """An app knows a handle and a guild id, and has never been told what
+        language this person reads. So it does not write the ending: it hands
+        them back here with one word, and Initiative renders the sentence.
+
+        The address is Initiative's own, built from the frontend entry the
+        deployment publishes rather than from anything the app said."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await self._install(session, a)
+
+        body = (
+            await client.post(
+                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+            )
+        ).json()
+        query = parse_qs(urlsplit(body["connect_url"]).query)
+
+        home = query["return_url"][0]
+        assert home.startswith(f"{settings.APP_URL.rstrip('/')}/apps/connected?")
+        # Which app and which connection, so the page can say what was being
+        # connected without the app having to put it back on the URL.
+        assert parse_qs(urlsplit(home).query) == {
+            "app": [SERVICE_ID],
+            "connection": ["github"],
+        }
+
+    async def test_the_return_address_is_signed_with_the_app_s_own_secret(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """The browser carries this, so anybody can propose an address. An app
+        that followed one it was merely handed would be a redirector on a
+        hostname people trust, reached through a real vendor login — so the app
+        checks a MAC, and only Initiative can produce one.
+
+        The secret itself stays where it was: what travels is the MAC."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await self._install(session, a)
+
+        body = (
+            await client.post(
+                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+            )
+        ).json()
+        query = parse_qs(urlsplit(body["connect_url"]).query)
+
+        expected = hmac.new(
+            b"test-secret", query["return_url"][0].encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        assert query["return_sig"] == [expected]
+        assert "test-secret" not in body["connect_url"]
+
+    async def test_a_registration_with_no_secret_sends_no_address(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """Nothing to sign with, so nothing is offered. The app then says its
+        piece on its own page — the same thing it does for somebody who arrived
+        by a hand-copied link, and better than an unsigned address it would
+        have to take on trust."""
+        await _mark(session, registration, secret_encrypted=None)
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await self._install(session, a)
+
+        body = (
+            await client.post(
+                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+            )
+        ).json()
+        query = parse_qs(urlsplit(body["connect_url"]).query)
+
+        assert "return_url" not in query
+        assert "return_sig" not in query
+        # And the rest of the handoff is untouched: the flow still works, the
+        # ending is just the app's own page.
+        assert query["connection_ref"] == [body["connection_ref"]]
 
     async def test_an_unregistered_app_sends_nobody_anywhere(
         self, client: AsyncClient, acting_user, session: AsyncSession
