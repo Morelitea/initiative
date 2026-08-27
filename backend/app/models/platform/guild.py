@@ -3,6 +3,8 @@ from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Boolean, Column, DateTime, String, Integer, Text
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.sql import text
 from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
@@ -34,10 +36,50 @@ class GuildStatus(str, Enum):
     suspended = "suspended"
 
 
+class GuildCategory(str, Enum):
+    """A subject a guild can file itself under in the community directory.
+
+    A closed vocabulary rather than free-form tags: the directory's job is to
+    narrow a deployment's guilds down to a browsable shelf, and that only works
+    if two guilds about the same thing pick the same word. Guilds choose their
+    own (zero or more) from their settings page; the labels are localized
+    client-side from these keys, so the stored value is never user-facing text.
+
+    Stored as a ``text[]`` on ``guilds.categories`` with a CHECK that every
+    element is one of these, mirroring how ``status`` is a CHECK-constrained
+    string rather than a Postgres enum: adding a category is then an ordinary
+    migration instead of an enum alteration.
+    """
+
+    art = "art"
+    gaming = "gaming"
+    ttrpg = "ttrpg"
+    music = "music"
+    writing = "writing"
+    education = "education"
+    technology = "technology"
+    sports = "sports"
+    business = "business"
+    health = "health"
+    social = "social"
+    other = "other"
+
+
 class Guild(SQLModel, table=True):
     __tablename__ = "guilds"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    __table_args__ = (
+        # The community directory's only query shape: listed guilds, optionally
+        # narrowed to one category. Partial on the opt-in so the index stays
+        # the size of the directory rather than the size of the deployment.
+        Index(
+            "ix_guilds_community_categories",
+            "categories",
+            postgresql_using="gin",
+            postgresql_where=text("is_community"),
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
@@ -72,6 +114,34 @@ class Guild(SQLModel, table=True):
     # When the status last changed; NULL until the first operator change.
     status_changed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    # Community directory opt-in. False means the guild is reachable only by
+    # invite; True publishes its name, description, icon, categories, and roster
+    # size to the signed-in directory and lets anyone join without one. Set by
+    # the guild's own admins, alongside the identity columns above.
+    is_community: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # Which shelves the guild files itself under (see GuildCategory). A listed
+    # guild must be on at least one — a card nobody can find by browsing is not
+    # a listing — which the ck_guilds_community_categories CHECK enforces.
+    categories: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(
+            ARRAY(String(32)), nullable=False, server_default=text("'{}'::varchar[]")
+        ),
+    )
+    # Whether this guild is 18+. NULL is the default and stays the answer for
+    # almost every guild: it is a question only the directory needs answered,
+    # and a guild that never lists itself is never asked it.
+    #
+    # Listing requires an explicit False — the admin certifies it as part of
+    # publishing. True and an unanswered NULL both keep the guild out, which is
+    # one CHECK (ck_guilds_community_adult_content) rather than an app rule,
+    # because ``IS FALSE`` is false for NULL too.
+    has_adult_content: Optional[bool] = Field(
+        default=None, sa_column=Column(Boolean, nullable=True)
     )
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.

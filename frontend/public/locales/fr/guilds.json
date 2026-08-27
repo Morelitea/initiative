@@ -117,7 +117,18 @@
     "retentionDescription": "Combien de temps les éléments supprimés restent dans la corbeille avant d'être supprimés définitivement. Réglez sur \"Jamais\" pour les conserver jusqu'à ce qu'un administrateur les supprime manuellement.",
     "retentionDaysLabel": "Jours",
     "retentionNeverLabel": "Ne jamais purger automatiquement",
-    "retentionUpdatedSuccessfully": "Rétention mise à jour."
+    "retentionUpdatedSuccessfully": "Rétention mise à jour.",
+    "discoveryTitle": "Annuaire des communautés",
+    "discoveryDescription": "Une guilde inscrite apparaît dans l’annuaire, où toute personne connectée peut la trouver et la rejoindre sans invitation.",
+    "discoveryToggleLabel": "Inscrire cette guilde",
+    "discoveryCategoriesLabel": "Catégories",
+    "discoveryCategoriesHint": "Choisissez les sujets qui décrivent cette guilde. Ils déterminent les catégories où elle apparaît.",
+    "discoveryAdultLabel": "Cette guilde contient du contenu pour adultes (18+)",
+    "discoveryAdultHint": "Une guilde 18+ n’est jamais inscrite à l’annuaire des communautés.",
+    "discoveryAdultLocked": "Retirez cette guilde de l’annuaire avant de la marquer 18+.",
+    "discoveryCapacityBlocked": "Cette guilde n’a de place que pour une personne : personne ne pourrait la rejoindre depuis l’annuaire. Demandez à votre opérateur de plateforme d’augmenter la limite de membres.",
+    "discoveryListed": "Inscrite à l’annuaire des communautés.",
+    "discoveryNotListed": "Non inscrite. Seules les personnes disposant d’une invitation peuvent la rejoindre."
   },
   "users": {
     "adminRequired": "Vous avez besoin des permissions administrateur pour voir cette page.",
@@ -185,7 +196,8 @@
     "accountSettings": "Paramètres du compte",
     "platformSettings": "Paramètres de la plateforme",
     "shellBackToStart": "Retour à l'accueil",
-    "logOut": "Se déconnecter"
+    "logOut": "Se déconnecter",
+    "browseCommunities": "Parcourir les communautés"
   },
   "notifications": {
     "title": "Notifications",
@@ -307,5 +319,57 @@
     "claimButton": "Tout récupérer",
     "summary_one": "{{count}} élément n'a pas de propriétaire",
     "summary_other": "{{count}} éléments n'ont pas de propriétaire"
+  },
+  "community": {
+    "title": "Communautés",
+    "subtitle": "Les guildes qui accueillent de nouveaux membres sans invitation.",
+    "browse": "Rejoindre une communauté",
+    "searchPlaceholder": "Rechercher des communautés",
+    "categoriesHeading": "Catégories",
+    "allCategories": "Toutes",
+    "categories": {
+      "art": "Art et design",
+      "gaming": "Jeux vidéo",
+      "ttrpg": "Jeu de rôle sur table",
+      "music": "Musique",
+      "writing": "Écriture",
+      "education": "Éducation",
+      "technology": "Sciences et technologies",
+      "sports": "Sport et forme",
+      "business": "Entreprise",
+      "health": "Santé et bien-être",
+      "social": "Communauté et social",
+      "other": "Autre"
+    },
+    "join": "Rejoindre",
+    "joining": "Adhésion…",
+    "open": "Ouvrir",
+    "joinedToast": "Vous avez rejoint {{guild}}.",
+    "joinFailed": "Impossible de rejoindre cette communauté.",
+    "noDescription": "Pas encore de description.",
+    "resultCount_one": "{{count}} communauté",
+    "resultCount_other": "{{count}} communautés",
+    "showMore": "Afficher plus",
+    "emptyTitle": "Aucune communauté pour l’instant",
+    "emptyDescription": "Aucune guilde n’est inscrite à l’annuaire ici. Un administrateur de guilde peut inscrire la sienne depuis les paramètres de la guilde.",
+    "noResultsTitle": "Aucun résultat",
+    "noResultsDescription": "Aucune communauté ne correspond à « {{query}} ». Essayez une autre recherche ou catégorie.",
+    "unavailableTitle": "Annuaire indisponible",
+    "unavailableDescription": "Impossible de charger l’annuaire des communautés. Réessayez dans un instant.",
+    "publish": {
+      "title": "Inscrire cette guilde à l’annuaire",
+      "description": "Toute personne connectée pourra trouver cette guilde et la rejoindre sans invitation.",
+      "categoriesLabel": "Choisissez au moins une catégorie",
+      "categoriesHint": "Elles déterminent où la guilde apparaît quand on parcourt l’annuaire.",
+      "certifyLabel": "Cette guilde ne contient aucun contenu pour adultes",
+      "certifyIntro": "En inscrivant cette guilde, vous certifiez qu’elle ne contient rien de ce qui suit :",
+      "certifyPorn": "Pornographie, contenu sexuel ou nudité",
+      "certifyMinors": "Tout contenu sexuel impliquant un mineur",
+      "certifyIllegal": "Activité illégale — consommation ou vente de drogue, armes, fraude, biens volés",
+      "certifyViolence": "Violence graphique, contenu gore ou incitation à l’automutilation",
+      "certifyHate": "Discours haineux, harcèlement ou menaces",
+      "certifyDuty": "Vous êtes administrateur de cette guilde : c’est à vous de le faire respecter. Vous êtes censé surveiller ce type de contenu et le supprimer. Une guilde qui cesse de respecter cela est retirée de l’annuaire.",
+      "confirm": "Inscrire la guilde"
+    }
   }
 }

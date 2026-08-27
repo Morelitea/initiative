@@ -117,7 +117,18 @@
     "retentionDescription": "How long deleted items stay in the trash before they're permanently removed. Set to \"Never\" to keep them until an admin manually deletes them.",
     "retentionDaysLabel": "Days",
     "retentionNeverLabel": "Never auto-purge",
-    "retentionUpdatedSuccessfully": "Retention updated."
+    "retentionUpdatedSuccessfully": "Retention updated.",
+    "discoveryTitle": "Community directory",
+    "discoveryDescription": "A listed guild appears in the directory, where anyone signed in can find it and join without an invite.",
+    "discoveryToggleLabel": "List this guild",
+    "discoveryCategoriesLabel": "Categories",
+    "discoveryCategoriesHint": "Pick the subjects that describe this guild. They decide which shelves it appears under.",
+    "discoveryAdultLabel": "This guild contains adult content (18+)",
+    "discoveryAdultHint": "An 18+ guild is never listed in the community directory.",
+    "discoveryAdultLocked": "Un-list this guild from the directory before marking it 18+.",
+    "discoveryCapacityBlocked": "This guild has room for only one person, so nobody could join it from the directory. Ask your platform operator to raise its member limit.",
+    "discoveryListed": "Listed in the community directory.",
+    "discoveryNotListed": "Not listed. Only people with an invite can join."
   },
   "users": {
     "adminRequired": "You need admin permissions to view this page.",
@@ -185,7 +196,8 @@
     "accountSettings": "Account settings",
     "platformSettings": "Platform settings",
     "shellBackToStart": "Back to start",
-    "logOut": "Log out"
+    "logOut": "Log out",
+    "browseCommunities": "Browse communities"
   },
   "notifications": {
     "title": "Notifications",
@@ -307,5 +319,57 @@
     "claimButton": "Claim all",
     "summary_one": "{{count}} item has no owner",
     "summary_other": "{{count}} items have no owner"
+  },
+  "community": {
+    "title": "Communities",
+    "subtitle": "Guilds that welcome new members without an invite.",
+    "browse": "Join a community",
+    "searchPlaceholder": "Search communities",
+    "categoriesHeading": "Categories",
+    "allCategories": "All",
+    "categories": {
+      "art": "Art & design",
+      "gaming": "Gaming",
+      "ttrpg": "Tabletop RPG",
+      "music": "Music",
+      "writing": "Writing",
+      "education": "Education",
+      "technology": "Science & tech",
+      "sports": "Sports & fitness",
+      "business": "Business",
+      "health": "Health & wellness",
+      "social": "Community & social",
+      "other": "Other"
+    },
+    "join": "Join",
+    "joining": "Joining…",
+    "open": "Open",
+    "joinedToast": "You joined {{guild}}.",
+    "joinFailed": "Unable to join that community.",
+    "noDescription": "No description yet.",
+    "resultCount_one": "{{count}} community",
+    "resultCount_other": "{{count}} communities",
+    "showMore": "Show more",
+    "emptyTitle": "No communities yet",
+    "emptyDescription": "No guild here has listed itself in the directory. A guild admin can list theirs from guild settings.",
+    "noResultsTitle": "Nothing matched",
+    "noResultsDescription": "No community matches “{{query}}”. Try another search or category.",
+    "unavailableTitle": "Directory unavailable",
+    "unavailableDescription": "The community directory could not be loaded. Try again in a moment.",
+    "publish": {
+      "title": "List this guild in the directory",
+      "description": "Anyone signed in will be able to find this guild and join it without an invite.",
+      "categoriesLabel": "Pick at least one category",
+      "categoriesHint": "These decide where the guild shows up when people browse.",
+      "certifyLabel": "This guild contains no adult content",
+      "certifyIntro": "By listing this guild you certify that it contains none of the following:",
+      "certifyPorn": "Pornography, sexual content, or nudity",
+      "certifyMinors": "Any sexual content involving a minor",
+      "certifyIllegal": "Illegal activity — drug use or sale, weapons, fraud, stolen goods",
+      "certifyViolence": "Graphic violence, gore, or encouragement of self-harm",
+      "certifyHate": "Hate speech, harassment, or threats",
+      "certifyDuty": "You are an admin of this guild, so this is yours to enforce. You are expected to watch for this content and remove it. A guild that stops meeting this is removed from the directory.",
+      "confirm": "List this guild"
+    }
   }
 }

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import GuildCategory, GuildRole, GuildStatus
 
 
 class GuildBase(SanitizedBaseModel):
@@ -78,6 +78,14 @@ class GuildRead(GuildBase):
     # ``None`` for non-admin members (they never configure auth). Only
     # meaningful under the per-guild AUTH_SCOPE posture.
     guild_auth_enabled: Optional[bool] = None
+    # Community directory opt-in and its subject tags. Guild identity, not
+    # administration: every member sees them (they are published to strangers
+    # anyway), and the settings page shows the controls to admins.
+    is_community: bool = False
+    categories: List[GuildCategory] = []
+    # The 18+ declaration. ``None`` — unanswered — is the normal state for a
+    # guild that has never been listed; listing requires an explicit ``False``.
+    has_adult_content: Optional[bool] = None
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -127,6 +135,19 @@ class GuildUpdate(SanitizedBaseModel):
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
     retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    # Community directory opt-in and subject tags. Omit-to-skip, like the
+    # fields above: the endpoint inspects ``model_fields_set``, so a PATCH that
+    # only renames a guild never disturbs its listing. A null ``categories``
+    # is read as "no categories" — the empty list means the same thing and the
+    # UI sends that — while a null ``is_community`` is a no-op (a boolean
+    # opt-in has no third state).
+    is_community: Optional[bool] = None
+    categories: Optional[List[GuildCategory]] = None
+    # The 18+ declaration, and the one field here where null is an ANSWER
+    # rather than a skip — it puts the guild back to undeclared. Omitting the
+    # field is how you leave it alone, so this is read from
+    # ``model_fields_set`` rather than from the value being non-null.
+    has_adult_content: Optional[bool] = None
     # NOTE: deliberately no cap/status/tier fields here. Those are
     # operator/billing enforcement inputs (the platform Guilds tab or the
     # verified billing path) — a guild's own admins must never set them, and
@@ -252,3 +273,33 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
 
     can_leave: bool
     is_last_admin: bool
+
+
+class CommunityGuildRead(SanitizedBaseModel):
+    """One card in the community directory.
+
+    Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
+    carries only what the guild published by opting in — its identity, its
+    shelves, and how many people are already there. No membership fields (they
+    have none), no lifecycle status, no administration. ``already_member`` is
+    about the *caller*, and only says whether the Join button applies to them.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    description: Optional[RichTextStr] = None
+    icon_base64: Optional[RawTextStr] = None
+    categories: List[GuildCategory] = []
+    member_count: int = 0
+    already_member: bool = False
+
+
+class CommunityGuildPage(SanitizedBaseModel):
+    """A page of directory results, plus how many matched in total."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[CommunityGuildRead]
+    total: int

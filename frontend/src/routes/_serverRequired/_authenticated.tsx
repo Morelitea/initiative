@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
-import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
+import { Compass, Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -362,6 +362,16 @@ function NoGuildState({
             </Link>
           </Button>
         </div>
+
+        {/* The other way out of this screen: a guild that opened itself to
+            the directory can be joined here and now, with no invite to wait
+            for and nobody to ask. */}
+        <Button variant="outline" asChild className="w-full">
+          <Link to="/communities">
+            <Compass className="h-4 w-4" />
+            {t("noGuild.browseCommunities")}
+          </Link>
+        </Button>
 
         {/* Direct entry points to the user/platform settings pages so a
             user with no memberships can still manage their account

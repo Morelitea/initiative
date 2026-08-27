@@ -460,5 +460,10 @@
   "FILTER_PRESET_DUPLICATE_ID": "The same preset was listed twice.",
   "FILTER_PRESET_SLUG_TAKEN": "A preset with that name already exists in this project.",
   "FILTER_PRESET_INVALID_FILTERS": "Those filters can’t be saved as a preset.",
-  "FILTER_PRESET_LIMIT_REACHED": "This project already has the maximum number of filter presets."
+  "FILTER_PRESET_LIMIT_REACHED": "This project already has the maximum number of filter presets.",
+  "GUILD_NOT_A_COMMUNITY": "That guild is not open to the community directory.",
+  "GUILD_COMMUNITY_REQUIRES_CATEGORY": "A listed guild needs at least one category.",
+  "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirm this guild contains no adult content before listing it.",
+  "GUILD_COMMUNITY_ADULT_CONTENT": "A guild marked 18+ cannot be listed in the community directory.",
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "This guild has room for only one person, so it cannot be listed in the community directory."
 }

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 
-from sqlalchemy import Integer, bindparam, func, text
+from sqlalchemy import Integer, bindparam, func, or_, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -14,6 +14,7 @@ from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     Guild,
+    GuildCategory,
     GuildInvite,
     GuildMembership,
     GuildRole,
@@ -36,6 +37,43 @@ class GuildInviteError(Exception):
 
 class GuildCapacityError(Exception):
     """Raised when adding a member would exceed the guild's ``max_users`` cap."""
+
+
+class CommunityJoinError(Exception):
+    """Raised when a guild cannot be joined from the community directory."""
+
+
+class CommunityListingError(Exception):
+    """Raised when a guild does not qualify to be listed in the directory."""
+
+
+# A guild whose seat cap is one can never admit a joiner, so listing it would
+# publish a card whose only button is guaranteed to fail. Unlike a guild that is
+# merely full today, this one can never have room, which is why it is refused
+# outright rather than left to the capacity check at join time.
+MIN_COMMUNITY_SEATS = 2
+
+
+# Canonical order for a guild's categories: the order they are declared in
+# ``GuildCategory``. Storing them sorted means every card, filter chip, and
+# assertion sees the same sequence regardless of the order they were checked.
+_CATEGORY_ORDER = {
+    category.value: index for index, category in enumerate(GuildCategory)
+}
+
+
+def normalize_categories(categories: Sequence[str] | None) -> list[str]:
+    """De-duplicate a category selection and put it in canonical order.
+
+    Unknown values are dropped rather than rejected: the schema layer has
+    already validated the request against ``GuildCategory``, and the database
+    CHECK is the backstop, so anything else reaching here is a value this build
+    no longer recognizes and simply has no shelf to sit on.
+    """
+    if not categories:
+        return []
+    unique = {value for value in categories if value in _CATEGORY_ORDER}
+    return sorted(unique, key=lambda value: _CATEGORY_ORDER[value])
 
 
 async def _persist_new_guild(session: AsyncSession, guild: Guild) -> Guild:
@@ -526,6 +564,11 @@ async def update_guild(
     icon_provided: bool = False,
     retention_days: int | None = None,
     retention_days_provided: bool = False,
+    is_community: bool | None = None,
+    categories: Sequence[str] | None = None,
+    categories_provided: bool = False,
+    has_adult_content: bool | None = None,
+    has_adult_content_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
@@ -545,6 +588,31 @@ async def update_guild(
     if icon_provided and icon_base64 != guild.icon_base64:
         guild.icon_base64 = icon_base64
         updated = True
+    # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
+    # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
+    if is_community is not None and guild.is_community != is_community:
+        guild.is_community = is_community
+        updated = True
+    if categories_provided:
+        normalized = normalize_categories(categories)
+        if guild.categories != normalized:
+            # Assigned, never mutated in place: SQLAlchemy does not track
+            # in-place changes to an ARRAY column, so an ``.append()`` here
+            # would flush nothing.
+            guild.categories = normalized
+            updated = True
+    # The one field here where an explicit null is an answer (back to
+    # undeclared) rather than "leave it alone", so it reads the provided flag.
+    if has_adult_content_provided and guild.has_adult_content != has_adult_content:
+        guild.has_adult_content = has_adult_content
+        updated = True
+    # Checked against the state the guild is ending up in, not against what this
+    # PATCH happened to carry: a request that only clears the categories of an
+    # already-listed guild has to fail for the same reason as one that lists a
+    # guild with none. Two of the three rules are also database CHECKs; this is
+    # what turns them into an error a person can read.
+    if guild.is_community:
+        await _assert_listable(session, guild)
     if updated:
         guild.updated_at = datetime.now(timezone.utc)
         session.add(guild)
@@ -786,6 +854,157 @@ async def redeem_invite_for_user(
     invite.uses += 1
     session.add(invite)
     guild = await get_guild(session, guild_id=invite.guild_id)
+    return guild
+
+
+async def _assert_listable(session: AsyncSession, guild: Guild) -> None:
+    """Raise ``CommunityListingError`` unless this guild may be listed.
+
+    Three conditions, each with its own message so the reply says which one:
+
+    - it is on at least one shelf,
+    - it has declared itself free of adult content (an unanswered NULL is not a
+      declaration and is refused separately from an 18+ guild), and
+    - its seat cap leaves room for somebody to join.
+    """
+    if not guild.categories:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CATEGORY)
+    if guild.has_adult_content is None:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_CONTENT_NOT_DECLARED)
+    if guild.has_adult_content:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_ADULT_CONTENT)
+    administration = await get_administration(session, guild_id=guild.id)
+    if (
+        administration.max_users is not None
+        and administration.max_users < MIN_COMMUNITY_SEATS
+    ):
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CAPACITY)
+
+
+async def list_community_guilds(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    query: str | None = None,
+    category: str | None = None,
+    offset: int = 0,
+    limit: int = 24,
+) -> tuple[list[tuple[Guild, int, bool]], int]:
+    """The community directory: (guild, member_count, already_member) + total.
+
+    Three filters are not optional and are applied here rather than by the
+    caller. A guild appears only while it has opted in (``is_community``), only
+    while it is ``active`` — a suspended or frozen guild takes no new members,
+    and the invite path already refuses one — and only while its seat cap leaves
+    room for a joiner.
+
+    That last one is re-checked here, unlike the has-a-category and
+    no-adult-content rules: those are CHECK constraints on ``guilds``, so a row
+    that reaches this query already satisfies them. The cap lives on
+    ``guild_administration`` and only an operator sets it, so it can be lowered
+    long after the listing was made and no CHECK can see it.
+
+    Needs a session that can see every guild's ``guild_memberships`` rows to
+    count them (the system engine), the same precondition ``count_members``
+    documents. Nothing about a guild's *content* is read — only the identity it
+    published by opting in, plus how many people are already there.
+    """
+    member_count = (
+        select(func.count())
+        .select_from(GuildMembership)
+        .where(GuildMembership.guild_id == Guild.id)
+        .correlate(Guild)
+        .scalar_subquery()
+    )
+    already_member = (
+        select(func.count())
+        .select_from(GuildMembership)
+        .where(
+            GuildMembership.guild_id == Guild.id,
+            GuildMembership.user_id == user_id,
+        )
+        .correlate(Guild)
+        .scalar_subquery()
+    )
+
+    filters = [
+        Guild.is_community.is_(True),
+        Guild.status == GuildStatus.active.value,
+        # NULL is unlimited, hence the explicit null leg.
+        or_(
+            GuildAdministration.max_users.is_(None),
+            GuildAdministration.max_users >= MIN_COMMUNITY_SEATS,
+        ),
+    ]
+    if category:
+        filters.append(Guild.categories.contains([category]))
+    if query and query.strip():
+        # Case-insensitive across the two fields a card actually shows.
+        needle = f"%{query.strip()}%"
+        filters.append(or_(Guild.name.ilike(needle), Guild.description.ilike(needle)))
+
+    # Every guild has exactly one administration row, created with it, so this
+    # is an inner join by construction.
+    administration_join = (
+        GuildAdministration,
+        GuildAdministration.guild_id == Guild.id,
+    )
+    count_statement = select(func.count()).select_from(Guild).join(*administration_join)
+    statement = select(Guild, member_count, already_member > 0).join(
+        *administration_join
+    )
+    for condition in filters:
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+
+    total = (await session.exec(count_statement)).one()
+    statement = statement.order_by(Guild.name.asc(), Guild.id.asc())
+    rows = (await session.exec(statement.offset(offset).limit(limit))).all()
+    return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(
+        total
+    )
+
+
+async def join_community_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user: User,
+) -> Guild:
+    """Join a listed community guild — the invite-free half of the directory.
+
+    The opt-in is the authorization, so this checks exactly what an invite
+    redemption checks in its place: the guild is listed, it is ``active``, and
+    it has room. A guild that is not listed is reported as not found rather
+    than as forbidden — an unlisted guild has published nothing, and its
+    existence at a given id is part of that.
+
+    Runs on the system engine for the same reason ``accept_invite`` does: the
+    caller is not a member yet, so no guild-scoped role exists to write the
+    membership under.
+    """
+    try:
+        guild = await get_guild(session, guild_id=guild_id)
+    except ValueError as exc:
+        raise CommunityJoinError(GuildMessages.GUILD_NOT_FOUND) from exc
+    if not guild.is_community or guild.status != GuildStatus.active.value:
+        raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+    # The same seat-cap floor the directory filters on, so a guild it does not
+    # show cannot be joined by asking for it directly either.
+    administration = await get_administration(session, guild_id=guild_id)
+    if (
+        administration.max_users is not None
+        and administration.max_users < MIN_COMMUNITY_SEATS
+    ):
+        raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+    # Capacity is enforced inside ensure_membership, which is also where a
+    # repeat join short-circuits to the existing membership.
+    await ensure_membership(
+        session,
+        guild_id=guild_id,
+        user_id=user.id,
+        role=GuildRole.member,
+    )
     return guild
 
 

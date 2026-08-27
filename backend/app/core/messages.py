@@ -60,6 +60,16 @@ class GuildMessages:
     GUILD_DELETE_FAILED = "GUILD_DELETE_FAILED"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
+    # Asked to join a guild that is not listed in the community directory (or
+    # is no longer active). Reported as a 404 — an unlisted guild has published
+    # nothing, its existence at a given id included.
+    GUILD_NOT_A_COMMUNITY = "GUILD_NOT_A_COMMUNITY"
+    # The three things a guild must be before it can be listed: on at least one
+    # shelf, declared free of adult content, and able to admit anyone at all.
+    GUILD_COMMUNITY_REQUIRES_CATEGORY = "GUILD_COMMUNITY_REQUIRES_CATEGORY"
+    GUILD_COMMUNITY_CONTENT_NOT_DECLARED = "GUILD_COMMUNITY_CONTENT_NOT_DECLARED"
+    GUILD_COMMUNITY_ADULT_CONTENT = "GUILD_COMMUNITY_ADULT_CONTENT"
+    GUILD_COMMUNITY_REQUIRES_CAPACITY = "GUILD_COMMUNITY_REQUIRES_CAPACITY"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
     # 'support' is synthesized for PAM grantees only; it is never a stored
     # guild-membership role, so it cannot be assigned via the role endpoints.

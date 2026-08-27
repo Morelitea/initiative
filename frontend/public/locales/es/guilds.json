@@ -117,7 +117,18 @@
     "retentionDescription": "Cuánto tiempo permanecen los elementos eliminados en la papelera antes de ser borrados permanentemente. Selecciona \"Nunca\" para conservarlos hasta que un administrador los elimine manualmente.",
     "retentionDaysLabel": "Días",
     "retentionNeverLabel": "Nunca purgar automáticamente",
-    "retentionUpdatedSuccessfully": "Retención actualizada."
+    "retentionUpdatedSuccessfully": "Retención actualizada.",
+    "discoveryTitle": "Directorio de comunidades",
+    "discoveryDescription": "Un gremio publicado aparece en el directorio, donde cualquier persona con la sesión iniciada puede encontrarlo y unirse sin invitación.",
+    "discoveryToggleLabel": "Publicar este gremio",
+    "discoveryCategoriesLabel": "Categorías",
+    "discoveryCategoriesHint": "Elige los temas que describen este gremio. Determinan en qué categorías aparece.",
+    "discoveryAdultLabel": "Este gremio contiene contenido para adultos (+18)",
+    "discoveryAdultHint": "Un gremio +18 nunca se publica en el directorio de comunidades.",
+    "discoveryAdultLocked": "Retira este gremio del directorio antes de marcarlo como +18.",
+    "discoveryCapacityBlocked": "Este gremio solo tiene sitio para una persona, así que nadie podría unirse desde el directorio. Pide a tu operador de plataforma que suba el límite de miembros.",
+    "discoveryListed": "Publicado en el directorio de comunidades.",
+    "discoveryNotListed": "Sin publicar. Solo puede unirse quien tenga una invitación."
   },
   "users": {
     "adminRequired": "Necesitas permisos de administrador para ver esta página.",
@@ -185,7 +196,8 @@
     "accountSettings": "Configuración de la cuenta",
     "platformSettings": "Configuración de la plataforma",
     "shellBackToStart": "Volver al inicio",
-    "logOut": "Cerrar sesión"
+    "logOut": "Cerrar sesión",
+    "browseCommunities": "Explorar comunidades"
   },
   "notifications": {
     "title": "Notificaciones",
@@ -307,5 +319,57 @@
     "claimButton": "Reclamar todo",
     "summary_one": "{{count}} elemento no tiene propietario",
     "summary_other": "{{count}} elementos no tienen propietario"
+  },
+  "community": {
+    "title": "Comunidades",
+    "subtitle": "Gremios que aceptan nuevos miembros sin invitación.",
+    "browse": "Unirse a una comunidad",
+    "searchPlaceholder": "Buscar comunidades",
+    "categoriesHeading": "Categorías",
+    "allCategories": "Todas",
+    "categories": {
+      "art": "Arte y diseño",
+      "gaming": "Videojuegos",
+      "ttrpg": "Rol de mesa",
+      "music": "Música",
+      "writing": "Escritura",
+      "education": "Educación",
+      "technology": "Ciencia y tecnología",
+      "sports": "Deporte y forma física",
+      "business": "Negocios",
+      "health": "Salud y bienestar",
+      "social": "Comunidad y social",
+      "other": "Otros"
+    },
+    "join": "Unirse",
+    "joining": "Uniéndose…",
+    "open": "Abrir",
+    "joinedToast": "Te has unido a {{guild}}.",
+    "joinFailed": "No se ha podido unir a esa comunidad.",
+    "noDescription": "Todavía no hay descripción.",
+    "resultCount_one": "{{count}} comunidad",
+    "resultCount_other": "{{count}} comunidades",
+    "showMore": "Mostrar más",
+    "emptyTitle": "Aún no hay comunidades",
+    "emptyDescription": "Ningún gremio de aquí aparece en el directorio. Un administrador de gremio puede publicarlo desde los ajustes del gremio.",
+    "noResultsTitle": "Sin resultados",
+    "noResultsDescription": "Ninguna comunidad coincide con «{{query}}». Prueba con otra búsqueda o categoría.",
+    "unavailableTitle": "Directorio no disponible",
+    "unavailableDescription": "No se ha podido cargar el directorio de comunidades. Inténtalo de nuevo en un momento.",
+    "publish": {
+      "title": "Publicar este gremio en el directorio",
+      "description": "Cualquier persona con la sesión iniciada podrá encontrar este gremio y unirse sin invitación.",
+      "categoriesLabel": "Elige al menos una categoría",
+      "categoriesHint": "Determinan dónde aparece el gremio cuando la gente explora.",
+      "certifyLabel": "Este gremio no contiene contenido para adultos",
+      "certifyIntro": "Al publicar este gremio certificas que no contiene nada de lo siguiente:",
+      "certifyPorn": "Pornografía, contenido sexual o desnudos",
+      "certifyMinors": "Cualquier contenido sexual que implique a un menor",
+      "certifyIllegal": "Actividad ilegal: consumo o venta de drogas, armas, fraude, bienes robados",
+      "certifyViolence": "Violencia gráfica, contenido sangriento o incitación a la autolesión",
+      "certifyHate": "Discurso de odio, acoso o amenazas",
+      "certifyDuty": "Eres administrador de este gremio, así que hacerlo cumplir te corresponde a ti. Se espera que vigiles este tipo de contenido y lo elimines. Un gremio que deje de cumplirlo se retira del directorio.",
+      "confirm": "Publicar gremio"
+    }
   }
 }

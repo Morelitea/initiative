@@ -19,7 +19,15 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Check, ChevronsLeft, ChevronsRight, Clock, GripVertical, Plus } from "lucide-react";
+import {
+  Check,
+  ChevronsLeft,
+  ChevronsRight,
+  Clock,
+  Compass,
+  GripVertical,
+  Plus,
+} from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -171,6 +179,58 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
         </form>
       </DialogContent>
     </Dialog>
+  );
+};
+
+// Way in to the community directory, under "add a guild": the other way to end
+// up in a new guild, for anyone without an invite to redeem. Unlike creating
+// one this is never hidden — a deployment that has switched guild creation off
+// is exactly where joining an existing guild is the only way in.
+const JoinCommunityButton = ({
+  expanded = false,
+  onNavigate,
+}: {
+  expanded?: boolean;
+  /** Closes the flyout on the way out, so the directory is not behind it. */
+  onNavigate?: () => void;
+}) => {
+  const { t } = useTranslation("guilds");
+  const label = t("community.browse");
+
+  if (expanded) {
+    return (
+      <Link
+        to="/communities"
+        onClick={onNavigate}
+        className="flex w-full items-center gap-3 rounded-lg border border-muted-foreground/40 border-dashed px-3 py-2 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+          <Compass className="h-5 w-5" />
+        </span>
+        <span className="truncate font-medium text-sm">{label}</span>
+      </Link>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-12 w-12 rounded-2xl border border-muted-foreground/40 border-dashed bg-transparent text-muted-foreground hover:bg-muted"
+          aria-label={label}
+          asChild
+        >
+          <Link to="/communities" onClick={onNavigate}>
+            <Compass className="h-5 w-5" />
+          </Link>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={12}>
+        <p>{label}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
@@ -831,6 +891,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
             </TooltipContent>
           </Tooltip>
           {canCreateGuilds ? <CreateGuildButton /> : null}
+          <JoinCommunityButton />
         </div>
       </TooltipProvider>
 
@@ -945,11 +1006,10 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 </div>
               ) : null}
             </div>
-            {canCreateGuilds ? (
-              <div className="shrink-0 border-t p-2">
-                <CreateGuildButton expanded />
-              </div>
-            ) : null}
+            <div className="shrink-0 space-y-2 border-t p-2">
+              {canCreateGuilds ? <CreateGuildButton expanded /> : null}
+              <JoinCommunityButton expanded onNavigate={collapse} />
+            </div>
           </div>
         </>
       ) : null}

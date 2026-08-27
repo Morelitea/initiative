@@ -108,6 +108,12 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   content_read_only: false,
   // Admin-only entitlement; a grantee acts as a member here, so it's absent.
   guild_auth_enabled: null,
+  // A grant reaches one named guild directly; the directory is not how the
+  // grantee got here, and this synthetic entry is never listed in it.
+  is_community: false,
+  categories: [],
+  // Guild-admin territory, and a grantee acts as a member — so, unanswered.
+  has_adult_content: null,
   created_at: grant.requested_at,
   updated_at: grant.requested_at,
   accessType: "grant",

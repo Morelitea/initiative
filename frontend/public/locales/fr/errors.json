@@ -460,5 +460,10 @@
   "FILTER_PRESET_DUPLICATE_ID": "Le même préréglage a été listé deux fois.",
   "FILTER_PRESET_SLUG_TAKEN": "Un préréglage portant ce nom existe déjà dans ce projet.",
   "FILTER_PRESET_INVALID_FILTERS": "Ces filtres ne peuvent pas être enregistrés comme préréglage.",
-  "FILTER_PRESET_LIMIT_REACHED": "Ce projet a déjà atteint le nombre maximal de préréglages de filtre."
+  "FILTER_PRESET_LIMIT_REACHED": "Ce projet a déjà atteint le nombre maximal de préréglages de filtre.",
+  "GUILD_NOT_A_COMMUNITY": "Cette guilde n’est pas inscrite à l’annuaire des communautés.",
+  "GUILD_COMMUNITY_REQUIRES_CATEGORY": "Une guilde inscrite doit avoir au moins une catégorie.",
+  "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirmez que cette guilde ne contient aucun contenu pour adultes avant de l’inscrire.",
+  "GUILD_COMMUNITY_ADULT_CONTENT": "Une guilde marquée 18+ ne peut pas être inscrite à l’annuaire des communautés.",
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Cette guilde n’a de place que pour une personne : elle ne peut pas être inscrite à l’annuaire des communautés."
 }
