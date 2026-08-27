@@ -235,6 +235,7 @@
         "type": {
           "enum": [
             "bool",
+            "datetime",
             "int",
             "select",
             "string",
@@ -254,13 +255,46 @@
           "maxItems": 24,
           "minItems": 1,
           "items": {
-            "type": "string",
-            "maxLength": 120
+            "$ref": "#/$defs/selectOption"
           }
         },
-        "picker": {
-          "$ref": "#/$defs/identifier",
-          "description": "A hint, not a promise: the value on the wire is the same either way, so a consumer that does not know the name draws the plain control rather than losing the parameter."
+        "list": {
+          "type": "boolean",
+          "default": false,
+          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, an app wanting several of something declares a string and documents a comma — which nothing downstream can validate or complete."
+        },
+        "resource": {
+          "enum": [
+            "calendar_events",
+            "documents",
+            "initiatives",
+            "members",
+            "projects",
+            "queues",
+            "tasks"
+          ],
+          "description": "What this value NAMES inside Initiative, by the table name their change log spells it with. A statement about the value, not about a control: every one of these is named by an integer id, so a resource parameter is an 'int' and the picker is what the consumer chooses to draw for one. This replaced 'picker', which named a control in the consumer's own words — so the vocabulary belonged to whoever drew it and you could not say anything they had not already thought of."
+        },
+        "source": {
+          "$ref": "#/$defs/valueSource",
+          "description": "Where the choices come from, when your app answers them itself."
+        },
+        "default": {
+          "description": "What the control is born holding. Any JSON scalar, or a list of them.",
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "array"
+          ]
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "The caller may leave this out entirely, and leaving it out means your app leaves that thing alone — so a step's settings ARE the patch it sends. The opposite of 'required', and the two together are refused by validateManifest."
+        },
+        "constraints": {
+          "$ref": "#/$defs/paramConstraints"
         }
       },
       "if": {
@@ -292,6 +326,7 @@
         "type": {
           "enum": [
             "bool",
+            "datetime",
             "int",
             "string",
             "url"
@@ -304,6 +339,27 @@
         "list": {
           "type": "boolean",
           "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one — a form field, a tile's number — which is why it is a flag rather than a second set of types."
+        },
+        "filter": {
+          "type": "boolean",
+          "default": false,
+          "description": "An 'emit' endpoint only: a subscriber may narrow to deliveries carrying a particular value here. This is the honest place to narrow from — an emission carries no parameters, because nobody calls it, so what you declare it CARRIES is the only thing both sides already agree about. A list return cannot be one: a filter asks 'is it this one', and a column of answers has no answer to that."
+        },
+        "resource": {
+          "enum": [
+            "calendar_events",
+            "documents",
+            "initiatives",
+            "members",
+            "projects",
+            "queues",
+            "tasks"
+          ],
+          "description": "What this value names inside Initiative, if it names one."
+        },
+        "source": {
+          "$ref": "#/$defs/valueSource",
+          "description": "Where a narrowing control's choices come from. Same shape a parameter's takes: 'only this repository' wants the list of repositories, which your app can already answer."
         }
       }
     },
@@ -427,6 +483,10 @@
             "member"
           ],
           "description": "Read only. An endpoint is called for a guild rather than an initiative, so the initiative rung is not on offer."
+        },
+        "identity": {
+          "$ref": "#/$defs/endpointIdentity",
+          "description": "'write' and 'emit': what this touched, or what it is about. Read endpoints have none — they touched nothing, so there is no echo to suppress."
         }
       }
     },
@@ -645,6 +705,142 @@
           }
         }
       }
+    },
+    "sourceParam": {
+      "type": "object",
+      "description": "One argument the read behind a value source is called with. Exactly one of 'from' and 'value' — a sibling field's answer, or a literal you fixed.",
+      "oneOf": [
+        {
+          "required": [
+            "from"
+          ]
+        },
+        {
+          "required": [
+            "value"
+          ]
+        }
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/identifier",
+          "description": "A sibling parameter on the SAME endpoint, whose value is passed along. This is the half that makes a source worth declaring: labels are one repository's labels, a board field's options are one board's."
+        },
+        "value": {
+          "description": "A literal you fixed. Any JSON scalar.",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "valueSource": {
+      "type": "object",
+      "description": "Where a field's choices come from, when they are not a fixed list. A READ endpoint of your own app, plus which of its list returns carry the values and which carry the labels — read side by side, so the third label names the third value. The consumer invokes it as the person editing, so an app is reached at edit time, not only when an automation fires.",
+      "required": [
+        "endpoint",
+        "values"
+      ],
+      "properties": {
+        "endpoint": {
+          "$ref": "#/$defs/namespacedId",
+          "description": "One of your own 'read' endpoints. Checked by validateManifest."
+        },
+        "params": {
+          "type": "object",
+          "description": "What to call it with, keyed by that endpoint's own parameter names.",
+          "maxProperties": 8,
+          "additionalProperties": {
+            "$ref": "#/$defs/sourceParam"
+          }
+        },
+        "values": {
+          "$ref": "#/$defs/identifier",
+          "description": "A list return of that endpoint, carrying the values to store."
+        },
+        "labels": {
+          "$ref": "#/$defs/identifier",
+          "description": "A parallel list return carrying what to show. Omit it and the values are their own labels, which is right for a feed of names."
+        }
+      },
+      "additionalProperties": false
+    },
+    "paramConstraints": {
+      "type": "object",
+      "description": "Bounds the control carries. Each is an attribute a consumer's control already has — there is deliberately no expression language, because a rule the consumer cannot enforce at its write door reads as enforced and is not.",
+      "properties": {
+        "min": {
+          "type": "number",
+          "description": "Numbers only."
+        },
+        "max": {
+          "type": "number",
+          "description": "Numbers only."
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Strings only."
+        },
+        "pattern": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Advisory. A consumer may show it; it will not silently refuse what somebody types, because a value rejected as you type is worse than one your app rejects with a sentence."
+        }
+      },
+      "additionalProperties": false
+    },
+    "selectOption": {
+      "description": "One choice. A bare string is its own label, which is right for a value nobody would translate ('asc', 'desc'); an object carries written text, which is what a choice somebody READS needs.",
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 120
+        },
+        {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "label": {
+              "$ref": "#/$defs/localizedText"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "endpointIdentity": {
+      "type": "object",
+      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for an app there was no key — so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
+      "required": [
+        "kind",
+        "key"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/identifier",
+          "description": "Your own word for what sort of thing this is ('issue'). Namespaced by your public id downstream, because two apps declaring the same kind mean two different things."
+        },
+        "key": {
+          "type": "array",
+          "description": "Returns of this endpoint, in order, joined to form the address. Every one must be a single value rather than a list — half an address matches nothing, and one built from the parts that happened to be there matches the wrong thing.",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

@@ -71,6 +71,19 @@ def _contract() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
+def _vocabulary() -> dict[str, Any]:
+    """The parameter and return vocabulary, published by initiative-auto.
+
+    The one part of the contract the kit does not write. What a parameter or a
+    return may *be* is decided by the party that draws a control for it, so that
+    party publishes the list and everyone else vendors it — which is why a term
+    here can widen without this build or the kit inventing a name for it.
+    """
+    with (_VENDOR / "automation-vocabulary.json").open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+@lru_cache(maxsize=1)
 def manifest_schema() -> dict[str, Any]:
     """The generated JSON Schema, for tests that measure the two against it."""
     with SCHEMA_PATH.open(encoding="utf-8") as handle:
@@ -83,10 +96,7 @@ def enum(name: str) -> frozenset[str]:
     A set rather than a sequence because every use here is a membership test.
     Where the order carries meaning — a ladder — use :func:`ladder`.
     """
-    values = _contract()["enums"].get(name)
-    if values is None:
-        raise KeyError(f"the contract declares no enum {name!r}")
-    return frozenset(values)
+    return frozenset(_enum_values(name))
 
 
 def int_enum(name: str) -> frozenset[int]:
@@ -95,10 +105,30 @@ def int_enum(name: str) -> frozenset[int]:
     Separate from :func:`enum` so each keeps a real element type; the protocol
     version is the one numeric vocabulary the contract carries.
     """
+    return frozenset(int(value) for value in _enum_values(name))
+
+
+def _enum_values(name: str) -> list[Any]:
+    """One vocabulary's values, whoever publishes them.
+
+    A contract enum is either a list written in the contract or a
+    ``{"fromVocabulary": "<key>"}`` term standing in for one initiative-auto
+    publishes. Resolved here so nothing downstream has to know which is which —
+    the same fold-in the kit does when it generates its schema and types.
+    """
     values = _contract()["enums"].get(name)
     if values is None:
         raise KeyError(f"the contract declares no enum {name!r}")
-    return frozenset(int(value) for value in values)
+    if isinstance(values, list):
+        return values
+    key = values.get("fromVocabulary") if isinstance(values, dict) else None
+    published = _vocabulary().get(key) if key else None
+    if not isinstance(published, list):
+        raise KeyError(
+            f"enum {name!r} names vocabulary key {key!r}, which the vendored "
+            "automation-vocabulary.json does not publish — refresh the app-kit"
+        )
+    return published
 
 
 def ladder(name: str) -> tuple[str, ...]:

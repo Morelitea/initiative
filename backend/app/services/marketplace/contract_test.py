@@ -621,7 +621,11 @@ def test_every_direction_may_describe_itself_and_its_answer():
 
 
 @pytest.mark.unit
-def test_a_param_may_ask_for_a_control_and_a_connection_field_may_not():
+def test_a_param_says_what_its_value_names_and_a_connection_field_does_not():
+    """An endpoint's parameter is a value somebody builds a control for; a
+    connection's field is a credential an admin types once, with nothing to pick
+    from and nothing for the value to name."""
     defs = contract.manifest_schema()["$defs"]
-    assert "picker" in defs["endpointParam"]["properties"]
-    assert "picker" not in defs["connectionField"]["properties"]
+    for owned in ("resource", "source", "list", "default", "optional", "constraints"):
+        assert owned in defs["endpointParam"]["properties"], owned
+        assert owned not in defs["connectionField"]["properties"], owned

@@ -29,6 +29,8 @@ from app.services.marketplace.definitions import normalize_listing_definition
 
 #: The endpoint a widget binds and a sample is keyed by, written once.
 READ_ENDPOINT = "app.acme.tracker.read"
+#: A second read, existing so a value source has something real to name.
+SOURCE_ENDPOINT = "app.acme.tracker.choices"
 
 
 def maximal_manifest() -> dict:
@@ -93,9 +95,30 @@ def maximal_manifest() -> dict:
                         "type": "select",
                         "label": {"en": "Choice"},
                         "required": False,
-                        "options": ["a", "b"],
-                        "picker": "project",
-                    }
+                        "options": [{"value": "a", "label": {"en": "A"}}, "b"],
+                        "list": True,
+                        "resource": "projects",
+                        "default": ["a"],
+                        "optional": True,
+                        "constraints": {"max_length": 20, "pattern": "^a"},
+                    },
+                    {
+                        "key": "picked",
+                        "type": "int",
+                        "label": {"en": "Picked"},
+                        # Fed by the app's own read, narrowed by the field
+                        # beside it — the half that makes a source worth having.
+                        "source": {
+                            "endpoint": SOURCE_ENDPOINT,
+                            "params": {
+                                "scope": {"from": "choice"},
+                                "limit": {"value": 10},
+                            },
+                            "values": "ids",
+                            "labels": "names",
+                        },
+                        "constraints": {"min": 1, "max": 99},
+                    },
                 ],
                 "actors": ["member", "installation"],
                 "requires": {"all_of": ["vendor"]},
@@ -103,9 +126,50 @@ def maximal_manifest() -> dict:
                 "visibility": "guild_admin",
             },
             {
+                # The read a value source draws its choices from.
+                "id": SOURCE_ENDPOINT,
+                "direction": "read",
+                "label": {"en": "Choices"},
+                "params": [
+                    {"key": "scope", "type": "string", "label": {"en": "Scope"}},
+                    {"key": "limit", "type": "int", "label": {"en": "Limit"}},
+                ],
+                "returns": [
+                    {"key": "ids", "type": "int", "list": True},
+                    {"key": "names", "type": "string", "list": True},
+                ],
+            },
+            {
+                "id": "app.acme.tracker.written",
+                "direction": "write",
+                "label": {"en": "Written"},
+                "returns": [{"key": "number", "type": "int"}],
+                # The same kind and key an emission about it declares, so a
+                # consumer resolves both to one address.
+                "identity": {"kind": "issue", "key": ["number"]},
+            },
+            {
                 "id": "app.acme.tracker.emitted",
                 "direction": "emit",
                 "label": {"en": "Emitted"},
+                "returns": [
+                    {
+                        "key": "number",
+                        "type": "int",
+                        "filter": True,
+                        "resource": "tasks",
+                        # A narrowing control needs choices like any other:
+                        # "only this one" wants the list to pick from. No
+                        # siblings to read here, so its arguments are fixed.
+                        "source": {
+                            "endpoint": SOURCE_ENDPOINT,
+                            "params": {"limit": {"value": 5}},
+                            "values": "ids",
+                            "labels": "names",
+                        },
+                    }
+                ],
+                "identity": {"kind": "issue", "key": ["number"]},
             },
         ],
         "widgets": [
@@ -164,17 +228,40 @@ def published() -> dict:
 def _nodes(published: dict) -> list[tuple[str, dict]]:
     """Each contract object beside the published node that should carry it."""
     connection, other = published["connections"]
-    read = published["endpoints"][0]
+    read, source_read, written, emitted = published["endpoints"]
     widget = published["widgets"][0]
     dashboard = published["dashboards"][0]
     return [
+        ("valueSource", read["params"][1]["source"]),
+        # Exactly one of `from` and `value`, so the two are covered from the
+        # two arguments that use them.
+        (
+            "sourceParam",
+            {
+                **read["params"][1]["source"]["params"]["scope"],
+                **read["params"][1]["source"]["params"]["limit"],
+            },
+        ),
+        (
+            "paramConstraints",
+            {**read["params"][0]["constraints"], **read["params"][1]["constraints"]},
+        ),
+        ("endpointIdentity", written["identity"]),
+        ("selectOption", read["params"][0]["options"][0]),
         ("manifest", published),
         ("connection", connection),
         ("connectionField", connection["fields"][0]),
         ("accessHint", connection["access_hint"]),
-        ("endpoint", read),
-        ("endpointParam", read["params"][0]),
-        ("endpointReturn", read["returns"][0]),
+        # A read carries the caller-side fields and a write carries the
+        # identity; no single direction carries every field, so the two are
+        # measured together.
+        ("endpoint", {**read, **written}),
+        # One parameter offers fixed options, the other draws them from a read;
+        # a parameter never carries both, so the two are measured together.
+        ("endpointParam", {**read["params"][0], **read["params"][1]}),
+        # A filterable return belongs to an emission alone, so the read's and
+        # the emission's are measured together.
+        ("endpointReturn", {**read["returns"][0], **emitted["returns"][0]}),
         ("widget", widget),
         ("embed", published["embeds"][0]),
         ("bundledDashboard", dashboard),
@@ -191,7 +278,7 @@ def test_every_declared_field_survives_a_publish(published):
     """A field the contract declares that nothing here reads is a restriction an
     author asked for and this build would discard without saying so."""
     for owner, node in _nodes(published):
-        if owner == "other":
+        if owner in {"other", "selectOption"}:
             continue
         missing = [field for field in contract.fields(owner) if field not in node]
         assert not missing, f"{owner} lost {missing}"
@@ -202,7 +289,10 @@ def test_nothing_is_stored_that_the_contract_does_not_declare(published):
     """The other direction: a key this build writes but the contract does not
     name is one no author can discover, and no schema describes."""
     for owner, node in _nodes(published):
-        if owner in {"requires", "other"}:
+        # `requires` and `selectOption` are each written as a choice between two
+        # shapes rather than one object with properties, so the contract names
+        # no field inventory for them to be measured against.
+        if owner in {"requires", "other", "selectOption"}:
             continue
         declared = set(contract.fields(owner))
         assert not set(node) - declared, f"{owner} carries undeclared keys"
@@ -223,7 +313,7 @@ def test_an_emitting_endpoint_keeps_what_describes_it(published):
     """An emission is the one endpoint chosen without ever being called, so the
     fields that describe it must survive even though the caller-side ones are
     refused on it."""
-    emitted = published["endpoints"][1]
+    emitted = published["endpoints"][3]
     assert emitted["label"] == {"en": "Emitted"}
     assert emitted["direction"] == "emit"
     for caller_side in (

@@ -989,36 +989,44 @@ class TestReturns:
             _with_source(returns=[{"key": "Not An Id", "type": "int"}])
 
 
-class TestParamPickers:
-    def test_a_param_may_ask_for_a_richer_control(self):
+class TestWhatAValueNames:
+    """``resource`` says what a value IS, not which control to draw for it.
+
+    It replaced ``picker``, and the difference is the point. A picker was an
+    editor's word for an editor's control, written into a third party's
+    manifest: the vocabulary belonged to whoever drew it, so an app could only
+    say what that party had already thought of, and every new idea meant a new
+    shared name and two coordinated releases.
+
+    A resource is a statement about the value — this integer is a project's id —
+    so what gets drawn for it is decided downstream and can change without any
+    app republishing. That is also why the list is closed here: it is published
+    by the party that draws the control, and a value outside it names something
+    nothing can resolve.
+    """
+
+    def test_a_param_may_say_what_its_value_names(self):
         cleaned = _with_source(
             params=[
                 {
                     "key": "project",
                     "type": "int",
                     "label": _label(),
-                    "picker": "project",
+                    "resource": "projects",
                 }
             ]
         )
-        assert cleaned["endpoints"][0]["params"][0]["picker"] == "project"
+        assert cleaned["endpoints"][0]["params"][0]["resource"] == "projects"
 
-    def test_the_hint_is_bounded_but_not_a_closed_list(self):
-        """The vocabulary belongs to whoever draws the control. A second reading
-        of it here could only ever drift from the one that matters."""
+    def test_a_return_may_say_what_its_value_names(self):
         cleaned = _with_source(
-            params=[
-                {
-                    "key": "x",
-                    "type": "int",
-                    "label": _label(),
-                    "picker": "something-new",
-                }
-            ]
+            returns=[{"key": "id", "type": "int", "resource": "tasks"}]
         )
-        assert cleaned["endpoints"][0]["params"][0]["picker"] == "something-new"
+        assert cleaned["endpoints"][0]["returns"][0]["resource"] == "tasks"
 
-    def test_a_picker_that_is_not_an_identifier_is_refused(self):
+    def test_a_resource_outside_the_published_vocabulary_is_refused(self):
+        """Closed, unlike the picker it replaced: the list comes from the party
+        that resolves it, so a name it does not publish resolves to nothing."""
         with pytest.raises(ListingDefinitionError):
             _with_source(
                 params=[
@@ -1026,12 +1034,12 @@ class TestParamPickers:
                         "key": "x",
                         "type": "int",
                         "label": _label(),
-                        "picker": "Not An Id",
+                        "resource": "something-new",
                     }
                 ]
             )
 
-    def test_a_connection_field_has_no_picker(self):
+    def test_a_connection_field_names_no_resource(self):
         """An admin filling in a settings form is typing a credential, and has
         nothing to pick from — so the key is dropped rather than stored."""
         cleaned = _normalize(
@@ -1046,11 +1054,11 @@ class TestParamPickers:
                             "key": "token",
                             "type": "secret",
                             "label": _label(),
-                            "picker": "project",
+                            "resource": "projects",
                         }
                     ],
                 }
             ],
             endpoints=[{"id": READ_ID, "direction": "read"}],
         )
-        assert "picker" not in cleaned["connections"][0]["fields"][0]
+        assert "resource" not in cleaned["connections"][0]["fields"][0]
