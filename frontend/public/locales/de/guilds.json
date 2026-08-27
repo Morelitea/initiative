@@ -23,6 +23,7 @@
   "viewInitiatives": "Initiativen anzeigen",
   "viewMembers": "Mitglieder anzeigen",
   "inviteMembers": "Mitglieder einladen",
+  "inviteMembersGuildFull": "Mitglieder einladen (Gilde voll)",
   "creatingInvite": "Einladung wird erstellt...",
   "createInitiative": "Initiative erstellen",
   "copyGuildId": "Gilden-ID kopieren",
@@ -136,6 +137,7 @@
     "noActiveInvites": "Keine aktiven Einladungen.",
     "unableToLoadInvites": "Einladungen konnten nicht geladen werden.",
     "unableToCreateInvite": "Einladung konnte nicht erstellt werden.",
+    "inviteSeatsFull": "Alle {{max}} Plätze sind belegt. Entferne ein Mitglied oder bitte einen Plattform-Administrator, das Limit zu erhöhen, bevor du eine weitere Einladung erstellst.",
     "unableToDeleteInvite": "Einladung konnte nicht gelöscht werden.",
     "inviteLinkCopied": "Einladungslink in die Zwischenablage kopiert.",
     "copyInviteLink": "Einladungslink kopieren",
@@ -256,6 +258,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} ist derzeit schreibgeschützt. Du kannst alles ansehen, aber Änderungen sind deaktiviert."
+  },
+  "billingSetup": {
+    "opening": "Abrechnung wird geöffnet, damit du einen Tarif für {{guild}} wählen kannst."
   },
   "usagePanel": {
     "title": "Nutzung",

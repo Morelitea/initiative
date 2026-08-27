@@ -80,6 +80,13 @@ export const SettingsUsersPage = () => {
 
   const activeGuildId = activeGuild?.id ?? null;
 
+  // Operator-set seat cap, admin-only on the payload and null when uncapped.
+  // A full guild mints no invite (the server refuses), so the form says so
+  // up front instead of failing on submit.
+  const maxUsers = activeGuild?.max_users ?? null;
+  const usedSeats = activeGuild?.member_count ?? 0;
+  const atUserLimit = maxUsers !== null && usedSeats >= maxUsers;
+
   const [invites, setInvites] = useState<GuildInviteRead[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
   const [invitesError, setInvitesError] = useState<string | null>(null);
@@ -310,7 +317,7 @@ export const SettingsUsersPage = () => {
 
   const createInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!activeGuildId) {
+    if (!activeGuildId || atUserLimit) {
       return;
     }
     setInviteSubmitting(true);
@@ -331,7 +338,7 @@ export const SettingsUsersPage = () => {
       await loadInvites();
     } catch (error) {
       console.error(error);
-      setInvitesError(t("users.unableToCreateInvite"));
+      setInvitesError(getErrorMessage(error, "guilds:users.unableToCreateInvite"));
     } finally {
       setInviteSubmitting(false);
     }
@@ -395,11 +402,16 @@ export const SettingsUsersPage = () => {
               />
             </div>
             <div className="flex items-end">
-              <Button type="submit" disabled={inviteSubmitting}>
+              <Button type="submit" disabled={inviteSubmitting || atUserLimit}>
                 {inviteSubmitting ? t("users.generatingInvite") : t("users.generateInvite")}
               </Button>
             </div>
           </form>
+          {atUserLimit ? (
+            <p className="text-muted-foreground text-sm">
+              {t("users.inviteSeatsFull", { max: maxUsers })}
+            </p>
+          ) : null}
           <div className="h-px bg-border" />
           {invitesLoading ? (
             <p className="text-muted-foreground text-sm">{t("users.loadingInvites")}</p>

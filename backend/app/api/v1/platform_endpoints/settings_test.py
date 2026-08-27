@@ -750,12 +750,14 @@ async def test_raising_cap_reopens_joins(
         session, email="owner-raise@example.com", role=UserRole.owner
     )
     guild = await create_guild(session, creator=owner, max_users=1)
-    await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=owner.id, role=GuildRole.admin
-    )
     invitee = await create_user(session, email="raise-invitee@example.com")
+    # Minted while the seat is still free, redeemed after it is taken —
+    # minting itself is capacity-gated, so the order here is the scenario.
     invite = await guild_service.create_guild_invite(
         session, guild_id=guild.id, created_by=owner.id, max_uses=5
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=owner.id, role=GuildRole.admin
     )
     await session.commit()
     headers = get_auth_headers(owner)

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Due-date filters now apply everywhere the list does.** Filtering by overdue or due-soon was applied only to the visible list, so the board's per-column counts, the "archive done tasks" count, and CSV exports all quietly ignored it. The filter is now applied when the tasks are fetched, so everything agrees. "Overdue" now means due before today rather than before this exact moment.
 - Adjusted background colors to reduce banding in Chrome based browsers.
+- **A full guild no longer hands out invites.** When a guild has as many members as its user limit allows, the invite it would mint could only fail when someone tried to redeem it. Creating one is now refused, and both places an admin makes an invite — the guild's context menu and Settings → Users — say the guild is full instead of offering the action.
 
 ### Fixed
 

@@ -3,7 +3,7 @@ import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { VersionDialog } from "@/components/VersionDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
@@ -32,6 +33,7 @@ import {
 } from "@/hooks/useRecents";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
+import { toast } from "@/lib/chesterToast";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAdmin } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
@@ -291,11 +293,12 @@ function NoGuildState({
   isPlatformAdmin,
 }: {
   canCreateGuilds: boolean;
-  createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
+  createGuild: (input: { name: string; description?: string }) => Promise<GuildRead>;
   logout: () => void;
   isPlatformAdmin: boolean;
 }) {
   const { t } = useTranslation("guilds");
+  const { billing, openPortal, reserveTab } = useBillingPortal();
   const [guildName, setGuildName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -304,9 +307,17 @@ function NoGuildState({
     const trimmed = guildName.trim();
     if (!trimmed) return;
     setCreating(true);
+    // Reserved inside the click gesture (null when the deployment has no
+    // billing portal) so the hop below isn't treated as an unsolicited popup.
+    const billingTab = reserveTab();
     try {
-      await createGuild({ name: trimmed });
+      const guild = await createGuild({ name: trimmed });
+      if (billing) {
+        toast.info(t("billingSetup.opening", { guild: guild.name }));
+        await openPortal(guild.id, "upgrade", billingTab);
+      }
     } catch {
+      billingTab?.close();
       setCreating(false);
     }
   };

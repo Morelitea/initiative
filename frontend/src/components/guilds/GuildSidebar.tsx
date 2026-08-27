@@ -41,6 +41,7 @@ import { Label } from "@/components/ui/label";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -58,6 +59,7 @@ const FLYOUT_TRANSITION_MS = 300; // keep in sync with the inline transform tran
 
 const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
+  const { billing, openPortal, reserveTab } = useBillingPortal();
   const { t } = useTranslation("guilds");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -74,13 +76,21 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    // Reserved inside the submit gesture (null when the deployment has no
+    // billing portal) so the hop below isn't treated as an unsolicited popup.
+    const billingTab = reserveTab();
     try {
       const newGuild = await createGuild({ name, description });
       await switchGuild(newGuild.id);
       setOpen(false);
       setName("");
       setDescription("");
+      if (billing) {
+        toast.info(t("billingSetup.opening", { guild: newGuild.name }));
+        await openPortal(newGuild.id, "upgrade", billingTab);
+      }
     } catch (err) {
+      billingTab?.close();
       console.error(err);
       const message = getErrorMessage(err, "guilds:unableToCreateGuild");
       setError(message);

@@ -23,6 +23,7 @@
   "viewInitiatives": "View initiatives",
   "viewMembers": "View members",
   "inviteMembers": "Invite members",
+  "inviteMembersGuildFull": "Invite members (guild full)",
   "creatingInvite": "Creating invite...",
   "createInitiative": "Create initiative",
   "copyGuildId": "Copy guild ID",
@@ -136,6 +137,7 @@
     "noActiveInvites": "No active invites.",
     "unableToLoadInvites": "Unable to load invites.",
     "unableToCreateInvite": "Unable to create invite.",
+    "inviteSeatsFull": "All {{max}} seats are in use. Remove a member, or ask a platform admin to raise the limit, before creating another invite.",
     "unableToDeleteInvite": "Unable to delete invite.",
     "inviteLinkCopied": "Invite link copied to clipboard.",
     "copyInviteLink": "Copy invite link",
@@ -256,6 +258,9 @@
   },
   "readOnlyBanner": {
     "message": "{{guild}} is currently read-only. You can browse everything, but changes are disabled."
+  },
+  "billingSetup": {
+    "opening": "Opening billing so you can choose a plan for {{guild}}."
   },
   "usagePanel": {
     "title": "Usage",
