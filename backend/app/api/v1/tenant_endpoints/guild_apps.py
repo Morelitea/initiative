@@ -181,14 +181,18 @@ async def _load(session: RLSSessionDep, app_id: int) -> GuildApp:
     return app
 
 
-async def _resolve_app_listing(session: RLSSessionDep, listing_uid: str):
+async def _resolve_app_listing(
+    session: RLSSessionDep, listing_uid: str, *, already_installed: bool = False
+):
     """The catalog rows behind an app install, as an HTTP answer.
 
     The resolving itself is shared with dashboards (``services.marketplace``);
     only the mapping to a status code belongs to this layer.
     """
     try:
-        return await resolve_listing_install(session, listing_uid, kind="app")
+        return await resolve_listing_install(
+            session, listing_uid, kind="app", already_installed=already_installed
+        )
     except ListingInstallError as exc:
         raise HTTPException(
             status_code=(
@@ -423,7 +427,9 @@ async def upgrade_guild_app(
     # The listing is resolved here rather than inside the shared apply, so a
     # withdrawn or missing one is reported as the HTTP answer it deserves
     # instead of reading as "nothing to update to".
-    _, version = await _resolve_app_listing(session, app.listing_uid)
+    _, version = await _resolve_app_listing(
+        session, app.listing_uid, already_installed=True
+    )
     if version.version == app.listing_version:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

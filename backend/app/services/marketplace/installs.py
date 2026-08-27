@@ -44,7 +44,11 @@ class ListingInstallError(Exception):
 
 
 async def resolve_listing_install(
-    session: AsyncSession, listing_uid: str, *, kind: str
+    session: AsyncSession,
+    listing_uid: str,
+    *,
+    kind: str,
+    already_installed: bool = False,
 ) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
     """The listing and the version to pin, or a reason it cannot be installed.
 
@@ -52,6 +56,12 @@ async def resolve_listing_install(
     error: a dashboard uid handed to the app installer names nothing that
     installer can install, and saying so any more precisely only describes the
     catalog to someone guessing at it.
+
+    ``already_installed`` is set by the two paths that re-pin something a guild
+    already has — the update sweep and the upgrade button. Whether this
+    deployment runs an app's service decides whether a guild may *acquire* it;
+    an install that exists is the guild's either way, and keeping it on the
+    version its publisher currently ships is not a second acquisition.
 
     The lookup runs on the session the request already has, which holds read
     access to the catalog. For a dashboard an app ships with itself, that
@@ -76,10 +86,12 @@ async def resolve_listing_install(
         # app. Silently installing an older one would be worse: the guild would
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
-    if not await registration_lookup.app_is_offered(version.definition):
+    if not already_installed and not await registration_lookup.app_is_offered(
+        version.definition
+    ):
         # An app whose service this deployment does not run is not in this
         # marketplace at all — browse leaves it out and its page answers 404 —
-        # so a uid naming one names nothing installable here, and says so with
+        # so a uid naming one names nothing to acquire here, and says so with
         # the same answer rather than a second one reachable only by asking
         # directly.
         raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)

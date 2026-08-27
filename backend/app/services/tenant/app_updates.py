@@ -87,7 +87,9 @@ async def _resolve_pending(
     staying on a version that works.
     """
     try:
-        _, version = await resolve_listing_install(session, app.listing_uid, kind="app")
+        _, version = await resolve_listing_install(
+            session, app.listing_uid, kind="app", already_installed=True
+        )
     except ListingInstallError:
         return None
     if version.version == app.listing_version:
