@@ -151,7 +151,7 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
  * stays relative — resolving it against the server would fetch a file that is
  * local. Artwork a registry's listings are served from lives only on the API
  * (`/api/v1/marketplace/media/…`); on native the bundle is its own origin, so
- * that path has to be addressed at the API origin or it resolves to nothing.
+ * that path has to be addressed at the API server or it resolves to nothing.
  * The media route is public and unauthenticated, so no token is added.
  */
 export function resolveArtworkUrl(path: string | null | undefined): string | null {
