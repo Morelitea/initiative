@@ -17,7 +17,7 @@
  */
 
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Input } from "@/components/ui/input";
@@ -50,9 +50,22 @@ export const CommunityDirectorySidebar = () => {
   // The box is answerable to the keystroke; the URL is answerable to the pause.
   const [draft, setDraft] = useState(committed);
   const settled = useDebouncedValue(draft, TYPING_SETTLES_MS);
+  // The last search this sidebar put in the address. Anything else the address
+  // says came from somewhere the box does not know about — the back button, a
+  // link into the directory, a restored tab — and the address wins there: it is
+  // what the page is already showing, and typing must not undo a move the
+  // reader made.
+  const ours = useRef(committed);
 
   useEffect(() => {
-    if (settled === committed) return;
+    if (committed === ours.current) return;
+    ours.current = committed;
+    setDraft(committed);
+  }, [committed]);
+
+  useEffect(() => {
+    if (settled === ours.current) return;
+    ours.current = settled;
     void navigate({
       to: "/communities",
       search: (prev: Record<string, unknown>) => ({
@@ -61,7 +74,7 @@ export const CommunityDirectorySidebar = () => {
       }),
       replace: true,
     });
-  }, [settled, committed, navigate]);
+  }, [settled, navigate]);
 
   const shelf = (value: (typeof GUILD_CATEGORIES)[number] | undefined, label: string) => (
     <SidebarMenuItem key={value ?? "all"}>

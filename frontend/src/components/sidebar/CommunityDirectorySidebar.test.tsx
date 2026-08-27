@@ -7,7 +7,7 @@
  * page's own tests. A shelf also has to carry the search along rather than
  * clearing it: picking a category while searching is a narrowing, not a reset.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -15,6 +15,10 @@ import { renderPage } from "@/__tests__/helpers/render";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 import { CommunityDirectorySidebar } from "./CommunityDirectorySidebar";
+
+/** The debounce the sidebar types against, so "long enough that a write would
+ *  have landed" is stated once. */
+const TYPING_SETTLES_MS = 250;
 
 const setup = (search: Record<string, unknown> = {}) =>
   renderPage(
@@ -60,6 +64,24 @@ describe("the community directory's sidebar", () => {
 
     await waitFor(() => expect(addressSearch(router).category).toBeUndefined());
     expect(addressSearch(router).q).toBe("dice");
+  });
+
+  it("lets the address drop a search the box did not drop", async () => {
+    // The back button, a link into the directory, a restored tab: the address
+    // moved without the box, and the box has to follow rather than put its own
+    // last search back and undo the move.
+    const { router } = setup({ q: "dice" });
+    await screen.findByLabelText("Search communities");
+
+    await act(async () => {
+      // A link into a shelf, carrying no search of its own.
+      await router.navigate({ to: "/communities", search: { category: "ttrpg" } });
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Search communities")).toHaveValue(""));
+    // Past the point a debounced write would have landed.
+    await new Promise((resolve) => setTimeout(resolve, TYPING_SETTLES_MS * 2));
+    expect(addressSearch(router).q).toBeUndefined();
   });
 
   it("marks the shelf that is showing", async () => {
