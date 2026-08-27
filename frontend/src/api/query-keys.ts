@@ -228,6 +228,11 @@ export const invalidateAuthProviders = () =>
 export const invalidateStorageSettings = () =>
   invalidatePersonalExact([`/api/v1/settings/storage`]);
 
+// The community-directory switch is written under /settings but read from the
+// SPA's boot config, so an owner's write has to reach the config key rather
+// than a settings one.
+export const invalidateAppConfig = () => invalidatePersonalExact([`/api/v1/config`]);
+
 export const invalidateOidcMappings = () =>
   invalidatePersonalPrefix("/api/v1/settings/oidc-mappings");
 

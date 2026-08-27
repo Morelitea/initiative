@@ -22,6 +22,8 @@ import type {
 
 import type {
   BillingPortalHandoffResponse,
+  CommunitySettingsResponse,
+  CommunitySettingsUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   EmailTestRequest,
@@ -535,6 +537,108 @@ export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
 > => {
   return useMutation(
     getUpdateInterfaceSettingsApiV1SettingsInterfacePutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Turn the community directory on or off for the whole deployment.
+ *
+ * Write-only on purpose: the current value is public — every signed-in page
+ * needs it to decide whether to offer the directory — so it is served from
+ * ``GET /config`` with the rest of the SPA's boot configuration rather than
+ * from a second, capability-gated read of the same boolean.
+ *
+ * Switching it off hides the directory and refuses new listings; it does not
+ * clear the opt-in a guild already made, so switching it back on restores the
+ * same set of listed guilds.
+ * @summary Update Community Settings
+ */
+export const updateCommunitySettingsApiV1SettingsCommunityPut = (
+  communitySettingsUpdate: BodyType<CommunitySettingsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunitySettingsResponse>(
+    {
+      url: `/api/v1/settings/community`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: communitySettingsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+    TError,
+    { data: BodyType<CommunitySettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+  TError,
+  { data: BodyType<CommunitySettingsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCommunitySettingsApiV1SettingsCommunityPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+    { data: BodyType<CommunitySettingsUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateCommunitySettingsApiV1SettingsCommunityPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>
+>;
+export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationBody =
+  BodyType<CommunitySettingsUpdate>;
+export type UpdateCommunitySettingsApiV1SettingsCommunityPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Community Settings
+ */
+export const useUpdateCommunitySettingsApiV1SettingsCommunityPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+      TError,
+      { data: BodyType<CommunitySettingsUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateCommunitySettingsApiV1SettingsCommunityPut>>,
+  TError,
+  { data: BodyType<CommunitySettingsUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateCommunitySettingsApiV1SettingsCommunityPutMutationOptions(options),
     queryClient
   );
 };

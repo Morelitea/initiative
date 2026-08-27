@@ -13,8 +13,10 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
+from app.services.platform import app_settings as app_settings_service
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 router = APIRouter()
@@ -60,13 +62,19 @@ class AppConfig(BaseModel):
     # The upload size cap the server enforces on file endpoints. The SPA reads
     # it for pre-flight checks so the number lives in exactly one place.
     max_upload_bytes: int
+    # Whether this deployment runs a community directory (owner-set, default
+    # off). The SPA hides every way into it when false — the way in from the
+    # guild rail, the directory page itself, and a guild admin's listing
+    # control. Unlike the fields above this one is a database setting rather
+    # than an env var, so it changes without a redeploy.
+    community_directory_enabled: bool
 
 
 _SUPPORTED_CAPTCHA_PROVIDERS = {"hcaptcha", "turnstile", "recaptcha"}
 
 
 @router.get("/config", response_model=AppConfig)
-def get_app_config() -> AppConfig:
+async def get_app_config(session: SessionDep) -> AppConfig:
     # Captcha: only expose when all three of provider / site key / secret
     # are present and the provider name is one we recognise. The SPA
     # treats a missing ``captcha`` field as "no captcha for this
@@ -93,8 +101,11 @@ def get_app_config() -> AppConfig:
         else None
     )
 
+    app_settings = await app_settings_service.get_app_settings(session)
+
     return AppConfig(
         captcha=captcha,
         billing=billing,
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
+        community_directory_enabled=app_settings.community_directory_enabled,
     )

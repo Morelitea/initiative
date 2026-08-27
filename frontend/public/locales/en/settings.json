@@ -733,11 +733,12 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Configure authentication, branding, email, AI, guild storage, and app services for the entire platform.",
+    "subtitle": "Configure authentication, branding, email, the community directory, AI, guild storage, and app services for the entire platform.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
+      "community": "Community",
       "ai": "AI",
       "storage": "Storage",
       "appServices": "App services"
@@ -1074,5 +1075,16 @@
     "prefError": "Unable to update preference",
     "test": "Test",
     "testSuccess": "Connection successful"
+  },
+  "community": {
+    "title": "Community directory",
+    "description": "Let guilds list themselves where anyone signed in can find them and join without an invite.",
+    "toggleLabel": "Run a community directory",
+    "helpText": "While this is on, a guild admin can list their guild from guild settings, and “Join a community” appears beside everyone's guilds. While it is off, there is nothing to browse and no guild can list itself.",
+    "reversibleNote": "Turning this off hides the directory; it does not un-list the guilds that opted in. Turn it back on and the same guilds are listed again.",
+    "enabledToast": "The community directory is on.",
+    "disabledToast": "The community directory is off.",
+    "saveError": "Could not change the community directory. Please try again.",
+    "adminOnly": "You need the platform owner role to run a community directory."
   }
 }

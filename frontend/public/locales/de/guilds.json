@@ -356,6 +356,8 @@
     "noResultsDescription": "Keine Community passt zu „{{query}}“. Versuche eine andere Suche oder Kategorie.",
     "unavailableTitle": "Verzeichnis nicht verfügbar",
     "unavailableDescription": "Das Community-Verzeichnis konnte nicht geladen werden. Versuche es gleich noch einmal.",
+    "disabledTitle": "Hier gibt es kein Community-Verzeichnis",
+    "disabledDescription": "Diese Instanz betreibt kein Community-Verzeichnis. Ein Plattform-Eigentümer kann es in den Plattformeinstellungen aktivieren.",
     "publish": {
       "title": "Diese Gilde im Verzeichnis eintragen",
       "description": "Alle angemeldeten Personen können diese Gilde dann finden und ohne Einladung beitreten.",

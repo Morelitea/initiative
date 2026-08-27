@@ -356,6 +356,8 @@
     "noResultsDescription": "Ninguna comunidad coincide con «{{query}}». Prueba con otra búsqueda o categoría.",
     "unavailableTitle": "Directorio no disponible",
     "unavailableDescription": "No se ha podido cargar el directorio de comunidades. Inténtalo de nuevo en un momento.",
+    "disabledTitle": "Aquí no hay directorio de comunidades",
+    "disabledDescription": "Esta instalación no ofrece un directorio de comunidades. Un propietario de la plataforma puede activarlo en la configuración de la plataforma.",
     "publish": {
       "title": "Publicar este gremio en el directorio",
       "description": "Cualquier persona con la sesión iniciada podrá encontrar este gremio y unirse sin invitación.",

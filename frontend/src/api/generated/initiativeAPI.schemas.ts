@@ -369,6 +369,7 @@ export interface AppConfig {
   captcha?: CaptchaConfig | null;
   billing?: BillingConfig | null;
   max_upload_bytes: number;
+  community_directory_enabled: boolean;
 }
 
 export type AppDataParamLabel = { [key: string]: string };
@@ -1328,6 +1329,21 @@ export interface CommunityGuildRead {
 export interface CommunityGuildPage {
   items: CommunityGuildRead[];
   total: number;
+}
+
+/**
+ * Whether this deployment runs a community directory.
+ *
+ * Read back by the owner's settings page after a write; everyone else learns
+ * the same fact from ``GET /config``, which is where the SPA reads it to
+ * decide whether to offer the directory at all.
+ */
+export interface CommunitySettingsResponse {
+  community_directory_enabled: boolean;
+}
+
+export interface CommunitySettingsUpdate {
+  community_directory_enabled: boolean;
 }
 
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];

@@ -3,7 +3,8 @@
  *
  * Guild admins only — the API refuses these fields from anyone else, and the
  * whole settings section is admin-gated — so the panel is simply absent for a
- * member rather than shown disabled.
+ * member rather than shown disabled. Absent too where the platform owner runs
+ * no directory: there would be nothing to list in.
  *
  * Saved on its own rather than folded into the details form above: listing a
  * guild publishes it to everyone signed in, which is a different decision from
@@ -26,6 +27,7 @@ import type { GuildCategory, GuildRead } from "@/api/generated/initiativeAPI.sch
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
@@ -40,6 +42,7 @@ const MIN_COMMUNITY_SEATS = 2;
 export const GuildDiscoveryPanel = () => {
   const { t } = useTranslation(["guilds", "common"]);
   const { activeGuild, refreshGuilds, updateGuildInState } = useGuilds();
+  const { communityDirectoryEnabled } = useAppConfig();
   const [publishing, setPublishing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export const GuildDiscoveryPanel = () => {
     setError(null);
   }, [activeGuild]);
 
-  if (activeGuild?.role !== "admin") {
+  if (!communityDirectoryEnabled || activeGuild?.role !== "admin") {
     return null;
   }
 

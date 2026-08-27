@@ -47,6 +47,10 @@ class CommunityListingError(Exception):
     """Raised when a guild does not qualify to be listed in the directory."""
 
 
+class CommunityDirectoryDisabledError(Exception):
+    """Raised when the deployment runs no community directory at all."""
+
+
 # A guild whose seat cap is one can never admit a joiner, so listing it would
 # publish a card whose only button is guaranteed to fail. Unlike a guild that is
 # merely full today, this one can never have room, which is why it is refused
@@ -591,6 +595,11 @@ async def update_guild(
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
     if is_community is not None and guild.is_community != is_community:
+        # Only the way in is gated. Un-listing is always available — a guild
+        # that opted in while the directory was running must still be able to
+        # opt back out after an owner switches it off.
+        if is_community:
+            await assert_community_directory_enabled(session)
         guild.is_community = is_community
         updated = True
     if categories_provided:
@@ -857,6 +866,21 @@ async def redeem_invite_for_user(
     return guild
 
 
+async def assert_community_directory_enabled(session: AsyncSession) -> None:
+    """Raise unless the platform owner has switched the directory on.
+
+    Read here rather than at each call site so the three surfaces the directory
+    consists of — browsing, joining, and a guild listing itself — cannot drift
+    apart. Imported lazily because the app-settings service reads guilds.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.community_directory_enabled(session):
+        raise CommunityDirectoryDisabledError(
+            GuildMessages.COMMUNITY_DIRECTORY_DISABLED
+        )
+
+
 async def _assert_listable(session: AsyncSession, guild: Guild) -> None:
     """Raise ``CommunityListingError`` unless this guild may be listed.
 
@@ -909,6 +933,7 @@ async def list_community_guilds(
     documents. Nothing about a guild's *content* is read — only the identity it
     published by opting in, plus how many people are already there.
     """
+    await assert_community_directory_enabled(session)
     member_count = (
         select(func.count())
         .select_from(GuildMembership)
@@ -983,6 +1008,7 @@ async def join_community_guild(
     caller is not a member yet, so no guild-scoped role exists to write the
     membership under.
     """
+    await assert_community_directory_enabled(session)
     try:
         guild = await get_guild(session, guild_id=guild_id)
     except ValueError as exc:

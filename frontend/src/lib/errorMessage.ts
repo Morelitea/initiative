@@ -41,6 +41,21 @@ export function getErrorMessage(error: unknown, fallbackKey?: string): string {
 }
 
 /**
+ * The backend error code carried in `detail`, if the error has one.
+ *
+ * For the callers that have to branch on *which* failure it was rather than
+ * just show it — the codes (`app/core/messages.py`) are the machine-readable
+ * half of the same contract `getErrorMessage` localizes.
+ */
+export function getErrorCode(error: unknown): string | null {
+  if (!isAxiosError(error)) {
+    return null;
+  }
+  const detail = (error.response?.data as { detail?: unknown } | undefined)?.detail;
+  return typeof detail === "string" ? detail : null;
+}
+
+/**
  * Extract the HTTP status code from an error, if available.
  */
 export function getHttpStatus(error: unknown): number | null {
