@@ -4,6 +4,26 @@ import { apiClient } from "@/api/client";
 import { getUploadToken } from "@/lib/uploadToken";
 
 /**
+ * The API server's origin, or "" when it can't be determined.
+ *
+ * Only meaningful on native: there the web bundle is served from its own local
+ * origin, so a same-origin path resolves inside the bundle rather than at the
+ * server that returned it.
+ */
+function apiOrigin(): string {
+  const baseUrl = apiClient.defaults.baseURL;
+  if (!baseUrl) {
+    return "";
+  }
+  try {
+    return new URL(baseUrl).origin;
+  } catch {
+    // A base URL that isn't parseable as absolute: strip the API suffix instead.
+    return baseUrl.replace(/\/api\/v1\/?$/, "");
+  }
+}
+
+/**
  * Resolve an `/api/v1/...` path for a request that can't carry an Authorization
  * header — a download served via iframe/window.open, or a `keepalive`/sendBeacon
  * POST fired on page unload. On native platforms, prepends the API server origin
@@ -18,15 +38,7 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
     return apiPath;
   }
 
-  const baseUrl = apiClient.defaults.baseURL;
-  let origin = "";
-  if (baseUrl) {
-    try {
-      origin = new URL(baseUrl).origin;
-    } catch {
-      origin = baseUrl.replace(/\/api\/v1\/?$/, "");
-    }
-  }
+  const origin = apiOrigin();
   const resolved = origin ? `${origin}${apiPath}` : apiPath;
   const token = getUploadToken();
   if (token) {
@@ -99,20 +111,9 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
 
   // On native platforms, prepend the API server origin (no Vite proxy)
   if (Capacitor.isNativePlatform()) {
-    const baseUrl = apiClient.defaults.baseURL;
-    if (baseUrl) {
-      try {
-        // Extract origin from the API base URL (e.g., "http://10.0.2.2:8000/api/v1" -> "http://10.0.2.2:8000")
-        const url = new URL(baseUrl);
-        resolved = `${url.origin}${normalizedPath}`;
-      } catch {
-        // If URL parsing fails, try stripping /api/v1 suffix
-        const origin = baseUrl.replace(/\/api\/v1\/?$/, "");
-        resolved = origin ? `${origin}${normalizedPath}` : normalizedPath;
-      }
-    } else {
-      resolved = normalizedPath;
-    }
+    // e.g. "http://10.0.2.2:8000/api/v1" -> "http://10.0.2.2:8000/uploads/..."
+    const origin = apiOrigin();
+    resolved = origin ? `${origin}${normalizedPath}` : normalizedPath;
   } else {
     // On web, return path as-is - Vite proxies /uploads in dev, same-origin in prod
     resolved = normalizedPath;
@@ -132,4 +133,34 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
   }
 
   return resolved;
+}
+
+/**
+ * Resolve a catalog artwork path — a marketplace listing's icon or screenshot,
+ * and the artwork an installed app carries — to something a native WebView can
+ * load.
+ *
+ * Two kinds of same-origin path arrive here. Artwork this build ships
+ * (`/marketplace/…`, `/icons/…`) is already inside the native bundle, so it
+ * stays relative — resolving it against the server would fetch a file that is
+ * local. Artwork a registry's listings are served from lives only on the API
+ * (`/api/v1/marketplace/media/…`); on native the bundle is its own origin, so
+ * that path has to be addressed at the API origin or it resolves to nothing.
+ * The media route is public and unauthenticated, so no token is added.
+ */
+export function resolveArtworkUrl(path: string | null | undefined): string | null {
+  if (!path) {
+    return null;
+  }
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (!Capacitor.isNativePlatform() || !normalizedPath.startsWith("/api/")) {
+    return normalizedPath;
+  }
+
+  const origin = apiOrigin();
+  return origin ? `${origin}${normalizedPath}` : normalizedPath;
 }
