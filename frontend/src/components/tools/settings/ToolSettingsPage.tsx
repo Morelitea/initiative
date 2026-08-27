@@ -26,7 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
@@ -179,7 +179,7 @@ export const ToolSettingsPage = ({
         defaultValue={extraTabs.some((tab) => tab.value === defaultTab) ? defaultTab : "details"}
         className="space-y-4"
       >
-        <TabsList className="w-full max-w-xl justify-start">
+        <TabsBar>
           <TabsTrigger value="details">{t("common:toolSettings.tabDetails")}</TabsTrigger>
           {canManage && (
             <TabsTrigger value="access">{t("common:toolSettings.tabAccess")}</TabsTrigger>
@@ -190,7 +190,7 @@ export const ToolSettingsPage = ({
             </TabsTrigger>
           ))}
           <TabsTrigger value="advanced">{t("common:toolSettings.tabAdvanced")}</TabsTrigger>
-        </TabsList>
+        </TabsBar>
 
         <TabsContent value="details" className="space-y-6">
           {update && (

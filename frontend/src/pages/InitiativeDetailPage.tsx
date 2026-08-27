@@ -9,7 +9,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
@@ -236,21 +236,19 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
       </Collapsible>
 
       <Tabs value={activeTab}>
-        <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <TabsList className="inline-flex w-max">
-            {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool]) => (
-              <TabsTrigger key={tabTool} value={tabTool} asChild>
-                {/* A real link, so a tab is shareable and answers the back
+        <TabsBar>
+          {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool]) => (
+            <TabsTrigger key={tabTool} value={tabTool} asChild>
+              {/* A real link, so a tab is shareable and answers the back
                     button. `search={{}}` clears the page cursor: all six tabs
                     now share one search schema, so a ?page from the queue tab
                     would otherwise follow the reader into documents. */}
-                <Link to={gp(toolListRoute(tabTool, initiative.id))} search={{}}>
-                  {t(`detail.${toolCamelPlural(tabTool)}` as never)}
-                </Link>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+              <Link to={gp(toolListRoute(tabTool, initiative.id))} search={{}}>
+                {t(`detail.${toolCamelPlural(tabTool)}` as never)}
+              </Link>
+            </TabsTrigger>
+          ))}
+        </TabsBar>
         {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool, View]) => (
           <TabsContent key={tabTool} value={tabTool} className="mt-6">
             <Suspense fallback={tabFallback}>

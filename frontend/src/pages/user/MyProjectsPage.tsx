@@ -320,18 +320,20 @@ export const MyProjectsPage = () => {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{t("myProjects.title")}</h1>
-          <p className="text-muted-foreground">{t("myProjects.subtitle")}</p>
-        </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-semibold text-3xl tracking-tight">{t("myProjects.title")}</h1>
+            <p className="text-muted-foreground">{t("myProjects.subtitle")}</p>
+          </div>
 
-        <ToolListToolbar
-          filters={{
-            open: filtersOpen,
-            onOpenChange: setFiltersOpen,
-            activeCount: activeFilterCount,
-          }}
-        />
+          <ToolListToolbar
+            filters={{
+              open: filtersOpen,
+              onOpenChange: setFiltersOpen,
+              activeCount: activeFilterCount,
+            }}
+          />
+        </div>
 
         <ToolFilterPanel
           open={filtersOpen}

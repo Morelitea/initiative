@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   useCreateDocument,
@@ -231,7 +231,7 @@ export const CreateDocumentDialog = ({
           value={createDialogTab}
           onValueChange={(value) => setCreateDialogTab(value as "new" | "upload" | "smartLink")}
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsBar>
             <TabsTrigger value="new" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               {t("create.tabNew")}
@@ -244,7 +244,7 @@ export const CreateDocumentDialog = ({
               <LinkIcon className="h-4 w-4" />
               {t("create.tabSmartLink")}
             </TabsTrigger>
-          </TabsList>
+          </TabsBar>
 
           {/* Shared fields: Title and Initiative */}
           <div className="mt-4 space-y-4">

@@ -38,7 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -586,17 +586,11 @@ export function BulkEditAccessDialog({
             setRolePickerOpen(false);
           }}
         >
-          <TabsList className="w-full">
-            <TabsTrigger value="people" className="flex-1">
-              {t("share.people")}
-            </TabsTrigger>
-            <TabsTrigger value="roles" className="flex-1">
-              {t("share.roles")}
-            </TabsTrigger>
-            <TabsTrigger value="all" className="flex-1">
-              {t("bulkAccess.tabAllMembers")}
-            </TabsTrigger>
-          </TabsList>
+          <TabsBar>
+            <TabsTrigger value="people">{t("share.people")}</TabsTrigger>
+            <TabsTrigger value="roles">{t("share.roles")}</TabsTrigger>
+            <TabsTrigger value="all">{t("bulkAccess.tabAllMembers")}</TabsTrigger>
+          </TabsBar>
 
           <TabsContent value="people" className="mt-4 space-y-3">
             <div className="space-y-2">
