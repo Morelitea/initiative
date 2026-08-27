@@ -24,9 +24,9 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Clock,
-  Compass,
   GripVertical,
   Plus,
+  UsersRound,
 } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -205,7 +205,7 @@ const JoinCommunityButton = ({
         className="flex w-full items-center gap-3 rounded-lg border border-muted-foreground/40 border-dashed px-3 py-2 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center">
-          <Compass className="h-5 w-5" />
+          <UsersRound className="h-5 w-5" />
         </span>
         <span className="truncate font-medium text-sm">{label}</span>
       </Link>
@@ -223,7 +223,7 @@ const JoinCommunityButton = ({
           asChild
         >
           <Link to="/communities" onClick={onNavigate}>
-            <Compass className="h-5 w-5" />
+            <UsersRound className="h-5 w-5" />
           </Link>
         </Button>
       </TooltipTrigger>
