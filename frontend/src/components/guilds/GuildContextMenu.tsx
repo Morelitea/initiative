@@ -22,6 +22,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -43,14 +44,18 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const router = useRouter();
   const { t } = useTranslation(["guilds", "nav"]);
   const { switchGuild, activeGuildId } = useGuilds();
+  const { billing, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const isAdmin = guild.role === "admin";
   const [creatingInvite, setCreatingInvite] = useState(false);
-  // A guild at its operator-set seat cap mints no invite (the server refuses),
-  // so the item says so rather than handing back an error toast. Both fields
-  // are admin-only on the payload, and null max_users means uncapped.
+  // A guild at its seat cap mints no invite (the server refuses), so the item
+  // says so rather than handing back an error toast. Both fields are
+  // admin-only on the payload, and null max_users means uncapped.
   const atUserLimit = guild.max_users != null && guild.member_count >= guild.max_users;
+  // Where a billing portal exists the cap travels with the plan, so a full
+  // guild leads there instead of dead-ending on an admin who can't lift it.
+  const upgradeForSeats = atUserLimit && billing != null;
 
   const handleInviteMembers = async () => {
     if (creatingInvite || atUserLimit) return;
@@ -105,6 +110,12 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
     });
   };
 
+  const inviteLabel = upgradeForSeats
+    ? t("inviteMembersUpgrade")
+    : atUserLimit
+      ? t("inviteMembersGuildFull")
+      : t("inviteMembers");
+
   const handleCopyGuildId = () => {
     navigator.clipboard.writeText(String(guild.id));
     toast.success(t("guildIdCopied"));
@@ -129,15 +140,13 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem
-                onClick={handleInviteMembers}
-                disabled={creatingInvite || atUserLimit}
+                onClick={
+                  upgradeForSeats ? () => void openPortal(guild.id, "upgrade") : handleInviteMembers
+                }
+                disabled={creatingInvite || (atUserLimit && !upgradeForSeats)}
               >
                 <UserPlus className="mr-2 h-4 w-4" />
-                {creatingInvite
-                  ? t("creatingInvite")
-                  : atUserLimit
-                    ? t("inviteMembersGuildFull")
-                    : t("inviteMembers")}
+                {creatingInvite ? t("creatingInvite") : inviteLabel}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleCreateInitiative}>
                 <Plus className="mr-2 h-4 w-4" />
