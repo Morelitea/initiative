@@ -36,7 +36,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
@@ -333,16 +333,16 @@ export const AppSidebar = () => {
 
                 <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">
                   {/* <div className="border-b px-2"> */}
-                  <TabsList className="h-9 w-full rounded-none">
-                    <TabsTrigger value="initiatives" className="flex-1 text-xs">
+                  <TabsBar className="h-9 rounded-none">
+                    <TabsTrigger value="initiatives" className="text-xs">
                       <Users className="mr-2 h-3.5 w-3.5" />
                       {t("initiatives")}
                     </TabsTrigger>
-                    <TabsTrigger value="tags" className="flex-1 text-xs">
+                    <TabsTrigger value="tags" className="text-xs">
                       <Tag className="mr-2 h-3.5 w-3.5" />
                       {t("tags")}
                     </TabsTrigger>
-                  </TabsList>
+                  </TabsBar>
                   {/* </div> */}
 
                   <TabsContent value="initiatives" className="mt-0 flex-1 overflow-hidden">

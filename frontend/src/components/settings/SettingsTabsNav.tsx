@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsTrigger } from "@/components/ui/tabs";
 
 export interface SettingsTab {
   value: string;
@@ -25,8 +25,8 @@ export interface SettingsTabsNavProps {
 
 /**
  * Presentational tab bar shared by the settings/admin tabbed layouts: the
- * `<Tabs>` shell, an overflow-scroll `<TabsList>`, and a `<TabsTrigger>` per
- * tab. Each layout keeps its own guards, header, and active-tab derivation.
+ * `<Tabs>` shell, a full-width `<TabsBar>`, and a `<TabsTrigger>` per tab.
+ * Each layout keeps its own guards, header, and active-tab derivation.
  */
 export function SettingsTabsNav({ tabs, activeTab, onNavigate, children }: SettingsTabsNavProps) {
   return (
@@ -39,15 +39,13 @@ export function SettingsTabsNav({ tabs, activeTab, onNavigate, children }: Setti
         }
       }}
     >
-      <div className="-mx-4 overflow-x-auto pb-2 md:mx-0 md:overflow-visible">
-        <TabsList className="w-full min-w-max justify-start gap-2 px-1 md:min-w-0">
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
+      <TabsBar containerClassName="pb-2" className="gap-1">
+        {tabs.map((tab) => (
+          <TabsTrigger key={tab.value} value={tab.value}>
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsBar>
       {children}
     </Tabs>
   );

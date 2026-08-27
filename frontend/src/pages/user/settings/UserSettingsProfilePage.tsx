@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -256,10 +256,10 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 value={avatarMode}
                 onValueChange={(value) => setAvatarMode(value as "upload" | "url")}
               >
-                <TabsList>
+                <TabsBar>
                   <TabsTrigger value="upload">{t("profile.avatarUploadTab")}</TabsTrigger>
                   <TabsTrigger value="url">{t("profile.avatarUrlTab")}</TabsTrigger>
-                </TabsList>
+                </TabsBar>
                 <TabsContent value="upload" className="space-y-2">
                   <Input type="file" accept="image/*" onChange={handleAvatarUpload} />
                   {avatarBase64 ? (

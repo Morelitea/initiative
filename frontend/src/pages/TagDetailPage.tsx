@@ -28,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useDeleteTag, useTag, useTagEntities, useUpdateTag } from "@/hooks/useTags";
 import { toast } from "@/lib/chesterToast";
 import { DocumentsView } from "@/pages/DocumentsPage";
@@ -202,7 +202,7 @@ export const TagDetailPage = () => {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="tasks" className="space-y-4">
-        <TabsList>
+        <TabsBar>
           <TabsTrigger value="tasks" className="inline-flex items-center gap-2">
             <SquareCheckBig className="h-4 w-4" />
             {t("detail.tasksTab", { count: taskCount })}
@@ -215,7 +215,7 @@ export const TagDetailPage = () => {
             <ScrollText className="h-4 w-4" />
             {t("detail.documentsTab", { count: documentCount })}
           </TabsTrigger>
-        </TabsList>
+        </TabsBar>
         <TabsContent value="tasks">
           <TagTasksTable tagId={parsedTagId} />
         </TabsContent>

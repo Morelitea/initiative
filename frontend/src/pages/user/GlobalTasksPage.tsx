@@ -186,31 +186,33 @@ export const GlobalTasksPage = ({
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-semibold text-3xl tracking-tight">{t(`${i18nPrefix}.title`)}</h1>
-            <p className="text-muted-foreground">{t(`${i18nPrefix}.subtitle`)}</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-semibold text-3xl tracking-tight">{t(`${i18nPrefix}.title`)}</h1>
+              <p className="text-muted-foreground">{t(`${i18nPrefix}.subtitle`)}</p>
+            </div>
           </div>
-        </div>
 
-        <ToolListToolbar
-          filters={
-            // The calendar view reads none of these task-table filters.
-            viewMode === "table"
-              ? {
-                  open: table.filtersOpen,
-                  onOpenChange: table.setFiltersOpen,
-                  activeCount: table.activeFilterCount,
-                }
-              : undefined
-          }
-          view={{
-            value: viewMode,
-            onChange: setViewMode,
-            options: viewOptions,
-            label: t("common:toolbar.view"),
-          }}
-        />
+          <ToolListToolbar
+            filters={
+              // The calendar view reads none of these task-table filters.
+              viewMode === "table"
+                ? {
+                    open: table.filtersOpen,
+                    onOpenChange: table.setFiltersOpen,
+                    activeCount: table.activeFilterCount,
+                  }
+                : undefined
+            }
+            view={{
+              value: viewMode,
+              onChange: setViewMode,
+              options: viewOptions,
+              label: t("common:toolbar.view"),
+            }}
+          />
+        </div>
 
         {showFocus ? (
           <FocusSummary

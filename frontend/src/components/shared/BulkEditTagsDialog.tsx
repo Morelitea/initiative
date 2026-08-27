@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { DialogWithSuccessProps } from "@/types/dialog";
@@ -151,14 +151,10 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
         </DialogHeader>
 
         <Tabs value={mode} onValueChange={(v) => setMode(v as "add" | "remove")}>
-          <TabsList className="w-full">
-            <TabsTrigger value="add" className="flex-1">
-              {labels.tabAdd}
-            </TabsTrigger>
-            <TabsTrigger value="remove" className="flex-1">
-              {labels.tabRemove}
-            </TabsTrigger>
-          </TabsList>
+          <TabsBar>
+            <TabsTrigger value="add">{labels.tabAdd}</TabsTrigger>
+            <TabsTrigger value="remove">{labels.tabRemove}</TabsTrigger>
+          </TabsBar>
 
           <TabsContent value="add" className="mt-4">
             <TagPicker

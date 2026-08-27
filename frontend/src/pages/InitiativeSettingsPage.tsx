@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsBar, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
@@ -242,14 +242,14 @@ export const InitiativeSettingsPage = () => {
       </div>
 
       <Tabs defaultValue="details" className="space-y-4">
-        <TabsList className="w-full max-w-xl justify-start">
+        <TabsBar>
           <TabsTrigger value="details">{t("settings.detailsTab")}</TabsTrigger>
           <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
           <TabsTrigger value="roles">{t("settings.rolesTab")}</TabsTrigger>
           <TabsTrigger value="properties">{t("properties:manager.title")}</TabsTrigger>
           {canManageMembers && <TabsTrigger value="export">{t("settings.exportTab")}</TabsTrigger>}
           <TabsTrigger value="danger">{t("settings.dangerTab")}</TabsTrigger>
-        </TabsList>
+        </TabsBar>
         <InitiativeSettingsDetailsTab
           name={name}
           setName={setName}
