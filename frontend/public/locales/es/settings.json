@@ -733,11 +733,12 @@
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
-    "subtitle": "Configura la autenticación, la personalización, el email, la IA, el almacenamiento de los gremios y los servicios de aplicación de toda la plataforma.",
+    "subtitle": "Configura la autenticación, la personalización, el email, el directorio de comunidades, la IA, el almacenamiento de los gremios y los servicios de aplicación de toda la plataforma.",
     "tabs": {
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
+      "community": "Comunidad",
       "ai": "IA",
       "storage": "Almacenamiento",
       "appServices": "Servicios de aplicación"
@@ -1074,5 +1075,16 @@
     "prefError": "No se pudo actualizar la preferencia",
     "test": "Probar",
     "testSuccess": "Conexión correcta"
+  },
+  "community": {
+    "title": "Directorio de comunidades",
+    "description": "Permite que los gremios se publiquen donde cualquier persona con sesión iniciada pueda encontrarlos y unirse sin invitación.",
+    "toggleLabel": "Ofrecer un directorio de comunidades",
+    "helpText": "Mientras esté activado, quien administre un gremio puede publicarlo desde la configuración del gremio y «Unirse a una comunidad» aparece junto a los gremios de todo el mundo. Mientras esté desactivado, no hay nada que explorar y ningún gremio puede publicarse.",
+    "reversibleNote": "Desactivarlo oculta el directorio; no retira a los gremios que se publicaron. Al volver a activarlo, aparecen los mismos gremios.",
+    "enabledToast": "El directorio de comunidades está activado.",
+    "disabledToast": "El directorio de comunidades está desactivado.",
+    "saveError": "No se pudo cambiar el directorio de comunidades. Inténtalo de nuevo.",
+    "adminOnly": "Necesitas el rol de propietario de la plataforma para ofrecer un directorio de comunidades."
   }
 }

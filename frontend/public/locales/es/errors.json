@@ -465,5 +465,6 @@
   "GUILD_COMMUNITY_REQUIRES_CATEGORY": "Un gremio publicado necesita al menos una categoría.",
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirma que este gremio no contiene contenido para adultos antes de publicarlo.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "Un gremio marcado como +18 no puede publicarse en el directorio de comunidades.",
-  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Este gremio solo tiene sitio para una persona, así que no puede publicarse en el directorio de comunidades."
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Este gremio solo tiene sitio para una persona, así que no puede publicarse en el directorio de comunidades.",
+  "COMMUNITY_DIRECTORY_DISABLED": "Esta instalación no ofrece un directorio de comunidades."
 }

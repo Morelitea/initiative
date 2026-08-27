@@ -356,6 +356,8 @@
     "noResultsDescription": "No community matches “{{query}}”. Try another search or category.",
     "unavailableTitle": "Directory unavailable",
     "unavailableDescription": "The community directory could not be loaded. Try again in a moment.",
+    "disabledTitle": "No community directory here",
+    "disabledDescription": "This deployment doesn't run a community directory. A platform owner can turn one on from platform settings.",
     "publish": {
       "title": "List this guild in the directory",
       "description": "Anyone signed in will be able to find this guild and join it without an invite.",

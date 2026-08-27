@@ -20,11 +20,20 @@ import type { GuildEntry } from "@/hooks/useGuilds";
 
 import { GuildSidebar } from "./GuildSidebar";
 
-// Billing config and the handoff mint, mocked so a test can put the sidebar in
-// either deployment shape: no portal (self-hosted) or one configured.
-const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
+// Deployment config, mocked so a test can put the sidebar in whichever shape it
+// is about: no billing portal (self-hosted) or one configured, and a community
+// directory the platform owner is running or has switched off.
+const state = vi.hoisted(() => ({
+  billing: null as { url: string } | null,
+  communityDirectory: true,
+}));
 const mintMock = vi.hoisted(() => vi.fn());
-vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({
+    billing: state.billing,
+    communityDirectoryEnabled: state.communityDirectory,
+  }),
+}));
 vi.mock("@/api/generated/guilds/guilds", async () => {
   const actual = await vi.importActual<typeof import("@/api/generated/guilds/guilds")>(
     "@/api/generated/guilds/guilds"
@@ -203,6 +212,10 @@ describe("GuildSidebar guild creation", () => {
 });
 
 describe("the way into the community directory", () => {
+  beforeEach(() => {
+    state.communityDirectory = true;
+  });
+
   it("sits in the rail under the add-a-guild button", async () => {
     setup([entry({ id: 1, name: "Alpha" })]);
 
@@ -231,5 +244,14 @@ describe("the way into the community directory", () => {
     const { panel } = await openFlyout();
 
     expect(within(panel).getByRole("link", { name: "Join a community" })).toBeInTheDocument();
+  });
+
+  it("is absent where the platform owner runs no directory", async () => {
+    state.communityDirectory = false;
+    setup([entry({ id: 1, name: "Alpha" })]);
+    const { panel } = await openFlyout();
+
+    expect(screen.queryByRole("link", { name: "Join a community" })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("link", { name: "Join a community" })).not.toBeInTheDocument();
   });
 });

@@ -43,7 +43,10 @@ export type CommunityFilters = Omit<
   "page" | "page_size"
 >;
 
-export const useCommunityGuilds = (filters: CommunityFilters) =>
+/** ``enabled`` is how the page skips the request where the platform owner runs
+ *  no directory — the endpoint refuses it there, and a refusal is not a result
+ *  worth rendering. */
+export const useCommunityGuilds = (filters: CommunityFilters, options?: { enabled?: boolean }) =>
   useInfiniteQuery<CommunityGuildPage>({
     queryKey: [...COMMUNITIES_QUERY_KEY, filters],
     queryFn: ({ pageParam, signal }) =>
@@ -63,6 +66,7 @@ export const useCommunityGuilds = (filters: CommunityFilters) =>
     // than blanking it out on every keystroke.
     placeholderData: keepPreviousData,
     staleTime: DIRECTORY_STALE_MS,
+    ...options,
   });
 
 export const useJoinCommunityGuild = () => {

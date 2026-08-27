@@ -140,6 +140,23 @@ class InterfaceSettingsUpdate(SanitizedBaseModel):
     dark_accent_color: str
 
 
+class CommunitySettingsResponse(SanitizedBaseModel):
+    """Whether this deployment runs a community directory.
+
+    Read back by the owner's settings page after a write; everyone else learns
+    the same fact from ``GET /config``, which is where the SPA reads it to
+    decide whether to offer the directory at all.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    community_directory_enabled: bool
+
+
+class CommunitySettingsUpdate(SanitizedBaseModel):
+    community_directory_enabled: bool
+
+
 class EmailSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

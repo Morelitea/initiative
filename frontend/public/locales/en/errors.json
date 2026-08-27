@@ -465,5 +465,6 @@
   "GUILD_COMMUNITY_REQUIRES_CATEGORY": "A listed guild needs at least one category.",
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirm this guild contains no adult content before listing it.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "A guild marked 18+ cannot be listed in the community directory.",
-  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "This guild has room for only one person, so it cannot be listed in the community directory."
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "This guild has room for only one person, so it cannot be listed in the community directory.",
+  "COMMUNITY_DIRECTORY_DISABLED": "This deployment doesn't run a community directory."
 }

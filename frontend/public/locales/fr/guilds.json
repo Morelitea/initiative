@@ -356,6 +356,8 @@
     "noResultsDescription": "Aucune communauté ne correspond à « {{query}} ». Essayez une autre recherche ou catégorie.",
     "unavailableTitle": "Annuaire indisponible",
     "unavailableDescription": "Impossible de charger l’annuaire des communautés. Réessayez dans un instant.",
+    "disabledTitle": "Pas d'annuaire des communautés ici",
+    "disabledDescription": "Cette instance ne propose pas d'annuaire des communautés. Un propriétaire de la plateforme peut l'activer dans les paramètres de la plateforme.",
     "publish": {
       "title": "Inscrire cette guilde à l’annuaire",
       "description": "Toute personne connectée pourra trouver cette guilde et la rejoindre sans invitation.",

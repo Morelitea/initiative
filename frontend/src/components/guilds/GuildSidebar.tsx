@@ -49,6 +49,7 @@ import { Label } from "@/components/ui/label";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
@@ -183,9 +184,10 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
 };
 
 // Way in to the community directory, under "add a guild": the other way to end
-// up in a new guild, for anyone without an invite to redeem. Unlike creating
-// one this is never hidden — a deployment that has switched guild creation off
-// is exactly where joining an existing guild is the only way in.
+// up in a new guild, for anyone without an invite to redeem. Shown wherever the
+// directory runs, guild creation on or off — a deployment that has switched
+// creation off is exactly where joining an existing guild is the only way in.
+// Absent entirely where the platform owner runs no directory.
 const JoinCommunityButton = ({
   expanded = false,
   onNavigate,
@@ -195,7 +197,12 @@ const JoinCommunityButton = ({
   onNavigate?: () => void;
 }) => {
   const { t } = useTranslation("guilds");
+  const { communityDirectoryEnabled } = useAppConfig();
   const label = t("community.browse");
+
+  if (!communityDirectoryEnabled) {
+    return null;
+  }
 
   if (expanded) {
     return (

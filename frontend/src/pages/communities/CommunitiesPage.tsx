@@ -10,6 +10,12 @@
  * The directory is platform-level, so this asks nothing about the caller's
  * current guild. Whether they are already in one of these is answered by the
  * card payload itself.
+ *
+ * Whether there is a directory at all is the platform owner's setting. Where it
+ * is off the page still exists — it can be linked to, and a link should say
+ * what happened — but it says so instead of searching. A client that had not
+ * heard yet asks and is refused, which lands in the same place: the server's
+ * answer is what settles it, not the config this page loaded with.
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -23,8 +29,10 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCommunityGuilds } from "@/hooks/useCommunities";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { getErrorCode } from "@/lib/errorMessage";
 import { asGuildCategory, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 import { cn } from "@/lib/utils";
 
@@ -47,10 +55,15 @@ export function CommunitiesPage() {
   const [query, setQuery] = useState("");
   const search = useDebouncedValue(query, 250);
 
-  const directory = useCommunityGuilds({
-    q: search.trim() || undefined,
-    category: category ?? undefined,
-  });
+  const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
+
+  const directory = useCommunityGuilds(
+    {
+      q: search.trim() || undefined,
+      category: category ?? undefined,
+    },
+    { enabled: communityDirectoryEnabled }
+  );
 
   const selectCategory = (next: GuildCategory | undefined) => {
     void navigate({
@@ -86,12 +99,37 @@ export function CommunitiesPage() {
     );
   };
 
+  // Either this client was told there is no directory, or it asked and was told
+  // so. The second is how a tab that was open when an owner switched it off
+  // finds out — a refusal is an answer, not the momentary failure the
+  // unavailable message describes.
+  const directoryOff =
+    !communityDirectoryEnabled || getErrorCode(directory.error) === "COMMUNITY_DIRECTORY_DISABLED";
+
+  const heading = (
+    <div className="space-y-1">
+      <h1 className="font-semibold text-3xl tracking-tight">{t("guilds:community.title")}</h1>
+      <p className="text-muted-foreground text-sm">{t("guilds:community.subtitle")}</p>
+    </div>
+  );
+
+  // No directory on this deployment: no search box, no shelves, and no request.
+  if (!configLoading && directoryOff) {
+    return (
+      <div className="space-y-6">
+        {heading}
+        <StatusMessage
+          icon={<CloudOff />}
+          title={t("guilds:community.disabledTitle")}
+          description={t("guilds:community.disabledDescription")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("guilds:community.title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("guilds:community.subtitle")}</p>
-      </div>
+      {heading}
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <aside className="lg:sticky lg:top-20 lg:w-56 lg:shrink-0">
@@ -122,7 +160,7 @@ export function CommunitiesPage() {
               title={t("guilds:community.unavailableTitle")}
               description={t("guilds:community.unavailableDescription")}
             />
-          ) : directory.isLoading ? (
+          ) : configLoading || directory.isLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {SKELETON_KEYS.map((key) => (
                 <Skeleton key={key} className="h-52 w-full rounded-xl" />

@@ -17,6 +17,7 @@ from app.models.platform.guild import (
     GuildRole,
     GuildStatus,
 )
+from app.services.platform import app_settings as app_settings_service
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -24,6 +25,20 @@ from app.testing.factories import (
     get_auth_headers,
     guild_administration,
 )
+
+
+@pytest.fixture(autouse=True)
+async def community_directory_on(session: AsyncSession) -> None:
+    """Run the directory for this module.
+
+    The switch is a platform-owner setting that starts off, so every test below
+    would otherwise be testing a deployment with no directory. Stated once here
+    instead of in each test; the tests about the switch itself set it
+    themselves.
+    """
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True
+    )
 
 
 async def _list_as_community(
@@ -727,3 +742,125 @@ async def test_join_refuses_a_guild_the_directory_would_not_show(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "GUILD_NOT_A_COMMUNITY"
+
+
+# ---------------------------------------------------------------------------
+# The platform-owner switch
+# ---------------------------------------------------------------------------
+
+
+async def _switch_directory_off(session: AsyncSession) -> None:
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False
+    )
+
+
+@pytest.mark.integration
+async def test_browsing_is_refused_where_the_directory_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """Refused outright, not answered with an empty page: a deployment without a
+    directory has no directory, as distinct from one where nobody has listed."""
+    user = await create_user(session, email="browser@example.com")
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await _switch_directory_off(session)
+
+    response = await client.get(
+        "/api/v1/guilds/communities", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "COMMUNITY_DIRECTORY_DISABLED"
+
+
+@pytest.mark.integration
+async def test_joining_is_refused_where_the_directory_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """The invite-free join exists only as the directory's other half."""
+    user = await create_user(session, email="joiner@example.com")
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await _switch_directory_off(session)
+
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "COMMUNITY_DIRECTORY_DISABLED"
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == user.id,
+            )
+        )
+    ).one_or_none()
+    assert membership is None
+
+
+@pytest.mark.integration
+async def test_a_guild_cannot_list_itself_where_the_directory_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    guild, headers = await _admin_of(session, name="Open Table")
+    await _switch_directory_off(session)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        json={
+            "is_community": True,
+            "categories": ["gaming"],
+            "has_adult_content": False,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "COMMUNITY_DIRECTORY_DISABLED"
+    await session.refresh(guild)
+    assert guild.is_community is False
+
+
+@pytest.mark.integration
+async def test_a_listed_guild_can_still_unlist_where_the_directory_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """Switching the directory off must not strand a guild inside a listing it
+    can no longer withdraw."""
+    guild, headers = await _admin_of(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await _switch_directory_off(session)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{guild.id}",
+        json={"is_community": False},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_community"] is False
+
+
+@pytest.mark.integration
+async def test_switching_the_directory_off_keeps_the_guilds_opt_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """Off hides the listings; it does not unpublish anybody. Switching it back
+    on shows the same guilds."""
+    user = await create_user(session, email="browser@example.com")
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await _switch_directory_off(session)
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True
+    )
+
+    response = await client.get(
+        "/api/v1/guilds/communities", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()["items"]] == ["Open Table"]

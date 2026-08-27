@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionDialog } from "@/components/VersionDialog";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
@@ -299,6 +300,7 @@ function NoGuildState({
 }) {
   const { t } = useTranslation("guilds");
   const { billing, openPortal, reserveTab } = useBillingPortal();
+  const { communityDirectoryEnabled } = useAppConfig();
   const [guildName, setGuildName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -365,13 +367,16 @@ function NoGuildState({
 
         {/* The other way out of this screen: a guild that opened itself to
             the directory can be joined here and now, with no invite to wait
-            for and nobody to ask. */}
-        <Button variant="outline" asChild className="w-full">
-          <Link to="/communities">
-            <Compass className="h-4 w-4" />
-            {t("noGuild.browseCommunities")}
-          </Link>
-        </Button>
+            for and nobody to ask. Only where the platform owner runs a
+            directory — otherwise an invite is the only way in. */}
+        {communityDirectoryEnabled && (
+          <Button variant="outline" asChild className="w-full">
+            <Link to="/communities">
+              <Compass className="h-4 w-4" />
+              {t("noGuild.browseCommunities")}
+            </Link>
+          </Button>
+        )}
 
         {/* Direct entry points to the user/platform settings pages so a
             user with no memberships can still manage their account

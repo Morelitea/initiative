@@ -231,15 +231,24 @@ async def list_community_guilds(
     active, always), and :class:`CommunityGuildRead` carries only what a guild
     published by opting in: no lifecycle status, no administration, no roster,
     and nothing at all from inside the guild's own schema.
+
+    The directory is a deployment-level feature an owner switches on; where it
+    is off there is nothing to browse and the request is refused rather than
+    answered with an empty page.
     """
-    rows, total = await guilds_service.list_community_guilds(
-        session,
-        user_id=current_user.id,
-        query=q,
-        category=category.value if category else None,
-        offset=(page - 1) * page_size,
-        limit=page_size,
-    )
+    try:
+        rows, total = await guilds_service.list_community_guilds(
+            session,
+            user_id=current_user.id,
+            query=q,
+            category=category.value if category else None,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+    except guilds_service.CommunityDirectoryDisabledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     return CommunityGuildPage(
         items=[
             CommunityGuildRead(
@@ -274,6 +283,10 @@ async def join_community_guild(
         guild = await guilds_service.join_community_guild(
             session, guild_id=guild_id, user=current_user
         )
+    except guilds_service.CommunityDirectoryDisabledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except guilds_service.CommunityJoinError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
@@ -496,6 +509,11 @@ async def update_guild(
             has_adult_content=updates.has_adult_content,
             has_adult_content_provided=has_adult_content_provided,
         )
+    except guilds_service.CommunityDirectoryDisabledError as exc:
+        # No directory on this deployment, so there is nothing to list in.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except guilds_service.CommunityListingError as exc:
         # The guild does not qualify to be listed. Named specifically (which
         # rule) rather than as a generic rejection, so the settings page can say

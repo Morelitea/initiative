@@ -1556,3 +1556,67 @@ async def test_billing_grant_does_not_block_a_content_request(session):
         ),
     )
     assert requested.purpose == "content"
+
+
+# ---------------------------------------------------------------------------
+# The community-directory switch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_owner_switches_the_community_directory_on_and_off(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The write is owner-only; the value it sets is read back from /config,
+    which is where the SPA learns whether to offer the directory at all."""
+    owner = await create_user(
+        session, email="owner-community@example.com", role=UserRole.owner
+    )
+    headers = get_auth_headers(owner)
+
+    assert (await client.get("/api/v1/config")).json()[
+        "community_directory_enabled"
+    ] is False
+
+    on = await client.put(
+        "/api/v1/settings/community",
+        json={"community_directory_enabled": True},
+        headers=headers,
+    )
+    assert on.status_code == 200, on.text
+    assert on.json()["community_directory_enabled"] is True
+    assert (await client.get("/api/v1/config")).json()[
+        "community_directory_enabled"
+    ] is True
+
+    off = await client.put(
+        "/api/v1/settings/community",
+        json={"community_directory_enabled": False},
+        headers=headers,
+    )
+    assert off.status_code == 200
+    assert off.json()["community_directory_enabled"] is False
+    assert (await client.get("/api/v1/config")).json()[
+        "community_directory_enabled"
+    ] is False
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "role",
+    [UserRole.member, UserRole.support, UserRole.moderator, UserRole.operator],
+)
+async def test_community_switch_is_owner_only(
+    client: AsyncClient, session: AsyncSession, role: UserRole
+) -> None:
+    """Everything below owner lacks ``config.manage``, operator included."""
+    user = await create_user(session, role=role)
+
+    resp = await client.put(
+        "/api/v1/settings/community",
+        json={"community_directory_enabled": True},
+        headers=get_auth_headers(user),
+    )
+
+    assert resp.status_code == 403, f"{role.value}: {resp.status_code}"
+    assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
