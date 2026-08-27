@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { updateGuildApiV1GuildsGuildIdPatch } from "@/api/generated/guilds/guilds";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { GuildDiscoveryPanel } from "@/components/guilds/GuildDiscoveryPanel";
 import { GuildUsagePanel } from "@/components/guilds/GuildUsagePanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,6 +167,7 @@ export const SettingsGuildPage = () => {
           </form>
         </CardContent>
       </Card>
+      <GuildDiscoveryPanel />
       <GuildUsagePanel />
     </div>
   );

@@ -22,6 +22,7 @@ import type {
 
 import type {
   BillingPortalHandoffResponse,
+  CommunityGuildPage,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
   GuildCreate,
@@ -36,6 +37,7 @@ import type {
   GuildUpdate,
   HTTPValidationError,
   LeaveGuildEligibilityResponse,
+  ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -357,6 +359,261 @@ export const useReorderGuildsApiV1GuildsOrderPut = <
   TContext
 > => {
   return useMutation(getReorderGuildsApiV1GuildsOrderPutMutationOptions(options), queryClient);
+};
+/**
+ * Browse the guilds that opted into the community directory.
+ *
+ * Runs on the system engine for the reason ``GET /invite/{code}`` does: the
+ * caller is a stranger to every guild here, so no guild-scoped role exists to
+ * read them under, and the RLS policy that scopes ``guilds`` to the caller's
+ * own memberships would return an empty directory. What that engine may see
+ * is not what this returns — the filters live in the service (listed AND
+ * active, always), and :class:`CommunityGuildRead` carries only what a guild
+ * published by opting in: no lifecycle status, no administration, no roster,
+ * and nothing at all from inside the guild's own schema.
+ * @summary List Community Guilds
+ */
+export const listCommunityGuildsApiV1GuildsCommunitiesGet = (
+  params?: ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunityGuildPage>(
+    { url: `/api/v1/guilds/communities`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListCommunityGuildsApiV1GuildsCommunitiesGetQueryKey = (
+  params?: ListCommunityGuildsApiV1GuildsCommunitiesGetParams
+) => {
+  return [`/api/v1/guilds/communities`, ...(params ? [params] : [])] as const;
+};
+
+export const getListCommunityGuildsApiV1GuildsCommunitiesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCommunityGuildsApiV1GuildsCommunitiesGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>
+  > = ({ signal }) => listCommunityGuildsApiV1GuildsCommunitiesGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListCommunityGuildsApiV1GuildsCommunitiesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>
+>;
+export type ListCommunityGuildsApiV1GuildsCommunitiesGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListCommunityGuildsApiV1GuildsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListCommunityGuildsApiV1GuildsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListCommunityGuildsApiV1GuildsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Community Guilds
+ */
+
+export function useListCommunityGuildsApiV1GuildsCommunitiesGet<
+  TData = Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommunityGuildsApiV1GuildsCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListCommunityGuildsApiV1GuildsCommunitiesGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Join a listed community guild. Its listing is the authorization.
+ *
+ * The system engine for the same reason ``accept_invite`` uses it — the user
+ * has no membership yet, so there is no guild role to write one under. Joining
+ * an already-joined guild is not an error; it returns the guild the caller is
+ * already in.
+ * @summary Join Community Guild
+ */
+export const joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildRead>(
+    { url: `/api/v1/guilds/communities/${guildId}/join`, method: "POST", signal },
+    options
+  );
+};
+
+export const getJoinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost>>,
+    TError,
+    { guildId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  const mutationKey = ["joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost>>,
+    { guildId: number }
+  > = (props) => {
+    const { guildId } = props ?? {};
+
+    return joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost(guildId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost>>
+>;
+
+export type JoinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Join Community Guild
+ */
+export const useJoinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost>>,
+      TError,
+      { guildId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  return useMutation(
+    getJoinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * @summary Get Invite Status

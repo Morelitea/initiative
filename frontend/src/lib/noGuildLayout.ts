@@ -10,11 +10,13 @@
  * Outcomes:
  * - ``"main"``  — user has at least one guild; render the standard
  *                 sidebar layout.
- * - ``"shell"`` — no guilds, but the current path is a user-scoped
- *                 settings route (or a platform-admin settings
- *                 route for an admin); render the chromeless
- *                 ``NoGuildSettingsShell`` so the user can still
- *                 reach Danger Zone / platform configuration.
+ * - ``"shell"`` — no guilds, but the current path is one that works
+ *                 without guild context: a user-scoped settings route,
+ *                 a platform-admin settings route for an admin, or the
+ *                 community directory. Render the chromeless
+ *                 ``NoGuildSettingsShell`` so the user can still reach
+ *                 Danger Zone / platform configuration — or join a guild
+ *                 without waiting for an invite.
  * - ``"empty"`` — no guilds and no exempt path; show
  *                 ``NoGuildState`` (the create / join / logout
  *                 landing page).
@@ -35,6 +37,12 @@ export interface NoGuildLayoutInputs {
 const isUserSettingsPath = (path: string): boolean =>
   path === "/profile" || path.startsWith("/profile/");
 
+// The community directory is how someone with no memberships joins a guild
+// without an invite, so it has to survive the empty state rather than being
+// replaced by it.
+const isCommunityPath = (path: string): boolean =>
+  path === "/communities" || path.startsWith("/communities/");
+
 // Both platform areas: the Admin dashboard (/settings/admin) and Platform
 // settings (/settings/platform). A guild-less platform user must still reach
 // either via the chromeless shell.
@@ -51,6 +59,7 @@ export function chooseNoGuildLayout({
 }: NoGuildLayoutInputs): NoGuildLayoutChoice {
   if (hasGuilds) return "main";
   if (isUserSettingsPath(pathname)) return "shell";
+  if (isCommunityPath(pathname)) return "shell";
   if (isAdminSettingsPath(pathname) && isPlatformAdmin) return "shell";
   return "empty";
 }

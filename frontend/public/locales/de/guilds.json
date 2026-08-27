@@ -117,7 +117,18 @@
     "retentionDescription": "Wie lange gelöschte Elemente im Papierkorb verbleiben, bevor sie dauerhaft entfernt werden. Auf „Nie“ setzen, um sie zu behalten, bis ein Administrator sie manuell löscht.",
     "retentionDaysLabel": "Tage",
     "retentionNeverLabel": "Nie automatisch löschen",
-    "retentionUpdatedSuccessfully": "Aufbewahrung aktualisiert."
+    "retentionUpdatedSuccessfully": "Aufbewahrung aktualisiert.",
+    "discoveryTitle": "Community-Verzeichnis",
+    "discoveryDescription": "Eine eingetragene Gilde erscheint im Verzeichnis, wo alle angemeldeten Personen sie finden und ohne Einladung beitreten können.",
+    "discoveryToggleLabel": "Diese Gilde eintragen",
+    "discoveryCategoriesLabel": "Kategorien",
+    "discoveryCategoriesHint": "Wähle die Themen, die zu dieser Gilde passen. Sie bestimmen, unter welchen Kategorien sie erscheint.",
+    "discoveryAdultLabel": "Diese Gilde enthält Inhalte für Erwachsene (18+)",
+    "discoveryAdultHint": "Eine 18+-Gilde wird nie im Community-Verzeichnis eingetragen.",
+    "discoveryAdultLocked": "Nimm diese Gilde aus dem Verzeichnis, bevor du sie als 18+ markierst.",
+    "discoveryCapacityBlocked": "Diese Gilde hat nur für eine Person Platz, also könnte ihr niemand über das Verzeichnis beitreten. Bitte deinen Plattformbetreiber, das Mitgliederlimit zu erhöhen.",
+    "discoveryListed": "Im Community-Verzeichnis eingetragen.",
+    "discoveryNotListed": "Nicht eingetragen. Nur Personen mit Einladung können beitreten."
   },
   "users": {
     "adminRequired": "Du benötigst Administrator-Berechtigungen, um diese Seite anzuzeigen.",
@@ -185,7 +196,8 @@
     "accountSettings": "Kontoeinstellungen",
     "platformSettings": "Plattformeinstellungen",
     "shellBackToStart": "Zurück zum Start",
-    "logOut": "Abmelden"
+    "logOut": "Abmelden",
+    "browseCommunities": "Communitys durchsuchen"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -307,5 +319,57 @@
     "claimButton": "Alle übernehmen",
     "summary_one": "{{count}} Element hat keinen Besitzer",
     "summary_other": "{{count}} Elemente haben keinen Besitzer"
+  },
+  "community": {
+    "title": "Communitys",
+    "subtitle": "Gilden, die neue Mitglieder ohne Einladung aufnehmen.",
+    "browse": "Community beitreten",
+    "searchPlaceholder": "Communitys durchsuchen",
+    "categoriesHeading": "Kategorien",
+    "allCategories": "Alle",
+    "categories": {
+      "art": "Kunst & Design",
+      "gaming": "Gaming",
+      "ttrpg": "Pen & Paper",
+      "music": "Musik",
+      "writing": "Schreiben",
+      "education": "Bildung",
+      "technology": "Wissenschaft & Technik",
+      "sports": "Sport & Fitness",
+      "business": "Business",
+      "health": "Gesundheit & Wohlbefinden",
+      "social": "Community & Soziales",
+      "other": "Sonstiges"
+    },
+    "join": "Beitreten",
+    "joining": "Trete bei…",
+    "open": "Öffnen",
+    "joinedToast": "Du bist {{guild}} beigetreten.",
+    "joinFailed": "Beitritt zu dieser Community nicht möglich.",
+    "noDescription": "Noch keine Beschreibung.",
+    "resultCount_one": "{{count}} Community",
+    "resultCount_other": "{{count}} Communitys",
+    "showMore": "Mehr anzeigen",
+    "emptyTitle": "Noch keine Communitys",
+    "emptyDescription": "Keine Gilde ist hier im Verzeichnis eingetragen. Gildenadmins können ihre Gilde in den Gildeneinstellungen eintragen.",
+    "noResultsTitle": "Keine Treffer",
+    "noResultsDescription": "Keine Community passt zu „{{query}}“. Versuche eine andere Suche oder Kategorie.",
+    "unavailableTitle": "Verzeichnis nicht verfügbar",
+    "unavailableDescription": "Das Community-Verzeichnis konnte nicht geladen werden. Versuche es gleich noch einmal.",
+    "publish": {
+      "title": "Diese Gilde im Verzeichnis eintragen",
+      "description": "Alle angemeldeten Personen können diese Gilde dann finden und ohne Einladung beitreten.",
+      "categoriesLabel": "Wähle mindestens eine Kategorie",
+      "categoriesHint": "Sie bestimmen, wo die Gilde beim Stöbern erscheint.",
+      "certifyLabel": "Diese Gilde enthält keine Inhalte für Erwachsene",
+      "certifyIntro": "Mit dem Eintrag dieser Gilde bestätigst du, dass sie nichts davon enthält:",
+      "certifyPorn": "Pornografie, sexuelle Inhalte oder Nacktheit",
+      "certifyMinors": "Jegliche sexuellen Inhalte, die Minderjährige betreffen",
+      "certifyIllegal": "Illegale Aktivitäten — Drogenkonsum oder -handel, Waffen, Betrug, Hehlerei",
+      "certifyViolence": "Drastische Gewalt, Gore oder Aufrufe zur Selbstverletzung",
+      "certifyHate": "Hassrede, Belästigung oder Drohungen",
+      "certifyDuty": "Du bist Admin dieser Gilde, also liegt die Durchsetzung bei dir. Von dir wird erwartet, dass du auf solche Inhalte achtest und sie entfernst. Eine Gilde, die das nicht mehr erfüllt, wird aus dem Verzeichnis entfernt.",
+      "confirm": "Gilde eintragen"
+    }
   }
 }

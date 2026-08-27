@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Guilds can list themselves in a community directory, and be joined without an invite.** "Join a community" sits under the add-a-guild button in the left rail: a search box above a category rail, and a card per guild with its icon, description, tags, and member count. A guild admin lists theirs from Settings → Guild, picking at least one category and certifying the guild holds no adult or illegal content. Guilds also carry an 18+ marker, unanswered by default; a guild marked 18+ — or one with room for only one member — is never listed. Unlisted guilds are unchanged.
+
 ### Changed
 
 - **The Apps shelf only lists apps your server actually runs.** An app is served by a program the person running your server sets up — so a listing for one that they haven't set up yet, or have switched off, offered something that would install into nothing. Those listings now stay off the marketplace until the app is running, and adding one by hand is refused the same way. Dashboards are unaffected, and nothing changes for an app a guild has already installed.

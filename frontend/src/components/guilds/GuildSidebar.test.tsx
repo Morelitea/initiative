@@ -201,3 +201,35 @@ describe("GuildSidebar guild creation", () => {
     openSpy.mockRestore();
   });
 });
+
+describe("the way into the community directory", () => {
+  it("sits in the rail under the add-a-guild button", async () => {
+    setup([entry({ id: 1, name: "Alpha" })]);
+
+    const link = await screen.findByRole("link", { name: "Join a community" });
+    expect(link).toHaveAttribute("href", "/communities");
+  });
+
+  it("is offered even where guilds cannot be created", async () => {
+    // A deployment with guild creation switched off is exactly where joining an
+    // existing guild is the only way into one.
+    renderPage(
+      () => (
+        <SidebarProvider>
+          <GuildSidebar />
+        </SidebarProvider>
+      ),
+      { guilds: { guilds: [entry({ id: 1, name: "Alpha" })], canCreateGuilds: false } }
+    );
+
+    expect(await screen.findByRole("link", { name: "Join a community" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create guild" })).not.toBeInTheDocument();
+  });
+
+  it("is repeated in the expanded guild list", async () => {
+    setup([entry({ id: 1, name: "Alpha" })]);
+    const { panel } = await openFlyout();
+
+    expect(within(panel).getByRole("link", { name: "Join a community" })).toBeInTheDocument();
+  });
+});

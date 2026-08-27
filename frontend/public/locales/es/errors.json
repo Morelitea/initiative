@@ -460,5 +460,10 @@
   "FILTER_PRESET_DUPLICATE_ID": "El mismo preajuste aparece dos veces.",
   "FILTER_PRESET_SLUG_TAKEN": "Ya existe un preajuste con ese nombre en este proyecto.",
   "FILTER_PRESET_INVALID_FILTERS": "Esos filtros no se pueden guardar como preajuste.",
-  "FILTER_PRESET_LIMIT_REACHED": "Este proyecto ya tiene el número máximo de preajustes de filtro."
+  "FILTER_PRESET_LIMIT_REACHED": "Este proyecto ya tiene el número máximo de preajustes de filtro.",
+  "GUILD_NOT_A_COMMUNITY": "Ese gremio no está publicado en el directorio de comunidades.",
+  "GUILD_COMMUNITY_REQUIRES_CATEGORY": "Un gremio publicado necesita al menos una categoría.",
+  "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirma que este gremio no contiene contenido para adultos antes de publicarlo.",
+  "GUILD_COMMUNITY_ADULT_CONTENT": "Un gremio marcado como +18 no puede publicarse en el directorio de comunidades.",
+  "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Este gremio solo tiene sitio para una persona, así que no puede publicarse en el directorio de comunidades."
 }

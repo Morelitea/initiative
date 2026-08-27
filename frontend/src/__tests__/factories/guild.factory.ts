@@ -20,6 +20,9 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     member_count: 1,
     tier_name: null,
     content_read_only: false,
+    is_community: false,
+    categories: [],
+    has_adult_content: null,
     ...overrides,
   };
 }

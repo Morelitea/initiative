@@ -1272,6 +1272,64 @@ export interface CommentUpdate {
   content: string;
 }
 
+/**
+ * A subject a guild can file itself under in the community directory.
+ *
+ * A closed vocabulary rather than free-form tags: the directory's job is to
+ * narrow a deployment's guilds down to a browsable shelf, and that only works
+ * if two guilds about the same thing pick the same word. Guilds choose their
+ * own (zero or more) from their settings page; the labels are localized
+ * client-side from these keys, so the stored value is never user-facing text.
+ *
+ * Stored as a ``text[]`` on ``guilds.categories`` with a CHECK that every
+ * element is one of these, mirroring how ``status`` is a CHECK-constrained
+ * string rather than a Postgres enum: adding a category is then an ordinary
+ * migration instead of an enum alteration.
+ */
+export type GuildCategory = (typeof GuildCategory)[keyof typeof GuildCategory];
+
+export const GuildCategory = {
+  art: "art",
+  gaming: "gaming",
+  ttrpg: "ttrpg",
+  music: "music",
+  writing: "writing",
+  education: "education",
+  technology: "technology",
+  sports: "sports",
+  business: "business",
+  health: "health",
+  social: "social",
+  other: "other",
+} as const;
+
+/**
+ * One card in the community directory.
+ *
+ * Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
+ * carries only what the guild published by opting in — its identity, its
+ * shelves, and how many people are already there. No membership fields (they
+ * have none), no lifecycle status, no administration. ``already_member`` is
+ * about the *caller*, and only says whether the Join button applies to them.
+ */
+export interface CommunityGuildRead {
+  id: number;
+  name: string;
+  description: string | null;
+  icon_base64: string | null;
+  categories: GuildCategory[];
+  member_count: number;
+  already_member: boolean;
+}
+
+/**
+ * A page of directory results, plus how many matched in total.
+ */
+export interface CommunityGuildPage {
+  items: CommunityGuildRead[];
+  total: number;
+}
+
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];
 
 export const CounterViewMode = {
@@ -2426,6 +2484,9 @@ export interface GuildRead {
   status: GuildStatus | null;
   content_read_only: boolean;
   guild_auth_enabled: boolean | null;
+  is_community: boolean;
+  categories: GuildCategory[];
+  has_adult_content: boolean | null;
 }
 
 export interface GuildStorageUsageRead {
@@ -2456,6 +2517,9 @@ export interface GuildUpdate {
   description?: string | null;
   icon_base64?: string | null;
   retention_days?: number | null;
+  is_community?: boolean | null;
+  categories?: GuildCategory[] | null;
+  has_adult_content?: boolean | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -4874,6 +4938,20 @@ export type AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMemb
   {
     guild_id: number;
   };
+
+export type ListCommunityGuildsApiV1GuildsCommunitiesGetParams = {
+  q?: string | null;
+  category?: GuildCategory | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 60
+   */
+  page_size?: number;
+};
 
 export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams = {
   guild_id: number;

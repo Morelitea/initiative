@@ -4,7 +4,7 @@ import logging
 from contextlib import suppress
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import text
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
@@ -19,11 +19,19 @@ from app.core.security import (
 )
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
-from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
+from app.models.platform.guild import (
+    Guild,
+    GuildCategory,
+    GuildMembership,
+    GuildRole,
+    GuildStatus,
+)
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
+    CommunityGuildPage,
+    CommunityGuildRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
     GuildCreate,
@@ -114,6 +122,12 @@ def _serialize_guild(
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
         guild_auth_enabled=admin_row.guild_auth_enabled if admin_row else None,
+        # Guild identity, not administration: the directory publishes both to
+        # strangers, so withholding them from the guild's own members would
+        # only mean the settings page could not render its own state.
+        is_community=guild.is_community,
+        categories=[GuildCategory(value) for value in guild.categories],
+        has_adult_content=guild.has_adult_content,
     )
 
 
@@ -192,6 +206,93 @@ async def reorder_guilds(
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+#: Directory pages are card grids; a bigger page buys scrolling, not answers.
+MAX_COMMUNITY_PAGE_SIZE = 60
+
+
+@router.get("/communities", response_model=CommunityGuildPage)
+async def list_community_guilds(
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    q: str | None = Query(default=None, max_length=200),
+    category: GuildCategory | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
+) -> CommunityGuildPage:
+    """Browse the guilds that opted into the community directory.
+
+    Runs on the system engine for the reason ``GET /invite/{code}`` does: the
+    caller is a stranger to every guild here, so no guild-scoped role exists to
+    read them under, and the RLS policy that scopes ``guilds`` to the caller's
+    own memberships would return an empty directory. What that engine may see
+    is not what this returns — the filters live in the service (listed AND
+    active, always), and :class:`CommunityGuildRead` carries only what a guild
+    published by opting in: no lifecycle status, no administration, no roster,
+    and nothing at all from inside the guild's own schema.
+    """
+    rows, total = await guilds_service.list_community_guilds(
+        session,
+        user_id=current_user.id,
+        query=q,
+        category=category.value if category else None,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return CommunityGuildPage(
+        items=[
+            CommunityGuildRead(
+                id=guild.id,
+                name=guild.name,
+                description=guild.description,
+                icon_base64=guild.icon_base64,
+                categories=[GuildCategory(value) for value in guild.categories],
+                member_count=member_count,
+                already_member=already_member,
+            )
+            for guild, member_count, already_member in rows
+        ],
+        total=total,
+    )
+
+
+@router.post("/communities/{guild_id}/join", response_model=GuildRead)
+async def join_community_guild(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildRead:
+    """Join a listed community guild. Its listing is the authorization.
+
+    The system engine for the same reason ``accept_invite`` uses it — the user
+    has no membership yet, so there is no guild role to write one under. Joining
+    an already-joined guild is not an error; it returns the guild the caller is
+    already in.
+    """
+    try:
+        guild = await guilds_service.join_community_guild(
+            session, guild_id=guild_id, user=current_user
+        )
+    except guilds_service.CommunityJoinError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    await session.commit()
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild.id, user_id=current_user.id
+    )
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
+        )
+    member_count = await guilds_service.count_members(session, guild_id=guild.id)
+    return _serialize_guild(guild, membership, member_count=member_count)
 
 
 @router.get("/invite/{code}", response_model=GuildInviteStatus)
@@ -373,16 +474,35 @@ async def update_guild(
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
     retention_days_provided = "retention_days" in updates.model_fields_set
-    guild = await guilds_service.update_guild(
-        session,
-        guild_id=guild_id,
-        name=updates.name,
-        description=updates.description,
-        icon_base64=updates.icon_base64,
-        icon_provided=icon_provided,
-        retention_days=updates.retention_days,
-        retention_days_provided=retention_days_provided,
-    )
+    categories_provided = "categories" in updates.model_fields_set
+    has_adult_content_provided = "has_adult_content" in updates.model_fields_set
+    try:
+        guild = await guilds_service.update_guild(
+            session,
+            guild_id=guild_id,
+            name=updates.name,
+            description=updates.description,
+            icon_base64=updates.icon_base64,
+            icon_provided=icon_provided,
+            retention_days=updates.retention_days,
+            retention_days_provided=retention_days_provided,
+            is_community=updates.is_community,
+            categories=(
+                [category.value for category in updates.categories]
+                if updates.categories
+                else []
+            ),
+            categories_provided=categories_provided,
+            has_adult_content=updates.has_adult_content,
+            has_adult_content_provided=has_adult_content_provided,
+        )
+    except guilds_service.CommunityListingError as exc:
+        # The guild does not qualify to be listed. Named specifically (which
+        # rule) rather than as a generic rejection, so the settings page can say
+        # what to fix.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
