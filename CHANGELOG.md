@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adjusted the style of the personal space page headers.
-- **Tab bars are consistent and fill their container.** The tab bars across the app — an initiative's tools, settings and admin sections, a tag's content, the sidebar's Initiatives/Tags switch, the document side panel, and the tabbed dialogs — were each sized differently: some hugged their labels, some stopped at a fixed width. They now share one component that spans the full width of whatever holds them, divides that width between the tabs, and scrolls sideways once the labels stop fitting. The view switchers on tool lists (table, board, grid, calendar) are unchanged — they stay sized to their icons inside the toolbar.
+- **Tab bars are consistent and fill their container.** The tab bars across the app — an initiative's tools, settings and admin sections, a tag's content, the sidebar's Initiatives/Tags switch, the document side panel, and the tabbed dialogs — were each sized differently: some hugged their labels, some stopped at a fixed width. They now share one component that spans the full width of whatever holds them, keeps each tab sized to its label, and scrolls sideways once the labels stop fitting. The view switchers on tool lists (table, board, grid, calendar) are unchanged — they stay sized to their icons inside the toolbar.
 
 ## [0.63.3] - 2026-08-26
 
