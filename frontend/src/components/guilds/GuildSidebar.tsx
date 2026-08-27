@@ -19,20 +19,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Link, useRouter } from "@tanstack/react-router";
-import {
-  Check,
-  ChevronsLeft,
-  ChevronsRight,
-  Clock,
-  GripVertical,
-  Plus,
-  UsersRound,
-} from "lucide-react";
+import { Check, ChevronsLeft, ChevronsRight, Clock, GripVertical, Plus } from "lucide-react";
 import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { Galaxy } from "@/components/icons/Galaxy";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -212,7 +205,7 @@ const JoinCommunityButton = ({
         className="flex w-full items-center gap-3 rounded-lg border border-muted-foreground/40 border-dashed px-3 py-2 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center">
-          <UsersRound className="h-5 w-5" />
+          <Galaxy className="h-5 w-5" />
         </span>
         <span className="truncate font-medium text-sm">{label}</span>
       </Link>
@@ -230,7 +223,7 @@ const JoinCommunityButton = ({
           asChild
         >
           <Link to="/communities" onClick={onNavigate}>
-            <UsersRound className="h-5 w-5" />
+            <Galaxy className="h-5 w-5" />
           </Link>
         </Button>
       </TooltipTrigger>
