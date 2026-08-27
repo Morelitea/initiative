@@ -59,6 +59,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { appHasConnections, guildAppPath } from "@/lib/appSurfaces";
 import { useGuildPath } from "@/lib/guildUrl";
+import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export interface AppsSectionProps {
@@ -189,7 +190,7 @@ function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: bool
   // fall back to.
   const icon = app.avatar_url ? (
     <img
-      src={app.avatar_url}
+      src={resolveArtworkUrl(app.avatar_url) ?? undefined}
       alt=""
       aria-hidden
       className="h-4 w-4 shrink-0 rounded-sm object-cover"

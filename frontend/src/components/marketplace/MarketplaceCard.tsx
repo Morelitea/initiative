@@ -14,6 +14,7 @@ import { ListingProvenance } from "@/components/marketplace/ListingProvenance";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
+import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export interface MarketplaceCardProps {
@@ -37,7 +38,7 @@ export function MarketplaceCard({ listing, installedCount = 0 }: MarketplaceCard
       >
         <CardContent className="flex h-full gap-3 p-4">
           <img
-            src={listing.avatar_url}
+            src={resolveArtworkUrl(listing.avatar_url) ?? undefined}
             alt=""
             aria-hidden
             className="h-12 w-12 shrink-0 rounded-lg object-cover"
