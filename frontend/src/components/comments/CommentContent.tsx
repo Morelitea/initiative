@@ -37,6 +37,7 @@ const SPACED_CLASS = "[&>*+*]:mt-2 [&_h1]:mt-3 [&_h2]:mt-3 [&_h3]:mt-2";
 
 type SpanProps = ComponentPropsWithoutRef<"span"> & { node?: unknown };
 type AnchorProps = ComponentPropsWithoutRef<"a"> & { node?: unknown };
+type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
 
 const MENTION_BADGE = "rounded bg-primary/10 px-1 py-0.5 font-medium text-primary text-sm";
 
@@ -94,8 +95,34 @@ const MarkdownAnchor = ({ children, node: _node, ...props }: AnchorProps) => (
 
 const PlainAnchor = ({ children }: AnchorProps) => <span>{children}</span>;
 
-const LINKED_COMPONENTS = { span: buildMentionSpan(true), a: MarkdownAnchor };
-const PLAIN_COMPONENTS = { span: buildMentionSpan(false), a: PlainAnchor };
+/**
+ * An image renders as a link to itself rather than inline, so fetching what a
+ * comment points at stays the reader's own decision. The alt text names it,
+ * falling back to the address when the author gave none.
+ */
+const buildImage = (linked: boolean) =>
+  function MarkdownImage({ src, alt }: ImageProps) {
+    const href = typeof src === "string" ? src : "";
+    const label = alt || href;
+    if (!label) return null;
+    if (!linked || !href) return <span>{label}</span>;
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {label}
+      </a>
+    );
+  };
+
+const LINKED_COMPONENTS = {
+  span: buildMentionSpan(true),
+  a: MarkdownAnchor,
+  img: buildImage(true),
+};
+const PLAIN_COMPONENTS = {
+  span: buildMentionSpan(false),
+  a: PlainAnchor,
+  img: buildImage(false),
+};
 const PLUGINS = [remarkGfm, remarkMentions, remarkLineBreaks];
 
 export const CommentContent = ({

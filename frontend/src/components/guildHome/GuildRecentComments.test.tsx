@@ -90,6 +90,16 @@ describe("GuildRecentComments read more", () => {
     expect(screen.queryByRole("button", { name: /read more/i })).toBeNull();
   });
 
+  it("names an image in the preview without loading it or adding a link", async () => {
+    const { container } = showFeed([
+      buildEntry({ content: "![a diagram](https://example.com/pic.png)" }),
+    ]);
+
+    expect(await screen.findByText("a diagram")).toBeInTheDocument();
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
   it("renders a preview mention without nesting a link inside the entry link", async () => {
     showFeed([buildEntry({ content: "ping #task[Fix login](5)" })]);
 

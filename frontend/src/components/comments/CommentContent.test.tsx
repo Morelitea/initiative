@@ -93,6 +93,20 @@ describe("CommentContent", () => {
     expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
   });
 
+  it("shows an image as a link instead of loading it", () => {
+    const { container } = renderContent("![a diagram](https://example.com/pic.png)");
+
+    expect(container.querySelector("img")).toBeNull();
+    const link = screen.getByRole("link", { name: "a diagram" });
+    expect(link).toHaveAttribute("href", "https://example.com/pic.png");
+  });
+
+  it("names an image by its address when it has no alt text", () => {
+    renderContent("![](https://example.com/pic.png)");
+
+    expect(screen.getByRole("link", { name: "https://example.com/pic.png" })).toBeInTheDocument();
+  });
+
   it("does not render raw html", () => {
     const { container } = renderContent('<img src=x onerror="alert(1)"> <b>plain</b>');
 
