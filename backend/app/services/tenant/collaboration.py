@@ -63,6 +63,40 @@ class DocumentRoom:
         self._lock = asyncio.Lock()
         self._initialized = False
         self._pending_updates: list[bytes] = []
+        # Reading this room's state out of the database is the one slow thing a
+        # room does, and it happens once. It gets a lock of its own so it is not
+        # done under the lock the collaborators use, nor the registry's.
+        self._load_lock = asyncio.Lock()
+        self._loaded = False
+
+    @property
+    def is_loaded(self) -> bool:
+        """Whether this room has had its one read of the database."""
+        return self._loaded
+
+    async def load_once(self, session: AsyncSession) -> None:
+        """Read this room's stored state, once, however many callers arrive.
+
+        Callers can reach a room the moment it is claimed, before anyone has
+        loaded it. The first one through does the read and the rest wait on it
+        rather than repeating it. A document that is no longer there still
+        counts as read: the room stays empty rather than asking again.
+
+        ``session`` must be routed to the guild whose schema holds the row.
+        """
+        if self._loaded:
+            return
+        async with self._load_lock:
+            if self._loaded:
+                return
+            statement = select(Document).where(Document.id == self.document_id)
+            document = (await session.exec(statement)).one_or_none()
+            if document:
+                await self.initialize_from_db(
+                    yjs_state=document.yjs_state,
+                    lexical_content=document.content,
+                )
+            self._loaded = True
 
     async def initialize_from_db(
         self, yjs_state: Optional[bytes], lexical_content: Optional[dict]
@@ -270,28 +304,22 @@ class CollaborationManager:
         through it, from that guild's schema.
         """
         key = (guild_id, document_id)
+        # The registry lock is held only long enough to claim the room's slot.
+        # Reading its state is database I/O, and doing that here would make one
+        # slow document a wait for every other room in the process, in every
+        # guild. It happens below, guarded by the room itself.
         async with self._lock:
-            if key not in self._rooms:
+            room = self._rooms.get(key)
+            if room is None:
                 room = DocumentRoom(document_id)
-
-                # Load document from database
-                stmt = select(Document).where(Document.id == document_id)
-                result = await session.exec(stmt)
-                document = result.one_or_none()
-
-                if document:
-                    await room.initialize_from_db(
-                        yjs_state=document.yjs_state,
-                        lexical_content=document.content,
-                    )
-
                 self._rooms[key] = room
                 logger.info(
                     f"Created collaboration room for document {document_id} "
                     f"in guild {guild_id}"
                 )
 
-            return self._rooms[key]
+        await room.load_once(session)
+        return room
 
     async def remove_room(self, guild_id: int, document_id: int) -> None:
         """Remove a room if it exists and is empty.
@@ -303,6 +331,11 @@ class CollaborationManager:
         async with self._lock:
             room = self._rooms.get(key)
             if not room:
+                return
+            # A room that has been claimed but not yet read in is empty because
+            # nobody has arrived yet, not because everyone has left. Whoever is
+            # loading it is about to join it.
+            if not room.is_loaded:
                 return
             # Acquire room lock to ensure no collaborator is joining concurrently
             # This prevents the race where add_collaborator runs between our check and delete
@@ -328,6 +361,10 @@ class CollaborationManager:
             room = self._rooms.get(key)
             if not room:
                 return True  # No room, nothing to invalidate
+            if not room.is_loaded:
+                # Being read in right now: leave it to the caller doing that,
+                # who is about to join it.
+                return False
             if room.is_empty():
                 del self._rooms[key]
                 logger.info(
