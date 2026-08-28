@@ -78,6 +78,11 @@ describe("CommunitiesPage", () => {
     // the image describes nothing on its own and stays out of the a11y tree.
     const banner = container.querySelector('img[src="/images/community-banner.webp"]');
     expect(banner).toHaveAttribute("alt", "");
+    // The image is what's positioned, so the copy sets the banner's height: a
+    // translation that wraps to more lines on a narrow screen opens the banner
+    // up rather than running past its edge.
+    expect(banner).toHaveClass("absolute");
+    expect(screen.getByRole("heading", { level: 1 }).parentElement).not.toHaveClass("absolute");
   });
 
   it("says so, and asks nothing, where the owner runs no directory", async () => {
