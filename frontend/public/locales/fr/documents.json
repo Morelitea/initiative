@@ -324,6 +324,7 @@
     "readOnly": "Vous avez accès en lecture seule à ce tableau blanc."
   },
   "spreadsheet": {
+    "syncing": "Synchronisation de la feuille de calcul…",
     "exportCsv": "Exporter en CSV",
     "exportXlsx": "Exporter en Excel",
     "importFile": "Importer",
