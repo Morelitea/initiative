@@ -2,10 +2,9 @@
 # Orchestrate the dev environment startup chain. Equivalent of the VSCode dev:setup
 # task chain: db -> migrate -> seed -> backend (bg) -> frontend (bg) -> browser.
 #
-# Cleanup runs on every exit path: Ctrl+C (SIGINT), kill (SIGTERM), closing the
-# terminal (SIGHUP), a startup step that fails, or either dev server exiting on
-# its own. The trap is armed before the first step so there is no window where a
-# signal or an error can leave the environment half-up with its data seeded.
+# Once this launch owns something to clean up, cleanup runs on every exit path:
+# Ctrl+C (SIGINT), kill (SIGTERM), closing the terminal (SIGHUP), a startup step
+# that fails, or either dev server exiting on its own.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/.."
@@ -13,9 +12,10 @@ cd "$SCRIPT_DIR/.."
 BACKEND_PID=""
 FRONTEND_PID=""
 
-# The guard makes the function idempotent so the signal path (trap fires, `wait`
-# returns, EXIT trap fires) and the natural-exit path (a server died, or a
-# startup step failed under `set -e`) both end in exactly one cleanup pass.
+# The guard makes the function idempotent so the signal path (trap fires, the
+# poll loop below falls through, EXIT trap fires) and the natural-exit path (a
+# server died, or a startup step failed under `set -e`) both end in exactly one
+# cleanup pass.
 cleanup_done=false
 cleanup() {
     if [ "$cleanup_done" = true ]; then
@@ -33,10 +33,16 @@ cleanup() {
     done
     bash "$SCRIPT_DIR/dev-cleanup.sh" || true
 }
-trap cleanup INT TERM HUP EXIT
 
 docker compose up db -d --wait
 bash scripts/dev-migrate.sh
+
+# Arm the teardown here rather than at the top of the script. Everything above
+# is shared, idempotent setup that leaves nothing of ours running, and the dev
+# ports and seeded data may still belong to another environment. From the seed
+# onward this launch owns them, so every exit path below runs the cleanup.
+trap cleanup INT TERM HUP EXIT
+
 bash scripts/dev-seed.sh
 
 # Start the backend in the background (uvicorn with --reload, port-cleanup built in).
@@ -56,19 +62,22 @@ echo "  Frontend: http://localhost:5173   (logs: /tmp/initiative-frontend.log)"
 echo "  Stop:     press Ctrl+C in this terminal (or run bash scripts/dev-cleanup.sh)"
 echo
 
-# Block until a signal arrives or one of the servers exits. `wait -n` returns on
-# the FIRST child to exit — plain `wait BACKEND_PID FRONTEND_PID` sits on the
-# survivor instead, so a backend that died at startup would leave the terminal
-# blocked and the cleanup unrun. `wait` is interruptible: a signal fires the trap
-# above and aborts it. `set -e` is off from here so a server exiting non-zero
-# doesn't bypass the trap on its way out.
+# Block until a signal arrives or one of the servers exits. Poll rather than
+# `wait`: plain `wait BACKEND_PID FRONTEND_PID` sits on the survivor when only
+# one server goes down, so a backend that died at startup would leave the
+# terminal blocked and the cleanup unrun, and `wait -n` (which returns on the
+# first exit) needs bash 4.3+ — macOS still ships 3.2. `sleep` is interruptible,
+# so a signal fires the trap above promptly. `set -e` is off from here so a
+# server exiting non-zero doesn't bypass the trap on its way out.
 set +e
-wait -n
+while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$FRONTEND_PID" 2>/dev/null; do
+    sleep 1
+done
 
 # Ctrl+C reaches both servers, so both go down and there is nothing to explain.
 # One down while the other is still up means that server fell over on its own —
 # point at its log, since the environment is about to disappear either way. The
-# pause lets the second server finish exiting before the two cases are told apart.
+# pause lets the second server finish exiting before the two are told apart.
 sleep 0.5
 backend_up=false
 frontend_up=false
