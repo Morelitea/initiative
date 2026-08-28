@@ -26,12 +26,69 @@ if [ -z "${DEV_CHECKOUT_ID:-}" ]; then
     fi
 fi
 
+# Offsets are handed out by a small registry rather than derived from the path.
+# A digest would have to collide eventually — across a few dozen worktrees over
+# any range that keeps the ports tidy it is likelier than not — and two
+# checkouts landing on the same ports is the exact thing this file exists to
+# prevent. The registry gives each checkout the lowest free offset and remembers
+# it, so a checkout keeps its ports for as long as it exists.
+DEV_PORTS_REGISTRY="${DEV_PORTS_REGISTRY:-${XDG_CACHE_HOME:-$HOME/.cache}/initiative/dev-ports}"
+
+# Print this checkout's offset, allocating one if it has none. Fails (no output)
+# rather than guessing if the registry can't be used.
+_dev_ports_allocate() {
+    local root="$1" lock offset waited=0 off path
+    local kept=() taken=()
+
+    mkdir -p "$(dirname "$DEV_PORTS_REGISTRY")" 2>/dev/null || return 1
+    lock="$DEV_PORTS_REGISTRY.lock"
+
+    # mkdir either creates the directory or fails, atomically, which makes it a
+    # lock on every platform — flock isn't on macOS by default.
+    until mkdir "$lock" 2>/dev/null; do
+        waited=$((waited + 1))
+        if [ "$waited" -gt 50 ]; then
+            # Left behind by a run that was killed mid-allocation.
+            rmdir "$lock" 2>/dev/null || return 1
+            waited=0
+        fi
+        sleep 0.1
+    done
+
+    [ -f "$DEV_PORTS_REGISTRY" ] || : > "$DEV_PORTS_REGISTRY"
+    while IFS=$'\t' read -r off path; do
+        # Forget checkouts that have been deleted, so offsets stay small and
+        # come back into use; a checkout that still exists keeps its ports even
+        # while its dev environment is down.
+        [ -n "$off" ] && [ -d "$path" ] || continue
+        [ "$path" = "$root" ] && offset="$off"
+        kept+=("$off	$path")
+        taken+=("$off")
+    done < "$DEV_PORTS_REGISTRY"
+
+    if [ -z "${offset:-}" ]; then
+        offset=1
+        while printf '%s\n' "${taken[@]}" | grep -qx "$offset"; do
+            offset=$((offset + 1))
+        done
+        kept+=("$offset	$root")
+    fi
+
+    printf '%s\n' "${kept[@]}" > "$DEV_PORTS_REGISTRY"
+    rmdir "$lock" 2>/dev/null
+    printf '%s' "$offset"
+}
+
 if [ "$DEV_CHECKOUT_ID" = main ]; then
     DEV_PORT_OFFSET=0
-else
-    # 1..999: the offset has to stay clear of 0 (the main tree's) and keep both
-    # ports inside a range nothing else here claims — 8001-8999 and 5174-6172.
-    DEV_PORT_OFFSET=$(( (16#${DEV_CHECKOUT_ID:0:6} % 999) + 1 ))
+elif [ -z "${DEV_PORT_OFFSET:-}" ]; then
+    DEV_PORT_OFFSET="$(_dev_ports_allocate "$DEV_PORTS_ROOT" || true)"
+    if [ -z "$DEV_PORT_OFFSET" ]; then
+        # No usable registry (read-only HOME, say). Fall back to a digest of the
+        # path: stable and usually distinct, but it can collide — pre-launch says
+        # so plainly if it does, and DEV_BACKEND_PORT/DEV_FRONTEND_PORT settle it.
+        DEV_PORT_OFFSET=$(( (16#${DEV_CHECKOUT_ID:0:6} % 999) + 1 ))
+    fi
 fi
 
 DEV_BACKEND_PORT="${DEV_BACKEND_PORT:-$((8000 + DEV_PORT_OFFSET))}"

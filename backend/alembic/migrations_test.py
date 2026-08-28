@@ -101,9 +101,12 @@ MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
 
 # These tests exercise migration up *and down*, so they CREATE and DROP the
 # cluster-global app roles. Use a role prefix distinct from the main suite's
-# (conftest sets ``test_{worker}_``) so this file's downgrades never drop the
-# roles the rest of the suite depends on. Per-worker too, to stay parallel-safe.
-_MIGRATIONS_ROLE_PREFIX = f"migtest_{_WORKER}_"
+# (conftest sets ``test_{checkout}_{worker}_``) so this file's downgrades never
+# drop the roles the rest of the suite depends on. Keyed on (checkout, worker)
+# for the same reason the database is: the teardown drops every role matching
+# this prefix, so a prefix shared with another checkout would take that
+# checkout's roles with it.
+_MIGRATIONS_ROLE_PREFIX = f"migtest_{_CHECKOUT}_{_WORKER}_"
 
 # Same advisory-lock KEY as conftest._run_test_migrations — a cluster-wide
 # pg_advisory_lock serializes ALL migration runs across xdist workers (and across

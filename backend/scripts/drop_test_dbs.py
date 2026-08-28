@@ -58,7 +58,8 @@ async def main() -> int:
     scope = "" if args.all else f"{CHECKOUT_ID}_"
     db_like = f"initiative_test_{scope}%"
     mig_like = f"initiative_migrations_test_{scope}%"
-    role_like = f"test_{scope}%"
+    # Two role namespaces: the suite's (conftest) and the migration tests' own.
+    role_likes = (f"test_{scope}%", f"migtest_{scope}%")
 
     conn = await _connect()
     try:
@@ -74,8 +75,9 @@ async def main() -> int:
         roles = [
             r["rolname"]
             for r in await conn.fetch(
-                "SELECT rolname FROM pg_roles WHERE rolname LIKE $1 ORDER BY rolname",
-                role_like,
+                "SELECT rolname FROM pg_roles WHERE rolname LIKE $1 OR rolname LIKE $2"
+                " ORDER BY rolname",
+                *role_likes,
             )
         ]
 
