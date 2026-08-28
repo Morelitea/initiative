@@ -13,6 +13,11 @@ other instance's: remove the everyone grant to make it private, add write grants
 to let particular members or roles post. Guild admins keep full authority
 through the existing admin override.
 
+An install is not limited to what it created on the way in. A member adding a
+guild calendar records it here too (`record_artifact`), because the app is the
+container: it is the entry that reaches the content, so removing it takes the
+content with it rather than stranding rows nothing links to.
+
 An **embed** brings none. It opens a surface the operator configured, so there
 is no row to create, nothing to share, and nothing to trash on the way out —
 installing it adds an entry, and removing it takes the entry away. Who may open
@@ -50,11 +55,13 @@ __all__ = [
     "PlacementError",
     "app_artifacts",
     "create_app_artifacts",
+    "find_mounting_app",
     "get_app_content_id",
     "install_app",
     "legacy_artifacts",
     "normalize_placement",
     "placed_in",
+    "record_artifact",
     "remove_app_artifacts",
     "touch",
 ]
@@ -198,6 +205,43 @@ def get_app_content_id(app: GuildApp) -> Optional[int]:
     """
     artifacts = app_artifacts(app)
     return artifacts[0]["id"] if artifacts else None
+
+
+async def find_mounting_app(
+    session: AsyncSession, *, guild_id: int, tool: str
+) -> Optional[GuildApp]:
+    """The install that mounts ``tool`` at guild scope, if this guild has one.
+
+    A tool-instance install is the container for what it mounts, so this is the
+    question "does this guild have somewhere to put a guild-level calendar" —
+    asked before creating one, and answered from the install rows rather than
+    from the content, since an install with everything trashed is still the
+    container.
+    """
+    apps = (
+        await session.exec(select(GuildApp).where(GuildApp.guild_id == guild_id))
+    ).all()
+    for app in apps:
+        if (app.definition or {}).get("app_kind") != "tool_instance":
+            continue
+        if (app.definition or {}).get("tool") == tool:
+            return app
+    return None
+
+
+def record_artifact(app: GuildApp, *, artifact_type: str, artifact_id: int) -> None:
+    """Add something to what this install is answerable for.
+
+    Everything made inside an app is made *by* the app as far as removal is
+    concerned: uninstalling walks ``artifacts`` and trashes every entry, so a
+    calendar someone added to the guild calendar leaves with it rather than
+    outliving the only entry that reached it.
+
+    The list is reassigned rather than appended to, so the JSONB column sees a
+    new value and the change is actually written.
+    """
+    app.artifacts = [*app_artifacts(app), {"type": artifact_type, "id": artifact_id}]
+    touch(app)
 
 
 async def create_app_artifacts(

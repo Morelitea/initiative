@@ -331,6 +331,7 @@
   "AI_INVALID_API_KEY": "The API key was rejected. Check it and try again.",
   "CALENDAR_NOT_FOUND": "Calendar not found",
   "CALENDAR_CREATE_PERMISSION_REQUIRED": "You don't have permission to create calendars in this initiative",
+  "CALENDAR_GUILD_APP_REQUIRED": "The guild calendar app isn't installed, so there's nowhere to put a guild calendar",
   "CALENDARS_NOT_ENABLED": "Calendars are not enabled for this initiative",
   "CALENDAR_PERMISSION_REQUIRED": "You don't have access to this calendar",
   "CALENDAR_OWNER_REQUIRED": "Only the calendar owner can do this",

@@ -34,6 +34,16 @@ The calendar shows your events by **day, week, month, year, or as a list**, and 
 !!! tip "See every event in one place"
     Your personal [My Calendar](your-space.md) gathers events *and* dated tasks from across all your guilds, so you get one combined view of everything on your plate.
 
+### Calendars for the whole guild
+
+Some things belong to everyone rather than to one effort: holidays, a monthly meetup, game nights. Those go in the **Guild calendar** app, which a guild admin adds from the [marketplace](apps-and-marketplace.md). It appears in the sidebar's Apps section and opens on every calendar the guild shares, overlaid in one view.
+
+It arrives with one calendar, and **any member can add more** — one for holidays, one per person, one for each thing your group keeps track of. Whoever makes a calendar owns it and decides its sharing, which starts as *everyone in the guild can read it*. So a calendar of your own is one you post to and everyone else follows.
+
+Use the **Calendars** dropdown to hide the ones you're not interested in; that's yours alone, and it doesn't change what anyone else sees.
+
+Guild calendars hold the guild's own events and nothing else — no tasks, no project work. Removing the app sends all of its calendars to the trash together, where they can be recovered.
+
 ## Queues
 
 A **queue** keeps track of whose turn it is. It's ideal for anything that takes turns or rotates — an on-call roster, a speaking order, a chore wheel, who's opening the shop this week, turn order in a game.

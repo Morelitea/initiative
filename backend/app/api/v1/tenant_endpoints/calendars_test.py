@@ -14,10 +14,29 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_guild_app,
     route_session_to_guild,
     create_initiative,
     create_guild_calendar,
 )
+
+CALENDAR_APP = {
+    "app_kind": "tool_instance",
+    "tool": "calendar",
+    "default_name": "Guild calendar",
+}
+
+
+async def _install_calendar_app(session, guild, creator):
+    """The guild calendar app, which is what holds a guild's calendars."""
+    return await create_guild_app(
+        session,
+        guild,
+        creator,
+        definition=CALENDAR_APP,
+        name="Guild calendar",
+        app_kind="tool_instance",
+    )
 
 
 async def _calendars_enabled(session: AsyncSession, initiative) -> None:
@@ -399,3 +418,130 @@ async def test_calendar_counts_by_initiative(
     )
     assert response.status_code == 200, response.text
     assert response.json()["counts"] == {str(admin.initiative.id): 1}
+
+
+# ---------------------------------------------------------------------------
+# Guild calendars — the ones the calendar app holds
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_any_member_creates_a_guild_calendar(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """No initiative means no initiative gate: an ordinary member may add a
+    calendar to the guild's own, and owns what they made."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    await _install_calendar_app(session, admin.guild, admin.user)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    response = await client.post(
+        member.g("/calendars/"),
+        headers=member.headers,
+        json={"name": "Holidays", "color": "#22c55e"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["initiative_id"] is None
+    assert body["my_permission_level"] == "owner"
+
+    await route_session_to_guild(session, admin.guild.id)
+    grants = (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "calendar",
+                ResourceGrant.resource_id == body["id"],
+            )
+        )
+    ).all()
+    # The creator owns it, and the default sharing reads as the whole guild.
+    assert {(g.user_id, str(g.level), g.all_initiative_members) for g in grants} == {
+        (member.user.id, "owner", False),
+        (None, "read", True),
+    }
+    assert all(g.initiative_id is None for g in grants)
+
+
+@pytest.mark.integration
+async def test_a_guild_calendar_joins_the_app_s_artifacts(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The app is the container: removing it walks its artifacts, so a calendar
+    added later has to be among them."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    app = await _install_calendar_app(session, a.guild, a.user)
+
+    response = await client.post(
+        a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
+    )
+    assert response.status_code == 201, response.text
+
+    await route_session_to_guild(session, a.guild.id)
+    await session.refresh(app)
+    assert app.artifacts == [{"type": "calendar", "id": response.json()["id"]}]
+
+
+@pytest.mark.integration
+async def test_a_guild_calendar_needs_the_app(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Without the app there is no entry that reaches a guild calendar, so one
+    is refused rather than created where nothing links to it."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.post(
+        a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "CALENDAR_GUILD_APP_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_guild_scope_lists_only_the_guild_s_own(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``scope=guild`` is the calendar app's own list: guild calendars, and no
+    initiative's."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _calendars_enabled(session, a.initiative)
+    await create_calendar(session, a.initiative, a.user, name="Team")
+    guild_calendar = await create_guild_calendar(
+        session, a.guild, a.user, name="Holidays"
+    )
+
+    response = await client.get(
+        a.g("/calendars/"), headers=a.headers, params={"scope": "guild"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [c["id"] for c in body["items"]] == [guild_calendar.id]
+    assert body["total_count"] == 1
+
+
+@pytest.mark.integration
+async def test_a_guild_calendar_is_hidden_when_it_is_not_shared(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Guild scope clears the initiative gate, not the sharing one: what a
+    member made privately stays theirs.
+
+    A guild calendar is refused rather than hidden — the initiative gate, which
+    is what turns a refusal into a 404 for initiative content, has nothing to
+    say about a row belonging to no initiative. Sharing is the whole of the
+    answer here.
+    """
+    a = await acting_user(guild_role=GuildRole.member)
+    owner = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    calendar = await create_guild_calendar(
+        session, a.guild, owner.user, name="Mine", shared_with_everyone=False
+    )
+
+    response = await client.get(
+        a.g("/calendars/"), headers=a.headers, params={"scope": "guild"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["items"] == []
+
+    assert (
+        await client.get(a.g(f"/calendars/{calendar.id}"), headers=a.headers)
+    ).status_code == 403

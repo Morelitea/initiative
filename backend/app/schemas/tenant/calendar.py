@@ -24,10 +24,15 @@ class CalendarBase(SanitizedBaseModel):
 
 
 class CalendarCreate(CalendarBase):
-    initiative_id: int
+    #: Which initiative the calendar belongs to, or ``None`` for a guild
+    #: calendar — one that belongs to the guild itself, the way the calendar
+    #: app's own does. Guild scope answers to no initiative's roles or feature
+    #: switch; its grants decide who reads and writes it.
+    initiative_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
-    # Defaults to Viewer for all initiative members.
+    # Defaults to Viewer for all initiative members, which at guild scope reads
+    # as every member of the guild.
     grants: List[ResourceGrantSchema] = Field(
         default_factory=lambda: [
             ResourceGrantSchema(all_initiative_members=True, level="read")

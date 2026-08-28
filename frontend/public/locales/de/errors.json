@@ -331,6 +331,7 @@
   "AI_INVALID_API_KEY": "Der API-Schlüssel wurde abgelehnt. Überprüfe ihn und versuche es erneut.",
   "CALENDAR_NOT_FOUND": "Kalender nicht gefunden",
   "CALENDAR_CREATE_PERMISSION_REQUIRED": "Sie haben keine Berechtigung, in dieser Initiative Kalender zu erstellen",
+  "CALENDAR_GUILD_APP_REQUIRED": "Die Gildenkalender-App ist nicht installiert, daher gibt es keinen Ort für einen Gildenkalender",
   "CALENDARS_NOT_ENABLED": "Kalender sind für diese Initiative nicht aktiviert",
   "CALENDAR_PERMISSION_REQUIRED": "Sie haben keinen Zugriff auf diesen Kalender",
   "CALENDAR_OWNER_REQUIRED": "Nur der Kalenderbesitzer kann dies tun",

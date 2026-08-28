@@ -28,6 +28,7 @@ from app.services.tenant.guild_apps import (
     legacy_artifacts,
     normalize_placement,
     placed_in,
+    record_artifact,
 )
 
 pytestmark = pytest.mark.unit
@@ -113,6 +114,45 @@ class TestArtifactReading:
             ],
         )
         assert app_artifacts(app) == [{"type": "calendar", "id": 5}]
+
+
+class TestRecordingArtifacts:
+    """What an app is answerable for grows as members add to it."""
+
+    def test_something_added_later_joins_what_the_install_made(self):
+        app = GuildApp(
+            guild_id=1,
+            listing_uid="A",
+            listing_version="1.0.0",
+            app_kind="tool_instance",
+            name="Guild calendar",
+            definition=CALENDAR_APP,
+            artifacts=[{"type": "calendar", "id": 1}],
+            created_by=1,
+        )
+        record_artifact(app, artifact_type="calendar", artifact_id=2)
+        assert app_artifacts(app) == [
+            {"type": "calendar", "id": 1},
+            {"type": "calendar", "id": 2},
+        ]
+
+    def test_the_list_is_replaced_rather_than_mutated(self):
+        """The column holds JSON, which is only written when the value itself
+        changes — an in-place append would be dropped on the way to the row."""
+        before = [{"type": "calendar", "id": 1}]
+        app = GuildApp(
+            guild_id=1,
+            listing_uid="A",
+            listing_version="1.0.0",
+            app_kind="tool_instance",
+            name="Guild calendar",
+            definition=CALENDAR_APP,
+            artifacts=before,
+            created_by=1,
+        )
+        record_artifact(app, artifact_type="calendar", artifact_id=2)
+        assert app.artifacts is not before
+        assert before == [{"type": "calendar", "id": 1}]
 
 
 class TestPlacement:

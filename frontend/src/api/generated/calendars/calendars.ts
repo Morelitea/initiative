@@ -56,6 +56,11 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * List calendars visible to the current user (guild admins see all).
+ *
+ * ``scope=guild`` narrows to the guild's own calendars — the ones the calendar
+ * app holds, belonging to no initiative. That is the opposite of the
+ * unfiltered list, which is everything in scope, so it is asked for by name
+ * rather than inferred from an absent ``initiative_id``.
  * @summary List Calendars
  */
 export const listCalendarsApiV1GGuildIdCalendarsGet = (
@@ -227,8 +232,15 @@ export function useListCalendarsApiV1GGuildIdCalendarsGet<
 }
 
 /**
- * Create a calendar. Requires create_calendars permission on the
- * initiative (or guild admin); the creator gets the owner grant.
+ * Create a calendar; the creator gets the owner grant.
+ *
+ * Two scopes, two gates. An **initiative** calendar needs that initiative's
+ * calendars switch on and the ``create_calendars`` permission (or guild
+ * admin). A **guild** calendar — ``initiative_id`` omitted — belongs to no
+ * initiative, so neither has anything to say about it: guild membership is the
+ * gate, which ``GuildContextDep`` has already established. What it needs
+ * instead is the calendar app, which is what holds it and what its removal
+ * takes with it.
  * @summary Create Calendar
  */
 export const createCalendarApiV1GGuildIdCalendarsPost = (

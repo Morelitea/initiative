@@ -228,3 +228,125 @@ describe("CalendarsView on a guild calendar", () => {
     expect(projectList).toEqual([]);
   });
 });
+
+describe("CalendarsView on the calendar app's own surface", () => {
+  const guildCalendar = (id: number, name: string) => ({
+    id,
+    name,
+    description: null,
+    color: "#6366f1",
+    initiative_id: null,
+    guild_id: 1,
+    created_by: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    my_permission_level: "write",
+    tags: [],
+    grants: [],
+  });
+
+  /** Serve the guild's calendars, recording what the page asked for. */
+  function stubGuildScope(calendars: ReturnType<typeof guildCalendar>[], events: unknown[] = []) {
+    const entries: URLSearchParams[] = [];
+    const calendarList: URLSearchParams[] = [];
+    const projectList: string[] = [];
+    server.use(
+      guildHttp.get("/calendar-entries/", ({ request }) => {
+        entries.push(new URL(request.url).searchParams);
+        return HttpResponse.json({ events, tasks: [] });
+      }),
+      guildHttp.get("/calendars/", ({ request }) => {
+        calendarList.push(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          items: calendars,
+          total_count: calendars.length,
+          page: 1,
+          page_size: 200,
+          has_next: false,
+        });
+      }),
+      guildHttp.get("/projects/", ({ request }) => {
+        projectList.push(request.url);
+        return HttpResponse.json({
+          items: [],
+          total_count: 0,
+          page: 1,
+          page_size: 0,
+          has_next: false,
+        });
+      })
+    );
+    return { entries, calendarList, projectList };
+  }
+
+  function renderGuildScope() {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
+      items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
+    });
+    return renderPage(() => <CalendarsView guildScope />, { queryClient });
+  }
+
+  it("asks for the guild's own calendars and overlays all of them", async () => {
+    const { entries, calendarList, projectList } = stubGuildScope([
+      guildCalendar(42, "Holidays"),
+      guildCalendar(43, "Game nights"),
+    ]);
+
+    renderGuildScope();
+
+    await waitFor(() => expect(entries.length).toBeGreaterThan(0));
+
+    // The list is asked for by scope, not inferred from an absent initiative —
+    // otherwise it would answer with every initiative's calendars too.
+    expect(calendarList[0].get("scope")).toBe("guild");
+    // Both calendars, no task leg, and no initiative to narrow to.
+    expect(entries[0].getAll("calendar_ids")).toEqual(["42", "43"]);
+    expect(entries[0].get("include_tasks")).toBe("false");
+    expect(entries[0].get("initiative_id")).toBeNull();
+    // Projects are task-shaped, and this surface holds no tasks.
+    expect(projectList).toEqual([]);
+  });
+
+  it("lets a reader hide one of them", async () => {
+    stubGuildScope(
+      [guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")],
+      [
+        {
+          id: 1,
+          calendar_id: 42,
+          title: "Midsummer",
+          description: null,
+          start_at: inFocusMonth(3),
+          end_at: inFocusMonth(3),
+          all_day: true,
+          attendee_previews: [],
+          property_values: [],
+          tags: [],
+          my_permission_level: "write",
+        },
+      ]
+    );
+
+    const user = userEvent.setup();
+    renderGuildScope();
+
+    expect(await screen.findByText("Midsummer")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
+    await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
+  });
+
+  it("offers to make the first one rather than showing an empty grid", async () => {
+    const { entries } = stubGuildScope([]);
+
+    renderGuildScope();
+
+    expect(await screen.findByText(/no calendars yet/i)).toBeInTheDocument();
+    // Any member may add one, so the offer stands without an initiative role.
+    expect(screen.getAllByRole("button", { name: /new calendar/i }).length).toBeGreaterThan(0);
+    // Nothing to ask about, so nothing is asked.
+    expect(entries).toEqual([]);
+  });
+});
