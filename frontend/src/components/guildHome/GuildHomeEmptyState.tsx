@@ -8,6 +8,7 @@
  * an action the reader doesn't have.
  */
 
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeDirectoryEntry } from "@/api/generated/initiativeAPI.schemas";
@@ -27,6 +28,10 @@ export interface GuildHomeEmptyStateProps {
   /** The guild's own description, so the page still says where you are. */
   guildDescription?: string | null;
   entries: InitiativeDirectoryEntry[];
+  /** Whether the directory actually answered. "Nothing on offer" is a claim
+   *  only a successful lookup can support; a failed or pending one says so
+   *  rather than reporting an emptiness it never established. */
+  directoryStatus?: "pending" | "error" | "success";
   /** Opens the create dialog; present only for a reader who may create one. */
   onCreate?: () => void;
 }
@@ -34,6 +39,7 @@ export interface GuildHomeEmptyStateProps {
 export const GuildHomeEmptyState = ({
   guildDescription,
   entries,
+  directoryStatus = "success",
   onCreate,
 }: GuildHomeEmptyStateProps) => {
   const { t } = useTranslation(["guildHome", "initiatives"]);
@@ -54,6 +60,13 @@ export const GuildHomeEmptyState = ({
 
       {entries.length > 0 ? (
         <InitiativeDirectory entries={entries} onCreate={onCreate} />
+      ) : directoryStatus === "pending" ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          {t("loading")}
+        </div>
+      ) : directoryStatus === "error" ? (
+        <p className="text-destructive text-sm">{t("directory.loadError")}</p>
       ) : (
         <Card>
           <CardHeader>

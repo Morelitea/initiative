@@ -33,7 +33,8 @@
       "open": "Open to all guild members",
       "request": "Joins by request",
       "private": "Invite only"
-    }
+    },
+    "loadError": "We couldn't load what this guild has on offer. Please try again later."
   },
   "columns": {
     "name": "Name",

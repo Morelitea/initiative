@@ -440,6 +440,24 @@ describe("GuildHomePage", () => {
     expect(screen.queryByText(/You haven’t joined any initiatives yet/)).not.toBeInTheDocument();
   });
 
+  it("does not call a failed directory an empty one", async () => {
+    server.use(
+      guildHttp.get("/initiatives/", () => HttpResponse.json([])),
+      guildHttp.get("/initiatives/directory", () => new HttpResponse(null, { status: 500 }))
+    );
+    stubTools();
+
+    renderHomeAsMember();
+
+    // Being in nothing is established; having nothing to join is not, so the
+    // page says the list failed rather than inventing an empty guild.
+    expect(await screen.findByText(/You haven’t joined any initiatives yet/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/couldn't load what this guild has on offer/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to join yet")).not.toBeInTheDocument();
+  });
+
   it("stays honest when the guild has nothing on offer either", async () => {
     server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
     stubTools();

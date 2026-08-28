@@ -147,6 +147,9 @@ export function GuildHomePage() {
         <GuildHomeEmptyState
           guildDescription={activeGuild?.description}
           entries={directoryEntries}
+          directoryStatus={
+            directoryQuery.isSuccess ? "success" : directoryQuery.isError ? "error" : "pending"
+          }
           onCreate={onCreate}
         />
       ) : (

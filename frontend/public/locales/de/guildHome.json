@@ -33,7 +33,8 @@
       "open": "Offen für alle Gildenmitglieder",
       "request": "Beitritt auf Anfrage",
       "private": "Nur auf Einladung"
-    }
+    },
+    "loadError": "Das Angebot dieser Gilde konnte nicht geladen werden. Bitte versuche es später erneut."
   },
   "columns": {
     "name": "Name",

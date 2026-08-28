@@ -33,7 +33,8 @@
       "open": "Abierta a todos los miembros del gremio",
       "request": "Unirse mediante solicitud",
       "private": "Solo por invitación"
-    }
+    },
+    "loadError": "No se pudo cargar lo que ofrece este gremio. Inténtalo de nuevo más tarde."
   },
   "columns": {
     "name": "Nombre",

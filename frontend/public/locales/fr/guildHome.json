@@ -33,7 +33,8 @@
       "open": "Ouverte à tous les membres de la guilde",
       "request": "Adhésion sur demande",
       "private": "Sur invitation uniquement"
-    }
+    },
+    "loadError": "Impossible de charger ce que propose cette guilde. Veuillez réessayer plus tard."
   },
   "columns": {
     "name": "Nom",
