@@ -276,8 +276,14 @@ async def create_calendar(
     initiative: Optional[Initiative] = None
 
     if calendar_in.initiative_id is None:
+        # Held until this request commits, so the calendar and the app it
+        # belongs to cannot part company midway: an uninstall arriving now waits
+        # and takes this calendar with it.
         app = await guild_apps_service.find_mounting_app(
-            session, guild_id=guild_context.guild_id, tool=Tool.calendar.value
+            session,
+            guild_id=guild_context.guild_id,
+            tool=Tool.calendar.value,
+            for_update=True,
         )
         if app is None:
             raise HTTPException(

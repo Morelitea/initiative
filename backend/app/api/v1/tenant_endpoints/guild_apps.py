@@ -5,12 +5,16 @@ and an app's existence is guild-wide knowledge. Installing, renaming, disabling,
 upgrading, configuring and removing are guild-admin actions: an app mounts a
 guild-wide surface, which is the guild's shape rather than any one member's.
 
-**Connecting is not an admin action.** Where a vendor authorizes a person rather
-than an organization, each member connects their own account, and installation
-never waits for anyone to do so. Admins govern the install and its guild-wide
-credentials; they can see who connected as which vendor account and end that
-access, but they neither perform another member's connection nor read its
-values.
+**Who connects follows what the credential is.** Where a vendor authorizes a
+person, each member connects their own account, no admin is involved, and
+installation never waits for anyone to do so. Where it authorizes an
+organization — through a page of its own, which is the only way some vendors
+grant one — a guild admin runs that flow once for everybody, exactly as they
+would fill in the same connection by hand.
+
+Admins govern the install and its guild-wide credentials either way; they can
+see who connected as which vendor account and end that access, but they neither
+perform another member's connection nor read its values.
 
 What a member may *do* inside an app is not decided here. The content an app
 creates carries its own grants, and the tool that owns it enforces them exactly
@@ -171,8 +175,22 @@ async def _normalized_placement(session: RLSSessionDep, raw: Any) -> dict[str, A
         ) from exc
 
 
-async def _load(session: RLSSessionDep, app_id: int) -> GuildApp:
-    app = (await session.exec(select(GuildApp).where(GuildApp.id == app_id))).first()
+async def _load(
+    session: RLSSessionDep, app_id: int, *, for_update: bool = False
+) -> GuildApp:
+    """This guild's install, or a 404.
+
+    ``for_update`` holds the row for the rest of the transaction. Removal wants
+    it: what an install is answerable for is a list that a member adding a
+    calendar appends to, so removal has to settle which of the two goes first
+    rather than reading a list that is still being written.
+    """
+    statement = select(GuildApp).where(GuildApp.id == app_id)
+    if for_update:
+        statement = statement.with_for_update().execution_options(
+            populate_existing=True
+        )
+    app = (await session.exec(statement)).first()
     if app is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -529,7 +547,10 @@ async def uninstall_guild_app(
     the operator's registration decides whether it exists at all.
     """
     _require_guild_admin(guild_context)
-    app = await _load(session, app_id)
+    # Held for the rest of this transaction, so a member adding a calendar to
+    # the app either lands before this read and is trashed with everything else,
+    # or finds no install and is refused.
+    app = await _load(session, app_id, for_update=True)
     await _require_removable(app)
 
     retention_days = await guilds_service.get_guild_retention_days(
@@ -746,7 +767,7 @@ def _handoff_response(handoff: handoff_service.EmbedHandoff) -> GuildAppHandoff:
 
 
 # ---------------------------------------------------------------------------
-# A member's own connection
+# Starting a vendor's flow
 # ---------------------------------------------------------------------------
 
 
@@ -761,13 +782,21 @@ async def connect_guild_app(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> GuildAppConnectStart:
-    """Start this member's own connection to an app's vendor.
+    """Start the vendor flow behind one connection.
 
-    Any member may: the vendor is going to authorize *them*, and what the
-    resulting credential reaches is what they already reach. The row and its
-    opaque handle are minted here so the app has something to write its result
-    against; the vendor flow itself runs at the app's own URL.
+    Two kinds run through here, and the connection's scope decides which:
 
+    * **A member's own account.** Any member may, because the vendor is going to
+      authorize *them* and what the resulting credential reaches is what they
+      already reach.
+    * **The guild's own credential**, where the vendor authorizes an
+      organization through a page of its own rather than through anything an
+      admin could type. A guild admin only — it is one credential for everybody,
+      and the install it produces is the guild's boundary, so this is governance
+      in exactly the way configuring the same connection by hand is.
+
+    Either way the opaque handle is minted here so the app has something to
+    write its result against, and the flow itself runs at the app's own URL.
     That URL is assembled server-side — the registration supplies the address,
     the manifest supplies the path — and carries the ``connection_ref`` so the
     app knows which credential it is about to hold. The ref is an identifier,
@@ -781,23 +810,30 @@ async def connect_guild_app(
         )
 
     connection = _connection_or_404(app, connection_id)
-    if connection.get("scope") != "interactive":
+    if not app_config_service.runs_vendor_flow(connection):
+        # Nothing to run and nowhere to send anybody. A guild-wide connection
+        # without a flow is a form, and is filled in through the config route.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildAppMessages.CONNECTION_NOT_INTERACTIVE,
         )
-    connect_path = connection.get("connect_path")
-    if not connect_path:
-        # The validator requires one on an interactive connection, so this is a
-        # definition pinned before that rule — there is nowhere to send anyone.
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=GuildAppMessages.CONNECT_PATH_MISSING,
-        )
+    connect_path = connection["connect_path"]
+    guild_wide = connection.get("scope") == "static"
+    if guild_wide:
+        _require_guild_admin(guild_context)
 
     # The vendor flow runs at the app's own URL, so it has to be wired up and
-    # switched on before a member is sent anywhere.
+    # switched on before anyone is sent anywhere.
     registration = await handoff_service.require_live_registration(app)
+
+    if guild_wide:
+        return await _start_guild_connect(
+            session,
+            app,
+            connection=connection,
+            connect_path=connect_path,
+            registration=registration,
+        )
 
     existing = await connections_service.get_connection(
         session, app_id=app.id, connection_id=connection_id, user_id=current_user.id
@@ -814,22 +850,85 @@ async def connect_guild_app(
     await session.commit()
     await session.refresh(row)
 
-    # The member's browser is what follows this, so it is built from the address
-    # a browser can resolve.
-    #
-    # The guild travels with the ref because the channel addresses every install
-    # by guild: the app writes its result back to
-    # ``/installs/{guild_id}/connections/{ref}``, and a ref on its own names
-    # nothing it can look up.
+    return await _connect_start(
+        registration,
+        guild_id=app.guild_id,
+        connection_id=row.connection_id,
+        connection_ref=row.connection_ref,
+        connect_path=connect_path,
+        status=row.status,
+    )
+
+
+async def _start_guild_connect(
+    session: AsyncSession,
+    app: GuildApp,
+    *,
+    connection: dict[str, Any],
+    connect_path: str,
+    registration: Any,
+) -> GuildAppConnectStart:
+    """Start the flow behind the guild's own credential.
+
+    There is no row to mint: a guild-wide credential lives on the install, and
+    so does the handle the app writes it back against. Kept once minted, so an
+    admin repeating the flow — moving to a different organization, widening what
+    it may see — writes over the same connection rather than creating a second.
+
+    The status is read off what is stored rather than set to ``pending``, so an
+    admin who opens the vendor's page and then closes the tab has changed
+    nothing about a credential that was already working.
+    """
+    connection_id = connection["id"]
+    connection_ref = app_config_service.guild_connection_ref(app, connection_id)
+    app.updated_at = datetime.now(timezone.utc)
+    session.add(app)
+    await session.commit()
+    await session.refresh(app)
+
+    satisfied = app_config_service.is_satisfied(
+        connection,
+        (app.config or {}).get(connection_id) or {},
+        (app.config_secrets or {}).get(connection_id) or {},
+    )
+    return await _connect_start(
+        registration,
+        guild_id=app.guild_id,
+        connection_id=connection_id,
+        connection_ref=connection_ref,
+        connect_path=connect_path,
+        status="connected" if satisfied else "pending",
+    )
+
+
+async def _connect_start(
+    registration: Any,
+    *,
+    guild_id: int,
+    connection_id: str,
+    connection_ref: str,
+    connect_path: str,
+    status: str,
+) -> GuildAppConnectStart:
+    """Where to send somebody, and what they are about to connect.
+
+    A browser is what follows this, so it is built from the address a browser
+    can resolve rather than the one Initiative's own server calls the app on.
+
+    The guild travels with the ref because the channel addresses every install
+    by guild: the app writes its result back to
+    ``/installs/{guild_id}/connections/{ref}``, and a ref on its own names
+    nothing it can look up.
+    """
     query = [
-        ("connection_ref", row.connection_ref),
-        ("guild_id", str(app.guild_id)),
+        ("connection_ref", connection_ref),
+        ("guild_id", str(guild_id)),
     ]
     query += await _return_address(registration.public_id, connection_id)
 
     return GuildAppConnectStart(
-        connection_id=row.connection_id,
-        connection_ref=row.connection_ref,
+        connection_id=connection_id,
+        connection_ref=connection_ref,
         connect_path=connect_path,
         connect_url=(
             # ``urlencode`` percent-encodes every reserved character, which
@@ -838,7 +937,7 @@ async def connect_guild_app(
             # separators of this one.
             f"{registration.browser_base}{connect_path}?{urlencode(query)}"
         ),
-        status=row.status,
+        status=status,
     )
 
 

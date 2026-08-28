@@ -363,6 +363,33 @@ class TestUninstall:
         # And gone from the ordinary view, like anything else in the trash.
         assert await _read_calendar(session, a.guild.id, calendar_id) is None
 
+    async def test_removal_trashes_a_calendar_added_after_the_install(
+        self, client: AsyncClient, acting_user, session: AsyncSession, calendar_app
+    ):
+        """An app is answerable for everything made inside it, not only for what
+        it created on the way in. Removal reads that list under the same lock a
+        create takes, so a calendar added later goes to the trash with the rest
+        rather than staying live with nothing that reaches it."""
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(client, a)
+        mounted_id = _artifact_id(app)
+
+        added = await client.post(
+            a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
+        )
+        assert added.status_code == 201, added.text
+        added_id = added.json()["id"]
+
+        response = await client.delete(a.g(f"/apps/{app['id']}"), headers=a.headers)
+        assert response.status_code == 204
+
+        for calendar_id in (mounted_id, added_id):
+            trashed = await _read_calendar(
+                session, a.guild.id, calendar_id, include_deleted=True
+            )
+            assert trashed is not None and trashed.deleted_at is not None, calendar_id
+            assert await _read_calendar(session, a.guild.id, calendar_id) is None
+
     async def test_the_listing_can_be_installed_again_afterwards(
         self, client: AsyncClient, acting_user, calendar_app
     ):
