@@ -27,6 +27,7 @@ import {
   appServiceErrorCode,
   hasGrant,
   isAppServiceStatus,
+  mergeGrants,
 } from "@/lib/appServices";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -82,7 +83,15 @@ export const SettingsAppServicesPage = () => {
 
   const handleSubmit = (values: AppServiceFormValues) => {
     const origins = values.allowedOrigins.length > 0 ? values.allowedOrigins : null;
-    const grants = values.delegation ? ["delegation"] : [];
+    // A PATCH replaces the whole list, so it is built from every control the
+    // form shows and then merged with anything stored that it does not.
+    const grants = mergeGrants(
+      [
+        ...(values.delegation ? (["delegation"] as const) : []),
+        ...(values.appDirectory ? (["app_directory"] as const) : []),
+      ],
+      editing?.grants
+    );
 
     if (editing) {
       updateService.mutate(
@@ -211,6 +220,7 @@ export const SettingsAppServicesPage = () => {
           <ul className="divide-y rounded-md border">
             {registrations.map((registration) => {
               const delegation = hasGrant(registration, "delegation");
+              const appDirectory = hasGrant(registration, "app_directory");
               const verifying =
                 verifyService.isPending &&
                 verifyService.variables?.registrationId === registration.id;
@@ -234,6 +244,9 @@ export const SettingsAppServicesPage = () => {
                         )}
                         {delegation && (
                           <Badge variant="secondary">{t("appServices.delegationBadge")}</Badge>
+                        )}
+                        {appDirectory && (
+                          <Badge variant="secondary">{t("appServices.appDirectoryBadge")}</Badge>
                         )}
                       </div>
                       <p className="truncate text-muted-foreground text-sm">
