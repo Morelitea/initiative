@@ -11,6 +11,7 @@ cd "$SCRIPT_DIR/.."
 
 BACKEND_PID=""
 FRONTEND_PID=""
+servers_started=false
 
 # The guard makes the function idempotent so the signal path (trap fires, the
 # poll loop below falls through, EXIT trap fires) and the natural-exit path (a
@@ -23,6 +24,13 @@ cleanup() {
     fi
     cleanup_done=true
     echo
+    if [ "$servers_started" = false ]; then
+        # The seed ran but no server did, so the dev ports are still whoever
+        # else's — take back only the data this launch put in the database.
+        echo "Removing seeded dev data..."
+        bash "$SCRIPT_DIR/dev-cleanup.sh" --data-only || true
+        return 0
+    fi
     echo "Stopping dev environment..."
     # Stop the servers this script started, then let dev-cleanup.sh sweep up
     # whatever is still on the ports and remove the seeded data.
@@ -48,6 +56,8 @@ bash scripts/dev-seed.sh
 # Start the backend in the background (uvicorn with --reload, port-cleanup built in).
 nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
 BACKEND_PID=$!
+# From here the dev ports are this launch's to sweep on the way out.
+servers_started=true
 
 # Start the frontend in the background (Vite, port-cleanup built in). --open makes
 # Vite open the app in the browser once it's listening; its `open` dependency is

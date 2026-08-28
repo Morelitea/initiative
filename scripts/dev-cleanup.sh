@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
 # Stop dev servers and remove seeded dev data.
 #
+#   dev-cleanup.sh                stop the servers, then remove the seeded data
+#   dev-cleanup.sh --data-only    remove the seeded data, leave the ports alone
+#
+# --data-only is for a launch that failed before it started a server: the data
+# is this launch's to remove, the ports belong to whoever is listening on them.
+#
 # This is the teardown path, so it never aborts partway: a missing venv or an
 # unreachable database must not leave the servers running or skip the data
 # clean. Each step reports what went wrong and the exit code reflects it.
 set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+stop_servers=true
+case "${1:-}" in
+    --data-only) stop_servers=false ;;
+    "") ;;
+    *) echo "usage: dev-cleanup.sh [--data-only]" >&2; exit 2 ;;
+esac
 
 status=0
 
@@ -43,16 +56,18 @@ stop_port() {
     kill -9 $pids 2>/dev/null || true
 }
 
-echo "Stopping dev servers..."
-stop_port 8000 "backend"
-stop_port 5173 "frontend"
+if [ "$stop_servers" = true ]; then
+    echo "Stopping dev servers..."
+    stop_port 8000 "backend"
+    stop_port 5173 "frontend"
 
-# Fallbacks for servers that are up but not listening yet (killed mid-startup,
-# or still binding the port).
-pkill -f "uvicorn app.main:app" 2>/dev/null || true
-pkill -f "vite" 2>/dev/null || true
+    # Fallbacks for servers that are up but not listening yet (killed
+    # mid-startup, or still binding the port).
+    pkill -f "uvicorn app.main:app" 2>/dev/null || true
+    pkill -f "vite" 2>/dev/null || true
 
-echo "Servers stopped."
+    echo "Servers stopped."
+fi
 
 if ! cd "$SCRIPT_DIR/../backend"; then
     echo "Could not enter backend/ — seeded dev data left in place." >&2
