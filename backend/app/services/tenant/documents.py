@@ -34,6 +34,7 @@ from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
+from app.db.session import routed_guild_id
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -727,5 +728,10 @@ async def unresolve_wikilinks_to_document(
     # Invalidate any in-memory collaboration rooms for affected documents
     # This prevents persist_room from overwriting our changes when users disconnect
     # Note: If a room has active collaborators, they'll have stale wikilinks until reload
-    for doc_id in affected_doc_ids:
-        await collaboration_manager.invalidate_room_if_empty(doc_id)
+    # Rooms are keyed by (guild, document), and the documents above were read
+    # through this session, so the guild it is routed to is theirs. An unrouted
+    # session reaches no guild schema and so has no room to invalidate.
+    guild_id = routed_guild_id(session)
+    if guild_id is not None:
+        for doc_id in affected_doc_ids:
+            await collaboration_manager.invalidate_room_if_empty(guild_id, doc_id)

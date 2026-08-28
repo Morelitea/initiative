@@ -57,9 +57,23 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
             <h3 className="truncate font-semibold text-base" title={guild.name}>
               {guild.name}
             </h3>
-            <p className="flex items-center gap-1 text-muted-foreground text-xs">
-              <Users className="h-3 w-3" aria-hidden="true" />
-              {t("guilds:memberCount", { count: guild.member_count })}
+            <p className="flex flex-wrap items-center gap-x-1.5 text-muted-foreground text-xs">
+              {/* Who is here now, then how many there are in all. A guild with
+                  nobody in it says nothing rather than "0 online", which reads
+                  as a verdict on the guild rather than on the moment. */}
+              {guild.online_count > 0 ? (
+                <>
+                  <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                    {t("guilds:community.onlineCount", { count: guild.online_count })}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                </>
+              ) : null}
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" aria-hidden="true" />
+                {t("guilds:memberCount", { count: guild.member_count })}
+              </span>
             </p>
           </div>
         </div>

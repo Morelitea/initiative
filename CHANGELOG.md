@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Whether a server has a directory at all is the platform owner's decision, under Settings → Platform → Community, and it starts off. While it is off there is nothing to browse, nobody can join a guild without an invite, and the listing control is absent from guild settings. Turning it off later hides the directory rather than un-listing anyone: switch it back on and the same guilds are there.
 - **An app service can be granted the app directory from Settings → Platform → App services.** Alongside "Act as members", the form now offers "Find other apps", which lets a service ask where another app installed in the same guild answers. An automation service needs both. It could previously only be conferred outside the app.
+- **The community directory says who is in a guild right now.** A card carries the number of members with that guild open, beside the number of members it has in all. It is a live reading rather than a stored one, so it follows people arriving and leaving, and a guild nobody is in at that moment simply says how many members it has.
 
 ### Changed
 

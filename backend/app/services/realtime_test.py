@@ -47,6 +47,82 @@ class FakeWebSocket:
 
 
 # ---------------------------------------------------------------------------
+# ConnectionManager / presence
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+async def test_presence_counts_people_not_sockets() -> None:
+    """Two tabs are one person; the second closing does not empty the guild."""
+    cm = ConnectionManager()
+    first_tab, second_tab, someone_else = (
+        FakeWebSocket(),
+        FakeWebSocket(),
+        FakeWebSocket(),
+    )
+    await cm.connect(1, [5], first_tab, user_id=7)
+    await cm.connect(1, [5], second_tab, user_id=7)
+    await cm.connect(1, [5], someone_else, user_id=8)
+
+    assert cm.present_count(1) == 2
+
+    await cm.disconnect(second_tab)
+    assert cm.present_count(1) == 2  # user 7 still has a tab open
+
+    await cm.disconnect(first_tab)
+    assert cm.present_count(1) == 1
+
+
+@pytest.mark.unit
+async def test_disconnecting_a_socket_twice_takes_its_user_out_once() -> None:
+    """Both paths that drop a socket can run for the same socket.
+
+    A send that fails drops it, and the connection's own cleanup drops it again
+    when the loop ends. The second one must be a no-op rather than taking a
+    still-connected tab's user out of the count.
+    """
+    cm = ConnectionManager()
+    first_tab, second_tab = FakeWebSocket(), FakeWebSocket()
+    await cm.connect(1, [5], first_tab, user_id=7)
+    await cm.connect(1, [5], second_tab, user_id=7)
+
+    await cm.disconnect(first_tab)
+    await cm.disconnect(first_tab)
+
+    assert cm.present_count(1) == 1  # user 7, still on their second tab
+
+    await cm.disconnect(second_tab)
+    assert cm.present_count(1) == 0
+
+
+@pytest.mark.unit
+async def test_presence_is_per_guild() -> None:
+    """One person in two guilds is present in both, and counted once in each."""
+    cm = ConnectionManager()
+    here, there = FakeWebSocket(), FakeWebSocket()
+    await cm.connect(1, [5], here, user_id=7)
+    await cm.connect(2, [5], there, user_id=7)
+
+    assert cm.present_count(1) == 1
+    assert cm.present_count(2) == 1
+    assert cm.present_count(3) == 0
+    assert cm.present_counts([1, 2, 3]) == {1: 1, 2: 1, 3: 0}
+
+
+@pytest.mark.unit
+async def test_presence_includes_a_member_of_no_initiative() -> None:
+    """Presence is the guild, not the rooms: joining none of them is still here."""
+    cm = ConnectionManager()
+    socket = FakeWebSocket()
+    await cm.connect(1, [], socket, user_id=7)
+
+    assert cm.present_count(1) == 1
+
+    await cm.disconnect(socket)
+    assert cm.present_count(1) == 0
+
+
+# ---------------------------------------------------------------------------
 # ConnectionManager / broadcast fan-out isolation
 # ---------------------------------------------------------------------------
 
@@ -60,9 +136,11 @@ async def test_broadcast_isolated_by_guild_and_initiative() -> None:
     same_room = FakeWebSocket()
     other_guild_same_id = FakeWebSocket()
     same_guild_other_init = FakeWebSocket()
-    await cm.connect(1, [5], same_room)
-    await cm.connect(2, [5], other_guild_same_id)  # SAME local id, different guild
-    await cm.connect(1, [6], same_guild_other_init)
+    await cm.connect(1, [5], same_room, user_id=1)
+    await cm.connect(
+        2, [5], other_guild_same_id, user_id=2
+    )  # SAME local id, different guild
+    await cm.connect(1, [6], same_guild_other_init, user_id=3)
 
     await cm.broadcast(1, 5, {"hello": "g1-i5"})
 
@@ -78,7 +156,7 @@ async def test_broadcast_event_envelope_carries_no_content() -> None:
     through the real module ``manager``/``broadcast_event`` every endpoint uses."""
     guild_id, initiative_id = 101, 9
     socket = FakeWebSocket()
-    await manager.connect(guild_id, [initiative_id], socket)
+    await manager.connect(guild_id, [initiative_id], socket, user_id=1)
     try:
         await broadcast_event(
             guild_id,
@@ -103,7 +181,7 @@ async def test_broadcast_event_envelope_carries_no_content() -> None:
 async def test_disconnect_removes_socket_from_all_rooms() -> None:
     cm = ConnectionManager()
     socket = FakeWebSocket()
-    await cm.connect(5, [1, 2], socket)
+    await cm.connect(5, [1, 2], socket, user_id=1)
     assert cm.room_size(5, 1) == 1
     assert cm.room_size(5, 2) == 1
 
@@ -122,7 +200,7 @@ async def test_failed_send_prunes_socket() -> None:
 
     cm = ConnectionManager()
     bad = ExplodingWebSocket()
-    await cm.connect(9, [1], bad)
+    await cm.connect(9, [1], bad, user_id=1)
 
     await cm.broadcast(9, 1, {"x": 1})  # must not raise
     assert cm.room_size(9, 1) == 0  # the dead socket was pruned

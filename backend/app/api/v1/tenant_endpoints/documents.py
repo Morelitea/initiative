@@ -1531,7 +1531,9 @@ async def update_document(
         # Clearing only when the room is inactive still solves PR #347's
         # original problem: non-collab edits need to override any stale
         # pre-existing yjs_state the next time the user re-enables collab.
-        if not collaboration_manager.has_active_collaborators(document.id):
+        if not collaboration_manager.has_active_collaborators(
+            guild_context.guild_id, document.id
+        ):
             document.yjs_state = None
         content_updated = True
         updated = True
@@ -1568,7 +1570,9 @@ async def update_document(
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.
         if content_updated:
-            await collaboration_manager.invalidate_room_if_empty(document.id)
+            await collaboration_manager.invalidate_room_if_empty(
+                guild_context.guild_id, document.id
+            )
     hydrated = await _get_document_or_404(
         session, document_id=document.id, guild_id=guild_context.guild_id
     )

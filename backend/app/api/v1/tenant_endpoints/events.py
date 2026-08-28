@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 from typing import Optional
@@ -133,8 +134,9 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
     # Initiative-scoped subscription: the socket joins exactly the rooms whose
     # content the user can read, so a signal for an initiative never reaches a
     # non-member. (A member of no initiative joins nothing — correct: they have
-    # no content to be notified about.)
-    await manager.connect(guild_id, initiative_ids, websocket)
+    # no content to be notified about. The user is still present in the guild,
+    # which the manager tracks separately from the rooms.)
+    await manager.connect(guild_id, initiative_ids, websocket, user_id=user.id)
     logger.info(
         f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"
     )
@@ -143,7 +145,13 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
             # Keep the connection alive by awaiting incoming messages
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await manager.disconnect(websocket)
+        pass
     except Exception:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        # Unconditional, including the task being cancelled — which arrives as a
+        # BaseException and so past both excepts above. A room entry left behind
+        # is corrected by the first send that fails, but the socket's user would
+        # stay counted present in this guild with nothing to notice it.
         await manager.disconnect(websocket)
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)

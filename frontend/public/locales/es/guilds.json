@@ -325,6 +325,8 @@
     "heroTitle": "Nadie construye un mundo solo",
     "heroSubtitle": "Sea lo que sea lo tuyo, del rol de mesa a la música o la ciencia, aquí hay un gremio con un sitio reservado para ti.",
     "browse": "Unirse a una comunidad",
+    "onlineCount_one": "{{count}} en línea",
+    "onlineCount_other": "{{count}} en línea",
     "searchPlaceholder": "Buscar comunidades",
     "categoriesHeading": "Categorías",
     "allCategories": "Todas",

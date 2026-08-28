@@ -325,6 +325,8 @@
     "heroTitle": "Nobody builds a world alone",
     "heroSubtitle": "Whatever you're into, from tabletop to music to science, a guild here has a seat with your name on it.",
     "browse": "Join a community",
+    "onlineCount_one": "{{count}} online",
+    "onlineCount_other": "{{count}} online",
     "searchPlaceholder": "Search communities",
     "categoriesHeading": "Categories",
     "allCategories": "All",

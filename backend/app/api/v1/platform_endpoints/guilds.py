@@ -52,6 +52,7 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import guilds as guilds_service
+from app.services.realtime import manager as realtime_manager
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services import rls as rls_service
@@ -230,7 +231,8 @@ async def list_community_guilds(
     is not what this returns — the filters live in the service (listed AND
     active, always), and :class:`CommunityGuildRead` carries only what a guild
     published by opting in: no lifecycle status, no administration, no roster,
-    and nothing at all from inside the guild's own schema.
+    and nothing at all from inside the guild's own schema. How many people have
+    it open is a count of live connections, named to nobody.
 
     The directory is a deployment-level feature an owner switches on; where it
     is off there is nothing to browse and the request is refused rather than
@@ -249,6 +251,9 @@ async def list_community_guilds(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
+    # Who is present is live state held by the process, not a column, so it is
+    # read here for the page being returned rather than joined in the query.
+    online = realtime_manager.present_counts(guild.id for guild, _, _ in rows)
     return CommunityGuildPage(
         items=[
             CommunityGuildRead(
@@ -258,6 +263,7 @@ async def list_community_guilds(
                 icon_base64=guild.icon_base64,
                 categories=[GuildCategory(value) for value in guild.categories],
                 member_count=member_count,
+                online_count=online.get(guild.id, 0),
                 already_member=already_member,
             )
             for guild, member_count, already_member in rows

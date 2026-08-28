@@ -283,6 +283,11 @@ class CommunityGuildRead(SanitizedBaseModel):
     shelves, and how many people are already there. No membership fields (they
     have none), no lifecycle status, no administration. ``already_member`` is
     about the *caller*, and only says whether the Join button applies to them.
+
+    ``online_count`` is how many of those people have the guild open right now.
+    It is a live reading rather than a stored one, taken from the process
+    answering the request, so it is a sense of how busy a guild is rather than a
+    figure to reconcile against anything.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -293,6 +298,7 @@ class CommunityGuildRead(SanitizedBaseModel):
     icon_base64: Optional[RawTextStr] = None
     categories: List[GuildCategory] = []
     member_count: int = 0
+    online_count: int = 0
     already_member: bool = False
 
 
