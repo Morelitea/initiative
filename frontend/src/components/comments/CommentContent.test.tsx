@@ -107,16 +107,33 @@ describe("CommentContent", () => {
     expect(screen.getByRole("link", { name: "https://example.com/pic.png" })).toBeInTheDocument();
   });
 
-  it("keeps an author's destination when they linked an image", () => {
-    const { container } = renderContent(
-      "[![diagram](https://example.com/pic.png)](https://example.com/details)"
-    );
+  it.each([
+    ["directly", "[![diagram](https://example.com/pic.png)](https://example.com/details)"],
+    [
+      "under formatting",
+      "[**![diagram](https://example.com/pic.png)**](https://example.com/details)",
+    ],
+    [
+      "by reference",
+      "[![diagram][pic]](https://example.com/details)\n\n[pic]: https://example.com/pic.png",
+    ],
+  ])("keeps an author's destination when they linked an image %s", (_case, markdown) => {
+    const { container } = renderContent(markdown);
 
     expect(container.querySelector("img")).toBeNull();
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "https://example.com/details");
     expect(links[0]).toHaveTextContent("diagram");
+  });
+
+  it("links a reference-style image to its definition", () => {
+    renderContent("![diagram][pic]\n\n[pic]: https://example.com/pic.png");
+
+    expect(screen.getByRole("link", { name: "diagram" })).toHaveAttribute(
+      "href",
+      "https://example.com/pic.png"
+    );
   });
 
   it("does not render raw html", () => {

@@ -19,9 +19,14 @@ interface MdastNode {
   value?: string;
   url?: string;
   alt?: string;
+  identifier?: string;
   children?: MdastNode[];
   data?: Record<string, unknown>;
 }
+
+/** Both spellings of an image and of a link — inline, and by reference. */
+const IMAGE_TYPES = new Set(["image", "imageReference"]);
+const LINK_TYPES = new Set(["link", "linkReference"]);
 
 export type MentionType = "user" | "task" | "doc" | "project";
 
@@ -110,32 +115,48 @@ export function remarkMentions() {
  */
 export function remarkImageLinks() {
   return (tree: MdastNode) => {
+    // A reference-style image names a definition elsewhere in the document
+    // rather than carrying its own address.
+    const definitions = new Map<string, string>();
     visitParents(tree, (parent) => {
-      const children = parent.children;
+      for (const child of parent.children ?? []) {
+        if (child.type === "definition" && child.identifier && child.url) {
+          definitions.set(child.identifier, child.url);
+        }
+      }
+    });
+
+    const urlOf = (node: MdastNode) =>
+      node.url ?? (node.identifier ? definitions.get(node.identifier) : undefined);
+
+    // The wrapping link can be any number of levels up — emphasis, a heading,
+    // a table cell — so this tracks the ancestry rather than the parent alone.
+    const rewrite = (node: MdastNode, insideLink: boolean) => {
+      const children = node.children;
       if (!children) return;
 
       for (let i = children.length - 1; i >= 0; i--) {
-        const image = children[i];
-        if (image.type !== "image") continue;
+        const child = children[i];
+        if (!IMAGE_TYPES.has(child.type)) {
+          rewrite(child, insideLink || LINK_TYPES.has(child.type));
+          continue;
+        }
 
-        const label = textOf(image) || image.alt || image.url || "";
+        const url = urlOf(child);
+        const label = child.alt || url || "";
         if (!label) {
           children.splice(i, 1);
           continue;
         }
 
-        if (parent.type === "link" || !image.url) {
-          children[i] = { type: "text", value: label };
-          continue;
-        }
-
-        children[i] = {
-          type: "link",
-          url: image.url,
-          children: [{ type: "text", value: label }],
-        };
+        children[i] =
+          insideLink || !url
+            ? { type: "text", value: label }
+            : { type: "link", url, children: [{ type: "text", value: label }] };
       }
-    });
+    };
+
+    rewrite(tree, LINK_TYPES.has(tree.type));
   };
 }
 
