@@ -2,11 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      // Runs the same orchestration script as the Zed task and `claude --debug`,
+      // so startup and teardown behave identically everywhere. The script traps
+      // signals and runs dev:cleanup itself when the terminal is interrupted or
+      // closed; postDebugTask is the backstop for a hard stop that never reaches
+      // the trap.
       "name": "Dev Environment",
       "type": "node-terminal",
       "request": "launch",
-      "command": "echo 'Dev environment is running. Press Ctrl+C to stop.'",
-      "preLaunchTask": "dev:setup",
+      "command": "bash ${workspaceFolder}/scripts/dev-pre-launch.sh",
+      "cwd": "${workspaceFolder}",
       "postDebugTask": "dev:cleanup"
     }
   ]
