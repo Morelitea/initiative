@@ -31,11 +31,12 @@ dim()  { echo -e "${DIM}$*${NC}"; }
 cleanup() {
     if [[ -n "$CLEANUP_BRANCH" ]]; then
         warn "Cleaning up branch $CLEANUP_BRANCH..."
+        git cherry-pick --abort 2>/dev/null || true
         git checkout dev 2>/dev/null || git checkout main 2>/dev/null || true
         git branch -D "$CLEANUP_BRANCH" 2>/dev/null || true
     fi
 }
-trap cleanup ERR
+trap cleanup EXIT INT TERM
 
 confirm() {
     if $AUTO_CONFIRM; then return 0; fi
@@ -510,6 +511,159 @@ EOF
     git checkout dev
 }
 
+# Copy the CHANGELOG entries a single commit added into the local [Unreleased]
+# section. Used when a cherry-pick collides on CHANGELOG.md: main and dev hold
+# different unreleased notes, so we keep main's and bring over only the entries
+# belonging to the commit being picked.
+port_changelog_entries() {
+    local sha="$1"
+    PORT_SHA="$sha" python3 - <<'PYEOF' || die "Could not port CHANGELOG entries for $sha"
+import os, subprocess, sys
+
+sha = os.environ["PORT_SHA"]
+
+
+def show(ref):
+    r = subprocess.run(["git", "show", f"{ref}:CHANGELOG.md"],
+                       capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def unreleased(text):
+    """Parse the [Unreleased] block into {section heading: [entry, ...]}."""
+    out, section, buf = {}, None, []
+
+    def flush():
+        while buf and not buf[-1].strip():
+            buf.pop()
+        if buf and section is not None:
+            out.setdefault(section, []).append("\n".join(buf))
+        buf.clear()
+
+    inside = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if inside:
+                flush()
+                break
+            inside = line.strip().lower().startswith("## [unreleased]")
+            continue
+        if not inside:
+            continue
+        if line.startswith("### "):
+            flush()
+            section = line[4:].strip()
+        elif line.startswith("- "):
+            flush()
+            buf.append(line)
+        elif buf:
+            buf.append(line)
+    flush()
+    return out
+
+
+child, parent = unreleased(show(sha)), unreleased(show(sha + "^1"))
+added = [(sec, e) for sec, entries in child.items() for e in entries
+         if e not in set(parent.get(sec, []))]
+if not added:
+    sys.exit(0)
+
+target = open("CHANGELOG.md").read().splitlines()
+start = next((i for i, l in enumerate(target)
+              if l.strip().lower().startswith("## [unreleased]")), None)
+if start is None:
+    sys.exit("CHANGELOG.md has no ## [Unreleased] section")
+end = next((i for i in range(start + 1, len(target))
+            if target[i].startswith("## ")), len(target))
+block = target[start + 1:end]
+
+
+def insert(block, section, entry):
+    lines = entry.splitlines()
+    head = next((i for i, l in enumerate(block)
+                 if l.strip() == f"### {section}"), None)
+    if head is None:
+        while block and not block[-1].strip():
+            block.pop()
+        return block + ["", f"### {section}", ""] + lines
+    stop = head + 1
+    while stop < len(block) and not block[stop].startswith("### "):
+        stop += 1
+    while stop > head + 1 and not block[stop - 1].strip():
+        stop -= 1
+    if stop == head + 1:
+        lines = [""] + lines
+    return block[:stop] + lines + block[stop:]
+
+
+for section, entry in added:
+    block = insert(block, section, entry)
+
+while block and not block[-1].strip():
+    block.pop()
+if block and block[0].strip():
+    block.insert(0, "")
+block.append("")
+
+open("CHANGELOG.md", "w").write(
+    "\n".join(target[:start + 1] + block + target[end:]) + "\n")
+print("    ported %d CHANGELOG entr%s" % (len(added),
+                                          "y" if len(added) == 1 else "ies"))
+PYEOF
+}
+
+# Fold duplicate "### Section" headings in [Unreleased] into one, keeping the
+# order they first appear. A cherry-pick that merges CHANGELOG.md cleanly can
+# still leave two "### Fixed" blocks, since main and dev arrange them differently.
+tidy_changelog() {
+    [[ -f CHANGELOG.md ]] || return 0
+    python3 - <<'PYEOF' || die "Could not tidy CHANGELOG.md"
+lines = open("CHANGELOG.md").read().splitlines()
+start = next((i for i, l in enumerate(lines)
+              if l.strip().lower().startswith("## [unreleased]")), None)
+if start is None:
+    raise SystemExit(0)
+end = next((i for i in range(start + 1, len(lines))
+            if lines[i].startswith("## ")), len(lines))
+
+order, sections, current = [], {}, None
+for line in lines[start + 1:end]:
+    if line.startswith("### "):
+        current = line[4:].strip()
+        if current not in sections:
+            order.append(current)
+            sections[current] = []
+    elif current is not None:
+        sections[current].append(line)
+
+block = []
+for head in order:
+    body = []
+    for line in sections[head]:
+        if not line.strip() and (not body or not body[-1].strip()):
+            continue
+        body.append(line)
+    while body and not body[-1].strip():
+        body.pop()
+    block += ["", f"### {head}", ""] + body
+block.append("")
+
+rebuilt = lines[:start + 1] + block + lines[end:]
+if rebuilt != lines:
+    open("CHANGELOG.md", "w").write("\n".join(rebuilt) + "\n")
+    print("    tidied duplicate CHANGELOG sections")
+PYEOF
+}
+
+# Tidy the changelog and fold the result into the commit just picked.
+fold_changelog_into_head() {
+    tidy_changelog
+    if ! git diff --quiet -- CHANGELOG.md; then
+        git add CHANGELOG.md
+        git commit --amend --no-edit --no-verify >/dev/null
+    fi
+}
+
 do_cherry_pick() {
     echo -e "${BOLD}Mode: Cherry-pick to main${NC}"
     echo "═══════════════════════════════════════"
@@ -552,7 +706,34 @@ do_cherry_pick() {
     git checkout -b "$branch" origin/main
 
     for sha in "${CHERRY_SHAS[@]}"; do
-        git cherry-pick "$sha" || die "Cherry-pick failed for $sha — resolve conflicts and retry"
+        # A merge commit (a PR merged without squashing) needs an explicit
+        # mainline; -m 1 replays the diff it introduced onto its first parent.
+        local pick_args=("$sha")
+        if [[ $(git rev-list --no-walk --count --merges "$sha") -eq 1 ]]; then
+            pick_args=(-m 1 "$sha")
+            dim "  $(git log --oneline -1 "$sha") (merge — replaying onto first parent)"
+        fi
+
+        if git cherry-pick "${pick_args[@]}"; then
+            fold_changelog_into_head
+            continue
+        fi
+
+        # CHANGELOG.md conflicts on nearly every hotfix, because main and dev
+        # carry different unreleased notes. Keep main's and port over just the
+        # entries this commit added; anything else is a real conflict.
+        if [[ "$(git diff --name-only --diff-filter=U)" == "CHANGELOG.md" ]]; then
+            dim "    CHANGELOG.md conflict — keeping main's and porting this commit's entries"
+            git checkout --ours -- CHANGELOG.md
+            port_changelog_entries "$sha"
+            git add CHANGELOG.md
+            GIT_EDITOR=true git cherry-pick --continue \
+                || die "Cherry-pick failed for $sha — resolve conflicts and retry"
+            fold_changelog_into_head
+        else
+            git cherry-pick --abort 2>/dev/null || true
+            die "Cherry-pick failed for $sha — resolve conflicts and retry"
+        fi
     done
 
     if [[ -n "$new_version" ]]; then
