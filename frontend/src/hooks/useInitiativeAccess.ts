@@ -103,19 +103,6 @@ export function toolAccessForInitiative(
 }
 
 /**
- * Whether an initiative has anything to offer this reader: a tool they may
- * view, or one they may create in. Read off the same per-tool access the
- * sidebar renders from, so "no rows would draw" and "not listed" stay the
- * same answer.
- *
- * View and create are independent role permissions, so create is asked
- * separately rather than assumed to follow view: a role granted one without
- * the other keeps the target its create dialogs are allowed to use.
- */
-export const offersAnyTool = (access: InitiativeToolAccess): boolean =>
-  TOOLS.some((tool) => access[tool].view || access[tool].create);
-
-/**
  * Cheap, switcher-entry-only test for whether the user could **author a new
  * top-level tool** (gate 3) somewhere in this guild — used to gate always-mounted
  * surfaces (the global create wizards' entry points and guild pickers) without
@@ -181,20 +168,9 @@ export function useInitiativeAccess() {
   // Admins and PAM grantees see every initiative in the guild.
   const seesAllInitiatives = isGuildAdmin || isGrantGuild;
 
-  /**
-   * Narrow a guild's initiative list to the ones the user may see.
-   *
-   * Membership alone is not enough: a role with every tool turned off leaves
-   * an initiative with nothing behind its name, so it is dropped rather than
-   * listed as an empty shell. `alsoOffers` lets a caller keep one whose
-   * content is not a tool — the sidebar passes its app rows, so an initiative
-   * that offers only an installed app's surface still shows.
-   */
+  /** Narrow a guild's initiative list to the ones the user may see. */
   const filterVisible = useCallback(
-    (
-      initiatives: InitiativeRead[] | undefined,
-      alsoOffers?: (initiative: InitiativeRead) => boolean
-    ): InitiativeRead[] => {
+    (initiatives: InitiativeRead[] | undefined): InitiativeRead[] => {
       if (!user) return [];
       // Archived initiatives are hidden from the main sidebar for everyone
       // (admins included); they stay manageable from guild settings →
@@ -205,14 +181,9 @@ export function useInitiativeAccess() {
       }
       return source
         .filter((initiative) => initiative.members.some((m) => m.user.id === user.id))
-        .filter(
-          (initiative) =>
-            offersAnyTool(toolAccessForInitiative(access, initiative, user.id)) ||
-            (alsoOffers?.(initiative) ?? false)
-        )
         .sort(byName);
     },
-    [user, seesAllInitiatives, access]
+    [user, seesAllInitiatives]
   );
 
   /** Effective per-tool access for one initiative, keyed by Tool. */
