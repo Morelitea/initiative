@@ -6,6 +6,7 @@ import {
   loadWhiteboardScene,
   stampWhiteboardSceneCache,
 } from "@/components/documents/whiteboardSceneCache";
+import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const DOC_ID = 42;
 const KEY = `wb-scene-${DOC_ID}`;
@@ -18,9 +19,9 @@ const scene = (label: string): WhiteboardScene =>
   }) as unknown as WhiteboardScene;
 
 const writeCache = (label: string, savedAt: string) =>
-  localStorage.setItem(KEY, JSON.stringify({ scene: scene(label), savedAt }));
+  setItem(KEY, JSON.stringify({ scene: scene(label), savedAt }));
 
-afterEach(() => localStorage.clear());
+afterEach(() => removeItem(KEY));
 
 describe("loadWhiteboardScene", () => {
   it("prefers the cached scene when it is newer than the server copy", () => {
@@ -29,7 +30,7 @@ describe("loadWhiteboardScene", () => {
     expect(result.fromCache).toBe(true);
     expect(result.scene.elements).toEqual([{ id: "cached" }]);
     // A winning cache entry is kept (it still represents unsaved work).
-    expect(localStorage.getItem(KEY)).not.toBeNull();
+    expect(getItem(KEY)).not.toBeNull();
   });
 
   it("discards a cache entry that is older than the server copy", () => {
@@ -40,15 +41,15 @@ describe("loadWhiteboardScene", () => {
     const result = loadWhiteboardScene(DOC_ID, "2026-08-27T12:05:00Z", scene("rest"));
     expect(result.fromCache).toBe(false);
     expect(result.scene.elements).toEqual([{ id: "rest" }]);
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(getItem(KEY)).toBeNull();
   });
 
   it("removes an unparseable cache entry and falls back to REST content", () => {
-    localStorage.setItem(KEY, "{not json");
+    setItem(KEY, "{not json");
     const result = loadWhiteboardScene(DOC_ID, "2026-08-27T12:00:00Z", scene("rest"));
     expect(result.fromCache).toBe(false);
     expect(result.scene.elements).toEqual([{ id: "rest" }]);
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(getItem(KEY)).toBeNull();
   });
 
   it("normalizes missing REST content to an empty scene", () => {
@@ -69,6 +70,6 @@ describe("stampWhiteboardSceneCache / clearWhiteboardSceneCache", () => {
   it("clear removes the entry", () => {
     stampWhiteboardSceneCache(DOC_ID, scene("local"));
     clearWhiteboardSceneCache(DOC_ID);
-    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(getItem(KEY)).toBeNull();
   });
 });
