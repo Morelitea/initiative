@@ -134,6 +134,93 @@ describe("SettingsAppServicesPage", () => {
         )
       ).toBeInTheDocument();
     });
+
+    it("shows the app directory grant too", () => {
+      registrations = [
+        buildRegistration({
+          id: 1,
+          public_id: "core.automation",
+          grants: ["delegation", "app_directory"],
+        }),
+      ];
+      renderAsOperator();
+
+      expect(screen.getByText("Finds other apps")).toBeInTheDocument();
+    });
+
+    it("confers the pair an automation service needs", async () => {
+      const user = userEvent.setup();
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Add app service" }));
+
+      await user.type(await screen.findByLabelText("App identifier"), "core.automation");
+      await user.type(screen.getByLabelText("Base URL"), "http://automation:8080");
+      await user.type(
+        screen.getByPlaceholderText("Paste the app's INITIATIVE_APP_SECRET"),
+        "s3cret"
+      );
+      await user.click(screen.getByRole("switch", { name: "Act as members (delegation)" }));
+      await user.click(screen.getByRole("switch", { name: "Find other apps (app directory)" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ grants: ["delegation", "app_directory"] }),
+        expect.anything()
+      );
+    });
+
+    it("keeps the grants it was not asked to change", async () => {
+      const user = userEvent.setup();
+      // The whole list is replaced by a PATCH, so editing an unrelated field
+      // has to carry the conferred powers back untouched.
+      registrations = [buildRegistration({ grants: ["delegation", "app_directory"] })];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      const baseUrl = await screen.findByLabelText("Base URL");
+      await user.clear(baseUrl);
+      await user.type(baseUrl, "http://moved:8080");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(updateMutate).toHaveBeenCalledWith(
+        {
+          registrationId: 1,
+          data: expect.objectContaining({
+            base_url: "http://moved:8080",
+            grants: ["delegation", "app_directory"],
+          }),
+        },
+        expect.anything()
+      );
+    });
+
+    it("carries through a grant this build has no control for", async () => {
+      const user = userEvent.setup();
+      // A backend that has learned a new power ahead of this frontend. The
+      // form cannot show it, which is not a reason to revoke it.
+      registrations = [buildRegistration({ grants: ["delegation", "some_later_grant"] })];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+
+      expect(updateMutate.mock.calls[0][0].data.grants).toEqual(["delegation", "some_later_grant"]);
+    });
+
+    it("revokes a power the operator switches off", async () => {
+      const user = userEvent.setup();
+      registrations = [buildRegistration({ grants: ["delegation", "app_directory"] })];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.click(
+        await screen.findByRole("switch", { name: "Find other apps (app directory)" })
+      );
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(updateMutate.mock.calls[0][0].data.grants).toEqual(["delegation"]);
+    });
   });
 
   describe("the shared secret", () => {

@@ -5,6 +5,8 @@ is a loopback literal, so nothing here touches the network.
 """
 
 import json
+import re
+from pathlib import Path
 
 import httpx
 import pytest
@@ -15,6 +17,7 @@ from app.core.config import settings
 from app.core.encryption import SALT_APP_SERVICE_SECRET, decrypt_field
 from app.core.messages import AppServiceMessages
 from app.models.platform.app_service_registration import (
+    APP_SERVICE_GRANTS,
     AppServiceRegistration,
     AppServiceStatus,
 )
@@ -52,6 +55,31 @@ def test_grants_outside_the_vocabulary_are_refused(value):
         service.normalize_grants([value])
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == AppServiceMessages.UNKNOWN_GRANT
+
+
+# backend/app/services/marketplace/<this file> -> repo root
+_APP_SERVICES_TS = (
+    Path(__file__).resolve().parents[4] / "frontend" / "src" / "lib" / "appServices.ts"
+)
+
+
+def test_the_settings_form_knows_every_grant():
+    """The vocabulary is written twice: here, and as the list the settings form
+    builds its controls from. Nothing connects them at build time, so a grant
+    added on this side and not the other is one an operator has no way to
+    confer — and one a save would take back off a registration that had it.
+
+    Read out of the TypeScript rather than mirrored again here, so this fails on
+    the file that would be wrong.
+    """
+    source = _APP_SERVICES_TS.read_text(encoding="utf-8")
+    match = re.search(
+        r"export const APP_SERVICE_GRANTS = \[(.*?)\] as const;", source, re.S
+    )
+    assert match, f"APP_SERVICE_GRANTS is not declared in {_APP_SERVICES_TS.name}"
+
+    declared = set(re.findall(r'"([^"]+)"', match.group(1)))
+    assert declared == set(APP_SERVICE_GRANTS)
 
 
 def _rsa_jwk(kid: str) -> dict:
