@@ -214,7 +214,9 @@ async def websocket_collaborate(
         can_write = level in ("write", "owner")
 
         # Get or create the document room (needs session for initial load)
-        room = await collaboration_manager.get_or_create_room(document_id, session)
+        room = await collaboration_manager.get_or_create_room(
+            guild_id, document_id, session
+        )
 
     logger.info(f"Collaboration: {user.email} authenticated for document {document_id}")
 
@@ -389,8 +391,8 @@ async def websocket_collaborate(
         # Persist and potentially clean up room (using a new short-lived session)
         async with AsyncSessionLocal() as session:
             await set_rls_context(session, user_id=user.id, guild_id=guild_id)
-            await collaboration_manager.persist_room(document_id, session)
-        await collaboration_manager.remove_room(document_id)
+            await collaboration_manager.persist_room(guild_id, document_id, session)
+        await collaboration_manager.remove_room(guild_id, document_id)
 
 
 @router.get("/documents/{document_id}/collaborators")
@@ -398,10 +400,10 @@ async def get_document_collaborators(
     document_id: int,
     session: RLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> list[dict]:
     """Get the list of current collaborators on a document."""
-    room = collaboration_manager.get_room(document_id)
+    room = collaboration_manager.get_room(guild_context.guild_id, document_id)
     if not room:
         return []
     return room.get_collaborator_list()

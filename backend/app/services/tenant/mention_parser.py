@@ -24,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.db.session import routed_guild_id
 
 USER_PATTERN = re.compile(r"@\[[^\]]+\]\((\d+)\)")
 TASK_PATTERN = re.compile(r"#task\[[^\]]+\]\((\d+)\)")
@@ -144,6 +145,9 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     await session.flush()
 
     # Drop idle collaboration rooms so persist_room can't overwrite the
-    # scrubbed content with a stale in-memory copy on next disconnect.
-    for doc_id in affected_doc_ids:
-        await collaboration_manager.invalidate_room_if_empty(doc_id)
+    # scrubbed content with a stale in-memory copy on next disconnect. Rooms are
+    # keyed by (guild, document) and this runs once per guild, routed to it.
+    guild_id = routed_guild_id(session)
+    if guild_id is not None:
+        for doc_id in affected_doc_ids:
+            await collaboration_manager.invalidate_room_if_empty(guild_id, doc_id)

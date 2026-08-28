@@ -379,6 +379,20 @@ async def set_rls_context(
         await _apply_stored_context(session)
 
 
+def routed_guild_id(session: AsyncSession) -> int | None:
+    """The guild this session is currently routed to, or ``None`` if it is not.
+
+    Ids of things that live in a guild schema — documents, initiatives — are
+    per-schema sequences, so the same number names a different row in each
+    guild. Anything keyed by one of them outside the database needs the guild
+    beside it, and where the id was read through a routed session, that routing
+    is the answer.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
+    guild_id = params.get("guild_id")
+    return int(guild_id) if guild_id is not None else None
+
+
 async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
     """Route a verified billing-service request — transaction-local.
 
