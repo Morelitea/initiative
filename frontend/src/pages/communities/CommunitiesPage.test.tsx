@@ -72,7 +72,7 @@ describe("CommunitiesPage", () => {
     const { container } = renderDirectory();
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Every community here is open" })
+      await screen.findByRole("heading", { level: 1, name: "Nobody builds a world alone" })
     ).toBeInTheDocument();
     // The words are DOM text laid over the image rather than baked into it, so
     // the image describes nothing on its own and stays out of the a11y tree.

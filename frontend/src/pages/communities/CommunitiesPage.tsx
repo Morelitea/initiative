@@ -72,8 +72,10 @@ export function CommunitiesPage() {
   // The page's title sits on the banner rather than above it. The banner is a
   // fixed light-toned image, so its words are held at a dark neutral instead of
   // the theme's foreground — the theme changes under them, the image does not.
-  // It shortens with the viewport rather than keeping one ratio, so the two
-  // lines have room to wrap on a phone without the image growing on a desktop.
+  // The words carry a halo of the artwork's own light rather than sitting on a
+  // panel of it, so the detail behind them stays visible. The banner shortens
+  // with the viewport rather than holding one ratio, so the two lines have room
+  // to wrap on a phone without the image growing on a desktop.
   const hero = (
     <div className="relative overflow-hidden rounded-xl">
       <img
@@ -81,14 +83,11 @@ export function CommunitiesPage() {
         alt=""
         className="aspect-[2/1] max-h-72 w-full object-cover sm:aspect-[3/1] lg:aspect-[4/1]"
       />
-      {/* The artwork is pale but busy, so the words sit on a wash of the same
-          light rather than directly on the swirls behind them. */}
-      <div className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/50 to-transparent" />
       <div className="absolute inset-0 flex flex-col justify-center gap-1 px-6 sm:gap-2 sm:px-10">
-        <h1 className="text-balance font-semibold text-2xl text-neutral-900 tracking-tight sm:text-3xl lg:text-4xl">
+        <h1 className="text-balance font-semibold text-2xl text-neutral-900 tracking-tight [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)] sm:text-3xl lg:text-4xl">
           {t("guilds:community.heroTitle")}
         </h1>
-        <p className="max-w-xl text-neutral-800 text-sm lg:text-base">
+        <p className="max-w-xl text-neutral-800 text-sm [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)] lg:text-base">
           {t("guilds:community.heroSubtitle")}
         </p>
       </div>
