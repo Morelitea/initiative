@@ -42,6 +42,7 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   icon_base64: null,
   categories: ["art"],
   member_count: 12,
+  online_count: 0,
   already_member: false,
   ...overrides,
 });
@@ -129,6 +130,21 @@ describe("CommunitiesPage", () => {
     expect(screen.getByText("Community theatre.")).toBeInTheDocument();
     expect(screen.getByText("12 members")).toBeInTheDocument();
     expect(screen.getByText("Art & design")).toBeInTheDocument();
+  });
+
+  it("says who is there now beside how many there are", async () => {
+    directoryFor.mockReturnValue(directoryResult([community({ online_count: 3 })]));
+    renderDirectory();
+
+    expect(await screen.findByText("3 online")).toBeInTheDocument();
+    expect(screen.getByText("12 members")).toBeInTheDocument();
+  });
+
+  it("says nothing about presence in a guild nobody is in", async () => {
+    renderDirectory();
+
+    await screen.findByText("Riverside Players");
+    expect(screen.queryByText("0 online")).not.toBeInTheDocument();
   });
 
   it("asks for everything until a category is picked", async () => {

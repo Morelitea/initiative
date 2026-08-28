@@ -325,6 +325,8 @@
     "heroTitle": "Niemand baut eine Welt allein",
     "heroSubtitle": "Egal ob Pen & Paper, Musik oder Wissenschaft: Hier wartet eine Gilde mit einem Platz für dich.",
     "browse": "Community beitreten",
+    "onlineCount_one": "{{count}} online",
+    "onlineCount_other": "{{count}} online",
     "searchPlaceholder": "Communitys durchsuchen",
     "categoriesHeading": "Kategorien",
     "allCategories": "Alle",

@@ -370,7 +370,8 @@ export const useReorderGuildsApiV1GuildsOrderPut = <
  * is not what this returns — the filters live in the service (listed AND
  * active, always), and :class:`CommunityGuildRead` carries only what a guild
  * published by opting in: no lifecycle status, no administration, no roster,
- * and nothing at all from inside the guild's own schema.
+ * and nothing at all from inside the guild's own schema. How many people have
+ * it open is a count of live connections, named to nobody.
  *
  * The directory is a deployment-level feature an owner switches on; where it
  * is off there is nothing to browse and the request is refused rather than

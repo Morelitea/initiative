@@ -133,8 +133,9 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
     # Initiative-scoped subscription: the socket joins exactly the rooms whose
     # content the user can read, so a signal for an initiative never reaches a
     # non-member. (A member of no initiative joins nothing — correct: they have
-    # no content to be notified about.)
-    await manager.connect(guild_id, initiative_ids, websocket)
+    # no content to be notified about. The user is still present in the guild,
+    # which the manager tracks separately from the rooms.)
+    await manager.connect(guild_id, initiative_ids, websocket, user_id=user.id)
     logger.info(
         f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"
     )

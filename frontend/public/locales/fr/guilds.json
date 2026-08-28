@@ -325,6 +325,8 @@
     "heroTitle": "Personne ne bâtit un monde seul",
     "heroSubtitle": "Quelle que soit votre passion, du jeu de rôle à la musique en passant par les sciences, une guilde ici vous garde une place.",
     "browse": "Rejoindre une communauté",
+    "onlineCount_one": "{{count}} en ligne",
+    "onlineCount_other": "{{count}} en ligne",
     "searchPlaceholder": "Rechercher des communautés",
     "categoriesHeading": "Catégories",
     "allCategories": "Toutes",

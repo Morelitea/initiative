@@ -1312,6 +1312,11 @@ export const GuildCategory = {
  * shelves, and how many people are already there. No membership fields (they
  * have none), no lifecycle status, no administration. ``already_member`` is
  * about the *caller*, and only says whether the Join button applies to them.
+ *
+ * ``online_count`` is how many of those people have the guild open right now.
+ * It is a live reading rather than a stored one, taken from the process
+ * answering the request, so it is a sense of how busy a guild is rather than a
+ * figure to reconcile against anything.
  */
 export interface CommunityGuildRead {
   id: number;
@@ -1320,6 +1325,7 @@ export interface CommunityGuildRead {
   icon_base64: string | null;
   categories: GuildCategory[];
   member_count: number;
+  online_count: number;
   already_member: boolean;
 }
 
