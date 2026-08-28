@@ -107,6 +107,18 @@ describe("CommentContent", () => {
     expect(screen.getByRole("link", { name: "https://example.com/pic.png" })).toBeInTheDocument();
   });
 
+  it("keeps an author's destination when they linked an image", () => {
+    const { container } = renderContent(
+      "[![diagram](https://example.com/pic.png)](https://example.com/details)"
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "https://example.com/details");
+    expect(links[0]).toHaveTextContent("diagram");
+  });
+
   it("does not render raw html", () => {
     const { container } = renderContent('<img src=x onerror="alert(1)"> <b>plain</b>');
 

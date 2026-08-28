@@ -9,7 +9,12 @@ import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
-import { type MentionType, remarkLineBreaks, remarkMentions } from "./remarkCommentPlugins";
+import {
+  type MentionType,
+  remarkImageLinks,
+  remarkLineBreaks,
+  remarkMentions,
+} from "./remarkCommentPlugins";
 
 interface CommentContentProps {
   content: string;
@@ -95,35 +100,25 @@ const MarkdownAnchor = ({ children, node: _node, ...props }: AnchorProps) => (
 
 const PlainAnchor = ({ children }: AnchorProps) => <span>{children}</span>;
 
-/**
- * An image renders as a link to itself rather than inline, so fetching what a
- * comment points at stays the reader's own decision. The alt text names it,
- * falling back to the address when the author gave none.
- */
-const buildImage = (linked: boolean) =>
-  function MarkdownImage({ src, alt }: ImageProps) {
-    const href = typeof src === "string" ? src : "";
-    const label = alt || href;
-    if (!label) return null;
-    if (!linked || !href) return <span>{label}</span>;
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer">
-        {label}
-      </a>
-    );
-  };
+/** `remarkImageLinks` rewrites every image ahead of this, so reaching here
+ *  means an unexpected shape — name it rather than fetch it. */
+const MarkdownImage = ({ src, alt }: ImageProps) => (
+  <span>{alt || (typeof src === "string" ? src : "")}</span>
+);
 
 const LINKED_COMPONENTS = {
   span: buildMentionSpan(true),
   a: MarkdownAnchor,
-  img: buildImage(true),
+  img: MarkdownImage,
 };
 const PLAIN_COMPONENTS = {
   span: buildMentionSpan(false),
   a: PlainAnchor,
-  img: buildImage(false),
+  img: MarkdownImage,
 };
-const PLUGINS = [remarkGfm, remarkMentions, remarkLineBreaks];
+// Mentions resolve before images, so an image-derived link is never mistaken
+// for one.
+const PLUGINS = [remarkGfm, remarkMentions, remarkImageLinks, remarkLineBreaks];
 
 export const CommentContent = ({
   content,

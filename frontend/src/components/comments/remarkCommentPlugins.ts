@@ -18,6 +18,7 @@ interface MdastNode {
   type: string;
   value?: string;
   url?: string;
+  alt?: string;
   children?: MdastNode[];
   data?: Record<string, unknown>;
 }
@@ -96,6 +97,43 @@ export function remarkMentions() {
         previous.value = previous.value.slice(0, -match.trigger.length);
         children[i] = mentionNode(match.type, link.url, label);
         if (!previous.value) children.splice(i - 1, 1);
+      }
+    });
+  };
+}
+
+/**
+ * Turn an image into a link to itself, named by its alt text, so a comment
+ * reports what it points at rather than fetching it. An image the author
+ * already wrapped in a link contributes only its name: the wrapping link keeps
+ * its own destination, and a link cannot legally hold another.
+ */
+export function remarkImageLinks() {
+  return (tree: MdastNode) => {
+    visitParents(tree, (parent) => {
+      const children = parent.children;
+      if (!children) return;
+
+      for (let i = children.length - 1; i >= 0; i--) {
+        const image = children[i];
+        if (image.type !== "image") continue;
+
+        const label = textOf(image) || image.alt || image.url || "";
+        if (!label) {
+          children.splice(i, 1);
+          continue;
+        }
+
+        if (parent.type === "link" || !image.url) {
+          children[i] = { type: "text", value: label };
+          continue;
+        }
+
+        children[i] = {
+          type: "link",
+          url: image.url,
+          children: [{ type: "text", value: label }],
+        };
       }
     });
   };
