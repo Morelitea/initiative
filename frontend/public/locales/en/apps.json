@@ -63,6 +63,7 @@
     "cleared": "Credential cleared.",
     "memberSet": "A guild admin has set this up.",
     "memberNotSet": "A guild admin still has to set this up.",
+    "guildFlowExplainer": "This one is granted at the vendor rather than typed. Connecting opens their install page, where you choose the account and what this app may see.",
     "personalExplainer": "This one signs you in as yourself, so each member connects their own account. Nobody else sees yours.",
     "connect": "Connect",
     "reconnect": "Reconnect",

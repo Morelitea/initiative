@@ -80,6 +80,24 @@ MEMBER_CONNECTION = {
     "fields": [_field("access_token", "secret", managed=True)],
 }
 
+#: The guild's own credential, obtained by an admin rather than typed.
+WORKSPACE_CONNECTION = {
+    "id": "workspace",
+    "scope": "static",
+    "label": {"en": "Organization"},
+    "connect_path": "/install/github",
+    "fields": [_field("owner", "string", managed=True, required=True)],
+}
+
+
+def _workspace_definition(public_id: str = "tests.shop") -> dict:
+    return {
+        "app_kind": "service",
+        "service": {"public_id": public_id, "protocol": 1},
+        "features": [],
+        "connections": [WORKSPACE_CONNECTION],
+    }
+
 
 def _definition(public_id: str = "tests.shop") -> dict:
     return {
@@ -958,6 +976,129 @@ class TestConnectionWriteBack:
 
         assert response.status_code == 400
         assert response.json()["detail"] == GuildAppMessages.CONFIG_UNKNOWN_FIELD
+
+
+# ---------------------------------------------------------------------------
+# The same channel, for the credential the whole guild uses
+# ---------------------------------------------------------------------------
+
+
+class TestGuildConnectionWriteBack:
+    """A vendor flow an admin ran, landing where a guild-wide value lives.
+
+    The app cannot tell the two kinds apart and does not have to: it is handed a
+    handle and writes to it. Which store the values land in is decided here, by
+    which handle it turns out to be.
+    """
+
+    async def test_what_the_admin_s_flow_produced_becomes_the_guild_s_config(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, _user, app = await _install(
+            session,
+            definition=_workspace_definition(),
+            connection_refs={"workspace": "gcr_workspace"},
+        )
+
+        written = await _put(
+            client,
+            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            {"values": {"owner": "morelitea"}},
+        )
+
+        assert written.status_code == 200, written.text
+        assert written.json()["connection_id"] == "workspace"
+        assert written.json()["status"] == "connected"
+
+        # Beside the values an admin types, which is what makes clearing the
+        # connection, uninstalling, or moving version take this with them.
+        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        assert config.json()["connections"]["workspace"] == {"owner": "morelitea"}
+        # And it is the guild's, so there is no member row anywhere in it.
+        assert config.json()["member_connections"] == []
+
+    async def test_an_install_that_needed_configuring_stops_needing_it(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The whole point: nobody typed anything, and the install is set up.
+
+        Before the flow the settings page says an admin still has something to
+        fill in — which is true, and what they have to do is run the flow.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, _user, app = await _install(
+            session,
+            definition=_workspace_definition(),
+            connection_refs={"workspace": "gcr_workspace"},
+        )
+
+        before = await _get(client, f"{BASE}/installs")
+        assert before.json()["items"][0]["needs_config"] is True
+
+        await _put(
+            client,
+            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            {"values": {"owner": "morelitea"}},
+        )
+
+        after = await _get(client, f"{BASE}/installs")
+        assert after.json()["items"][0]["needs_config"] is False
+
+    async def test_a_handle_nobody_minted_is_refused(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """The one that matters, and the reason the handle is stored at all.
+
+        An app is handed this in a browser, where anybody can type a guild id.
+        If a write-back were believed on the strength of naming a connection,
+        a member could complete the vendor's flow against their own
+        organization and hand the guild a boundary its admin never chose.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, _user, _app = await _install(session, definition=_workspace_definition())
+
+        response = await _put(
+            client,
+            f"{BASE}/installs/{guild.id}/connections/gcr_never_minted",
+            {"values": {"owner": "somebody-elses-org"}},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
+
+        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        assert config.json()["connections"] == {}
+
+    async def test_clearing_the_values_leaves_the_connection_unsatisfied(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """A ``None`` is a clear, on this path as on the member's.
+
+        A required field cleared is the exception the config service already
+        makes: taking a credential back has to work whether or not what is left
+        adds up to a working connection.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, _user, app = await _install(
+            session,
+            definition=_workspace_definition(),
+            connection_refs={"workspace": "gcr_workspace"},
+            config={"workspace": {"owner": "morelitea"}},
+        )
+
+        written = await _put(
+            client,
+            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            {"values": {"owner": None}},
+        )
+
+        assert written.status_code == 200, written.text
+        assert written.json()["status"] == "pending"
+        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        # Absent rather than an empty map, so "is anything configured here?"
+        # has one shape.
+        assert config.json()["connections"] == {}
 
 
 # ---------------------------------------------------------------------------

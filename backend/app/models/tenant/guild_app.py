@@ -112,6 +112,24 @@ class GuildApp(CreatedByMixin, table=True):
         default=None, sa_column=Column(String(120), nullable=True)
     )
 
+    # The opaque handle the app writes a guild-wide connection's result
+    # against, keyed by connection id: ``{"workspace": "9f3c…"}``.
+    #
+    # Only for a ``static`` connection the app fills by running the vendor's own
+    # flow — an organization-wide install, which a guild admin performs once for
+    # everybody. A typed connection needs none: nothing comes back from anywhere
+    # to be matched to it.
+    #
+    # Minted when an admin starts the flow and kept afterwards, so reconnecting
+    # keeps one identity rather than minting a new one each time. That it exists
+    # at all is what says an admin authorized this flow: the app is handed the
+    # ref in the browser, and a write-back naming one nobody minted is refused
+    # rather than believed.
+    connection_refs: dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+
     # What this install created: ``[{"type": "calendar", "id": 7}, …]``.
     artifacts: list[Any] = Field(
         default_factory=list,
