@@ -13,6 +13,16 @@ export const initiativeHandlers = [
     return HttpResponse.json(buildInitiative());
   }),
 
+  // Nothing on offer by default: every surface that reads the directory keeps
+  // rendering as it did before this feature unless a test says otherwise.
+  guildHttp.get("/initiatives/directory", () => {
+    return HttpResponse.json([]);
+  }),
+
+  guildHttp.post("/initiatives/:id/join", ({ params }) => {
+    return HttpResponse.json(buildInitiative({ id: Number(params.id), join_policy: "open" }));
+  }),
+
   guildHttp.get("/initiatives/:id/my-permissions", () => {
     return HttpResponse.json({
       role_id: 1,

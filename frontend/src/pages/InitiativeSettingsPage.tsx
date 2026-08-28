@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  InitiativeJoinPolicy,
   InitiativeMemberRead,
   InitiativeRoleRead,
   InitiativeUpdate,
@@ -34,13 +35,7 @@ import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hook
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import {
-  INITIATIVES_ROUTE,
-  initiativeRoute,
-  isToolEnabled,
-  TOGGLEABLE_TOOLS,
-  toolViewPermission,
-} from "@/lib/tools";
+import { initiativeRoute, isToolEnabled, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -123,7 +118,7 @@ export const InitiativeSettingsPage = () => {
   const deleteInitiative = useDeleteInitiative({
     onSuccess: () => {
       toast.success(t("settings.deleted"));
-      router.navigate({ to: gp(INITIATIVES_ROUTE) });
+      router.navigate({ to: gp("/") });
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:settings.deleteError"));
@@ -145,6 +140,14 @@ export const InitiativeSettingsPage = () => {
         color,
       },
     });
+  };
+
+  // The join policy is one setting, so it saves on change rather than waiting
+  // for the details form's button — the same shape as the tool switches. Only
+  // the field the manager touched is sent, so a policy this screen can't offer
+  // yet ('request') is never overwritten by an unrelated save.
+  const handleChangeJoinPolicy = (value: InitiativeJoinPolicy) => {
+    updateInitiative.mutate({ initiativeId, data: { join_policy: value } });
   };
 
   // One handler for every toggleable tool's master switch — the update field
@@ -179,7 +182,7 @@ export const InitiativeSettingsPage = () => {
   };
 
   if (!hasValidInitiativeId) {
-    return <Navigate to={gp(INITIATIVES_ROUTE)} replace />;
+    return <Navigate to={gp("/")} replace />;
   }
 
   if (initiativesQuery.isLoading || !initiativesQuery.data) {
@@ -195,7 +198,7 @@ export const InitiativeSettingsPage = () => {
     return (
       <div className="space-y-4">
         <Button variant="link" size="sm" asChild className="px-0">
-          <Link to={gp(INITIATIVES_ROUTE)}>{t("settings.backToInitiatives")}</Link>
+          <Link to={gp("/")}>{t("settings.backToInitiatives")}</Link>
         </Button>
         <div className="rounded-lg border p-6">
           <h1 className="font-semibold text-3xl tracking-tight">{t("settings.notFound")}</h1>
@@ -264,6 +267,8 @@ export const InitiativeSettingsPage = () => {
             ])
           )}
           onToggleTool={handleToggleTool}
+          joinPolicy={initiative.join_policy}
+          onChangeJoinPolicy={handleChangeJoinPolicy}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

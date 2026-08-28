@@ -2,8 +2,9 @@ import { Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeJoinPolicy, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
+import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -22,6 +23,9 @@ interface InitiativeSettingsDetailsTabProps {
   /** Master-switch value per toggleable tool. */
   toolSwitches: Partial<Record<Tool, boolean>>;
   onToggleTool: (tool: Tool, value: boolean) => void;
+  /** How guild members may join this initiative. */
+  joinPolicy: InitiativeJoinPolicy;
+  onChangeJoinPolicy: (value: InitiativeJoinPolicy) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -36,6 +40,8 @@ export const InitiativeSettingsDetailsTab = ({
   setColor,
   toolSwitches,
   onToggleTool,
+  joinPolicy,
+  onChangeJoinPolicy,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -101,6 +107,14 @@ export const InitiativeSettingsDetailsTab = ({
           </form>
         </CardContent>
       </Card>
+      {/* Both sections below save on change, like the tool switches — they are
+          single settings, not fields of the details form above. */}
+      <JoinPolicySection
+        value={joinPolicy}
+        onChange={onChangeJoinPolicy}
+        canManage={canManageMembers}
+        isSaving={isSaving}
+      />
       <AdvancedToolsSection
         layout="card"
         canManage={canManageMembers}

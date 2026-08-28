@@ -372,3 +372,20 @@ export const invalidateAllTaskStatuses = () => invalidateGuildPrefix("/api/v1/pr
 // ── Properties (guild) ────────────────────────────────────────────────────────────
 
 export const invalidateAllProperties = () => invalidateGuildPrefix("/api/v1/property-definitions");
+
+// ── Initiative membership (guild, cross-tool) ────────────────────────────────────
+// Gaining (or losing) a membership row changes what the guild returns for every
+// tool, not just the initiative list: the sidebar tree, the discovery directory,
+// and each tool's guild-wide list all read differently afterwards. Declared last
+// so it can compose the per-resource helpers above.
+
+export const invalidateInitiativeMembership = () =>
+  Promise.all([
+    invalidateAllInitiatives(),
+    invalidateAllProjects(),
+    invalidateAllDocuments(),
+    invalidateAllQueues(),
+    invalidateAllCounterGroups(),
+    invalidateAllCalendars(),
+    invalidateAllDashboards(),
+  ]);

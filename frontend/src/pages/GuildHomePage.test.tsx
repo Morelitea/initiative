@@ -1,11 +1,13 @@
 import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   buildDocumentSummary,
   buildGuild,
   buildInitiative,
+  buildInitiativeDirectoryEntry,
   buildProject,
   buildRecentActivityEntry,
 } from "@/__tests__/factories";
@@ -13,6 +15,7 @@ import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import { queryClient } from "@/lib/queryClient";
 
 import { GuildHomePage } from "./GuildHomePage";
 
@@ -60,13 +63,32 @@ function stubInitiatives(overrides: Record<string, boolean> = {}) {
   );
 }
 
+/** What the guild offers to join. Empty by default, as in the shared handlers. */
+function stubDirectory(entries: unknown[]) {
+  server.use(guildHttp.get("/initiatives/directory", () => HttpResponse.json(entries)));
+}
+
 const renderHome = (search?: Record<string, unknown>) =>
   renderPage(GuildHomePage, {
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
     routerSearch: search,
   });
 
+/** The same page seen by a plain member — no create affordance, no admin view
+ *  of every initiative. */
+const renderHomeAsMember = (search?: Record<string, unknown>) =>
+  renderPage(GuildHomePage, {
+    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "member" }) },
+    routerSearch: search,
+  });
+
 describe("GuildHomePage", () => {
+  // One test mounts against the app's own query client (the one the
+  // invalidation helpers address); clear it so nothing carries between tests.
+  beforeEach(() => {
+    queryClient.clear();
+  });
+
   it("lists the whole guild's projects under the projects circle", async () => {
     stubInitiatives();
     stubTools({
@@ -285,6 +307,149 @@ describe("GuildHomePage", () => {
     renderHome();
 
     expect(await screen.findByText("No comments yet")).toBeInTheDocument();
+  });
+
+  it("lists the guild's initiatives under the table, grouped by where you stand", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+    stubDirectory([
+      buildInitiativeDirectoryEntry({ id: INITIATIVE_ID, name: "Apollo", is_member: true }),
+      buildInitiativeDirectoryEntry({ id: 9, name: "Nebula", join_policy: "open" }),
+    ]);
+
+    renderHome();
+
+    expect(await screen.findByRole("heading", { name: "Initiatives" })).toBeInTheDocument();
+    const mine = (await screen.findByRole("heading", { name: "Your initiatives" }))
+      .parentElement as HTMLElement;
+    const joinable = screen.getByRole("heading", { name: "Open to join" })
+      .parentElement as HTMLElement;
+    expect(within(mine).getByRole("link", { name: "Apollo" })).toBeInTheDocument();
+    expect(within(joinable).getByRole("button", { name: "Join" })).toBeInTheDocument();
+  });
+
+  it("folds the whole initiatives section away from its heading", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+    stubDirectory([buildInitiativeDirectoryEntry({ id: 9, name: "Nebula", join_policy: "open" })]);
+
+    renderHome();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Initiatives/ }));
+
+    await waitFor(() => expect(screen.queryByText("Nebula")).not.toBeInTheDocument());
+    // The rest of the page is untouched by the fold.
+    expect(screen.getByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+  });
+
+  it("offers a guild admin the create dialog from the section header", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+    stubDirectory([buildInitiativeDirectoryEntry({ id: 9, name: "Nebula", join_policy: "open" })]);
+
+    renderHome();
+
+    await userEvent.click(await screen.findByRole("button", { name: /New initiative/i }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+  });
+
+  it("keeps creating out of a member's hands", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+    stubDirectory([buildInitiativeDirectoryEntry({ id: 9, name: "Nebula", join_policy: "open" })]);
+
+    renderHomeAsMember();
+
+    expect(await screen.findByRole("heading", { name: "Initiatives" })).toBeInTheDocument();
+    // The backend refuses it either way; the affordance doesn't pretend.
+    expect(screen.queryByRole("button", { name: /New initiative/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the create dialog for the ?create=true deep link", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    renderHome({ create: "true" });
+
+    // The sidebar's "Add initiative" and the retired /i list route both land here.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
+  });
+
+  it("re-reads the guild once the reader joins, so the card flips to joined", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    // The membership row is what the directory reports back on, so the second
+    // read — the one the join's invalidation forces — answers differently.
+    let joined = false;
+    server.use(
+      guildHttp.get("/initiatives/directory", () =>
+        HttpResponse.json([
+          buildInitiativeDirectoryEntry({
+            id: 9,
+            name: "Nebula",
+            join_policy: "open",
+            is_member: joined,
+          }),
+        ])
+      ),
+      guildHttp.post("/initiatives/:id/join", () => {
+        joined = true;
+        return HttpResponse.json(buildInitiative({ id: 9, name: "Nebula", join_policy: "open" }));
+      })
+    );
+
+    // The invalidation helpers address the app's own query client, so this
+    // flow is only observable when the page is mounted against it.
+    renderPage(GuildHomePage, {
+      guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+      queryClient,
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Join" }));
+
+    // Once you're in, the card's title leads there and the Join is spent.
+    expect(await screen.findByRole("link", { name: "Nebula" })).toHaveAttribute("href", "/g/1/i/9");
+    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+  });
+
+  it("tells a member with no initiatives how to get into one", async () => {
+    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    stubTools();
+    stubDirectory([buildInitiativeDirectoryEntry({ id: 9, name: "Nebula", join_policy: "open" })]);
+
+    renderHomeAsMember();
+
+    expect(await screen.findByText(/You haven’t joined any initiatives yet/)).toBeInTheDocument();
+    // The directory is the way in, so it takes the page over from the rail.
+    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Guild tools" })).not.toBeInTheDocument();
+  });
+
+  it("stays honest when the guild has nothing on offer either", async () => {
+    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    stubTools();
+    stubDirectory([]);
+
+    renderHomeAsMember();
+
+    expect(await screen.findByText("Nothing to join yet")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+    // A member has no way to make one, so nothing offers it.
+    expect(screen.queryByRole("button", { name: /Create initiative/i })).not.toBeInTheDocument();
+  });
+
+  it("offers an admin of an empty guild the first initiative", async () => {
+    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    stubTools();
+    stubDirectory([]);
+
+    renderHome();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Create initiative/i }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
   });
 
   it("keeps documents on the same table shape as projects", async () => {

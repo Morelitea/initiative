@@ -9,11 +9,7 @@ import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
-import {
-  INITIATIVE_COLOR_FALLBACK,
-  InitiativeColorDot,
-  resolveInitiativeColor,
-} from "@/lib/initiativeColors";
+import { hexToRgba, InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute } from "@/lib/tools";
 
 import { FavoriteProjectButton } from "./FavoriteProjectButton";
@@ -98,26 +94,6 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
       ) : null}
     </div>
   );
-};
-
-const hexToRgba = (hex: string, alpha: number): string => {
-  const sanitized = hex.replace("#", "");
-  const expanded =
-    sanitized.length === 3
-      ? sanitized
-          .split("")
-          .map((char) => char + char)
-          .join("")
-      : sanitized.padEnd(6, "0");
-  const r = parseInt(expanded.slice(0, 2), 16);
-  const g = parseInt(expanded.slice(2, 4), 16);
-  const b = parseInt(expanded.slice(4, 6), 16);
-
-  if ([r, g, b].some((value) => Number.isNaN(value))) {
-    return hexToRgba(INITIATIVE_COLOR_FALLBACK, alpha);
-  }
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
 const buildProjectDetailBackground = (hexColor: string): CSSProperties => {

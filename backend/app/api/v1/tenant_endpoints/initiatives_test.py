@@ -90,6 +90,24 @@ async def test_create_initiative_as_admin(
     assert data["name"] == "New Initiative"
     assert data["description"] == "A test initiative"
     assert data["color"] == "#FF0000"
+    assert data["join_policy"] == "private"
+
+
+@pytest.mark.integration
+async def test_create_initiative_with_join_policy(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The creation payload may set the join policy directly."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.post(
+        admin.g("/initiatives/"),
+        headers=admin.headers,
+        json={"name": "Open Initiative", "join_policy": "open"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["join_policy"] == "open"
 
 
 @pytest.mark.integration
@@ -871,3 +889,472 @@ async def test_initiative_guild_isolation(
         assert response2.json()["name"] != "Guild 1 Initiative"
     else:
         assert response2.status_code == 404
+
+
+# ============================================================================
+# Discovery: directory, self-join, join settings
+# ============================================================================
+
+
+@pytest.mark.integration
+async def test_directory_lists_only_joinable_initiatives(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Listing is opt-in: `private` appears only to its own members, archived
+    never appears.
+
+    RLS *would* permit listing a private initiative to any guild member (the
+    `initiatives` table is structural), so this exclusion is an app-layer
+    promise — pinned here rather than assumed.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin)
+
+    await create_initiative(
+        session, admin.guild, admin.user, name="Secret", join_policy="private"
+    )
+    await create_initiative(
+        session, admin.guild, admin.user, name="Knockable", join_policy="request"
+    )
+    await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+    await create_initiative(
+        session,
+        admin.guild,
+        admin.user,
+        name="Retired",
+        join_policy="open",
+        is_archived=True,
+    )
+
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    response = await client.get(
+        member.g("/initiatives/directory"), headers=member.headers
+    )
+
+    assert response.status_code == 200
+    listed = {entry["name"]: entry for entry in response.json()}
+    assert set(listed) == {"Knockable", "Anyone"}
+    assert listed["Knockable"]["join_policy"] == "request"
+    assert listed["Anyone"]["join_policy"] == "open"
+
+
+@pytest.mark.integration
+async def test_directory_lists_private_initiatives_to_their_members(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The directory doubles as the caller's own initiative list.
+
+    A private initiative appears to its own members (their sidebar already
+    shows it), listed ahead of the joinable ones — and stays invisible to
+    everyone else.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin)
+    mine = await create_initiative(
+        session, admin.guild, admin.user, name="Zebra Ours", join_policy="private"
+    )
+    await create_initiative(
+        session, admin.guild, admin.user, name="Askable", join_policy="open"
+    )
+
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=mine,
+        initiative_role="member",
+    )
+
+    response = await client.get(
+        member.g("/initiatives/directory"), headers=member.headers
+    )
+
+    assert response.status_code == 200
+    entries = response.json()
+    # Membership outranks the alphabet: "Zebra Ours" leads despite sorting last.
+    assert [entry["name"] for entry in entries] == ["Zebra Ours", "Askable"]
+    assert entries[0]["join_policy"] == "private"
+    assert entries[0]["is_member"] is True
+
+
+@pytest.mark.integration
+async def test_directory_lists_everything_to_a_guild_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild admin's directory is the whole guild.
+
+    Their standing already reaches every initiative (the `current_guild_role=
+    'admin'` RLS leg), and the deprecated initiatives page showed them all —
+    so the directory does too, membership still ordered first.
+    """
+    owner = await acting_user(guild_role=GuildRole.admin)
+    await create_initiative(
+        session, owner.guild, owner.user, name="Hidden", join_policy="private"
+    )
+
+    other_admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    response = await client.get(
+        other_admin.g("/initiatives/directory"), headers=other_admin.headers
+    )
+
+    assert response.status_code == 200
+    listed = {entry["name"]: entry for entry in response.json()}
+    assert "Hidden" in listed
+    assert listed["Hidden"]["is_member"] is False
+
+
+@pytest.mark.integration
+async def test_directory_reports_caller_state(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Each card carries the roster size and the caller's own state."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    joined = await create_initiative(
+        session, admin.guild, admin.user, name="Joined", join_policy="open"
+    )
+    await create_initiative(
+        session, admin.guild, admin.user, name="Unjoined", join_policy="open"
+    )
+
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=joined,
+        initiative_role="member",
+    )
+
+    response = await client.get(
+        member.g("/initiatives/directory"), headers=member.headers
+    )
+
+    assert response.status_code == 200
+    listed = {entry["name"]: entry for entry in response.json()}
+    # The creator (PM) plus the member who joined.
+    assert listed["Joined"]["member_count"] == 2
+    assert listed["Joined"]["is_member"] is True
+    assert listed["Joined"]["has_pending_request"] is False
+    assert listed["Unjoined"]["member_count"] == 1
+    assert listed["Unjoined"]["is_member"] is False
+    assert listed["Unjoined"]["has_pending_request"] is False
+
+
+@pytest.mark.integration
+async def test_directory_rejects_non_guild_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The directory is guild-scoped: an outsider never reaches it."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+    outsider = await acting_user(guild_role=GuildRole.member)
+
+    response = await client.get(
+        f"/api/v1/g/{admin.guild.id}/initiatives/directory", headers=outsider.headers
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_self_join_open_initiative_grants_member_role(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Self-join hands out the floor: the built-in member role, not managed by OIDC."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
+    )
+
+    assert response.status_code == 200
+    entry = next(
+        m for m in response.json()["members"] if m["user"]["id"] == member.user.id
+    )
+    assert entry["role_name"] == "member"
+    assert entry["is_manager"] is False
+    assert entry["oidc_managed"] is False
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("policy", ["private", "request"])
+async def test_self_join_rejected_for_non_open_policy(
+    client: AsyncClient, session: AsyncSession, acting_user, policy: str
+):
+    """Private and request answer identically — "not by this route"."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name=f"Closed {policy}", join_policy=policy
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_NOT_JOINABLE"
+
+
+@pytest.mark.integration
+async def test_self_join_is_idempotent(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Joining twice is a success, not a conflict, and adds no second row."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
+    )
+
+    assert response.status_code == 200
+    rows = [m for m in response.json()["members"] if m["user"]["id"] == member.user.id]
+    assert len(rows) == 1
+    assert rows[0]["role_name"] == "member"
+
+
+@pytest.mark.integration
+async def test_self_join_flips_content_visibility(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The point of the feature: content is hidden by RLS before the membership
+    row exists and reachable the moment it does — with no RLS change at all."""
+    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+    from app.testing.factories import create_project
+    from app.testing.schema_harness import route_session_to_guild
+
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+    project = await create_project(session, initiative, admin.user, name="Shared work")
+    # Shared with the whole initiative, so gate 4 is satisfied for any member and
+    # initiative membership is the only thing that changes across the join.
+    await route_session_to_guild(session, admin.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=initiative.guild_id,
+            initiative_id=initiative.id,
+        )
+    )
+    await session.commit()
+
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    before = await client.get(
+        member.g(f"/projects/{project.id}"), headers=member.headers
+    )
+    assert before.status_code == 404
+
+    joined = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join"), headers=member.headers
+    )
+    assert joined.status_code == 200
+
+    after = await client.get(
+        member.g(f"/projects/{project.id}"), headers=member.headers
+    )
+    assert after.status_code == 200
+    assert after.json()["name"] == "Shared work"
+
+
+@pytest.mark.integration
+async def test_manager_can_set_join_policy(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """join_policy travels with the existing update permission."""
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    response = await client.patch(
+        manager.g(f"/initiatives/{manager.initiative.id}"),
+        headers=manager.headers,
+        json={"join_policy": "open"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["join_policy"] == "open"
+    assert response.json()["auto_join"] is False
+
+
+@pytest.mark.integration
+async def test_plain_member_cannot_set_join_policy(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A non-manager member of the initiative may not open it."""
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=manager.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.patch(
+        member.g(f"/initiatives/{manager.initiative.id}"),
+        headers=member.headers,
+        json={"join_policy": "open"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_guild_admin_can_set_auto_join_on_open_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Welcome", join_policy="open"
+    )
+
+    response = await client.patch(
+        admin.g(f"/initiatives/{initiative.id}"),
+        headers=admin.headers,
+        json={"auto_join": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["auto_join"] is True
+    assert response.json()["join_policy"] == "open"
+
+
+@pytest.mark.integration
+async def test_non_admin_manager_cannot_set_auto_join(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Auto-join shapes onboarding for the whole guild — guild admins only."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Welcome", join_policy="open"
+    )
+    manager = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="project_manager",
+    )
+
+    response = await client.patch(
+        manager.g(f"/initiatives/{initiative.id}"),
+        headers=manager.headers,
+        json={"auto_join": True},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_AUTO_JOIN_ADMIN_ONLY"
+
+
+@pytest.mark.integration
+async def test_auto_join_requires_open_policy(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An auto-enrolled-but-private initiative would be incoherent: leavers
+    could never rejoin it."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Secret", join_policy="private"
+    )
+
+    response = await client.patch(
+        admin.g(f"/initiatives/{initiative.id}"),
+        headers=admin.headers,
+        json={"auto_join": True},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN"
+
+
+@pytest.mark.integration
+async def test_closing_policy_while_auto_join_on_is_rejected(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Explicit beats silent: the pair is refused rather than auto-join being
+    dropped as a side effect of an unrelated edit."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session,
+        admin.guild,
+        admin.user,
+        name="Welcome",
+        join_policy="open",
+        auto_join=True,
+    )
+
+    response = await client.patch(
+        admin.g(f"/initiatives/{initiative.id}"),
+        headers=admin.headers,
+        json={"join_policy": "request"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN"
+
+    # Both fields moved together is fine.
+    ok = await client.patch(
+        admin.g(f"/initiatives/{initiative.id}"),
+        headers=admin.headers,
+        json={"join_policy": "request", "auto_join": False},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["join_policy"] == "request"
+    assert ok.json()["auto_join"] is False
+
+
+@pytest.mark.integration
+async def test_self_join_refused_to_scoped_grantee(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A time-bound grant reaches the guild for a window; the membership row a
+    join creates has no end date, so the two must not be traded for each other."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.platform.access_grant import AccessGrant
+
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+
+    grantee = await acting_user("support")
+    now = datetime.now(timezone.utc)
+    session.add(
+        AccessGrant(
+            user_id=grantee.user.id,
+            guild_id=admin.guild.id,
+            access_level="read_write",
+            status="approved",
+            reason="ticket",
+            requested_duration_minutes=60,
+            requested_by_id=grantee.user.id,
+            approved_by_id=admin.user.id,
+            decided_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+    )
+    await session.commit()
+
+    response = await client.post(
+        f"/api/v1/g/{admin.guild.id}/initiatives/{initiative.id}/join",
+        headers=grantee.headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"

@@ -34,6 +34,7 @@ from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
+    InitiativeDirectoryEntry,
     InitiativeMemberAdd,
     InitiativeMemberUpdate,
     InitiativeRead,
@@ -215,6 +216,74 @@ async def list_initiatives(
     return [serialize_initiative(initiative) for initiative in initiatives]
 
 
+@router.get("/directory", response_model=List[InitiativeDirectoryEntry])
+async def list_initiative_directory(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> List[InitiativeDirectoryEntry]:
+    """Initiatives in this guild that any member may discover and join.
+
+    Open to every guild member — it lists only what each initiative published
+    about itself (name, description, colour, roster size), never its content.
+    Initiatives whose policy is ``private`` are listed only to their own
+    members — and to guild admins, whose standing already reaches every
+    initiative in the guild.
+
+    Declared before ``/{initiative_id}`` so the literal path wins the match.
+    """
+    return await initiatives_service.list_directory_entries(
+        session,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
+        include_unlisted=rls_service.is_guild_admin(guild_context.role),
+    )
+
+
+@router.post("/{initiative_id}/join", response_model=InitiativeRead)
+async def join_initiative(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeRead:
+    """Join an ``open`` initiative as yourself, with the built-in member role.
+
+    Idempotent: already being a member is a success, not a conflict. Any other
+    join policy answers 403 — the same answer for ``private`` and ``request``,
+    so it says only "not by this route".
+    """
+    # A scoped grantee reaches this guild for a window; the membership row this
+    # would create has no end date, so joining is for real guild members.
+    # (Break-glass is routed as a full guild admin and already adds members.)
+    if guild_context.is_pam and not guild_context.break_glass:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        )
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    if not initiatives_service.is_self_joinable(initiative):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.NOT_JOINABLE,
+        )
+    try:
+        await initiatives_service.self_join(
+            session, initiative=initiative, user_id=current_user.id
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
+    await session.commit()
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    return serialize_initiative(initiative)
+
+
 @router.get("/{initiative_id}", response_model=InitiativeRead)
 async def get_initiative(
     initiative_id: int,
@@ -271,6 +340,7 @@ async def create_initiative(
         name=initiative_in.name,
         description=initiative_in.description,
         guild_id=guild_id,
+        join_policy=initiative_in.join_policy.value,
         # One master switch per toggleable tool, derived — a new Tool member
         # flows through without touching this endpoint.
         **{
@@ -331,6 +401,34 @@ async def update_initiative(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ADMIN_REQUIRED,
         )
+    # Auto-join enrols every future guild member, so it shapes onboarding for
+    # the whole guild rather than for one initiative — guild admins only, the
+    # same shape as the archive toggle above. join_policy stays with whoever may
+    # already edit the initiative.
+    if (
+        update_data.get("auto_join") is not None
+        and update_data["auto_join"] != initiative.auto_join
+        and not rls_service.is_guild_admin(guild_context.role)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.AUTO_JOIN_ADMIN_ONLY,
+        )
+    if "join_policy" in update_data or "auto_join" in update_data:
+        # The column stores the plain string, so normalize whichever form the
+        # payload validated into before comparing or persisting.
+        join_policy = update_data.get("join_policy")
+        join_policy = getattr(join_policy, "value", join_policy)
+        try:
+            initiatives_service.validate_join_settings(
+                initiative,
+                join_policy=join_policy,
+                auto_join=update_data.get("auto_join"),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        if join_policy is not None:
+            update_data["join_policy"] = join_policy
     if "name" in update_data and update_data["name"] is not None:
         if await _initiative_name_exists(
             session,

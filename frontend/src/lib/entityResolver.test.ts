@@ -88,14 +88,15 @@ describe("normalizeLegacyTarget", () => {
     expect(normalizeLegacyTarget("/calendar-events/8")).toBe("/go/event/8");
   });
 
-  it("rewrites the initiative paths directly — no lookup needed", () => {
+  it("rewrites an initiative path directly — no lookup needed", () => {
     expect(normalizeLegacyTarget("/initiatives/6")).toBe("/i/6");
-    expect(normalizeLegacyTarget("/initiatives")).toBe("/i");
   });
 
   it("sends a deleted list page to the guild home", () => {
     expect(normalizeLegacyTarget("/projects")).toBe("/");
     expect(normalizeLegacyTarget("/calendar")).toBe("/");
+    // The initiative list is a section of the guild home now, not a page.
+    expect(normalizeLegacyTarget("/initiatives")).toBe("/");
   });
 
   it("leaves a current path alone", () => {

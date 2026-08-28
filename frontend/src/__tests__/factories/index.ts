@@ -16,6 +16,7 @@ export {
 } from "./guild.factory";
 export {
   buildInitiative,
+  buildInitiativeDirectoryEntry,
   buildInitiativeMember,
   resetCounter as resetInitiativeCounter,
 } from "./initiative.factory";

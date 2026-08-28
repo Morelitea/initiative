@@ -6,22 +6,31 @@
  * tool registry declares (minus what this user can't see anywhere), and the
  * table renders whatever rows `useGuildToolRows` produces. Adding a tool adds
  * a circle and a set of rows, and nothing here.
+ *
+ * It is also the guild's initiative list — the standalone initiatives page was
+ * folded into it. The section under the table holds the ones you're in and the
+ * ones you could join, plus the create affordance for a guild admin, and it
+ * takes the page over entirely for a member who is not yet in any initiative,
+ * for whom every other section is empty by construction.
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { GuildToolRail } from "@/components/guildHome/GuildToolRail";
 import { GuildToolTable } from "@/components/guildHome/GuildToolTable";
+import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
+import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -30,23 +39,57 @@ export function GuildHomePage() {
   const { t } = useTranslation("guildHome");
   const { activeGuild } = useGuilds();
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { tool?: string; page?: number };
+  const search = useSearch({ strict: false }) as {
+    tool?: string;
+    page?: number;
+    create?: string;
+  };
 
   const initiativesQuery = useInitiatives();
-  const { filterVisible, permissionsFor } = useInitiativeAccess();
+  const directoryQuery = useInitiativeDirectory();
+  const directoryEntries = directoryQuery.data ?? [];
+  const { filterVisible, permissionsFor, isGuildAdmin } = useInitiativeAccess();
+
+  // Creating an initiative is guild-admin only (the backend enforces it), and
+  // the affordance is threaded down as a callback: passing one IS the gate.
+  const canCreateInitiatives = Boolean(activeGuild && isGuildAdmin);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const openCreateDialog = useCallback(() => setCreateDialogOpen(true), []);
+  const onCreate = canCreateInitiatives ? openCreateDialog : undefined;
+
+  // `?create=true` opens the dialog once — the deep link the sidebar and the
+  // retired initiatives page both point at. Consumed once so dismissing the
+  // dialog doesn't reopen it on the next render.
+  const lastConsumedCreate = useRef<string>("");
+  useEffect(() => {
+    const shouldCreate = search.create === "true";
+    const paramKey = `${shouldCreate}`;
+    if (shouldCreate && paramKey !== lastConsumedCreate.current) {
+      lastConsumedCreate.current = paramKey;
+      setCreateDialogOpen(true);
+    }
+  }, [search.create]);
+
+  const visibleInitiatives = useMemo(
+    () => filterVisible(initiativesQuery.data),
+    [initiativesQuery.data, filterVisible]
+  );
+
+  // Nothing to browse: the tool rail and table would be six empty circles over
+  // an empty table, so the page becomes the story of how to get in instead.
+  const hasNoInitiatives = !initiativesQuery.isLoading && visibleInitiatives.length === 0;
 
   // A tool earns its circle by being viewable in at least one initiative the
   // user can see. Before that list lands (or in a guild with no initiatives
   // yet) fall back to the always-on core tools rather than an empty rail.
   const tools = useMemo(() => {
-    const visible = filterVisible(initiativesQuery.data);
-    if (visible.length === 0) {
+    if (visibleInitiatives.length === 0) {
       return TOOLS.filter((tool) => CORE_TOOLS.has(tool));
     }
     return TOOLS.filter((tool) =>
-      visible.some((initiative) => permissionsFor(initiative)[tool].view)
+      visibleInitiatives.some((initiative) => permissionsFor(initiative)[tool].view)
     );
-  }, [initiativesQuery.data, filterVisible, permissionsFor]);
+  }, [visibleInitiatives, permissionsFor]);
 
   const requested = search.tool ? toolForRouteSegment(search.tool) : null;
   // An unknown or unreachable `?tool=` falls back to the first circle rather
@@ -97,38 +140,56 @@ export function GuildHomePage() {
         <p className="text-muted-foreground">{t("subtitle")}</p>
       </div>
 
-      <GuildToolRail tools={tools} selected={selected} />
-
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("loading")}
-        </div>
-      ) : isError ? (
-        <p className="text-destructive text-sm">{t("loadError")}</p>
-      ) : totalCount === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("empty.title")}</CardTitle>
-            <CardDescription>{t("empty.description")}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <GuildToolTable
-          tool={selected}
-          rows={rows}
-          initiatives={initiativesQuery.data ?? []}
-          totalCount={totalCount}
-          page={page}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
-          onPageSizeChange={handlePageSizeChange}
+      {hasNoInitiatives ? (
+        <GuildHomeEmptyState
+          guildDescription={activeGuild?.description}
+          entries={directoryEntries}
+          onCreate={onCreate}
         />
+      ) : (
+        <>
+          <GuildToolRail tools={tools} selected={selected} />
+
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("loading")}
+            </div>
+          ) : isError ? (
+            <p className="text-destructive text-sm">{t("loadError")}</p>
+          ) : totalCount === 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("empty.title")}</CardTitle>
+                <CardDescription>{t("empty.description")}</CardDescription>
+              </CardHeader>
+            </Card>
+          ) : (
+            <GuildToolTable
+              tool={selected}
+              rows={rows}
+              initiatives={initiativesQuery.data ?? []}
+              totalCount={totalCount}
+              page={page}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
+
+          {/* The guild's initiative list, which is also its discovery surface:
+              the ones you're in, then the ones you could join. */}
+          <InitiativeDirectory entries={directoryEntries} onCreate={onCreate} />
+
+          {/* Guild-wide, so it stays put as the rail switches the table's tool. */}
+          <GuildRecentComments />
+        </>
       )}
 
-      {/* Guild-wide, so it stays put as the rail switches the table's tool. */}
-      <GuildRecentComments />
+      {canCreateInitiatives ? (
+        <CreateInitiativeDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
+      ) : null}
     </div>
   );
 }

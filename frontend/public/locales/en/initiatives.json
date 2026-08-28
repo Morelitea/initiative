@@ -14,6 +14,10 @@
   "noInitiatives": "No initiatives yet",
   "noInitiativesDescription": "You’re not part of any initiatives in this guild. Check back after an admin invites you or create one if you have permissions.",
   "createInitiative": "Create initiative",
+  "directory": {
+    "browse": "Browse initiatives",
+    "joinError": "Unable to join this initiative right now."
+  },
   "manage": {
     "title": "Initiatives",
     "description": "Archive an initiative to hide it from the sidebar without deleting it, grant project managers full access, or delete an initiative into the trash.",
@@ -101,6 +105,16 @@
     "editPermissionNote": "Only guild admins or initiative project managers can edit details.",
     "updated": "Initiative updated.",
     "updateError": "Unable to update initiative right now.",
+    "joinPolicy": {
+      "title": "Joining",
+      "description": "Who in this guild can join this initiative, and how. Joining decides what someone can see — sharing still governs each item inside.",
+      "privateLabel": "Invite only",
+      "privateHelp": "Hidden from the guild directory. Project managers add members by hand.",
+      "requestLabel": "By request",
+      "requestHelp": "Listed in the guild directory. Members ask to join and a project manager approves.",
+      "openLabel": "Anyone can join",
+      "openHelp": "Listed in the guild directory. Any guild member can join themselves, with view-only access to start."
+    },
     "membersTitle": "Members",
     "membersDescription": "Initiative project managers and guild admins can manage membership.",
     "filterByName": "Filter by name",

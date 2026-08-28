@@ -6,7 +6,7 @@ from pydantic import ConfigDict, Field, create_model
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
-from app.models.tenant.initiative import PermissionKey
+from app.models.tenant.initiative import InitiativeJoinPolicy, PermissionKey
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -43,7 +43,9 @@ class InitiativeBase(_InitiativeToolSwitches):
 
 
 class InitiativeCreate(InitiativeBase):
-    pass
+    # Creation is guild-admin only, so the policy is theirs to set from the
+    # start; defaulting private keeps "open" an explicit choice.
+    join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
 
 
 class InitiativeUpdate(_InitiativeToolSwitchesPatch):
@@ -51,6 +53,12 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     description: Optional[RichTextStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     is_archived: Optional[bool] = None
+    # Settable by whoever may already update the initiative (managers, guild
+    # admins).
+    join_policy: Optional[InitiativeJoinPolicy] = None
+    # Guild admins only — enforced in the endpoint, and only valid alongside a
+    # resulting join_policy of 'open'.
+    auto_join: Optional[bool] = None
 
 
 # Role schemas
@@ -173,9 +181,36 @@ class InitiativeRead(InitiativeBase):
     is_default: bool = False
     # Hidden from the main sidebar when true (see Initiative.is_archived).
     is_archived: bool = False
+    # How guild members may join (see InitiativeJoinPolicy). Never consulted by
+    # RLS — it governs how a membership row comes to exist, nothing more.
+    join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
+    auto_join: bool = False
     created_at: datetime
     updated_at: datetime
     members: List[InitiativeMemberRead] = Field(default_factory=list)
+
+
+class InitiativeDirectoryEntry(SanitizedBaseModel):
+    """One card in a guild's initiative directory.
+
+    Only initiatives that chose to be listed (``request`` / ``open``) ever reach
+    this shape; a ``private`` one is excluded in the service. The three caller-
+    relative fields answer which call to action the card renders: already in it,
+    knocked and waiting, or free to join.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+    join_policy: InitiativeJoinPolicy
+    member_count: int = 0
+    is_member: bool = False
+    has_pending_request: bool = False
 
 
 def serialize_role(
@@ -262,6 +297,10 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         color=initiative.color,
         is_default=initiative.is_default,
         is_archived=getattr(initiative, "is_archived", False),
+        join_policy=getattr(
+            initiative, "join_policy", InitiativeJoinPolicy.private.value
+        ),
+        auto_join=getattr(initiative, "auto_join", False),
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

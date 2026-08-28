@@ -144,6 +144,12 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "initiative_members",
         "initiative_roles",
         "initiative_role_permissions",
+        # Join requests: the requester is by definition NOT yet a member, so an
+        # initiative-membership row gate would hide their own request from them
+        # — the same reasoning that keeps initiative_members structural. Who may
+        # read which rows is an app-layer contract (requester sees their own,
+        # managers see their initiative's), pinned by tests.
+        "initiative_join_requests",
         # Own-row tables (also listed in OWN_ROW_TABLES below): guild-level
         # placement, but rows belong to ONE user and carry own_row_* policies.
         "export_jobs",  # a job may span initiatives ("export all my tasks"), so
@@ -230,6 +236,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "initiative_members",
         "initiative_role_permissions",
         "task_assignees",
+        # A knock at a door: ``user_id`` is both the author and the subject, and
+        # ``resolved_by`` already names the manager who answered it.
+        "initiative_join_requests",
         # Per-user state, keyed by the user it belongs to. ``user_id`` is both
         # the author and the subject, so a second copy of it says nothing.
         "guild_ai_member_keys",

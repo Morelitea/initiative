@@ -118,6 +118,19 @@ class InitiativeMessages:
     # built-in project_manager role.
     OVERRIDE_REQUIRES_GUILD_ADMIN = "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
     OVERRIDE_PM_ONLY = "INITIATIVE_OVERRIDE_PM_ONLY"
+    # Asked to self-join an initiative whose join policy is not 'open'. Reported
+    # for 'private' and 'request' alike, so the answer says only "not by this
+    # route" — a request-policy initiative is discoverable through the directory.
+    NOT_JOINABLE = "INITIATIVE_NOT_JOINABLE"
+    # Auto-join enrols new guild members automatically, so it is only coherent on
+    # an initiative they could also have found and joined themselves ('open').
+    AUTO_JOIN_REQUIRES_OPEN = "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN"
+    # Auto-join shapes onboarding for the whole guild, so only a guild admin sets
+    # it — unlike join_policy, which any initiative manager may change.
+    AUTO_JOIN_ADMIN_ONLY = "INITIATIVE_AUTO_JOIN_ADMIN_ONLY"
+    # A PAM grant confers content read/write for a window; a membership row
+    # would outlast it, so joining is for real guild members.
+    GRANT_CANNOT_MANAGE_MEMBERS = "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
 
 
 class FilterPresetMessages:

@@ -9,6 +9,32 @@
     "title": "Rien pour l'instant",
     "description": "Rien de ce type n'existe encore dans la guilde, ou rien ne vous a été partagé."
   },
+  "emptyState": {
+    "title": "Vous n’avez rejoint aucune initiative",
+    "description": "Les initiatives contiennent tout ce qui existe dans une guilde — projets, documents et le reste. Rejoignez-en une pour voir son travail.",
+    "nothingListedTitle": "Rien à rejoindre pour l’instant",
+    "nothingListedDescription": "Aucune initiative de cette guilde n’est ouverte pour le moment. Un administrateur de guilde ou un chef de projet peut vous ajouter."
+  },
+  "directory": {
+    "title": "Initiatives",
+    "subtitle": "Les vôtres et celles que vous pouvez rejoindre.",
+    "memberBadge": "Rejointe",
+    "memberCount_one": "{{count}} membre",
+    "memberCount_other": "{{count}} membres",
+    "toolCount": "{{label}} : {{count}}",
+    "groups": {
+      "mine": "Vos initiatives",
+      "joinable": "Ouvertes aux adhésions"
+    },
+    "join": "Rejoindre",
+    "joining": "Adhésion…",
+    "joined": "Vous avez rejoint {{name}}.",
+    "policy": {
+      "open": "Ouverte à tous les membres de la guilde",
+      "request": "Adhésion sur demande",
+      "private": "Sur invitation uniquement"
+    }
+  },
   "columns": {
     "name": "Nom",
     "initiative": "Initiative",

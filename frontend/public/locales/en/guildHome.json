@@ -9,6 +9,32 @@
     "title": "Nothing here yet",
     "description": "Nothing of this kind exists in the guild yet, or none of it is shared with you."
   },
+  "emptyState": {
+    "title": "You haven’t joined any initiatives yet",
+    "description": "Initiatives hold everything in a guild — projects, documents, and the rest. Join one to see its work.",
+    "nothingListedTitle": "Nothing to join yet",
+    "nothingListedDescription": "No initiative in this guild is open to join right now. A guild admin or project manager can add you to one."
+  },
+  "directory": {
+    "title": "Initiatives",
+    "subtitle": "The ones you're in, and the ones you can join.",
+    "memberBadge": "Joined",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "toolCount": "{{label}}: {{count}}",
+    "groups": {
+      "mine": "Your initiatives",
+      "joinable": "Open to join"
+    },
+    "join": "Join",
+    "joining": "Joining…",
+    "joined": "You joined {{name}}.",
+    "policy": {
+      "open": "Open to all guild members",
+      "request": "Joins by request",
+      "private": "Invite only"
+    }
+  },
   "columns": {
     "name": "Name",
     "initiative": "Initiative",

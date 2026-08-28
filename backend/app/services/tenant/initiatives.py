@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Iterable
 
-from sqlalchemy import func
+from sqlalchemy import desc, func, or_, true
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -12,14 +12,18 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
     Initiative,
+    InitiativeJoinPolicy,
+    InitiativeJoinRequest,
     InitiativeMember,
     InitiativeRoleModel,
     InitiativeRolePermission,
     BUILTIN_ROLE_PERMISSIONS,
+    JoinRequestStatus,
     PermissionKey,
 )
 from app.models.platform.user import User
 from app.schemas.platform.user import UserInitiativeRole
+from app.schemas.tenant.initiative import InitiativeDirectoryEntry
 
 
 DEFAULT_INITIATIVE_NAME = "Default Initiative"
@@ -548,6 +552,169 @@ async def count_role_members(
     stmt = select(func.count()).where(InitiativeMember.role_id == role_id)
     result = await session.exec(stmt)
     return result.one()
+
+
+# ============================================================================
+# Discovery: directory, self-join, join settings
+# ============================================================================
+
+#: The policies that put an initiative on the guild's directory for everyone.
+#: ``private`` is deliberately absent: RLS *would* permit listing it (the
+#: ``initiatives`` table is structural, so any guild member's session can read
+#: the row), so keeping private initiatives off the directory is an app-layer
+#: promise this constant makes in one place. The one exception is the caller's
+#: own membership — a private initiative is listed to its own members, which
+#: reveals nothing they don't already see in their sidebar.
+LISTED_JOIN_POLICIES: tuple[str, ...] = (
+    InitiativeJoinPolicy.request.value,
+    InitiativeJoinPolicy.open.value,
+)
+
+
+async def list_directory_entries(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    include_unlisted: bool = False,
+) -> list[InitiativeDirectoryEntry]:
+    """The guild's initiative directory, as seen by one caller.
+
+    Active, non-archived initiatives whose policy asks to be listed — plus the
+    caller's own initiatives whatever their policy, so the directory doubles as
+    the guild's complete initiative list. Each entry carries its roster size
+    and the caller's own state (in it / knocked / free to join) so the client
+    renders one call to action per card. A private initiative the caller is
+    *not* in stays unlisted, exactly as before — unless ``include_unlisted``
+    says the caller's standing already reaches everything (a guild admin).
+    """
+    member_count = (
+        select(func.count())
+        .select_from(InitiativeMember)
+        .where(InitiativeMember.initiative_id == Initiative.id)
+        .scalar_subquery()
+    )
+    is_member = (
+        select(InitiativeMember.user_id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            InitiativeMember.user_id == user_id,
+        )
+        .exists()
+    )
+    has_pending_request = (
+        select(InitiativeJoinRequest.id)
+        .where(
+            InitiativeJoinRequest.initiative_id == Initiative.id,
+            InitiativeJoinRequest.user_id == user_id,
+            InitiativeJoinRequest.status == JoinRequestStatus.pending.value,
+        )
+        .exists()
+    )
+
+    statement = (
+        select(Initiative, member_count, is_member, has_pending_request)
+        .where(
+            Initiative.guild_id == guild_id,
+            true()
+            if include_unlisted
+            else or_(Initiative.join_policy.in_(LISTED_JOIN_POLICIES), is_member),
+            Initiative.is_archived.is_(False),
+            Initiative.deleted_at.is_(None),
+        )
+        # The caller's own initiatives first — the list serves "mine" before
+        # "what else is on offer".
+        .order_by(desc(is_member), Initiative.name.asc(), Initiative.id.asc())
+    )
+    rows = (await session.exec(statement)).all()
+    return [
+        InitiativeDirectoryEntry(
+            id=initiative.id,
+            name=initiative.name,
+            description=initiative.description,
+            color=initiative.color,
+            join_policy=initiative.join_policy,
+            member_count=count,
+            is_member=member,
+            has_pending_request=pending,
+        )
+        for initiative, count, member, pending in rows
+    ]
+
+
+def is_self_joinable(initiative: Initiative) -> bool:
+    """Whether a guild member may add themselves to ``initiative`` right now."""
+    return (
+        initiative.join_policy == InitiativeJoinPolicy.open.value
+        and not initiative.is_archived
+        and initiative.deleted_at is None
+    )
+
+
+async def self_join(
+    session: AsyncSession,
+    *,
+    initiative: Initiative,
+    user_id: int,
+) -> InitiativeMember:
+    """Add ``user_id`` to ``initiative`` with the built-in ``member`` role.
+
+    The floor, not the ceiling: ``member`` is view-only on the core tools and
+    creates nothing, and per-resource sharing still decides what is reachable
+    inside. The row is ordinary — ``oidc_managed`` false, so group sync neither
+    reaps it nor fights it — which is the whole point: every join path ends at
+    the same membership row RLS already reads.
+
+    Idempotent — an existing membership is returned untouched. Flush-only; the
+    caller owns the transaction. The policy check is the caller's
+    (:func:`is_self_joinable`).
+    """
+    existing = await get_initiative_membership(
+        session, initiative_id=initiative.id, user_id=user_id
+    )
+    if existing is not None:
+        return existing
+
+    member_role = await get_member_role(session, initiative_id=initiative.id)
+    if member_role is None:
+        raise ValueError(InitiativeMessages.MEMBER_ROLE_NOT_FOUND)
+
+    membership = InitiativeMember(
+        initiative_id=initiative.id,
+        user_id=user_id,
+        role_id=member_role.id,
+        guild_id=initiative.guild_id,
+        oidc_managed=False,
+    )
+    session.add(membership)
+    await session.flush()
+    return membership
+
+
+def validate_join_settings(
+    initiative: Initiative,
+    *,
+    join_policy: str | None,
+    auto_join: bool | None,
+) -> None:
+    """Validate a ``join_policy`` / ``auto_join`` change as one pair.
+
+    The two are coupled by ``ck_initiatives_auto_join_open``, and a PATCH may
+    move either or both, so the rule is checked against the *resulting* state
+    rather than each field alone. Turning a policy away from ``open`` while
+    auto-join is on is rejected rather than silently clearing auto-join —
+    dropping a guild-wide onboarding setting as a side effect of an unrelated
+    edit would be worse than an error.
+
+    Raises ``ValueError`` carrying the message constant when the pair is
+    incoherent; returns None when it is fine.
+    """
+    resulting_policy = (
+        join_policy if join_policy is not None else initiative.join_policy
+    )
+    resulting_auto_join = auto_join if auto_join is not None else initiative.auto_join
+    if resulting_auto_join and resulting_policy != InitiativeJoinPolicy.open.value:
+        raise ValueError(InitiativeMessages.AUTO_JOIN_REQUIRES_OPEN)
 
 
 async def create_imported_initiative(
