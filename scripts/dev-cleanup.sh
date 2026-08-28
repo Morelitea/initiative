@@ -12,6 +12,8 @@
 # clean. Each step reports what went wrong and the exit code reflects it.
 set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# This checkout's ports — never another worktree's.
+. "$SCRIPT_DIR/dev-ports.sh"
 
 stop_servers=true
 case "${1:-}" in
@@ -58,13 +60,18 @@ stop_port() {
 
 if [ "$stop_servers" = true ]; then
     echo "Stopping dev servers..."
-    stop_port 8000 "backend"
-    stop_port 5173 "frontend"
+    stop_port "$DEV_BACKEND_PORT" "backend"
+    stop_port "$DEV_FRONTEND_PORT" "frontend"
 
     # Fallbacks for servers that are up but not listening yet (killed
-    # mid-startup, or still binding the port).
-    pkill -f "uvicorn app.main:app" 2>/dev/null || true
-    pkill -f "vite" 2>/dev/null || true
+    # mid-startup, or still binding the port). Matched on this checkout's own
+    # paths so another worktree's dev servers are left alone — and skipped
+    # rather than broadened if a path isn't there to match against.
+    checkout_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+    [ -d "$checkout_root/backend" ] &&
+        { pkill -f "$checkout_root/backend/.venv/.*uvicorn" 2>/dev/null || true; }
+    [ -d "$checkout_root/frontend" ] &&
+        { pkill -f "$checkout_root/frontend/node_modules/.*vite" 2>/dev/null || true; }
 
     echo "Servers stopped."
 fi

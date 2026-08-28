@@ -48,6 +48,7 @@ history/
 - `cd backend && alembic upgrade head` — apply the latest database migrations (or run `python -m app.db.init_db` to migrate plus seed defaults).
 - `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes to **shared/`public` tables**. For **guild-content** tables use `python scripts/gen_guild_migration.py "desc"` instead (autogenerate against `guild_template` via `-x guild`; see "Adding or changing tables").
 - `cd frontend && pnpm install && pnpm dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8000/api/v1`).
+- **Dev ports are per checkout.** The main working tree keeps `8000`/`5173`; each linked worktree gets its own pair derived from its path, so several agents can run a dev environment at once. `scripts/dev-ports.sh` is the single source of truth — every dev script sources it, and it exports `DEV_BACKEND_PORT`, `DEV_FRONTEND_PORT`, `VITE_API_URL`, `VITE_DEV_PROXY_TARGET` and per-checkout log paths. Pin a checkout by setting `DEV_BACKEND_PORT`/`DEV_FRONTEND_PORT` yourself. Starting a dev environment on a port something else already holds reports it and stops, rather than taking the port.
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && pnpm lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
 
@@ -248,9 +249,36 @@ Tests are co-located next to their source files using a `_test.py` suffix (e.g.,
 
 ### Running Tests
 
+Every test run gets its own Postgres database and its own set of cluster-global
+roles, keyed on **(checkout, xdist worker)** — `initiative_test_<checkout>_<worker>`
+and `test_<checkout>_<worker>_*` (see `backend/conftest.py`). Concurrent runs from
+different worktrees therefore don't share a database or drop each other's roles.
+Those databases persist so warm runs skip the migration; reclaim them with
+`cd backend && python scripts/drop_test_dbs.py` (add `--yes` to actually drop,
+`--all` for every checkout's).
+
+Parallelism is per-invocation. `-n auto` pays for itself on a big run — measured
+6m29s → 1m52s on `app/services` (1363 tests, 16 cores) — and costs more than it
+saves on a targeted one, where 16 workers spend longer starting up than the tests
+take. CI and `scripts/test-changed.sh`'s whole-suite fallback pass it; single
+files run serially by default. A 16-worker run was measured holding ~60 Postgres
+connections, so if several checkouts test at once, give the local
+`docker-compose.yml` db service headroom (it is gitignored, so this is a local
+edit): `command: [postgres, -c, max_connections=300, -c, shared_buffers=256MB]`.
+
+Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
+nothing consumes the report on the normal path:
+
+```bash
+cd backend && pytest --cov=app --cov-config=.coveragerc --cov-report=term-missing --cov-branch
+```
+
 ```bash
 # Run all backend tests
 cd backend && pytest
+
+# Single process — for a clean traceback or a debugger
+cd backend && pytest -n 0 app/services/guilds_test.py
 
 # Run tests for a specific module
 cd backend && pytest app/services/guilds_test.py

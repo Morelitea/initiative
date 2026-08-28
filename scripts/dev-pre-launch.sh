@@ -7,6 +7,9 @@
 # that fails, or either dev server exiting on its own.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# This checkout's ports, log paths and frontend API URLs. The main working tree
+# keeps 8000/5173; linked worktrees get their own pair so several run at once.
+. "$SCRIPT_DIR/dev-ports.sh"
 cd "$SCRIPT_DIR/.."
 
 BACKEND_PID=""
@@ -45,6 +48,25 @@ cleanup() {
 docker compose up db -d --wait
 bash scripts/dev-migrate.sh
 
+# Report a port that is already taken instead of taking it. Both dev servers
+# bind a port this checkout owns, so anything already there belongs to someone
+# else — another worktree's dev environment, most likely.
+port_holder() {
+    if command -v lsof &>/dev/null; then
+        lsof -ti:"$1" 2>/dev/null | head -1
+    elif command -v fuser &>/dev/null; then
+        fuser "$1"/tcp 2>/dev/null | tr -d ' ' | head -1
+    fi
+}
+for spec in "backend:$DEV_BACKEND_PORT" "frontend:$DEV_FRONTEND_PORT"; do
+    holder=$(port_holder "${spec#*:}")
+    if [ -n "$holder" ]; then
+        echo "Port ${spec#*:} (${spec%%:*}) is already in use by pid $holder." >&2
+        echo "Stop it, or pin this checkout elsewhere with DEV_BACKEND_PORT / DEV_FRONTEND_PORT." >&2
+        exit 1
+    fi
+done
+
 # Arm the teardown here rather than at the top of the script. Everything above
 # is shared, idempotent setup that leaves nothing of ours running, and the dev
 # ports and seeded data may still belong to another environment. From the seed
@@ -61,13 +83,13 @@ pending_signal=false
 trap 'pending_signal=true' INT TERM HUP
 
 # Start the backend in the background (uvicorn with --reload, port-cleanup built in).
-nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
+nohup bash scripts/dev-backend.sh > "$DEV_BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 # Start the frontend in the background (Vite, port-cleanup built in). --open makes
 # Vite open the app in the browser once it's listening; its `open` dependency is
 # WSL-aware (launches the Windows browser) and handles macOS/Linux too.
-nohup bash scripts/dev-frontend.sh --open > /tmp/initiative-frontend.log 2>&1 &
+nohup bash scripts/dev-frontend.sh --open > "$DEV_FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 # Both servers are recorded, so the dev ports are now this launch's to sweep.
@@ -79,9 +101,9 @@ if [ "$pending_signal" = true ]; then
 fi
 
 echo
-echo "Dev environment starting:"
-echo "  Backend:  http://localhost:8000   (logs: /tmp/initiative-backend.log)"
-echo "  Frontend: http://localhost:5173   (logs: /tmp/initiative-frontend.log)"
+echo "Dev environment starting (checkout $DEV_CHECKOUT_ID):"
+echo "  Backend:  http://localhost:$DEV_BACKEND_PORT   (logs: $DEV_BACKEND_LOG)"
+echo "  Frontend: http://localhost:$DEV_FRONTEND_PORT   (logs: $DEV_FRONTEND_LOG)"
 echo "  Stop:     press Ctrl+C in this terminal (or run bash scripts/dev-cleanup.sh)"
 echo
 
@@ -108,8 +130,8 @@ kill -0 "$BACKEND_PID" 2>/dev/null && backend_up=true
 kill -0 "$FRONTEND_PID" 2>/dev/null && frontend_up=true
 if [ "$cleanup_done" = false ]; then
     if [ "$backend_up" = false ] && [ "$frontend_up" = true ]; then
-        echo "Backend exited — see /tmp/initiative-backend.log"
+        echo "Backend exited — see $DEV_BACKEND_LOG"
     elif [ "$frontend_up" = false ] && [ "$backend_up" = true ]; then
-        echo "Frontend exited — see /tmp/initiative-frontend.log"
+        echo "Frontend exited — see $DEV_FRONTEND_LOG"
     fi
 fi

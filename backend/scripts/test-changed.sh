@@ -33,7 +33,8 @@ fi
 # If shared infrastructure changed, run all tests
 if echo "$CHANGED" | grep -qE '(app/testing/|app/models/|app/core/|app/db/|conftest\.py)'; then
     echo "Shared infrastructure changed — running all tests."
-    python -m pytest app/
+    # A whole-suite run has enough work to pay for the per-worker startup.
+    python -m pytest app/ -n auto
     exit $?
 fi
 
