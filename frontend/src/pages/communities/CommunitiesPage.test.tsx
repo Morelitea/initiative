@@ -78,11 +78,14 @@ describe("CommunitiesPage", () => {
     // the image describes nothing on its own and stays out of the a11y tree.
     const banner = container.querySelector('img[src="/images/community-banner.webp"]');
     expect(banner).toHaveAttribute("alt", "");
-    // The image is what's positioned, so the copy sets the banner's height: a
-    // translation that wraps to more lines on a narrow screen opens the banner
-    // up rather than running past its edge.
-    expect(banner).toHaveClass("absolute");
-    expect(screen.getByRole("heading", { level: 1 }).parentElement).not.toHaveClass("absolute");
+    // The image and the copy are one grid cell, so the banner is as tall as
+    // whichever needs more room: a translation that wraps to more lines on a
+    // narrow screen opens the banner up rather than running past its edge.
+    expect(banner).toHaveClass("row-start-1");
+    expect(screen.getByRole("heading", { level: 1 }).parentElement).toHaveClass("row-start-1");
+    // Below that the image fills a banner the copy sizes, rather than setting
+    // the height itself and leaving a strip too short to read a heading on.
+    expect(banner).toHaveClass("absolute", "lg:static");
   });
 
   it("says so, and asks nothing, where the owner runs no directory", async () => {
@@ -147,6 +150,22 @@ describe("CommunitiesPage", () => {
     expect(directoryFor).toHaveBeenCalledWith(
       expect.objectContaining({ category: "ttrpg" }),
       expect.anything()
+    );
+  });
+
+  // Below `lg` the sidebar that normally holds the search is off-canvas, so the
+  // page carries a box of its own — the same one, writing the same address.
+  it("searches from the page's own box", async () => {
+    renderDirectory();
+    await screen.findByText("Riverside Players");
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Search communities" }), "dice");
+
+    await waitFor(() =>
+      expect(directoryFor).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "dice" }),
+        expect.anything()
+      )
     );
   });
 

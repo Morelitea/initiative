@@ -52,7 +52,7 @@ _dev_ports_lookup() {
 # Print this checkout's offset, allocating one if it has none. Fails (no output)
 # rather than guessing if the registry can't be used.
 _dev_ports_allocate() {
-    local root="$1" lock offset waited=0 off path owner
+    local root="$1" lock offset waited=0 off path
     local kept=() taken=()
 
     mkdir -p "$(dirname "$DEV_PORTS_REGISTRY")" 2>/dev/null || return 1
@@ -60,27 +60,21 @@ _dev_ports_allocate() {
 
     # mkdir either creates the directory or fails, atomically, which makes it a
     # lock on every platform — flock isn't on macOS by default.
+    #
+    # Nothing here ever takes a lock it doesn't own. Deciding a lock is stale and
+    # removing it cannot be made atomic with mkdir: two waiters can reach that
+    # conclusion together, and the second one deletes the lock the first has just
+    # taken, putting both in this section choosing the same offset. Checking
+    # ownership afterwards only narrows that window, it doesn't close it. So a
+    # lock is only ever released by the process that created it, and a waiter
+    # that runs out of patience gives up and says so.
     until mkdir "$lock" 2>/dev/null; do
-        # Break a lock only when its owner is gone. Waiting out a slow holder is
-        # the whole point: taking a live lock on a timeout would put two
-        # allocators in here together, and they would pick the same offset.
-        owner=$(cat "$lock/pid" 2>/dev/null)
-        if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
-            rm -rf "$lock" 2>/dev/null
-            continue
-        fi
         waited=$((waited + 1))
-        # A holder that is alive but stuck: give up and let the caller fall back
-        # rather than forcing our way in.
-        [ "$waited" -gt 100 ] && return 1
+        if [ "$waited" -gt 100 ]; then
+            return 1
+        fi
         sleep 0.1
     done
-    echo $$ > "$lock/pid" 2>/dev/null
-
-    # Two waiters can decide the same lock is stale at once, and the second can
-    # remove the first's fresh one. Whoever's pid is in there owns it.
-    sleep 0.05
-    [ "$(cat "$lock/pid" 2>/dev/null)" = "$$" ] || return 1
 
     [ -f "$DEV_PORTS_REGISTRY" ] || : > "$DEV_PORTS_REGISTRY"
     while IFS=$'\t' read -r off path; do
@@ -123,9 +117,11 @@ fi
 if [ -z "${DEV_PORT_OFFSET:-}" ]; then
     echo "dev-ports: could not get a port offset for this checkout." >&2
     echo "  registry: $DEV_PORTS_REGISTRY" >&2
-    echo "  Another allocation may be in progress — try again. If the registry" >&2
-    echo "  cannot be written at all, set DEV_BACKEND_PORT and DEV_FRONTEND_PORT" >&2
-    echo "  to a pair no other checkout uses." >&2
+    echo "  Another checkout may be allocating right now — try again." >&2
+    echo "  If none is, a run was killed while holding the lock; remove it:" >&2
+    echo "    rm -rf $DEV_PORTS_REGISTRY.lock" >&2
+    echo "  Or set DEV_BACKEND_PORT and DEV_FRONTEND_PORT to a pair no other" >&2
+    echo "  checkout uses, which skips the registry entirely." >&2
 fi
 
 if [ -n "${DEV_PORT_OFFSET:-}" ]; then
@@ -142,6 +138,7 @@ export VITE_DEV_PORT="$DEV_FRONTEND_PORT"
 # One log per checkout, so two dev environments don't write over each other.
 DEV_BACKEND_LOG="/tmp/initiative-${DEV_CHECKOUT_ID}-backend.log"
 DEV_FRONTEND_LOG="/tmp/initiative-${DEV_CHECKOUT_ID}-frontend.log"
+DEV_OPEN_LOG="/tmp/initiative-${DEV_CHECKOUT_ID}-open.log"
 
 export DEV_CHECKOUT_ID DEV_PORT_OFFSET DEV_BACKEND_PORT DEV_FRONTEND_PORT
-export DEV_BACKEND_LOG DEV_FRONTEND_LOG
+export DEV_BACKEND_LOG DEV_FRONTEND_LOG DEV_OPEN_LOG
