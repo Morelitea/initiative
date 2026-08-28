@@ -440,7 +440,10 @@ async def upgrade_guild_app(
     than orphaned.
     """
     _require_guild_admin(guild_context)
-    app = await _load(session, app_id)
+    # Upgrading prunes both configuration maps to the new definition, so it
+    # takes the row: an app writing a flow's result back at the same moment
+    # must land on one side of the prune or the other.
+    app = await _load(session, app_id, for_update=True)
 
     # The listing is resolved here rather than inside the shared apply, so a
     # withdrawn or missing one is reported as the HTTP answer it deserves
@@ -605,7 +608,10 @@ async def update_guild_app_config(
     app's own write-back path rather than through a form.
     """
     _require_guild_admin(guild_context)
-    app = await _load(session, app_id)
+    # Both configuration maps are rewritten whole below, so the row is taken
+    # first — an app writing a flow's result back is doing the same thing to
+    # the same values.
+    app = await _load(session, app_id, for_update=True)
 
     config = dict(app.config or {})
     secrets = dict(app.config_secrets or {})
@@ -997,7 +1003,9 @@ async def disconnect_guild_app(
     else's uses the Members endpoints, which record who acted. Clearing a
     guild-wide credential is an admin action, since it is the guild's.
     """
-    app = await _load(session, app_id)
+    # Clearing rewrites both configuration maps, so it takes the row: an app
+    # writing back at the same moment must not put back what was cleared.
+    app = await _load(session, app_id, for_update=True)
     connection = _connection_or_404(app, connection_id)
 
     if connection.get("scope") == "static":
