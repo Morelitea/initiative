@@ -45,6 +45,7 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
+from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant.webhook_dispatcher import dispatch_event
 
 logger = logging.getLogger(__name__)
@@ -576,6 +577,15 @@ async def _write_guild_connection(
         # The install moved to a version that no longer declares this
         # connection; its values are on their way out with it.
         raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+
+    # Both configuration maps are rewritten whole below, so the row is taken
+    # first: a second write-back, or an admin saving the settings form, would
+    # otherwise rebuild from a copy read before this one landed and put back
+    # what it never saw.
+    locked = await guild_apps_service.lock_install(session, app.id)
+    if locked is None:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+    app = locked
 
     try:
         config, secrets = app_config_service.apply_connection_values(

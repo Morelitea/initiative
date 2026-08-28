@@ -158,10 +158,8 @@ def guild_connection_ref(app: Any, connection_id: str) -> str:
     holding the row inside a transaction it is about to commit, and a ref handed
     out but not stored is one the write-back would refuse.
 
-    That the ref exists at all is the authorization. The app is handed it in a
-    browser, where anyone can type a guild id, so a write-back naming a handle
-    nobody minted has to be refused rather than believed — which is what stops a
-    member binding their own organization to a guild whose admin never asked.
+    The ref is the authorization: a write-back is accepted for the connection
+    its handle names, and only for one this install actually minted.
     """
     refs = dict(app.connection_refs or {})
     existing = refs.get(connection_id)

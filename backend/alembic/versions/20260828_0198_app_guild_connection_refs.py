@@ -11,9 +11,8 @@ A ``static`` connection may now declare a ``connect_path``, which makes it a
 flow a guild admin runs once for everybody. This column is what the two ends are
 joined by: an opaque handle minted when the admin starts, carried to the app in
 the browser, and named again when the app writes the result back over its own
-authenticated channel. A write-back naming a handle this column never held is
-refused — which is what keeps somebody who merely knows a guild id from binding
-their own organization to that guild.
+authenticated channel. A write-back is accepted for the connection its handle
+names, and only for a handle this column holds.
 
 Keyed by connection id, because an app may declare more than one. Empty for
 every install that exists today, and for every app that has no such flow.

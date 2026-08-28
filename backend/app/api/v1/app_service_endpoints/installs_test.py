@@ -1048,13 +1048,8 @@ class TestGuildConnectionWriteBack:
     async def test_a_handle_nobody_minted_is_refused(
         self, client: AsyncClient, session: AsyncSession
     ):
-        """The one that matters, and the reason the handle is stored at all.
-
-        An app is handed this in a browser, where anybody can type a guild id.
-        If a write-back were believed on the strength of naming a connection,
-        a member could complete the vendor's flow against their own
-        organization and hand the guild a boundary its admin never chose.
-        """
+        """A write-back is accepted for a handle this install minted, and only
+        for one it minted — naming the connection is not enough."""
         await register_app_service(session, listing_uid=SHOP_UID)
         guild, _user, _app = await _install(session, definition=_workspace_definition())
 

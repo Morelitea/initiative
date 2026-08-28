@@ -180,17 +180,17 @@ async def _load(
 ) -> GuildApp:
     """This guild's install, or a 404.
 
-    ``for_update`` holds the row for the rest of the transaction. Removal wants
-    it: what an install is answerable for is a list that a member adding a
-    calendar appends to, so removal has to settle which of the two goes first
-    rather than reading a list that is still being written.
+    ``for_update`` holds the row for the rest of the transaction — see
+    :func:`~app.services.tenant.guild_apps.lock_install`. Anything that rewrites
+    a value on this row wants it: removal reads the list of what the install is
+    answerable for, and a connect writes the handle map, both of which someone
+    else may be changing at the same moment.
     """
-    statement = select(GuildApp).where(GuildApp.id == app_id)
-    if for_update:
-        statement = statement.with_for_update().execution_options(
-            populate_existing=True
-        )
-    app = (await session.exec(statement)).first()
+    app = (
+        await guild_apps_service.lock_install(session, app_id)
+        if for_update
+        else (await session.exec(select(GuildApp).where(GuildApp.id == app_id))).first()
+    )
     if app is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -880,6 +880,17 @@ async def _start_guild_connect(
     nothing about a credential that was already working.
     """
     connection_id = connection["id"]
+    # The handle map is rewritten whole, so the row is taken first: two admins
+    # starting the same flow at once would otherwise each mint against a map
+    # read before the other's, and the handle one of them carried to the vendor
+    # would no longer be one the write-back finds.
+    locked = await guild_apps_service.lock_install(session, app.id)
+    if locked is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildAppMessages.NOT_FOUND,
+        )
+    app = locked
     connection_ref = app_config_service.guild_connection_ref(app, connection_id)
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)

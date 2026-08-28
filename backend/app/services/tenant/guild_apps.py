@@ -61,6 +61,7 @@ __all__ = [
     "get_app_content_id",
     "install_app",
     "legacy_artifacts",
+    "lock_install",
     "normalize_placement",
     "placed_in",
     "record_artifact",
@@ -209,6 +210,29 @@ def get_app_content_id(app: GuildApp) -> Optional[int]:
     return artifacts[0]["id"] if artifacts else None
 
 
+async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]:
+    """Hold one install's row for the rest of this transaction.
+
+    Several things on this row are values rewritten whole rather than appended
+    to — the configuration maps, the connection handles — so writing one means
+    reading it, changing it, and putting the result back. Two of those
+    overlapping would have the second write carry a value read before the first
+    landed, and the first change would be gone with no sign that it had been
+    made. Taking the row first puts them in an order instead.
+
+    Answers ``None`` if the row is gone, which is the same answer as this guild
+    never having had the install.
+    """
+    return (
+        await session.exec(
+            select(GuildApp)
+            .where(GuildApp.id == app_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+
+
 async def find_mounting_app(
     session: AsyncSession, *, guild_id: int, tool: str, for_update: bool = False
 ) -> Optional[GuildApp]:
@@ -235,19 +259,7 @@ async def find_mounting_app(
         if (app.definition or {}).get("app_kind") != "tool_instance":
             continue
         if (app.definition or {}).get("tool") == tool:
-            if not for_update:
-                return app
-            # Read again under the lock. It answers None if the row went away
-            # between finding it and holding it, which is the same answer as
-            # this guild never having had one.
-            return (
-                await session.exec(
-                    select(GuildApp)
-                    .where(GuildApp.id == app.id)
-                    .with_for_update()
-                    .execution_options(populate_existing=True)
-                )
-            ).first()
+            return app if not for_update else await lock_install(session, app.id)
     return None
 
 

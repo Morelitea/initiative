@@ -378,11 +378,10 @@ class TestTheHandleAGuildFlowIsJoinedBy:
         assert connection_id_for_ref(install, ref) == "workspace"
 
     def test_a_handle_nobody_minted_names_nothing(self):
-        """The refusal the whole handle exists for.
+        """A handle this install never minted names none of its connections.
 
-        An app is handed one of these in a browser, where anybody can type a
-        guild id. ``None`` is also the ordinary answer for a member's handle,
-        which lives on a row of its own and not here.
+        ``None`` is also the ordinary answer for a member's handle, which lives
+        on a row of its own and not here.
         """
         install = _Install({"workspace": "gcr_real"})
 
