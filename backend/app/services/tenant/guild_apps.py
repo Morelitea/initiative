@@ -61,6 +61,7 @@ __all__ = [
     "get_app_content_id",
     "install_app",
     "legacy_artifacts",
+    "lock_install",
     "normalize_placement",
     "placed_in",
     "record_artifact",
@@ -209,8 +210,31 @@ def get_app_content_id(app: GuildApp) -> Optional[int]:
     return artifacts[0]["id"] if artifacts else None
 
 
+async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]:
+    """Hold one install's row for the rest of this transaction.
+
+    Several things on this row are values rewritten whole rather than appended
+    to — the configuration maps, the connection handles — so writing one means
+    reading it, changing it, and putting the result back. Two of those
+    overlapping would have the second write carry a value read before the first
+    landed, and the first change would be gone with no sign that it had been
+    made. Taking the row first puts them in an order instead.
+
+    Answers ``None`` if the row is gone, which is the same answer as this guild
+    never having had the install.
+    """
+    return (
+        await session.exec(
+            select(GuildApp)
+            .where(GuildApp.id == app_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+
+
 async def find_mounting_app(
-    session: AsyncSession, *, guild_id: int, tool: str
+    session: AsyncSession, *, guild_id: int, tool: str, for_update: bool = False
 ) -> Optional[GuildApp]:
     """The install that mounts ``tool`` at guild scope, if this guild has one.
 
@@ -219,6 +243,14 @@ async def find_mounting_app(
     asked before creating one, and answered from the install rows rather than
     from the content, since an install with everything trashed is still the
     container.
+
+    ``for_update`` holds the row for the rest of the transaction, and is how
+    putting something *into* an app orders itself against removing the app.
+    Removal takes the same lock before it reads what to trash, so the two happen
+    in an order rather than at once: whichever is second either trashes the new
+    content along with the rest, or finds no install and refuses. Without the
+    lock a calendar could be committed just as its app went away, and would then
+    be live with nothing that reaches it and no removal that knows about it.
     """
     apps = (
         await session.exec(select(GuildApp).where(GuildApp.guild_id == guild_id))
@@ -227,7 +259,7 @@ async def find_mounting_app(
         if (app.definition or {}).get("app_kind") != "tool_instance":
             continue
         if (app.definition or {}).get("tool") == tool:
-            return app
+            return app if not for_update else await lock_install(session, app.id)
     return None
 
 

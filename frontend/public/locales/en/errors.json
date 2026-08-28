@@ -415,7 +415,7 @@
   "GUILD_APP_CONFIG_REQUIRED_FIELD": "Fill in every required field before saving.",
   "GUILD_APP_CONFIG_MANAGED_FIELD": "The app fills this in itself when you connect — you can't type it here.",
   "GUILD_APP_CONNECTION_NOT_FOUND": "That connection isn't part of this app.",
-  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "This connection uses one credential for the whole guild, so there's no account to connect.",
+  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "This connection is filled in from the settings form, so there is no vendor to send you to.",
   "GUILD_APP_CONNECTION_NOT_STATIC": "This connection is each member's own, so it's connected rather than filled in.",
   "GUILD_APP_CONNECTION_BLOCKED": "A guild admin has stopped you connecting this.",
   "GUILD_APP_DISABLED": "This app is turned off, so nothing flows through it.",

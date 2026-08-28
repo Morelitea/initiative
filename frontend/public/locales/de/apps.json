@@ -63,6 +63,7 @@
     "cleared": "Zugangsdaten gelöscht.",
     "memberSet": "Eine Gildenadministration hat das eingerichtet.",
     "memberNotSet": "Eine Gildenadministration muss das noch einrichten.",
+    "guildFlowExplainer": "Diese wird beim Anbieter erteilt statt eingetippt. Beim Verbinden öffnet sich dessen Installationsseite, wo du das Konto wählst und was diese App sehen darf.",
     "personalExplainer": "Hier meldest du dich als du selbst an, deshalb verbindet jedes Mitglied sein eigenes Konto. Deins sieht sonst niemand.",
     "connect": "Verbinden",
     "reconnect": "Neu verbinden",

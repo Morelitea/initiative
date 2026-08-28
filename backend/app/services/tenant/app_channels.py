@@ -45,6 +45,7 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
+from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant.webhook_dispatcher import dispatch_event
 
 logger = logging.getLogger(__name__)
@@ -478,7 +479,7 @@ async def write_connection_values(
     status: Optional[str] = None,
     account_label: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Store what a vendor flow produced for one member's connection.
+    """Store what a vendor flow produced.
 
     The app runs the flow at its own URL and writes the result here, which is
     what makes Initiative the custodian of a credential the app obtained: the
@@ -486,9 +487,25 @@ async def write_connection_values(
     at 03:05. Only fields the manifest marked ``managed`` may be written this
     way — everything else on a connection is typed by a person.
 
+    The handle says which of two things is being written. A ref this install
+    minted for one of its own guild-wide connections is the credential the whole
+    guild uses, and it lives on the install row; anything else is looked up
+    among the per-member rows. An app cannot confuse them, because it never
+    invents a ref: it is handed one, and one nobody minted resolves to neither.
+
     A connection an admin blocked is refused: the block exists precisely to stop
     that member's access coming back.
     """
+    guild_connection = app_config_service.connection_id_for_ref(app, connection_ref)
+    if guild_connection is not None:
+        return await _write_guild_connection(
+            session,
+            app,
+            connection_id=guild_connection,
+            connection_ref=connection_ref,
+            values=values,
+        )
+
     row = await _row_by_ref(session, app, connection_ref)
     if row.blocked_at is not None:
         raise AppChannelError(AppChannelMessages.CONNECTION_BLOCKED, status_code=403)
@@ -529,6 +546,98 @@ async def write_connection_values(
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }
+
+
+async def _write_guild_connection(
+    session: AsyncSession,
+    app: GuildApp,
+    *,
+    connection_id: str,
+    connection_ref: str,
+    values: dict[str, Any],
+) -> dict[str, Any]:
+    """Store what an admin's vendor flow produced for the whole guild.
+
+    The same custody as a member's, one row up: the values land on the install
+    beside the ones an admin types, so clearing the connection, uninstalling the
+    app or moving to a version that no longer declares it take this with them.
+
+    Two arguments the member path has are absent here, and their absence is the
+    point rather than an omission. A ``status`` is not one of them, because a
+    guild connection has no row of its own to hold one — what it holds is
+    values, and whether they add up to a working connection is read off them
+    wherever it is asked. And there is no ``account_label``: a member's is the
+    only way an admin can see whose account was connected without being shown
+    the credential, whereas a guild connection's non-secret values are already
+    visible to the admin who governs it, so the vendor account belongs in a
+    field the manifest declares rather than in a label beside one.
+    """
+    # Both configuration maps are rewritten whole below, so the row is taken
+    # first: a second write-back, or an admin saving the settings form, would
+    # otherwise rebuild from a copy read before this one landed and put back
+    # what it never saw.
+    locked = await guild_apps_service.lock_install(session, app.id)
+    if locked is None:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+    app = locked
+
+    # Asked again now the row is held, because the wait is long enough for the
+    # answer to have changed: an upgrade may have moved the install to a version
+    # that declares no such connection, and an admin may have cleared this one,
+    # which drops the handle. Whatever was true when this request arrived is not
+    # what it gets to act on.
+    if app_config_service.connection_id_for_ref(app, connection_ref) != connection_id:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+
+    connection = app_config_service.connection_by_id(app.definition, connection_id)
+    if connection is None:
+        # The install moved to a version that no longer declares this
+        # connection; its values are on their way out with it.
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+
+    try:
+        config, secrets = app_config_service.apply_connection_values(
+            connection,
+            values,
+            current=(app.config or {}).get(connection_id) or {},
+            current_secrets=(app.config_secrets or {}).get(connection_id) or {},
+            allow_managed=True,
+        )
+    except app_config_service.AppConfigError as exc:
+        raise AppChannelError(exc.code) from exc
+
+    # An emptied connection is stored as absent rather than as an empty map, so
+    # "has anything been configured here?" has one shape — the same rule the
+    # pruning and the admin's own form already keep.
+    app.config = _stored(app.config, connection_id, config)
+    app.config_secrets = _stored(app.config_secrets, connection_id, secrets)
+    app.updated_at = datetime.now(timezone.utc)
+    session.add(app)
+    await session.commit()
+    await session.refresh(app)
+
+    return {
+        "connection_id": connection_id,
+        "connection_ref": connection_ref,
+        "status": "connected"
+        if app_config_service.is_satisfied(connection, config, secrets)
+        else "pending",
+        "blocked": False,
+        "account_label": None,
+        "created_at": app.created_at,
+        "updated_at": app.updated_at,
+    }
+
+
+def _stored(
+    current: dict[str, Any] | None, connection_id: str, values: dict[str, Any]
+) -> dict[str, Any]:
+    kept = {
+        key: value for key, value in (current or {}).items() if key != connection_id
+    }
+    if values:
+        kept[connection_id] = values
+    return kept
 
 
 def _resolved_status(

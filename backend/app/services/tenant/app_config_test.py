@@ -20,12 +20,15 @@ from app.services.tenant.app_config import (
     AppConfigError,
     apply_connection_values,
     connection_by_id,
+    connection_id_for_ref,
     decrypt_connection_secrets,
     definition_connections,
+    guild_connection_ref,
     has_value_map,
     is_satisfied,
     needs_configuration,
     prune_to_definition,
+    runs_vendor_flow,
 )
 
 pytestmark = pytest.mark.unit
@@ -57,10 +60,31 @@ MEMBER_CONNECTION = {
     "fields": [_field("access_token", "secret", managed=True)],
 }
 
+#: A guild-wide credential obtained rather than typed.
+#:
+#: The vendor authorizes an organization through a page of its own, so an admin
+#: is sent there and the app writes down what came back. Same scope as
+#: ``ADMIN_CONNECTION`` — one credential for everybody — and a different way of
+#: arriving at one.
+WORKSPACE_CONNECTION = {
+    "id": "workspace",
+    "scope": "static",
+    "label": {"en": "Organization"},
+    "connect_path": "/install/github",
+    "fields": [_field("owner", "string", required=True, managed=True)],
+}
+
 DEFINITION = {
     "app_kind": "service",
     "connections": [ADMIN_CONNECTION, MEMBER_CONNECTION],
 }
+
+
+class _Install:
+    """Just enough of a ``GuildApp`` row for the handle helpers."""
+
+    def __init__(self, refs=None):
+        self.connection_refs = refs if refs is not None else {}
 
 
 def _apply(submitted: dict, *, current=None, secrets=None, **kwargs):
@@ -294,3 +318,90 @@ class TestPruningToANewDefinition:
         config, _, dropped = prune_to_definition(DEFINITION, stored, {})
         assert config == stored
         assert dropped == set()
+
+
+class TestWhichConnectionsRunAFlow:
+    def test_a_flow_is_a_connect_path_and_not_a_scope(self):
+        """Two independent questions, and they used to look like one.
+
+        The scope says whose credential comes back. The ``connect_path`` says
+        whether a vendor is involved in getting it. A guild-wide connection may
+        have one, and an admin running an organization-wide install is the case
+        it exists for.
+        """
+        assert runs_vendor_flow(MEMBER_CONNECTION) is True
+        assert runs_vendor_flow(WORKSPACE_CONNECTION) is True
+        assert runs_vendor_flow(ADMIN_CONNECTION) is False
+        assert runs_vendor_flow(None) is False
+
+
+class TestTheHandleAGuildFlowIsJoinedBy:
+    def test_a_handle_is_minted_onto_the_install_and_kept(self):
+        """Reconnecting writes over one connection rather than making a second.
+
+        A fresh handle each time would leave the app holding one this side no
+        longer recognizes, so the write-back at the end of the flow an admin
+        actually completed would be refused.
+        """
+        install = _Install()
+        first = guild_connection_ref(install, "workspace")
+
+        assert first
+        assert install.connection_refs == {"workspace": first}
+        assert guild_connection_ref(install, "workspace") == first
+
+    def test_each_connection_gets_its_own(self):
+        install = _Install()
+        one = guild_connection_ref(install, "workspace")
+        two = guild_connection_ref(install, "billing")
+
+        assert one != two
+        assert set(install.connection_refs) == {"workspace", "billing"}
+
+    def test_the_column_is_reassigned_rather_than_mutated(self):
+        """SQLAlchemy tracks a JSONB column by identity.
+
+        A dict changed in place under it is a change that never lands, and the
+        symptom is a handle handed to an app that this side then refuses.
+        """
+        held = {}
+        install = _Install(held)
+        guild_connection_ref(install, "workspace")
+
+        assert held == {}
+        assert install.connection_refs != held
+
+    def test_a_handle_resolves_back_to_the_connection_it_names(self):
+        install = _Install()
+        ref = guild_connection_ref(install, "workspace")
+
+        assert connection_id_for_ref(install, ref) == "workspace"
+
+    def test_a_handle_nobody_minted_names_nothing(self):
+        """A handle this install never minted names none of its connections.
+
+        ``None`` is also the ordinary answer for a member's handle, which lives
+        on a row of its own and not here.
+        """
+        install = _Install({"workspace": "gcr_real"})
+
+        assert connection_id_for_ref(install, "gcr_invented") is None
+        assert connection_id_for_ref(install, "") is None
+        assert connection_id_for_ref(_Install(), "gcr_real") is None
+
+
+class TestAFlowFilledConnectionIsStillConfiguration:
+    def test_an_install_needs_configuring_until_the_flow_has_run(self):
+        """Nobody types anything, and it is still unfinished until it is done.
+
+        Satisfaction is presence, wherever the values came from — so the
+        settings page says an admin still has something to do, and what they
+        have to do is press Connect.
+        """
+        definition = {"app_kind": "service", "connections": [WORKSPACE_CONNECTION]}
+
+        assert needs_configuration(definition, {}, {}) is True
+        assert (
+            needs_configuration(definition, {"workspace": {"owner": "acme"}}, {})
+            is False
+        )

@@ -1,4 +1,13 @@
 {
   "biome.lsp.bin": "frontend/node_modules/.bin/biome",
   "biome.configurationPath": "frontend/biome.jsonc",
+
+  // The Python extensions activate the virtualenv by TYPING the activate
+  // command into the terminal, which interrupts whatever that terminal is
+  // running — the dev launch dies mid-startup when it lands. Every script in
+  // scripts/ sources backend/.venv itself and the debug config points at its
+  // interpreter directly, so nothing here needs the terminal activation.
+  "python-envs.terminal.autoActivationType": "off",
+  "python.terminal.activateEnvironment": false,
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python"
 }

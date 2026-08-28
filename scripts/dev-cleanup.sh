@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Stop dev servers and remove seeded dev data.
 #
-#   dev-cleanup.sh                stop the servers, then remove the seeded data
-#   dev-cleanup.sh --data-only    remove the seeded data, leave the ports alone
+#   dev-cleanup.sh                 stop the servers, then remove the seeded data
+#   dev-cleanup.sh --data-only     remove the seeded data, leave the ports alone
+#   dev-cleanup.sh --ports-only    stop the servers, leave the seeded data
 #
-# --data-only is for a launch that failed before it started a server: the data
-# is this launch's to remove, the ports belong to whoever is listening on them.
+# --data-only is for clearing the data without touching the ports — a launch
+# clearing a partial seed before it starts anything of its own, where whatever
+# is listening on the dev ports belongs to somebody else.
+#
+# --ports-only is the other half: claim the dev ports from a previous run
+# without disturbing data this launch is about to keep using.
 #
 # This is the teardown path, so it never aborts partway: a missing venv or an
 # unreachable database must not leave the servers running or skip the data
@@ -16,10 +21,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/dev-ports.sh"
 
 stop_servers=true
+clean_data=true
 case "${1:-}" in
     --data-only) stop_servers=false ;;
+    --ports-only) clean_data=false ;;
     "") ;;
-    *) echo "usage: dev-cleanup.sh [--data-only]" >&2; exit 2 ;;
+    *) echo "usage: dev-cleanup.sh [--data-only|--ports-only]" >&2; exit 2 ;;
 esac
 
 status=0
@@ -74,6 +81,10 @@ if [ "$stop_servers" = true ]; then
         { pkill -f "$checkout_root/frontend/node_modules/.*vite" 2>/dev/null || true; }
 
     echo "Servers stopped."
+fi
+
+if [ "$clean_data" = false ]; then
+    exit "$status"
 fi
 
 if ! cd "$SCRIPT_DIR/../backend"; then

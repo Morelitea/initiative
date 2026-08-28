@@ -415,7 +415,7 @@
   "GUILD_APP_CONFIG_REQUIRED_FIELD": "Rellena todos los campos obligatorios antes de guardar.",
   "GUILD_APP_CONFIG_MANAGED_FIELD": "La aplicación lo rellena sola al conectarte: aquí no puedes escribirlo.",
   "GUILD_APP_CONNECTION_NOT_FOUND": "Esa conexión no forma parte de esta aplicación.",
-  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Esta conexión usa una sola credencial para todo el gremio, así que no hay ninguna cuenta que conectar.",
+  "GUILD_APP_CONNECTION_NOT_INTERACTIVE": "Esta conexión se rellena desde el formulario de ajustes, así que no hay ningún proveedor al que enviarte.",
   "GUILD_APP_CONNECTION_NOT_STATIC": "Esta conexión es la de cada miembro, así que se conecta en lugar de rellenarse.",
   "GUILD_APP_CONNECTION_BLOCKED": "Un administrador del gremio te ha impedido conectar esto.",
   "GUILD_APP_DISABLED": "Esta aplicación está desactivada, así que no pasa nada por ella.",

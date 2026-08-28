@@ -88,11 +88,18 @@ FEATURES: frozenset[str] = contract.enum("feature")
 #: added to one of them.
 FEATURE_BLOCKS: dict[str, str] = {feature: feature for feature in sorted(FEATURES)}
 
-#: Who supplies a connection's credential, which decides its scope.
+#: Whose credential a connection holds — not how it is obtained.
 #:
-#: ``static`` — a guild admin types it in, and the whole guild uses it.
-#: ``interactive`` — the app runs a vendor flow behind its ``connect_path`` and
-#: each member connects their own account.
+#: ``static`` — one credential the whole guild uses.
+#: ``interactive`` — each member's own account at a vendor that authorizes
+#: people, and never anybody else's.
+#:
+#: A ``connect_path`` is the second question, asked of either: with one, the app
+#: runs the vendor's flow, and the scope decides who is sent — every member for
+#: their own account, or a guild admin once, for the guild. Without one, a
+#: static connection is a form an admin types into. Some vendors leave no
+#: choice: an organization-wide install is a page at the vendor with a button
+#: on it, and no string an admin retypes here is the same thing.
 CONNECTION_SCOPES: frozenset[str] = contract.enum("connectionScope")
 
 #: Field kinds a connection form can render. The same closed enum the automation
@@ -386,8 +393,8 @@ def _field(
     # value or an array is not something a consumer can infer.
     if allow_list and field.get("list") is True:
         cleaned["list"] = True
-    # Keys the app writes back itself, rather than the admin typing them: an
-    # interactive flow returns its result through the app's own write path.
+    # Keys the app writes back itself, rather than the admin typing them: a
+    # vendor flow returns its result through the app's own write path.
     if allow_managed and field.get("managed") is True:
         cleaned["managed"] = True
     return cleaned
@@ -463,11 +470,26 @@ def _connection(raw: Any) -> dict[str, Any]:
         fail(f"{what}: a static connection must declare at least one field")
 
     connect_path = connection.get("connect_path")
-    if scope == "interactive":
-        # The route the member is sent to so the app can run the vendor's flow.
+    if scope == "interactive" or connect_path is not None:
+        # Where a person is sent so the app can run the vendor's flow. Required
+        # on an interactive connection, which has no other way to be filled at
+        # all; offered on a static one, where it is the difference between an
+        # admin typing an organization's name into a box and an admin running
+        # the vendor's own install, on the vendor's page, for the whole guild.
         cleaned["connect_path"] = check_path(connect_path, what=f"{what} connect_path")
-    elif connect_path is not None:
-        fail(f"{what}: only an interactive connection has a connect_path")
+
+    if (
+        scope == "static"
+        and connect_path is not None
+        and not any(field.get("managed") is True for field in fields)
+    ):
+        # The app writing back is the only way a static connection with a flow
+        # is ever satisfied, so one with nothing managed to write into can do
+        # nothing but leave the install unconfigured forever.
+        fail(
+            f"{what}: a static connection with a connect_path must declare a "
+            "managed field for the flow to write into"
+        )
 
     hint = _access_hint(connection.get("access_hint"), what=what)
     if hint is not None:
