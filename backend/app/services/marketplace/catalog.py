@@ -56,6 +56,7 @@ __all__ = [
     "get_listing_version",
     "resolve_installable_version",
     "listing_versions",
+    "published_uids",
     "upsert_listing",
     "withdraw_listing",
     "withdraw_builtins_except",
@@ -491,6 +492,37 @@ async def upsert_listing(
         )
 
     return listing
+
+
+def published_uids(manifest: dict[str, Any]) -> set[str]:
+    """Every uid publishing one manifest creates a listing for: its own, plus
+    the dashboards it bundles.
+
+    A bundled dashboard's uid is written only inside its app's manifest, so the
+    manifest is the only place a caller can learn it. Both catalog sources —
+    the shipped build and the operator's directory — sweep what they no longer
+    publish by comparing the rows against the uids their files name, and a
+    sweep that names fewer uids than the publish created retires a row the same
+    pass just wrote.
+
+    Read off the raw manifest, before validation: a file that is present claims
+    what it names whether or not it published, so a manifest with a mistake in
+    it leaves the listings it names exactly as they were. A ``dashboards`` block
+    that is not shaped like one contributes nothing here and is reported by the
+    validator on the publish attempt.
+    """
+    uids = {str(manifest.get("uid", ""))}
+
+    definition = manifest.get("definition")
+    if not isinstance(definition, dict):
+        return uids
+    entries = definition.get("dashboards")
+    if not isinstance(entries, list):
+        return uids
+    for entry in entries:
+        if isinstance(entry, dict) and "uid" in entry:
+            uids.add(str(entry["uid"]))
+    return uids
 
 
 async def _publish_bundled_dashboards(

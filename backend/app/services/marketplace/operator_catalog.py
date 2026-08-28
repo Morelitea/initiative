@@ -53,6 +53,7 @@ from app.services.marketplace.catalog import (
     CatalogError,
     get_listing,
     get_listing_by_uid,
+    published_uids,
     upsert_listing,
     withdraw_listing,
 )
@@ -321,7 +322,9 @@ async def _scan(session: AsyncSession, root: Path) -> OperatorScanResult:
 
     published = 0
     # Every uid a file claims, whether or not it published — see _withdraw_absent.
-    claimed: set[str] = {str(m.get("uid", "")) for _, m in manifests}
+    claimed: set[str] = set()
+    for _, manifest in manifests:
+        claimed |= published_uids(manifest)
 
     for filename, manifest in manifests:
         conflict = await _source_conflict(session, manifest)

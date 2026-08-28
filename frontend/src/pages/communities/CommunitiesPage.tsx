@@ -69,10 +69,31 @@ export function CommunitiesPage() {
   const directoryOff =
     !communityDirectoryEnabled || getErrorCode(directory.error) === "COMMUNITY_DIRECTORY_DISABLED";
 
-  const heading = (
-    <div className="space-y-1">
-      <h1 className="font-semibold text-3xl tracking-tight">{t("guilds:community.title")}</h1>
-      <p className="text-muted-foreground text-sm">{t("guilds:community.subtitle")}</p>
+  // The page's title sits on the banner rather than above it. The banner is a
+  // fixed light-toned image, so its words are held at a dark neutral instead of
+  // the theme's foreground — the theme changes under them, the image does not.
+  // The words carry a halo of the artwork's own light rather than sitting on a
+  // panel of it, so the detail behind them stays visible.
+  //
+  // The copy sets the height and the image fills in behind it, rather than the
+  // image setting a height the copy is laid over: a translation that wraps to
+  // more lines on a narrow screen opens the banner up instead of running past
+  // its edge. The minimums give it presence on the screens where it doesn't.
+  const hero = (
+    <div className="relative overflow-hidden rounded-xl">
+      <img
+        src="/images/community-banner.webp"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="relative flex min-h-40 flex-col justify-center gap-1 px-6 py-8 sm:min-h-56 sm:gap-2 sm:px-10 lg:min-h-64">
+        <h1 className="text-balance font-semibold text-2xl text-neutral-900 tracking-tight [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)] sm:text-3xl lg:text-4xl">
+          {t("guilds:community.heroTitle")}
+        </h1>
+        <p className="max-w-xl text-neutral-800 text-sm [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)] lg:text-base">
+          {t("guilds:community.heroSubtitle")}
+        </p>
+      </div>
     </div>
   );
 
@@ -80,7 +101,7 @@ export function CommunitiesPage() {
   if (!configLoading && directoryOff) {
     return (
       <div className="space-y-6">
-        {heading}
+        {hero}
         <StatusMessage
           icon={<CloudOff />}
           title={t("guilds:community.disabledTitle")}
@@ -92,7 +113,7 @@ export function CommunitiesPage() {
 
   return (
     <div className="space-y-6">
-      {heading}
+      {hero}
 
       {directory.isError ? (
         // A directory that failed to answer is not a directory with nothing

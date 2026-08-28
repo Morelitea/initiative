@@ -29,6 +29,7 @@ export interface AppServiceFormValues {
   delegation: boolean;
   /** Parsed JWKS, or null to leave the stored key set untouched. */
   delegationJwks: Record<string, unknown> | null;
+  appDirectory: boolean;
   mandatory: boolean;
 }
 
@@ -40,6 +41,7 @@ interface FormState {
   secret: string;
   delegation: boolean;
   delegationJwks: string;
+  appDirectory: boolean;
   mandatory: boolean;
 }
 
@@ -51,6 +53,7 @@ const EMPTY_FORM: FormState = {
   secret: "",
   delegation: false,
   delegationJwks: "",
+  appDirectory: false,
   mandatory: false,
 };
 
@@ -99,6 +102,7 @@ export const AppServiceFormDialog = ({
         delegationJwks: editing.delegation_jwks
           ? JSON.stringify(editing.delegation_jwks, null, 2)
           : "",
+        appDirectory: hasGrant(editing, "app_directory"),
         mandatory: editing.mandatory,
       });
       setJwksError(null);
@@ -142,6 +146,7 @@ export const AppServiceFormDialog = ({
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
       secret: replaceSecret && form.secret ? form.secret : null,
       delegation: form.delegation,
+      appDirectory: form.appDirectory,
       mandatory: form.mandatory,
     });
   };
@@ -299,6 +304,22 @@ export const AppServiceFormDialog = ({
                 {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
               </div>
             )}
+            <div className="flex items-start justify-between gap-3 pt-1">
+              <div>
+                <Label htmlFor="app-service-app-directory" className="font-medium">
+                  {t("appServices.appDirectoryLabel")}
+                </Label>
+                <p className="text-muted-foreground text-xs">{t("appServices.appDirectoryHelp")}</p>
+              </div>
+              <Switch
+                id="app-service-app-directory"
+                checked={form.appDirectory}
+                onCheckedChange={(checked) =>
+                  setForm((prev) => ({ ...prev, appDirectory: Boolean(checked) }))
+                }
+              />
+            </div>
+
             <div className="flex items-start justify-between gap-3 pt-1">
               <div>
                 <Label htmlFor="app-service-mandatory" className="font-medium">

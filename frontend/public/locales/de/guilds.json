@@ -322,7 +322,8 @@
   },
   "community": {
     "title": "Communitys",
-    "subtitle": "Gilden, die neue Mitglieder ohne Einladung aufnehmen.",
+    "heroTitle": "Niemand baut eine Welt allein",
+    "heroSubtitle": "Egal ob Pen & Paper, Musik oder Wissenschaft: Hier wartet eine Gilde mit einem Platz für dich.",
     "browse": "Community beitreten",
     "searchPlaceholder": "Communitys durchsuchen",
     "categoriesHeading": "Kategorien",

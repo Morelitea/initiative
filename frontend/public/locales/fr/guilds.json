@@ -322,7 +322,8 @@
   },
   "community": {
     "title": "Communautés",
-    "subtitle": "Les guildes qui accueillent de nouveaux membres sans invitation.",
+    "heroTitle": "Personne ne bâtit un monde seul",
+    "heroSubtitle": "Quelle que soit votre passion, du jeu de rôle à la musique en passant par les sciences, une guilde ici vous garde une place.",
     "browse": "Rejoindre une communauté",
     "searchPlaceholder": "Rechercher des communautés",
     "categoriesHeading": "Catégories",

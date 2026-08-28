@@ -322,7 +322,8 @@
   },
   "community": {
     "title": "Communities",
-    "subtitle": "Guilds that welcome new members without an invite.",
+    "heroTitle": "Nobody builds a world alone",
+    "heroSubtitle": "Whatever you're into, from tabletop to music to science, a guild here has a seat with your name on it.",
     "browse": "Join a community",
     "searchPlaceholder": "Search communities",
     "categoriesHeading": "Categories",
