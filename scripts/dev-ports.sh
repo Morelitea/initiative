@@ -85,9 +85,14 @@ elif [ -z "${DEV_PORT_OFFSET:-}" ]; then
     DEV_PORT_OFFSET="$(_dev_ports_allocate "$DEV_PORTS_ROOT" || true)"
     if [ -z "$DEV_PORT_OFFSET" ]; then
         # No usable registry (read-only HOME, say). Fall back to a digest of the
-        # path: stable and usually distinct, but it can collide — pre-launch says
-        # so plainly if it does, and DEV_BACKEND_PORT/DEV_FRONTEND_PORT settle it.
+        # path: stable and usually distinct, but it can land on another
+        # checkout's pair. Say so, because that is the one mode where these
+        # ports are not guaranteed to be this checkout's alone — pre-launch
+        # refuses a port that is in use, and DEV_BACKEND_PORT/DEV_FRONTEND_PORT
+        # settle it for good.
         DEV_PORT_OFFSET=$(( (16#${DEV_CHECKOUT_ID:0:6} % 999) + 1 ))
+        echo "dev-ports: cannot use $DEV_PORTS_REGISTRY — falling back to derived" >&2
+        echo "dev-ports: ports $((8000 + DEV_PORT_OFFSET))/$((5173 + DEV_PORT_OFFSET)), which another checkout could share." >&2
     fi
 fi
 

@@ -25,7 +25,6 @@ helpers are idempotent.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import os
 from pathlib import Path
 from typing import Iterator
@@ -38,7 +37,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.core.config import settings
-from conftest import connect_su_postgres
+from conftest import CHECKOUT_ID, connect_su_postgres
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
@@ -90,12 +89,9 @@ AUTHOR_FOREIGN_KEY_TABLES = (
 # checkouts drop/recreate the same DB — these tests DROP their database, so a
 # shared name is destructive rather than merely flaky. Same key as conftest's
 # TEST_DB_NAME: xdist's worker id verbatim ("gw0"/… distributed, "master"
-# standalone), plus a digest of this checkout's path.
+# standalone), plus conftest's digest of this checkout's path.
 _WORKER = os.environ.get("PYTEST_XDIST_WORKER", "master")
-_CHECKOUT = hashlib.sha256(
-    str(Path(__file__).resolve().parent.parent).encode()
-).hexdigest()[:8]
-MIGRATIONS_DB_NAME = f"initiative_migrations_test_{_CHECKOUT}_{_WORKER}"
+MIGRATIONS_DB_NAME = f"initiative_migrations_test_{CHECKOUT_ID}_{_WORKER}"
 _BASE_DB_URL = settings.DATABASE_URL.rsplit("/", 1)[0]
 MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
 
@@ -106,7 +102,7 @@ MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
 # for the same reason the database is: the teardown drops every role matching
 # this prefix, so a prefix shared with another checkout would take that
 # checkout's roles with it.
-_MIGRATIONS_ROLE_PREFIX = f"migtest_{_CHECKOUT}_{_WORKER}_"
+_MIGRATIONS_ROLE_PREFIX = f"migtest_{CHECKOUT_ID}_{_WORKER}_"
 
 # Same advisory-lock KEY as conftest._run_test_migrations — a cluster-wide
 # pg_advisory_lock serializes ALL migration runs across xdist workers (and across

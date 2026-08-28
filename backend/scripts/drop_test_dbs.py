@@ -29,8 +29,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.config import settings  # noqa: E402
 
+# Must match conftest.CHECKOUT_ID, which is the definition — importing conftest
+# here would pull in the whole app, so the level is spelled out instead:
+# parents[2] is the repo root from backend/scripts/drop_test_dbs.py.
 CHECKOUT_ID = hashlib.sha256(
-    str(Path(__file__).resolve().parent.parent.parent).encode()
+    str(Path(__file__).resolve().parents[2]).encode()
 ).hexdigest()[:8]
 
 

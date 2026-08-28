@@ -58,8 +58,10 @@ from app.main import app
 #                roles. The path is used rather than the branch so the key survives
 #                a rename or a branch switch mid-run.
 WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
+# parents[1] is the repo root — backend/conftest.py. scripts/dev-ports.sh keys
+# the dev ports off the same directory, so one id names a checkout everywhere.
 CHECKOUT_ID = hashlib.sha256(
-    str(Path(__file__).resolve().parent.parent).encode()
+    str(Path(__file__).resolve().parents[1]).encode()
 ).hexdigest()[:8]
 RUN_ID = f"{CHECKOUT_ID}_{WORKER_ID}"
 
