@@ -5,19 +5,17 @@
       // The whole dev flow behind one button: dev:setup brings up Postgres,
       // migrates, seeds, and starts Vite (which opens the browser), then this
       // session runs the API itself so backend breakpoints work. Stopping the
-      // session runs dev:cleanup — servers down, seeded data removed.
+      // session runs dev:cleanup — servers down, seeded data removed. Works in
+      // any worktree: every part of the chain resolves its own ports.
       "name": "Dev Environment",
       "type": "debugpy",
       "request": "launch",
-      "module": "uvicorn",
-      "args": [
-        "app.main:app",
-        "--reload",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000"
-      ],
+      // Runs uvicorn in-process rather than as a module, because this file
+      // cannot run a shell to find out which port a linked worktree was
+      // allocated. The launcher asks scripts/dev-ports.sh and starts the same
+      // server, so breakpoints behave identically and every worktree's debug
+      // session lands on its own port.
+      "program": "${workspaceFolder}/backend/scripts/dev_api.py",
       "cwd": "${workspaceFolder}/backend",
       "python": "${workspaceFolder}/backend/.venv/bin/python",
       "console": "integratedTerminal",

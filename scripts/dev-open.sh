@@ -7,8 +7,12 @@
 # --open fires the moment Vite is listening, seconds before the API exists,
 # which lands the app on its "no server" screen.
 set -e
-APP_URL="${DEV_APP_URL:-http://localhost:5173}"
-API_URL="${DEV_API_URL:-http://localhost:8000/api/v1/version}"
+# This checkout's ports — the URLs below have to point at the servers this
+# launch started, not at whatever holds the default pair.
+. "$(cd "$(dirname "$0")" && pwd)/dev-ports.sh"
+[ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
+APP_URL="${DEV_APP_URL:-http://localhost:$DEV_FRONTEND_PORT}"
+API_URL="${DEV_API_URL:-http://localhost:$DEV_BACKEND_PORT/api/v1/version}"
 TIMEOUT="${DEV_OPEN_TIMEOUT:-180}"
 
 open_url() {

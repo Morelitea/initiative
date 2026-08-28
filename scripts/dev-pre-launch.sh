@@ -10,6 +10,11 @@
 # attempt. A seed cut short that way is cleared at the top of the next launch.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# This checkout's ports, log paths and frontend API URLs. The main working tree
+# keeps 8000/5173; linked worktrees get their own pair so several run at once.
+. "$SCRIPT_DIR/dev-ports.sh"
+# dev-ports.sh has already said why if it could not resolve them.
+[ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
 cd "$SCRIPT_DIR/.."
 
 BACKEND_PID=""
@@ -48,6 +53,31 @@ abort_startup() {
 }
 trap abort_startup INT TERM HUP
 
+# A server left over from a previous run holds open database sessions, and the
+# seed below drops the guild schemas those sessions are sitting in. These ports
+# are this checkout's, so what is on them is this checkout's to stop — the
+# equivalent of the VSCode chain's dev:free-ports task.
+bash scripts/dev-cleanup.sh --ports-only
+
+port_holder() {
+    if command -v lsof &>/dev/null; then
+        lsof -ti:"$1" 2>/dev/null | head -1
+    elif command -v fuser &>/dev/null; then
+        fuser "$1"/tcp 2>/dev/null | tr -d ' ' | head -1
+    fi
+}
+# Anything still on a port after that sweep is something this checkout could
+# not stop; say so rather than letting uvicorn or Vite fail to bind later.
+for spec in "backend:$DEV_BACKEND_PORT" "frontend:$DEV_FRONTEND_PORT"; do
+    holder=$(port_holder "${spec#*:}")
+    if [ -n "$holder" ]; then
+        echo "Port ${spec#*:} (${spec%%:*}) is still held by pid $holder after the sweep above." >&2
+        echo "It belongs to something this checkout cannot stop. Stop it yourself, or pin" >&2
+        echo "this checkout elsewhere with DEV_BACKEND_PORT / DEV_FRONTEND_PORT." >&2
+        exit 1
+    fi
+done
+
 docker compose up db -d --wait
 
 # A seed that stopped partway left rows the next one would collide with. Clear
@@ -68,17 +98,17 @@ pending_signal=false
 trap 'pending_signal=true' INT TERM HUP
 
 # Start the backend in the background (uvicorn with --reload, port-cleanup built in).
-nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
+nohup bash scripts/dev-backend.sh > "$DEV_BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 # Start the frontend in the background (Vite, port-cleanup built in).
-nohup bash scripts/dev-frontend.sh > /tmp/initiative-frontend.log 2>&1 &
+nohup bash scripts/dev-frontend.sh > "$DEV_FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 # Open the browser once both servers actually answer, rather than the moment
 # Vite binds its port — the API is still booting then, and the app lands on its
 # "no server" screen. Same opener the VSCode launch uses.
-nohup bash scripts/dev-open.sh > /tmp/initiative-open.log 2>&1 &
+nohup bash scripts/dev-open.sh > "$DEV_OPEN_LOG" 2>&1 &
 OPEN_PID=$!
 
 # The environment is up and both pids are recorded, so the servers, the ports
@@ -90,9 +120,9 @@ if [ "$pending_signal" = true ]; then
 fi
 
 echo
-echo "Dev environment starting:"
-echo "  Backend:  http://localhost:8000   (logs: /tmp/initiative-backend.log)"
-echo "  Frontend: http://localhost:5173   (logs: /tmp/initiative-frontend.log)"
+echo "Dev environment starting (checkout $DEV_CHECKOUT_ID):"
+echo "  Backend:  http://localhost:$DEV_BACKEND_PORT   (logs: $DEV_BACKEND_LOG)"
+echo "  Frontend: http://localhost:$DEV_FRONTEND_PORT   (logs: $DEV_FRONTEND_LOG)"
 echo "  Stop:     press Ctrl+C in this terminal (or run bash scripts/dev-cleanup.sh)"
 echo
 
@@ -119,8 +149,8 @@ kill -0 "$BACKEND_PID" 2>/dev/null && backend_up=true
 kill -0 "$FRONTEND_PID" 2>/dev/null && frontend_up=true
 if [ "$cleanup_done" = false ]; then
     if [ "$backend_up" = false ] && [ "$frontend_up" = true ]; then
-        echo "Backend exited — see /tmp/initiative-backend.log"
+        echo "Backend exited — see $DEV_BACKEND_LOG"
     elif [ "$frontend_up" = false ] && [ "$backend_up" = true ]; then
-        echo "Frontend exited — see /tmp/initiative-frontend.log"
+        echo "Frontend exited — see $DEV_FRONTEND_LOG"
     fi
 fi

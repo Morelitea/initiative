@@ -17,6 +17,10 @@
 # clean. Each step reports what went wrong and the exit code reflects it.
 set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# This checkout's ports — never another worktree's.
+. "$SCRIPT_DIR/dev-ports.sh"
+# dev-ports.sh has already said why if it could not resolve them.
+[ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
 
 stop_servers=true
 clean_data=true
@@ -65,13 +69,32 @@ stop_port() {
 
 if [ "$stop_servers" = true ]; then
     echo "Stopping dev servers..."
-    stop_port 8000 "backend"
-    stop_port 5173 "frontend"
+    stop_port "$DEV_BACKEND_PORT" "backend"
+    stop_port "$DEV_FRONTEND_PORT" "frontend"
 
     # Fallbacks for servers that are up but not listening yet (killed
-    # mid-startup, or still binding the port).
-    pkill -f "uvicorn app.main:app" 2>/dev/null || true
-    pkill -f "vite" 2>/dev/null || true
+    # mid-startup, or still binding the port). Matched on this checkout's own
+    # paths so another worktree's dev servers are left alone — and skipped
+    # rather than broadened if a path isn't there to match against.
+    #
+    # `pkill -f` takes a regex, and a checkout path can hold characters a regex
+    # reads as operators (`.` alone would match a neighbouring worktree whose
+    # name differs in that one place). Pair `ps` with `grep -F` instead, so the
+    # path is compared literally. No single line carries both patterns, so the
+    # greps in this pipeline can't match each other.
+    stop_stray() {
+        local path_part="$1" name_part="$2"
+        ps -eo pid=,args= 2>/dev/null |
+            grep -F "$path_part" |
+            grep -F "$name_part" |
+            awk '{print $1}' |
+            xargs -r kill 2>/dev/null || true
+    }
+    checkout_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+    [ -d "$checkout_root/backend" ] &&
+        stop_stray "$checkout_root/backend/" "uvicorn"
+    [ -d "$checkout_root/frontend" ] &&
+        stop_stray "$checkout_root/frontend/" "vite"
 
     echo "Servers stopped."
 fi

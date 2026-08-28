@@ -37,7 +37,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.core.config import settings
-from conftest import connect_su_postgres
+from conftest import CHECKOUT_ID, connect_su_postgres
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
@@ -85,18 +85,24 @@ AUTHOR_FOREIGN_KEY_TABLES = (
     ("import_jobs", "created_by_id"),
 )
 
-# Per-worker so parallel xdist workers don't drop/recreate the same DB. xdist's
-# worker id is used verbatim ("gw0"/… distributed, "master" standalone).
+# Per-run so neither parallel xdist workers nor concurrent runs from other
+# checkouts drop/recreate the same DB — these tests DROP their database, so a
+# shared name is destructive rather than merely flaky. Same key as conftest's
+# TEST_DB_NAME: xdist's worker id verbatim ("gw0"/… distributed, "master"
+# standalone), plus conftest's digest of this checkout's path.
 _WORKER = os.environ.get("PYTEST_XDIST_WORKER", "master")
-MIGRATIONS_DB_NAME = f"initiative_migrations_test_{_WORKER}"
+MIGRATIONS_DB_NAME = f"initiative_migrations_test_{CHECKOUT_ID}_{_WORKER}"
 _BASE_DB_URL = settings.DATABASE_URL.rsplit("/", 1)[0]
 MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
 
 # These tests exercise migration up *and down*, so they CREATE and DROP the
 # cluster-global app roles. Use a role prefix distinct from the main suite's
-# (conftest sets ``test_{worker}_``) so this file's downgrades never drop the
-# roles the rest of the suite depends on. Per-worker too, to stay parallel-safe.
-_MIGRATIONS_ROLE_PREFIX = f"migtest_{_WORKER}_"
+# (conftest sets ``test_{checkout}_{worker}_``) so this file's downgrades never
+# drop the roles the rest of the suite depends on. Keyed on (checkout, worker)
+# for the same reason the database is: the teardown drops every role matching
+# this prefix, so a prefix shared with another checkout would take that
+# checkout's roles with it.
+_MIGRATIONS_ROLE_PREFIX = f"migtest_{CHECKOUT_ID}_{_WORKER}_"
 
 # Same advisory-lock KEY as conftest._run_test_migrations — a cluster-wide
 # pg_advisory_lock serializes ALL migration runs across xdist workers (and across
