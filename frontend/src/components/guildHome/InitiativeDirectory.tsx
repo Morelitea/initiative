@@ -80,17 +80,19 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   const { isGuildAdmin, permissionsFor } = useInitiativeAccess();
   const guildId = useActiveGuildId();
 
-  // A guild admin's standing reaches every initiative, so a card is "enterable"
-  // for them without a membership row — and the backend directory sends admins
-  // the unlisted (private) ones too. Those land in the "yours" group: they are
-  // not on offer, and the admin badge says why the reader is there.
-  const canEnter = (entry: InitiativeDirectoryEntry) => entry.is_member || isGuildAdmin;
+  // A guild admin's standing reaches every initiative without a membership row,
+  // and the backend sends them the unlisted (private) ones too. Those land in
+  // the "yours" group — they are not on offer, and the admin badge says why the
+  // reader is there. One an admin could still genuinely join stays on offer, so
+  // the group a card is in is exactly the answer to "am I in there already":
+  // the title leads in from one group, the Join button from the other, and no
+  // card carries both.
   const mine = entries.filter(
-    (entry) =>
-      entry.is_member || (isGuildAdmin && entry.join_policy === InitiativeJoinPolicy.private)
+    (entry) => entry.is_member || (isGuildAdmin && entry.join_policy !== InitiativeJoinPolicy.open)
   );
-  const joinable = entries.filter((entry) => !mine.includes(entry));
-  const hasEnterable = entries.some(canEnter);
+  const canEnter = (entry: InitiativeDirectoryEntry) => mine.includes(entry);
+  const joinable = entries.filter((entry) => !canEnter(entry));
+  const hasEnterable = mine.length > 0;
 
   // Only a card the reader can enter shows counts and a role — for the rest
   // RLS would answer zero anyway — so nothing is fetched for a directory of

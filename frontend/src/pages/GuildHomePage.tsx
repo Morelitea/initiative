@@ -77,7 +77,10 @@ export function GuildHomePage() {
 
   // Nothing to browse: the tool rail and table would be six empty circles over
   // an empty table, so the page becomes the story of how to get in instead.
-  const hasNoInitiatives = !initiativesQuery.isLoading && visibleInitiatives.length === 0;
+  // Only an answered query can say "none" — a failed or still-arriving one is
+  // absence of news, and telling someone they're in nothing on that basis
+  // would be a lie the page states confidently.
+  const hasNoInitiatives = initiativesQuery.isSuccess && visibleInitiatives.length === 0;
 
   // A tool earns its circle by being viewable in at least one initiative the
   // user can see. Before that list lands (or in a guild with no initiatives

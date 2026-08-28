@@ -145,6 +145,30 @@ describe("InitiativeDirectory", () => {
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
+  it("still offers an admin an open initiative they are not in", async () => {
+    renderPage(
+      () => (
+        <InitiativeDirectory
+          entries={[
+            buildInitiativeDirectoryEntry({
+              id: 12,
+              name: "Nebula",
+              join_policy: "open",
+              is_member: false,
+            }),
+          ]}
+        />
+      ),
+      { guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) } }
+    );
+
+    // An admin can reach it either way, so it stays on offer rather than being
+    // filed as theirs — and the card carries one way in, never both.
+    expect(await screen.findByRole("heading", { name: "Open to join" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Nebula" })).not.toBeInTheDocument();
+  });
+
   it("names the reader's role on a card they're in", async () => {
     const user = buildUser({ id: 42 });
     server.use(

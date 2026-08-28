@@ -273,9 +273,12 @@ async def join_initiative(
         await initiatives_service.self_join(
             session, initiative=initiative, user_id=current_user.id
         )
-    except ValueError as e:
+    except ValueError:
+        # An initiative missing its built-in member role can't take a joiner.
+        # The code is the contract; the exception text is not.
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
         )
     await session.commit()
     initiative = await _get_initiative_or_404(

@@ -427,6 +427,19 @@ describe("GuildHomePage", () => {
     expect(screen.queryByRole("navigation", { name: "Guild tools" })).not.toBeInTheDocument();
   });
 
+  it("does not call a failed lookup an empty membership", async () => {
+    server.use(guildHttp.get("/initiatives/", () => new HttpResponse(null, { status: 500 })));
+    stubTools();
+    stubDirectory([]);
+
+    renderHomeAsMember();
+
+    // A request that never answered is not proof the reader is in nothing —
+    // saying so would be a confident lie about their own access.
+    expect(await screen.findByRole("navigation", { name: "Guild tools" })).toBeInTheDocument();
+    expect(screen.queryByText(/You haven’t joined any initiatives yet/)).not.toBeInTheDocument();
+  });
+
   it("stays honest when the guild has nothing on offer either", async () => {
     server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
     stubTools();

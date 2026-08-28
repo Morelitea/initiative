@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy import desc, func, or_, true
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -686,8 +687,20 @@ async def self_join(
         guild_id=initiative.guild_id,
         oidc_managed=False,
     )
-    session.add(membership)
-    await session.flush()
+    # Two overlapping joins both clear the lookup above, and the composite
+    # primary key then rejects the loser. That is the same outcome the caller
+    # asked for, so the savepoint absorbs it and the row that won is returned.
+    try:
+        async with session.begin_nested():
+            session.add(membership)
+            await session.flush()
+    except IntegrityError:
+        existing = await get_initiative_membership(
+            session, initiative_id=initiative.id, user_id=user_id
+        )
+        if existing is None:
+            raise
+        return existing
     return membership
 
 

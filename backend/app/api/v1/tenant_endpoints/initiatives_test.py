@@ -11,9 +11,12 @@ Tests the initiative API endpoints at /api/v1/initiatives including:
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import InitiativeMember
+from app.services.tenant import initiatives as initiatives_service
 from app.testing.factories import create_initiative
 
 
@@ -1077,6 +1080,59 @@ async def test_self_join_open_initiative_grants_member_role(
     assert entry["role_name"] == "member"
     assert entry["is_manager"] is False
     assert entry["oidc_managed"] is False
+
+
+@pytest.mark.integration
+async def test_self_join_absorbs_a_lost_insert_race(
+    session: AsyncSession, acting_user, monkeypatch
+):
+    """Losing the insert race returns the winner's row, not a 500.
+
+    Two overlapping joins both clear the membership lookup before either
+    inserts, and the composite primary key then rejects the loser. Simulated
+    here by making that lookup miss once while the row already exists — the
+    interleaving a live race produces, without racing the test.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Anyone", join_policy="open"
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    # The row the winning request already committed.
+    winner = await initiatives_service.self_join(
+        session, initiative=initiative, user_id=member.user.id
+    )
+    assert winner is not None
+
+    real_lookup = initiatives_service.get_initiative_membership
+    calls = {"n": 0}
+
+    async def lookup_misses_once(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None
+        return await real_lookup(*args, **kwargs)
+
+    monkeypatch.setattr(
+        initiatives_service, "get_initiative_membership", lookup_misses_once
+    )
+
+    membership = await initiatives_service.self_join(
+        session, initiative=initiative, user_id=member.user.id
+    )
+
+    assert membership is not None
+    assert membership.user_id == member.user.id
+    rows = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id == member.user.id,
+            )
+        )
+    ).all()
+    assert len(rows) == 1
 
 
 @pytest.mark.integration
