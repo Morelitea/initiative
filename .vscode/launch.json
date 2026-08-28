@@ -2,17 +2,39 @@
   "version": "0.2.0",
   "configurations": [
     {
-      // Runs the same orchestration script as the Zed task and `claude --debug`,
-      // so startup and teardown behave identically everywhere. The script traps
-      // signals and runs dev:cleanup itself when the terminal is interrupted or
-      // closed; postDebugTask is the backstop for a hard stop that never reaches
-      // the trap.
+      // The whole dev flow behind one button: dev:setup brings up Postgres,
+      // migrates, seeds, and starts Vite (which opens the browser), then this
+      // session runs the API itself so backend breakpoints work. Stopping the
+      // session runs dev:cleanup — servers down, seeded data removed.
       "name": "Dev Environment",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "app.main:app",
+        "--reload",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal",
+      // Step into FastAPI/SQLModel frames too — most of what goes wrong here
+      // surfaces inside the framework rather than in app code.
+      "justMyCode": false,
+      "preLaunchTask": "dev:setup",
+      "postDebugTask": "dev:cleanup"
+    },
+    {
+      // Same flow without the debugger attached, for when the terminal script
+      // is what you want (it is also what the Zed task runs).
+      "name": "Dev Environment (no debugger)",
       "type": "node-terminal",
       "request": "launch",
       "command": "bash ${workspaceFolder}/scripts/dev-pre-launch.sh",
-      "cwd": "${workspaceFolder}",
-      "postDebugTask": "dev:cleanup"
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

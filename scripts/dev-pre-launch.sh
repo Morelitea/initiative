@@ -2,21 +2,23 @@
 # Orchestrate the dev environment startup chain. Equivalent of the VSCode dev:setup
 # task chain: db -> migrate -> seed -> backend (bg) -> frontend (bg) -> browser.
 #
-# Once this launch owns something to clean up, cleanup runs on every exit path:
-# Ctrl+C (SIGINT), kill (SIGTERM), closing the terminal (SIGHUP), a startup step
-# that fails, or either dev server exiting on its own.
+# Cleanup belongs to a *running* environment. Once both servers are up, every
+# exit path tears them down and removes the seeded data: Ctrl+C (SIGINT), kill
+# (SIGTERM), closing the terminal (SIGHUP), or either server exiting on its own.
+# Interrupting the startup chain before that point leaves the database alone —
+# nothing of this launch's is running yet, and the data is wanted for the next
+# attempt. A seed cut short that way is cleared at the top of the next launch.
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
 BACKEND_PID=""
 FRONTEND_PID=""
-servers_started=false
+SEED_STATE=".vscode/.dev_seed_ids.json"
 
 # The guard makes the function idempotent so the signal path (trap fires, the
 # poll loop below falls through, EXIT trap fires) and the natural-exit path (a
-# server died, or a startup step failed under `set -e`) both end in exactly one
-# cleanup pass.
+# server died) both end in exactly one cleanup pass.
 cleanup_done=false
 cleanup() {
     if [ "$cleanup_done" = true ]; then
@@ -24,13 +26,6 @@ cleanup() {
     fi
     cleanup_done=true
     echo
-    if [ "$servers_started" = false ]; then
-        # The seed ran but no server did, so the dev ports are still whoever
-        # else's — take back only the data this launch put in the database.
-        echo "Removing seeded dev data..."
-        bash "$SCRIPT_DIR/dev-cleanup.sh" --data-only || true
-        return 0
-    fi
     echo "Stopping dev environment..."
     # Stop the servers this script started, then let dev-cleanup.sh sweep up
     # whatever is still on the ports and remove the seeded data.
@@ -42,15 +37,26 @@ cleanup() {
     bash "$SCRIPT_DIR/dev-cleanup.sh" || true
 }
 
+# Startup isn't the environment, so stopping it isn't stopping the environment:
+# say what was left behind and get out without touching the database.
+abort_startup() {
+    echo
+    echo "Startup interrupted — dev data left in place."
+    echo "  To remove it: bash scripts/dev-cleanup.sh"
+    exit 130
+}
+trap abort_startup INT TERM HUP
+
 docker compose up db -d --wait
+
+# A seed that stopped partway left rows the next one would collide with. Clear
+# them here, before the migrate below puts the primary guild + superuser back.
+if [ -f "$SEED_STATE" ] && grep -q '"seed_incomplete": *true' "$SEED_STATE"; then
+    echo "A previous seed was interrupted — clearing the partial data first."
+    bash scripts/dev-cleanup.sh --data-only
+fi
+
 bash scripts/dev-migrate.sh
-
-# Arm the teardown here rather than at the top of the script. Everything above
-# is shared, idempotent setup that leaves nothing of ours running, and the dev
-# ports and seeded data may still belong to another environment. From the seed
-# onward this launch owns them, so every exit path below runs the cleanup.
-trap cleanup INT TERM HUP EXIT
-
 bash scripts/dev-seed.sh
 
 # Spawning a server and recording its pid are two statements, and a signal
@@ -70,9 +76,9 @@ BACKEND_PID=$!
 nohup bash scripts/dev-frontend.sh --open > /tmp/initiative-frontend.log 2>&1 &
 FRONTEND_PID=$!
 
-# Both servers are recorded, so the dev ports are now this launch's to sweep.
-servers_started=true
-trap cleanup INT TERM HUP
+# The environment is up and both pids are recorded, so the servers, the ports
+# and the seeded data are now this launch's to tear down.
+trap cleanup INT TERM HUP EXIT
 
 if [ "$pending_signal" = true ]; then
     exit 0

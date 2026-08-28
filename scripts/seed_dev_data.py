@@ -304,6 +304,18 @@ def _save_state(state: dict) -> None:
     print(f"  State saved to {STATE_FILE}")
 
 
+def _mark_seed_incomplete() -> None:
+    """Record that a seed is in flight, before the first row is written.
+
+    A seed that stops partway leaves rows that look no different from a
+    finished one, and the next seed collides with them. This marker is what
+    tells the next launch to clear them and start over; the finished seed
+    overwrites it with the real id state.
+    """
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps({"seed_incomplete": True}, indent=2))
+
+
 def _load_state() -> dict | None:
     if not STATE_FILE.exists():
         return None
@@ -2031,12 +2043,18 @@ async def _create_access_grants(
 
 
 async def seed() -> None:
-    if _load_state() is not None:
-        print("Seed data already exists (.vscode/.dev_seed_ids.json found).")
-        print("  Run with --clean first to remove existing data.")
+    state = _load_state()
+    if state is not None:
+        if state.get("seed_incomplete"):
+            print("A previous seed was interrupted and left partial data.")
+            print("  Run with --clean, then dev-migrate, then seed again.")
+        else:
+            print("Seed data already exists (.vscode/.dev_seed_ids.json found).")
+            print("  Run with --clean first to remove existing data.")
         return
 
     print("Seeding dev data (3 guilds, multiple users)...")
+    _mark_seed_incomplete()
     ids = IDTracker()
 
     async with AdminSessionLocal() as session:
