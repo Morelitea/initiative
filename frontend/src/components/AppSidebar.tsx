@@ -13,7 +13,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { AppsSection } from "@/components/sidebar/AppsSection";
@@ -55,6 +55,7 @@ import { useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
+import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
 import { obfuscateEmail } from "@/lib/obfuscateEmail";
@@ -200,11 +201,6 @@ export const AppSidebar = () => {
     return map;
   }, [dashboardCountsQuery.data]);
 
-  const visibleInitiatives = useMemo(
-    () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
-    [initiativesQuery.data, filterVisible]
-  );
-
   // The same install list the Apps section reads, handed to each initiative so
   // an app declaring a surface in one gets a row there too. Filtered to what is
   // actually reachable, on the same terms the Apps section uses.
@@ -213,6 +209,27 @@ export const AppSidebar = () => {
     () =>
       (guildAppsQuery.data?.items ?? []).filter((app) => app.enabled && app.available !== false),
     [guildAppsQuery.data]
+  );
+
+  // An app's surface is section content the same way a tool row is, so an
+  // initiative whose role grants no tools still shows when it offers one.
+  // Asked on the same terms the section itself draws those rows.
+  const offersApp = useCallback(
+    (initiative: InitiativeRead) =>
+      initiativeApps.some(
+        (app) =>
+          initiativeAppPath(app, initiative.id, {
+            isGuildAdmin,
+            isInitiativeManager: canManage(initiative),
+          }) !== null
+      ),
+    [initiativeApps, isGuildAdmin, canManage]
+  );
+
+  const visibleInitiatives = useMemo(
+    () =>
+      filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [], offersApp),
+    [initiativesQuery.data, filterVisible, offersApp]
   );
 
   // Initiative visibility + per-section permissions (membership, PAM grants,

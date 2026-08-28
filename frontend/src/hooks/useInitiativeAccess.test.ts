@@ -228,3 +228,56 @@ describe("useInitiativeAccess canManage", () => {
     expect(result.current.canManage(buildInitiative({ members: [] }))).toBe(true);
   });
 });
+
+describe("useInitiativeAccess filterVisible", () => {
+  const user = buildUser();
+  const asMember = () => {
+    mockUseAuth.mockReturnValue({ user });
+    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "member" } });
+  };
+
+  /** One initiative this user belongs to, with the given tool flags. */
+  const joined = (flags: Partial<ReturnType<typeof buildInitiativeMember>> = {}) =>
+    buildInitiative({
+      members: [
+        buildInitiativeMember({
+          user: { id: user.id, full_name: user.full_name, email: user.email },
+          ...flags,
+        }),
+      ],
+    });
+
+  it("keeps an initiative with at least one viewable tool", () => {
+    asMember();
+    const initiative = joined({ can_view_projects: false });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.filterVisible([initiative])).toEqual([initiative]);
+  });
+
+  it("drops an initiative whose role turned every tool off", () => {
+    asMember();
+    const initiative = joined({ can_view_projects: false, can_view_documents: false });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.filterVisible([initiative])).toEqual([]);
+  });
+
+  it("keeps one with no tools when the caller says it offers something else", () => {
+    // The sidebar's case: an installed app's surface is a row too.
+    asMember();
+    const initiative = joined({ can_view_projects: false, can_view_documents: false });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.filterVisible([initiative], () => true)).toEqual([initiative]);
+  });
+
+  it("keeps every initiative for a guild admin", () => {
+    mockUseAuth.mockReturnValue({ user });
+    mockUseGuilds.mockReturnValue({ activeGuild: { id: 1, role: "admin" } });
+    const initiative = buildInitiative({ members: [] });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.filterVisible([initiative])).toEqual([initiative]);
+  });
+});
