@@ -201,6 +201,8 @@ export const CommentSection = ({
                   {t("comments.mentionProject")}
                 </li>
               </ul>
+              <p className="mt-3 font-medium text-sm">{t("comments.formattingSyntax")}</p>
+              <p className="mt-1 text-muted-foreground text-sm">{t("comments.markdownHint")}</p>
             </HoverCardContent>
           </HoverCard>
         </CardTitle>

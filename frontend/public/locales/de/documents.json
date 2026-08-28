@@ -593,6 +593,8 @@
     "mentionTask": "eine Aufgabe verknüpfen",
     "mentionDoc": "ein Dokument verknüpfen",
     "mentionProject": "ein Projekt verknüpfen",
+    "formattingSyntax": "Formatierung",
+    "markdownHint": "Markdown wird unterstützt: **fett**, *kursiv*, `Code`, Listen und Links.",
     "loading": "Kommentare werden geladen...",
     "loadError": "Kommentare können derzeit nicht geladen werden.",
     "empty": "Noch keine Kommentare. Sei der Erste, der etwas beiträgt.",

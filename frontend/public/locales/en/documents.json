@@ -593,6 +593,8 @@
     "mentionTask": "link a task",
     "mentionDoc": "link a document",
     "mentionProject": "link a project",
+    "formattingSyntax": "Formatting",
+    "markdownHint": "Markdown is supported: **bold**, *italic*, `code`, lists, and links.",
     "loading": "Loading comments...",
     "loadError": "Unable to load comments right now.",
     "empty": "No comments yet. Be the first to contribute.",

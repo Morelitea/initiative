@@ -48,6 +48,8 @@
     "onTask": "en {{taskTitle}}",
     "onDocument": "en {{documentTitle}}",
     "onEntity": "en {{entityName}}",
-    "inProject": "en {{projectName}}"
+    "inProject": "en {{projectName}}",
+    "readMore": "Leer más",
+    "showLess": "Mostrar menos"
   }
 }
