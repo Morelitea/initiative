@@ -53,11 +53,16 @@ trap cleanup INT TERM HUP EXIT
 
 bash scripts/dev-seed.sh
 
+# Claim the dev ports before the first server is spawned, not after: a signal
+# landing between the spawn and the assignment would otherwise reach a cleanup
+# that skips both the pid and the port sweep, leaving that server behind. The
+# cost the other way is a full sweep for a launch that got no further than here,
+# which is the same sweep dev-backend.sh does to port 8000 on its way up.
+servers_started=true
+
 # Start the backend in the background (uvicorn with --reload, port-cleanup built in).
 nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
 BACKEND_PID=$!
-# From here the dev ports are this launch's to sweep on the way out.
-servers_started=true
 
 # Start the frontend in the background (Vite, port-cleanup built in). --open makes
 # Vite open the app in the browser once it's listening; its `open` dependency is
