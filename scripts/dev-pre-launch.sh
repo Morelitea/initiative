@@ -53,12 +53,12 @@ trap cleanup INT TERM HUP EXIT
 
 bash scripts/dev-seed.sh
 
-# Claim the dev ports before the first server is spawned, not after: a signal
-# landing between the spawn and the assignment would otherwise reach a cleanup
-# that skips both the pid and the port sweep, leaving that server behind. The
-# cost the other way is a full sweep for a launch that got no further than here,
-# which is the same sweep dev-backend.sh does to port 8000 on its way up.
-servers_started=true
+# Spawning a server and recording its pid are two statements, and a signal
+# landing between them would reach a cleanup that cannot see that server. Note
+# the signal instead of acting on it, and let the check below run the teardown
+# once both pids are recorded and the ports are known to be this launch's.
+pending_signal=false
+trap 'pending_signal=true' INT TERM HUP
 
 # Start the backend in the background (uvicorn with --reload, port-cleanup built in).
 nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
@@ -69,6 +69,14 @@ BACKEND_PID=$!
 # WSL-aware (launches the Windows browser) and handles macOS/Linux too.
 nohup bash scripts/dev-frontend.sh --open > /tmp/initiative-frontend.log 2>&1 &
 FRONTEND_PID=$!
+
+# Both servers are recorded, so the dev ports are now this launch's to sweep.
+servers_started=true
+trap cleanup INT TERM HUP
+
+if [ "$pending_signal" = true ]; then
+    exit 0
+fi
 
 echo
 echo "Dev environment starting:"
