@@ -14,6 +14,10 @@
   "noInitiatives": "Aucune initiative pour l'instant",
   "noInitiativesDescription": "Vous ne faites partie d'aucune initiative dans ce groupe. Revenez après qu'un administrateur vous ait invité, ou créez-en une si vous avez les permissions.",
   "createInitiative": "Créer une initiative",
+  "directory": {
+    "browse": "Parcourir les initiatives",
+    "joinError": "Impossible de rejoindre cette initiative pour le moment."
+  },
   "manage": {
     "title": "Initiatives",
     "description": "Archivez une initiative pour la masquer de la barre latérale sans la supprimer, accordez un accès complet aux chefs de projet ou supprimez une initiative en la plaçant dans la corbeille.",
@@ -101,6 +105,16 @@
     "editPermissionNote": "Seuls les administrateurs du groupe ou les chefs de projet de l'initiative peuvent modifier les détails.",
     "updated": "Initiative mise à jour.",
     "updateError": "Impossible de mettre à jour l'initiative pour l'instant.",
+    "joinPolicy": {
+      "title": "Adhésion",
+      "description": "Qui, dans cette guilde, peut rejoindre cette initiative, et comment. Rejoindre décide de ce que l’on peut voir ; le partage continue de régir chaque élément.",
+      "privateLabel": "Sur invitation",
+      "privateHelp": "Absente du répertoire de la guilde. Les chefs de projet ajoutent les membres à la main.",
+      "requestLabel": "Sur demande",
+      "requestHelp": "Listée dans le répertoire de la guilde. Les membres demandent à rejoindre et un chef de projet approuve.",
+      "openLabel": "Ouverte à tous",
+      "openHelp": "Listée dans le répertoire de la guilde. Tout membre de la guilde peut la rejoindre lui-même, en lecture seule au départ."
+    },
     "membersTitle": "Membres",
     "membersDescription": "Les chefs de projet et les administrateurs du groupe peuvent gérer les membres.",
     "filterByName": "Filtrer par nom",

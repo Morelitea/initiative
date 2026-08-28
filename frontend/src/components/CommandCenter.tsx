@@ -39,7 +39,7 @@ import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissi
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
-import { entityRefRoute, INITIATIVES_ROUTE, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
+import { entityRefRoute, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
 
 // Module-level callback so other components can open the command center
 let openCommandCenter: (() => void) | null = null;
@@ -194,7 +194,7 @@ export function CommandCenter() {
       },
       {
         label: t("pages.allInitiatives"),
-        path: getGuildPath(INITIATIVES_ROUTE),
+        path: getGuildPath("/"),
         icon: Users,
       },
     ];

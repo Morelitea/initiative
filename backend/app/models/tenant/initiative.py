@@ -4,13 +4,17 @@ from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum as SAEnum,
     ForeignKey,
+    Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
+    text,
 )
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -25,6 +29,37 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.queue import Queue
     from app.models.tenant.calendar import Calendar
     from app.models.tenant.counter import CounterGroup
+
+
+class InitiativeJoinPolicy(str, Enum):
+    """How a guild member may come to hold a membership row in an initiative.
+
+    The policy governs *how a membership row comes to exist* — it is never
+    consulted by RLS. ``public.initiative_access`` still answers every access
+    question from ``initiative_members`` exactly as it did before.
+
+    - ``private``: invisible outside its membership; a manager adds people by
+      hand. The default, so nothing opens on upgrade.
+    - ``request``: listed in the guild's initiative directory; members ask and a
+      manager resolves the request.
+    - ``open``: listed in the directory; any guild member self-joins and
+      receives the built-in ``member`` role.
+
+    Stored as a plain string with a table CHECK (the ``guilds.status`` pattern)
+    rather than a Postgres enum, so adding a policy is an ordinary migration.
+    """
+
+    private = "private"
+    request = "request"
+    open = "open"
+
+
+class JoinRequestStatus(str, Enum):
+    """Lifecycle of a row in ``initiative_join_requests``."""
+
+    pending = "pending"
+    approved = "approved"
+    denied = "denied"
 
 
 # Permission keys for role-based access control — fully derived from the Tool
@@ -157,6 +192,78 @@ class InitiativeMember(SQLModel, table=True):
     role_ref: Optional["InitiativeRoleModel"] = Relationship(back_populates="members")
 
 
+class InitiativeJoinRequest(SQLModel, table=True):
+    """A guild member knocking on a ``request``-policy initiative.
+
+    Deliberately guild-level rather than initiative-scoped (see
+    ``app.db.tenancy.GUILD_LEVEL_TABLES``): a requester is by definition not yet
+    a member, so an initiative-membership row gate would hide their own request
+    from them. Who may read which rows is decided in the service layer instead —
+    requesters see their own, managers see their initiative's.
+    """
+
+    __tablename__ = "initiative_join_requests"
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'denied')",
+            name="ck_initiative_join_requests_status",
+        ),
+        # One live request per user per initiative; resolved rows stay as history.
+        Index(
+            "uq_initiative_join_requests_pending",
+            "initiative_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    initiative_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("initiatives.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("users.id"),
+            nullable=False,
+            index=True,
+        )
+    )
+    status: str = Field(
+        default=JoinRequestStatus.pending.value,
+        sa_column=Column(
+            String(length=20),
+            nullable=False,
+            server_default=JoinRequestStatus.pending.value,
+        ),
+    )
+    # Optional note from the requester to the initiative's managers.
+    message: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    resolved_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    # The manager who approved or denied; NULL while pending.
+    resolved_by: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+
+
 # One `{tool.plural}_enabled` master-switch column per toggleable Tool —
 # derived from the Tool enum, so a new opt-in tool grows its column here
 # automatically. The actual DDL still ships as a guild migration (and the
@@ -184,6 +291,21 @@ class Initiative(
 ):
     __tablename__ = "initiatives"
 
+    __table_args__ = (
+        # Literal SQL, mirroring the migration that creates them: the vocabulary
+        # is InitiativeJoinPolicy, and widening it is a migration either way.
+        CheckConstraint(
+            "join_policy IN ('private', 'request', 'open')",
+            name="ck_initiatives_join_policy",
+        ),
+        # Auto-join enrols arrivals automatically, so the initiative must also be
+        # one they could have found and joined themselves.
+        CheckConstraint(
+            "(NOT auto_join) OR join_policy = 'open'",
+            name="ck_initiatives_auto_join_open",
+        ),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     name: str = Field(index=True, nullable=False)
@@ -197,6 +319,21 @@ class Initiative(
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     is_archived: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # See InitiativeJoinPolicy. Guarded by ck_initiatives_join_policy.
+    join_policy: str = Field(
+        default=InitiativeJoinPolicy.private.value,
+        sa_column=Column(
+            String(length=20),
+            nullable=False,
+            server_default=InitiativeJoinPolicy.private.value,
+        ),
+    )
+    # New guild members are enrolled in this initiative automatically. Guild-admin
+    # settable, and only on an `open` initiative (ck_initiatives_auto_join_open).
+    auto_join: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

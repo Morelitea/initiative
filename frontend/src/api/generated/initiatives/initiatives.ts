@@ -24,6 +24,7 @@ import type {
   GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams,
   HTTPValidationError,
   InitiativeCreate,
+  InitiativeDirectoryEntry,
   InitiativeMemberAdd,
   InitiativeMemberUpdate,
   InitiativeRead,
@@ -303,6 +304,275 @@ export const useCreateInitiativeApiV1GGuildIdInitiativesPost = <
 > => {
   return useMutation(
     getCreateInitiativeApiV1GGuildIdInitiativesPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Initiatives in this guild that any member may discover and join.
+ *
+ * Open to every guild member — it lists only what each initiative published
+ * about itself (name, description, colour, roster size), never its content.
+ * Initiatives whose policy is ``private`` are listed only to their own
+ * members — and to guild admins, whose standing already reaches every
+ * initiative in the guild.
+ *
+ * Declared before ``/{initiative_id}`` so the literal path wins the match.
+ * @summary List Initiative Directory
+ */
+export const listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeDirectoryEntry[]>(
+    { url: `/api/v1/g/${guildId}/initiatives/directory`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/g/${guildId}/initiatives/directory`] as const;
+};
+
+export const getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>
+  > = ({ signal }) =>
+    listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>
+>;
+export type ListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet<
+  TData = Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+          TError,
+          Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet<
+  TData = Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+          TError,
+          Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet<
+  TData = Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Initiative Directory
+ */
+
+export function useListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet<
+  TData = Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Join an ``open`` initiative as yourself, with the built-in member role.
+ *
+ * Idempotent: already being a member is a success, not a conflict. Any other
+ * join policy answers 403 — the same answer for ``private`` and ``request``,
+ * so it says only "not by this route".
+ * @summary Join Initiative
+ */
+export const joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost = (
+  guildId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/join`, method: "POST", signal },
+    options
+  );
+};
+
+export const getJoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost>>,
+    TError,
+    { guildId: number; initiativeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost>>,
+  TError,
+  { guildId: number; initiativeId: number },
+  TContext
+> => {
+  const mutationKey = ["joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost>>,
+    { guildId: number; initiativeId: number }
+  > = (props) => {
+    const { guildId, initiativeId } = props ?? {};
+
+    return joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost(
+      guildId,
+      initiativeId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type JoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost>>
+>;
+
+export type JoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Join Initiative
+ */
+export const useJoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost>>,
+      TError,
+      { guildId: number; initiativeId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost>>,
+  TError,
+  { guildId: number; initiativeId: number },
+  TContext
+> => {
+  return useMutation(
+    getJoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPostMutationOptions(options),
     queryClient
   );
 };

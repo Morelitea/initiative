@@ -2,14 +2,21 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeCreate, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  InitiativeCreate,
+  InitiativeDirectoryEntry,
+  InitiativeRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost,
   createInitiativeApiV1GGuildIdInitiativesPost,
   deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete,
   getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey,
   getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet,
+  getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey,
   getListInitiativesApiV1GGuildIdInitiativesGetQueryKey,
+  joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost,
+  listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet,
   listInitiativesApiV1GGuildIdInitiativesGet,
   removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete,
   updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch,
@@ -19,6 +26,7 @@ import {
   invalidateAllInitiatives,
   invalidateInitiative,
   invalidateInitiativeMembers,
+  invalidateInitiativeMembership,
 } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
@@ -53,6 +61,25 @@ export const useInitiativesForGuild = (
     queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId!),
     queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId!),
     enabled: !!guildId && userEnabled,
+    ...rest,
+  });
+};
+
+/**
+ * The guild's initiative directory: what a member may discover and join.
+ *
+ * Deliberately separate from {@link useInitiatives}, which keeps its contract of
+ * "initiatives you are in" — a directory entry carries only what an initiative
+ * published about itself (name, colour, description, roster size) plus the
+ * caller's own state, never its content.
+ */
+export const useInitiativeDirectory = (options?: QueryOpts<InitiativeDirectoryEntry[]>) => {
+  const guildId = useActiveGuildId();
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<InitiativeDirectoryEntry[]>({
+    queryKey: getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey(guildId),
+    queryFn: () => listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet(guildId),
+    enabled: guildId > 0 && userEnabled,
     ...rest,
   });
 };
@@ -138,6 +165,26 @@ export const useUpdateInitiative = (
       invalidate: (_data, { initiativeId }) =>
         Promise.all([invalidateAllInitiatives(), invalidateInitiative(initiativeId)]),
       errorKey: "initiatives:settings.updateError",
+    },
+    options
+  );
+
+/**
+ * Self-join an `open` initiative from the guild directory.
+ *
+ * The server decides whether the policy allows it; a refusal comes back as a
+ * mapped error code the caller's toast localizes. Success creates an ordinary
+ * membership row, so every guild surface has to re-read.
+ */
+export const useJoinInitiative = (
+  options?: MutationOpts<InitiativeRead, { initiativeId: number }>
+) =>
+  useGuildMutation<InitiativeRead, { initiativeId: number }>(
+    {
+      mutationFn: (guildId, { initiativeId }) =>
+        joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost(guildId, initiativeId),
+      invalidate: () => invalidateInitiativeMembership(),
+      errorKey: "initiatives:directory.joinError",
     },
     options
   );

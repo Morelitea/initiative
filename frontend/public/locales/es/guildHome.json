@@ -9,6 +9,33 @@
     "title": "Aún no hay nada",
     "description": "Todavía no existe nada de este tipo en el gremio, o nada se ha compartido contigo."
   },
+  "emptyState": {
+    "title": "Todavía no te has unido a ninguna iniciativa",
+    "description": "Las iniciativas contienen todo lo de un gremio: proyectos, documentos y lo demás. Únete a una para ver su trabajo.",
+    "nothingListedTitle": "Nada a lo que unirse todavía",
+    "nothingListedDescription": "Ninguna iniciativa de este gremio está abierta ahora mismo. Un administrador del gremio o un gerente de proyecto puede añadirte."
+  },
+  "directory": {
+    "title": "Iniciativas",
+    "subtitle": "Las tuyas y a las que puedes unirte.",
+    "memberBadge": "Unido",
+    "memberCount_one": "{{count}} miembro",
+    "memberCount_other": "{{count}} miembros",
+    "toolCount": "{{label}}: {{count}}",
+    "groups": {
+      "mine": "Tus iniciativas",
+      "joinable": "Abiertas para unirse"
+    },
+    "join": "Unirse",
+    "joining": "Uniéndote…",
+    "joined": "Te has unido a {{name}}.",
+    "policy": {
+      "open": "Abierta a todos los miembros del gremio",
+      "request": "Unirse mediante solicitud",
+      "private": "Solo por invitación"
+    },
+    "loadError": "No se pudo cargar lo que ofrece este gremio. Inténtalo de nuevo más tarde."
+  },
   "columns": {
     "name": "Nombre",
     "initiative": "Iniciativa",

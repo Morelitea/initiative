@@ -9,6 +9,33 @@
     "title": "Noch nichts vorhanden",
     "description": "In der Gilde gibt es noch nichts dieser Art, oder nichts davon ist für dich freigegeben."
   },
+  "emptyState": {
+    "title": "Du bist noch keiner Initiative beigetreten",
+    "description": "Initiativen enthalten alles in einer Gilde — Projekte, Dokumente und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
+    "nothingListedTitle": "Noch nichts zum Beitreten",
+    "nothingListedDescription": "Derzeit ist keine Initiative dieser Gilde zum Beitreten offen. Ein Gildenadmin oder Projektmanager kann dich hinzufügen."
+  },
+  "directory": {
+    "title": "Initiativen",
+    "subtitle": "Deine Initiativen und solche, denen du beitreten kannst.",
+    "memberBadge": "Beigetreten",
+    "memberCount_one": "{{count}} Mitglied",
+    "memberCount_other": "{{count}} Mitglieder",
+    "toolCount": "{{label}}: {{count}}",
+    "groups": {
+      "mine": "Deine Initiativen",
+      "joinable": "Zum Beitreten offen"
+    },
+    "join": "Beitreten",
+    "joining": "Trete bei…",
+    "joined": "Du bist {{name}} beigetreten.",
+    "policy": {
+      "open": "Offen für alle Gildenmitglieder",
+      "request": "Beitritt auf Anfrage",
+      "private": "Nur auf Einladung"
+    },
+    "loadError": "Das Angebot dieser Gilde konnte nicht geladen werden. Bitte versuche es später erneut."
+  },
   "columns": {
     "name": "Name",
     "initiative": "Initiative",

@@ -14,6 +14,10 @@
   "noInitiatives": "Aún no hay iniciativas",
   "noInitiativesDescription": "No formas parte de ninguna iniciativa en este gremio. Vuelve a revisar después de que un administrador te invite o crea una si tienes permisos.",
   "createInitiative": "Crear iniciativa",
+  "directory": {
+    "browse": "Explorar iniciativas",
+    "joinError": "No se puede unir a esta iniciativa en este momento."
+  },
   "manage": {
     "title": "Iniciativas",
     "description": "Archiva una iniciativa para ocultarla de la barra lateral sin eliminarla, concede acceso total a los gestores de proyecto o elimina una iniciativa enviándola a la papelera.",
@@ -101,6 +105,16 @@
     "editPermissionNote": "Solo los administradores del gremio o los gerentes de proyecto de la iniciativa pueden editar los detalles.",
     "updated": "Iniciativa actualizada.",
     "updateError": "No se pudo actualizar la iniciativa en este momento.",
+    "joinPolicy": {
+      "title": "Incorporación",
+      "description": "Quién de este gremio puede unirse a esta iniciativa y cómo. Unirse decide lo que alguien puede ver; el uso compartido sigue rigiendo cada elemento.",
+      "privateLabel": "Solo por invitación",
+      "privateHelp": "Oculta en el directorio del gremio. Los gerentes de proyecto añaden miembros a mano.",
+      "requestLabel": "Por solicitud",
+      "requestHelp": "Aparece en el directorio del gremio. Los miembros solicitan unirse y un gerente de proyecto lo aprueba.",
+      "openLabel": "Cualquiera puede unirse",
+      "openHelp": "Aparece en el directorio del gremio. Cualquier miembro del gremio puede unirse por su cuenta, con acceso de solo lectura al principio."
+    },
     "membersTitle": "Miembros",
     "membersDescription": "Los gerentes de proyecto de la iniciativa y los administradores del gremio pueden gestionar la membresía.",
     "filterByName": "Filtrar por nombre",

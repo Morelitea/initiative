@@ -20,7 +20,7 @@ import {
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { INITIATIVES_ROUTE, initiativeRoute, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import { initiativeRoute, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
@@ -108,7 +108,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     (isGuildAdmin ? guildAdminLabel : null);
 
   if (!hasValidInitiativeId) {
-    return <Navigate to={gp(INITIATIVES_ROUTE)} replace />;
+    return <Navigate to={gp("/")} replace />;
   }
 
   if (initiativesQuery.isLoading || permissionsLoading || !initiativesQuery.data) {
@@ -126,7 +126,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
         icon={<SearchX />}
         title={t("detail.notFound")}
         description={t("detail.notFoundDescription")}
-        backTo={gp(INITIATIVES_ROUTE)}
+        backTo={gp("/")}
         backLabel={t("detail.backToInitiatives")}
       />
     );

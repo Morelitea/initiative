@@ -14,6 +14,10 @@
   "noInitiatives": "Noch keine Initiativen",
   "noInitiativesDescription": "Du bist in dieser Gilde an keiner Initiative beteiligt. Schau später wieder vorbei, nachdem dich ein Administrator eingeladen hat, oder erstelle eine, wenn du die nötigen Berechtigungen hast.",
   "createInitiative": "Initiative erstellen",
+  "directory": {
+    "browse": "Initiativen durchsuchen",
+    "joinError": "Der Beitritt zu dieser Initiative ist derzeit nicht möglich."
+  },
   "manage": {
     "title": "Initiativen",
     "description": "Archiviere eine Initiative, um sie ohne Löschen aus der Seitenleiste auszublenden, gewähre Projektmanagern vollen Zugriff oder verschiebe eine Initiative in den Papierkorb.",
@@ -101,6 +105,16 @@
     "editPermissionNote": "Nur Gilden-Administratoren oder Initiative-Projektmanager können Details bearbeiten.",
     "updated": "Initiative aktualisiert.",
     "updateError": "Initiative kann derzeit nicht aktualisiert werden.",
+    "joinPolicy": {
+      "title": "Beitritt",
+      "description": "Wer in dieser Gilde dieser Initiative beitreten kann und wie. Der Beitritt entscheidet, was jemand sehen kann — die Freigabe einzelner Inhalte gilt weiterhin.",
+      "privateLabel": "Nur mit Einladung",
+      "privateHelp": "Nicht im Gildenverzeichnis sichtbar. Projektmanager fügen Mitglieder von Hand hinzu.",
+      "requestLabel": "Auf Anfrage",
+      "requestHelp": "Im Gildenverzeichnis gelistet. Mitglieder fragen an, ein Projektmanager genehmigt.",
+      "openLabel": "Alle können beitreten",
+      "openHelp": "Im Gildenverzeichnis gelistet. Jedes Gildenmitglied kann selbst beitreten, zunächst mit Lesezugriff."
+    },
     "membersTitle": "Mitglieder",
     "membersDescription": "Initiative-Projektmanager und Gilden-Administratoren können die Mitgliedschaft verwalten.",
     "filterByName": "Nach Name filtern",

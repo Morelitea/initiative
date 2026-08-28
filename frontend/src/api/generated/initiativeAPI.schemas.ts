@@ -1729,6 +1729,31 @@ export interface DocumentFileVersionRead {
 }
 
 /**
+ * How a guild member may come to hold a membership row in an initiative.
+ *
+ * The policy governs *how a membership row comes to exist* — it is never
+ * consulted by RLS. ``public.initiative_access`` still answers every access
+ * question from ``initiative_members`` exactly as it did before.
+ *
+ * - ``private``: invisible outside its membership; a manager adds people by
+ *   hand. The default, so nothing opens on upgrade.
+ * - ``request``: listed in the guild's initiative directory; members ask and a
+ *   manager resolves the request.
+ * - ``open``: listed in the directory; any guild member self-joins and
+ *   receives the built-in ``member`` role.
+ *
+ * Stored as a plain string with a table CHECK (the ``guilds.status`` pattern)
+ * rather than a Postgres enum, so adding a policy is an ordinary migration.
+ */
+export type InitiativeJoinPolicy = (typeof InitiativeJoinPolicy)[keyof typeof InitiativeJoinPolicy];
+
+export const InitiativeJoinPolicy = {
+  private: "private",
+  request: "request",
+  open: "open",
+} as const;
+
+/**
  * Member info including their role.
  */
 export interface InitiativeMemberRead {
@@ -1765,6 +1790,8 @@ export interface InitiativeRead {
   guild_id: number;
   is_default: boolean;
   is_archived: boolean;
+  join_policy: InitiativeJoinPolicy;
+  auto_join: boolean;
   created_at: string;
   updated_at: string;
   members: InitiativeMemberRead[];
@@ -2654,6 +2681,26 @@ export interface InitiativeCreate {
   name: string;
   description?: string | null;
   color?: string | null;
+  join_policy?: InitiativeJoinPolicy;
+}
+
+/**
+ * One card in a guild's initiative directory.
+ *
+ * Only initiatives that chose to be listed (``request`` / ``open``) ever reach
+ * this shape; a ``private`` one is excluded in the service. The three caller-
+ * relative fields answer which call to action the card renders: already in it,
+ * knocked and waiting, or free to join.
+ */
+export interface InitiativeDirectoryEntry {
+  id: number;
+  name: string;
+  description: string | null;
+  color: string | null;
+  join_policy: InitiativeJoinPolicy;
+  member_count: number;
+  is_member: boolean;
+  has_pending_request: boolean;
 }
 
 export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
@@ -2752,6 +2799,8 @@ export interface InitiativeUpdate {
   description?: string | null;
   color?: string | null;
   is_archived?: boolean | null;
+  join_policy?: InitiativeJoinPolicy | null;
+  auto_join?: boolean | null;
 }
 
 export interface InterfaceSettingsResponse {

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+  Binoculars,
   Check,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -15,6 +16,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { DIRECTORY_SECTION_ID } from "@/components/guildHome/InitiativeDirectory";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { AppsSection } from "@/components/sidebar/AppsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
@@ -51,7 +53,7 @@ import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
@@ -60,7 +62,7 @@ import { getInitials } from "@/lib/initials";
 import { obfuscateEmail } from "@/lib/obfuscateEmail";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { INITIATIVES_ROUTE, toolDetailRoute } from "@/lib/tools";
+import { toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 export const AppSidebar = () => {
@@ -69,7 +71,7 @@ export const AppSidebar = () => {
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
   const location = useLocation();
-  const { t } = useTranslation(["nav", "tags"]);
+  const { t } = useTranslation(["nav", "tags", "initiatives"]);
 
   // Auto-close sidebar on mobile after navigation
   useAutoCloseSidebar();
@@ -115,6 +117,13 @@ export const AppSidebar = () => {
   const guildTreeEnabled = Boolean(activeGuild) && isGuildRoute;
 
   const initiativesQuery = useInitiatives({ enabled: guildTreeEnabled, staleTime: 60_000 });
+
+  // What the guild offers to join, which is what decides whether the "browse"
+  // row is worth a line: with an empty directory it would lead nowhere.
+  const directoryQuery = useInitiativeDirectory({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
 
   const projectsQuery = useProjects(undefined, {
     enabled: guildTreeEnabled,
@@ -502,18 +511,33 @@ export const AppSidebar = () => {
                               </div>
                             )}
 
-                            {isGuildAdmin && (
-                              <SidebarMenu>
+                            <SidebarMenu>
+                              {/* The way into an initiative you aren't in yet:
+                                  guild home carries the directory. Only shown
+                                  when the guild actually lists something. */}
+                              {(directoryQuery.data?.length ?? 0) > 0 && (
                                 <SidebarMenuItem>
                                   <SidebarMenuButton asChild size="sm">
-                                    <Link to={gp(INITIATIVES_ROUTE)} search={{ create: "true" }}>
+                                    <Link to={gp("/")} hash={DIRECTORY_SECTION_ID}>
+                                      <Binoculars className="h-4 w-4" />
+                                      <span>{t("initiatives:directory.browse")}</span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              )}
+                              {isGuildAdmin && (
+                                <SidebarMenuItem>
+                                  <SidebarMenuButton asChild size="sm">
+                                    {/* The create dialog lives on guild home
+                                        with the rest of the initiative list. */}
+                                    <Link to={gp("/")} search={{ create: "true" }}>
                                       <Plus className="h-4 w-4" />
                                       <span>{t("addInitiative")}</span>
                                     </Link>
                                   </SidebarMenuButton>
                                 </SidebarMenuItem>
-                              </SidebarMenu>
-                            )}
+                              )}
+                            </SidebarMenu>
                           </SidebarGroupContent>
                         </SidebarGroup>
                       </SidebarContent>
