@@ -324,6 +324,7 @@
     "readOnly": "Tienes acceso de solo lectura a esta pizarra."
   },
   "spreadsheet": {
+    "syncing": "Sincronizando hoja de cálculo…",
     "exportCsv": "Exportar CSV",
     "exportXlsx": "Exportar Excel",
     "importFile": "Importar",

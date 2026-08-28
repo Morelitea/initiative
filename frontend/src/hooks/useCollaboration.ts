@@ -45,6 +45,12 @@ export interface UseCollaborationResult {
   isSynced: boolean;
   /** List of current collaborators */
   collaborators: CollaboratorInfo[];
+  /** Whether the server's collaborator roster has been received for this
+   *  session. The roster arrives on the socket right after the initial
+   *  sync, so consumers that branch on "is anyone else here?" (e.g. the
+   *  whiteboard bootstrap) must wait for this — at the moment `isSynced`
+   *  flips true, `collaborators` is still the empty initial state. */
+  collaboratorsReady: boolean;
   /** Whether collaboration is active (connected and synced) */
   isCollaborating: boolean;
   /** Whether the hook is ready to provide collaboration */
@@ -67,6 +73,7 @@ export function useCollaboration({
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isSynced, setIsSynced] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([]);
+  const [collaboratorsReady, setCollaboratorsReady] = useState(false);
 
   // Store the provider reference so we can track its state
   const providerRef = useRef<CollaborationProvider | null>(null);
@@ -115,6 +122,7 @@ export function useCollaboration({
       setConnectionStatus("disconnected");
       setIsSynced(false);
       setCollaborators([]);
+      setCollaboratorsReady(false);
     }
     currentWsUrlRef.current = wsUrl;
   }, [wsUrl]);
@@ -150,6 +158,7 @@ export function useCollaboration({
       setConnectionStatus("disconnected");
       setIsSynced(false);
       setCollaborators([]);
+      setCollaboratorsReady(false);
 
       // Update the URL ref BEFORE creating the provider
       // This prevents the wsUrl effect from destroying the new provider
@@ -248,12 +257,14 @@ export function useCollaboration({
         // Listen for collaborator changes
         provider.onCollaborators((newCollaborators) => {
           setCollaborators(newCollaborators);
+          setCollaboratorsReady(true);
         });
       } else {
         // For an existing provider, sync current state to React
         // This is critical after quick navigation where React state resets but provider is reused
         const currentProvider = providerRef.current!;
         setCollaborators(currentProvider.collaborators);
+        setCollaboratorsReady(currentProvider.collaborators.length > 0);
         setIsSynced(currentProvider.synced);
         // Use the provider's tracked status instead of inferring it
         const providerStatus = currentProvider.status;
@@ -277,6 +288,7 @@ export function useCollaboration({
       setConnectionStatus("disconnected");
       setIsSynced(false);
       setCollaborators([]);
+      setCollaboratorsReady(false);
     }
   }, [isReady]);
 
@@ -318,6 +330,7 @@ export function useCollaboration({
       connectionStatus,
       isSynced,
       collaborators,
+      collaboratorsReady,
       isCollaborating,
       isReady,
       connect,
@@ -328,6 +341,7 @@ export function useCollaboration({
       connectionStatus,
       isSynced,
       collaborators,
+      collaboratorsReady,
       isCollaborating,
       isReady,
       connect,

@@ -143,18 +143,30 @@ interface UseSpreadsheetSheetsArgs {
   yDoc: Y.Doc | null;
   /** Parsed v3 content, used only to seed a doc that has no workbook yet. */
   initialContent: SpreadsheetContent;
+  /** Gate for the one-shot seed. A collaborative doc must not be seeded
+   *  before the provider's initial sync completes: the doc looks empty
+   *  only because the server state hasn't arrived yet, and seeding it
+   *  from the (possibly stale) REST snapshot creates writes concurrent
+   *  with everything other users did since — which last-write-wins can
+   *  resolve in the stale seed's favor, for every connected client.
+   *  Pass ``false`` until the provider reports synced; defaults to
+   *  ``true`` for local (non-collaborative) docs. */
+  seedAllowed?: boolean;
 }
 
 export const useSpreadsheetSheets = ({
   yDoc,
   initialContent,
+  seedAllowed = true,
 }: UseSpreadsheetSheetsArgs): SpreadsheetSheetsStore => {
   // Seeding runs during render, not in an effect, because the per-sheet
   // hooks called after this one resolve their Y.Maps during *their* render
   // — an effect would leave them pointed at nothing for the first frame.
   // ``ensureWorkbook`` returns immediately when the doc already has sheets,
   // so a re-render (or StrictMode's double invoke) costs nothing.
-  useMemo(() => ensureWorkbook(yDoc, initialContent), [yDoc, initialContent]);
+  useMemo(() => {
+    if (seedAllowed) ensureWorkbook(yDoc, initialContent);
+  }, [yDoc, initialContent, seedAllowed]);
 
   const [sheets, setSheets] = useState<SheetMeta[]>(() => readSheetOrder(yDoc));
   const [cellsBySheet, setCellsBySheet] = useState<Map<SheetId, Map<string, CellValue>>>(() => {

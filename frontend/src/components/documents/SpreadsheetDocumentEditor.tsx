@@ -1,5 +1,6 @@
 import type { ProviderAwareness } from "@lexical/yjs";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Loader2 } from "lucide-react";
 import {
   type ClipboardEvent,
   type CSSProperties,
@@ -105,6 +106,10 @@ interface SpreadsheetDocumentEditorProps {
    *  not yet ready), the editor falls back to local component state
    *  with the same UX. */
   yDoc?: Y.Doc | null;
+  /** Whether the collaboration provider has completed its initial sync.
+   *  Until then the workbook must not be seeded from ``initialContent``
+   *  (see ``useSpreadsheetSheets``). Ignored when ``yDoc`` is null. */
+  isSynced?: boolean;
   /** Awareness handle from the same provider as ``yDoc``. Used to
    *  publish / observe selected-cell presence rings. */
   awareness?: ProviderAwareness | null;
@@ -156,6 +161,7 @@ export const SpreadsheetDocumentEditor = ({
   readOnly,
   className,
   yDoc = null,
+  isSynced = true,
   awareness = null,
   currentUser = null,
 }: SpreadsheetDocumentEditorProps) => {
@@ -180,7 +186,13 @@ export const SpreadsheetDocumentEditor = ({
   // The workbook level: which sheets exist, and every sheet's cells (the
   // evaluator needs all of them to resolve ``=Sheet2!A1``). Called before
   // the per-sheet hooks because it is what creates their Y.Maps.
-  const workbook = useSpreadsheetSheets({ yDoc: docForData, initialContent: parsedInitial });
+  const workbook = useSpreadsheetSheets({
+    yDoc: docForData,
+    initialContent: parsedInitial,
+    // A provider-backed doc is empty until the initial sync lands; seeding
+    // it earlier would push the stale REST snapshot into the live room.
+    seedAllowed: yDoc === null || isSynced,
+  });
   const { sheets, cellsBySheet, version: workbookVersion } = workbook;
 
   // The sheet on screen. Tracked by id and re-resolved against the live
@@ -1656,10 +1668,18 @@ export const SpreadsheetDocumentEditor = ({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-lg border border-border bg-background",
+        "relative flex flex-col overflow-hidden rounded-lg border border-border bg-background",
         className
       )}
     >
+      {yDoc !== null && !isSynced && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>{t("documents:spreadsheet.syncing")}</span>
+          </div>
+        </div>
+      )}
       <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-border border-b bg-muted/20 px-3 py-2">
         <SpreadsheetToolbar
           selection={
