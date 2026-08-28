@@ -321,17 +321,14 @@ export const CalendarsView = ({
   }, [calendars]);
 
   // --- One request: events + task markers over the visible window. ---
-  const guildCalendarIds = useMemo(
-    () => (guildOnly ? calendars.map((calendar) => calendar.id) : []),
-    [guildOnly, calendars]
-  );
-
   const entriesParams = useMemo((): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => {
-    // A guild surface: exactly these calendars' events, and nothing task- or
-    // initiative-shaped at all.
+    // A guild surface: guild-level events, and nothing task- or
+    // initiative-shaped at all. The app asks by scope rather than by naming its
+    // calendars — the calendars below arrive one page at a time, and an event
+    // on one that fell off the end would simply not be drawn.
     if (guildOnly) {
       return {
-        calendar_ids: guildCalendarIds,
+        ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "guild" as const }),
         start_after: visibleRange.start.toISOString(),
         start_before: visibleRange.end.toISOString(),
         tz: userTimezone,
@@ -351,7 +348,8 @@ export const CalendarsView = ({
     };
   }, [
     guildOnly,
-    guildCalendarIds,
+    solo,
+    soloCalendar?.id,
     initiativeId,
     visibleRange,
     propertyFiltersParam,
@@ -359,12 +357,7 @@ export const CalendarsView = ({
     userTimezone,
   ]);
 
-  // With no calendar to ask about there is nothing to fetch, and an unbounded
-  // request would answer with the whole guild — which is what naming the
-  // calendars is for.
-  const entriesQuery = useCalendarEntries(entriesParams, {
-    enabled: !guildOnly || guildCalendarIds.length > 0,
-  });
+  const entriesQuery = useCalendarEntries(entriesParams);
 
   // Same param shape the sidebar and dashboard use, so this shares their cache.
   const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !guildOnly });

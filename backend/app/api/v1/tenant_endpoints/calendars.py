@@ -336,8 +336,8 @@ async def create_calendar(
     # The app is the container, so it is answerable for this too: uninstalling
     # walks its artifacts and trashes each one.
     if app is not None:
-        guild_apps_service.record_artifact(
-            app, artifact_type=Tool.calendar.value, artifact_id=calendar.id
+        await guild_apps_service.record_artifact(
+            session, app, artifact_type=Tool.calendar.value, artifact_id=calendar.id
         )
 
     if calendar_in.tag_ids:

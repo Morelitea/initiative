@@ -16,6 +16,7 @@ from app.models.platform.guild import GuildRole
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_guild_calendar,
     create_project,
     create_task,
     get_auth_headers,
@@ -207,6 +208,44 @@ async def _guild_with_project(session, user, *, name):
     calendar = await _enable_events(session, initiative, user)
     project = await create_project(session, initiative, user, name=f"{name} Project")
     return guild, initiative, project, calendar
+
+
+@pytest.mark.integration
+async def test_guild_scope_returns_every_guild_calendar_s_events(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``scope=guild`` asks by kind, so the answer does not depend on the caller
+    first assembling a list of calendar ids — a list which would be one page of
+    them, with everything after it silently undrawn."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    initiative_calendar = await _enable_events(session, a.initiative, a.user)
+    await create_calendar_event(
+        session, initiative_calendar, a.user, title="Standup", start_at=NOW
+    )
+
+    titles = []
+    for index in range(3):
+        calendar = await create_guild_calendar(
+            session, a.guild, a.user, name=f"Guild {index}"
+        )
+        title = f"Guild event {index}"
+        titles.append(title)
+        await create_calendar_event(
+            session, calendar, a.user, title=title, start_at=NOW
+        )
+
+    response = await client.get(
+        a.g("/calendar-entries/"),
+        headers=a.headers,
+        params={
+            "scope": "guild",
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_tasks": "false",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert sorted(e["title"] for e in response.json()["events"]) == sorted(titles)
 
 
 @pytest.mark.integration

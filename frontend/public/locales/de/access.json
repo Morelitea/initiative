@@ -6,9 +6,12 @@
   "share": {
     "title": "Freigabe",
     "allMembers": "Alle Initiative-Mitglieder",
+    "allGuildMembers": "Alle in der Gilde",
     "restricted": "Eingeschränkt",
     "allMembersHint": "Alle in der Initiative können darauf zugreifen.",
+    "allGuildMembersHint": "Alle in der Gilde haben Zugriff darauf.",
     "restrictedHint": "Nur von Ihnen hinzugefügte Personen und Rollen haben Zugriff.",
+    "restrictedGuildHint": "Nur Personen, die du hinzufügst, haben Zugriff darauf.",
     "viewer": "Betrachter",
     "editor": "Bearbeiter",
     "owner": "Eigentümer",

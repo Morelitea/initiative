@@ -482,6 +482,46 @@ async def test_a_guild_calendar_joins_the_app_s_artifacts(
 
 
 @pytest.mark.integration
+async def test_a_calendar_joins_artifacts_it_never_saw(
+    session: AsyncSession, acting_user
+):
+    """Any member may add a calendar, so two of them can be adding one at the
+    same moment. The append is made against the stored list rather than against
+    a copy of it, so an entry written since this one was read still survives —
+    otherwise it would stop being something the app removes."""
+    from sqlalchemy import update
+
+    from app.models.tenant.guild_app import GuildApp
+    from app.services.tenant import guild_apps as guild_apps_service
+
+    a = await acting_user(guild_role=GuildRole.admin)
+    app = await _install_calendar_app(session, a.guild, a.user)
+    calendar = await create_guild_calendar(session, a.guild, a.user)
+
+    # Someone else's calendar lands first; this copy of the row knows nothing
+    # about it.
+    await route_session_to_guild(session, a.guild.id)
+    await session.exec(
+        update(GuildApp)
+        .where(GuildApp.id == app.id)
+        .values(artifacts=[{"type": "calendar", "id": calendar.id}])
+        .execution_options(synchronize_session=False)
+    )
+    await session.commit()
+
+    await guild_apps_service.record_artifact(
+        session, app, artifact_type="calendar", artifact_id=999
+    )
+    await session.commit()
+
+    await session.refresh(app)
+    assert app.artifacts == [
+        {"type": "calendar", "id": calendar.id},
+        {"type": "calendar", "id": 999},
+    ]
+
+
+@pytest.mark.integration
 async def test_a_guild_calendar_needs_the_app(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

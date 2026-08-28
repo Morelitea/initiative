@@ -300,8 +300,11 @@ describe("CalendarsView on the calendar app's own surface", () => {
     // The list is asked for by scope, not inferred from an absent initiative —
     // otherwise it would answer with every initiative's calendars too.
     expect(calendarList[0].get("scope")).toBe("guild");
-    // Both calendars, no task leg, and no initiative to narrow to.
-    expect(entries[0].getAll("calendar_ids")).toEqual(["42", "43"]);
+    // The events are asked for by scope too, rather than by naming the
+    // calendars: the list above is one page of them, and an event on a calendar
+    // past the end of it would simply not be drawn.
+    expect(entries[0].get("scope")).toBe("guild");
+    expect(entries[0].getAll("calendar_ids")).toEqual([]);
     expect(entries[0].get("include_tasks")).toBe("false");
     expect(entries[0].get("initiative_id")).toBeNull();
     // Projects are task-shaped, and this surface holds no tasks.
@@ -339,14 +342,12 @@ describe("CalendarsView on the calendar app's own surface", () => {
   });
 
   it("offers to make the first one rather than showing an empty grid", async () => {
-    const { entries } = stubGuildScope([]);
+    stubGuildScope([]);
 
     renderGuildScope();
 
     expect(await screen.findByText(/no calendars yet/i)).toBeInTheDocument();
     // Any member may add one, so the offer stands without an initiative role.
     expect(screen.getAllByRole("button", { name: /new calendar/i }).length).toBeGreaterThan(0);
-    // Nothing to ask about, so nothing is asked.
-    expect(entries).toEqual([]);
   });
 });

@@ -41,6 +41,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
+from sqlalchemy import cast, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -229,7 +231,9 @@ async def find_mounting_app(
     return None
 
 
-def record_artifact(app: GuildApp, *, artifact_type: str, artifact_id: int) -> None:
+async def record_artifact(
+    session: AsyncSession, app: GuildApp, *, artifact_type: str, artifact_id: int
+) -> None:
     """Add something to what this install is answerable for.
 
     Everything made inside an app is made *by* the app as far as removal is
@@ -237,11 +241,26 @@ def record_artifact(app: GuildApp, *, artifact_type: str, artifact_id: int) -> N
     calendar someone added to the guild calendar leaves with it rather than
     outliving the only entry that reached it.
 
-    The list is reassigned rather than appended to, so the JSONB column sees a
-    new value and the change is actually written.
+    The append is done by the database, not in Python. Any member may add a
+    calendar, so two of them can be adding one at the same moment — and reading
+    the list, appending, and writing the whole value back would have the second
+    write carry a list taken before the first landed. ``||`` appends to whatever
+    the stored value is when the statement runs, so both entries survive
+    whichever order they arrive in.
     """
-    app.artifacts = [*app_artifacts(app), {"type": artifact_type, "id": artifact_id}]
-    touch(app)
+    entry = [{"type": artifact_type, "id": artifact_id}]
+    await session.exec(
+        update(GuildApp)
+        .where(GuildApp.id == app.id)
+        .values(
+            artifacts=GuildApp.artifacts.op("||")(cast(entry, JSONB)),
+            updated_at=datetime.now(timezone.utc),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    # The row has moved on without this copy of it, so send the next read of
+    # those two back to the database rather than to a value we know is behind.
+    session.expire(app, ["artifacts", "updated_at"])
 
 
 async def create_app_artifacts(
