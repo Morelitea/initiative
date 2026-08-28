@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Rejoining a shared document no longer shows — or spreads — an outdated copy.** Coming back to a spreadsheet or whiteboard someone else kept editing could show the document as it stood when you left, until a page refresh; on spreadsheets, the outdated copy could even be pushed back into the live session and roll back the other person's work. Spreadsheets now wait for the live session's state before adopting any locally held copy, and whiteboards no longer treat another user's incoming edits as their own unsaved work — while correctly recognizing a live session when deciding whether local unsaved work should still win.
 - **App and dashboard artwork now loads in the mobile app.** Marketplace listings whose artwork comes from the app registry — and the icons those apps show in the sidebar — were addressed as a path on the server, which the mobile app resolved inside its own bundle and drew as a broken image. They are now fetched from the server the app is signed in to.
 
 ## [0.63.4] - 2026-08-26

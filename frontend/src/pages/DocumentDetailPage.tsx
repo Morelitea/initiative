@@ -88,6 +88,11 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocumentEditor";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import {
+  clearWhiteboardSceneCache,
+  loadWhiteboardScene,
+  stampWhiteboardSceneCache,
+} from "@/components/documents/whiteboardSceneCache";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,7 +115,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -305,45 +310,28 @@ export const DocumentDetailPage = () => {
         setTags(document.tags ?? []);
         return;
       }
+      // The cache-vs-server decision below compares against
+      // document.updated_at, so it must not run against a React Query
+      // cache hit from a previous visit — that snapshot's updated_at
+      // predates everything other users did since, making any local cache
+      // look newer than it is. Wait for this mount's fetch to settle (an
+      // errored fetch settles too, so offline still falls back to the
+      // cached document).
+      if (!documentQuery.isFetchedAfterMount) {
+        return;
+      }
       loadedWhiteboardForRef.current = document.id;
 
-      // Check the write-ahead cache first. On every edit the scene is
+      // Check the write-ahead cache first. On every local edit the scene is
       // written to localStorage synchronously (survives refresh), so if
       // the user refreshes before the keepalive PATCH lands, we still
-      // have the latest scene. We compare timestamps: if the cached scene
-      // is newer than document.updated_at, use it instead of the (stale)
-      // REST-fetched content.
-      const cacheKey = `wb-scene-${document.id}`;
-      let scene: WhiteboardScene | null = null;
-      let fromCache = false;
-      try {
-        const cached = getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached) as {
-            scene: WhiteboardScene;
-            savedAt: string;
-          };
-          const cachedTs = new Date(parsed.savedAt).getTime();
-          const serverTs = new Date(document.updated_at).getTime();
-          if (cachedTs > serverTs && parsed.scene?.elements) {
-            scene = parsed.scene;
-            fromCache = true;
-          } else {
-            removeItem(cacheKey);
-          }
-        }
-      } catch {
-        removeItem(cacheKey);
-      }
-
-      if (!scene) {
-        const raw = (document.content ?? {}) as Partial<WhiteboardScene>;
-        scene = {
-          elements: raw.elements ?? [],
-          appState: raw.appState ?? {},
-          files: raw.files ?? {},
-        };
-      }
+      // have the latest scene. The cache wins only while it is strictly
+      // newer than document.updated_at.
+      const { scene, fromCache } = loadWhiteboardScene(
+        document.id,
+        document.updated_at,
+        document.content as Partial<WhiteboardScene> | null
+      );
       setWhiteboardScene(scene);
       setWhiteboardSceneFromCache(fromCache);
       setWhiteboardSceneReady(true);
@@ -356,7 +344,7 @@ export const DocumentDetailPage = () => {
     }
     setFeaturedImageUrl(document.featured_image_url ?? null);
     setTags(document.tags ?? []);
-  }, [document, normalizedDocumentContent]);
+  }, [document, normalizedDocumentContent, documentQuery.isFetchedAfterMount]);
 
   const documentContentJson = useMemo(() => {
     if (document?.document_type === "whiteboard") {
@@ -528,7 +516,7 @@ export const DocumentDetailPage = () => {
         toast.success(t("detail.saved"));
       }
       // Clear the write-ahead cache — the DB is now up-to-date.
-      removeItem(`wb-scene-${parsedId}`);
+      clearWhiteboardSceneCache(parsedId);
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
@@ -613,22 +601,21 @@ export const DocumentDetailPage = () => {
 
   // Whiteboard scene change handler — mirrors handleContentChange for Lexical.
   // Also writes a write-ahead cache to localStorage so the scene survives
-  // a page refresh even if the keepalive PATCH hasn't landed yet.
+  // a page refresh even if the keepalive PATCH hasn't landed yet. Only
+  // genuine local edits stamp the cache: remote-applied updates flow
+  // through here too (the periodic REST sync needs them), and stamping on
+  // those would leave every *watching* session holding a fresh-looking
+  // cache of whatever it last saw — which a later revisit would then
+  // prefer over the live room's newer state.
   const handleWhiteboardChange = useCallback(
-    (scene: WhiteboardScene) => {
+    (scene: WhiteboardScene, opts?: { isLocal: boolean }) => {
       contentStateRef.current = {
         documentId: parsedId,
         content: scene as unknown as SerializedEditorState,
       };
       setWhiteboardScene(scene);
-      try {
-        setItem(
-          `wb-scene-${parsedId}`,
-          JSON.stringify({ scene, savedAt: new Date().toISOString() })
-        );
-      } catch {
-        // Storage full or unavailable — best-effort
-      }
+      if (opts?.isLocal === false) return;
+      stampWhiteboardSceneCache(parsedId, scene);
     },
     [parsedId]
   );
@@ -1366,7 +1353,13 @@ export const DocumentDetailPage = () => {
                     readOnly={!canEditDocument}
                     yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
                     isSynced={collaboration.isSynced}
-                    hasOtherCollaborators={collaboration.collaborators.length > 0}
+                    // The server roster includes ourselves — only *other*
+                    // users make the room's Yjs state authoritative over a
+                    // local write-ahead cache.
+                    hasOtherCollaborators={collaboration.collaborators.some(
+                      (c) => c.user_id !== user?.id
+                    )}
+                    collaboratorsReady={collaboration.collaboratorsReady}
                     awareness={
                       collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
                     }
@@ -1396,6 +1389,7 @@ export const DocumentDetailPage = () => {
                   documentTitle={title || document.name}
                   readOnly={!canEditDocument}
                   yDoc={collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null}
+                  isSynced={collaboration.isSynced}
                   awareness={
                     collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
                   }

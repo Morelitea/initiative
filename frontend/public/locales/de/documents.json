@@ -324,6 +324,7 @@
     "readOnly": "Du hast nur Lesezugriff auf dieses Whiteboard."
   },
   "spreadsheet": {
+    "syncing": "Tabelle wird synchronisiert…",
     "exportCsv": "Als CSV exportieren",
     "exportXlsx": "Als Excel exportieren",
     "importFile": "Importieren",
