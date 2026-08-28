@@ -428,8 +428,13 @@ async def update_initiative(
                 join_policy=join_policy,
                 auto_join=update_data.get("auto_join"),
             )
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except ValueError:
+            # The only way the pair is incoherent. The code is the contract;
+            # the exception text is not.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=InitiativeMessages.AUTO_JOIN_REQUIRES_OPEN,
+            )
         if join_policy is not None:
             update_data["join_policy"] = join_policy
     if "name" in update_data and update_data["name"] is not None:
