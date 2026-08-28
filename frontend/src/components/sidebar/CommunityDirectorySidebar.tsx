@@ -5,22 +5,21 @@
  * narrows it sits where everywhere else in the app keeps its navigation — the
  * sidebar — and the page beside it is nothing but the cards.
  *
- * Both filters live in the URL. The sidebar writes them and the page reads
- * them, which is how two components on opposite sides of the layout agree
- * without a provider strung between them, and it leaves a filtered directory
- * linkable and reload-proof besides.
+ * Both filters live in the URL. This writes them and the page reads them, which
+ * is how two components on opposite sides of the layout agree without a
+ * provider strung between them, and it leaves a filtered directory linkable and
+ * reload-proof besides.
  *
  * The shelves are links, so a category can be opened in a new tab like anything
- * else, and each carries the current search along rather than clearing it.
- * Typing is debounced before it reaches the URL, and lands with `replace`, so a
- * search is one history entry rather than one per keystroke.
+ * else, and each carries the current search along rather than clearing it. The
+ * search box is `CommunitySearchField`, which the page mounts instead on the
+ * narrow screens where this sidebar is off-canvas.
  */
 
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { Input } from "@/components/ui/input";
+import { CommunitySearchField } from "@/components/guilds/CommunitySearchField";
 import {
   SidebarContent,
   SidebarGroup,
@@ -31,50 +30,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { asGuildCategory, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
-
-/** Long enough that a pause reads as "done typing", short enough that results
- *  arrive while the reader is still looking at the box. */
-const TYPING_SETTLES_MS = 250;
 
 export const CommunityDirectorySidebar = () => {
   const { t } = useTranslation(["guilds", "common"]);
-  const navigate = useNavigate();
   // Read loosely rather than through the route: this renders inside the app
   // shell, which is mounted above the route that declares these params.
-  const search = useSearch({ strict: false }) as { category?: unknown; q?: unknown };
+  const search = useSearch({ strict: false }) as { category?: unknown };
   const category = asGuildCategory(search.category);
-  const committed = typeof search.q === "string" ? search.q : "";
-
-  // The box is answerable to the keystroke; the URL is answerable to the pause.
-  const [draft, setDraft] = useState(committed);
-  const settled = useDebouncedValue(draft, TYPING_SETTLES_MS);
-  // The last search this sidebar put in the address. Anything else the address
-  // says came from somewhere the box does not know about — the back button, a
-  // link into the directory, a restored tab — and the address wins there: it is
-  // what the page is already showing, and typing must not undo a move the
-  // reader made.
-  const ours = useRef(committed);
-
-  useEffect(() => {
-    if (committed === ours.current) return;
-    ours.current = committed;
-    setDraft(committed);
-  }, [committed]);
-
-  useEffect(() => {
-    if (settled === ours.current) return;
-    ours.current = settled;
-    void navigate({
-      to: "/communities",
-      search: (prev: Record<string, unknown>) => ({
-        ...prev,
-        q: settled.trim() ? settled : undefined,
-      }),
-      replace: true,
-    });
-  }, [settled, navigate]);
 
   const shelf = (value: (typeof GUILD_CATEGORIES)[number] | undefined, label: string) => (
     <SidebarMenuItem key={value ?? "all"}>
@@ -104,12 +67,7 @@ export const CommunityDirectorySidebar = () => {
       <SidebarContent className="h-full overflow-y-auto overflow-x-hidden">
         <SidebarGroup>
           <SidebarGroupContent>
-            <Input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={t("guilds:community.searchPlaceholder")}
-              aria-label={t("guilds:community.searchPlaceholder")}
-            />
+            <CommunitySearchField />
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>

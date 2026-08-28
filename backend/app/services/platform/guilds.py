@@ -928,6 +928,11 @@ async def list_community_guilds(
     ``guild_administration`` and only an operator sets it, so it can be lowered
     long after the listing was made and no CHECK can see it.
 
+    Ordered by member count, busiest first, since that is what someone with no
+    guild yet is choosing between; ``query`` narrows on name or description
+    across the whole directory rather than within a page, so a search reaches
+    guilds no amount of scrolling had loaded.
+
     Needs a session that can see every guild's ``guild_memberships`` rows to
     count them (the system engine), the same precondition ``count_members``
     documents. Nothing about a guild's *content* is read — only the identity it
@@ -983,7 +988,12 @@ async def list_community_guilds(
         count_statement = count_statement.where(condition)
 
     total = (await session.exec(count_statement)).one()
-    statement = statement.order_by(Guild.name.asc(), Guild.id.asc())
+    # Busiest first: someone browsing for a community to join is best served by
+    # the ones with people already in them. Name and id break ties, so a guild
+    # never swaps pages between two requests that saw the same counts.
+    statement = statement.order_by(
+        member_count.desc(), Guild.name.asc(), Guild.id.asc()
+    )
     rows = (await session.exec(statement.offset(offset).limit(limit))).all()
     return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(
         total

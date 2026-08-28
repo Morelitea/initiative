@@ -14,6 +14,7 @@ cd "$SCRIPT_DIR/.."
 
 BACKEND_PID=""
 FRONTEND_PID=""
+OPEN_PID=""
 SEED_STATE=".vscode/.dev_seed_ids.json"
 
 # The guard makes the function idempotent so the signal path (trap fires, the
@@ -29,7 +30,7 @@ cleanup() {
     echo "Stopping dev environment..."
     # Stop the servers this script started, then let dev-cleanup.sh sweep up
     # whatever is still on the ports and remove the seeded data.
-    for pid in "$BACKEND_PID" "$FRONTEND_PID"; do
+    for pid in "$BACKEND_PID" "$FRONTEND_PID" "$OPEN_PID"; do
         if [ -n "$pid" ]; then
             kill "$pid" 2>/dev/null || true
         fi
@@ -70,11 +71,15 @@ trap 'pending_signal=true' INT TERM HUP
 nohup bash scripts/dev-backend.sh > /tmp/initiative-backend.log 2>&1 &
 BACKEND_PID=$!
 
-# Start the frontend in the background (Vite, port-cleanup built in). --open makes
-# Vite open the app in the browser once it's listening; its `open` dependency is
-# WSL-aware (launches the Windows browser) and handles macOS/Linux too.
-nohup bash scripts/dev-frontend.sh --open > /tmp/initiative-frontend.log 2>&1 &
+# Start the frontend in the background (Vite, port-cleanup built in).
+nohup bash scripts/dev-frontend.sh > /tmp/initiative-frontend.log 2>&1 &
 FRONTEND_PID=$!
+
+# Open the browser once both servers actually answer, rather than the moment
+# Vite binds its port — the API is still booting then, and the app lands on its
+# "no server" screen. Same opener the VSCode launch uses.
+nohup bash scripts/dev-open.sh > /tmp/initiative-open.log 2>&1 &
+OPEN_PID=$!
 
 # The environment is up and both pids are recorded, so the servers, the ports
 # and the seeded data are now this launch's to tear down.

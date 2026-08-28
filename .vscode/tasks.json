@@ -63,7 +63,7 @@
       "label": "dev:frontend",
       "type": "process",
       "command": "bash",
-      "args": ["scripts/dev-frontend.sh", "--open"],
+      "args": ["scripts/dev-frontend.sh"],
       "options": { "cwd": "${workspaceFolder}" },
       "isBackground": true,
       "presentation": { "reveal": "silent", "panel": "dedicated" },
@@ -78,11 +78,32 @@
       "dependsOn": ["dev:seed"]
     },
     {
+      // Waits for the API and the SPA, then opens the browser. Backgrounded on
+      // its first line so the chain finishes and the debug session can start
+      // the API — the thing this is waiting for.
+      "label": "dev:open-app",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-open.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Waiting for the app",
+          "endsPattern": "Waiting for the app|Opening|Gave up"
+        }
+      },
+      "dependsOn": ["dev:frontend"]
+    },
+    {
       // Everything the debug session does not own: database, migrations, seed
-      // data, and Vite (which opens the browser). The API is the debug target
-      // itself, so it is deliberately not in this chain.
+      // data, Vite, and the browser opener. The API is the debug target itself,
+      // so it is deliberately not in this chain.
       "label": "dev:setup",
-      "dependsOn": ["dev:frontend"],
+      "dependsOn": ["dev:open-app"],
       "presentation": { "reveal": "silent" },
       "problemMatcher": []
     },

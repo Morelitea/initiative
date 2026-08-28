@@ -219,6 +219,65 @@ async def test_directory_searches_name_and_description(
 
 
 @pytest.mark.integration
+async def test_directory_lists_the_busiest_guilds_first(
+    client: AsyncClient, session: AsyncSession
+):
+    """Who is already in a guild is what someone with none is choosing between."""
+    user = await create_user(session, email="browser@example.com")
+    # Named against the order they belong in, so an alphabetical sort cannot
+    # pass this by accident.
+    await _list_as_community(session, await create_guild(session, name="Aardvark Club"))
+    busy = await _list_as_community(
+        session, await create_guild(session, name="Zebra Hall")
+    )
+    for index in range(3):
+        await create_guild_membership(
+            session,
+            user=await create_user(session, email=f"joiner{index}@example.com"),
+            guild=busy,
+        )
+
+    response = await client.get(
+        "/api/v1/guilds/communities", headers=get_auth_headers(user)
+    )
+
+    items = response.json()["items"]
+    assert [item["name"] for item in items] == ["Zebra Hall", "Aardvark Club"]
+    assert [item["member_count"] for item in items] == [3, 0]
+
+
+@pytest.mark.integration
+async def test_directory_searches_every_guild_not_only_a_loaded_page(
+    client: AsyncClient, session: AsyncSession
+):
+    """The search is the query's, not the caller's.
+
+    The match is the quietest guild here and the page holds one guild, so it is
+    on no page a browser would have loaded by the time it searched.
+    """
+    user = await create_user(session, email="browser@example.com")
+    busy = await _list_as_community(
+        session, await create_guild(session, name="Crowded Hall")
+    )
+    for index in range(3):
+        await create_guild_membership(
+            session,
+            user=await create_user(session, email=f"joiner{index}@example.com"),
+            guild=busy,
+        )
+    await _list_as_community(session, await create_guild(session, name="Dice Goblins"))
+
+    response = await client.get(
+        "/api/v1/guilds/communities?q=goblins&page_size=1",
+        headers=get_auth_headers(user),
+    )
+
+    body = response.json()
+    assert [item["name"] for item in body["items"]] == ["Dice Goblins"]
+    assert body["total"] == 1
+
+
+@pytest.mark.integration
 async def test_directory_paginates(client: AsyncClient, session: AsyncSession):
     user = await create_user(session, email="browser@example.com")
     for index in range(3):
