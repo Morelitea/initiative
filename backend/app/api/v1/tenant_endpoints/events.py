@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 from typing import Optional
@@ -144,7 +145,13 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
             # Keep the connection alive by awaiting incoming messages
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await manager.disconnect(websocket)
+        pass
     except Exception:
+        with contextlib.suppress(Exception):
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+    finally:
+        # Unconditional, including the task being cancelled — which arrives as a
+        # BaseException and so past both excepts above. A room entry left behind
+        # is corrected by the first send that fails, but the socket's user would
+        # stay counted present in this guild with nothing to notice it.
         await manager.disconnect(websocket)
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)

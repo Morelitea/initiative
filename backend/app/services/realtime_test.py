@@ -74,6 +74,28 @@ async def test_presence_counts_people_not_sockets() -> None:
 
 
 @pytest.mark.unit
+async def test_disconnecting_a_socket_twice_takes_its_user_out_once() -> None:
+    """Both paths that drop a socket can run for the same socket.
+
+    A send that fails drops it, and the connection's own cleanup drops it again
+    when the loop ends. The second one must be a no-op rather than taking a
+    still-connected tab's user out of the count.
+    """
+    cm = ConnectionManager()
+    first_tab, second_tab = FakeWebSocket(), FakeWebSocket()
+    await cm.connect(1, [5], first_tab, user_id=7)
+    await cm.connect(1, [5], second_tab, user_id=7)
+
+    await cm.disconnect(first_tab)
+    await cm.disconnect(first_tab)
+
+    assert cm.present_count(1) == 1  # user 7, still on their second tab
+
+    await cm.disconnect(second_tab)
+    assert cm.present_count(1) == 0
+
+
+@pytest.mark.unit
 async def test_presence_is_per_guild() -> None:
     """One person in two guilds is present in both, and counted once in each."""
     cm = ConnectionManager()
