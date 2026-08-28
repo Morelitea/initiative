@@ -151,8 +151,9 @@ def guild_connection_ref(app: Any, connection_id: str) -> str:
 
     Minted on the admin's first connect and kept, so reconnecting keeps one
     identity rather than minting a new one each time — the rule a member's ref
-    already follows. It lives on the install row because a guild-wide credential
-    does.
+    already follows. Clearing the connection drops it, since the flow it was
+    routing is over; starting again mints a fresh one. It lives on the install
+    row because a guild-wide credential does.
 
     Mutating rather than returning a new mapping is deliberate: the caller is
     holding the row inside a transaction it is about to commit, and a ref handed

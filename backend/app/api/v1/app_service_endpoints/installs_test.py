@@ -1045,6 +1045,37 @@ class TestGuildConnectionWriteBack:
         after = await _get(client, f"{BASE}/installs")
         assert after.json()["items"][0]["needs_config"] is False
 
+    async def test_a_handle_the_clear_dropped_is_refused(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """Clearing the connection ends the flow that was routing to it.
+
+        An admin who clears a credential has said to forget it. A result still
+        in flight from before must not put it back, so the clear drops the
+        handle and a write-back carrying the old one is refused.
+        """
+        await register_app_service(session, listing_uid=SHOP_UID)
+        guild, _user, app = await _install(
+            session,
+            definition=_workspace_definition(),
+            connection_refs={"workspace": "gcr_workspace"},
+        )
+
+        await route_session_to_guild(session, guild.id)
+        app.connection_refs = {}
+        session.add(app)
+        await session.commit()
+
+        refused = await _put(
+            client,
+            f"{BASE}/installs/{guild.id}/connections/gcr_workspace",
+            {"values": {"owner": "morelitea"}},
+        )
+        assert refused.status_code == 404
+
+        config = await _get(client, f"{BASE}/installs/{guild.id}/config")
+        assert "workspace" not in config.json()["connections"]
+
     async def test_a_handle_nobody_minted_is_refused(
         self, client: AsyncClient, session: AsyncSession
     ):

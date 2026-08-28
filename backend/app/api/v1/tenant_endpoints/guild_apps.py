@@ -1033,6 +1033,15 @@ async def disconnect_guild_app(
             for key, value in (app.config_secrets or {}).items()
             if key != connection_id
         }
+        # The handle goes with them. It is what a write-back is matched on, so
+        # keeping it would leave a flow the admin has just ended still able to
+        # land its result and bring the connection back. Starting the flow again
+        # mints a fresh one, which is the whole of what reconnecting needs.
+        app.connection_refs = {
+            key: value
+            for key, value in (app.connection_refs or {}).items()
+            if key != connection_id
+        }
         app.config_state = "unverified"
         app.config_state_detail = None
         guild_apps_service.touch(app)

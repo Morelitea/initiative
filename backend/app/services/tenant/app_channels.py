@@ -572,12 +572,6 @@ async def _write_guild_connection(
     visible to the admin who governs it, so the vendor account belongs in a
     field the manifest declares rather than in a label beside one.
     """
-    connection = app_config_service.connection_by_id(app.definition, connection_id)
-    if connection is None:
-        # The install moved to a version that no longer declares this
-        # connection; its values are on their way out with it.
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-
     # Both configuration maps are rewritten whole below, so the row is taken
     # first: a second write-back, or an admin saving the settings form, would
     # otherwise rebuild from a copy read before this one landed and put back
@@ -586,6 +580,20 @@ async def _write_guild_connection(
     if locked is None:
         raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
     app = locked
+
+    # Asked again now the row is held, because the wait is long enough for the
+    # answer to have changed: an upgrade may have moved the install to a version
+    # that declares no such connection, and an admin may have cleared this one,
+    # which drops the handle. Whatever was true when this request arrived is not
+    # what it gets to act on.
+    if app_config_service.connection_id_for_ref(app, connection_ref) != connection_id:
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
+
+    connection = app_config_service.connection_by_id(app.definition, connection_id)
+    if connection is None:
+        # The install moved to a version that no longer declares this
+        # connection; its values are on their way out with it.
+        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
 
     try:
         config, secrets = app_config_service.apply_connection_values(

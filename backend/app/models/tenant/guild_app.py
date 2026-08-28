@@ -121,9 +121,10 @@ class GuildApp(CreatedByMixin, table=True):
     # to be matched to it.
     #
     # Minted when an admin starts the flow and kept afterwards, so reconnecting
-    # keeps one identity rather than minting a new one each time. The handle is
-    # what a write-back is matched on: it is accepted for the connection its
-    # handle names, and only for a handle this map holds.
+    # keeps one identity rather than minting a new one each time; clearing the
+    # connection drops it. The handle is what a write-back is matched on: it is
+    # accepted for the connection its handle names, and only for a handle this
+    # map holds.
     connection_refs: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
