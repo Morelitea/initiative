@@ -100,7 +100,8 @@ class GuildAppConnectionRead(SanitizedBaseModel):
     has_value: Dict[str, bool] = {}
     #: Whether everything this connection declared it needs is present.
     satisfied: bool = False
-    #: Where the app runs its vendor flow, for an interactive connection.
+    #: Where the app runs its vendor flow. Present on an interactive connection,
+    #: and on a guild-wide one an admin connects rather than types.
     connect_path: Optional[str] = None
     #: The viewer's own state on an interactive connection.
     status: Optional[str] = None

@@ -636,8 +636,10 @@ class GuildAppMessages:
     # --- connections ---
     #: No such connection on this install, or no such member connection.
     CONNECTION_NOT_FOUND = "GUILD_APP_CONNECTION_NOT_FOUND"
-    #: Connecting an account is for the connections a vendor authorizes per
-    #: person; a guild-wide credential is configured instead.
+    #: Connecting runs a vendor's flow, and this connection declares none —
+    #: its values are typed into the settings form instead. Named for the
+    #: scope because that is what it meant when only one scope could have a
+    #: flow; a guild-wide connection may now have one too.
     CONNECTION_NOT_INTERACTIVE = "GUILD_APP_CONNECTION_NOT_INTERACTIVE"
     #: Guild-wide values are configured through the config endpoint; a
     #: per-member connection is not.
@@ -671,9 +673,6 @@ class GuildAppMessages:
     #: guild's admins, or for an initiative's managers where the caller manages
     #: nothing.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
-    #: An interactive connection whose pinned definition carries no
-    #: ``connect_path``, so there is no vendor flow to send the member to.
-    CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
     #: The placement sent is not a shape this build stores, or it names an
     #: initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"

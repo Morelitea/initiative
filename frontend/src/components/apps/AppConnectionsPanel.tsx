@@ -9,7 +9,10 @@
  *
  * - A **guild connection** is one credential the whole guild uses. A guild
  *   admin fills it in; everyone else sees whether it is set, because whether an
- *   app can do its job is not a secret.
+ *   app can do its job is not a secret. Some are typed and some are not: where
+ *   the vendor authorizes an organization through a page of its own, the admin
+ *   is sent there and the app writes down what came back, so the form has
+ *   nothing in it and a button instead.
  * - A **personal connection** is each member's own account at a vendor that
  *   authorizes people rather than organizations. Every member sees their own
  *   state and only their own — the server answers per viewer, so there is
@@ -24,7 +27,7 @@
  */
 
 import { KeyRound, Loader2, Plug, ShieldCheck, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AppConfigValue, AppConnection, AppConnectionField } from "@/api/appConnections";
@@ -136,14 +139,46 @@ function GuildConnection({
   connection: AppConnection;
   canManage: boolean;
 }) {
-  const { t } = useTranslation(["apps", "common"]);
+  const { t, i18n } = useTranslation(["apps", "common"]);
   const [draft, setDraft] = useState<Record<string, AppConfigValue>>({});
   const save = useUpdateAppConfig(appId);
   const clear = useDisconnectApp(appId);
+  const connect = useConnectApp(appId);
 
   // Only what was touched. A secret already stored renders empty, so sending
   // untouched keys would clear the values the admin came here to keep.
   const touched = Object.keys(draft);
+
+  // A field the app writes back itself is never typed here, so a connection
+  // whose every field is managed has no form at all — which is exactly the
+  // case a `connect_path` exists for.
+  const typed = connection.fields.filter((field) => !field.managed);
+  const vendorFlow = Boolean(connection.connect_path);
+
+  // What the app wrote back, shown rather than reduced to "Set". Otherwise the
+  // admin who just chose an account at a vendor has no way to see which one
+  // they chose — and no way to notice they chose the wrong one. Secrets are
+  // absent by construction: `values` carries the non-secret half and the other
+  // one is never sent back.
+  const recorded = connection.fields.filter(
+    (field) => field.managed && connection.values[field.key] !== undefined
+  );
+
+  const start = () =>
+    connect.mutate(connection.id, {
+      onSuccess: (started) => {
+        // A new tab rather than a redirect, so the admin comes back to where
+        // they were; `noopener` keeps the app's page from reaching into this
+        // one. The address is the server's to build — see PersonalConnection.
+        if (started.connect_url) {
+          window.open(started.connect_url, "_blank", "noopener,noreferrer");
+          toast.success(t("apps:connections.connectOpened"));
+          return;
+        }
+        toast.error(t("apps:connections.connectUnavailable"));
+      },
+      onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
+    });
 
   const submit = () => {
     save.mutate(
@@ -166,10 +201,26 @@ function GuildConnection({
     >
       {canManage ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {connection.fields
-              .filter((field) => !field.managed)
-              .map((field) => (
+          {vendorFlow && (
+            <p className="text-muted-foreground text-sm">
+              {t("apps:connections.guildFlowExplainer")}
+            </p>
+          )}
+          {recorded.length > 0 && (
+            <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
+              {recorded.map((field) => (
+                <Fragment key={field.key}>
+                  <dt className="text-muted-foreground">
+                    {localized(field.label, i18n.language) ?? field.key}
+                  </dt>
+                  <dd className="break-all">{String(connection.values[field.key])}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          )}
+          {typed.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {typed.map((field) => (
                 <ConnectionFieldInput
                   key={field.key}
                   field={field}
@@ -178,12 +229,23 @@ function GuildConnection({
                   onChange={(value) => setDraft((prev) => ({ ...prev, [field.key]: value }))}
                 />
               ))}
-          </div>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={submit} disabled={!touched.length || save.isPending}>
-              {save.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-              {t("common:save")}
-            </Button>
+            {vendorFlow && (
+              <Button size="sm" onClick={start} disabled={connect.isPending}>
+                {connect.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                {connection.satisfied
+                  ? t("apps:connections.reconnect")
+                  : t("apps:connections.connect")}
+              </Button>
+            )}
+            {typed.length > 0 && (
+              <Button size="sm" onClick={submit} disabled={!touched.length || save.isPending}>
+                {save.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                {t("common:save")}
+              </Button>
+            )}
             {connection.satisfied && (
               <Button
                 size="sm"

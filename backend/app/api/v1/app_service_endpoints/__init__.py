@@ -14,7 +14,9 @@ The channels, all under ``/api/v1/app-service``:
 * ``GET /installs/{guild_id}/connections`` — the app's per-member connections,
   by opaque reference, with status only.
 * ``PUT /installs/{guild_id}/connections/{connection_ref}`` — what a vendor flow
-  produced, written back into the platform's custody.
+  produced, written back into the platform's custody. The handle says which of
+  two things it was: a member's own credential, or the one the whole guild uses
+  and a guild admin obtained.
 * ``POST /installs/{guild_id}/status`` — the app's verdict on the configuration
   it was handed.
 * ``POST /events`` — third-party events, re-emitted through the dispatcher the
