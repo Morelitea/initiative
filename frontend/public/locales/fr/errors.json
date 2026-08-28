@@ -331,6 +331,7 @@
   "AI_INVALID_API_KEY": "La clé d'API a été refusée. Vérifiez-la et réessayez.",
   "CALENDAR_NOT_FOUND": "Calendrier introuvable",
   "CALENDAR_CREATE_PERMISSION_REQUIRED": "Vous n'avez pas la permission de créer des calendriers dans cette initiative",
+  "CALENDAR_GUILD_APP_REQUIRED": "L'application calendrier du groupe n'est pas installée, il n'y a donc nulle part où placer un calendrier de groupe",
   "CALENDARS_NOT_ENABLED": "Les calendriers ne sont pas activés pour cette initiative",
   "CALENDAR_PERMISSION_REQUIRED": "Vous n'avez pas accès à ce calendrier",
   "CALENDAR_OWNER_REQUIRED": "Seul le propriétaire du calendrier peut faire cela",

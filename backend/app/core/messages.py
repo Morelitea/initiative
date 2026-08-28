@@ -446,6 +446,10 @@ class CalendarMessages:
     OWNER_REQUIRED = "CALENDAR_OWNER_REQUIRED"
     WRITE_ACCESS_REQUIRED = "CALENDAR_WRITE_ACCESS_REQUIRED"
     GRANT_CANNOT_MANAGE_MEMBERS = "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS"
+    # A guild calendar lives inside the calendar app, which is what reaches it
+    # and what its removal takes with it. Without the app there is nowhere to
+    # put one.
+    GUILD_APP_REQUIRED = "CALENDAR_GUILD_APP_REQUIRED"
 
 
 class CalendarEventMessages:

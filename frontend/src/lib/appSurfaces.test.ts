@@ -151,7 +151,21 @@ describe("guildAppPath", () => {
   it("sends a tool-instance app to the tool it mounted", () => {
     expect(
       guildAppPath({ id: 7, tool: "calendar", artifacts: [{ type: "calendar", id: 3 }] }, MEMBER)
-    ).toBe("/calendars/3");
+    ).toBe("/calendars");
+  });
+
+  it("sends it to the list rather than to one of them", () => {
+    // A member may add calendars to the app, so its home is everything it
+    // holds — the same address whether that is one calendar or six.
+    const app = {
+      id: 7,
+      tool: "calendar",
+      artifacts: [
+        { type: "calendar", id: 3 },
+        { type: "calendar", id: 4 },
+      ],
+    };
+    expect(guildAppPath(app, MEMBER)).toBe("/calendars");
   });
 });
 

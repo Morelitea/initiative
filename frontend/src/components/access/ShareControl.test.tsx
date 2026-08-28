@@ -55,6 +55,11 @@ vi.mock("@/hooks/useInitiativeRoles", () => ({
   useInitiativeRoles: () => ({ data: roles }),
 }));
 
+// The guild view names guild members rather than an initiative's.
+vi.mock("@/hooks/useUsers", () => ({
+  useUsers: () => ({ data: [alice, bob] }),
+}));
+
 import { ShareControl } from "./ShareControl";
 
 describe("ShareControl", () => {
@@ -138,5 +143,72 @@ describe("ShareControl", () => {
     expect(peopleSection).toBeTruthy();
     expect(within(peopleSection as HTMLElement).getByText("Alice")).toBeInTheDocument();
     expect(within(peopleSection as HTMLElement).getByText("Owner")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The guild view of the same control.
+ *
+ * A guild-level resource is shared with the guild's members, and a guild has no
+ * roles — the roles this control grants to belong to an initiative. So the
+ * guild view is a narrower control, not the same one relabelled.
+ */
+describe("ShareControl in its guild view", () => {
+  const guildProps = { initiativeId: null, onChange: vi.fn() };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("names the guild rather than an initiative", () => {
+    const grants: ResourceGrantSchema[] = [{ all_initiative_members: true, level: "read" }];
+
+    renderWithProviders(<ShareControl {...guildProps} grants={grants} />);
+
+    expect(screen.getByText("Everyone in the guild")).toBeInTheDocument();
+    expect(screen.queryByText("All initiative members")).toBeNull();
+  });
+
+  it("offers no roles to add", () => {
+    // Restricted mode is where the initiative view shows its Roles section.
+    renderWithProviders(<ShareControl {...guildProps} grants={[]} />);
+
+    expect(screen.getByText("People")).toBeInTheDocument();
+    expect(screen.queryByText("Roles")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add roles" })).toBeNull();
+    // And the restricted hint says so, rather than promising roles.
+    expect(screen.getByText("Only people you add can access this.")).toBeInTheDocument();
+  });
+
+  it("still shares with everyone, which is how a guild calendar arrives", async () => {
+    const onChange = vi.fn();
+    renderWithProviders(<ShareControl initiativeId={null} grants={[]} onChange={onChange} />);
+
+    await userEvent.click(screen.getByText("Restricted"));
+    await userEvent.click(
+      within(document.body).getAllByText("Everyone in the guild").at(-1) as HTMLElement
+    );
+
+    expect(onChange).toHaveBeenCalledWith([{ all_initiative_members: true, level: "read" }]);
+  });
+
+  it("drops a role grant rather than carrying it through an edit", async () => {
+    // The server cannot resolve one on a guild-level resource, so a stray
+    // stored grant must not survive a save made from this view.
+    const onChange = vi.fn();
+    const grants: ResourceGrantSchema[] = [
+      { role_id: 201, level: "write" },
+      { user_id: alice.id, level: "read" },
+    ];
+
+    renderWithProviders(<ShareControl initiativeId={null} grants={grants} onChange={onChange} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add people" }));
+    await userEvent.click(await screen.findByText("Bob"));
+
+    expect(onChange).toHaveBeenCalledWith([
+      { user_id: alice.id, level: "read" },
+      { user_id: bob.id, level: "read" },
+    ]);
   });
 });

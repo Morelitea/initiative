@@ -746,7 +746,7 @@ export interface CalendarCreate {
   description?: string | null;
   /** @maxLength 32 */
   color?: string;
-  initiative_id: number;
+  initiative_id?: number | null;
   tag_ids?: number[] | null;
   grants?: ResourceGrantSchema[];
 }
@@ -5594,6 +5594,7 @@ export type ReadCounterApiV1GGuildIdCountersCounterIdGetParams = {
 
 export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
   initiative_id?: number | null;
+  scope?: "guild" | null;
   /**
    * @minimum 1
    */
@@ -5669,6 +5670,7 @@ export type ReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetParams = {
 
 export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
   initiative_id?: number | null;
+  scope?: "guild" | null;
   calendar_ids?: number[] | null;
   start_after?: string | null;
   start_before?: string | null;

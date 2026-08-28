@@ -422,6 +422,7 @@ async def query_guild_calendar_events(
     guild_context: GuildContext,
     *,
     initiative_id: Optional[int] = None,
+    guild_scope: bool = False,
     calendar_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
@@ -436,10 +437,22 @@ async def query_guild_calendar_events(
     conditions to both callers so access is identical. Returns
     ``(events, total_count)``; pass ``limit=None`` (the aggregate's bounded
     window) to fetch every matching row, or ``limit``/``offset`` to paginate.
+
+    ``guild_scope`` narrows to the guild's own calendars — the ones belonging to
+    no initiative. It is the calendar app's whole surface, and stating it here
+    is what keeps that surface from having to name its calendars one by one: a
+    list of ids is a page of them, and events on whatever fell off the end would
+    simply not be drawn.
     """
     conditions = [CalendarEvent.guild_id == guild_context.guild_id]
 
-    if initiative_id is not None:
+    if guild_scope:
+        conditions.append(
+            CalendarEvent.calendar_id.in_(
+                select(Calendar.id).where(Calendar.initiative_id.is_(None))
+            )
+        )
+    elif initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.calendars_enabled:
             return [], 0

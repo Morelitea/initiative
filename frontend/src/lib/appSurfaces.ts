@@ -129,20 +129,21 @@ export const appHasConnections = (definition?: Record<string, unknown> | null): 
  * Where an app's guild-wide entry leads.
  *
  * A tool-instance app mounts an existing tool, so it links at the tool's own
- * route — the calendar an app created is just a calendar. A service app with
- * surfaces this reader can open gets a page. Anything else has no route, and
- * the caller decides what to do with the row.
+ * route — the calendars an app holds are just calendars. It links at the list
+ * rather than at one of them, because a member may add more: the app's home is
+ * everything it holds, which is still the right address when it holds one. A
+ * service app with surfaces this reader can open gets a page. Anything else has
+ * no route, and the caller decides what to do with the row.
  */
 export const guildAppPath = (
   app: AppSurfaceSource & { id: number },
   viewer: SurfaceViewer
 ): string | null => {
   if (app.tool === "calendar") {
-    const calendar = (app.artifacts ?? []).find((artifact) => artifact.type === "calendar");
     // No `/i/` prefix on purpose: an app is installed per guild, and the
-    // calendar it mounts belongs to no initiative — the guild route is its
+    // calendars it holds belong to no initiative — the guild route is their
     // real address, not a leftover.
-    return calendar ? `/calendars/${calendar.id}` : null;
+    return "/calendars";
   }
   return appEmbeds(app.definition, "guild", viewer).length ? `/apps/${app.id}` : null;
 };

@@ -71,6 +71,12 @@ describe("initiative route resolution", () => {
     );
   });
 
+  // The calendar app's own surface — the guild's calendars, not a roll-up of
+  // its initiatives'. That is why this one address survives the list below.
+  it("resolves the guild's calendars", () => {
+    expect(resolvedRouteId("/g/1/calendars")).toBe(`${GUILD}/calendars/`);
+  });
+
   it("resolves the entity-reference resolver", () => {
     expect(resolvedRouteId("/g/1/go/document/42")).toBe(`${GUILD}/go/$refType/$refId`);
   });
@@ -82,7 +88,6 @@ describe("initiative route resolution", () => {
     "/g/1/queues",
     "/g/1/dashboards",
     "/g/1/counter-groups",
-    "/g/1/calendars",
     // Sub-entities moved under their parent tool in the same change.
     "/g/1/tasks/4",
     "/g/1/calendar-events/8",

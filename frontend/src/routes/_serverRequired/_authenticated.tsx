@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
-import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog, UsersRound } from "lucide-react";
+import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
+import { Galaxy } from "@/components/icons/Galaxy";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
@@ -372,7 +373,7 @@ function NoGuildState({
         {communityDirectoryEnabled && (
           <Button variant="outline" asChild className="w-full">
             <Link to="/communities">
-              <UsersRound className="h-4 w-4" />
+              <Galaxy className="h-4 w-4" />
               {t("noGuild.browseCommunities")}
             </Link>
           </Button>

@@ -36,6 +36,10 @@ type CreateCalendarDialogProps = DialogProps & {
   initiativeId?: number;
   /** If provided, pre-selects this initiative (but the user can change it). */
   defaultInitiativeId?: number;
+  /** Create a guild calendar — one belonging to the guild rather than to any
+   * initiative, the way the calendar app's own does. There is no initiative to
+   * pick, and sharing is guild-scoped. */
+  guildScope?: boolean;
   onSuccess?: (calendar: CalendarRead) => void;
 };
 
@@ -44,6 +48,7 @@ export const CreateCalendarDialog = ({
   onOpenChange,
   initiativeId,
   defaultInitiativeId,
+  guildScope = false,
   onSuccess,
 }: CreateCalendarDialogProps) => {
   const { t } = useTranslation(["calendars", "common"]);
@@ -57,14 +62,21 @@ export const CreateCalendarDialog = ({
   );
 
   // Initiatives the current user may create calendars in — backs the picker
-  // shown when no initiative is locked.
-  const { creatableInitiatives } = useToolCreateAccess(Tool.calendar, { enabled: open });
+  // shown when no initiative is locked. A guild calendar goes into none of
+  // them, so the question is not asked.
+  const { creatableInitiatives } = useToolCreateAccess(Tool.calendar, {
+    enabled: open && !guildScope,
+  });
 
-  const effectiveInitiativeId =
-    initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null);
+  const effectiveInitiativeId = guildScope
+    ? null
+    : (initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null));
 
   useEffect(() => {
     if (open) {
+      // A guild calendar has no initiative to pre-select; closing still resets
+      // the form, which is the other half of this effect.
+      if (guildScope) return;
       if (defaultInitiativeId) {
         setSelectedInitiativeId(String(defaultInitiativeId));
       } else if (creatableInitiatives.length === 1) {
@@ -77,7 +89,7 @@ export const CreateCalendarDialog = ({
       setGrants([...DEFAULT_GRANTS]);
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
     }
-  }, [open, defaultInitiativeId, creatableInitiatives]);
+  }, [open, guildScope, defaultInitiativeId, creatableInitiatives]);
 
   const createCalendar = useCreateCalendar({
     onSuccess: (calendar) => {
@@ -87,16 +99,18 @@ export const CreateCalendarDialog = ({
   });
 
   const isCreating = createCalendar.isPending;
-  const canSubmit = name.trim() && !!effectiveInitiativeId && !isCreating;
+  const hasTarget = guildScope || !!effectiveInitiativeId;
+  const canSubmit = name.trim() && hasTarget && !isCreating;
 
   const handleSubmit = () => {
     const trimmedName = name.trim();
-    if (!trimmedName || !effectiveInitiativeId) return;
+    if (!trimmedName || !hasTarget) return;
     createCalendar.mutate({
       name: trimmedName,
       description: description.trim() || undefined,
       color,
-      initiative_id: effectiveInitiativeId,
+      // Omitted for a guild calendar: no initiative is what makes it one.
+      ...(effectiveInitiativeId ? { initiative_id: effectiveInitiativeId } : {}),
       grants,
     });
   };
@@ -147,7 +161,7 @@ export const CreateCalendarDialog = ({
             />
           </div>
 
-          {initiativeId === undefined && (
+          {initiativeId === undefined && !guildScope && (
             <div className="space-y-2">
               <Label htmlFor="create-calendar-initiative">{t("initiative")}</Label>
               <Select

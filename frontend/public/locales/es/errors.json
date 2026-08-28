@@ -331,6 +331,7 @@
   "AI_INVALID_API_KEY": "La clave de API fue rechazada. Compruébala e inténtalo de nuevo.",
   "CALENDAR_NOT_FOUND": "Calendario no encontrado",
   "CALENDAR_CREATE_PERMISSION_REQUIRED": "No tienes permiso para crear calendarios en esta iniciativa",
+  "CALENDAR_GUILD_APP_REQUIRED": "La aplicación de calendario del gremio no está instalada, así que no hay dónde poner un calendario del gremio",
   "CALENDARS_NOT_ENABLED": "Los calendarios no están habilitados en esta iniciativa",
   "CALENDAR_PERMISSION_REQUIRED": "No tienes acceso a este calendario",
   "CALENDAR_OWNER_REQUIRED": "Solo el propietario del calendario puede hacer esto",

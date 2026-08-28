@@ -64,6 +64,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformCommunityRouteImpor
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/storage'
 import { Route as ServerRequiredAuthenticatedGGuildIdAppsAppIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/apps_.$appId'
+import { Route as ServerRequiredAuthenticatedGGuildIdCalendarsIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/calendars/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdIIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/i/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdIInitiativeIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/i/$initiativeId'
 import { Route as ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/marketplace_.$publicId'
@@ -430,6 +431,12 @@ const ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute =
   ServerRequiredAuthenticatedGGuildIdAppsAppIdRouteImport.update({
     id: '/apps_/$appId',
     path: '/apps/$appId',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute =
+  ServerRequiredAuthenticatedGGuildIdCalendarsIndexRouteImport.update({
+    id: '/calendars/',
+    path: '/calendars/',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdIIndexRoute =
@@ -846,6 +853,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   '/g/$guildId/settings/users': typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
   '/g/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
+  '/g/$guildId/calendars/': typeof ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute
   '/g/$guildId/i/': typeof ServerRequiredAuthenticatedGGuildIdIIndexRoute
   '/g/$guildId/settings/': typeof ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute
   '/g/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdSettingsRoute
@@ -940,6 +948,7 @@ export interface FileRoutesByTo {
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   '/g/$guildId/settings/users': typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
   '/g/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
+  '/g/$guildId/calendars': typeof ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute
   '/g/$guildId/i': typeof ServerRequiredAuthenticatedGGuildIdIIndexRoute
   '/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute
   '/g/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdSettingsRoute
@@ -1043,6 +1052,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/users': typeof ServerRequiredAuthenticatedGGuildIdSettingsUsersRoute
   '/_serverRequired/_authenticated/g/$guildId/tags_/$tagId': typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
+  '/_serverRequired/_authenticated/g/$guildId/calendars/': typeof ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute
   '/_serverRequired/_authenticated/g/$guildId/i/': typeof ServerRequiredAuthenticatedGGuildIdIIndexRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/': typeof ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute
   '/_serverRequired/_authenticated/g/$guildId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdSettingsRoute
@@ -1145,6 +1155,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/settings/trash'
     | '/g/$guildId/settings/users'
     | '/g/$guildId/tags/$tagId'
+    | '/g/$guildId/calendars/'
     | '/g/$guildId/i/'
     | '/g/$guildId/settings/'
     | '/g/$guildId/calendars/$calendarId/settings'
@@ -1239,6 +1250,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/settings/trash'
     | '/g/$guildId/settings/users'
     | '/g/$guildId/tags/$tagId'
+    | '/g/$guildId/calendars'
     | '/g/$guildId/i'
     | '/g/$guildId/settings'
     | '/g/$guildId/calendars/$calendarId/settings'
@@ -1341,6 +1353,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/settings/trash'
     | '/_serverRequired/_authenticated/g/$guildId/settings/users'
     | '/_serverRequired/_authenticated/g/$guildId/tags_/$tagId'
+    | '/_serverRequired/_authenticated/g/$guildId/calendars/'
     | '/_serverRequired/_authenticated/g/$guildId/i/'
     | '/_serverRequired/_authenticated/g/$guildId/settings/'
     | '/_serverRequired/_authenticated/g/$guildId/calendars/$calendarId/settings'
@@ -1767,6 +1780,13 @@ declare module '@tanstack/react-router' {
       path: '/apps/$appId'
       fullPath: '/g/$guildId/apps/$appId'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/calendars/': {
+      id: '/_serverRequired/_authenticated/g/$guildId/calendars/'
+      path: '/calendars'
+      fullPath: '/g/$guildId/calendars/'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarsIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/i/': {
@@ -2344,6 +2364,7 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
   ServerRequiredAuthenticatedGGuildIdIInitiativeIdRoute: typeof ServerRequiredAuthenticatedGGuildIdIInitiativeIdRouteWithChildren
   ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute
   ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute: typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
+  ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute
   ServerRequiredAuthenticatedGGuildIdIIndexRoute: typeof ServerRequiredAuthenticatedGGuildIdIIndexRoute
   ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdSettingsRoute
   ServerRequiredAuthenticatedGGuildIdGoRefTypeRefIdRoute: typeof ServerRequiredAuthenticatedGGuildIdGoRefTypeRefIdRoute
@@ -2368,6 +2389,8 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdMarketplacePublicIdRoute,
     ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute:
       ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute,
+    ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute:
+      ServerRequiredAuthenticatedGGuildIdCalendarsIndexRoute,
     ServerRequiredAuthenticatedGGuildIdIIndexRoute:
       ServerRequiredAuthenticatedGGuildIdIIndexRoute,
     ServerRequiredAuthenticatedGGuildIdCalendarsCalendarIdSettingsRoute:
