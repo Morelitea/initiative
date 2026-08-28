@@ -4,6 +4,32 @@ import { apiClient } from "@/api/client";
 import { getUploadToken } from "@/lib/uploadToken";
 
 /**
+ * The root the API server is addressed at: its origin plus whatever path the
+ * deployment is served under — "https://example.com/initiative" for a base URL
+ * of "https://example.com/initiative/api/v1". "" when it can't be determined.
+ *
+ * Only meaningful on native: there the web bundle is served from its own local
+ * origin, so a same-origin path resolves inside the bundle rather than at the
+ * server that returned it. The path prefix is kept because a server reached at
+ * one is reached there for everything — `normalizeServerUrl` preserves it when
+ * the address is entered, so dropping it here would address a different root.
+ */
+function apiServerBase(): string {
+  const baseUrl = apiClient.defaults.baseURL;
+  if (!baseUrl) {
+    return "";
+  }
+  const withoutApiPath = baseUrl.replace(/\/api\/v1\/?$/, "");
+  try {
+    const url = new URL(withoutApiPath);
+    return `${url.origin}${url.pathname.replace(/\/$/, "")}`;
+  } catch {
+    // Not parseable as absolute (a same-origin base URL): nothing to prepend.
+    return withoutApiPath.replace(/\/$/, "");
+  }
+}
+
+/**
  * Resolve an `/api/v1/...` path for a request that can't carry an Authorization
  * header — a download served via iframe/window.open, or a `keepalive`/sendBeacon
  * POST fired on page unload. On native platforms, prepends the API server origin
@@ -18,15 +44,7 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
     return apiPath;
   }
 
-  const baseUrl = apiClient.defaults.baseURL;
-  let origin = "";
-  if (baseUrl) {
-    try {
-      origin = new URL(baseUrl).origin;
-    } catch {
-      origin = baseUrl.replace(/\/api\/v1\/?$/, "");
-    }
-  }
+  const origin = apiServerBase();
   const resolved = origin ? `${origin}${apiPath}` : apiPath;
   const token = getUploadToken();
   if (token) {
@@ -99,20 +117,9 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
 
   // On native platforms, prepend the API server origin (no Vite proxy)
   if (Capacitor.isNativePlatform()) {
-    const baseUrl = apiClient.defaults.baseURL;
-    if (baseUrl) {
-      try {
-        // Extract origin from the API base URL (e.g., "http://10.0.2.2:8000/api/v1" -> "http://10.0.2.2:8000")
-        const url = new URL(baseUrl);
-        resolved = `${url.origin}${normalizedPath}`;
-      } catch {
-        // If URL parsing fails, try stripping /api/v1 suffix
-        const origin = baseUrl.replace(/\/api\/v1\/?$/, "");
-        resolved = origin ? `${origin}${normalizedPath}` : normalizedPath;
-      }
-    } else {
-      resolved = normalizedPath;
-    }
+    // e.g. "http://10.0.2.2:8000/api/v1" -> "http://10.0.2.2:8000/uploads/..."
+    const origin = apiServerBase();
+    resolved = origin ? `${origin}${normalizedPath}` : normalizedPath;
   } else {
     // On web, return path as-is - Vite proxies /uploads in dev, same-origin in prod
     resolved = normalizedPath;
@@ -132,4 +139,34 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
   }
 
   return resolved;
+}
+
+/**
+ * Resolve a catalog artwork path — a marketplace listing's icon or screenshot,
+ * and the artwork an installed app carries — to something a native WebView can
+ * load.
+ *
+ * Two kinds of same-origin path arrive here. Artwork this build ships
+ * (`/marketplace/…`, `/icons/…`) is already inside the native bundle, so it
+ * stays relative — resolving it against the server would fetch a file that is
+ * local. Artwork a registry's listings are served from lives only on the API
+ * (`/api/v1/marketplace/media/…`); on native the bundle is its own origin, so
+ * that path has to be addressed at the API server or it resolves to nothing.
+ * The media route is public and unauthenticated, so no token is added.
+ */
+export function resolveArtworkUrl(path: string | null | undefined): string | null {
+  if (!path) {
+    return null;
+  }
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (!Capacitor.isNativePlatform() || !normalizedPath.startsWith("/api/")) {
+    return normalizedPath;
+  }
+
+  const origin = apiServerBase();
+  return origin ? `${origin}${normalizedPath}` : normalizedPath;
 }

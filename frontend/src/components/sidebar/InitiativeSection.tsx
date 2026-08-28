@@ -33,6 +33,7 @@ import {
   toolListRoute,
   toolNavLabelKey,
 } from "@/lib/tools";
+import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
@@ -236,7 +237,7 @@ export const InitiativeSection = memo(
                     <Link to={gp(path)} className="flex min-w-0 items-center gap-2">
                       {app.avatar_url ? (
                         <img
-                          src={app.avatar_url}
+                          src={resolveArtworkUrl(app.avatar_url) ?? undefined}
                           alt=""
                           aria-hidden
                           className="h-4 w-4 shrink-0 rounded-sm object-cover"

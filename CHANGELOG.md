@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The Apps shelf only lists apps your server actually runs.** An app is served by a program the person running your server sets up — so a listing for one that they haven't set up yet, or have switched off, offered something that would install into nothing. Those listings now stay off the marketplace until the app is running, and adding one by hand is refused the same way. Dashboards are unaffected, and nothing changes for an app a guild has already installed.
 
+### Fixed
+
+- **App and dashboard artwork now loads in the mobile app.** Marketplace listings whose artwork comes from the app registry — and the icons those apps show in the sidebar — were addressed as a path on the server, which the mobile app resolved inside its own bundle and drew as a broken image. They are now fetched from the server the app is signed in to.
+
 ## [0.63.4] - 2026-08-26
 
 ### Changed
