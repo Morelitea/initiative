@@ -27,6 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.marketplace.catalog import (
     CatalogError,
+    published_uids,
     upsert_listing,
     withdraw_builtins_except,
 )
@@ -89,10 +90,10 @@ async def seed_builtin_listings(
         read += 1
         # Recorded before the upsert, not after: a manifest this build ships but
         # cannot validate is a packaging bug to fix, and withdrawing the working
-        # listing it replaces would turn that bug into data loss.
-        uid = manifest.get("uid")
-        if isinstance(uid, str) and uid:
-            shipped.append(uid)
+        # listing it replaces would turn that bug into data loss. Every uid the
+        # manifest publishes, so the dashboards an app bundles are claimed by
+        # the same pass that publishes them.
+        shipped.extend(uid for uid in published_uids(manifest) if uid)
         try:
             await upsert_listing(session, manifest, source="builtin")
             seeded += 1
