@@ -12,6 +12,7 @@ import {
   getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
   projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
 } from "@/api/generated/projects/projects";
+import { CommentContent } from "@/components/comments/CommentContent";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -149,9 +150,11 @@ export const ProjectActivitySidebar = ({
                           {entry.task_title}
                         </Link>
                       </p>
-                      <p className="mt-1 line-clamp-3 text-muted-foreground text-sm">
-                        “{entry.content}”
-                      </p>
+                      <CommentContent
+                        content={entry.content}
+                        compact
+                        className="mt-1 line-clamp-3 border-border border-l-2 pl-2 text-muted-foreground"
+                      />
                     </li>
                   );
                 })}

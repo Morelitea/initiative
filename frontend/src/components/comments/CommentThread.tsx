@@ -146,22 +146,18 @@ export const CommentThread = ({
             </div>
             <div className="mt-2 text-foreground text-sm">
               {isEditing ? (
-                <div className="space-y-2">
-                  <CommentInput
-                    value={editContent}
-                    onChange={setEditContent}
-                    onSubmit={handleEditSubmit}
-                    placeholder={t("comments.editPlaceholder")}
-                    submitLabel={t("common:save")}
-                    isSubmitting={isSubmitting}
-                    initiativeId={initiativeId}
-                    autoFocus
-                    compact
-                  />
-                  <Button type="button" variant="ghost" size="sm" onClick={handleEditCancel}>
-                    {t("common:cancel")}
-                  </Button>
-                </div>
+                <CommentInput
+                  value={editContent}
+                  onChange={setEditContent}
+                  onSubmit={handleEditSubmit}
+                  placeholder={t("comments.editPlaceholder")}
+                  submitLabel={t("common:save")}
+                  isSubmitting={isSubmitting}
+                  initiativeId={initiativeId}
+                  onCancel={handleEditCancel}
+                  autoFocus
+                  compact
+                />
               ) : (
                 <CommentContent content={comment.content} />
               )}
@@ -181,21 +177,13 @@ export const CommentThread = ({
             submitLabel={t("comments.reply")}
             isSubmitting={isSubmitting}
             initiativeId={initiativeId}
-            autoFocus
-            compact
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="mt-1"
-            onClick={() => {
+            onCancel={() => {
               setIsReplying(false);
               setReplyContent("");
             }}
-          >
-            {t("common:cancel")}
-          </Button>
+            autoFocus
+            compact
+          />
         </div>
       )}
 

@@ -593,6 +593,8 @@
     "mentionTask": "lier une tâche",
     "mentionDoc": "lier un document",
     "mentionProject": "lier un projet",
+    "formattingSyntax": "Mise en forme",
+    "markdownHint": "Le Markdown est pris en charge : **gras**, *italique*, `code`, listes et liens.",
     "loading": "Chargement des commentaires...",
     "loadError": "Impossible de charger les commentaires pour l'instant.",
     "empty": "Aucun commentaire pour l'instant. Soyez le premier à contribuer.",

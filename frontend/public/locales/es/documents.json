@@ -593,6 +593,8 @@
     "mentionTask": "enlazar una tarea",
     "mentionDoc": "enlazar un documento",
     "mentionProject": "enlazar un proyecto",
+    "formattingSyntax": "Formato",
+    "markdownHint": "Se admite Markdown: **negrita**, *cursiva*, `código`, listas y enlaces.",
     "loading": "Cargando comentarios...",
     "loadError": "No se pudieron cargar los comentarios en este momento.",
     "empty": "Aún no hay comentarios. Sé el primero en contribuir.",
