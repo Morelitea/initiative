@@ -74,11 +74,25 @@ if [ "$stop_servers" = true ]; then
     # mid-startup, or still binding the port). Matched on this checkout's own
     # paths so another worktree's dev servers are left alone — and skipped
     # rather than broadened if a path isn't there to match against.
+    #
+    # `pkill -f` takes a regex, and a checkout path can hold characters a regex
+    # reads as operators (`.` alone would match a neighbouring worktree whose
+    # name differs in that one place). Pair `ps` with `grep -F` instead, so the
+    # path is compared literally. No single line carries both patterns, so the
+    # greps in this pipeline can't match each other.
+    stop_stray() {
+        local path_part="$1" name_part="$2"
+        ps -eo pid=,args= 2>/dev/null |
+            grep -F "$path_part" |
+            grep -F "$name_part" |
+            awk '{print $1}' |
+            xargs -r kill 2>/dev/null || true
+    }
     checkout_root="$(cd "$SCRIPT_DIR/.." && pwd)"
     [ -d "$checkout_root/backend" ] &&
-        { pkill -f "$checkout_root/backend/.venv/.*uvicorn" 2>/dev/null || true; }
+        stop_stray "$checkout_root/backend/" "uvicorn"
     [ -d "$checkout_root/frontend" ] &&
-        { pkill -f "$checkout_root/frontend/node_modules/.*vite" 2>/dev/null || true; }
+        stop_stray "$checkout_root/frontend/" "vite"
 
     echo "Servers stopped."
 fi

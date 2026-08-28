@@ -37,7 +37,7 @@ DEV_PORTS_REGISTRY="${DEV_PORTS_REGISTRY:-${XDG_CACHE_HOME:-$HOME/.cache}/initia
 # Print this checkout's offset, allocating one if it has none. Fails (no output)
 # rather than guessing if the registry can't be used.
 _dev_ports_allocate() {
-    local root="$1" lock offset waited=0 off path
+    local root="$1" lock offset waited=0 off path owner
     local kept=() taken=()
 
     mkdir -p "$(dirname "$DEV_PORTS_REGISTRY")" 2>/dev/null || return 1
@@ -46,14 +46,26 @@ _dev_ports_allocate() {
     # mkdir either creates the directory or fails, atomically, which makes it a
     # lock on every platform — flock isn't on macOS by default.
     until mkdir "$lock" 2>/dev/null; do
-        waited=$((waited + 1))
-        if [ "$waited" -gt 50 ]; then
-            # Left behind by a run that was killed mid-allocation.
-            rmdir "$lock" 2>/dev/null || return 1
-            waited=0
+        # Break a lock only when its owner is gone. Waiting out a slow holder is
+        # the whole point: taking a live lock on a timeout would put two
+        # allocators in here together, and they would pick the same offset.
+        owner=$(cat "$lock/pid" 2>/dev/null)
+        if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+            rm -rf "$lock" 2>/dev/null
+            continue
         fi
+        waited=$((waited + 1))
+        # A holder that is alive but stuck: give up and let the caller fall back
+        # rather than forcing our way in.
+        [ "$waited" -gt 100 ] && return 1
         sleep 0.1
     done
+    echo $$ > "$lock/pid" 2>/dev/null
+
+    # Two waiters can decide the same lock is stale at once, and the second can
+    # remove the first's fresh one. Whoever's pid is in there owns it.
+    sleep 0.05
+    [ "$(cat "$lock/pid" 2>/dev/null)" = "$$" ] || return 1
 
     [ -f "$DEV_PORTS_REGISTRY" ] || : > "$DEV_PORTS_REGISTRY"
     while IFS=$'\t' read -r off path; do
@@ -75,7 +87,7 @@ _dev_ports_allocate() {
     fi
 
     printf '%s\n' "${kept[@]}" > "$DEV_PORTS_REGISTRY"
-    rmdir "$lock" 2>/dev/null
+    rm -rf "$lock" 2>/dev/null
     printf '%s' "$offset"
 }
 
