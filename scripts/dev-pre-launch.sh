@@ -13,6 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # This checkout's ports, log paths and frontend API URLs. The main working tree
 # keeps 8000/5173; linked worktrees get their own pair so several run at once.
 . "$SCRIPT_DIR/dev-ports.sh"
+# dev-ports.sh has already said why if it could not resolve them.
+[ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
 cd "$SCRIPT_DIR/.."
 
 BACKEND_PID=""

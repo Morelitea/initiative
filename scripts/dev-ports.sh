@@ -34,6 +34,21 @@ fi
 # it, so a checkout keeps its ports for as long as it exists.
 DEV_PORTS_REGISTRY="${DEV_PORTS_REGISTRY:-${XDG_CACHE_HOME:-$HOME/.cache}/initiative/dev-ports}"
 
+# Print the offset already recorded for this checkout, if it has one. No lock:
+# reading a line that is only ever appended under one is safe, and it keeps the
+# routine path — every launch after the first — off the lock entirely.
+_dev_ports_lookup() {
+    local off path
+    [ -f "$DEV_PORTS_REGISTRY" ] || return 1
+    while IFS=$'\t' read -r off path; do
+        if [ -n "$off" ] && [ "$path" = "$1" ]; then
+            printf '%s' "$off"
+            return 0
+        fi
+    done < "$DEV_PORTS_REGISTRY"
+    return 1
+}
+
 # Print this checkout's offset, allocating one if it has none. Fails (no output)
 # rather than guessing if the registry can't be used.
 _dev_ports_allocate() {
@@ -91,25 +106,32 @@ _dev_ports_allocate() {
     printf '%s' "$offset"
 }
 
-if [ "$DEV_CHECKOUT_ID" = main ]; then
+if [ -n "${DEV_BACKEND_PORT:-}" ] && [ -n "${DEV_FRONTEND_PORT:-}" ]; then
+    # Both pinned by hand, so there is nothing to allocate and no registry to
+    # need — this is also the way out if the registry is unusable.
+    DEV_PORT_OFFSET="${DEV_PORT_OFFSET:-0}"
+elif [ "$DEV_CHECKOUT_ID" = main ]; then
     DEV_PORT_OFFSET=0
 elif [ -z "${DEV_PORT_OFFSET:-}" ]; then
-    DEV_PORT_OFFSET="$(_dev_ports_allocate "$DEV_PORTS_ROOT" || true)"
-    if [ -z "$DEV_PORT_OFFSET" ]; then
-        # No usable registry (read-only HOME, say). Fall back to a digest of the
-        # path: stable and usually distinct, but it can land on another
-        # checkout's pair. Say so, because that is the one mode where these
-        # ports are not guaranteed to be this checkout's alone — pre-launch
-        # refuses a port that is in use, and DEV_BACKEND_PORT/DEV_FRONTEND_PORT
-        # settle it for good.
-        DEV_PORT_OFFSET=$(( (16#${DEV_CHECKOUT_ID:0:6} % 999) + 1 ))
-        echo "dev-ports: cannot use $DEV_PORTS_REGISTRY — falling back to derived" >&2
-        echo "dev-ports: ports $((8000 + DEV_PORT_OFFSET))/$((5173 + DEV_PORT_OFFSET)), which another checkout could share." >&2
-    fi
+    DEV_PORT_OFFSET="$(_dev_ports_lookup "$DEV_PORTS_ROOT" || _dev_ports_allocate "$DEV_PORTS_ROOT" || true)"
 fi
 
-DEV_BACKEND_PORT="${DEV_BACKEND_PORT:-$((8000 + DEV_PORT_OFFSET))}"
-DEV_FRONTEND_PORT="${DEV_FRONTEND_PORT:-$((5173 + DEV_PORT_OFFSET))}"
+# There is deliberately no fallback. Deriving an offset from the path when the
+# registry is unreachable is the collision this file exists to remove, and a
+# port pair that might already be another checkout's is worse than no answer:
+# the caller stops here instead, and says how to settle it.
+if [ -z "${DEV_PORT_OFFSET:-}" ]; then
+    echo "dev-ports: could not get a port offset for this checkout." >&2
+    echo "  registry: $DEV_PORTS_REGISTRY" >&2
+    echo "  Another allocation may be in progress — try again. If the registry" >&2
+    echo "  cannot be written at all, set DEV_BACKEND_PORT and DEV_FRONTEND_PORT" >&2
+    echo "  to a pair no other checkout uses." >&2
+fi
+
+if [ -n "${DEV_PORT_OFFSET:-}" ]; then
+    DEV_BACKEND_PORT="${DEV_BACKEND_PORT:-$((8000 + DEV_PORT_OFFSET))}"
+    DEV_FRONTEND_PORT="${DEV_FRONTEND_PORT:-$((5173 + DEV_PORT_OFFSET))}"
+fi
 
 # Where the frontend reaches the backend. vite.config.ts reads
 # VITE_DEV_PROXY_TARGET for its proxy, the SPA reads VITE_API_URL.

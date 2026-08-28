@@ -19,6 +19,8 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # This checkout's ports — never another worktree's.
 . "$SCRIPT_DIR/dev-ports.sh"
+# dev-ports.sh has already said why if it could not resolve them.
+[ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
 
 stop_servers=true
 clean_data=true
