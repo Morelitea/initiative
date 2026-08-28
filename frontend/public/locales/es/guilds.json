@@ -322,7 +322,8 @@
   },
   "community": {
     "title": "Comunidades",
-    "subtitle": "Gremios que aceptan nuevos miembros sin invitación.",
+    "heroTitle": "Todas las comunidades de aquí están abiertas",
+    "heroSubtitle": "Mesas de rol, colectivos de arte, grupos de estudio, clubes de running: únete a cualquiera sin invitación.",
     "browse": "Unirse a una comunidad",
     "searchPlaceholder": "Buscar comunidades",
     "categoriesHeading": "Categorías",

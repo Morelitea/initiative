@@ -322,7 +322,8 @@
   },
   "community": {
     "title": "Communities",
-    "subtitle": "Guilds that welcome new members without an invite.",
+    "heroTitle": "Every community here is open",
+    "heroSubtitle": "Tabletop groups, art crews, study circles, run clubs \u2014 join any of them without an invite.",
     "browse": "Join a community",
     "searchPlaceholder": "Search communities",
     "categoriesHeading": "Categories",

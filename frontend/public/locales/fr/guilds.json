@@ -322,7 +322,8 @@
   },
   "community": {
     "title": "Communautés",
-    "subtitle": "Les guildes qui accueillent de nouveaux membres sans invitation.",
+    "heroTitle": "Toutes les communautés d\u2019ici sont ouvertes",
+    "heroSubtitle": "Tables de jeu de rôle, collectifs d\u2019artistes, groupes d\u2019étude, clubs de course \u2014 rejoignez-les sans invitation.",
     "browse": "Rejoindre une communauté",
     "searchPlaceholder": "Rechercher des communautés",
     "categoriesHeading": "Catégories",

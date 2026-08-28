@@ -68,6 +68,18 @@ beforeEach(() => {
 });
 
 describe("CommunitiesPage", () => {
+  it("carries the page's heading over the banner, which is itself decorative", async () => {
+    const { container } = renderDirectory();
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Every community here is open" })
+    ).toBeInTheDocument();
+    // The words are DOM text laid over the image rather than baked into it, so
+    // the image describes nothing on its own and stays out of the a11y tree.
+    const banner = container.querySelector('img[src="/images/community-banner.webp"]');
+    expect(banner).toHaveAttribute("alt", "");
+  });
+
   it("says so, and asks nothing, where the owner runs no directory", async () => {
     config.communityDirectory = false;
     renderDirectory();
