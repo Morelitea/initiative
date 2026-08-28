@@ -51,7 +51,16 @@ def dev_port() -> int:
 if __name__ == "__main__":
     import uvicorn
 
-    # cwd is backend/ (launch.json sets it), which is what makes "app.main" and
-    # the reloader's watch root resolve.
+    # `python -m uvicorn` put the working directory on sys.path, which is how
+    # "app.main" resolved before. Running a *script* puts the script's own
+    # directory there instead — backend/scripts — so backend/ has to be added
+    # back explicitly. PYTHONPATH as well as sys.path: the reloader serves from
+    # a spawned subprocess, and that is what carries the path into it.
     os.chdir(BACKEND_DIR)
+    sys.path.insert(0, str(BACKEND_DIR))
+    existing = os.environ.get("PYTHONPATH")
+    os.environ["PYTHONPATH"] = (
+        f"{BACKEND_DIR}{os.pathsep}{existing}" if existing else str(BACKEND_DIR)
+    )
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=dev_port(), reload=True)
