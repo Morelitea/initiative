@@ -263,6 +263,21 @@ describe("useInitiativeAccess filterVisible", () => {
     expect(result.current.filterVisible([initiative])).toEqual([]);
   });
 
+  it("keeps one a role may create in but not view", () => {
+    // View and create are independent role permissions. A create-only role
+    // still has a target its create dialogs may use, so the initiative stays
+    // in the pickers that read this list.
+    asMember();
+    const initiative = joined({
+      can_view_projects: false,
+      can_view_documents: false,
+      can_create_projects: true,
+    });
+
+    const { result } = renderHook(() => useInitiativeAccess());
+    expect(result.current.filterVisible([initiative])).toEqual([initiative]);
+  });
+
   it("keeps one with no tools when the caller says it offers something else", () => {
     // The sidebar's case: an installed app's surface is a row too.
     asMember();

@@ -103,12 +103,17 @@ export function toolAccessForInitiative(
 }
 
 /**
- * Whether an initiative has anything to offer this reader: at least one tool
- * they may view. Read off the same per-tool access the sidebar renders from,
- * so "no rows would draw" and "not listed" stay the same answer.
+ * Whether an initiative has anything to offer this reader: a tool they may
+ * view, or one they may create in. Read off the same per-tool access the
+ * sidebar renders from, so "no rows would draw" and "not listed" stay the
+ * same answer.
+ *
+ * View and create are independent role permissions, so create is asked
+ * separately rather than assumed to follow view: a role granted one without
+ * the other keeps the target its create dialogs are allowed to use.
  */
 export const offersAnyTool = (access: InitiativeToolAccess): boolean =>
-  TOOLS.some((tool) => access[tool].view);
+  TOOLS.some((tool) => access[tool].view || access[tool].create);
 
 /**
  * Cheap, switcher-entry-only test for whether the user could **author a new
