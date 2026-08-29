@@ -33,23 +33,31 @@ async def _update_returning(
 
     ``RETURNING`` rather than ``rowcount``: a policy that filters the row makes
     the statement succeed against nothing, which is the outcome under test.
+
+    Rolled back before returning. These are separate connections to the shared
+    test database, so a write left behind — or the transaction still holding
+    it — would follow the worker into every test after this one.
     """
     result = await session.exec(
         text(
             f"UPDATE public.users SET {column} = :v WHERE id = :i RETURNING id"
         ).bindparams(v=value, i=user_id)
     )
-    return [row[0] for row in result.all()]
+    reached = [row[0] for row in result.all()]
+    await session.rollback()
+    return reached
 
 
 async def _count_visible(session: AsyncSession, user_id: int) -> int:
-    return (
+    visible = (
         await session.exec(
             text("SELECT count(*) FROM public.users WHERE id = :i").bindparams(
                 i=user_id
             )
         )
     ).scalar()
+    await session.rollback()
+    return visible
 
 
 class TestGuildSession:

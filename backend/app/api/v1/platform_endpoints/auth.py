@@ -1405,7 +1405,13 @@ async def confirm_verification(
     admin_session: AdminSessionDep,
     payload: VerificationConfirmRequest,
 ) -> VerificationSendResponse:
-    record = await user_tokens.consume_token(
+    # Validated first, spent last. The two writes land on different engines —
+    # the account is the system engine's (the caller holds a token, not a
+    # session) and the token is the request path's — so the order decides which
+    # way a failure between them falls. Verifying first means a failure leaves a
+    # token that verifies an already-verified account, which is a no-op; the
+    # other order would spend the token and leave the account unverified.
+    record = await user_tokens.get_valid_token(
         session,
         token=payload.token,
         purpose=UserTokenPurpose.email_verification,
@@ -1415,8 +1421,6 @@ async def confirm_verification(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN,
         )
-    # The caller holds a one-shot token rather than a session, so the row is
-    # written on the system engine.
     user_stmt = select(User).where(User.id == record.user_id)
     user_result = await admin_session.exec(user_stmt)
     user = user_result.one_or_none()
@@ -1429,6 +1433,10 @@ async def confirm_verification(
         user.updated_at = datetime.now(timezone.utc)
         admin_session.add(user)
         await admin_session.commit()
+
+    record.consumed_at = datetime.now(timezone.utc)
+    session.add(record)
+    await session.commit()
     return VerificationSendResponse(status="verified")
 
 
@@ -1493,11 +1501,20 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    # Device tokens are revoked and committed on the request path first: they
+    # live on a table the system engine holds no UPDATE on, so the two halves
+    # cannot share a transaction, and this is the order that fails safely — a
+    # failure after this point signs the account out everywhere and leaves the
+    # old password standing, rather than changing the password while a device
+    # token survives it.
+    await user_tokens.revoke_active_device_tokens(session, user_id=user.id)
+    await session.commit()
+
     user.hashed_password = get_password_hash(payload.password)
-    # Bump token_version and revoke device tokens / API keys / refresh sessions
-    # so no stale credential (JWT, device token, or captured refresh) survives.
-    # ``token_version`` is bumped on ``user``, which is bound to the system
-    # engine here, so that half commits below with the password.
+    # Bump token_version and revoke API keys / refresh sessions so no stale
+    # credential (JWT or captured refresh) survives either. ``token_version``
+    # is bumped on ``user``, which is bound to the system engine here, so that
+    # half commits with the password below.
     await user_tokens.revoke_user_sessions(
         session, user=user, admin_session=admin_session
     )
