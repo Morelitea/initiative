@@ -4,9 +4,11 @@ One function. A call site is a single line, and adding a newly-audited action
 is that line plus an ``AuditEventType`` member and its metadata row — there is
 no second place to register anything.
 
-Two deliveries, one write. The row goes into the caller's own transaction, so
-the record and the action it describes commit together or not at all. The same
-envelope also goes to a structured logger named ``audit``, which is the
+Two deliveries, one write, and the write decides. The row goes into the
+caller's own transaction, so the record and the action it describes commit
+together or not at all — and the log line is held until that commit, so an
+action that rolls back leaves no row and tells nobody it happened. The line
+carries the same envelope to a structured logger named ``audit``, which is the
 ingestible seam: an operator's container-log pipeline already scrapes stdout,
 so shipping this stream costs them no new coupling to us.
 
@@ -21,12 +23,37 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import SCHEMA_VERSION, AuditEventType, meta_for
 from app.models.platform.audit_event import AuditEvent
 
 audit_logger = logging.getLogger("audit")
+
+#: Envelopes staged in a session, waiting on its commit. Kept on
+#: ``Session.info`` rather than in a module global so concurrent requests never
+#: share a queue.
+_PENDING = "audit_pending_envelopes"
+
+
+@event.listens_for(Session, "after_commit")
+def _emit_committed_envelopes(session: Session) -> None:
+    """Ship the lines for work that actually landed."""
+    for envelope in session.info.pop(_PENDING, []):
+        # Best-effort: a logging handler that throws must not take down a
+        # transaction that has already committed.
+        try:
+            audit_logger.info(json.dumps(envelope, separators=(",", ":")))
+        except Exception:  # pragma: no cover - a broken handler, not our logic
+            logging.getLogger(__name__).exception("audit log line could not be emitted")
+
+
+@event.listens_for(Session, "after_rollback")
+def _discard_uncommitted_envelopes(session: Session) -> None:
+    """Drop the lines for work that did not land."""
+    session.info.pop(_PENDING, None)
 
 
 async def record(
@@ -76,12 +103,9 @@ async def record(
     }
     session.add(event)
 
-    # Best-effort, and deliberately after the row is staged: the log line is a
-    # copy for whoever ships it, and a logging handler that throws must not
-    # take the audited action down with it.
-    try:
-        audit_logger.info(json.dumps(event.envelope, separators=(",", ":")))
-    except Exception:  # pragma: no cover - a broken handler, not our logic
-        logging.getLogger(__name__).exception("audit log line could not be emitted")
+    # Queued, not emitted. The line goes out when the transaction commits, so
+    # the two sinks cannot disagree: an action that rolls back leaves no row
+    # and tells nobody it happened.
+    session.info.setdefault(_PENDING, []).append(event.envelope)
 
     return event

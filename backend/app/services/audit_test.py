@@ -72,10 +72,56 @@ async def test_the_same_envelope_goes_to_the_log(session, caplog):
             event_type=AuditEventType.USER_AVATAR_REMOVED,
             actor_user_id=actor.id,
         )
-    await session.commit()
+        await session.commit()
 
     lines = [json.loads(r.message) for r in caplog.records if r.name == "audit"]
     assert lines == [event.envelope]
+
+
+async def test_nothing_is_logged_until_the_write_lands(session, caplog):
+    """The line is held until the transaction commits. Staged is not done, and
+    a log that claimed otherwise would disagree with the table."""
+    actor = await create_user(session)
+
+    with caplog.at_level(logging.INFO, logger="audit"):
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_AVATAR_REMOVED,
+            actor_user_id=actor.id,
+        )
+        staged = [r for r in caplog.records if r.name == "audit"]
+        assert staged == []
+
+        await session.commit()
+        assert len([r for r in caplog.records if r.name == "audit"]) == 1
+
+
+async def test_a_rolled_back_action_tells_nobody(session, caplog):
+    """An action that did not happen leaves no row and no line — the two sinks
+    cannot disagree about it."""
+    actor = await create_user(session)
+    await session.commit()
+    # Held before the rollback: it expires every loaded object, and reading an
+    # attribute back would be a lazy load rather than the assertion we mean.
+    actor_id = actor.id
+
+    with caplog.at_level(logging.INFO, logger="audit"):
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_AVATAR_REMOVED,
+            actor_user_id=actor_id,
+            target_type="user",
+            target_id=actor_id,
+        )
+        await session.rollback()
+
+    assert [r for r in caplog.records if r.name == "audit"] == []
+    rows = (
+        await session.exec(
+            select(AuditEvent).where(AuditEvent.actor_user_id == actor_id)
+        )
+    ).all()
+    assert rows == []
 
 
 async def test_a_record_survives_the_account_it_names(session):
