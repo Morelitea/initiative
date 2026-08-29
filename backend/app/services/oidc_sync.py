@@ -203,24 +203,6 @@ async def sync_oidc_assignments(
         session.expunge_all()
         await set_rls_context(session, guild_id=gid, guild_role="admin")
 
-        # Onboarding for a first-time arrival in this guild, before the claim
-        # mappings below have their say. The rows are ordinary (``oidc_managed``
-        # false), so the stale-membership sweep further down leaves them alone
-        # and a later sync neither reaps them nor fights them.
-        if gid in newly_admitted_guilds:
-            try:
-                async with session.begin_nested():
-                    await enroll_in_auto_join_initiatives(
-                        session, guild_id=gid, user_id=user_id
-                    )
-            except Exception:
-                logger.exception(
-                    "auto-join: user %s was admitted to guild %s by claim sync "
-                    "but enrolled in none of its auto-join initiatives",
-                    user_id,
-                    gid,
-                )
-
         guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
         # Drop references to initiatives that no longer exist in this schema
         # (oidc_claim_mappings has no cross-schema FK, so a purged initiative can
@@ -294,6 +276,30 @@ async def sync_oidc_assignments(
                 )
                 await session.delete(im)
                 result.initiatives_removed.append(im.initiative_id)
+
+        # Onboarding for a first-time arrival, once the claims have had their
+        # say. It runs last because the claims are authoritative about role:
+        # enrolment would otherwise write a plain member row that the mapping
+        # loop above then declines to touch (it leaves non-oidc-managed rows
+        # alone by design), and a user mapped to a manager role would silently
+        # land as a member. Enrolling afterwards is a no-op for any initiative
+        # the claims already placed them in, so this only fills the gaps.
+        #
+        # The rows are ordinary (``oidc_managed`` false), so the sweep above
+        # leaves them alone and a later sync neither reaps nor fights them.
+        if gid in newly_admitted_guilds:
+            try:
+                async with session.begin_nested():
+                    await enroll_in_auto_join_initiatives(
+                        session, guild_id=gid, user_id=user_id
+                    )
+            except Exception:
+                logger.exception(
+                    "auto-join: user %s was admitted to guild %s by claim sync "
+                    "but enrolled in none of its auto-join initiatives",
+                    user_id,
+                    gid,
+                )
         await session.flush()
 
     # --- Remove stale guild memberships ---
