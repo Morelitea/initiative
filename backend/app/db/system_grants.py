@@ -152,6 +152,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Append-only. The system engine writes the record and the board reads it;
+    # UPDATE and DELETE are granted to nobody at all, here included, because a
+    # record that could be rewritten afterwards would not be one.
+    "audit_events": frozenset({"SELECT", "INSERT"}),
     # the system engine delivers push itself (background digests, PAM notices),
     # and delivery bookkeeping is part of that: UPDATE stamps last_used_at,
     # DELETE prunes tokens FCM reports as unregistered
@@ -191,6 +195,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system engine — see security_invariants_test.
     "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Written and read on the system engine only — the request path never
+    # touches the log, in either direction.
+    "audit_events": None,
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,

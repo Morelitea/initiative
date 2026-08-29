@@ -30,8 +30,10 @@ import type {
   AdminInitiativeRoleUpdate,
   AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchParams,
   AdminUserDeleteRequest,
+  AuditEventListResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   HTTPValidationError,
+  ListAuditEventsApiV1AdminAuditEventsGetParams,
   PlatformAdminCountResponse,
   PlatformRoleUpdate,
   UserPublic,
@@ -618,6 +620,165 @@ export const useRemoveUserAvatarApiV1AdminUsersUserIdAvatarDelete = <
     queryClient
   );
 };
+/**
+ * The audit board: what was done, by whom, to whom, most recent first.
+ *
+ * Gated on ``audit.read`` (support and above). Runs on the system engine
+ * because nothing else can read the table — the log is not part of the
+ * request path's world in either direction.
+ * @summary List Audit Events
+ */
+export const listAuditEventsApiV1AdminAuditEventsGet = (
+  params?: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AuditEventListResponse>(
+    { url: `/api/v1/admin/audit-events`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListAuditEventsApiV1AdminAuditEventsGetQueryKey = (
+  params?: ListAuditEventsApiV1AdminAuditEventsGetParams
+) => {
+  return [`/api/v1/admin/audit-events`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAuditEventsApiV1AdminAuditEventsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAuditEventsApiV1AdminAuditEventsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>
+  > = ({ signal }) => listAuditEventsApiV1AdminAuditEventsGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListAuditEventsApiV1AdminAuditEventsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>
+>;
+export type ListAuditEventsApiV1AdminAuditEventsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListAuditEventsApiV1AdminAuditEventsGet<
+  TData = Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAuditEventsApiV1AdminAuditEventsGet<
+  TData = Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAuditEventsApiV1AdminAuditEventsGet<
+  TData = Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Audit Events
+ */
+
+export function useListAuditEventsApiV1AdminAuditEventsGet<
+  TData = Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAuditEventsApiV1AdminAuditEventsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListAuditEventsApiV1AdminAuditEventsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Get the count of platform admins (``users.read``, role-scoped session).
  * @summary Get Platform Admin Count

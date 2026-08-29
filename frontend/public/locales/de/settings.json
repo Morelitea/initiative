@@ -852,7 +852,8 @@
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff",
-      "guilds": "Gilden"
+      "guilds": "Gilden",
+      "audit": "Prüfprotokoll"
     }
   },
   "guilds": {
@@ -1096,5 +1097,20 @@
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
     "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben."
+  },
+  "audit": {
+    "title": "Prüfprotokoll",
+    "description": "Was an Konten getan wurde, von wem und wann. Einträge bleiben erhalten, auch wenn die genannten Konten gelöscht sind.",
+    "whenColumn": "Wann",
+    "actionColumn": "Aktion",
+    "actorColumn": "Ausgeführt von",
+    "subjectColumn": "Betrifft",
+    "subjectFilterPlaceholder": "Nach Konto-ID filtern",
+    "departedAccount": "Konto #{{id}} (gelöscht)",
+    "empty": "Bisher wurde nichts aufgezeichnet.",
+    "pageOf": "Seite {{page}} von {{total}} Einträgen",
+    "actions": {
+      "user.avatar_removed": "Profilbild entfernt"
+    }
   }
 }

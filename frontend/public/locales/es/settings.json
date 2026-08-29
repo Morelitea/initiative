@@ -852,7 +852,8 @@
     "tabs": {
       "users": "Usuarios",
       "access": "Acceso",
-      "guilds": "Gremios"
+      "guilds": "Gremios",
+      "audit": "Auditoría"
     }
   },
   "guilds": {
@@ -1096,5 +1097,20 @@
     "disabledToast": "El directorio de comunidades está desactivado.",
     "saveError": "No se pudo cambiar el directorio de comunidades. Inténtalo de nuevo.",
     "adminOnly": "Necesitas el rol de propietario de la plataforma para ofrecer un directorio de comunidades."
+  },
+  "audit": {
+    "title": "Auditoría",
+    "description": "Qué se hizo a las cuentas, quién lo hizo y cuándo. Las entradas se conservan aunque las cuentas que nombran ya no existan.",
+    "whenColumn": "Cuándo",
+    "actionColumn": "Acción",
+    "actorColumn": "Realizado por",
+    "subjectColumn": "Afecta a",
+    "subjectFilterPlaceholder": "Filtrar por ID de cuenta",
+    "departedAccount": "Cuenta n.º {{id}} (eliminada)",
+    "empty": "Todavía no se ha registrado nada.",
+    "pageOf": "Página {{page}} de {{total}} entradas",
+    "actions": {
+      "user.avatar_removed": "Foto de perfil eliminada"
+    }
   }
 }

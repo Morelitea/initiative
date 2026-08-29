@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **There is an audit board.** Platform staff who can read audits — support and above — get a new Audit tab in the admin tools, listing what was done to accounts, by whom, and when, newest first, filterable by account. It starts with profile-picture takedowns, the one moderator action that exists today. Entries are kept after the accounts they name are deleted, so the record of what was done outlives the person it was done to; a deleted account shows as its ID rather than a name. Nothing can edit or remove an entry, including the software itself. Each entry is also written to the server log as one line of JSON, so an operator who ships their logs somewhere gets the audit trail with it.
+
 - **Every guild has a banner.** It heads the guild's front page — the guild's own name and description across it — and runs along the top of its card in the community directory. A guild admin uploads one picture from Settings → Guild → Pictures and it is cropped to 4:1 and resized for you, so there is nothing to prepare and no second file to make. A guild without artwork wears a **banner fill** instead, which starts as the app's default blue and can be any colour; without a picture the banner is a short band rather than a full header. **Banner text** is black or white — whichever reads better on the fill, chosen for you when you pick one, and yours to switch when a picture calls for the other.
 
 - **A guild-wide app connection can be granted at the vendor instead of typed.** A guild admin connects it once for everybody: the settings panel opens the vendor's install page rather than a form, and what comes back is written in by the app itself.

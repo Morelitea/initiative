@@ -1,21 +1,30 @@
 import logging
-from typing import Annotated, List, Sequence
+from typing import Annotated, List, Optional, Sequence
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
+from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
+from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
+from app.models.platform.audit_event import AuditEvent
 from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.user import UserRead, AccountDeletionResponse, UserPublic
+from app.schemas.platform.audit import (
+    AuditActor,
+    AuditEventListResponse,
+    AuditEventRead,
+)
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.admin import (
     PlatformRoleUpdate,
@@ -39,6 +48,7 @@ from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
+from app.services import audit as audit_service
 from app.services.platform import users as users_service
 from app.services.platform.guilds import adopt_guild_name_display
 from app.services.platform import guilds as guilds_service
@@ -52,6 +62,7 @@ router = APIRouter()
 # ladder (member → support → moderator → admin → owner) maps cleanly onto
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
+AuditReadDep = Annotated[User, Depends(require_capability(Capability.AUDIT_READ))]
 UsersManageDep = Annotated[User, Depends(require_capability(Capability.USERS_MANAGE))]
 ContentModerateDep = Annotated[
     User, Depends(require_capability(Capability.CONTENT_MODERATE))
@@ -268,9 +279,102 @@ async def remove_user_avatar(
         # Queued before the commit, not after it: silent removal reads as a
         # bug, so the picture going and the person being told are one write.
         await notifications_service.queue_avatar_removed(session, user=user)
+        # Recorded in the same transaction, for the same reason: the takedown
+        # and the record of who did it commit together or not at all.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_AVATAR_REMOVED,
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+        )
 
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/audit-events", response_model=AuditEventListResponse)
+async def list_audit_events(
+    session: AdminSessionDep,
+    _current_user: AuditReadDep,
+    event_type: Annotated[list[str] | None, Query()] = None,
+    actor_user_id: Optional[int] = Query(default=None),
+    target_user_id: Optional[int] = Query(default=None),
+    occurred_after: Optional[datetime] = Query(default=None),
+    occurred_before: Optional[datetime] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+) -> AuditEventListResponse:
+    """The audit board: what was done, by whom, to whom, most recent first.
+
+    Gated on ``audit.read`` (support and above). Runs on the system engine
+    because nothing else can read the table — the log is not part of the
+    request path's world in either direction.
+    """
+    base = select(AuditEvent)
+    if event_type:
+        base = base.where(AuditEvent.event_type.in_(event_type))
+    if actor_user_id is not None:
+        base = base.where(AuditEvent.actor_user_id == actor_user_id)
+    if target_user_id is not None:
+        base = base.where(AuditEvent.target_user_id == target_user_id)
+    if occurred_after is not None:
+        base = base.where(AuditEvent.occurred_at >= occurred_after)
+    if occurred_before is not None:
+        base = base.where(AuditEvent.occurred_at <= occurred_before)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+    events, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+
+    # The rows hold ids, so a name is looked up now rather than stored then.
+    # An account that has since been erased simply resolves to nothing, and the
+    # record of what was done to it stays intact.
+    wanted = {event.actor_user_id for event in events} | {
+        event.target_user_id for event in events if event.target_user_id is not None
+    }
+    handles: dict[int, User] = {}
+    if wanted:
+        rows = await session.exec(select(User).where(User.id.in_(wanted)))
+        handles = {user.id: user for user in rows.all() if user.id is not None}
+
+    def _actor(user_id: Optional[int]) -> Optional[AuditActor]:
+        if user_id is None:
+            return None
+        user = handles.get(user_id)
+        return AuditActor(
+            id=user_id,
+            username=user.username if user else None,
+            discriminator=user.discriminator if user else None,
+        )
+
+    return AuditEventListResponse(
+        items=[
+            AuditEventRead(
+                id=event.id,
+                event_uuid=str(event.event_uuid),
+                event_type=event.event_type,
+                category=str(event.envelope.get("category", "")),
+                tier=event.tier,
+                occurred_at=event.occurred_at,
+                actor=_actor(event.actor_user_id),
+                target_user=_actor(event.target_user_id),
+                guild_id=event.guild_id,
+                target_type=event.target_type,
+                target_id=event.target_id,
+                detail=event.envelope.get("detail") or {},
+            )
+            for event in events
+        ],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
 
 
 @router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)

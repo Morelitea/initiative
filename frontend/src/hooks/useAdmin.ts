@@ -11,8 +11,10 @@ import {
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
   getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey,
   getListAllUsersApiV1AdminUsersGetQueryKey,
+  getListAuditEventsApiV1AdminAuditEventsGetQueryKey,
   getPlatformAdminCountApiV1AdminPlatformAdminCountGet,
   listAllUsersApiV1AdminUsersGet,
+  listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
   updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
@@ -21,8 +23,10 @@ import type {
   AccountDeletionResponse,
   AdminDeletionEligibilityResponse,
   AdminUserDeleteRequest,
+  AuditEventListResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  ListAuditEventsApiV1AdminAuditEventsGetParams,
   PlatformAdminCountResponse,
   UserRead,
   UserRole,
@@ -45,6 +49,18 @@ export const usePlatformUsers = (options?: QueryOpts<UserRead[]>) => {
   return useQuery<UserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
     queryFn: () => listAllUsersApiV1AdminUsersGet(),
+    ...options,
+  });
+};
+
+/** One page of the audit board (``audit.read`` — support and above). */
+export const usePlatformAuditEvents = (
+  params: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: QueryOpts<AuditEventListResponse>
+) => {
+  return useQuery<AuditEventListResponse>({
+    queryKey: getListAuditEventsApiV1AdminAuditEventsGetQueryKey(params),
+    queryFn: () => listAuditEventsApiV1AdminAuditEventsGet(params),
     ...options,
   });
 };

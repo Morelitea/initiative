@@ -852,7 +852,8 @@
     "tabs": {
       "users": "Utilisateurs",
       "access": "Accès",
-      "guilds": "Groupes"
+      "guilds": "Groupes",
+      "audit": "Audit"
     }
   },
   "guilds": {
@@ -1096,5 +1097,20 @@
     "disabledToast": "L'annuaire des communautés est désactivé.",
     "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
     "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés."
+  },
+  "audit": {
+    "title": "Audit",
+    "description": "Ce qui a été fait aux comptes, par qui et quand. Les entrées sont conservées même après la suppression des comptes qu'elles nomment.",
+    "whenColumn": "Quand",
+    "actionColumn": "Action",
+    "actorColumn": "Effectué par",
+    "subjectColumn": "Concerne",
+    "subjectFilterPlaceholder": "Filtrer par ID de compte",
+    "departedAccount": "Compte n° {{id}} (supprimé)",
+    "empty": "Rien n'a encore été enregistré.",
+    "pageOf": "Page {{page}} sur {{total}} entrées",
+    "actions": {
+      "user.avatar_removed": "Photo de profil supprimée"
+    }
   }
 }
