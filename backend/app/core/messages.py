@@ -145,6 +145,21 @@ class InitiativeMessages:
     # A PAM grant confers content read/write for a window; a membership row
     # would outlast it, so joining is for real guild members.
     GRANT_CANNOT_MANAGE_MEMBERS = "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
+    # Asked to knock on an initiative whose join policy is not 'request'.
+    # Reported for 'private' and 'open' alike, so — like NOT_JOINABLE — the
+    # answer says only "not by this route".
+    NOT_REQUESTABLE = "INITIATIVE_NOT_REQUESTABLE"
+    # Nothing to ask for: the caller already holds a membership row here.
+    ALREADY_A_MEMBER = "INITIATIVE_ALREADY_A_MEMBER"
+    # A guild admin reaches every initiative in their guild by standing, and may
+    # only ever hold a manager role in one — so there is nothing for them to
+    # request, and no request that could be approved into a permitted row.
+    GUILD_ADMIN_NEED_NOT_REQUEST = "INITIATIVE_GUILD_ADMIN_NEED_NOT_REQUEST"
+    # One live request per user per initiative (uq_initiative_join_requests_pending).
+    JOIN_REQUEST_ALREADY_PENDING = "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING"
+    JOIN_REQUEST_NOT_FOUND = "INITIATIVE_JOIN_REQUEST_NOT_FOUND"
+    # Approve/deny act on a pending row only; a resolved one is history.
+    JOIN_REQUEST_ALREADY_RESOLVED = "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
 
 
 class FilterPresetMessages:

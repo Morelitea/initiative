@@ -15,7 +15,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.initiative import InitiativeMember
+from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
+from app.services import email as email_service
 from app.services.tenant import initiatives as initiatives_service
 from app.testing.factories import create_initiative
 
@@ -1414,3 +1416,1060 @@ async def test_self_join_refused_to_scoped_grantee(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
+
+
+# ============================================================================
+# Discovery: join requests
+# ============================================================================
+
+
+async def _notifications_for(
+    session: AsyncSession, user_id: int, ntype: NotificationType
+) -> list[Notification]:
+    result = await session.exec(
+        select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type == ntype,
+        )
+    )
+    return list(result.all())
+
+
+async def _live_grant(session: AsyncSession, *, user, guild, approver, level: str):
+    """An approved, currently-live access grant — the PAM branch of GuildContext."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.platform.access_grant import AccessGrant
+
+    now = datetime.now(timezone.utc)
+    session.add(
+        AccessGrant(
+            user_id=user.id,
+            guild_id=guild.id,
+            access_level=level,
+            status="approved",
+            reason="ticket",
+            requested_duration_minutes=60,
+            requested_by_id=user.id,
+            approved_by_id=approver.id,
+            decided_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+    )
+    await session.commit()
+
+
+async def _requestable(session: AsyncSession, actor, **overrides):
+    """A `request`-policy initiative managed by ``actor``."""
+    return await create_initiative(
+        session,
+        actor.guild,
+        actor.user,
+        join_policy="request",
+        **overrides,
+    )
+
+
+@pytest.mark.integration
+async def test_join_request_created_on_request_policy(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The happy path: a guild member knocks and the row lands pending."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={"message": "I'd like to help out"},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "pending"
+    assert body["message"] == "I'd like to help out"
+    assert body["user"]["id"] == member.user.id
+    assert body["initiative_id"] == initiative.id
+    assert body["resolved_at"] is None
+    assert body["resolved_by"] is None
+    assert body["prior_denials"] == 0
+
+    # No membership row yet — the knock grants nothing.
+    assert (
+        await initiatives_service.get_initiative_membership(
+            session, initiative_id=initiative.id, user_id=member.user.id
+        )
+    ) is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("policy", ["private", "open"])
+async def test_join_request_rejected_for_non_request_policy(
+    client: AsyncClient, session: AsyncSession, acting_user, policy: str
+):
+    """`private` and `open` answer identically — "not by this route" — so the
+    refusal reveals no more about a private initiative than it did before."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await create_initiative(
+        session,
+        manager.guild,
+        manager.user,
+        name=f"Closed {policy}",
+        join_policy=policy,
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_NOT_REQUESTABLE"
+
+
+@pytest.mark.integration
+async def test_second_pending_join_request_conflicts(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """One live request per door."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    first = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    assert first.status_code == 201
+
+    second = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+
+    assert second.status_code == 409
+    assert second.json()["detail"] == "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING"
+
+
+@pytest.mark.integration
+async def test_join_request_from_existing_member_conflicts(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "INITIATIVE_ALREADY_A_MEMBER"
+
+
+@pytest.mark.integration
+async def test_guild_admin_cannot_request_to_join(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild admin already reaches every initiative in their guild, and must
+    never hold a standard member role — so there is nothing to ask for, and no
+    request that could later be approved into a forbidden row."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
+
+    response = await client.post(
+        admin.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=admin.headers,
+        json={},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "INITIATIVE_GUILD_ADMIN_NEED_NOT_REQUEST"
+
+
+@pytest.mark.integration
+async def test_denied_requester_may_ask_again(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Only a *pending* row blocks: a refusal is history, not a ban, and the
+    second ask carries the first refusal for the manager to see."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    first = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    assert first.status_code == 201
+    denied = await client.post(
+        manager.g(
+            f"/initiatives/{initiative.id}/join-requests/{first.json()['id']}/deny"
+        ),
+        headers=manager.headers,
+    )
+    assert denied.status_code == 200
+
+    again = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+
+    assert again.status_code == 201
+    assert again.json()["status"] == "pending"
+    assert again.json()["prior_denials"] == 1
+
+
+@pytest.mark.integration
+async def test_join_request_absorbs_a_lost_insert_race(
+    session: AsyncSession, acting_user, monkeypatch
+):
+    """Losing the partial-unique race reads back the winner's row and reports the
+    ordinary conflict, never a 500.
+
+    Two overlapping knocks both clear the pending lookup before either inserts,
+    and ``uq_initiative_join_requests_pending`` then rejects the loser.
+    Simulated by making that lookup miss once while the row already exists — the
+    interleaving a live race produces, without racing the test.
+    """
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    winner, created = await initiatives_service.create_join_request(
+        session, initiative=initiative, user_id=member.user.id
+    )
+    assert created is True
+
+    real_lookup = initiatives_service.get_pending_join_request
+    calls = {"n": 0}
+
+    async def lookup_misses_once(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None
+        return await real_lookup(*args, **kwargs)
+
+    monkeypatch.setattr(
+        initiatives_service, "get_pending_join_request", lookup_misses_once
+    )
+
+    loser, created_again = await initiatives_service.create_join_request(
+        session, initiative=initiative, user_id=member.user.id
+    )
+
+    assert created_again is False
+    assert loser.id == winner.id
+    rows = (
+        await session.exec(
+            select(InitiativeJoinRequest).where(
+                InitiativeJoinRequest.initiative_id == initiative.id,
+                InitiativeJoinRequest.user_id == member.user.id,
+            )
+        )
+    ).all()
+    assert len(rows) == 1
+
+
+@pytest.mark.integration
+async def test_manager_reads_the_pending_queue(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The queue carries everything the decision needs: who, what they said, and
+    whether this initiative has turned them down before."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
+    )
+
+    first = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={"message": "first try"},
+    )
+    await client.post(
+        manager.g(
+            f"/initiatives/{initiative.id}/join-requests/{first.json()['id']}/deny"
+        ),
+        headers=manager.headers,
+    )
+    await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={"message": "second try"},
+    )
+
+    response = await client.get(
+        manager.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=manager.headers,
+    )
+
+    assert response.status_code == 200
+    queue = response.json()
+    # Pending only by default: the denied row is history, not a decision.
+    assert len(queue) == 1
+    assert queue[0]["status"] == "pending"
+    assert queue[0]["message"] == "second try"
+    assert queue[0]["user"]["id"] == member.user.id
+    assert queue[0]["user"]["full_name"] == "Ada Lovelace"
+    assert queue[0]["prior_denials"] == 1
+
+    history = await client.get(
+        manager.g(f"/initiatives/{initiative.id}/join-requests?status=denied"),
+        headers=manager.headers,
+    )
+    assert history.status_code == 200
+    assert [row["status"] for row in history.json()] == ["denied"]
+
+
+@pytest.mark.integration
+async def test_plain_member_cannot_read_the_queue(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Who asked to get in is manager business — a non-manager member of the
+    initiative has no more claim on it than an outsider."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    insider = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+
+    response = await client.get(
+        insider.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=insider.headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_guild_admin_can_read_the_queue(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
+
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=admin.headers,
+    )
+
+    assert response.status_code == 200
+    assert [row["user"]["id"] for row in response.json()] == [member.user.id]
+
+
+@pytest.mark.integration
+async def test_requester_reads_only_their_own_request(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``initiative_join_requests`` is guild-level: the schema boundary is its
+    only DB gate, so row visibility is an app-layer contract — pinned here.
+
+    A requester reaches their own row and no one else's; the queue itself stays
+    shut to them.
+    """
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    alice = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    bob = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    for actor in (alice, bob):
+        created = await client.post(
+            actor.g(f"/initiatives/{initiative.id}/join-requests"),
+            headers=actor.headers,
+            json={"message": f"from {actor.user.id}"},
+        )
+        assert created.status_code == 201
+
+    mine = await client.get(
+        alice.g(f"/initiatives/{initiative.id}/join-requests/me"),
+        headers=alice.headers,
+    )
+    assert mine.status_code == 200
+    assert [row["user"]["id"] for row in mine.json()] == [alice.user.id]
+
+    # And the full queue — Bob's row included — stays out of reach.
+    queue = await client.get(
+        alice.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=alice.headers,
+    )
+    assert queue.status_code == 403
+    assert queue.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_approve_creates_membership_and_flips_content_visibility(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The point of the flow: approval writes the one membership row every join
+    path produces, and ``initiative_access`` does the rest — content that 404'd
+    before the approval resolves after it, with no RLS change at all."""
+    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+    from app.testing.factories import create_project
+    from app.testing.schema_harness import route_session_to_guild
+
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    project = await create_project(
+        session, initiative, manager.user, name="Shared work"
+    )
+    # Shared with the whole initiative, so gate 4 is satisfied for any member and
+    # the membership row is the only thing that changes across the approval.
+    await route_session_to_guild(session, manager.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=initiative.guild_id,
+            initiative_id=initiative.id,
+        )
+    )
+    await session.commit()
+
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    before = await client.get(
+        member.g(f"/projects/{project.id}"), headers=member.headers
+    )
+    assert before.status_code == 404
+
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    assert created.status_code == 201
+    request_id = created.json()["id"]
+
+    approved = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/approve"),
+        headers=manager.headers,
+    )
+
+    assert approved.status_code == 200
+    body = approved.json()
+    assert body["status"] == "approved"
+    assert body["resolved_by"] == manager.user.id
+    assert body["resolved_at"] is not None
+
+    membership = await initiatives_service.get_initiative_membership_with_role(
+        session, initiative_id=initiative.id, user_id=member.user.id
+    )
+    assert membership is not None
+    assert membership.role_ref.name == "member"
+    assert membership.role_ref.is_manager is False
+    assert membership.oidc_managed is False
+
+    after = await client.get(
+        member.g(f"/projects/{project.id}"), headers=member.headers
+    )
+    assert after.status_code == 200
+    assert after.json()["name"] == "Shared work"
+
+
+@pytest.mark.integration
+async def test_approving_an_already_resolved_request_conflicts(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+    url = manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/approve")
+    assert (await client.post(url, headers=manager.headers)).status_code == 200
+
+    again = await client.post(url, headers=manager.headers)
+
+    assert again.status_code == 409
+    assert again.json()["detail"] == "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
+
+
+@pytest.mark.integration
+async def test_approving_when_already_a_member_succeeds(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A requester who got in another way while the request sat in the queue is
+    absorbed: the row resolves and the call succeeds instead of colliding with
+    the membership primary key."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    # Added by hand while the request waits.
+    added = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/members"),
+        headers=manager.headers,
+        json={"user_id": member.user.id},
+    )
+    assert added.status_code == 200
+
+    response = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/approve"),
+        headers=manager.headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
+    rows = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id == member.user.id,
+            )
+        )
+    ).all()
+    assert len(rows) == 1
+
+
+@pytest.mark.integration
+async def test_deny_resolves_without_membership(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A denial changes nothing about what the requester can see."""
+    from app.testing.factories import create_project
+
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    project = await create_project(
+        session, initiative, manager.user, name="Shared work"
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    response = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/deny"),
+        headers=manager.headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "denied"
+    assert response.json()["resolved_by"] == manager.user.id
+    assert (
+        await initiatives_service.get_initiative_membership(
+            session, initiative_id=initiative.id, user_id=member.user.id
+        )
+    ) is None
+    still_hidden = await client.get(
+        member.g(f"/projects/{project.id}"), headers=member.headers
+    )
+    assert still_hidden.status_code == 404
+
+
+@pytest.mark.integration
+async def test_resolving_a_request_from_another_initiative_is_not_found(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The request id is only meaningful inside its own door."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    other = await create_initiative(
+        session, manager.guild, manager.user, name="Elsewhere", join_policy="request"
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    response = await client.post(
+        manager.g(f"/initiatives/{other.id}/join-requests/{request_id}/approve"),
+        headers=manager.headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "INITIATIVE_JOIN_REQUEST_NOT_FOUND"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("action", ["approve", "deny"])
+async def test_non_manager_member_cannot_resolve(
+    client: AsyncClient, session: AsyncSession, acting_user, action: str
+):
+    """Answering a request grants access, so it takes exactly the authority that
+    adding a member by hand takes."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        requester.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=requester.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+    insider = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+
+    response = await client.post(
+        insider.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/{action}"),
+        headers=insider.headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("action", ["approve", "deny"])
+async def test_scoped_grantee_cannot_resolve(
+    client: AsyncClient, session: AsyncSession, acting_user, action: str
+):
+    """A grant reaches the guild for a window; the membership row an approval
+    writes has no end date, so the two are never traded for each other."""
+    manager = await acting_user(guild_role=GuildRole.admin)
+    initiative = await _requestable(session, manager, name="Knockable")
+    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        requester.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=requester.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    grantee = await acting_user("support")
+    await _live_grant(
+        session,
+        user=grantee.user,
+        guild=manager.guild,
+        approver=manager.user,
+        level="read_write",
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}"
+        f"/join-requests/{request_id}/{action}",
+        headers=grantee.headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
+
+
+@pytest.mark.integration
+async def test_break_glass_can_approve(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Break-glass is routed as a full guild admin for its window, which is the
+    same authority a guild admin already exercises over its members."""
+    from app.models.platform.user import UserRole
+
+    manager = await acting_user(guild_role=GuildRole.admin)
+    initiative = await _requestable(session, manager, name="Knockable")
+    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        requester.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=requester.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    # data.bypass platform admin, deliberately NOT a guild member.
+    bg_admin = await acting_user(UserRole.operator)
+    await _live_grant(
+        session,
+        user=bg_admin.user,
+        guild=manager.guild,
+        approver=manager.user,
+        level="read_write",
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}"
+        f"/join-requests/{request_id}/approve",
+        headers=bg_admin.headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
+    assert (
+        await initiatives_service.get_initiative_membership(
+            session, initiative_id=initiative.id, user_id=requester.user.id
+        )
+    ) is not None
+
+
+@pytest.mark.integration
+async def test_scoped_grantee_cannot_request_to_join(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    manager = await acting_user(guild_role=GuildRole.admin)
+    initiative = await _requestable(session, manager, name="Knockable")
+
+    grantee = await acting_user("support")
+    await _live_grant(
+        session,
+        user=grantee.user,
+        guild=manager.guild,
+        approver=manager.user,
+        level="read_write",
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{manager.guild.id}/initiatives/{initiative.id}/join-requests",
+        headers=grantee.headers,
+        json={},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
+
+
+@pytest.mark.integration
+async def test_join_request_notifies_managers(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Addressed to the people who can answer it, and carrying who asked —
+    never any of the initiative's content."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    bystander = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
+    )
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    assert response.status_code == 201
+
+    notes = await _notifications_for(
+        session, manager.user.id, NotificationType.initiative_join_requested
+    )
+    assert len(notes) == 1
+    assert notes[0].data["initiative_id"] == initiative.id
+    assert notes[0].data["requester_id"] == member.user.id
+    assert notes[0].data["requester_name"] == "Ada Lovelace"
+    assert notes[0].data["request_id"] == response.json()["id"]
+    # It was sent to be acted on, so it opens the queue rather than the
+    # initiative's front page. Only managers ever receive one.
+    assert notes[0].data["target_path"] == f"/i/{initiative.id}/settings/members"
+
+    # A non-manager member of the initiative is not on the hook for answering it.
+    assert (
+        await _notifications_for(
+            session, bystander.user.id, NotificationType.initiative_join_requested
+        )
+        == []
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("action", "expected_type"),
+    [
+        ("approve", NotificationType.initiative_join_approved),
+        ("deny", NotificationType.initiative_join_denied),
+    ],
+)
+async def test_resolution_notifies_the_requester(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    action: str,
+    expected_type: NotificationType,
+):
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    resolved = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/{action}"),
+        headers=manager.headers,
+    )
+    assert resolved.status_code == 200
+
+    notes = await _notifications_for(session, member.user.id, expected_type)
+    assert len(notes) == 1
+    assert notes[0].data["initiative_id"] == initiative.id
+    assert notes[0].data["initiative_name"] == "Knockable"
+    assert notes[0].data["request_id"] == request_id
+
+
+@pytest.mark.integration
+async def test_directory_badges_the_queue_for_managers_only(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The pending count rides the directory the guild home already loads, and
+    only for whoever could open the queue — a bystander reads a flat zero rather
+    than a headcount of their peers' knocking."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    insider = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    requester = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        requester.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=requester.headers,
+        json={},
+    )
+    assert created.status_code == 201
+
+    as_manager = await client.get(
+        manager.g("/initiatives/directory"), headers=manager.headers
+    )
+    assert as_manager.status_code == 200
+    entry = next(e for e in as_manager.json() if e["id"] == initiative.id)
+    assert entry["pending_join_request_count"] == 1
+
+    as_insider = await client.get(
+        insider.g("/initiatives/directory"), headers=insider.headers
+    )
+    entry = next(e for e in as_insider.json() if e["id"] == initiative.id)
+    assert entry["pending_join_request_count"] == 0
+
+    as_requester = await client.get(
+        requester.g("/initiatives/directory"), headers=requester.headers
+    )
+    entry = next(e for e in as_requester.json() if e["id"] == initiative.id)
+    assert entry["pending_join_request_count"] == 0
+    assert entry["has_pending_request"] is True
+
+    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
+    as_admin = await client.get(
+        admin.g("/initiatives/directory"), headers=admin.headers
+    )
+    entry = next(e for e in as_admin.json() if e["id"] == initiative.id)
+    assert entry["pending_join_request_count"] == 1
+
+
+def _capture_join_request_emails(monkeypatch) -> list[dict]:
+    """Record every join-request email instead of reaching SMTP."""
+    sent: list[dict] = []
+
+    async def _fake_email(
+        _session,
+        recipient,
+        *,
+        event,
+        initiative_name,
+        link,
+        requester=None,
+        message=None,
+    ):
+        sent.append(
+            {
+                "recipient_id": recipient.id,
+                "event": event,
+                "initiative_name": initiative_name,
+                "link": link,
+                "requester": requester,
+                "message": message,
+            }
+        )
+
+    monkeypatch.setattr(
+        email_service, "send_initiative_join_request_email", _fake_email
+    )
+    return sent
+
+
+@pytest.mark.integration
+async def test_join_request_emails_the_managers(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """Managers get the mail, with who asked and what they wrote — the two
+    things the decision rests on. A non-manager member of the initiative is not
+    on the hook for answering, so nothing reaches them."""
+    sent = _capture_join_request_emails(monkeypatch)
+
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    bystander = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
+    )
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={"message": "I maintain the parser"},
+    )
+    assert response.status_code == 201
+
+    assert [m["recipient_id"] for m in sent] == [manager.user.id]
+    assert sent[0]["event"] == "requested"
+    assert sent[0]["initiative_name"] == "Knockable"
+    assert sent[0]["requester"] == "Ada Lovelace"
+    assert sent[0]["message"] == "I maintain the parser"
+    # Guild-scoped news, so the link carries the guild rather than being a bare
+    # frontend path.
+    assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+    assert bystander.user.id not in {m["recipient_id"] for m in sent}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("action", "event"), [("approve", "approved"), ("deny", "denied")]
+)
+async def test_resolution_emails_the_requester(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    monkeypatch,
+    action: str,
+    event: str,
+):
+    """The outcome goes back to the person who asked — and only to them."""
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    created = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    request_id = created.json()["id"]
+
+    # Capture only after the request lands, so the queue mail is out of the way.
+    sent = _capture_join_request_emails(monkeypatch)
+
+    resolved = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/join-requests/{request_id}/{action}"),
+        headers=manager.headers,
+    )
+    assert resolved.status_code == 200
+
+    assert [m["recipient_id"] for m in sent] == [member.user.id]
+    assert sent[0]["event"] == event
+    assert sent[0]["initiative_name"] == "Knockable"
+    assert sent[0]["requester"] is None
+    assert f"guild_id={manager.guild.id}" in sent[0]["link"]
+
+
+@pytest.mark.integration
+async def test_join_request_email_honours_the_initiative_preference(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """These are initiative-membership news, so they ride the preference that
+    already governs that topic — no second toggle for the same idea."""
+    sent = _capture_join_request_emails(monkeypatch)
+
+    manager = await acting_user(
+        guild_role=GuildRole.member, email_initiative_addition=False
+    )
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+
+    assert response.status_code == 201
+    assert sent == []
+    # The in-app notification still lands: the preference governs email, not the
+    # bell.
+    assert (
+        len(
+            await _notifications_for(
+                session, manager.user.id, NotificationType.initiative_join_requested
+            )
+        )
+        == 1
+    )
+
+
+@pytest.mark.integration
+async def test_unconfigured_smtp_does_not_break_the_request(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """Email is best effort: with no SMTP configured the knock still lands."""
+
+    async def _unconfigured(*args, **kwargs):
+        raise email_service.EmailNotConfiguredError("no smtp")
+
+    monkeypatch.setattr(
+        email_service, "send_initiative_join_request_email", _unconfigured
+    )
+
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+
+    response = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+
+    assert response.status_code == 201
+    assert (
+        len(
+            await _notifications_for(
+                session, manager.user.id, NotificationType.initiative_join_requested
+            )
+        )
+        == 1
+    )

@@ -4,9 +4,9 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Iterable
 
-from sqlalchemy import desc, func, or_, true
+from sqlalchemy import case, desc, func, or_, true
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,8 +23,11 @@ from app.models.tenant.initiative import (
     PermissionKey,
 )
 from app.models.platform.user import User
-from app.schemas.platform.user import UserInitiativeRole
-from app.schemas.tenant.initiative import InitiativeDirectoryEntry
+from app.schemas.platform.user import UserInitiativeRole, UserSummary
+from app.schemas.tenant.initiative import (
+    InitiativeDirectoryEntry,
+    InitiativeJoinRequestRead,
+)
 
 
 DEFAULT_INITIATIVE_NAME = "Default Initiative"
@@ -588,6 +591,9 @@ async def list_directory_entries(
     renders one call to action per card. A private initiative the caller is
     *not* in stays unlisted, exactly as before — unless ``include_unlisted``
     says the caller's standing already reaches everything (a guild admin).
+
+    Managers additionally get the size of their own join-request queue, so the
+    guild home needs no second call to badge it.
     """
     member_count = (
         select(func.count())
@@ -612,9 +618,41 @@ async def list_directory_entries(
         )
         .exists()
     )
+    # The queue badge, and only for whoever may open the queue: a manager of
+    # that initiative, or a guild admin (``include_unlisted``). Everyone else
+    # reads a flat zero instead of a headcount of their peers' knocking, and
+    # the CASE means the count is not computed for them at all.
+    manages = (
+        select(InitiativeMember.user_id)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            InitiativeMember.user_id == user_id,
+            InitiativeRoleModel.is_manager.is_(True),
+        )
+        .exists()
+    )
+    pending_count = (
+        select(func.count())
+        .select_from(InitiativeJoinRequest)
+        .where(
+            InitiativeJoinRequest.initiative_id == Initiative.id,
+            InitiativeJoinRequest.status == JoinRequestStatus.pending.value,
+        )
+        .scalar_subquery()
+    )
+    pending_queue_size = case(
+        (true() if include_unlisted else manages, pending_count), else_=0
+    )
 
     statement = (
-        select(Initiative, member_count, is_member, has_pending_request)
+        select(
+            Initiative,
+            member_count,
+            is_member,
+            has_pending_request,
+            pending_queue_size,
+        )
         .where(
             Initiative.guild_id == guild_id,
             true()
@@ -638,8 +676,9 @@ async def list_directory_entries(
             member_count=count,
             is_member=member,
             has_pending_request=pending,
+            pending_join_request_count=queue_size,
         )
-        for initiative, count, member, pending in rows
+        for initiative, count, member, pending, queue_size in rows
     ]
 
 
@@ -702,6 +741,216 @@ async def self_join(
             raise
         return existing
     return membership
+
+
+# ============================================================================
+# Discovery: join requests
+# ============================================================================
+
+
+def is_requestable(initiative: Initiative) -> bool:
+    """Whether a guild member may knock on ``initiative`` right now."""
+    return (
+        initiative.join_policy == InitiativeJoinPolicy.request.value
+        and not initiative.is_archived
+        and initiative.deleted_at is None
+    )
+
+
+async def get_pending_join_request(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    user_id: int,
+) -> InitiativeJoinRequest | None:
+    """The caller's live request for one initiative, if they have one."""
+    result = await session.exec(
+        select(InitiativeJoinRequest).where(
+            InitiativeJoinRequest.initiative_id == initiative_id,
+            InitiativeJoinRequest.user_id == user_id,
+            InitiativeJoinRequest.status == JoinRequestStatus.pending.value,
+        )
+    )
+    return result.one_or_none()
+
+
+async def get_join_request(
+    session: AsyncSession,
+    *,
+    request_id: int,
+    initiative_id: int,
+) -> InitiativeJoinRequest | None:
+    """One request by id, scoped to the initiative it must belong to."""
+    result = await session.exec(
+        select(InitiativeJoinRequest).where(
+            InitiativeJoinRequest.id == request_id,
+            InitiativeJoinRequest.initiative_id == initiative_id,
+        )
+    )
+    return result.one_or_none()
+
+
+async def create_join_request(
+    session: AsyncSession,
+    *,
+    initiative: Initiative,
+    user_id: int,
+    message: str | None = None,
+) -> tuple[InitiativeJoinRequest, bool]:
+    """Record ``user_id`` knocking on ``initiative``.
+
+    Returns ``(row, created)``. A live request already on file is returned
+    untouched with ``created=False`` — the caller turns that into the conflict
+    answer. A *denied* request never blocks a new one: only the pending row is
+    unique (``uq_initiative_join_requests_pending``), so asking again after a
+    refusal is allowed and the refusals stay on file as history.
+
+    Flush-only; the caller owns the transaction. The policy check is the
+    caller's (:func:`is_requestable`).
+    """
+    existing = await get_pending_join_request(
+        session, initiative_id=initiative.id, user_id=user_id
+    )
+    if existing is not None:
+        return existing, False
+
+    request = InitiativeJoinRequest(
+        initiative_id=initiative.id,
+        user_id=user_id,
+        status=JoinRequestStatus.pending.value,
+        message=message,
+    )
+    # Two overlapping knocks both clear the lookup above, and the partial unique
+    # index then rejects the loser. The savepoint absorbs that so the loser
+    # reads back the winner's row and gets the same deterministic answer as a
+    # plain repeat, rather than a failed transaction.
+    try:
+        async with session.begin_nested():
+            session.add(request)
+            await session.flush()
+    except IntegrityError:
+        existing = await get_pending_join_request(
+            session, initiative_id=initiative.id, user_id=user_id
+        )
+        if existing is None:
+            raise
+        return existing, False
+    return request, True
+
+
+async def resolve_join_request(
+    session: AsyncSession,
+    *,
+    request: InitiativeJoinRequest,
+    resolver_id: int,
+    approved: bool,
+) -> InitiativeMember | None:
+    """Settle a pending request, creating the membership row on approval.
+
+    Approval routes through :func:`self_join`, so an approved requester lands on
+    exactly the row every other join path produces — built-in ``member`` role,
+    ``oidc_managed`` false — and someone who became a member by another route
+    while the request sat in the queue is absorbed rather than colliding.
+
+    Flush-only; the caller owns the transaction, and is responsible for having
+    checked that the request is still pending.
+    """
+    membership: InitiativeMember | None = None
+    if approved:
+        initiative = await session.get(Initiative, request.initiative_id)
+        if initiative is None:
+            raise ValueError(InitiativeMessages.NOT_FOUND)
+        membership = await self_join(
+            session, initiative=initiative, user_id=request.user_id
+        )
+    request.status = (
+        JoinRequestStatus.approved.value if approved else JoinRequestStatus.denied.value
+    )
+    request.resolved_at = datetime.now(timezone.utc)
+    request.resolved_by = resolver_id
+    session.add(request)
+    await session.flush()
+    return membership
+
+
+async def manager_user_ids(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+) -> list[int]:
+    """Members of ``initiative_id`` holding a manager role — the people who can
+    answer a join request, and therefore the people it notifies."""
+    result = await session.exec(
+        select(InitiativeMember.user_id)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeRoleModel.is_manager.is_(True),
+        )
+    )
+    return list(result.all())
+
+
+async def list_join_requests(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    status: str | None = JoinRequestStatus.pending.value,
+    user_id: int | None = None,
+) -> list[InitiativeJoinRequestRead]:
+    """An initiative's join-request queue, newest knock first.
+
+    ``status`` defaults to the pending queue — the only rows anyone can act on;
+    pass ``None`` for the full history. ``user_id`` narrows the result to one
+    requester, which is how a requester reads their own rows without being able
+    to read anyone else's.
+
+    Each row carries ``prior_denials``: how many times this initiative has
+    already turned this person away. A denied requester may ask again, so the
+    repeat has to be visible to whoever is deciding.
+    """
+    prior = aliased(InitiativeJoinRequest, name="prior_request")
+    prior_denials = (
+        select(func.count())
+        .select_from(prior)
+        .where(
+            prior.initiative_id == initiative_id,
+            prior.user_id == InitiativeJoinRequest.user_id,
+            prior.status == JoinRequestStatus.denied.value,
+            # Strictly prior: a denied row read back from the history does not
+            # count itself.
+            prior.id != InitiativeJoinRequest.id,
+        )
+        .scalar_subquery()
+    )
+    statement = (
+        select(InitiativeJoinRequest, User, prior_denials)
+        .join(User, User.id == InitiativeJoinRequest.user_id)
+        .where(InitiativeJoinRequest.initiative_id == initiative_id)
+        .order_by(
+            InitiativeJoinRequest.created_at.desc(), InitiativeJoinRequest.id.desc()
+        )
+    )
+    if status is not None:
+        statement = statement.where(InitiativeJoinRequest.status == status)
+    if user_id is not None:
+        statement = statement.where(InitiativeJoinRequest.user_id == user_id)
+
+    rows = (await session.exec(statement)).all()
+    return [
+        InitiativeJoinRequestRead(
+            id=request.id,
+            initiative_id=request.initiative_id,
+            user=UserSummary.model_validate(user),
+            status=request.status,
+            message=request.message,
+            created_at=request.created_at,
+            resolved_at=request.resolved_at,
+            resolved_by=request.resolved_by,
+            prior_denials=denials,
+        )
+        for request, user, denials in rows
+    ]
 
 
 def validate_join_settings(

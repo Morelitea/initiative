@@ -64,6 +64,11 @@ async def test_mcp_tools_are_curated():
     off_list = [n for n in names if not any(a in n for a in allowed)]
     assert not off_list, f"tools outside the allow-list: {off_list}"
 
+    # Join requests sit on the initiatives router and would otherwise ride in on
+    # its tag, but they name who asked to be let in and quote their note — a
+    # manager's queue, not a working surface. Carved out explicitly.
+    assert not [n for n in names if "join_request" in n]
+
 
 @pytest.mark.unit
 async def test_mcp_write_tools_are_the_curated_safe_set():

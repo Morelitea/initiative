@@ -160,5 +160,31 @@
       "body": "Your access to <strong>{{guildName}}</strong> was revoked.",
       "textBody": "Your access to {{guildName}} was revoked. {{link}}"
     }
+  },
+  "initiativeJoinRequest": {
+    "greeting": "Hi <strong>{{name}}</strong>,",
+    "requested": {
+      "subject": "Request to join {{initiativeName}}",
+      "title": "New join request",
+      "buttonLabel": "Review the request",
+      "body": "<strong>{{requester}}</strong> asked to join <strong>{{initiativeName}}</strong>.",
+      "note": "They wrote: <em>{{message}}</em>",
+      "noteText": "They wrote: {{message}}",
+      "textBody": "{{requester}} asked to join {{initiativeName}}. Review it at {{link}}."
+    },
+    "approved": {
+      "subject": "You've joined {{initiativeName}}",
+      "title": "Join request approved",
+      "buttonLabel": "Open the initiative",
+      "body": "Your request to join <strong>{{initiativeName}}</strong> was approved — you're a member now.",
+      "textBody": "Your request to join {{initiativeName}} was approved — you're a member now. {{link}}"
+    },
+    "denied": {
+      "subject": "Request to join {{initiativeName}} declined",
+      "title": "Join request declined",
+      "buttonLabel": "Browse initiatives",
+      "body": "Your request to join <strong>{{initiativeName}}</strong> was declined.",
+      "textBody": "Your request to join {{initiativeName}} was declined. {{link}}"
+    }
   }
 }

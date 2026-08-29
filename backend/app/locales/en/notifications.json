@@ -15,6 +15,18 @@
     "added": {
       "title": "Added to Initiative",
       "body": "You've been added to {{initiative}}"
+    },
+    "joinRequested": {
+      "title": "New join request",
+      "body": "{{requester}} asked to join {{initiative}}"
+    },
+    "joinApproved": {
+      "title": "Join request approved",
+      "body": "You're now a member of {{initiative}}"
+    },
+    "joinDenied": {
+      "title": "Join request declined",
+      "body": "Your request to join {{initiative}} was declined"
     }
   },
   "project": {

@@ -201,6 +201,13 @@ export const invalidateMyPermissions = (initiativeId: number) =>
 export const invalidateInitiativeMembers = (initiativeId: number) =>
   invalidateGuildExact([`/api/v1/initiatives/${initiativeId}/members`]);
 
+// One prefix reaches every reader of the queue: the manager's list (keyed with
+// its `status` filter), the requester's own `/me` rows, and any narrower status
+// view — so a request or an answer never leaves one of them showing the old
+// truth. The directory's own badge rides on `invalidateAllInitiatives`.
+export const invalidateInitiativeJoinRequests = (initiativeId: number) =>
+  invalidateGuildPrefix(`/api/v1/initiatives/${initiativeId}/join-requests`);
+
 // ── Settings (personal / platform) ───────────────────────────────────────────────
 
 // "All settings" is a blunt flush spanning two DELIBERATELY separate backend

@@ -29,6 +29,10 @@
     "join": "Rejoindre",
     "joining": "Adhésion…",
     "joined": "Vous avez rejoint {{name}}.",
+    "requestToJoin": "Demander à rejoindre",
+    "requested": "Demandé",
+    "pendingRequests_one": "{{count}} en attente d’adhésion",
+    "pendingRequests_other": "{{count}} en attente d’adhésion",
     "policy": {
       "open": "Ouverte à tous les membres de la guilde",
       "request": "Adhésion sur demande",

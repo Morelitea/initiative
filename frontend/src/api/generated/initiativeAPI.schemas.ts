@@ -231,6 +231,7 @@ export interface UserPublic {
   id: number;
   email: string;
   full_name: string | null;
+  avatar_base64: string | null;
   avatar_url: string | null;
   status: UserStatus;
 }
@@ -699,10 +700,6 @@ export interface BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersio
   file: Blob;
 }
 
-export interface BodyUploadMyAvatarApiV1UsersMeAvatarPut {
-  file: Blob;
-}
-
 /**
  * A self-approved, time-bound break-glass grant to one guild.
  *
@@ -795,6 +792,7 @@ export interface CalendarEventAttendeePreview {
   user_id: number;
   name: string;
   avatar_url: string | null;
+  avatar_base64: string | null;
 }
 
 /**
@@ -1028,6 +1026,7 @@ export interface TaskAssigneeSummary {
   id: number;
   full_name: string | null;
   avatar_url: string | null;
+  avatar_base64: string | null;
   status: UserStatus;
 }
 
@@ -1244,6 +1243,7 @@ export interface CommentAuthor {
   email: string;
   full_name?: string | null;
   avatar_url?: string | null;
+  avatar_base64?: string | null;
 }
 
 export interface CommentCreate {
@@ -1337,8 +1337,7 @@ export interface CommunityGuildRead {
   online_count: number;
   already_member: boolean;
   banner_card_url: string | null;
-  banner_color: string;
-  banner_text_color: string;
+  banner_color: string | null;
 }
 
 /**
@@ -2560,8 +2559,7 @@ export interface GuildRead {
   categories: GuildCategory[];
   has_adult_content: boolean | null;
   banner_url: string | null;
-  banner_color: string;
-  banner_text_color: string;
+  banner_color: string | null;
   icon_url: string | null;
 }
 
@@ -2595,7 +2593,6 @@ export interface GuildUpdate {
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
   banner_color?: string | null;
-  banner_text_color?: string | null;
   has_adult_content?: boolean | null;
 }
 
@@ -2729,6 +2726,7 @@ export interface InitiativeDirectoryEntry {
   member_count: number;
   is_member: boolean;
   has_pending_request: boolean;
+  pending_join_request_count: number;
 }
 
 export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
@@ -2741,6 +2739,62 @@ export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
  */
 export interface InitiativeGroupedCountsResponse {
   counts: InitiativeGroupedCountsResponseCounts;
+}
+
+/**
+ * A guild member knocking on a ``request``-policy initiative.
+ */
+export interface InitiativeJoinRequestCreate {
+  message?: string | null;
+}
+
+/**
+ * Slim user projection for typeahead and picker surfaces.
+ *
+ * Drops the fields pickers never read — email, platform/guild role,
+ * ``initiative_roles`` (an N+1 enrichment on the full roster), and
+ * timestamps — while keeping the avatar so members still render with a
+ * face. The payload is bounded by pagination on the endpoints that serve
+ * it, not by dropping the avatar.
+ */
+export interface UserSummary {
+  id: number;
+  full_name: string | null;
+  avatar_base64: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+}
+
+/**
+ * Lifecycle of a row in ``initiative_join_requests``.
+ */
+export type JoinRequestStatus = (typeof JoinRequestStatus)[keyof typeof JoinRequestStatus];
+
+export const JoinRequestStatus = {
+  pending: "pending",
+  approved: "approved",
+  denied: "denied",
+} as const;
+
+/**
+ * One row of an initiative's join-request queue.
+ *
+ * Carries everything the manager needs to decide without a second call: who
+ * is asking (the same slim user projection the member pickers use), what they
+ * said, when they asked, and how many times this initiative has turned them
+ * down before — a denied requester may ask again, so the history is what keeps
+ * the repeat visible.
+ */
+export interface InitiativeJoinRequestRead {
+  id: number;
+  initiative_id: number;
+  user: UserSummary;
+  status: JoinRequestStatus;
+  message: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: number | null;
+  prior_denials: number;
 }
 
 /**
@@ -3008,6 +3062,7 @@ export interface MentionSuggestion {
   display_text: string;
   subtitle?: string | null;
   avatar_url?: string | null;
+  avatar_base64?: string | null;
 }
 
 /**
@@ -3067,6 +3122,9 @@ export const NotificationType = {
   task_assignment: "task_assignment",
   overdue_tasks: "overdue_tasks",
   initiative_added: "initiative_added",
+  initiative_join_requested: "initiative_join_requested",
+  initiative_join_approved: "initiative_join_approved",
+  initiative_join_denied: "initiative_join_denied",
   project_added: "project_added",
   user_pending_approval: "user_pending_approval",
   mention: "mention",
@@ -3086,7 +3144,6 @@ export const NotificationType = {
   export_failed: "export_failed",
   import_ready: "import_ready",
   import_failed: "import_failed",
-  avatar_removed: "avatar_removed",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -4515,6 +4572,7 @@ export interface UserGuildMember {
   id: number;
   email: string;
   full_name: string | null;
+  avatar_base64: string | null;
   avatar_url: string | null;
   status: UserStatus;
   role: UserRole;
@@ -4534,6 +4592,7 @@ export interface UserRead {
   email_verified: boolean;
   created_at: string;
   updated_at: string;
+  avatar_base64: string | null;
   avatar_url: string | null;
   week_starts_on: number;
   recent_tabs_limit: number;
@@ -4577,6 +4636,7 @@ export interface UserSelfUpdate {
   full_name?: string | null;
   password?: string | null;
   current_password?: string | null;
+  avatar_base64?: string | null;
   avatar_url?: string | null;
   week_starts_on?: number | null;
   recent_tabs_limit?: number | null;
@@ -4656,22 +4716,6 @@ export interface UserStatsResponse {
 }
 
 /**
- * Slim user projection for typeahead and picker surfaces.
- *
- * Drops the fields pickers never read — email, platform/guild role,
- * ``initiative_roles`` (an N+1 enrichment on the full roster), and
- * timestamps — while keeping the avatar so members still render with a
- * face. The payload is bounded by pagination on the endpoints that serve
- * it, not by dropping the avatar.
- */
-export interface UserSummary {
-  id: number;
-  full_name: string | null;
-  avatar_url: string | null;
-  status: UserStatus;
-}
-
-/**
  * Paginated envelope for the slim user search/typeahead endpoints.
  */
 export interface UserSummaryListResponse {
@@ -4681,6 +4725,39 @@ export interface UserSummaryListResponse {
   page_size: number;
   has_next: boolean;
   has_prev: boolean;
+}
+
+export interface UserUpdate {
+  full_name?: string | null;
+  role?: UserRole | null;
+  password?: string | null;
+  status?: UserStatus | null;
+  avatar_base64?: string | null;
+  avatar_url?: string | null;
+  week_starts_on?: number | null;
+  recent_tabs_limit?: number | null;
+  timezone?: string | null;
+  overdue_notification_time?: string | null;
+  email_initiative_addition?: boolean | null;
+  email_task_assignment?: boolean | null;
+  email_project_added?: boolean | null;
+  email_overdue_tasks?: boolean | null;
+  email_mentions?: boolean | null;
+  push_initiative_addition?: boolean | null;
+  push_task_assignment?: boolean | null;
+  push_project_added?: boolean | null;
+  push_overdue_tasks?: boolean | null;
+  push_mentions?: boolean | null;
+  email_events?: boolean | null;
+  push_events?: boolean | null;
+  email_event_reminders?: boolean | null;
+  push_event_reminders?: boolean | null;
+  event_reminder_minutes_before?: number | null;
+  color_theme?: string | null;
+  task_completion_visual_feedback?: string | null;
+  task_completion_audio_feedback?: boolean | null;
+  task_completion_haptic_feedback?: boolean | null;
+  locale?: string | null;
 }
 
 /**
@@ -5235,6 +5312,13 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams = {
+  /**
+   * Narrow the queue to one status. Omit for the pending queue — the rows that are still open to an answer.
+   */
+  status?: JoinRequestStatus | null;
 };
 
 export type GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams = {

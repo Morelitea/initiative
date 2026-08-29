@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { TabsContent } from "@/components/ui/tabs";
 import {
   ADVANCED_PERMISSION_GROUPS,
   CORE_PERMISSION_GROUPS,
@@ -105,7 +104,7 @@ export const InitiativeSettingsRolesTab = ({
   );
 
   return (
-    <TabsContent value="roles">
+    <div>
       <div className="space-y-4">
         <div>
           <h3 className="font-semibold text-lg">{t("settings.rolesTitle")}</h3>
@@ -233,6 +232,6 @@ export const InitiativeSettingsRolesTab = ({
           </Button>
         )}
       </div>
-    </TabsContent>
+    </div>
   );
 };

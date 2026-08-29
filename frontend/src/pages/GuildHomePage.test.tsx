@@ -8,6 +8,7 @@ import {
   buildGuild,
   buildInitiative,
   buildInitiativeDirectoryEntry,
+  buildInitiativeJoinRequest,
   buildProject,
   buildRecentActivityEntry,
 } from "@/__tests__/factories";
@@ -463,6 +464,47 @@ describe("GuildHomePage", () => {
     // Once you're in, the card's title leads there and the Join is spent.
     expect(await screen.findByRole("link", { name: "Nebula" })).toHaveAttribute("href", "/g/1/i/9");
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+  });
+
+  it("re-reads the guild once the reader knocks, so the card flips to requested", async () => {
+    stubInitiatives();
+    stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
+
+    // Asking changes nothing about what the reader can see — only the card's
+    // own state — so the directory is what has to answer differently.
+    let requested = false;
+    server.use(
+      guildHttp.get("/initiatives/directory", () =>
+        HttpResponse.json([
+          buildInitiativeDirectoryEntry({
+            id: 9,
+            name: "Vanguard",
+            join_policy: "request",
+            has_pending_request: requested,
+          }),
+        ])
+      ),
+      guildHttp.post("/initiatives/:id/join-requests", () => {
+        requested = true;
+        return HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: 9 }), {
+          status: 201,
+        });
+      })
+    );
+
+    // The invalidation helpers address the app's own query client, so this
+    // flow is only observable when the page is mounted against it.
+    renderPage(GuildHomePage, {
+      guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "member" }) },
+      queryClient,
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Request to join" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Send request" }));
+
+    // Waiting on a manager is a state, not an action.
+    expect(await screen.findByText("Requested")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request to join" })).not.toBeInTheDocument();
   });
 
   it("tells a member with no initiatives how to get into one", async () => {

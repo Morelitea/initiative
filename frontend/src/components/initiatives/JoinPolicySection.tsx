@@ -3,10 +3,8 @@
  *
  * The policy governs only how a membership row comes to exist — never what a
  * member may then see, which stays with initiative membership and per-resource
- * sharing. Phase 1 offers the two ends: closed, or open to any guild member.
- * The middle option (`request`) arrives with the request flow, and is listed
- * here only when the initiative is already set to it, so a save from this
- * screen can never silently downgrade it.
+ * sharing. Three ways in: closed, open to any guild member, or open to anyone
+ * who asks and a manager lets in.
  */
 
 import { useTranslation } from "react-i18next";
@@ -16,9 +14,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-/** The policies a manager may choose from here. */
+/** Every policy, from the most closed to the most open. */
 const SELECTABLE_POLICIES: readonly InitiativeJoinPolicy[] = [
   InitiativeJoinPolicy.private,
+  InitiativeJoinPolicy.request,
   InitiativeJoinPolicy.open,
 ];
 
@@ -58,12 +57,6 @@ export const JoinPolicySection = ({
   const radioId = (policy: InitiativeJoinPolicy) =>
     `${idPrefix ? `${idPrefix}-` : ""}join-policy-${policy}`;
 
-  const policies: readonly InitiativeJoinPolicy[] = SELECTABLE_POLICIES.some(
-    (policy) => policy === value
-  )
-    ? SELECTABLE_POLICIES
-    : [...SELECTABLE_POLICIES, value];
-
   const radios = (
     <RadioGroup
       value={value}
@@ -72,7 +65,7 @@ export const JoinPolicySection = ({
       className="gap-3"
       aria-label={t("settings.joinPolicy.title")}
     >
-      {policies.map((policy) => (
+      {SELECTABLE_POLICIES.map((policy) => (
         <div key={policy} className="flex items-start gap-3 rounded-md border px-3 py-3">
           <RadioGroupItem id={radioId(policy)} value={policy} className="mt-1" />
           <div className="min-w-0 space-y-0.5">

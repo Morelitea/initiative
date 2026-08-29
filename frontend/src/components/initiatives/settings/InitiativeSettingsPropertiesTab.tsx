@@ -35,7 +35,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TabsContent } from "@/components/ui/tabs";
 import {
   useCreateProperty,
   useDeleteProperty,
@@ -165,9 +164,8 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
 
 /**
  * Initiative-admin surface for listing and managing custom property
- * definitions. Renders as a ``<TabsContent value="properties">`` panel
- * inside :class:`InitiativeSettingsPage` — consistent with the other
- * settings tabs rather than living on its own route. Pairs with
+ * definitions. The panel behind the Properties tab of an initiative's
+ * settings, which is its own route (``/settings/properties``). Pairs with
  * ``PropertyFilter``/``PropertyList``/``PropertyInput`` which render
  * individual values on documents and tasks.
  */
@@ -303,7 +301,7 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
   };
 
   return (
-    <TabsContent value="properties" className="space-y-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
@@ -508,6 +506,6 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
         isLoading={deleteMutation.isPending}
         destructive
       />
-    </TabsContent>
+    </div>
   );
 };
