@@ -65,3 +65,39 @@ export const readableTextColor = (background: string): string => {
   const againstBlack = (luminance + 0.05) / 0.05;
   return againstWhite >= againstBlack ? LIGHT_TEXT : DARK_TEXT;
 };
+
+/**
+ * A shadow that keeps `ink` legible over a picture nobody here has seen.
+ *
+ * White text over a pale patch of artwork, or black text over a dark one, is
+ * the failure case a stored text colour cannot rule out: the guild picks one
+ * colour for a banner whose brightness varies across its width. So the words
+ * carry their own opposite behind them — a dark shadow under light text and a
+ * light one under dark — which restores the contrast wherever the picture goes
+ * the wrong way, and is invisible where it does not.
+ *
+ * Two layers: a tight offset shadow that reads as depth against detail, and a
+ * wide halo that lifts the words off a flat area of the same tone.
+ */
+export const readableTextShadow = (ink: string): string => {
+  const luminance = relativeLuminance(ink);
+  // Unparseable ink is treated as light, matching `readableTextColor`'s
+  // fallback — the pair must not disagree about what colour the words are.
+  const isLight = luminance === null || luminance > 0.5;
+  return isLight
+    ? "0 1px 2px rgba(0,0,0,0.55), 0 0 14px rgba(0,0,0,0.45)"
+    : "0 1px 2px rgba(255,255,255,0.7), 0 0 14px rgba(255,255,255,0.6)";
+};
+
+/**
+ * `hex` at `alpha`, as an `rgba()` string.
+ *
+ * For the chips that sit on a banner: they are tinted with the same ink the
+ * words are written in, so one stored colour dresses the whole banner and a
+ * chip can never turn out to be the one element that fails to read.
+ */
+export const withAlpha = (hex: string, alpha: number): string => {
+  const rgb = channels(hex);
+  if (!rgb) return `rgba(255, 255, 255, ${alpha})`;
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+};

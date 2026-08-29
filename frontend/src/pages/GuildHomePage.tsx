@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { GuildToolRail } from "@/components/guildHome/GuildToolRail";
@@ -143,69 +144,89 @@ export function GuildHomePage() {
     ? resolveHeaderlessApiUrl(activeGuild.banner_url)
     : null;
 
+  // A faded banner is extended past where it would have ended, and the page's
+  // own content is pulled back over the tail — so everything below the banner
+  // needs to be positioned to paint over it, which a plain block would not.
   return (
     <div className="space-y-6">
       <PageBanner
         imageUrl={bannerUrl}
         color={activeGuild?.banner_color}
         textColor={activeGuild?.banner_text_color}
+        align={activeGuild?.banner_text_align}
+        fade={activeGuild?.banner_fade}
         title={activeGuild?.name ?? t("title")}
         subtitle={activeGuild?.description ?? t("subtitle")}
+        badges={
+          activeGuild ? (
+            <GuildBannerBadges
+              memberCount={activeGuild.member_count}
+              onlineCount={activeGuild.online_count}
+              ink={activeGuild.banner_text_color}
+            />
+          ) : null
+        }
       />
 
-      {hasNoInitiatives ? (
-        <GuildHomeEmptyState
-          guildDescription={activeGuild?.description}
-          entries={directoryEntries}
-          directoryStatus={
-            directoryQuery.isSuccess ? "success" : directoryQuery.isError ? "error" : "pending"
-          }
-          onCreate={onCreate}
-        />
-      ) : (
-        <>
-          <GuildToolRail tools={tools} selected={selected} />
-
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t("loading")}
-            </div>
-          ) : isError ? (
-            <p className="text-destructive text-sm">{t("loadError")}</p>
-          ) : totalCount === 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("empty.title")}</CardTitle>
-                <CardDescription>{t("empty.description")}</CardDescription>
-              </CardHeader>
-            </Card>
-          ) : (
-            <GuildToolTable
-              tool={selected}
-              rows={rows}
-              initiatives={initiativesQuery.data ?? []}
-              totalCount={totalCount}
-              page={page}
-              pageCount={pageCount}
-              pageSize={pageSize}
-              onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
-              onPageSizeChange={handlePageSizeChange}
+      <div className="relative z-10 space-y-6">
+        {hasNoInitiatives ? (
+          <GuildHomeEmptyState
+            guildDescription={activeGuild?.description}
+            entries={directoryEntries}
+            directoryStatus={
+              directoryQuery.isSuccess ? "success" : directoryQuery.isError ? "error" : "pending"
+            }
+            onCreate={onCreate}
+          />
+        ) : (
+          <>
+            <GuildToolRail
+              tools={tools}
+              selected={selected}
+              align={activeGuild?.banner_text_align}
             />
-          )}
 
-          {/* The guild's initiative list, which is also its discovery surface:
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("loading")}
+              </div>
+            ) : isError ? (
+              <p className="text-destructive text-sm">{t("loadError")}</p>
+            ) : totalCount === 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("empty.title")}</CardTitle>
+                  <CardDescription>{t("empty.description")}</CardDescription>
+                </CardHeader>
+              </Card>
+            ) : (
+              <GuildToolTable
+                tool={selected}
+                rows={rows}
+                initiatives={initiativesQuery.data ?? []}
+                totalCount={totalCount}
+                page={page}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            )}
+
+            {/* The guild's initiative list, which is also its discovery surface:
               the ones you're in, then the ones you could join. */}
-          <InitiativeDirectory entries={directoryEntries} onCreate={onCreate} />
+            <InitiativeDirectory entries={directoryEntries} onCreate={onCreate} />
 
-          {/* Guild-wide, so it stays put as the rail switches the table's tool. */}
-          <GuildRecentComments />
-        </>
-      )}
+            {/* Guild-wide, so it stays put as the rail switches the table's tool. */}
+            <GuildRecentComments />
+          </>
+        )}
 
-      {canCreateInitiatives ? (
-        <CreateInitiativeDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
-      ) : null}
+        {canCreateInitiatives ? (
+          <CreateInitiativeDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
+        ) : null}
+      </div>
     </div>
   );
 }

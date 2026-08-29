@@ -141,6 +141,95 @@ describe("GuildHomePage", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
+  it("says how big the guild is and how many are in it right now", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", member_count: 11, online_count: 3 }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.getByText("11 members")).toBeInTheDocument();
+    expect(screen.getByText("3 online")).toBeInTheDocument();
+  });
+
+  it("says nothing about presence in an empty room", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", member_count: 4, online_count: 0 }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    // "0 online" reads as a verdict on the guild rather than on the moment.
+    expect(screen.getByText("4 members")).toBeInTheDocument();
+    expect(screen.queryByText(/online/)).not.toBeInTheDocument();
+  });
+
+  it("carries the guild's own banner layout through to the banner", async () => {
+    stubInitiatives();
+    stubTools();
+
+    const { container } = renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({
+          id: 1,
+          role: "admin",
+          banner_text_align: "left",
+          banner_fade: "strong",
+        }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    expect(container.querySelector("h1")?.parentElement?.className).toContain("text-left");
+    // A faded banner is extended and the same amount taken back, so the rail
+    // and the table below end up over its tail.
+    const banner = container.querySelector<HTMLElement>("div.grid");
+    expect(banner?.style.marginBottom).toBe("-224px");
+  });
+
+  it("centres the tool circles under a banner that centres its copy", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", banner_text_align: "center" }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    const rail = screen.getByRole("navigation", { name: /tool/i }).firstElementChild;
+    expect(rail?.className).toContain("justify-center");
+  });
+
+  it("keeps them against the edge the banner's copy sits on when it is left", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", banner_text_align: "left" }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    const rail = screen.getByRole("navigation", { name: /tool/i }).firstElementChild;
+    expect(rail?.className).not.toContain("justify-center");
+  });
+
   it("lists the whole guild's projects under the projects circle", async () => {
     stubInitiatives();
     stubTools({

@@ -36,6 +36,8 @@ from app.core.security import (
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import (
+    BannerFade,
+    BannerTextAlign,
     Guild,
     GuildCategory,
     GuildMembership,
@@ -162,6 +164,12 @@ def _serialize_guild(
         banner_url=(images or {}).get(GuildImageVariant.full),
         banner_color=guild.banner_color,
         banner_text_color=guild.banner_text_color,
+        banner_text_align=BannerTextAlign(guild.banner_text_align),
+        banner_fade=BannerFade(guild.banner_fade),
+        # Read here rather than passed in, so every payload that names a guild
+        # carries the same figure without each call site remembering to ask.
+        # It costs no query — presence is a dict this process already holds.
+        online_count=realtime_manager.present_count(guild.id),
     )
 
 
@@ -563,6 +571,8 @@ async def update_guild(
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_color_provided = "banner_color" in updates.model_fields_set
     banner_text_color_provided = "banner_text_color" in updates.model_fields_set
+    banner_text_align_provided = "banner_text_align" in updates.model_fields_set
+    banner_fade_provided = "banner_fade" in updates.model_fields_set
     try:
         guild = await guilds_service.update_guild(
             session,
@@ -584,6 +594,12 @@ async def update_guild(
             banner_color_provided=banner_color_provided,
             banner_text_color=updates.banner_text_color,
             banner_text_color_provided=banner_text_color_provided,
+            banner_text_align=(
+                updates.banner_text_align.value if updates.banner_text_align else None
+            ),
+            banner_text_align_provided=banner_text_align_provided,
+            banner_fade=updates.banner_fade.value if updates.banner_fade else None,
+            banner_fade_provided=banner_fade_provided,
             show_member_names=updates.show_member_names,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:

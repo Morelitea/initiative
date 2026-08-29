@@ -16,6 +16,8 @@ from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     DEFAULT_BANNER_COLOR,
+    DEFAULT_BANNER_FADE,
+    DEFAULT_BANNER_TEXT_ALIGN,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
     GuildCategory,
@@ -675,6 +677,10 @@ async def update_guild(
     banner_color_provided: bool = False,
     banner_text_color: str | None = None,
     banner_text_color_provided: bool = False,
+    banner_text_align: str | None = None,
+    banner_text_align_provided: bool = False,
+    banner_fade: str | None = None,
+    banner_fade_provided: bool = False,
     show_member_names: bool | None = None,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
@@ -704,6 +710,20 @@ async def update_guild(
         normalized_text_color = normalize_banner_text_color(banner_text_color)
         if guild.banner_text_color != normalized_text_color:
             guild.banner_text_color = normalized_text_color
+            updated = True
+    # The layout pair. The schema already refused anything outside the two
+    # vocabularies, so the only thing left to decide here is what a null means —
+    # and it means the same as it does for the colours above: back to the
+    # default, which is what the reset control sends.
+    if banner_text_align_provided:
+        normalized_align = banner_text_align or DEFAULT_BANNER_TEXT_ALIGN
+        if guild.banner_text_align != normalized_align:
+            guild.banner_text_align = normalized_align
+            updated = True
+    if banner_fade_provided:
+        normalized_fade = banner_fade or DEFAULT_BANNER_FADE
+        if guild.banner_fade != normalized_fade:
+            guild.banner_fade = normalized_fade
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.

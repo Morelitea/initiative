@@ -697,6 +697,39 @@ export interface BackupEstimate {
 }
 
 /**
+ * How far a banner dissolves into the page beneath it.
+ *
+ * ``none`` ends the banner at an edge — a band with the page starting under
+ * it. The other two extend it past that edge and fade it out there, so the
+ * page's own content rides over the tail rather than starting below it: a
+ * ``weak`` fade is a soft join, a ``strong`` one lets the banner read as the
+ * page's background rather than as a strip on it.
+ */
+export type BannerFade = (typeof BannerFade)[keyof typeof BannerFade];
+
+export const BannerFade = {
+  none: "none",
+  weak: "weak",
+  strong: "strong",
+} as const;
+
+/**
+ * Where a banner's name and description sit across its width.
+ *
+ * Two answers, not a free position: centred reads as a masthead and is what a
+ * banner with artwork built around a middle wants, while left-aligned lines
+ * the copy up with the page's own content and is what a photograph with its
+ * subject on one side wants. Anything finer would be a design tool, and the
+ * guild is choosing between two looks rather than laying one out.
+ */
+export type BannerTextAlign = (typeof BannerTextAlign)[keyof typeof BannerTextAlign];
+
+export const BannerTextAlign = {
+  center: "center",
+  left: "left",
+} as const;
+
+/**
  * Billing-portal handoff token and its lifetime in seconds.
  */
 export interface BillingPortalHandoffResponse {
@@ -2635,6 +2668,9 @@ export interface GuildRead {
   banner_url: string | null;
   banner_color: string;
   banner_text_color: string;
+  banner_text_align: BannerTextAlign;
+  banner_fade: BannerFade;
+  online_count: number;
   icon_url: string | null;
 }
 
@@ -2670,6 +2706,8 @@ export interface GuildUpdate {
   show_member_names?: boolean | null;
   banner_color?: string | null;
   banner_text_color?: string | null;
+  banner_text_align?: BannerTextAlign | null;
+  banner_fade?: BannerFade | null;
   has_adult_content?: boolean | null;
 }
 

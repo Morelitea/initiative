@@ -3,6 +3,11 @@
  *
  * Each circle is a real link carrying `?tool=<route segment>`, so a tool view
  * is shareable, survives a reload, and answers the back button.
+ *
+ * The rail follows the banner above it: a guild that centres its banner copy
+ * gets a centred rail under it, and one that aligns left keeps the circles
+ * against the same edge its name sits on. Either way the rail scrolls rather
+ * than wrapping once there are more circles than room.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -16,9 +21,11 @@ import { cn } from "@/lib/utils";
 interface GuildToolRailProps {
   tools: Tool[];
   selected: Tool;
+  /** Where the banner above puts its copy. The rail lines up with it. */
+  align?: "center" | "left";
 }
 
-export const GuildToolRail = ({ tools, selected }: GuildToolRailProps) => {
+export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRailProps) => {
   // `nav` leads so the derived tool label keys resolve without a namespace
   // prefix — the same call shape the sidebar uses.
   const { t } = useTranslation(["nav", "guildHome"]);
@@ -26,7 +33,15 @@ export const GuildToolRail = ({ tools, selected }: GuildToolRailProps) => {
 
   return (
     <nav aria-label={t("guildHome:toolRail")} className="-mx-2 overflow-x-auto px-2 pb-1">
-      <ul className="flex min-w-max items-start gap-2 sm:gap-4">
+      {/* `w-max min-w-full` rather than `min-w-max`: the list is at least as
+          wide as the rail, so centring has room to act, and grows past it
+          when there are more circles than fit, so it still scrolls. */}
+      <ul
+        className={cn(
+          "flex w-max min-w-full items-start gap-2 sm:gap-4",
+          align === "center" && "justify-center"
+        )}
+      >
         {tools.map((tool) => {
           const Icon = TOOL_ICONS[tool];
           const isSelected = tool === selected;
@@ -45,8 +60,13 @@ export const GuildToolRail = ({ tools, selected }: GuildToolRailProps) => {
                 <span
                   className={cn(
                     "flex h-14 w-14 items-center justify-center rounded-full border transition-colors",
+                    // The selected circle's tint is translucent, and the rail
+                    // can be sitting over a guild banner that is fading out
+                    // beneath it — so the page's own ground goes under the
+                    // tint rather than letting the artwork show through the
+                    // one circle that is meant to stand out.
                     isSelected
-                      ? "border-primary bg-primary/10 text-primary"
+                      ? "border-primary bg-background bg-linear-to-b from-primary/10 to-primary/10 text-primary"
                       : "border-transparent bg-muted hover:bg-accent"
                   )}
                 >

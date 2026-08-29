@@ -66,7 +66,9 @@ describe("GuildArtworkPanel", () => {
     // One preview, not one per control — the guild is named once, on the fill.
     const name = screen.getByText("Ravenloft");
     expect(container.querySelectorAll("img")).toHaveLength(0);
-    expect(name.parentElement).toHaveStyle({ backgroundColor: "rgb(42, 157, 143)" });
+    // The fill is a layer under the name rather than the name's own box, so a
+    // fade can be shown on it without dimming the words.
+    expect(name.previousElementSibling).toHaveStyle({ backgroundColor: "rgb(42, 157, 143)" });
   });
 
   it("saves a text colour the moment it is chosen, with no confirm step", async () => {
@@ -117,5 +119,79 @@ describe("GuildArtworkPanel", () => {
     renderWithProviders(<GuildArtworkPanel guild={buildGuild({ id: 1, role: "admin" })} />);
 
     expect(await screen.findByLabelText("Icon")).toBeInTheDocument();
+  });
+
+  it("saves the alignment the moment it is picked, with the fade beside it", async () => {
+    entitlements(true);
+    const patched: Record<string, unknown>[] = [];
+    server.use(
+      http.patch("*/api/v1/guilds/:guildId", async ({ request }) => {
+        patched.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(
+          buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_text_align: "left" })
+        );
+      })
+    );
+
+    renderWithProviders(
+      <GuildArtworkPanel
+        guild={buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_fade: "weak" })}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Left" }));
+
+    await waitFor(() => expect(patched).toHaveLength(1));
+    // Both layout values ride together, so a PATCH carries the guild's own
+    // fade rather than resetting the half the admin did not touch.
+    expect(patched[0]).toMatchObject({ banner_text_align: "left", banner_fade: "weak" });
+  });
+
+  it("offers three fades, with the guild's own already pressed", async () => {
+    entitlements(true);
+
+    renderWithProviders(
+      <GuildArtworkPanel guild={buildGuild({ id: 1, role: "admin", banner_fade: "weak" })} />
+    );
+
+    expect(await screen.findByRole("button", { name: "Soft" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "None" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Strong" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("puts the layout back along with the colours on a reset", async () => {
+    entitlements(true);
+    const patched: Record<string, unknown>[] = [];
+    server.use(
+      http.patch("*/api/v1/guilds/:guildId", async ({ request }) => {
+        patched.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(buildGuild({ id: 1, role: "admin" }));
+      })
+    );
+
+    renderWithProviders(
+      <GuildArtworkPanel
+        guild={buildGuild({
+          id: 1,
+          role: "admin",
+          banner_fade: "strong",
+          banner_text_align: "left",
+        })}
+      />
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
+
+    // Null is a reset, not a removal — a banner is never without a layout.
+    await waitFor(() => expect(patched).toHaveLength(1));
+    expect(patched[0]).toMatchObject({
+      banner_color: null,
+      banner_text_color: null,
+      banner_text_align: null,
+      banner_fade: null,
+    });
   });
 });
