@@ -108,6 +108,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # Mirrored listing artwork: written by the refresh job; DELETE prunes bytes
     # no listing references any more.
     "marketplace_media": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Profile pictures. The system engine reads them to serve the bytes before a
+    # session exists, writes them on the backfill, and DELETEs on the moderation
+    # and anonymization paths — both of which act on someone else's row and so
+    # cannot run under the own-row request-path policies.
+    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -203,6 +208,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # ships, so it is served exactly as they are: to anyone holding the digest,
     # before a session is routed. Bytes only, addressed by their own hash.
     "marketplace_media": frozenset({"SELECT"}),
+    # A name and a face are public information here: any role may read any
+    # avatar, and the row policies narrow writes to the caller's own. The bare
+    # login role reads because the serve endpoint answers before routing.
+    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

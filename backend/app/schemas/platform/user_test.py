@@ -1,65 +1,45 @@
-"""Unit tests for user schema validation, focused on the avatar_base64 cap.
+"""Unit tests for the avatar half of the user schemas.
 
-``avatar_base64`` is a ``RawTextStr`` so it skips the global 8 KiB plain-text
-cap (it holds an inline image data URI, not free text). Left unbounded it is a
-stored-amplification vector echoed to every guild member via presence — SEC-12
-adds an explicit ``max_length`` while keeping the field raw (never HTML-mangled).
+The old ``avatar_base64`` cap tests are gone with the field: a picture is no
+longer carried inside a payload, so there is no oversized-string case left to
+bound. What replaces them is the guard on ``avatar_url`` — the read schemas
+hand back the path this API serves a picture from, and that value must not come
+back in as though it named an image hosted somewhere else.
 """
 
-from __future__ import annotations
-
 import pytest
-from pydantic import ValidationError
 
-from app.schemas.platform.user import (
-    MAX_AVATAR_BASE64_LENGTH,
-    UserSelfUpdate,
-    UserUpdate,
-)
-
-
-def _data_uri(payload_len: int) -> str:
-    return "data:image/png;base64," + ("A" * payload_len)
+from app.schemas.platform import user as user_schemas
+from app.schemas.platform.user import UserPublic, UserRead, UserSelfUpdate, UserSummary
 
 
 @pytest.mark.unit
-def test_avatar_base64_within_cap_accepted_on_self_update() -> None:
-    value = _data_uri(1000)
-    model = UserSelfUpdate(avatar_base64=value)
-    # RawTextStr — the value must be preserved verbatim (no HTML entity mangling).
-    assert model.avatar_base64 == value
+def test_self_update_accepts_an_external_avatar_url() -> None:
+    model = UserSelfUpdate(avatar_url="https://idp.example/pic.png")
+
+    assert model.avatar_url == "https://idp.example/pic.png"
 
 
 @pytest.mark.unit
-def test_avatar_base64_at_cap_boundary_accepted() -> None:
-    value = "x" * MAX_AVATAR_BASE64_LENGTH
-    model = UserSelfUpdate(avatar_base64=value)
-    assert model.avatar_base64 == value
+def test_self_update_accepts_clearing_the_avatar_url() -> None:
+    assert UserSelfUpdate(avatar_url=None).avatar_url is None
 
 
 @pytest.mark.unit
-def test_avatar_base64_over_cap_rejected_on_self_update() -> None:
-    value = "x" * (MAX_AVATAR_BASE64_LENGTH + 1)
-    with pytest.raises(ValidationError):
-        UserSelfUpdate(avatar_base64=value)
+@pytest.mark.parametrize("schema", [UserPublic, UserSummary, UserRead, UserSelfUpdate])
+def test_no_schema_carries_the_image_itself(schema) -> None:
+    """The picture travels as a URL now; nothing should reintroduce the blob."""
+    assert "avatar_base64" not in schema.model_fields
+    assert "avatar_url" in schema.model_fields
 
 
 @pytest.mark.unit
-def test_avatar_base64_over_cap_rejected_on_admin_update() -> None:
-    value = "x" * (MAX_AVATAR_BASE64_LENGTH + 1)
-    with pytest.raises(ValidationError):
-        UserUpdate(avatar_base64=value)
+def test_there_is_no_schema_for_editing_another_account() -> None:
+    """A guild admin manages membership, not the person.
 
-
-@pytest.mark.unit
-def test_avatar_base64_not_html_entity_mangled() -> None:
-    # A literal ``&`` in the (degenerate) value must survive — the field must
-    # stay RawTextStr, not be routed through the plain-text sanitizer.
-    value = "data:image/svg+xml;base64,AA&BB"
-    model = UserSelfUpdate(avatar_base64=value)
-    assert model.avatar_base64 == value
-
-
-@pytest.mark.unit
-def test_avatar_base64_none_passes_through() -> None:
-    assert UserSelfUpdate(avatar_base64=None).avatar_base64 is None
+    ``UserUpdate`` backed a guild-scoped PATCH that could set a co-member's
+    name and password; both are properties of an account that spans every guild
+    it belongs to. The schema is gone along with the endpoint, so its absence is
+    the assertion.
+    """
+    assert not hasattr(user_schemas, "UserUpdate")

@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel
 
 
 class MentionEntityType(str, Enum):
@@ -23,7 +23,6 @@ class CommentAuthor(SanitizedBaseModel):
     email: str
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
-    avatar_base64: Optional[RawTextStr] = None
 
 
 class CommentBase(SanitizedBaseModel):
@@ -138,7 +137,6 @@ class MentionSuggestion(SanitizedBaseModel):
     # Populated for ``user`` suggestions so the picker can render a face
     # (parity with the member typeaheads); ``None`` for non-user entities.
     avatar_url: Optional[str] = None
-    avatar_base64: Optional[RawTextStr] = None
 
 
 class MentionSuggestionListResponse(SanitizedBaseModel):

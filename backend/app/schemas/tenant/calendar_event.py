@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
@@ -128,7 +128,6 @@ class CalendarEventAttendeePreview(SanitizedBaseModel):
     user_id: int
     name: str
     avatar_url: Optional[str] = None
-    avatar_base64: Optional[RawTextStr] = None
 
 
 class CalendarEventSummary(CalendarEventBase):
@@ -261,7 +260,6 @@ def serialize_calendar_event_summary(
                     user_id=user.id,
                     name=display,
                     avatar_url=user.avatar_url,
-                    avatar_base64=user.avatar_base64,
                 )
             )
     return CalendarEventSummary(

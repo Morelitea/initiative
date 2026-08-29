@@ -227,7 +227,6 @@ async def websocket_collaborate(
         websocket=websocket,
         can_write=can_write,
         avatar_url=user.avatar_url,
-        avatar_base64=user.avatar_base64,
     )
 
     # Add to room
@@ -293,7 +292,6 @@ async def websocket_collaborate(
                     "user_id": user.id,
                     "name": collaborator.name,
                     "avatar_url": user.avatar_url,
-                    "avatar_base64": user.avatar_base64,
                 },
             },
             origin_user_id=user.id,

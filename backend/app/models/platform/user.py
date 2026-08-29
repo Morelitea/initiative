@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Text, Boolean, String, Integer
+from sqlalchemy import Column, DateTime, Boolean, String, Integer
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -72,10 +72,10 @@ class User(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    avatar_base64: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
+    #: Where this user's picture is: a path this API serves
+    #: (``/api/v1/users/{id}/avatar/{sha256}``, bytes in ``user_avatars``) or a
+    #: URL somewhere else, from an OIDC ``picture`` claim. One or the other,
+    #: never both — see ``app.services.platform.user_avatars``.
     avatar_url: Optional[str] = Field(default=None, nullable=True)
     token_version: int = Field(
         default=1,

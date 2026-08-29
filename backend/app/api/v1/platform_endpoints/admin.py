@@ -27,12 +27,19 @@ from app.schemas.platform.admin import (
     GuildBlockerInfo,
 )
 from app.core.encryption import hash_email
-from app.core.messages import AdminMessages, GuildMessages, SettingsMessages
+from app.core.messages import (
+    AdminMessages,
+    AuthMessages,
+    GuildMessages,
+    SettingsMessages,
+)
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import initiatives as initiatives_service
+from app.services import notifications as notifications_service
+from app.services.platform import user_avatars as user_avatars_service
 from app.services.platform import users as users_service
 from app.services.platform import guilds as guilds_service
 
@@ -46,6 +53,9 @@ router = APIRouter()
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
 UsersManageDep = Annotated[User, Depends(require_capability(Capability.USERS_MANAGE))]
+ContentModerateDep = Annotated[
+    User, Depends(require_capability(Capability.CONTENT_MODERATE))
+]
 UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DELETE))]
 GuildsManageDep = Annotated[User, Depends(require_capability(Capability.GUILDS_MANAGE))]
 RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
@@ -229,6 +239,50 @@ async def reactivate_user(
     return user
 
 
+@router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_user_avatar(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: ContentModerateDep,
+) -> Response:
+    """Take down a user's profile picture.
+
+    People occasionally upload images that breach the terms of use, so removal
+    cannot wait for the uploader to do it. Gated on ``content.moderate``, which
+    is a platform capability — a guild admin is a tenancy role and has no part
+    in this, so a guild's administrator cannot reach a member's profile image.
+
+    Removal only. There is deliberately no path by which one account sets
+    another account's picture.
+
+    The bytes are destroyed rather than hidden. Runs on the system engine
+    because the row policies scope every request-path write to the caller's own
+    avatar, so nothing in the schema grants this — the capability check above
+    is the whole authorization.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+
+    # An externally hosted picture is the same surface by another route, so a
+    # takedown that left it in place would not be one: both go.
+    had_picture = bool(user.avatar_url)
+    removed = await user_avatars_service.delete_avatar(
+        session, user_id=user_id, user=user
+    )
+    if user.avatar_url:
+        user.avatar_url = None
+        session.add(user)
+    await session.commit()
+
+    if removed or had_picture:
+        # Silent removal reads as a bug and arrives as a support ticket.
+        await notifications_service.notify_avatar_removed(session, user=user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
 async def get_platform_admin_count(
     session: UserSessionDep,
@@ -372,7 +426,6 @@ async def check_user_deletion_eligibility(
                         id=m.id,
                         email=m.email,
                         full_name=m.full_name,
-                        avatar_base64=m.avatar_base64,
                         avatar_url=m.avatar_url,
                     )
                     for m in gb["other_members"]

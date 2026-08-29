@@ -1798,3 +1798,19 @@ async def process_event_reminders() -> None:
     """
     async with AdminSessionLocal() as session:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
+
+
+async def notify_avatar_removed(session: AsyncSession, *, user: User) -> None:
+    """Tell a user their profile picture was taken down.
+
+    In-app only. There is no preference to consult and no email or push: this
+    is not something a user opts out of being told, and it is not urgent enough
+    to interrupt them on a device.
+    """
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.avatar_removed,
+        data={"target_path": "/settings/profile"},
+    )
+    await session.commit()

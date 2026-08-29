@@ -536,7 +536,6 @@ def _task_to_list_read(task: Task) -> TaskListRead:
             id=assignee.id,
             full_name=assignee.full_name,
             avatar_url=assignee.avatar_url,
-            avatar_base64=assignee.avatar_base64,
         )
         for assignee in task.assignees
     ]

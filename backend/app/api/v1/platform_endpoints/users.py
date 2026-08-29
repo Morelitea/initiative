@@ -2,7 +2,17 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import func
 from sqlmodel import select
 
@@ -48,7 +58,6 @@ from app.schemas.platform.user import (
     UserSelfUpdate,
     UserSummary,
     UserSummaryListResponse,
-    UserUpdate,
     AccountDeletionRequest,
     AccountDeletionResponse,
     DeletionEligibilityResponse,
@@ -77,6 +86,8 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
+from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.services.platform import user_avatars as user_avatars_service
 from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import csv_export
@@ -503,20 +514,23 @@ async def update_users_me(
             # on its next silent renewal.
             clear_refresh_cookie(response)
 
-    if "avatar_base64" in update_data:
-        avatar_value = update_data["avatar_base64"]
-        if avatar_value:
-            current_user.avatar_base64 = avatar_value
-            current_user.avatar_url = None
-        else:
-            current_user.avatar_base64 = None
-
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
         if url_value:
+            # Read payloads carry the path this API serves the picture from, so
+            # one handed straight back would be stored as though it named an
+            # image somewhere else. Uploads come through PUT /users/me/avatar.
+            if user_avatars_service.is_avatar_url(url_value):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UserMessages.AVATAR_URL_NOT_EXTERNAL,
+                )
+            # A linked picture and an uploaded one are alternatives; taking one
+            # drops the other.
+            await user_avatars_service.delete_avatar(session, user_id=current_user.id)
             current_user.avatar_url = url_value
-            current_user.avatar_base64 = None
         else:
+            await user_avatars_service.delete_avatar(session, user_id=current_user.id)
             current_user.avatar_url = None
     if "week_starts_on" in update_data:
         normalized_week_start = normalize_week_starts_on(update_data["week_starts_on"])
@@ -593,111 +607,6 @@ async def update_users_me(
     payload = UserRead.model_validate(current_user)
     payload.has_federated_identity = is_sso_account
     return payload
-
-
-@guild_router.patch("/{user_id}", response_model=UserRead)
-async def update_user(
-    user_id: int,
-    user_in: UserUpdate,
-    session: SessionDep,
-    admin_session: AdminSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
-) -> User:
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
-
-    stmt = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(
-            User.id == user_id,
-            GuildMembership.guild_id == guild_context.guild_id,
-        )
-    )
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-
-    update_data = user_in.model_dump(exclude_unset=True)
-    # Platform role changes are not allowed via this endpoint - use /admin/users/{id}/platform-role
-    if "role" in update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.PLATFORM_ROLE_WRONG_ENDPOINT,
-        )
-    # Account status is not settable via this generic edit endpoint. Otherwise a
-    # guild admin could deactivate/anonymize any co-member (including the last
-    # platform admin) by mass-assigning ``status`` through the setattr loop
-    # below, bypassing the dedicated deactivate/reactivate flow and its guards
-    # (last-admin protection, ownership transfer, confirmation). Status changes
-    # must go through the delete/approve endpoints — same rationale as the
-    # platform-role guard above.
-    if "status" in update_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.STATUS_WRONG_ENDPOINT,
-        )
-    if _assignment_digest_turned_off(user, update_data):
-        # This session is routed into one guild, so only that guild's queue is
-        # reachable — a guild admin has no business writing to schemas they
-        # have no rights in. Items left in the user's other guilds age out via
-        # the digest GC sweep.
-        await notifications_service.clear_task_assignment_queue_for_user(
-            session, user.id
-        )
-    if password := update_data.pop("password", None):
-        await enforce_password_policy(password)
-        user.hashed_password = get_password_hash(password)
-        # A password reset invalidates every outstanding credential: bump
-        # token_version (kills unexpired JWTs) and revoke device tokens /
-        # API keys / refresh sessions, mirroring the self-service and
-        # forgot-password reset paths.
-        await user_tokens_service.revoke_user_sessions(
-            session, user=user, admin_session=admin_session
-        )
-    if "avatar_base64" in update_data:
-        user.avatar_base64 = update_data.pop("avatar_base64")
-        if user.avatar_base64:
-            user.avatar_url = None
-    if "avatar_url" in update_data:
-        user.avatar_url = update_data.pop("avatar_url")
-        if user.avatar_url:
-            user.avatar_base64 = None
-    for field, value in update_data.items():
-        if field == "timezone":
-            normalized_timezone = normalize_timezone(value)
-            if normalized_timezone:
-                setattr(user, field, normalized_timezone)
-            continue
-        if field == "overdue_notification_time":
-            normalized_time = normalize_notification_time(value)
-            if normalized_time:
-                setattr(user, field, normalized_time)
-            continue
-        if field == "event_reminder_minutes_before":
-            setattr(user, field, normalize_reminder_minutes(value))
-            continue
-        if field == "week_starts_on":
-            normalized_week_start = normalize_week_starts_on(value)
-            if normalized_week_start is not None:
-                setattr(user, field, normalized_week_start)
-            continue
-        setattr(user, field, value)
-    user.updated_at = datetime.now(timezone.utc)
-
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    await initiatives_service.load_user_initiative_roles(session, [user])
-    return user
 
 
 @guild_router.post("/{user_id}/approve", response_model=UserRead)
@@ -1179,3 +1088,89 @@ async def delete_user(
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )
+
+
+# --- profile pictures --------------------------------------------------------
+
+
+@router.get("/{user_id}/avatar/{digest}", include_in_schema=False)
+async def read_user_avatar(user_id: int, digest: str, session: SessionDep) -> Response:
+    """Serve one user's profile picture.
+
+    No session required, and the same for everyone: a name and a face are
+    public information in this product, so there is no membership check and no
+    per-caller variation in the response — which is what lets it be cached by a
+    shared proxy rather than only by the one browser that asked.
+
+    Addressed by the digest of the bytes, so the content at a URL never
+    changes. A digest that is not this user's current picture is a 404 rather
+    than a redirect to whatever is current, because the response is cached
+    under the URL that was asked for.
+    """
+    if not user_avatars_service.is_valid_digest(digest):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=UserMessages.AVATAR_NOT_FOUND,
+        )
+    avatar = await user_avatars_service.get_avatar(session, user_id=user_id)
+    if avatar is None or avatar.sha256 != digest:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=UserMessages.AVATAR_NOT_FOUND,
+        )
+    return Response(
+        content=avatar.data,
+        media_type=avatar.content_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.put("/me/avatar", response_model=UserRead)
+async def upload_my_avatar(
+    file: Annotated[UploadFile, File()],
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> User:
+    """Replace the caller's profile picture.
+
+    Multipart rather than a base64 field on ``PATCH /users/me``: sending the
+    image inside JSON is the thing this endpoint exists to stop. The body is
+    read under the cap so an oversized upload is refused rather than buffered
+    whole, and the format and dimensions are read from the header — nothing
+    here decodes the image.
+
+    Runs on the request-path session, where the row policies allow the caller
+    to write their own avatar and no other.
+    """
+    data = await file.read(AVATAR_MAX_BYTES + 1)
+    try:
+        validated = user_avatars_service.validate_avatar(data)
+    except user_avatars_service.AvatarRejected as rejected:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=rejected.code
+        ) from rejected
+
+    # Records the serving URL on the user row too, so every payload that
+    # carries a person can name the picture without a second query.
+    await user_avatars_service.store_avatar(
+        session, user=current_user, avatar=validated
+    )
+    await session.commit()
+    await session.refresh(current_user)
+    return current_user
+
+
+@router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_avatar(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    """Remove the caller's profile picture."""
+    await user_avatars_service.delete_avatar(
+        session, user_id=current_user.id, user=current_user
+    )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

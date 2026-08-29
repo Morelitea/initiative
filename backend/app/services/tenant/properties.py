@@ -459,7 +459,6 @@ def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -
             "id": user.id,
             "full_name": user.full_name,
             "avatar_url": user.avatar_url,
-            "avatar_base64": user.avatar_base64,
         }
     return None  # pragma: no cover
 

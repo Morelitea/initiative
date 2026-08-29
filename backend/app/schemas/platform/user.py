@@ -9,16 +9,15 @@ from app.core.capabilities import Capability, capabilities_for
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
 
-# ``avatar_base64`` is a ``RawTextStr`` so it skips the global 8 KiB plain-text
-# cap (it holds an inline data URI, not free text). Left unbounded it is a
-# stored-amplification vector: the SPA sends whatever image the user picks with
-# no client-side downscale (``UserSettingsProfilePage`` reads the file straight
-# through ``FileReader.readAsDataURL``), and the value is echoed to every guild
-# member via presence/member listings. ~700 KB of base64 decodes to ~512 KB of
-# image bytes (4/3 inflation) once the ``data:image/...;base64,`` prefix is
-# accounted for — generous for any reasonable avatar while bounding the blast
-# radius. Oversized payloads are rejected with 422.
-MAX_AVATAR_BASE64_LENGTH = 700_000
+# ``avatar_url`` is where a user's picture is: either a path this API serves
+# (``/api/v1/users/{id}/avatar/{sha256}`` — the bytes live in ``user_avatars``
+# and are uploaded through ``PUT /users/me/avatar``) or a URL somewhere else,
+# from an OIDC ``picture`` claim. The two are alternatives, and one field holds
+# whichever applies.
+#
+# There is deliberately no schema by which one account edits another's profile.
+# A guild admin manages *membership* — who is in the guild — not the person's
+# record, which spans every guild they belong to.
 
 
 class UserBase(SanitizedBaseModel):
@@ -57,41 +56,6 @@ class UserCreate(SanitizedBaseModel):
     captcha_token: Optional[str] = None
 
 
-class UserUpdate(SanitizedBaseModel):
-    full_name: Optional[str] = None
-    role: Optional[UserRole] = None
-    password: Optional[RawTextStr] = Field(default=None, max_length=256)
-    status: Optional[UserStatus] = None
-    avatar_base64: Optional[RawTextStr] = Field(
-        default=None, max_length=MAX_AVATAR_BASE64_LENGTH
-    )
-    avatar_url: Optional[str] = None
-    week_starts_on: Optional[int] = None
-    recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
-    timezone: Optional[str] = None
-    overdue_notification_time: Optional[str] = None
-    email_initiative_addition: Optional[bool] = None
-    email_task_assignment: Optional[bool] = None
-    email_project_added: Optional[bool] = None
-    email_overdue_tasks: Optional[bool] = None
-    email_mentions: Optional[bool] = None
-    push_initiative_addition: Optional[bool] = None
-    push_task_assignment: Optional[bool] = None
-    push_project_added: Optional[bool] = None
-    push_overdue_tasks: Optional[bool] = None
-    push_mentions: Optional[bool] = None
-    email_events: Optional[bool] = None
-    push_events: Optional[bool] = None
-    email_event_reminders: Optional[bool] = None
-    push_event_reminders: Optional[bool] = None
-    event_reminder_minutes_before: Optional[int] = None
-    color_theme: Optional[str] = None
-    task_completion_visual_feedback: Optional[str] = None
-    task_completion_audio_feedback: Optional[bool] = None
-    task_completion_haptic_feedback: Optional[bool] = None
-    locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
-
-
 class UserPublic(SanitizedBaseModel):
     """Public user information exposed to other users.
 
@@ -107,12 +71,6 @@ class UserPublic(SanitizedBaseModel):
     id: int
     email: EmailStr
     full_name: Optional[str] = None
-    # No max_length here: this is a RESPONSE schema, and FastAPI validates
-    # response models, so a cap would 500 every endpoint returning a user whose
-    # avatar predates the write-side cap. The bound is enforced on the write
-    # schemas (UserUpdate / UserSelfUpdate); legacy oversized rows shrink as
-    # they are next updated.
-    avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
@@ -145,8 +103,6 @@ class UserSummary(SanitizedBaseModel):
 
     id: int
     full_name: Optional[str] = None
-    # Response schema — uncapped for the same legacy-row reason as UserPublic.
-    avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
@@ -174,8 +130,6 @@ class UserRead(UserBase):
     email_verified: bool
     created_at: datetime
     updated_at: datetime
-    # Response schema — uncapped for the same legacy-row reason as UserPublic.
-    avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
@@ -242,9 +196,6 @@ class UserSelfUpdate(SanitizedBaseModel):
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
-    avatar_base64: Optional[RawTextStr] = Field(
-        default=None, max_length=MAX_AVATAR_BASE64_LENGTH
-    )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)

@@ -468,7 +468,6 @@ async def search_mentionables(
                     display_text=display,
                     subtitle=user.email if user.full_name else None,
                     avatar_url=user.avatar_url,
-                    avatar_base64=user.avatar_base64,
                 )
             )
 

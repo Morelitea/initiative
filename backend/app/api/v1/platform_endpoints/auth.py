@@ -1132,7 +1132,6 @@ async def _complete_provider_login(
         user.full_name = full_name
     if avatar_url and user.avatar_url != avatar_url:
         user.avatar_url = avatar_url
-        user.avatar_base64 = None
     # Record the login on the identity link: the IdP refresh token (rotated by
     # the background group re-sync) and the sync stamp the sweep filters on —
     # the ``federated_identities`` successors of the legacy ``users.oidc_*``
