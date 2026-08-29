@@ -20,7 +20,7 @@ import {
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { initiativeRoute, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
@@ -31,16 +31,23 @@ import { ProjectsView } from "./ProjectsPage";
 
 type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 
-// Tab display order + each tool's list view. A new tool adds one line here
-// (the drift test asserts every tool has an entry).
-const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = [
-  [Tool.document, DocumentsView],
-  [Tool.project, ProjectsView],
-  [Tool.calendar, CalendarsView],
-  [Tool.dashboard, DashboardsView],
-  [Tool.queue, QueuesView],
-  [Tool.counter_group, CounterGroupsView],
-];
+// Each tool's list view. A new tool adds one line here (the drift test
+// asserts every tool has an entry); the tab ORDER is not restated — it is the
+// registry's canonical order, so these tabs read in the same sequence as the
+// guild home's tool rail.
+const TOOL_VIEWS: Record<Tool, ComponentType<ToolViewProps>> = {
+  [Tool.project]: ProjectsView,
+  [Tool.document]: DocumentsView,
+  [Tool.queue]: QueuesView,
+  [Tool.counter_group]: CounterGroupsView,
+  [Tool.calendar]: CalendarsView,
+  [Tool.dashboard]: DashboardsView,
+};
+
+const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = TOOLS.map((tool) => [
+  tool,
+  TOOL_VIEWS[tool],
+]);
 
 export const TOOL_TAB_VIEWS: ReadonlyMap<Tool, ComponentType<ToolViewProps>> = new Map(TOOL_TABS);
 
@@ -97,7 +104,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // dead-ending a bookmark the moment a permission changes — the same rule the
   // guild home applies to its `?tool=` param.
   const activeTab =
-    tool && availableTabs.includes(tool) ? tool : (availableTabs[0] ?? Tool.document);
+    tool && availableTabs.includes(tool) ? tool : (availableTabs[0] ?? Tool.project);
 
   const memberCount = initiative?.members.length ?? 0;
 
