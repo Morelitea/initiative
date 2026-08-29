@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Upgrading to 0.64.0 no longer fails on a database that has guild icons or profile pictures in it.** The two migrations that move those images into their own tables locked each table down before moving the rows, and the migration's own write was then rejected by the very policies it had just installed — so the upgrade rolled back, over and over, on any real deployment. A fresh install has no images to move, which is why it was never seen before release. Both migrations now carry the pictures across first and lock the table down after; nothing else about the result changes, and no manual step is needed — upgrade again and it goes through.
+
 ## [0.64.0] - 2026-08-29
 
 ### Added

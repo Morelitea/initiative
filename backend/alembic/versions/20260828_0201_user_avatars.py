@@ -211,6 +211,13 @@ def upgrade() -> None:
     # and read for nothing.
     op.execute("ALTER TABLE public.user_avatars ALTER COLUMN data SET STORAGE EXTERNAL")
 
+    # Copy the avatars across BEFORE the table is locked down. Once
+    # ``user_avatars`` is FORCE ROW LEVEL SECURITY the owner this migration
+    # runs as is policy-bound too, and the insert policy below admits only a
+    # row matching ``app.current_user_id`` — a request GUC a migration has no
+    # value for, so every row would be rejected. Same order as migration 0179.
+    _backfill(op.get_bind())
+
     base = _platform("base")
     request_roles = f'app_guild_base, "{base}", app_user'
     _run(
@@ -244,7 +251,6 @@ def upgrade() -> None:
         ]
     )
 
-    _backfill(op.get_bind())
     op.drop_column("users", "avatar_base64")
 
 

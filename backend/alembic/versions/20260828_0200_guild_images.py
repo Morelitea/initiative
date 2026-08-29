@@ -357,6 +357,14 @@ def upgrade() -> None:
         ),
     )
 
+    # Carry the legacy icons over BEFORE the table is locked down. Once
+    # ``guild_images`` is FORCE ROW LEVEL SECURITY its only policy is a SELECT
+    # one, and FORCE binds the owner this migration runs as: the INSERT below
+    # would match no policy at all, and the count that verifies it would be
+    # filtered by a read policy whose request context a migration has none of.
+    # Same order as migration 0179, for the same reason.
+    _carry_over_icons()
+
     base = _platform("base")
     request_roles = f'app_guild_base, "{base}", app_user'
     _run(
@@ -376,8 +384,6 @@ def upgrade() -> None:
             f"guild_id = {_GUILD_ID} OR {_IMAGE_MEMBER})",
         ]
     )
-
-    _carry_over_icons()
 
     op.execute("REVOKE UPDATE ON TABLE public.guilds FROM app_guild_base")
     op.execute(
