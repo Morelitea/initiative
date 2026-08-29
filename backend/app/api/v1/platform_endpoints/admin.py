@@ -509,6 +509,14 @@ async def set_user_suspension(
     )
     await session.commit()
     await session.refresh(user)
+
+    if payload.suspended:
+        # Sockets opened before this carry the account as it was when they
+        # joined, so they are re-checked now rather than at the next sweep.
+        # Everywhere at once: this is a change to the account, which has no one
+        # guild to name.
+        await stream_authority.revoke_user_everywhere(user_id)
+
     return user
 
 

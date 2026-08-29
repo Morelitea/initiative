@@ -20,6 +20,7 @@ from app.core.role_context import (
 )
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
 
@@ -38,14 +39,21 @@ async def member_guild_ids(
     cut for members AND guild admins alike (admins keep only the settings
     surface), so no cross-guild aggregate may surface a suspended guild's
     content — the ``/g/{guild_id}`` choke point (``_load_guild_context``)
-    refuses those guilds and this is its aggregate-path twin."""
+    refuses those guilds and this is its aggregate-path twin.
+
+    A suspended *user* is excluded the same way, and for the same reason. They
+    keep every membership, so the join below would otherwise walk all of them:
+    the guild path answers such a caller with nothing, and being the twin of
+    that path means answering the same."""
     await set_rls_context(session, user_id=user_id)
     rows = await session.exec(
         select(GuildMembership.guild_id)
         .join(Guild, Guild.id == GuildMembership.guild_id)
+        .join(User, User.id == GuildMembership.user_id)
         .where(
             GuildMembership.user_id == user_id,
             Guild.status != GuildStatus.suspended.value,
+            User.status != UserStatus.suspended,
         )
     )
     ids = sorted(rows)

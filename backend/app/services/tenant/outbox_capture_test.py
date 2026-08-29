@@ -195,16 +195,19 @@ async def test_creating_an_initiative_is_captured(session, acting_user):
 async def test_adding_a_member_reports_against_the_initiative(session, acting_user):
     """A membership row has no id of its own, so it reports its owner — which
     is also the change a subscriber can act on."""
+    from app.testing import create_initiative_member, create_user
+
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     before = len(await _outbox(session, a.guild.id))
 
-    # Through the actor seam, which is how this suite adds a second person.
-    await acting_user(
-        guild_role=GuildRole.member,
-        guild=a.guild,
-        initiative=a.initiative,
-        initiative_role="member",
+    # Back to the shared baseline before building a person: an account is a
+    # platform row, and this session is pointed at a guild by the actor above.
+    await set_rls_context(session)
+    joiner = await create_user(session)
+    await set_rls_context(
+        session, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
     )
+    await create_initiative_member(session, a.initiative, joiner)
     await session.commit()
 
     new_rows = (await _outbox(session, a.guild.id))[before:]

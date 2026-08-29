@@ -39,7 +39,7 @@ from app.db.session import (
     RLS_CONTEXT_MAX_AGE_SECONDS,
     AsyncSessionLocal,
 )
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +178,15 @@ class StreamAuthority:
         the bounded loop."""
         await self._recheck(lambda m: m.guild_id == guild_id and m.user.id == user_id)
 
+    async def revoke_user_everywhere(self, user_id: int) -> None:
+        """The same, across every guild at once.
+
+        For a change to the account rather than to one membership — a platform
+        action has no guild to name, and the account holds sockets in all of
+        them.
+        """
+        await self._recheck(lambda m: m.user.id == user_id)
+
     # ── internals ──────────────────────────────────────────────────────────
 
     async def _recheck(self, predicate: Callable[[_StreamMember], bool]) -> None:
@@ -198,6 +207,13 @@ class StreamAuthority:
                 # AsyncSessionLocal skips get_session's per-request reset; clear
                 # any stale pooled-connection GUCs before establishing context.
                 await session.exec(text(CONNECTION_RESET_SQL))
+                # Read the account fresh. ``member.user`` is the snapshot taken
+                # when the socket joined, so anything about the account itself
+                # that has changed since is not in it. Only a live account
+                # streams guild content.
+                current = await session.get(User, member.user.id)
+                if current is None or current.status != UserStatus.active:
+                    return False
                 try:
                     await establish_guild_access(
                         session,

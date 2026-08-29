@@ -337,3 +337,61 @@ class TestNothingElse:
             ("/api/v1/admin/users/{user_id}/platform-role", "PATCH"),
             ("/api/v1/admin/users/{user_id}", "DELETE"),
         }
+
+
+class TestTheAggregateRoutes:
+    """``/me/*`` reads content across every guild without going through the
+    guild path, so it needs the same answer that path gives."""
+
+    @pytest.fixture
+    async def suspended_with_work(self, client, session, acting_user):
+        moderator = await create_user(session, role=UserRole.moderator)
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+        return moderator, a
+
+    async def test_my_tasks_is_empty_once_suspended(
+        self, client, session, suspended_with_work
+    ):
+        moderator, a = suspended_with_work
+        before = await client.get("/api/v1/me/tasks", headers=a.headers)
+        assert before.status_code == 200
+
+        await client.post(
+            f"/api/v1/admin/users/{a.user.id}/suspension",
+            headers=get_auth_headers(moderator),
+            json={"suspended": True},
+        )
+
+        after = await client.get("/api/v1/me/tasks", headers=a.headers)
+        assert after.status_code == 200
+        assert after.json()["items"] == []
+
+    async def test_my_projects_is_empty_once_suspended(
+        self, client, session, suspended_with_work
+    ):
+        moderator, a = suspended_with_work
+
+        await client.post(
+            f"/api/v1/admin/users/{a.user.id}/suspension",
+            headers=get_auth_headers(moderator),
+            json={"suspended": True},
+        )
+
+        response = await client.get("/api/v1/me/projects", headers=a.headers)
+        assert response.status_code == 200
+        assert response.json()["items"] == []
+
+    async def test_and_it_all_comes_back(self, client, session, suspended_with_work):
+        """The memberships were never dropped, so lifting the suspension is the
+        whole restoration."""
+        moderator, a = suspended_with_work
+
+        for suspended in (True, False):
+            await client.post(
+                f"/api/v1/admin/users/{a.user.id}/suspension",
+                headers=get_auth_headers(moderator),
+                json={"suspended": suspended},
+            )
+
+        response = await client.get("/api/v1/me/projects", headers=a.headers)
+        assert response.json()["items"] != []
