@@ -428,10 +428,13 @@ async def test_get_initiative_members(
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 3
-    emails = {user["email"] for user in data}
-    assert admin.user.email in emails
-    assert member1.user.email in emails
-    assert member2.user.email in emails
+    # A roster names members by handle. An address is never a guild's to hand
+    # out, so it is absent from the shape entirely.
+    handles = {user["username"] for user in data}
+    assert admin.user.username in handles
+    assert member1.user.username in handles
+    assert member2.user.username in handles
+    assert all("email" not in user for user in data)
 
 
 @pytest.mark.integration
@@ -450,6 +453,7 @@ async def test_search_initiative_members_slim_and_filtered(
         initiative=initiative,
         initiative_role="member",
         email="alice@example.com",
+        username="wonderland",
         full_name="Alice Wonderland",
     )
     await acting_user(
@@ -471,8 +475,9 @@ async def test_search_initiative_members_slim_and_filtered(
     assert body["total_count"] == 3
     assert set(body["items"][0].keys()) == {
         "id",
+        "username",
+        "discriminator",
         "full_name",
-        "avatar_base64",
         "avatar_url",
         "status",
     }
@@ -486,7 +491,8 @@ async def test_search_initiative_members_slim_and_filtered(
     assert response.status_code == 200
     body = response.json()
     assert body["total_count"] == 1
-    assert body["items"][0]["full_name"] == "Alice Wonderland"
+    # This guild renders handles, so that is what the search matches on.
+    assert body["items"][0]["username"] == "wonderland"
 
 
 @pytest.mark.integration
@@ -505,6 +511,7 @@ async def test_search_initiative_members_filters_by_user_id(
         initiative=initiative,
         initiative_role="member",
         email="alice-ids@example.com",
+        username="alice-ids",
         full_name="Alice Wonderland",
     )
     outsider = await acting_user(
@@ -523,7 +530,7 @@ async def test_search_initiative_members_filters_by_user_id(
     assert response.status_code == 200
     body = response.json()
     assert body["total_count"] == 1
-    assert [item["full_name"] for item in body["items"]] == ["Alice Wonderland"]
+    assert [item["username"] for item in body["items"]] == ["alice-ids"]
 
 
 @pytest.mark.integration
@@ -559,8 +566,8 @@ async def test_get_initiative_members_as_nonmember_guild_admin(
         headers=other_admin.headers,
     )
     assert response.status_code == 200
-    emails = {user["email"] for user in response.json()}
-    assert creator.user.email in emails
+    handles = {user["username"] for user in response.json()}
+    assert creator.user.username in handles
 
     outsider = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
     response = await client.get(
@@ -1727,7 +1734,9 @@ async def test_manager_reads_the_pending_queue(
     assert queue[0]["status"] == "pending"
     assert queue[0]["message"] == "second try"
     assert queue[0]["user"]["id"] == member.user.id
-    assert queue[0]["user"]["full_name"] == "Ada Lovelace"
+    # The queue names who is asking the way this guild names anyone —
+    # by handle, since it does not show real names.
+    assert queue[0]["user"]["username"] == member.user.username
     assert queue[0]["prior_denials"] == 1
 
     history = await client.get(
