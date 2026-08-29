@@ -11,9 +11,13 @@ import {
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
   getGetPlatformAdminCountApiV1AdminPlatformAdminCountGetQueryKey,
   getListAllUsersApiV1AdminUsersGetQueryKey,
+  getListAuditEventsApiV1AdminAuditEventsGetQueryKey,
   getPlatformAdminCountApiV1AdminPlatformAdminCountGet,
   listAllUsersApiV1AdminUsersGet,
+  listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
+  setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
+  setUserUsernameApiV1AdminUsersUserIdUsernamePatch,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
   updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
 } from "@/api/generated/admin/admin";
@@ -21,8 +25,10 @@ import type {
   AccountDeletionResponse,
   AdminDeletionEligibilityResponse,
   AdminUserDeleteRequest,
+  AuditEventListResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  ListAuditEventsApiV1AdminAuditEventsGetParams,
   PlatformAdminCountResponse,
   UserRead,
   UserRole,
@@ -45,6 +51,18 @@ export const usePlatformUsers = (options?: QueryOpts<UserRead[]>) => {
   return useQuery<UserRead[]>({
     queryKey: getListAllUsersApiV1AdminUsersGetQueryKey(),
     queryFn: () => listAllUsersApiV1AdminUsersGet(),
+    ...options,
+  });
+};
+
+/** One page of the audit board (``audit.read`` — support and above). */
+export const usePlatformAuditEvents = (
+  params: ListAuditEventsApiV1AdminAuditEventsGetParams,
+  options?: QueryOpts<AuditEventListResponse>
+) => {
+  return useQuery<AuditEventListResponse>({
+    queryKey: getListAuditEventsApiV1AdminAuditEventsGetQueryKey(params),
+    queryFn: () => listAuditEventsApiV1AdminAuditEventsGet(params),
     ...options,
   });
 };
@@ -187,6 +205,37 @@ export const useAdminReactivateUser = (options?: MutationOpts<UserRead, number>)
   useApiMutation<UserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
+      invalidate: () => invalidateAdminUsers(),
+    },
+    options
+  );
+
+type SetUsernameVars = { userId: number; username: string };
+
+/** Change someone's username (``content.moderate``). The number is not the
+ *  moderator's to choose; the server keeps the one they have. */
+export const useAdminSetUsername = (options?: MutationOpts<UserRead, SetUsernameVars>) =>
+  useApiMutation<UserRead, SetUsernameVars>(
+    {
+      mutationFn: ({ userId, username }) =>
+        setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, { username }),
+      invalidate: () => invalidateAdminUsers(),
+    },
+    options
+  );
+
+type SetSuspensionVars = { userId: number; suspended: boolean; reason?: string };
+
+/** Freeze an account, or let it go (``users.manage``). Takes nothing away —
+ *  memberships, grants and content are all still there when it is lifted. */
+export const useAdminSetSuspension = (options?: MutationOpts<UserRead, SetSuspensionVars>) =>
+  useApiMutation<UserRead, SetSuspensionVars>(
+    {
+      mutationFn: ({ userId, suspended, reason }) =>
+        setUserSuspensionApiV1AdminUsersUserIdSuspensionPost(userId, {
+          suspended,
+          reason: reason || null,
+        }),
       invalidate: () => invalidateAdminUsers(),
     },
     options

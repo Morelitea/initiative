@@ -61,6 +61,8 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_image import GuildImage
+from app.models.platform.audit_event import AuditEvent  # noqa: F401
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
@@ -103,6 +105,7 @@ __all__ = [
     "AppSetting",
     "Guild",
     "GuildAdministration",
+    "GuildImage",
     "GuildMembership",
     "GuildInvite",
     "GuildSetting",

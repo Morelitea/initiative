@@ -31,7 +31,6 @@ from app.services.marketplace.reverification import (
 )
 from app.testing import create_app_service_registration
 
-pytestmark = pytest.mark.asyncio
 
 SECRET = "test-secret"  # what the factory stores
 BASE_URL = "http://127.0.0.1:9200"

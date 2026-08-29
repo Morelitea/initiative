@@ -10,6 +10,26 @@ export const resolveInitiativeColor = (color?: string | null): string => {
   return INITIATIVE_COLOR_FALLBACK;
 };
 
+export const hexToRgba = (hex: string, alpha: number): string => {
+  const sanitized = hex.replace("#", "");
+  const expanded =
+    sanitized.length === 3
+      ? sanitized
+          .split("")
+          .map((char) => char + char)
+          .join("")
+      : sanitized.padEnd(6, "0");
+  const r = parseInt(expanded.slice(0, 2), 16);
+  const g = parseInt(expanded.slice(2, 4), 16);
+  const b = parseInt(expanded.slice(4, 6), 16);
+
+  if ([r, g, b].some((value) => Number.isNaN(value))) {
+    return hexToRgba(INITIATIVE_COLOR_FALLBACK, alpha);
+  }
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 export const InitiativeColorDot = ({
   color,
   className,

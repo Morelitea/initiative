@@ -74,7 +74,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // scripts/dev-ports.sh sets this per checkout so linked worktrees can run
+    // side by side; a bare `pnpm dev` keeps the default.
+    port: Number(process.env.VITE_DEV_PORT ?? 5173),
     strictPort: true,
     proxy: {
       // WebSocket endpoint needs explicit configuration

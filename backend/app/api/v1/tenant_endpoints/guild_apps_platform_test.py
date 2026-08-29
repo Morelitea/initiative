@@ -51,7 +51,6 @@ from app.testing import (
     marketplace_uid,
 )
 
-pytestmark = pytest.mark.asyncio
 
 SERVICE_ID = "tests.widgetco"
 SERVICE_UID = marketplace_uid("widgetco")

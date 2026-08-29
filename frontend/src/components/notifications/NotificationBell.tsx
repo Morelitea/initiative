@@ -17,7 +17,7 @@ import {
 import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
-import { entityRefRoute, INITIATIVES_ROUTE, TOOLS, toolRefRoute } from "@/lib/tools";
+import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -95,7 +95,8 @@ const notificationLink = (notification: NotificationRead): string | null => {
       return null;
     }
     case "initiative_added":
-      return INITIATIVES_ROUTE;
+      // The initiative list is a section of the guild home now.
+      return "/";
     case "project_added":
       if (typeof data.project_id === "number") {
         return entityRefRoute("project", data.project_id);
@@ -250,6 +251,19 @@ const notificationText = (
     case "event_reminder":
       return t("notifications.eventReminder", {
         eventTitle: data.event_title ?? "an event",
+      });
+    case "initiative_join_requested":
+      return t("notifications.initiativeJoinRequested", {
+        requester: data.requester_name ?? "Someone",
+        initiativeName: data.initiative_name ?? "an initiative",
+      });
+    case "initiative_join_approved":
+      return t("notifications.initiativeJoinApproved", {
+        initiativeName: data.initiative_name ?? "an initiative",
+      });
+    case "initiative_join_denied":
+      return t("notifications.initiativeJoinDenied", {
+        initiativeName: data.initiative_name ?? "an initiative",
       });
     case "export_ready":
       return t("notifications.exportReady");

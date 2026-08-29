@@ -3,9 +3,11 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional, Sequence
+from urllib.parse import urlparse
 
 from alembic import command
 from alembic.config import Config
+from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
@@ -379,6 +381,20 @@ async def set_rls_context(
         await _apply_stored_context(session)
 
 
+def routed_guild_id(session: AsyncSession) -> int | None:
+    """The guild this session is currently routed to, or ``None`` if it is not.
+
+    Ids of things that live in a guild schema — documents, initiatives — are
+    per-schema sequences, so the same number names a different row in each
+    guild. Anything keyed by one of them outside the database needs the guild
+    beside it, and where the id was read through a routed session, that routing
+    is the answer.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY) or {}
+    guild_id = params.get("guild_id")
+    return int(guild_id) if guild_id is not None else None
+
+
 async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
     """Route a verified billing-service request — transaction-local.
 
@@ -409,6 +425,55 @@ async def _apply_stored_context(session: AsyncSession) -> None:
     bind = _render_context_bind_params(session.info[_RLS_PARAMS_INFO_KEY])
     await session.exec(text(_ROLE_RESET_SQL))
     await session.exec(text(_CONTEXT_SQL), params=bind)
+
+
+@asynccontextmanager
+async def guild_schema_context(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    guild_role: str = "admin",
+) -> AsyncGenerator[AsyncSession, None]:
+    """Borrow an already-open session for one guild's schema, then hand it back.
+
+    A platform/bootstrapping handler runs with ``search_path = public`` and
+    cannot see guild content at all, so work that has to touch a guild schema
+    from there routes the session in first (the same move
+    ``seed_guild_content`` and the ``oidc_sync`` per-guild loop make). What this
+    adds is the return trip: several callers keep using the session after the
+    excursion, so whatever context they were carrying is put back on the way
+    out — including the freshness stamp, which this excursion must not renew.
+
+    A session that carried no context at all (the system engine on its login
+    role) is returned to exactly that: the current transaction is neutralized
+    and the stored params are dropped, so later transactions start pristine
+    rather than replaying a context this helper invented.
+
+    The session must already be inside the caller's transaction; this neither
+    commits nor rolls back.
+    """
+    previous = session.info.get(_RLS_PARAMS_INFO_KEY)
+    previous_established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
+    routed = False
+    try:
+        await set_rls_context(session, guild_id=guild_id, guild_role=guild_role)
+        routed = True
+        yield session
+    finally:
+        # Restoring the stored params comes first and cannot fail, so the
+        # caller's next transaction replays the caller's own context whatever
+        # happened in between.
+        session.info[_RLS_PARAMS_INFO_KEY] = previous if previous is not None else {}
+        if previous_established is not None:
+            session.info[_RLS_ESTABLISHED_INFO_KEY] = previous_established
+        # Routing that did not complete leaves a transaction that accepts no
+        # further statements, and its own rollback puts the settings back; more
+        # SQL there would only replace the real error with a second one.
+        if routed and session.in_transaction():
+            await _apply_stored_context(session)
+        if previous is None:
+            session.info.pop(_RLS_PARAMS_INFO_KEY, None)
+            session.info.pop(_RLS_ESTABLISHED_INFO_KEY, None)
 
 
 @asynccontextmanager
@@ -450,6 +515,27 @@ def _get_alembic_config() -> Config:
     return config
 
 
+def _database_name(url: str) -> str:
+    return urlparse(url.replace("+asyncpg", "")).path.lstrip("/") or "?"
+
+
 async def run_migrations() -> None:
     config = _get_alembic_config()
-    await asyncio.to_thread(command.upgrade, config, "head")
+    try:
+        await asyncio.to_thread(command.upgrade, config, "head")
+    except InvalidCatalogNameError as exc:
+        # The database itself is infrastructure's to make, not the app's: the
+        # compose image creates it from POSTGRES_DB on first boot, and an
+        # existing install has one already. Say so, rather than let a
+        # connection error surface as forty frames of driver traceback.
+        name = _database_name(settings.DATABASE_URL)
+        raise RuntimeError(
+            f"Database {name!r} does not exist. The compose image creates it "
+            f"from POSTGRES_DB the first time its volume is initialised, and "
+            f"only then — on a server that already has a volume, make it by "
+            f"hand as the superuser:\n"
+            f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
+            f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
+            f"then hand it over with backend/scripts/create-provisioner.sql. "
+            f"The app does not create its own database."
+        ) from exc

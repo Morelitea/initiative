@@ -40,6 +40,16 @@ _IN_APP_ONLY = {
     NotificationType.export_failed,
     NotificationType.import_ready,
     NotificationType.import_failed,
+    # Sent when a moderator takes a profile picture down. It belongs in the
+    # inbox, where it can be read next to the settings page that acts on it,
+    # rather than as an interruption on a device.
+    NotificationType.avatar_removed,
+    # The other three moderation notices, for the same reason: they belong in
+    # the inbox next to the settings page they are about, and none of them is
+    # urgent enough to interrupt someone on a device.
+    NotificationType.username_changed,
+    NotificationType.account_suspended,
+    NotificationType.account_unsuspended,
 }
 
 

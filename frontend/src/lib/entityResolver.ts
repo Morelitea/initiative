@@ -48,13 +48,7 @@ import {
   getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1GGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
-import {
-  eventRoute,
-  INITIATIVES_ROUTE,
-  initiativeRoute,
-  taskRoute,
-  toolDetailRoute,
-} from "@/lib/tools";
+import { eventRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
 
 /**
  * The kinds of thing `/go/{refType}/{id}` can resolve. The six tools are named
@@ -195,8 +189,10 @@ const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/initiatives\/(\d+)(\/.*)?$/, (id) => initiativeRoute(Number(id))],
 ];
 
-/** Guild-relative paths that used to name a list page and no longer exist. */
+/** Guild-relative paths that used to name a list page and no longer exist.
+ *  (`/initiatives` among them: that list is part of the guild home now.) */
 const LEGACY_LISTS = new Set([
+  "/initiatives",
   "/tasks",
   "/projects",
   "/documents",
@@ -209,7 +205,6 @@ const LEGACY_LISTS = new Set([
 
 export function normalizeLegacyTarget(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (normalized === "/initiatives") return INITIATIVES_ROUTE;
   for (const [pattern, build] of LEGACY_TARGETS) {
     const match = normalized.match(pattern);
     if (match) return build(match[1]);

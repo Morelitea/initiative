@@ -44,7 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
@@ -67,7 +67,8 @@ interface BulkEditAccessDialogProps extends DialogWithSuccessProps {
 interface SelectableUser {
   id: number;
   name: string;
-  email: string;
+  /** The line under the name, and what tells two of the same name apart. */
+  handle: string;
 }
 
 interface SelectableRole {
@@ -156,7 +157,7 @@ export function BulkEditAccessDialog({
           map.set(member.user.id, {
             id: member.user.id,
             name: getUserDisplayName(member.user),
-            email: member.user.email,
+            handle: getUserHandle(member.user),
           });
         }
       }
@@ -262,7 +263,7 @@ export function BulkEditAccessDialog({
           userMap.set(userId, {
             id: userId,
             name: known?.name || `User ${userId}`,
-            email: known?.email || "",
+            handle: known?.handle || "",
           });
         }
       }
@@ -277,7 +278,7 @@ export function BulkEditAccessDialog({
     const searchLower = userSearch.toLowerCase();
     return displayUsers.filter(
       (u) =>
-        u.name.toLowerCase().includes(searchLower) || u.email.toLowerCase().includes(searchLower)
+        u.name.toLowerCase().includes(searchLower) || u.handle.toLowerCase().includes(searchLower)
     );
   }, [displayUsers, userSearch]);
 
@@ -926,9 +927,9 @@ function UserMultiPicker({
                       </div>
                       <div className="flex flex-col">
                         <span className="truncate text-sm">{user.name}</span>
-                        {user.name !== user.email && (
+                        {user.name !== user.handle && (
                           <span className="truncate text-muted-foreground text-xs">
-                            {user.email}
+                            {user.handle}
                           </span>
                         )}
                       </div>

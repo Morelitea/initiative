@@ -6,8 +6,12 @@ from pydantic import ConfigDict, Field, create_model
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
-from app.models.tenant.initiative import PermissionKey
-from app.schemas.platform.user import UserPublic
+from app.models.tenant.initiative import (
+    InitiativeJoinPolicy,
+    JoinRequestStatus,
+    PermissionKey,
+)
+from app.schemas.platform.user import UserPublic, UserSummary
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import (
@@ -18,6 +22,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+
+#: A join request's note is a sentence or two for the managers reading the
+#: queue, not a document — so it is capped well below the 8 KB plain-text
+#: ceiling every ``SanitizedBaseModel`` string already carries.
+JOIN_REQUEST_MESSAGE_MAX_LENGTH = 1000
 
 
 # Derived bases: one `{tool.plural}_enabled` master-switch field per
@@ -43,7 +52,9 @@ class InitiativeBase(_InitiativeToolSwitches):
 
 
 class InitiativeCreate(InitiativeBase):
-    pass
+    # Creation is guild-admin only, so the policy is theirs to set from the
+    # start; defaulting private keeps "open" an explicit choice.
+    join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
 
 
 class InitiativeUpdate(_InitiativeToolSwitchesPatch):
@@ -51,6 +62,12 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     description: Optional[RichTextStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     is_archived: Optional[bool] = None
+    # Settable by whoever may already update the initiative (managers, guild
+    # admins).
+    join_policy: Optional[InitiativeJoinPolicy] = None
+    # Guild admins only — enforced in the endpoint, and only valid alongside a
+    # resulting join_policy of 'open'.
+    auto_join: Optional[bool] = None
 
 
 # Role schemas
@@ -173,9 +190,80 @@ class InitiativeRead(InitiativeBase):
     is_default: bool = False
     # Hidden from the main sidebar when true (see Initiative.is_archived).
     is_archived: bool = False
+    # How guild members may join (see InitiativeJoinPolicy). Never consulted by
+    # RLS — it governs how a membership row comes to exist, nothing more.
+    join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
+    auto_join: bool = False
     created_at: datetime
     updated_at: datetime
     members: List[InitiativeMemberRead] = Field(default_factory=list)
+
+
+class InitiativeDirectoryEntry(SanitizedBaseModel):
+    """One card in a guild's initiative directory.
+
+    Only initiatives that chose to be listed (``request`` / ``open``) ever reach
+    this shape; a ``private`` one is excluded in the service. The three caller-
+    relative fields answer which call to action the card renders: already in it,
+    knocked and waiting, or free to join.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+    join_policy: InitiativeJoinPolicy
+    # Whether new guild members are enrolled here on arrival. Discloses nothing
+    # a card does not already: ``ck_initiatives_auto_join_open`` means only an
+    # ``open`` initiative can carry it, and an open one is listed to every guild
+    # member anyway. It is what lets a guild's admin see, from the list they
+    # would pick from, whether arrivals currently land anywhere at all.
+    auto_join: bool = False
+    member_count: int = 0
+    is_member: bool = False
+    has_pending_request: bool = False
+    # How many people are waiting at this door — the badge on a manager's card.
+    # Zero for everyone who could not act on the queue anyway (see
+    # ``list_directory_entries``), so the directory never tells a bystander how
+    # many of their peers asked to get in.
+    pending_join_request_count: int = 0
+
+
+class InitiativeJoinRequestCreate(SanitizedBaseModel):
+    """A guild member knocking on a ``request``-policy initiative."""
+
+    message: Optional[str] = Field(
+        default=None, max_length=JOIN_REQUEST_MESSAGE_MAX_LENGTH
+    )
+
+
+class InitiativeJoinRequestRead(SanitizedBaseModel):
+    """One row of an initiative's join-request queue.
+
+    Carries everything the manager needs to decide without a second call: who
+    is asking (the same slim user projection the member pickers use), what they
+    said, when they asked, and how many times this initiative has turned them
+    down before — a denied requester may ask again, so the history is what keeps
+    the repeat visible.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    initiative_id: int
+    user: UserSummary
+    status: JoinRequestStatus
+    message: Optional[str] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[int] = None
+    prior_denials: int = 0
 
 
 def serialize_role(
@@ -262,6 +350,10 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         color=initiative.color,
         is_default=initiative.is_default,
         is_archived=getattr(initiative, "is_archived", False),
+        join_policy=getattr(
+            initiative, "join_policy", InitiativeJoinPolicy.private.value
+        ),
+        auto_join=getattr(initiative, "auto_join", False),
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

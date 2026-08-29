@@ -1,19 +1,65 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import field_validator, ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.core.email_masking import mask_email
+from app.models.platform.guild import (
+    DEFAULT_BANNER,
+    BannerFade,
+    BannerTextAlign,
+    GuildCategory,
+    GuildRole,
+    GuildStatus,
+)
+
+
+class GuildBannerRead(SanitizedBaseModel):
+    """A guild's banner, whole — the picture and the look around it.
+
+    ``image_url`` is where to fetch the artwork, never the bytes: a banner is
+    ~350 KB and this rides in payloads that list every guild the caller is in.
+    Which rendition it names is the surface's business — a guild's own front
+    page gets the full one, a directory card the card one. ``None`` means no
+    artwork, not no banner: the fill is what shows then.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    image_url: Optional[str] = None
+    color: str = DEFAULT_BANNER["color"]
+    text_color: str = DEFAULT_BANNER["text_color"]
+    text_align: BannerTextAlign = BannerTextAlign(DEFAULT_BANNER["text_align"])
+    fade: BannerFade = BannerFade(DEFAULT_BANNER["fade"])
+
+
+class GuildBannerWrite(SanitizedBaseModel):
+    """The banner a guild admin sets, whole.
+
+    Every field is required: the banner is one value and this replaces it, so a
+    body naming two of the four would have to mean "leave the rest" — a merge
+    the caller cannot see the result of. Sending ``null`` for the whole object
+    is how you go back to the default. The artwork is set through its own
+    endpoint; it is bytes, not a look.
+
+    The layout fields are typed as their enums, so anything outside the
+    vocabulary is a 422 rather than a rule the service restates; the colours
+    are text here and normalized in the service.
+    """
+
+    color: RawTextStr
+    text_color: RawTextStr
+    text_align: BannerTextAlign
+    fade: BannerFade
 
 
 class GuildBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[RawTextStr] = None
 
 
 class GuildCreate(GuildBase):
@@ -78,6 +124,32 @@ class GuildRead(GuildBase):
     # ``None`` for non-admin members (they never configure auth). Only
     # meaningful under the per-guild AUTH_SCOPE posture.
     guild_auth_enabled: Optional[bool] = None
+    # Community directory opt-in and its subject tags. Guild identity, not
+    # administration: every member sees them (they are published to strangers
+    # anyway), and the settings page shows the controls to admins.
+    is_community: bool = False
+    categories: List[GuildCategory] = []
+    # Whether this guild renders members' real names. Off — the default —
+    # means it renders handles. A listed guild is always off and cannot be
+    # switched on.
+    show_member_names: bool = True
+    # The 18+ declaration. ``None`` — unanswered — is the normal state for a
+    # guild that has never been listed; listing requires an explicit ``False``.
+    has_adult_content: Optional[bool] = None
+    # The guild's banner, at full size. Never absent — every guild has one, so
+    # nothing downstream renders a guild that has none.
+    banner: GuildBannerRead = GuildBannerRead()
+    # How many of this guild's members have it open right now. A live reading
+    # taken from the process answering the request rather than a stored
+    # column — the same figure the directory card shows, and the same caveat: a
+    # sense of how busy the guild is, not a number to reconcile against
+    # anything. Zero is also what a request served by a process holding none of
+    # the guild's sockets answers.
+    online_count: int = 0
+    # Where to fetch the guild's icon, or ``None`` when it has none. A URL like
+    # the banner's: this payload lists every guild the caller is in, and the
+    # icon used to be a data URI inlined into all of them.
+    icon_url: Optional[str] = None
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -98,8 +170,16 @@ class GuildInviteRead(SanitizedBaseModel):
     expires_at: Optional[datetime]
     max_uses: Optional[int]
     uses: int
+    # Masked (``j•••@example.com``). Whoever typed the address already has it,
+    # and a guild's other admins never did — the invite still matches the whole
+    # address on redemption, from the ciphertext.
     invitee_email: Optional[str]
     created_at: datetime
+
+    @field_validator("invitee_email", mode="after")
+    @classmethod
+    def _mask_invitee_email(cls, value: Optional[str]) -> Optional[str]:
+        return mask_email(value)
 
 
 class GuildInviteAcceptRequest(SanitizedBaseModel):
@@ -122,11 +202,31 @@ class GuildInviteStatus(SanitizedBaseModel):
 class GuildUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[RawTextStr] = None
     # Trash retention period in days. None means "never auto-purge".
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
     retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    # Community directory opt-in and subject tags. Omit-to-skip, like the
+    # fields above: the endpoint inspects ``model_fields_set``, so a PATCH that
+    # only renames a guild never disturbs its listing. A null ``categories``
+    # is read as "no categories" — the empty list means the same thing and the
+    # UI sends that — while a null ``is_community`` is a no-op (a boolean
+    # opt-in has no third state).
+    is_community: Optional[bool] = None
+    categories: Optional[List[GuildCategory]] = None
+    # Whether to render members' real names instead of their handles. Listing
+    # the guild turns it off in the same write and the endpoint refuses to set
+    # both, which ck_guilds_community_member_names also enforces.
+    show_member_names: Optional[bool] = None
+    # The whole banner, replaced. Omit-to-skip like the fields above; an
+    # explicit null puts it back to the default rather than clearing it, since
+    # a banner is never colourless and never without a layout.
+    banner: Optional[GuildBannerWrite] = None
+    # The 18+ declaration, and the one field here where null is an ANSWER
+    # rather than a skip — it puts the guild back to undeclared. Omitting the
+    # field is how you leave it alone, so this is read from
+    # ``model_fields_set`` rather than from the value being non-null.
+    has_adult_content: Optional[bool] = None
     # NOTE: deliberately no cap/status/tier fields here. Those are
     # operator/billing enforcement inputs (the platform Guilds tab or the
     # verified billing path) — a guild's own admins must never set them, and
@@ -165,6 +265,9 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Per-guild sign-in entitlement (operator toggle). Only meaningful under the
     # per-guild AUTH_SCOPE posture; the dashboard hides the control otherwise.
     guild_auth_enabled: bool = False
+    # Whether this guild may upload banner artwork (operator toggle). On by
+    # default; a guild without it picks a banner colour instead.
+    banner_image_enabled: bool = True
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -182,6 +285,8 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     status: Optional[GuildStatus] = None
     # Per-guild sign-in entitlement. Omit-to-skip (a bool is never null here).
     guild_auth_enabled: Optional[bool] = None
+    # Banner-artwork entitlement. Omit-to-skip, same as the one above.
+    banner_image_enabled: Optional[bool] = None
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
@@ -231,7 +336,24 @@ class GuildSummary(SanitizedBaseModel):
 
     id: int
     name: str
-    icon_base64: Optional[RawTextStr] = None
+    icon_url: Optional[str] = None
+
+
+class GuildEntitlementsRead(SanitizedBaseModel):
+    """What an operator has turned on for one guild, for its own admins.
+
+    Deliberately its own read rather than fields on :class:`GuildRead`: these
+    are the operator's decisions about a guild, they live on the separate
+    ``guild_administration`` row, and only a guild admin has any use for them —
+    a member's guild payload should not be carrying them at all.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    guild_id: int
+    # Whether this guild may upload banner artwork. Off means the settings page
+    # offers the banner colour alone; a banner already uploaded keeps showing.
+    banner_image_enabled: bool = True
 
 
 class GuildMembershipUpdate(SanitizedBaseModel):
@@ -252,3 +374,44 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
 
     can_leave: bool
     is_last_admin: bool
+
+
+class CommunityGuildRead(SanitizedBaseModel):
+    """One card in the community directory.
+
+    Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
+    carries only what the guild published by opting in — its identity, its
+    shelves, and how many people are already there. No membership fields (they
+    have none), no lifecycle status, no administration. ``already_member`` is
+    about the *caller*, and only says whether the Join button applies to them.
+
+    ``online_count`` is how many of those people have the guild open right now.
+    It is a live reading rather than a stored one, taken from the process
+    answering the request, so it is a sense of how busy a guild is rather than a
+    figure to reconcile against anything.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    description: Optional[RichTextStr] = None
+    icon_url: Optional[str] = None
+    categories: List[GuildCategory] = []
+    member_count: int = 0
+    online_count: int = 0
+    already_member: bool = False
+    # The guild's banner, its ``image_url`` naming the card rendition rather
+    # than the full one: a directory page is up to sixty of these, so the bytes
+    # stay out of the payload and are fetched (and then cached) per card. The
+    # rest of it needs no fetch at all.
+    banner: GuildBannerRead = GuildBannerRead()
+
+
+class CommunityGuildPage(SanitizedBaseModel):
+    """A page of directory results, plus how many matched in total."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[CommunityGuildRead]
+    total: int

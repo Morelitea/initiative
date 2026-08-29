@@ -230,8 +230,43 @@ class TestConnections:
                 ]
             )
 
-    def test_a_static_connection_has_nowhere_to_send_anyone(self):
-        with pytest.raises(ListingDefinitionError, match="connect_path"):
+    def test_a_guild_credential_may_come_from_a_vendor_flow(self):
+        """An admin runs the vendor's install once, for the whole guild.
+
+        The alternative this replaces is an admin retyping an organization's
+        name into a text box and hoping it names the same organization somebody
+        installed at the vendor. Nothing about that is per-member, so the scope
+        stays ``static``; the ``connect_path`` is how the value arrives.
+        """
+        [connection] = _normalize(
+            connections=[
+                {
+                    "id": "workspace",
+                    "scope": "static",
+                    "label": _label(),
+                    "connect_path": "/install/github",
+                    "fields": [
+                        {
+                            "key": "owner",
+                            "type": "string",
+                            "label": _label(),
+                            "managed": True,
+                        }
+                    ],
+                }
+            ]
+        )["connections"]
+        assert connection["connect_path"] == "/install/github"
+        assert connection["fields"][0]["managed"] is True
+
+    def test_a_guild_flow_needs_somewhere_to_put_its_result(self):
+        """Every field typed means the app can never write the answer back.
+
+        A static connection is satisfied by the values it holds, and only a
+        ``managed`` field is one the app may write. So a flow with none can run
+        to completion and leave the install exactly as unconfigured as it was.
+        """
+        with pytest.raises(ListingDefinitionError, match="managed field"):
             _normalize(
                 connections=[
                     {

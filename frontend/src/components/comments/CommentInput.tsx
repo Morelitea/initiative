@@ -61,6 +61,9 @@ interface CommentInputProps {
   onClearError?: () => void;
   autoFocus?: boolean;
   compact?: boolean;
+  /** When set, a Cancel button sits beside Submit and Escape dismisses. */
+  onCancel?: () => void;
+  cancelLabel?: string;
 }
 
 export const CommentInput = ({
@@ -75,8 +78,10 @@ export const CommentInput = ({
   onClearError,
   autoFocus = false,
   compact = false,
+  onCancel,
+  cancelLabel,
 }: CommentInputProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "common"]);
   const resolvedPlaceholder = placeholder ?? t("comments.placeholder");
   const resolvedSubmitLabel = submitLabel ?? t("comments.postComment");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -208,6 +213,13 @@ export const CommentInput = ({
               if (trimmed && !isSubmitting) {
                 onSubmit(trimmed);
               }
+              return;
+            }
+            // The mention popover claims Escape first; a second press dismisses
+            // the whole field.
+            if (e.key === "Escape" && !mentionTrigger && onCancel) {
+              e.preventDefault();
+              onCancel();
             }
           }}
           onBlur={() => {
@@ -236,7 +248,18 @@ export const CommentInput = ({
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        {onCancel && (
+          <Button
+            type="button"
+            variant="ghost"
+            size={compact ? "sm" : "default"}
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
+            {cancelLabel ?? t("common:cancel")}
+          </Button>
+        )}
         <Button
           type="submit"
           disabled={isSubmitting || value.trim().length === 0}

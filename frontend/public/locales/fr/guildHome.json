@@ -5,9 +5,41 @@
   "loading": "Chargement…",
   "loadError": "Impossible de charger cet outil. Veuillez réessayer plus tard.",
   "guildWide": "Toute la guilde",
+  "searchPlaceholder": "Rechercher par nom…",
   "empty": {
     "title": "Rien pour l'instant",
     "description": "Rien de ce type n'existe encore dans la guilde, ou rien ne vous a été partagé."
+  },
+  "emptyState": {
+    "title": "Vous n’avez rejoint aucune initiative",
+    "description": "Les initiatives contiennent tout ce qui existe dans une guilde — projets, documents et le reste. Rejoignez-en une pour voir son travail.",
+    "nothingListedTitle": "Rien à rejoindre pour l’instant",
+    "nothingListedDescription": "Aucune initiative de cette guilde n’est ouverte pour le moment. Un administrateur de guilde ou un chef de projet peut vous ajouter."
+  },
+  "directory": {
+    "title": "Initiatives",
+    "subtitle": "Les vôtres et celles que vous pouvez rejoindre.",
+    "memberBadge": "Rejointe",
+    "memberCount_one": "{{count}} membre",
+    "memberCount_other": "{{count}} membres",
+    "toolCount": "{{label}} : {{count}}",
+    "groups": {
+      "mine": "Vos initiatives",
+      "joinable": "Ouvertes aux adhésions"
+    },
+    "join": "Rejoindre",
+    "joining": "Adhésion…",
+    "joined": "Vous avez rejoint {{name}}.",
+    "requestToJoin": "Demander à rejoindre",
+    "requested": "Demandé",
+    "pendingRequests_one": "{{count}} en attente d’adhésion",
+    "pendingRequests_other": "{{count}} en attente d’adhésion",
+    "policy": {
+      "open": "Ouverte à tous les membres de la guilde",
+      "request": "Adhésion sur demande",
+      "private": "Sur invitation uniquement"
+    },
+    "loadError": "Impossible de charger ce que propose cette guilde. Veuillez réessayer plus tard."
   },
   "columns": {
     "name": "Nom",
@@ -48,6 +80,8 @@
     "onTask": "sur {{taskTitle}}",
     "onDocument": "sur {{documentTitle}}",
     "onEntity": "sur {{entityName}}",
-    "inProject": "dans {{projectName}}"
+    "inProject": "dans {{projectName}}",
+    "readMore": "Lire la suite",
+    "showLess": "Afficher moins"
   }
 }

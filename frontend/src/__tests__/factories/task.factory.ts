@@ -17,9 +17,10 @@ export function buildTaskAssignee(
   counter++;
   return {
     id: counter,
+    username: `assignee-${counter}`,
+    discriminator: 2000 + counter,
     full_name: `Assignee ${counter}`,
     avatar_url: null,
-    avatar_base64: null,
     ...overrides,
   };
 }

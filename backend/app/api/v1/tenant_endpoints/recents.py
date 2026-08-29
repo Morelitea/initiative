@@ -160,7 +160,10 @@ async def _enrich_recent_rows(
             # double-escaped on the way out — e.g. ``Foo & Bar`` would
             # otherwise round-trip as ``Foo &amp; Bar``.
             RecentItemRead.model_construct(
-                entity_type=tool.value,
+                # The member, not its value: ``model_construct`` skips
+                # validation, so whatever is passed is what the field holds and
+                # what the serializer is later handed.
+                entity_type=RecentEntityType(tool.value),
                 entity_id=entity.id,
                 guild_id=entity.guild_id,
                 initiative_id=getattr(entity, "initiative_id", None),

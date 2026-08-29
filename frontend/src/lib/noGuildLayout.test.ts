@@ -77,6 +77,28 @@ describe("chooseNoGuildLayout", () => {
     });
   });
 
+  describe("the community directory (no guilds)", () => {
+    it("renders the chromeless shell so a guild-less user can join one", () => {
+      expect(
+        chooseNoGuildLayout({
+          hasGuilds: false,
+          pathname: "/communities",
+          isPlatformAdmin: false,
+        })
+      ).toBe("shell");
+    });
+
+    it("does not match a partial-prefix collision like /communitiesX", () => {
+      expect(
+        chooseNoGuildLayout({
+          hasGuilds: false,
+          pathname: "/communitiesx",
+          isPlatformAdmin: false,
+        })
+      ).toBe("empty");
+    });
+  });
+
   describe("platform-admin settings routes (no guilds)", () => {
     it("renders the shell when the user is a platform admin", () => {
       expect(

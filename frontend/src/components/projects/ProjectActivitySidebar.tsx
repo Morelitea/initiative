@@ -12,12 +12,14 @@ import {
   getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
   projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
 } from "@/api/generated/projects/projects";
+import { CommentContent } from "@/components/comments/CommentContent";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 import { taskRoute } from "@/lib/tools";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 interface ProjectActivitySidebarProps {
@@ -127,10 +129,10 @@ export const ProjectActivitySidebar = ({
             ) : (
               <ul className="space-y-3">
                 {entries.map((entry) => {
-                  const authorName =
-                    entry.author?.full_name?.trim() ||
-                    entry.author?.email ||
-                    `User #${entry.author?.id ?? "?"}`;
+                  const authorName = getUserDisplayName(
+                    entry.author,
+                    `User #${entry.author?.id ?? "?"}`
+                  );
                   return (
                     <li
                       key={entry.comment_id}
@@ -149,9 +151,11 @@ export const ProjectActivitySidebar = ({
                           {entry.task_title}
                         </Link>
                       </p>
-                      <p className="mt-1 line-clamp-3 text-muted-foreground text-sm">
-                        “{entry.content}”
-                      </p>
+                      <CommentContent
+                        content={entry.content}
+                        compact
+                        className="mt-1 line-clamp-3 border-border border-l-2 pl-2 text-muted-foreground"
+                      />
                     </li>
                   );
                 })}

@@ -20,11 +20,20 @@ import type { GuildEntry } from "@/hooks/useGuilds";
 
 import { GuildSidebar } from "./GuildSidebar";
 
-// Billing config and the handoff mint, mocked so a test can put the sidebar in
-// either deployment shape: no portal (self-hosted) or one configured.
-const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
+// Deployment config, mocked so a test can put the sidebar in whichever shape it
+// is about: no billing portal (self-hosted) or one configured, and a community
+// directory the platform owner is running or has switched off.
+const state = vi.hoisted(() => ({
+  billing: null as { url: string } | null,
+  communityDirectory: true,
+}));
 const mintMock = vi.hoisted(() => vi.fn());
-vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({
+    billing: state.billing,
+    communityDirectoryEnabled: state.communityDirectory,
+  }),
+}));
 vi.mock("@/api/generated/guilds/guilds", async () => {
   const actual = await vi.importActual<typeof import("@/api/generated/guilds/guilds")>(
     "@/api/generated/guilds/guilds"
@@ -199,5 +208,50 @@ describe("GuildSidebar guild creation", () => {
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
     expect(mintMock).not.toHaveBeenCalled();
     openSpy.mockRestore();
+  });
+});
+
+describe("the way into the community directory", () => {
+  beforeEach(() => {
+    state.communityDirectory = true;
+  });
+
+  it("sits in the rail under the add-a-guild button", async () => {
+    setup([entry({ id: 1, name: "Alpha" })]);
+
+    const link = await screen.findByRole("link", { name: "Join a community" });
+    expect(link).toHaveAttribute("href", "/communities");
+  });
+
+  it("is offered even where guilds cannot be created", async () => {
+    // A deployment with guild creation switched off is exactly where joining an
+    // existing guild is the only way into one.
+    renderPage(
+      () => (
+        <SidebarProvider>
+          <GuildSidebar />
+        </SidebarProvider>
+      ),
+      { guilds: { guilds: [entry({ id: 1, name: "Alpha" })], canCreateGuilds: false } }
+    );
+
+    expect(await screen.findByRole("link", { name: "Join a community" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create guild" })).not.toBeInTheDocument();
+  });
+
+  it("is repeated in the expanded guild list", async () => {
+    setup([entry({ id: 1, name: "Alpha" })]);
+    const { panel } = await openFlyout();
+
+    expect(within(panel).getByRole("link", { name: "Join a community" })).toBeInTheDocument();
+  });
+
+  it("is absent where the platform owner runs no directory", async () => {
+    state.communityDirectory = false;
+    setup([entry({ id: 1, name: "Alpha" })]);
+    const { panel } = await openFlyout();
+
+    expect(screen.queryByRole("link", { name: "Join a community" })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("link", { name: "Join a community" })).not.toBeInTheDocument();
   });
 });

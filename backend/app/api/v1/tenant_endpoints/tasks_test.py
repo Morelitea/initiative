@@ -1554,7 +1554,11 @@ async def test_read_task_includes_creator_summary(
     """The task read embeds a ``creator`` summary so the detail view can show
     'Created by …' without fetching the whole guild roster."""
     a = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True, full_name="Ada C."
+        guild_role=GuildRole.member,
+        initiative=True,
+        project=True,
+        username="ada-c",
+        full_name="Ada C.",
     )
     create = await client.post(
         a.g("/tasks/"),
@@ -1570,6 +1574,9 @@ async def test_read_task_includes_creator_summary(
     assert body["created_by"] == a.user.id
     assert body["creator"] is not None
     assert body["creator"]["id"] == a.user.id
+    # The handle is always there; the name comes too, because this guild
+    # takes the default and shows them.
+    assert body["creator"]["username"] == "ada-c"
     assert body["creator"]["full_name"] == "Ada C."
 
 

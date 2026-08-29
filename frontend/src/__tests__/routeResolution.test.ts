@@ -54,8 +54,21 @@ describe("initiative route resolution", () => {
   // The tab routes are siblings of these; a tool segment that collided with
   // one, or a ranking that preferred the dynamic sibling, would swallow them.
   it("keeps the initiative's own children ahead of the tool tabs", () => {
-    expect(resolvedRouteId("/g/1/i/5/settings")).toBe(`${INITIATIVE}/settings`);
+    // `/settings` is a layout now; its index serves the details section.
+    expect(resolvedRouteId("/g/1/i/5/settings")).toBe(`${INITIATIVE}/settings/`);
     expect(resolvedRouteId("/g/1/i/5/apps/3")).toBe(`${INITIATIVE}/apps/$appId`);
+  });
+
+  // Each settings section is an address of its own, so a manager can be linked
+  // straight to one (the join-request queue lives under `members`).
+  it.each([
+    ["/g/1/i/5/settings/members", `${INITIATIVE}/settings/members`],
+    ["/g/1/i/5/settings/roles", `${INITIATIVE}/settings/roles`],
+    ["/g/1/i/5/settings/properties", `${INITIATIVE}/settings/properties`],
+    ["/g/1/i/5/settings/export", `${INITIATIVE}/settings/export`],
+    ["/g/1/i/5/settings/danger", `${INITIATIVE}/settings/danger`],
+  ])("resolves %s", (pathname, routeId) => {
+    expect(resolvedRouteId(pathname)).toBe(routeId);
   });
 
   // `gallery` is a static sibling of `$dashboardId` at the same depth.
@@ -71,6 +84,12 @@ describe("initiative route resolution", () => {
     );
   });
 
+  // The calendar app's own surface — the guild's calendars, not a roll-up of
+  // its initiatives'. That is why this one address survives the list below.
+  it("resolves the guild's calendars", () => {
+    expect(resolvedRouteId("/g/1/calendars")).toBe(`${GUILD}/calendars/`);
+  });
+
   it("resolves the entity-reference resolver", () => {
     expect(resolvedRouteId("/g/1/go/document/42")).toBe(`${GUILD}/go/$refType/$refId`);
   });
@@ -82,7 +101,6 @@ describe("initiative route resolution", () => {
     "/g/1/queues",
     "/g/1/dashboards",
     "/g/1/counter-groups",
-    "/g/1/calendars",
     // Sub-entities moved under their parent tool in the same change.
     "/g/1/tasks/4",
     "/g/1/calendar-events/8",

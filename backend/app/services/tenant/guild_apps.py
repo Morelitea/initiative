@@ -13,6 +13,11 @@ other instance's: remove the everyone grant to make it private, add write grants
 to let particular members or roles post. Guild admins keep full authority
 through the existing admin override.
 
+An install is not limited to what it created on the way in. A member adding a
+guild calendar records it here too (`record_artifact`), because the app is the
+container: it is the entry that reaches the content, so removing it takes the
+content with it rather than stranding rows nothing links to.
+
 An **embed** brings none. It opens a surface the operator configured, so there
 is no row to create, nothing to share, and nothing to trash on the way out —
 installing it adds an entry, and removing it takes the entry away. Who may open
@@ -36,6 +41,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
+from sqlalchemy import cast, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -50,11 +57,14 @@ __all__ = [
     "PlacementError",
     "app_artifacts",
     "create_app_artifacts",
+    "find_mounting_app",
     "get_app_content_id",
     "install_app",
     "legacy_artifacts",
+    "lock_install",
     "normalize_placement",
     "placed_in",
+    "record_artifact",
     "remove_app_artifacts",
     "touch",
 ]
@@ -198,6 +208,91 @@ def get_app_content_id(app: GuildApp) -> Optional[int]:
     """
     artifacts = app_artifacts(app)
     return artifacts[0]["id"] if artifacts else None
+
+
+async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]:
+    """Hold one install's row for the rest of this transaction.
+
+    Several things on this row are values rewritten whole rather than appended
+    to — the configuration maps, the connection handles — so writing one means
+    reading it, changing it, and putting the result back. Two of those
+    overlapping would have the second write carry a value read before the first
+    landed, and the first change would be gone with no sign that it had been
+    made. Taking the row first puts them in an order instead.
+
+    Answers ``None`` if the row is gone, which is the same answer as this guild
+    never having had the install.
+    """
+    return (
+        await session.exec(
+            select(GuildApp)
+            .where(GuildApp.id == app_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+
+
+async def find_mounting_app(
+    session: AsyncSession, *, guild_id: int, tool: str, for_update: bool = False
+) -> Optional[GuildApp]:
+    """The install that mounts ``tool`` at guild scope, if this guild has one.
+
+    A tool-instance install is the container for what it mounts, so this is the
+    question "does this guild have somewhere to put a guild-level calendar" —
+    asked before creating one, and answered from the install rows rather than
+    from the content, since an install with everything trashed is still the
+    container.
+
+    ``for_update`` holds the row for the rest of the transaction, and is how
+    putting something *into* an app orders itself against removing the app.
+    Removal takes the same lock before it reads what to trash, so the two happen
+    in an order rather than at once: whichever is second either trashes the new
+    content along with the rest, or finds no install and refuses. Without the
+    lock a calendar could be committed just as its app went away, and would then
+    be live with nothing that reaches it and no removal that knows about it.
+    """
+    apps = (
+        await session.exec(select(GuildApp).where(GuildApp.guild_id == guild_id))
+    ).all()
+    for app in apps:
+        if (app.definition or {}).get("app_kind") != "tool_instance":
+            continue
+        if (app.definition or {}).get("tool") == tool:
+            return app if not for_update else await lock_install(session, app.id)
+    return None
+
+
+async def record_artifact(
+    session: AsyncSession, app: GuildApp, *, artifact_type: str, artifact_id: int
+) -> None:
+    """Add something to what this install is answerable for.
+
+    Everything made inside an app is made *by* the app as far as removal is
+    concerned: uninstalling walks ``artifacts`` and trashes every entry, so a
+    calendar someone added to the guild calendar leaves with it rather than
+    outliving the only entry that reached it.
+
+    The append is done by the database, not in Python. Any member may add a
+    calendar, so two of them can be adding one at the same moment — and reading
+    the list, appending, and writing the whole value back would have the second
+    write carry a list taken before the first landed. ``||`` appends to whatever
+    the stored value is when the statement runs, so both entries survive
+    whichever order they arrive in.
+    """
+    entry = [{"type": artifact_type, "id": artifact_id}]
+    await session.exec(
+        update(GuildApp)
+        .where(GuildApp.id == app.id)
+        .values(
+            artifacts=GuildApp.artifacts.op("||")(cast(entry, JSONB)),
+            updated_at=datetime.now(timezone.utc),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    # The row has moved on without this copy of it, so send the next read of
+    # those two back to the database rather than to a value we know is behind.
+    session.expire(app, ["artifacts", "updated_at"])
 
 
 async def create_app_artifacts(

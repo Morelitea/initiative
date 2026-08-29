@@ -16,8 +16,6 @@ from app.services.marketplace import catalog as service
 from app.services.marketplace.catalog import CatalogError
 from app.testing import create_marketplace_listing
 
-pytestmark = pytest.mark.asyncio
-
 
 def _manifest(**overrides):
     manifest = {

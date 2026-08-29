@@ -201,6 +201,13 @@ export const invalidateMyPermissions = (initiativeId: number) =>
 export const invalidateInitiativeMembers = (initiativeId: number) =>
   invalidateGuildExact([`/api/v1/initiatives/${initiativeId}/members`]);
 
+// One prefix reaches every reader of the queue: the manager's list (keyed with
+// its `status` filter), the requester's own `/me` rows, and any narrower status
+// view — so a request or an answer never leaves one of them showing the old
+// truth. The directory's own badge rides on `invalidateAllInitiatives`.
+export const invalidateInitiativeJoinRequests = (initiativeId: number) =>
+  invalidateGuildPrefix(`/api/v1/initiatives/${initiativeId}/join-requests`);
+
 // ── Settings (personal / platform) ───────────────────────────────────────────────
 
 // "All settings" is a blunt flush spanning two DELIBERATELY separate backend
@@ -227,6 +234,11 @@ export const invalidateAuthProviders = () =>
 
 export const invalidateStorageSettings = () =>
   invalidatePersonalExact([`/api/v1/settings/storage`]);
+
+// The community-directory switch is written under /settings but read from the
+// SPA's boot config, so an owner's write has to reach the config key rather
+// than a settings one.
+export const invalidateAppConfig = () => invalidatePersonalExact([`/api/v1/config`]);
 
 export const invalidateOidcMappings = () =>
   invalidatePersonalPrefix("/api/v1/settings/oidc-mappings");
@@ -367,3 +379,20 @@ export const invalidateAllTaskStatuses = () => invalidateGuildPrefix("/api/v1/pr
 // ── Properties (guild) ────────────────────────────────────────────────────────────
 
 export const invalidateAllProperties = () => invalidateGuildPrefix("/api/v1/property-definitions");
+
+// ── Initiative membership (guild, cross-tool) ────────────────────────────────────
+// Gaining (or losing) a membership row changes what the guild returns for every
+// tool, not just the initiative list: the sidebar tree, the discovery directory,
+// and each tool's guild-wide list all read differently afterwards. Declared last
+// so it can compose the per-resource helpers above.
+
+export const invalidateInitiativeMembership = () =>
+  Promise.all([
+    invalidateAllInitiatives(),
+    invalidateAllProjects(),
+    invalidateAllDocuments(),
+    invalidateAllQueues(),
+    invalidateAllCounterGroups(),
+    invalidateAllCalendars(),
+    invalidateAllDashboards(),
+  ]);

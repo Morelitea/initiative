@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { Galaxy } from "@/components/icons/Galaxy";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,12 +42,14 @@ import { Label } from "@/components/ui/label";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
+import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 import { LogoIcon } from "../LogoIcon";
@@ -174,6 +177,64 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
   );
 };
 
+// Way in to the community directory, under "add a guild": the other way to end
+// up in a new guild, for anyone without an invite to redeem. Shown wherever the
+// directory runs, guild creation on or off — a deployment that has switched
+// creation off is exactly where joining an existing guild is the only way in.
+// Absent entirely where the platform owner runs no directory.
+const JoinCommunityButton = ({
+  expanded = false,
+  onNavigate,
+}: {
+  expanded?: boolean;
+  /** Closes the flyout on the way out, so the directory is not behind it. */
+  onNavigate?: () => void;
+}) => {
+  const { t } = useTranslation("guilds");
+  const { communityDirectoryEnabled } = useAppConfig();
+  const label = t("community.browse");
+
+  if (!communityDirectoryEnabled) {
+    return null;
+  }
+
+  if (expanded) {
+    return (
+      <Link
+        to="/communities"
+        onClick={onNavigate}
+        className="flex w-full items-center gap-3 rounded-lg border border-muted-foreground/40 border-dashed px-3 py-2 text-left text-muted-foreground transition hover:bg-muted hover:text-foreground"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+          <Galaxy className="h-5 w-5" />
+        </span>
+        <span className="truncate font-medium text-sm">{label}</span>
+      </Link>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-12 w-12 rounded-2xl border border-muted-foreground/40 border-dashed bg-transparent text-muted-foreground hover:bg-muted"
+          aria-label={label}
+          asChild
+        >
+          <Link to="/communities" onClick={onNavigate}>
+            <Galaxy className="h-5 w-5" />
+          </Link>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={12}>
+        <p>{label}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
 export const GuildAvatar = ({
   name,
   icon,
@@ -181,14 +242,18 @@ export const GuildAvatar = ({
   size = "md",
 }: {
   name: string;
+  /** ``GuildRead.icon_url`` — a path this server serves, not the bytes. */
   icon?: string | null;
   active: boolean;
   size?: "sm" | "md";
 }) => {
   const initials = useMemo(() => getInitials(name, "G"), [name]);
+  // Same-origin on web; on native it needs the API origin and a scoped token,
+  // which is what an <img> can carry.
+  const src = icon ? resolveHeaderlessApiUrl(icon) : null;
   return (
     <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
-      {icon ? <AvatarImage src={icon} alt={name} /> : null}
+      {src ? <AvatarImage src={src} alt={name} /> : null}
       <AvatarFallback
         className={cn(active && "bg-primary text-primary-foreground", size === "sm" && "text-xs")}
       >
@@ -265,7 +330,7 @@ const SortableGuildButton = ({
                 aria-hidden="true"
               />
             ) : null}
-            <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+            <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12}>
@@ -309,7 +374,7 @@ const GrantGuildButton = ({
           )}
           aria-label={t("switchTo", { name: guild.name })}
         >
-          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+          <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
           <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
             <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
           </span>
@@ -380,7 +445,7 @@ const GuildRow = ({
         {...dragProps}
       >
         <span className="relative shrink-0">
-          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+          <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
           {isGrant ? (
             <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
               <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
@@ -776,7 +841,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 <div className="pointer-events-none flex h-12 w-12 items-center justify-center rounded-2xl border-3 border-primary/60 bg-primary/20 opacity-80 shadow-lg">
                   <GuildAvatar
                     name={draggedGuild.name}
-                    icon={draggedGuild.icon_base64}
+                    icon={draggedGuild.icon_url}
                     active={draggedGuild.id === activeGuildId}
                   />
                 </div>
@@ -831,6 +896,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
             </TooltipContent>
           </Tooltip>
           {canCreateGuilds ? <CreateGuildButton /> : null}
+          <JoinCommunityButton />
         </div>
       </TooltipProvider>
 
@@ -945,11 +1011,10 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 </div>
               ) : null}
             </div>
-            {canCreateGuilds ? (
-              <div className="shrink-0 border-t p-2">
-                <CreateGuildButton expanded />
-              </div>
-            ) : null}
+            <div className="shrink-0 space-y-2 border-t p-2">
+              {canCreateGuilds ? <CreateGuildButton expanded /> : null}
+              <JoinCommunityButton expanded onNavigate={collapse} />
+            </div>
           </div>
         </>
       ) : null}

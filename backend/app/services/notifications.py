@@ -28,6 +28,13 @@ from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
 from app.services.platform import push_notifications
+from app.core.user_display import handle_of
+
+# A notification is read on the cross-guild ``/me/notifications`` surface,
+# away from the guild it was written in, so the people it names are named by
+# their handle rather than by whatever that one guild renders. The handle is
+# the identifier that reads the same everywhere and needs no permission
+# resolved at the moment someone opens the list.
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +122,10 @@ def _event_target_path(event_id: int | None) -> str:
 
 def _initiative_target_path(initiative_id: int | None) -> str:
     if initiative_id is None:
-        return "/i"
+        # No one initiative to open, so land on the guild's front page — which
+        # is where the initiative list lives now that the standalone page is
+        # gone. "/i" would only redirect here anyway.
+        return "/"
     return f"/i/{initiative_id}"
 
 
@@ -156,7 +166,7 @@ async def enqueue_task_assignment_event(
             "task_title": task.title,
             "project_id": task.project_id,
             "project_name": project_name,
-            "assigned_by_name": assigned_by.full_name or assigned_by.email,
+            "assigned_by_name": handle_of(assigned_by),
             "guild_id": guild_id,
             "target_path": target_path,
             "smart_link": smart_link,
@@ -176,7 +186,7 @@ async def enqueue_task_assignment_event(
             project_id=task.project_id,
             task_title=task.title,
             project_name=project_name,
-            assigned_by_name=assigned_by.full_name or assigned_by.email,
+            assigned_by_name=handle_of(assigned_by),
             assigned_by_id=assigned_by.id,
         )
         session.add(event)
@@ -303,6 +313,222 @@ async def notify_initiative_membership(
     await session.commit()
 
 
+async def _send_join_request_push(
+    session: AsyncSession,
+    recipient: User,
+    *,
+    notification_type: NotificationType,
+    title_key: str,
+    body_key: str,
+    target_path: str,
+    guild_id: int,
+    initiative_id: int,
+    **body_vars: str,
+) -> None:
+    """Push half of the join-request notifications, best effort.
+
+    Gated on ``push_initiative_addition``: all three events are news about the
+    recipient's initiative membership — asked for, granted, or refused — so they
+    honour the preference that already governs that topic rather than adding a
+    fourth toggle for the same idea.
+    """
+    if recipient.push_initiative_addition is False:
+        return
+    locale = _recipient_locale(recipient)
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=recipient.id,
+            notification_type=notification_type,
+            title=_nt(title_key, locale),
+            body=_nt(body_key, locale, **body_vars),
+            data={
+                "type": notification_type.value,
+                "initiative_id": str(initiative_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error("Failed to send push notification: %s", exc, exc_info=True)
+
+
+async def _send_join_request_email(
+    session: AsyncSession,
+    recipient: User,
+    *,
+    event: str,
+    initiative_name: str,
+    target_path: str,
+    guild_id: int,
+    requester: str | None = None,
+    message: str | None = None,
+) -> None:
+    """Email half of the join-request notifications, best effort.
+
+    Gated on ``email_initiative_addition`` for the same reason the push half is
+    gated on its counterpart: all three events are news about the recipient's
+    initiative membership, so they honour the preference that already governs
+    that topic instead of growing a second toggle for the same idea.
+
+    The link is the guild-aware smart link — these events mean nothing outside
+    the guild they happened in.
+    """
+    if recipient.email_initiative_addition is False:
+        return
+    link = (
+        _build_smart_link(target_path=target_path, guild_id=guild_id)
+        or app_config.APP_URL
+    )
+    try:
+        await email_service.send_initiative_join_request_email(
+            session,
+            recipient,
+            event=event,
+            initiative_name=initiative_name,
+            link=link,
+            requester=requester,
+            message=message,
+        )
+    except email_service.EmailNotConfiguredError:
+        logger.warning(
+            "SMTP not configured; skipping join-request email for %s", recipient.email
+        )
+    except Exception as exc:
+        logger.error("Failed to send join-request email: %s", exc, exc_info=True)
+
+
+async def notify_initiative_join_requested(
+    session: AsyncSession,
+    managers: list[User],
+    *,
+    request_id: int,
+    initiative_id: int,
+    initiative_name: str,
+    guild_id: int,
+    requester: User,
+    message: str | None = None,
+) -> None:
+    """Tell an initiative's managers that someone knocked.
+
+    Addressed to the people who can answer it — the manager-role members — and
+    it carries no initiative *content*, only who asked, what they said, and
+    where to answer.
+    """
+    # Straight to the queue rather than the initiative: the recipient was told
+    # about this to act on it, and only a manager is ever sent one.
+    target_path = f"{_initiative_target_path(initiative_id)}/settings/members"
+    requester_name = handle_of(requester)
+    for manager in managers:
+        await user_notifications.create_notification(
+            session,
+            user_id=manager.id,
+            notification_type=NotificationType.initiative_join_requested,
+            data={
+                "request_id": request_id,
+                "initiative_id": initiative_id,
+                "initiative_name": initiative_name,
+                "guild_id": guild_id,
+                "requester_id": requester.id,
+                "requester_name": requester_name,
+                "target_path": target_path,
+                "smart_link": _build_smart_link(
+                    target_path=target_path, guild_id=guild_id
+                ),
+            },
+        )
+        await _send_join_request_push(
+            session,
+            manager,
+            notification_type=NotificationType.initiative_join_requested,
+            title_key="initiative.joinRequested.title",
+            body_key="initiative.joinRequested.body",
+            target_path=target_path,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+            requester=requester_name,
+            initiative=initiative_name,
+        )
+        await _send_join_request_email(
+            session,
+            manager,
+            event="requested",
+            initiative_name=initiative_name,
+            target_path=target_path,
+            guild_id=guild_id,
+            requester=requester_name,
+            message=message,
+        )
+    await session.commit()
+
+
+async def notify_initiative_join_resolved(
+    session: AsyncSession,
+    requester: User,
+    *,
+    request_id: int,
+    initiative_id: int,
+    initiative_name: str,
+    guild_id: int,
+    approved: bool,
+) -> None:
+    """Tell the requester how their knock was answered.
+
+    An approval points at the initiative — the membership row now exists, so the
+    link resolves. A denial points at the directory instead, which is as far as
+    they can go.
+    """
+    notification_type = (
+        NotificationType.initiative_join_approved
+        if approved
+        else NotificationType.initiative_join_denied
+    )
+    target_path = (
+        _initiative_target_path(initiative_id)
+        if approved
+        else _initiative_target_path(None)
+    )
+    await user_notifications.create_notification(
+        session,
+        user_id=requester.id,
+        notification_type=notification_type,
+        data={
+            "request_id": request_id,
+            "initiative_id": initiative_id,
+            "initiative_name": initiative_name,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+    )
+    await _send_join_request_push(
+        session,
+        requester,
+        notification_type=notification_type,
+        title_key=(
+            "initiative.joinApproved.title"
+            if approved
+            else "initiative.joinDenied.title"
+        ),
+        body_key=(
+            "initiative.joinApproved.body" if approved else "initiative.joinDenied.body"
+        ),
+        target_path=target_path,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        initiative=initiative_name,
+    )
+    await _send_join_request_email(
+        session,
+        requester,
+        event="approved" if approved else "denied",
+        initiative_name=initiative_name,
+        target_path=target_path,
+        guild_id=guild_id,
+    )
+    await session.commit()
+
+
 async def notify_project_added(
     session: AsyncSession,
     user: User,
@@ -389,7 +615,7 @@ async def notify_document_mention(
         return
     target_path = _document_target_path(document_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    mentioned_by_name = handle_of(mentioned_by)
     locale = _recipient_locale(mentioned_user)
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -488,7 +714,7 @@ async def notify_comment_mention(
         return
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    mentioned_by_name = handle_of(mentioned_by)
     locale = _recipient_locale(mentioned_user)
 
     # Always create in-app notification
@@ -589,7 +815,7 @@ async def notify_task_mentioned_in_comment(
         return
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    mentioned_by_name = handle_of(mentioned_by)
     locale = _recipient_locale(assignee)
 
     # Always create in-app notification
@@ -680,7 +906,7 @@ async def notify_comment_on_task(
 
     target_path = _task_target_path(task_id, None)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    commenter_name = commenter.full_name or commenter.email
+    commenter_name = handle_of(commenter)
     locale = _recipient_locale(assignee)
 
     # Always create in-app notification
@@ -765,7 +991,7 @@ async def notify_comment_on_resource(
 
     target_path = _tool_target_path(entity_type, entity_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    commenter_name = commenter.full_name or commenter.email
+    commenter_name = handle_of(commenter)
     locale = _recipient_locale(owner)
 
     # Always create in-app notification
@@ -866,7 +1092,7 @@ async def notify_comment_reply(
         return
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    replier_name = replier.full_name or replier.email
+    replier_name = handle_of(replier)
     locale = _recipient_locale(parent_author)
 
     # Always create in-app notification
@@ -1043,7 +1269,7 @@ async def notify_event_invitation(
     """Notify a user they were added as an attendee on a calendar event."""
     if attendee.id == organizer.id:
         return
-    organizer_name = organizer.full_name or organizer.email
+    organizer_name = handle_of(organizer)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     await _deliver_event_notification(
@@ -1081,7 +1307,7 @@ async def notify_event_updated(
     """Notify an attendee that an event's details changed (or was rescheduled)."""
     if attendee.id == editor.id:
         return
-    editor_name = editor.full_name or editor.email
+    editor_name = handle_of(editor)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     key = "event.rescheduled" if time_changed else "event.updated"
@@ -1117,7 +1343,7 @@ async def notify_event_cancelled(
     """Notify an attendee that an event was cancelled (deleted)."""
     if attendee.id == canceller.id:
         return
-    canceller_name = canceller.full_name or canceller.email
+    canceller_name = handle_of(canceller)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     await _deliver_event_notification(
@@ -1155,7 +1381,7 @@ async def notify_event_rsvp(
     """Notify the organizer that an attendee responded to their event."""
     if organizer.id == responder.id:
         return
-    responder_name = responder.full_name or responder.email
+    responder_name = handle_of(responder)
     status_value = (
         rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
     )
@@ -1798,3 +2024,71 @@ async def process_event_reminders() -> None:
     """
     async with AdminSessionLocal() as session:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
+
+
+async def queue_avatar_removed(session: AsyncSession, *, user: User) -> None:
+    """Tell a user their profile picture was taken down.
+
+    In-app only. There is no preference to consult and no email or push: this
+    is not something a user opts out of being told, and it is not urgent enough
+    to interrupt them on a device.
+
+    Queues rather than sends: the caller commits, so the removal and the notice
+    of it land together or not at all. A picture that vanished with no
+    explanation is a support ticket.
+    """
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.avatar_removed,
+        data={"target_path": "/settings/profile"},
+    )
+
+
+async def queue_username_changed(
+    session: AsyncSession, *, user: User, previous_handle: str
+) -> None:
+    """Tell a user a moderator changed their username.
+
+    Carries the handle they had, because the one they have is already on
+    screen and the one they lost is what they will look for.
+
+    In-app only, and queued rather than sent, for the same reasons as
+    :func:`queue_avatar_removed`: not something to opt out of, not urgent
+    enough to interrupt, and it lands with the change or not at all.
+    """
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.username_changed,
+        data={
+            "previous_handle": previous_handle,
+            "target_path": "/settings/profile",
+        },
+    )
+
+
+async def queue_account_suspended(
+    session: AsyncSession, *, user: User, reason: str | None = None
+) -> None:
+    """Tell a user their account was suspended, and why if a reason was given.
+
+    They can still sign in, which is the only reason telling them works: a
+    suspension nobody could read would present as the app quietly breaking.
+    """
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.account_suspended,
+        data={"reason": reason, "target_path": "/settings/profile"},
+    )
+
+
+async def queue_account_unsuspended(session: AsyncSession, *, user: User) -> None:
+    """Tell a user their account is theirs again."""
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.account_unsuspended,
+        data={"target_path": "/"},
+    )

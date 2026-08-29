@@ -12,7 +12,6 @@ system-engine session against the configured database rather than the test one.
 
 import asyncio
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,8 +26,6 @@ from app.testing import (
     marketplace_uid,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 def _definition(name: str = "Cal") -> dict:
@@ -333,3 +330,25 @@ class TestUpdateVersion:
 
         await route_session_to_guild(session, guild.id)
         assert await update_version(session, app) is None
+
+    async def test_a_service_the_deployment_stopped_running_still_updates(
+        self, session: AsyncSession
+    ):
+        """Whether this deployment runs an app's service decides whether a
+        guild may *take* it. An install that is already here is the guild's
+        either way, so it keeps following the version its publisher ships —
+        switching the service back on finds the app current rather than a
+        version behind."""
+        uid = marketplace_uid("autounwired")
+        definition = _connection_definition()
+        await _publish(session, uid, "1.0.0", definition=definition)
+        guild, app = await _installed(session, uid, definition=definition)
+        await _publish(
+            session,
+            uid,
+            "1.3.0",
+            definition=_connection_definition("Shop v2", keys=("shop_domain", "token")),
+        )
+
+        await route_session_to_guild(session, guild.id)
+        assert await update_version(session, app) == "1.3.0"

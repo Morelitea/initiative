@@ -40,6 +40,7 @@ from app.services import email as email_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import push_notifications
 from app.services.platform import user_notifications
+from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +249,7 @@ async def request_grant(
     session.add(grant)
     await session.flush()
 
-    requester_name = requester.full_name or requester.email
+    requester_name = display_name(requester)
     for approver in await _approvers(session):
         await user_notifications.create_notification(
             session,

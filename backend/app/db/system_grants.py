@@ -108,6 +108,17 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # Mirrored listing artwork: written by the refresh job; DELETE prunes bytes
     # no listing references any more.
     "marketplace_media": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Guild icons and banners: the whole table is the system engine's, because
+    # the one thing it has to answer — may this caller see this guild's icon or
+    # card rendition — depends on a listing the caller may hold no role to read.
+    # Serving reads; a guild admin replacing a picture inserts (after the
+    # endpoint has checked their role) and deletes the one it replaces.
+    "guild_images": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Profile pictures. The system engine reads them to serve the bytes before a
+    # session exists, writes them on the backfill, and DELETEs on the moderation
+    # and anonymization paths — both of which act on someone else's row and so
+    # cannot run under the own-row request-path policies.
+    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -141,6 +152,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Append-only. The system engine writes the record and the board reads it;
+    # UPDATE and DELETE are granted to nobody at all, here included, because a
+    # record that could be rewritten afterwards would not be one.
+    "audit_events": frozenset({"SELECT", "INSERT"}),
     # the system engine delivers push itself (background digests, PAM notices),
     # and delivery bookkeeping is part of that: UPDATE stamps last_used_at,
     # DELETE prunes tokens FCM reports as unregistered
@@ -180,6 +195,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system engine — see security_invariants_test.
     "users": frozenset({"SELECT"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Written and read on the system engine only — the request path never
+    # touches the log, in either direction.
+    "audit_events": None,
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,
@@ -203,10 +221,21 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # ships, so it is served exactly as they are: to anyone holding the digest,
     # before a session is routed. Bytes only, addressed by their own hash.
     "marketplace_media": frozenset({"SELECT"}),
+    # A name and a face are public information here: any role may read any
+    # avatar, and the row policies narrow writes to the caller's own. The bare
+    # login role reads because the serve endpoint answers before routing.
+    "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,
     "guilds": frozenset({"SELECT"}),
+    # No TABLE grant: the bytes are the system engine's, and the endpoint that
+    # serves them decides who may see which variant. The request path holds a
+    # column-scoped SELECT on (guild_id, variant, sha256) instead — enough to
+    # name a member's own guild images in their guild list, never enough to
+    # read one. Column grants live in pg_attribute, not relacl, so they are
+    # asserted separately (security_invariants_test).
+    "guild_images": None,
     # Read-only for every request-path role, this one included — no login role
     # writes a guild's caps or its sign-in entitlement. RLS narrows the rows to
     # the caller's own guilds (plus a live PAM grant).

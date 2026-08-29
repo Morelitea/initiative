@@ -1,19 +1,24 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 
-from sqlalchemy import Integer, bindparam, func, text
+from sqlalchemy import Integer, bindparam, func, or_, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.role_context import set_guild_shows_member_names
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
+    BANNER_TEXT_COLORS,
+    DEFAULT_BANNER,
+    DEFAULT_BANNER_TEXT_COLOR,
     Guild,
+    GuildCategory,
     GuildInvite,
     GuildMembership,
     GuildRole,
@@ -36,6 +41,51 @@ class GuildInviteError(Exception):
 
 class GuildCapacityError(Exception):
     """Raised when adding a member would exceed the guild's ``max_users`` cap."""
+
+
+class CommunityJoinError(Exception):
+    """Raised when a guild cannot be joined from the community directory."""
+
+
+class CommunityListingError(Exception):
+    """Raised when a guild does not qualify to be listed in the directory."""
+
+
+class CommunityDirectoryDisabledError(Exception):
+    """Raised when the deployment runs no community directory at all."""
+
+
+class BannerColorError(Exception):
+    """Raised when a banner colour is not a ``#rrggbb`` value."""
+
+
+# A guild whose seat cap is one can never admit a joiner, so listing it would
+# publish a card whose only button is guaranteed to fail. Unlike a guild that is
+# merely full today, this one can never have room, which is why it is refused
+# outright rather than left to the capacity check at join time.
+MIN_COMMUNITY_SEATS = 2
+
+
+# Canonical order for a guild's categories: the order they are declared in
+# ``GuildCategory``. Storing them sorted means every card, filter chip, and
+# assertion sees the same sequence regardless of the order they were checked.
+_CATEGORY_ORDER = {
+    category.value: index for index, category in enumerate(GuildCategory)
+}
+
+
+def normalize_categories(categories: Sequence[str] | None) -> list[str]:
+    """De-duplicate a category selection and put it in canonical order.
+
+    Unknown values are dropped rather than rejected: the schema layer has
+    already validated the request against ``GuildCategory``, and the database
+    CHECK is the backstop, so anything else reaching here is a value this build
+    no longer recognizes and simply has no shelf to sit on.
+    """
+    if not categories:
+        return []
+    unique = {value for value in categories if value in _CATEGORY_ORDER}
+    return sorted(unique, key=lambda value: _CATEGORY_ORDER[value])
 
 
 async def _persist_new_guild(session: AsyncSession, guild: Guild) -> Guild:
@@ -183,7 +233,58 @@ async def ensure_membership(
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
+    await enroll_new_member_in_auto_join_initiatives(
+        session, guild_id=guild_id, user_id=user_id, role=role
+    )
     return membership
+
+
+async def enroll_new_member_in_auto_join_initiatives(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    role: GuildRole,
+) -> None:
+    """Put a brand-new guild member into the guild's auto-join initiatives.
+
+    Called on a genuine membership insert only, which is what makes this the
+    onboarding hook rather than a sweep: someone who was already in the guild
+    is returned earlier and is never re-enrolled.
+
+    A guild admin is skipped. They already reach every initiative in their guild
+    by standing, and the built-in ``member`` role is one they must never hold
+    (see ``_guard_guild_admin_role``) — so for them there is nothing to grant and
+    a row to avoid. This also covers guild creation, where the admin membership
+    is written before the guild's schema exists at all.
+
+    The initiatives live in the guild's schema and the join paths that reach here
+    run on the system engine with ``search_path = public``, so the work is done
+    through a routed excursion that hands the session back as it found it. The
+    whole excursion sits inside a savepoint: landing somewhere useful is a
+    convenience, and it must never be the reason someone's guild join fails.
+    """
+    if role == GuildRole.admin:
+        return
+    from app.db.session import guild_schema_context
+    from app.services.tenant import initiatives as initiatives_service
+
+    try:
+        async with session.begin_nested():
+            async with guild_schema_context(session, guild_id=guild_id):
+                # A second savepoint so a failure unwinds before the excursion
+                # restores the caller's context, rather than during it.
+                async with session.begin_nested():
+                    await initiatives_service.enroll_in_auto_join_initiatives(
+                        session, guild_id=guild_id, user_id=user_id
+                    )
+    except Exception:
+        logger.exception(
+            "auto-join: user %s joined guild %s but was enrolled in none of its "
+            "auto-join initiatives",
+            user_id,
+            guild_id,
+        )
 
 
 # Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
@@ -424,7 +525,6 @@ async def create_guild(
     *,
     name: str,
     description: str | None = None,
-    icon_base64: str | None = None,
     creator: User | None = None,
     owner: User | None = None,
 ) -> Guild:
@@ -443,7 +543,6 @@ async def create_guild(
         description=description.strip()
         if description and description.strip()
         else None,
-        icon_base64=icon_base64,
         created_by=creator.id if creator else None,
         created_at=now,
         updated_at=now,
@@ -516,21 +615,91 @@ async def seed_guild_content(
         )
 
 
+#: The characters a hex colour is made of, checked one at a time. An explicit
+#: set rather than a pattern: the value ends up inside a style attribute, and
+#: "which characters are allowed" should be readable as exactly that.
+_HEX_DIGITS = frozenset("0123456789abcdef")
+
+
+def normalize_banner_text_color(value: str | None) -> str:
+    """One of :data:`BANNER_TEXT_COLORS`. Anything else raises.
+
+    Banner text is not a free choice, here or in the UI that sets it: the fill
+    behind it is the guild's to pick and its artwork can be anything, so the
+    words stay readable only by sitting at one end of the scale or the other.
+    """
+    candidate = normalize_banner_color(value, fallback=DEFAULT_BANNER_TEXT_COLOR)
+    if candidate not in BANNER_TEXT_COLORS:
+        raise BannerColorError(GuildMessages.BANNER_TEXT_COLOR_INVALID)
+    return candidate
+
+
+def normalize_banner_color(value: str | None, *, fallback: str) -> str:
+    """``#rrggbb`` lowercased. Never None — a banner always has its colours.
+
+    ``None`` and an empty string both mean "back to the default", which is what
+    a reset sends. A trailing alpha byte is dropped rather than refused: the
+    shared colour picker can emit ``#rrggbbaa``, and a banner is a fill with
+    nothing behind it for alpha to mean anything against.
+    """
+    if value is None:
+        return fallback
+    candidate = value.strip().lower()
+    if not candidate:
+        return fallback
+    if len(candidate) == 9:
+        candidate = candidate[:7]
+    if (
+        len(candidate) != 7
+        or candidate[0] != "#"
+        or any(character not in _HEX_DIGITS for character in candidate[1:])
+    ):
+        raise BannerColorError(GuildMessages.BANNER_COLOR_INVALID)
+    return candidate
+
+
+def normalize_banner(values: Mapping[str, str] | None) -> dict[str, str]:
+    """The whole banner, canonical. ``None`` is a reset to the default.
+
+    A banner is never colourless and never without a layout, so there is
+    nothing here for "empty" to mean — every key comes back. The layout values
+    arrive already inside their vocabularies (the request schema types them as
+    the enums), leaving the colours to normalize.
+    """
+    if values is None:
+        return dict(DEFAULT_BANNER)
+    return {
+        "color": normalize_banner_color(
+            values.get("color"), fallback=DEFAULT_BANNER["color"]
+        ),
+        "text_color": normalize_banner_text_color(values.get("text_color")),
+        "text_align": values.get("text_align") or DEFAULT_BANNER["text_align"],
+        "fade": values.get("fade") or DEFAULT_BANNER["fade"],
+    }
+
+
 async def update_guild(
     session: AsyncSession,
     *,
     guild_id: int,
     name: str | None = None,
     description: str | None = None,
-    icon_base64: str | None = None,
-    icon_provided: bool = False,
     retention_days: int | None = None,
     retention_days_provided: bool = False,
+    is_community: bool | None = None,
+    categories: Sequence[str] | None = None,
+    categories_provided: bool = False,
+    has_adult_content: bool | None = None,
+    has_adult_content_provided: bool = False,
+    banner: Mapping[str, str] | None = None,
+    banner_provided: bool = False,
+    show_member_names: bool | None = None,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
     max_users_provided: bool = False,
     guild_auth_enabled: bool | None = None,
+    banner_image_enabled: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -542,9 +711,51 @@ async def update_guild(
         if guild.description != normalized_description:
             guild.description = normalized_description
             updated = True
-    if icon_provided and icon_base64 != guild.icon_base64:
-        guild.icon_base64 = icon_base64
+    if banner_provided:
+        normalized_banner = normalize_banner(banner)
+        if guild.banner != normalized_banner:
+            guild.banner = normalized_banner
+            updated = True
+    # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
+    # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
+    if is_community is not None and guild.is_community != is_community:
+        # Only the way in is gated. Un-listing is always available — a guild
+        # that opted in while the directory was running must still be able to
+        # opt back out after an owner switches it off.
+        if is_community:
+            await assert_community_directory_enabled(session)
+        guild.is_community = is_community
         updated = True
+    if categories_provided:
+        normalized = normalize_categories(categories)
+        if guild.categories != normalized:
+            # Assigned, never mutated in place: SQLAlchemy does not track
+            # in-place changes to an ARRAY column, so an ``.append()`` here
+            # would flush nothing.
+            guild.categories = normalized
+            updated = True
+    # The one field here where an explicit null is an answer (back to
+    # undeclared) rather than "leave it alone", so it reads the provided flag.
+    if has_adult_content_provided and guild.has_adult_content != has_adult_content:
+        guild.has_adult_content = has_adult_content
+        updated = True
+    # Checked against the state the guild is ending up in, not against what this
+    # PATCH happened to carry: a request that only clears the categories of an
+    # already-listed guild has to fail for the same reason as one that lists a
+    # guild with none. Two of the three rules are also database CHECKs; this is
+    # what turns them into an error a person can read.
+    if show_member_names is not None and guild.show_member_names != show_member_names:
+        guild.show_member_names = show_member_names
+        updated = True
+    # Members of a listed guild are known by their handle. Listing one turns
+    # names off in the same write rather than refusing the request, so an admin
+    # never has to do it in two steps — ck_guilds_community_member_names is what
+    # makes it impossible to end up with both.
+    if guild.is_community and guild.show_member_names:
+        guild.show_member_names = False
+        updated = True
+    if guild.is_community:
+        await _assert_listable(session, guild)
     if updated:
         guild.updated_at = datetime.now(timezone.utc)
         session.add(guild)
@@ -558,6 +769,7 @@ async def update_guild(
         max_storage_bytes_provided
         or max_users_provided
         or guild_auth_enabled is not None
+        or banner_image_enabled is not None
     ):
         administration_updated = False
         administration = await get_administration(session, guild_id=guild_id)
@@ -581,6 +793,12 @@ async def update_guild(
             and administration.guild_auth_enabled != guild_auth_enabled
         ):
             administration.guild_auth_enabled = guild_auth_enabled
+            administration_updated = True
+        if (
+            banner_image_enabled is not None
+            and administration.banner_image_enabled != banner_image_enabled
+        ):
+            administration.banner_image_enabled = banner_image_enabled
             administration_updated = True
         if administration_updated:
             session.add(administration)
@@ -789,6 +1007,209 @@ async def redeem_invite_for_user(
     return guild
 
 
+async def assert_community_directory_enabled(session: AsyncSession) -> None:
+    """Raise unless the platform owner has switched the directory on.
+
+    Read here rather than at each call site so the three surfaces the directory
+    consists of — browsing, joining, and a guild listing itself — cannot drift
+    apart. Imported lazily because the app-settings service reads guilds.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.community_directory_enabled(session):
+        raise CommunityDirectoryDisabledError(
+            GuildMessages.COMMUNITY_DIRECTORY_DISABLED
+        )
+
+
+async def _assert_listable(session: AsyncSession, guild: Guild) -> None:
+    """Raise ``CommunityListingError`` unless this guild may be listed.
+
+    Three conditions, each with its own message so the reply says which one:
+
+    - it is on at least one shelf,
+    - it has declared itself free of adult content (an unanswered NULL is not a
+      declaration and is refused separately from an 18+ guild), and
+    - its seat cap leaves room for somebody to join.
+    """
+    if not guild.categories:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CATEGORY)
+    if guild.has_adult_content is None:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_CONTENT_NOT_DECLARED)
+    if guild.has_adult_content:
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_ADULT_CONTENT)
+    administration = await get_administration(session, guild_id=guild.id)
+    if (
+        administration.max_users is not None
+        and administration.max_users < MIN_COMMUNITY_SEATS
+    ):
+        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CAPACITY)
+
+
+def community_listing_filters() -> list:
+    """The conditions a guild must meet to be showing a card in the directory.
+
+    One list, because three paths ask the same question and must agree: the
+    directory that lists a guild, the join that its listing authorizes, and the
+    images that listing publishes. A guild that has dropped out of the first
+    must drop out of the other two in the same instant.
+
+    Two of the three are CHECK constraints on ``guilds`` as well (a listed
+    guild is on a shelf and has declared itself free of adult content), so a
+    row that reaches this query already satisfies them. The seat cap is not: it
+    lives on ``guild_administration``, only an operator sets it, and it can be
+    lowered long after the listing was made.
+    """
+    return [
+        Guild.is_community.is_(True),
+        Guild.status == GuildStatus.active.value,
+        # NULL is unlimited, hence the explicit null leg.
+        or_(
+            GuildAdministration.max_users.is_(None),
+            GuildAdministration.max_users >= MIN_COMMUNITY_SEATS,
+        ),
+    ]
+
+
+async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> bool:
+    """Whether this guild is showing a card in the directory right now.
+
+    Asked per request rather than inherited from whatever produced a link, so a
+    guild that un-lists itself — or that an operator drops below the seat floor
+    — stops being reachable through it immediately.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.community_directory_enabled(session):
+        return False
+    statement = (
+        select(func.count())
+        .select_from(Guild)
+        .join(GuildAdministration, GuildAdministration.guild_id == Guild.id)
+        .where(Guild.id == guild_id)
+    )
+    for condition in community_listing_filters():
+        statement = statement.where(condition)
+    return bool((await session.exec(statement)).one())
+
+
+async def list_community_guilds(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    query: str | None = None,
+    category: str | None = None,
+    offset: int = 0,
+    limit: int = 24,
+) -> tuple[list[tuple[Guild, int, bool]], int]:
+    """The community directory: (guild, member_count, already_member) + total.
+
+    Which guilds appear is not this function's decision — it is
+    ``community_listing_filters()``, so the directory, the join it authorizes,
+    and the images it publishes cannot drift apart.
+
+    Ordered by member count, busiest first, since that is what someone with no
+    guild yet is choosing between; ``query`` narrows on name or description
+    across the whole directory rather than within a page, so a search reaches
+    guilds no amount of scrolling had loaded.
+
+    Needs a session that can see every guild's ``guild_memberships`` rows to
+    count them (the system engine), the same precondition ``count_members``
+    documents. Nothing about a guild's *content* is read — only the identity it
+    published by opting in, plus how many people are already there.
+    """
+    await assert_community_directory_enabled(session)
+    member_count = (
+        select(func.count())
+        .select_from(GuildMembership)
+        .where(GuildMembership.guild_id == Guild.id)
+        .correlate(Guild)
+        .scalar_subquery()
+    )
+    already_member = (
+        select(func.count())
+        .select_from(GuildMembership)
+        .where(
+            GuildMembership.guild_id == Guild.id,
+            GuildMembership.user_id == user_id,
+        )
+        .correlate(Guild)
+        .scalar_subquery()
+    )
+
+    filters = community_listing_filters()
+    if category:
+        filters.append(Guild.categories.contains([category]))
+    if query and query.strip():
+        # Case-insensitive across the two fields a card actually shows.
+        needle = f"%{query.strip()}%"
+        filters.append(or_(Guild.name.ilike(needle), Guild.description.ilike(needle)))
+
+    # Every guild has exactly one administration row, created with it, so this
+    # is an inner join by construction.
+    administration_join = (
+        GuildAdministration,
+        GuildAdministration.guild_id == Guild.id,
+    )
+    count_statement = select(func.count()).select_from(Guild).join(*administration_join)
+    statement = select(Guild, member_count, already_member > 0).join(
+        *administration_join
+    )
+    for condition in filters:
+        statement = statement.where(condition)
+        count_statement = count_statement.where(condition)
+
+    total = (await session.exec(count_statement)).one()
+    # Busiest first: someone browsing for a community to join is best served by
+    # the ones with people already in them. Name and id break ties, so a guild
+    # never swaps pages between two requests that saw the same counts.
+    statement = statement.order_by(
+        member_count.desc(), Guild.name.asc(), Guild.id.asc()
+    )
+    rows = (await session.exec(statement.offset(offset).limit(limit))).all()
+    return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(
+        total
+    )
+
+
+async def join_community_guild(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user: User,
+) -> Guild:
+    """Join a listed community guild — the invite-free half of the directory.
+
+    The opt-in is the authorization, so this asks the directory's own question
+    (``is_listed_in_directory``) rather than a version of it. A guild that is
+    not listed is reported as not found rather than as forbidden — an unlisted
+    guild has published nothing, and its existence at a given id is part of
+    that.
+
+    Runs on the system engine for the same reason ``accept_invite`` does: the
+    caller is not a member yet, so no guild-scoped role exists to write the
+    membership under.
+    """
+    await assert_community_directory_enabled(session)
+    try:
+        guild = await get_guild(session, guild_id=guild_id)
+    except ValueError as exc:
+        raise CommunityJoinError(GuildMessages.GUILD_NOT_FOUND) from exc
+    # Exactly what the directory shows, so a guild it does not list cannot be
+    # joined by asking for it directly either.
+    if not await is_listed_in_directory(session, guild_id=guild_id):
+        raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+    # Capacity is enforced inside ensure_membership, which is also where a
+    # repeat join short-circuits to the existing membership.
+    await ensure_membership(
+        session,
+        guild_id=guild_id,
+        user_id=user.id,
+        role=GuildRole.member,
+    )
+    return guild
+
+
 async def describe_invite_code(
     session: AsyncSession,
     *,
@@ -859,3 +1280,18 @@ async def remove_user_from_guild(
     # must not nudge billing).
     if result.rowcount:
         billing_ping.notify_membership_changed(guild_id)
+
+
+async def adopt_guild_name_display(session: AsyncSession, *, guild_id: int) -> None:
+    """Render this request the way ``guild_id`` renders its members.
+
+    The guild path sets this with the rest of the guild context. The two
+    endpoints that route into a guild by hand — the platform and self-service
+    initiative-member pickers — have no guild context to carry it, so they take
+    the setting here instead. Reading a guild's roster and showing names it
+    does not show, or hiding names it does, would both be wrong.
+    """
+    shows = (
+        await session.exec(select(Guild.show_member_names).where(Guild.id == guild_id))
+    ).one_or_none()
+    set_guild_shows_member_names(bool(shows))

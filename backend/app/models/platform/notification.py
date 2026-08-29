@@ -10,6 +10,9 @@ class NotificationType(str, Enum):
     task_assignment = "task_assignment"
     overdue_tasks = "overdue_tasks"
     initiative_added = "initiative_added"
+    initiative_join_requested = "initiative_join_requested"
+    initiative_join_approved = "initiative_join_approved"
+    initiative_join_denied = "initiative_join_denied"
     project_added = "project_added"
     user_pending_approval = "user_pending_approval"
     mention = "mention"
@@ -29,6 +32,10 @@ class NotificationType(str, Enum):
     export_failed = "export_failed"
     import_ready = "import_ready"
     import_failed = "import_failed"
+    avatar_removed = "avatar_removed"
+    username_changed = "username_changed"
+    account_suspended = "account_suspended"
+    account_unsuspended = "account_unsuspended"
 
 
 class Notification(SQLModel, table=True):

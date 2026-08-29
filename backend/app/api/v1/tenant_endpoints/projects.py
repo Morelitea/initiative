@@ -40,7 +40,8 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
     PermissionKey,
 )
-from app.models.platform.user import User
+from app.core import usernames
+from app.models.platform.user import User, UserStatus
 from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document, ProjectDocument
 from app.models.tenant.tag import ProjectTag
@@ -53,6 +54,7 @@ from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
@@ -1039,6 +1041,14 @@ async def list_projects(
             "initiative. For project pickers and other list-only callers."
         ),
     ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit to keep the "
+            "reader's own manual order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=0, ge=0, le=100),
 ) -> ProjectListResponse:
@@ -1079,8 +1089,19 @@ async def list_projects(
             ),
         )
         .where(*conditions)
-        .order_by(ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc())
         .options(*load_options)
+    )
+    # No sort asked for keeps the per-user manual order the projects page
+    # drags into place; a sort replaces it for this request only. The
+    # statement is already joined to Initiative, so ordering by it needs no
+    # second join.
+    data_stmt = tool_listing.apply_tool_order(
+        data_stmt,
+        Project,
+        sort_by,
+        sort_dir,
+        default=[ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()],
+        initiative_joined=True,
     )
     # page_size<=0 serves FETCH_ALL_WINDOW-sized pages (bounded response,
     # SEC-14) that honor ``page`` — has_next tells the caller to keep walking.
@@ -1822,11 +1843,16 @@ async def search_project_members(
     # to reference initiative members when written (see replace_resource_grants),
     # so the membership list is a complete superset of the assignable users.
     members = getattr(project.initiative, "memberships", None) or []
+    shows_names = bool(guild_context.guild.show_member_names)
     assignable: list[User] = []
     seen: set[int] = set()
     for member in members:
         user = member.user
         if user is None or user.id in seen:
+            continue
+        # A suspended account keeps its membership and its grants, and is not
+        # offered as someone to assign work to while the suspension lasts.
+        if user.status == UserStatus.suspended:
             continue
         if permissions_service.has_project_write_access(project, user):
             assignable.append(user)
@@ -1834,12 +1860,36 @@ async def search_project_members(
 
     term = (search or "").strip().lower()
     if term:
-        assignable = [u for u in assignable if term in (u.full_name or "").lower()]
+        # Matches what this guild renders, for the same reason the roster
+        # search does: a filter over a hidden field is that field.
+        name_part, number = usernames.parse_handle(term)
+        needle = name_part.lower()
+        if number is not None:
+            assignable = [
+                u
+                for u in assignable
+                if u.username.lower() == needle
+                and f"{u.discriminator:04d}".startswith(number)
+            ]
+        else:
+            assignable = [
+                u
+                for u in assignable
+                if needle in u.username.lower()
+                or (shows_names and needle in (u.full_name or "").lower())
+            ]
     if user_id:
         wanted = set(user_id)
         assignable = [u for u in assignable if u.id in wanted]
 
-    assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
+    assignable.sort(
+        key=lambda u: (
+            (u.full_name or "").lower() if shows_names else "",
+            u.username.lower(),
+            u.discriminator,
+            u.id,
+        )
+    )
 
     total_count = len(assignable)
     actual_page = clamp_page(page, page_size, total_count)

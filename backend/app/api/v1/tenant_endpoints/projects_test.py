@@ -111,6 +111,7 @@ async def test_search_project_members_returns_write_access_set(
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
+        username="quill",
         full_name="Wanda Writer",
     )
     reader = await acting_user(
@@ -118,6 +119,7 @@ async def test_search_project_members_returns_write_access_set(
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
+        username="lantern",
         full_name="Rob Reader",
     )
     # A member of the initiative with no grant at all.
@@ -126,6 +128,7 @@ async def test_search_project_members_returns_write_access_set(
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
+        username="thistle",
         full_name="Nora None",
     )
 
@@ -157,33 +160,42 @@ async def test_search_project_members_returns_write_access_set(
 
     assert response.status_code == 200
     body = response.json()
-    names = {item["full_name"] for item in body["items"]}
+    handles = {item["username"] for item in body["items"]}
     # Owner (admin) + write-granted member are assignable.
-    assert admin.user.full_name in names
-    assert "Wanda Writer" in names
+    assert admin.user.username in handles
+    assert "quill" in handles
     # Read-only and no-grant members are not.
-    assert "Rob Reader" not in names
-    assert "Nora None" not in names
+    assert "lantern" not in handles
+    assert "thistle" not in handles
     # Slim projection shape.
     assert set(body["items"][0].keys()) == {
         "id",
+        "username",
+        "discriminator",
         "full_name",
-        "avatar_base64",
         "avatar_url",
         "status",
     }
 
-    # Name filter.
+    # The filter matches what the guild renders — the handle always.
     response = await client.get(
         admin.g(f"/projects/{project.id}/members/search"),
         headers=admin.headers,
-        params={"search": "wanda"},
+        params={"search": "quil"},
     )
     assert response.status_code == 200
     body = response.json()
-    assert [item["full_name"] for item in body["items"]] == ["Wanda Writer"]
+    assert [item["username"] for item in body["items"]] == ["quill"]
 
-    # Id filter (a picker resolving stored ids into names) narrows the same
+    # And her name too, because this guild takes the default and shows names.
+    response = await client.get(
+        admin.g(f"/projects/{project.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "Wanda"},
+    )
+    assert [item["username"] for item in response.json()["items"]] == ["quill"]
+
+    # Id filter (a picker resolving stored ids into handles) narrows the same
     # assignable set — the read-only member is not resolvable through it.
     response = await client.get(
         admin.g(f"/projects/{project.id}/members/search"),
@@ -192,7 +204,7 @@ async def test_search_project_members_returns_write_access_set(
     )
     assert response.status_code == 200
     body = response.json()
-    assert [item["full_name"] for item in body["items"]] == ["Wanda Writer"]
+    assert [item["username"] for item in body["items"]] == ["quill"]
 
 
 @pytest.mark.integration

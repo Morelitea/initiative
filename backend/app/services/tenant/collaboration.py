@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, Tuple
 
 from fastapi import WebSocket
 from pycrdt import Doc
@@ -33,14 +33,12 @@ class CollaboratorInfo:
         websocket: WebSocket,
         can_write: bool = False,
         avatar_url: Optional[str] = None,
-        avatar_base64: Optional[str] = None,
     ):
         self.user_id = user_id
         self.name = name
         self.websocket = websocket
         self.can_write = can_write
         self.avatar_url = avatar_url
-        self.avatar_base64 = avatar_base64
         self.cursor_position: Optional[Dict[str, Any]] = None
         self.connected_at = datetime.now(timezone.utc)
 
@@ -63,6 +61,40 @@ class DocumentRoom:
         self._lock = asyncio.Lock()
         self._initialized = False
         self._pending_updates: list[bytes] = []
+        # Reading this room's state out of the database is the one slow thing a
+        # room does, and it happens once. It gets a lock of its own so it is not
+        # done under the lock the collaborators use, nor the registry's.
+        self._load_lock = asyncio.Lock()
+        self._loaded = False
+
+    @property
+    def is_loaded(self) -> bool:
+        """Whether this room has had its one read of the database."""
+        return self._loaded
+
+    async def load_once(self, session: AsyncSession) -> None:
+        """Read this room's stored state, once, however many callers arrive.
+
+        Callers can reach a room the moment it is claimed, before anyone has
+        loaded it. The first one through does the read and the rest wait on it
+        rather than repeating it. A document that is no longer there still
+        counts as read: the room stays empty rather than asking again.
+
+        ``session`` must be routed to the guild whose schema holds the row.
+        """
+        if self._loaded:
+            return
+        async with self._load_lock:
+            if self._loaded:
+                return
+            statement = select(Document).where(Document.id == self.document_id)
+            document = (await session.exec(statement)).one_or_none()
+            if document:
+                await self.initialize_from_db(
+                    yjs_state=document.yjs_state,
+                    lexical_content=document.content,
+                )
+            self._loaded = True
 
     async def initialize_from_db(
         self, yjs_state: Optional[bytes], lexical_content: Optional[dict]
@@ -217,7 +249,6 @@ class DocumentRoom:
                 "name": c.name,
                 "can_write": c.can_write,
                 "avatar_url": c.avatar_url,
-                "avatar_base64": c.avatar_base64,
                 "cursor": c.cursor_position,
             }
             for c in self.collaborators.values()
@@ -233,6 +264,15 @@ class DocumentRoom:
             return len(self.collaborators) == 0
 
 
+# A room is identified by (guild_id, document_id). The guild_id is part of the
+# key because documents live in per-guild schemas (`guild_<id>.documents`, `id
+# SERIAL`): document ids are per-schema sequences, so id 5 names a different
+# document in every guild that has one. This manager is a single process-global
+# structure, so the id alone does not identify a document. Never key
+# collaboration state by a guild-schema-local id alone.
+RoomKey = Tuple[int, int]
+
+
 class CollaborationManager:
     """
     Manages all active document collaboration rooms.
@@ -244,57 +284,66 @@ class CollaborationManager:
     """
 
     def __init__(self):
-        self._rooms: Dict[int, DocumentRoom] = {}
+        self._rooms: Dict[RoomKey, DocumentRoom] = {}
         self._lock = asyncio.Lock()
         self._persistence_interval = 30  # seconds
         self._persistence_task: Optional[asyncio.Task] = None
 
     async def get_or_create_room(
         self,
+        guild_id: int,
         document_id: int,
         session: AsyncSession,
     ) -> DocumentRoom:
-        """Get an existing room or create a new one."""
+        """Get an existing room or create a new one.
+
+        ``session`` must be routed to ``guild_id`` — the document is loaded
+        through it, from that guild's schema.
+        """
+        key = (guild_id, document_id)
+        # The registry lock is held only long enough to claim the room's slot.
+        # Reading its state is database I/O, and doing that here would make one
+        # slow document a wait for every other room in the process, in every
+        # guild. It happens below, guarded by the room itself.
         async with self._lock:
-            if document_id not in self._rooms:
+            room = self._rooms.get(key)
+            if room is None:
                 room = DocumentRoom(document_id)
+                self._rooms[key] = room
+                logger.info(
+                    f"Created collaboration room for document {document_id} "
+                    f"in guild {guild_id}"
+                )
 
-                # Load document from database
-                stmt = select(Document).where(Document.id == document_id)
-                result = await session.exec(stmt)
-                document = result.one_or_none()
+        await room.load_once(session)
+        return room
 
-                if document:
-                    await room.initialize_from_db(
-                        yjs_state=document.yjs_state,
-                        lexical_content=document.content,
-                    )
-
-                self._rooms[document_id] = room
-                logger.info(f"Created collaboration room for document {document_id}")
-
-            return self._rooms[document_id]
-
-    async def remove_room(self, document_id: int) -> None:
+    async def remove_room(self, guild_id: int, document_id: int) -> None:
         """Remove a room if it exists and is empty.
 
         Uses two-phase check to prevent race condition where a collaborator
         joins between checking is_empty() and deleting the room.
         """
+        key = (guild_id, document_id)
         async with self._lock:
-            room = self._rooms.get(document_id)
+            room = self._rooms.get(key)
             if not room:
+                return
+            # A room that has been claimed but not yet read in is empty because
+            # nobody has arrived yet, not because everyone has left. Whoever is
+            # loading it is about to join it.
+            if not room.is_loaded:
                 return
             # Acquire room lock to ensure no collaborator is joining concurrently
             # This prevents the race where add_collaborator runs between our check and delete
             async with room._lock:
                 if room.is_empty():
-                    del self._rooms[document_id]
+                    del self._rooms[key]
                     logger.info(
                         f"Removed empty collaboration room for document {document_id}"
                     )
 
-    async def invalidate_room_if_empty(self, document_id: int) -> bool:
+    async def invalidate_room_if_empty(self, guild_id: int, document_id: int) -> bool:
         """Remove a room if it exists and has no active collaborators.
 
         Used when document content is modified externally (e.g., unresolving wikilinks
@@ -304,12 +353,17 @@ class CollaborationManager:
         Returns True if room was removed, False if room has active collaborators
         (in which case they'll have stale state until they reload).
         """
+        key = (guild_id, document_id)
         async with self._lock:
-            room = self._rooms.get(document_id)
+            room = self._rooms.get(key)
             if not room:
                 return True  # No room, nothing to invalidate
+            if not room.is_loaded:
+                # Being read in right now: leave it to the caller doing that,
+                # who is about to join it.
+                return False
             if room.is_empty():
-                del self._rooms[document_id]
+                del self._rooms[key]
                 logger.info(
                     f"Invalidated empty collaboration room for document {document_id}"
                 )
@@ -321,11 +375,17 @@ class CollaborationManager:
                 )
                 return False
 
-    async def persist_room(self, document_id: int, session: AsyncSession) -> None:
-        """Persist the current room state to the database."""
+    async def persist_room(
+        self, guild_id: int, document_id: int, session: AsyncSession
+    ) -> None:
+        """Persist the current room state to the database.
+
+        ``session`` must be routed to ``guild_id``, whose schema holds the row
+        being written.
+        """
         # Capture state while holding the lock to ensure consistency
         async with self._lock:
-            room = self._rooms.get(document_id)
+            room = self._rooms.get((guild_id, document_id))
             if not room:
                 return
             # Get state snapshot while holding lock to prevent concurrent modifications
@@ -347,17 +407,17 @@ class CollaborationManager:
             logger.error(f"Failed to persist Yjs state for document {document_id}: {e}")
             await session.rollback()
 
-    def get_active_rooms(self) -> Set[int]:
-        """Get the set of document IDs with active rooms."""
+    def get_active_rooms(self) -> Set[RoomKey]:
+        """Get the set of (guild, document) pairs with active rooms."""
         return set(self._rooms.keys())
 
-    def get_room(self, document_id: int) -> Optional[DocumentRoom]:
+    def get_room(self, guild_id: int, document_id: int) -> Optional[DocumentRoom]:
         """Get a room without creating it."""
-        return self._rooms.get(document_id)
+        return self._rooms.get((guild_id, document_id))
 
-    def has_active_collaborators(self, document_id: int) -> bool:
+    def has_active_collaborators(self, guild_id: int, document_id: int) -> bool:
         """Check if a document has active collaborators."""
-        room = self._rooms.get(document_id)
+        room = self._rooms.get((guild_id, document_id))
         return room is not None and not room.is_empty()
 
 

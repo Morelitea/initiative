@@ -17,7 +17,6 @@ Withdrawing has to be careful in the other direction too: a file this build
 ships but cannot read or validate must never take its own listing down.
 """
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.marketplace import MarketplaceListing
@@ -31,8 +30,6 @@ from app.services.marketplace.definitions import (
     normalize_publisher,
     normalize_listing_definition,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _seeded(session) -> dict[str, MarketplaceListing]:
@@ -162,6 +159,89 @@ class TestWithdrawingWhatIsNoLongerShipped:
         listings = await _seeded(session)
         assert listings["core.keep3"].available is True
         assert listings["core.keep4"].available is True
+
+    def _bundling_manifest(self, *, uid: str, public_id: str, dash_uid: str) -> dict:
+        """A service app that ships a dashboard arranged from its own widgets."""
+        endpoint = f"app.{public_id}.open-items"
+        return {
+            "uid": uid,
+            "public_id": public_id,
+            "kind": "app",
+            "name": public_id,
+            "publisher": "Tests",
+            "description": "A shipped app with a dashboard.",
+            "version": "1.0.0",
+            "definition": {
+                "app_kind": "service",
+                "service": {"public_id": public_id, "protocol": 1},
+                "features": ["endpoints", "widgets", "dashboards"],
+                "endpoints": [{"id": endpoint, "direction": "read"}],
+                "widgets": [
+                    {
+                        "id": "open-items",
+                        "meta": {"name": {"en": "Open items"}},
+                        "module_source": "export default () => ({});",
+                        "endpoints": [endpoint],
+                    }
+                ],
+                "dashboards": [
+                    {
+                        "uid": dash_uid,
+                        "public_id": f"{public_id}-overview",
+                        "name": "Overview",
+                        "widgets": [
+                            {
+                                "type": "open-items",
+                                "binding": {"endpoint_id": endpoint},
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+
+    async def test_a_bundled_dashboard_is_claimed_by_the_pass_that_publishes_it(
+        self, session, tmp_path
+    ):
+        """Its uid lives inside its app's manifest, so the sweep has to read the
+        manifest to know the build still ships it."""
+        await self._seed_dir(
+            tmp_path,
+            [
+                self._bundling_manifest(
+                    uid="BNDAPP00000001",
+                    public_id="core.bundler",
+                    dash_uid="DASHB0ARD00002",
+                )
+            ],
+        )
+        await seed_builtin_listings(session, tmp_path)
+
+        listings = await _seeded(session)
+        assert listings["core.bundler"].available is True
+        assert listings["core.bundler-overview"].available is True
+
+    async def test_dropping_the_bundling_app_withdraws_its_dashboard(
+        self, session, tmp_path
+    ):
+        await self._seed_dir(
+            tmp_path,
+            [
+                self._bundling_manifest(
+                    uid="BNDAPP00000002",
+                    public_id="core.bundler2",
+                    dash_uid="DASHB0ARD00003",
+                )
+            ],
+        )
+        await seed_builtin_listings(session, tmp_path)
+
+        (tmp_path / "core.bundler2.json").unlink()
+        await seed_builtin_listings(session, tmp_path)
+
+        listings = await _seeded(session)
+        assert listings["core.bundler2"].available is False
+        assert listings["core.bundler2-overview"].available is False
 
     async def test_an_operator_listing_is_not_this_build_to_withdraw(
         self, session, tmp_path

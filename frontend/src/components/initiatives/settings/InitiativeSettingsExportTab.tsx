@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { ExportWizard } from "@/components/exports/ExportWizard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TabsContent } from "@/components/ui/tabs";
 
 interface InitiativeSettingsExportTabProps {
   initiativeId: number;
@@ -16,7 +15,7 @@ export const InitiativeSettingsExportTab = ({ initiativeId }: InitiativeSettings
   const [wizardOpen, setWizardOpen] = useState(false);
 
   return (
-    <TabsContent value="export" className="space-y-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>{t("entry.initiativeTitle")}</CardTitle>
@@ -37,6 +36,6 @@ export const InitiativeSettingsExportTab = ({ initiativeId }: InitiativeSettings
         open={wizardOpen}
         onOpenChange={setWizardOpen}
       />
-    </TabsContent>
+    </div>
   );
 };

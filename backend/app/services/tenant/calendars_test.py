@@ -10,7 +10,6 @@ any initiative's export. The narrowed path lost the switch once, which is why
 it is pinned separately from the unfiltered one.
 """
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import Guild, GuildMembership
@@ -26,8 +25,6 @@ from app.testing import (
     create_user,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _workspace(

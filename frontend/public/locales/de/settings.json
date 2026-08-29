@@ -70,7 +70,16 @@
     "saving": "Speichern…",
     "reset": "Zurücksetzen",
     "updateSuccess": "Profil aktualisiert",
-    "updateError": "Profil konnte nicht aktualisiert werden"
+    "updateError": "Profil konnte nicht aktualisiert werden",
+    "avatarUploadHelp": "Beliebiges Bild. Es wird für dich quadratisch zugeschnitten und verkleinert.",
+    "avatar": {
+      "failed": "Dieses Bild konnte nicht gespeichert werden.",
+      "notAnImage": "Bitte wähle eine Bilddatei aus.",
+      "tooLarge": "Diese Datei ist zu groß. Versuche es mit einer unter 12 MB.",
+      "unreadable": "Dieses Bild konnte nicht gelesen werden."
+    },
+    "usernameLabel": "Benutzername",
+    "usernameHelp": "So sehen dich andere. Für eine Änderung wende dich an eine Moderatorin oder einen Moderator."
   },
   "security": {
     "devicesTitle": "Angemeldete Geräte",
@@ -614,7 +623,17 @@
     },
     "changeRoleTitle": "Plattformrolle ändern",
     "changeRoleDescription": "Dadurch wird die Plattformrolle von {{email}} in {{role}} geändert.",
-    "roleChangeSuccess": "Plattformrolle in {{role}} geändert"
+    "roleChangeSuccess": "Plattformrolle in {{role}} geändert",
+    "changeUsername": "Benutzernamen ändern",
+    "usernameChanged": "Benutzername geändert.",
+    "changeUsernameTitle": "Benutzernamen von {{handle}} ändern",
+    "changeUsernameBody": "Die Person wird benachrichtigt und kann die Änderung nicht selbst rückgängig machen. Die Nummer bleibt unverändert.",
+    "suspend": "Sperren",
+    "unsuspend": "Sperre aufheben",
+    "suspendTitle": "{{handle}} sperren?",
+    "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Gilde erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
+    "suspendReasonLabel": "Begründung (wird angezeigt)",
+    "actionError": "Das hat nicht geklappt. Bitte erneut versuchen."
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",
@@ -733,11 +752,12 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, KI, Gildenspeicher und App-Dienste für die gesamte Plattform.",
+    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, das Community-Verzeichnis, KI, Gildenspeicher und App-Dienste für die gesamte Plattform.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
+      "community": "Community",
       "ai": "KI",
       "storage": "Speicher",
       "appServices": "App-Dienste"
@@ -786,6 +806,9 @@
     "delegationJwksLabel": "Signaturschlüssel für Delegation (JWKS)",
     "delegationJwksHelp": "Der öffentliche Teil des Schlüssels, mit dem diese App Delegations-Token signiert. Füge den Schlüsselsatz ein, den die App veröffentlicht; zwei Einträge bedeuten, dass gerade rotiert wird. Ein leeres Feld entfernt ihn.",
     "delegationJwksInvalid": "Das ist kein gültiges JSON.",
+    "appDirectoryLabel": "Andere Apps finden (App-Verzeichnis)",
+    "appDirectoryHelp": "Diese App darf erfragen, wo eine andere in derselben Gilde installierte App antwortet. Erfordert zusätzlich Delegation: Ein Automatisierungsdienst hat beides, denn genau dafür ist er da – im Auftrag einer App bei einer anderen zu handeln.",
+    "appDirectoryBadge": "Findet andere Apps",
     "createTitle": "App-Dienst hinzufügen",
     "editTitle": "App-Dienst bearbeiten",
     "createDescription": "Richte Initiative auf einen laufenden App-Container aus. Beide Seiten müssen dasselbe gemeinsame Geheimnis besitzen.",
@@ -841,7 +864,8 @@
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff",
-      "guilds": "Gilden"
+      "guilds": "Gilden",
+      "audit": "Prüfprotokoll"
     }
   },
   "guilds": {
@@ -1074,5 +1098,31 @@
     "prefError": "Einstellung konnte nicht aktualisiert werden",
     "test": "Testen",
     "testSuccess": "Verbindung erfolgreich"
+  },
+  "community": {
+    "title": "Community-Verzeichnis",
+    "description": "Erlaube Gilden, sich dort einzutragen, wo alle Angemeldeten sie finden und ohne Einladung beitreten können.",
+    "toggleLabel": "Community-Verzeichnis betreiben",
+    "helpText": "Solange dies aktiv ist, können Gildenadministratoren ihre Gilde in den Gildeneinstellungen eintragen, und „Einer Community beitreten“ erscheint neben den Gilden aller. Ist es deaktiviert, gibt es nichts zu durchsuchen und keine Gilde kann sich eintragen.",
+    "reversibleNote": "Deaktivieren blendet das Verzeichnis aus; die Einträge der Gilden bleiben bestehen. Wird es wieder aktiviert, sind dieselben Gilden erneut gelistet.",
+    "enabledToast": "Das Community-Verzeichnis ist aktiv.",
+    "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
+    "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben."
+  },
+  "audit": {
+    "title": "Prüfprotokoll",
+    "description": "Was an Konten getan wurde, von wem und wann. Einträge bleiben erhalten, auch wenn die genannten Konten gelöscht sind.",
+    "whenColumn": "Wann",
+    "actionColumn": "Aktion",
+    "actorColumn": "Ausgeführt von",
+    "subjectColumn": "Betrifft",
+    "subjectFilterPlaceholder": "Nach Konto-ID filtern",
+    "departedAccount": "Konto #{{id}} (gelöscht)",
+    "empty": "Bisher wurde nichts aufgezeichnet.",
+    "pageOf": "Seite {{page}} von {{total}} Einträgen",
+    "actions": {
+      "user.avatar_removed": "Profilbild entfernt"
+    }
   }
 }

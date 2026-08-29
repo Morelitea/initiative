@@ -60,6 +60,34 @@ class GuildMessages:
     GUILD_DELETE_FAILED = "GUILD_DELETE_FAILED"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
+    # Asked to join a guild that is not listed in the community directory (or
+    # is no longer active). Reported as a 404 — an unlisted guild has published
+    # nothing, its existence at a given id included.
+    GUILD_NOT_A_COMMUNITY = "GUILD_NOT_A_COMMUNITY"
+    # The three things a guild must be before it can be listed: on at least one
+    # shelf, declared free of adult content, and able to admit anyone at all.
+    GUILD_COMMUNITY_REQUIRES_CATEGORY = "GUILD_COMMUNITY_REQUIRES_CATEGORY"
+    GUILD_COMMUNITY_CONTENT_NOT_DECLARED = "GUILD_COMMUNITY_CONTENT_NOT_DECLARED"
+    GUILD_COMMUNITY_ADULT_CONTENT = "GUILD_COMMUNITY_ADULT_CONTENT"
+    GUILD_COMMUNITY_REQUIRES_CAPACITY = "GUILD_COMMUNITY_REQUIRES_CAPACITY"
+    # The deployment runs no community directory: an owner has not switched it
+    # on. Distinct from the four rules above, which are about one guild — this
+    # one says the surface does not exist here at all.
+    COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
+    # A guild icon or banner rendition that is not one. Each names the rule it
+    # broke, so the settings page can say what to do about it rather than
+    # "that didn't work".
+    IMAGE_EMPTY = "IMAGE_EMPTY"
+    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    IMAGE_INVALID = "IMAGE_INVALID"
+    IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
+    IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
+    IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
+    BANNER_COLOR_INVALID = "BANNER_COLOR_INVALID"
+    # Banner text is black or white; nothing between the two is offered.
+    BANNER_TEXT_COLOR_INVALID = "BANNER_TEXT_COLOR_INVALID"
+    # Banner artwork is not part of what this guild has; the colour is.
+    BANNER_IMAGE_NOT_ENTITLED = "BANNER_IMAGE_NOT_ENTITLED"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
     # 'support' is synthesized for PAM grantees only; it is never a stored
     # guild-membership role, so it cannot be assigned via the role endpoints.
@@ -104,6 +132,34 @@ class InitiativeMessages:
     # built-in project_manager role.
     OVERRIDE_REQUIRES_GUILD_ADMIN = "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
     OVERRIDE_PM_ONLY = "INITIATIVE_OVERRIDE_PM_ONLY"
+    # Asked to self-join an initiative whose join policy is not 'open'. Reported
+    # for 'private' and 'request' alike, so the answer says only "not by this
+    # route" — a request-policy initiative is discoverable through the directory.
+    NOT_JOINABLE = "INITIATIVE_NOT_JOINABLE"
+    # Auto-join enrols new guild members automatically, so it is only coherent on
+    # an initiative they could also have found and joined themselves ('open').
+    AUTO_JOIN_REQUIRES_OPEN = "INITIATIVE_AUTO_JOIN_REQUIRES_OPEN"
+    # Auto-join shapes onboarding for the whole guild, so only a guild admin sets
+    # it — unlike join_policy, which any initiative manager may change.
+    AUTO_JOIN_ADMIN_ONLY = "INITIATIVE_AUTO_JOIN_ADMIN_ONLY"
+    # A PAM grant confers content read/write for a window; a membership row
+    # would outlast it, so joining is for real guild members.
+    GRANT_CANNOT_MANAGE_MEMBERS = "INITIATIVE_GRANT_CANNOT_MANAGE_MEMBERS"
+    # Asked to knock on an initiative whose join policy is not 'request'.
+    # Reported for 'private' and 'open' alike, so — like NOT_JOINABLE — the
+    # answer says only "not by this route".
+    NOT_REQUESTABLE = "INITIATIVE_NOT_REQUESTABLE"
+    # Nothing to ask for: the caller already holds a membership row here.
+    ALREADY_A_MEMBER = "INITIATIVE_ALREADY_A_MEMBER"
+    # A guild admin reaches every initiative in their guild by standing, and may
+    # only ever hold a manager role in one — so there is nothing for them to
+    # request, and no request that could be approved into a permitted row.
+    GUILD_ADMIN_NEED_NOT_REQUEST = "INITIATIVE_GUILD_ADMIN_NEED_NOT_REQUEST"
+    # One live request per user per initiative (uq_initiative_join_requests_pending).
+    JOIN_REQUEST_ALREADY_PENDING = "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING"
+    JOIN_REQUEST_NOT_FOUND = "INITIATIVE_JOIN_REQUEST_NOT_FOUND"
+    # Approve/deny act on a pending row only; a resolved one is history.
+    JOIN_REQUEST_ALREADY_RESOLVED = "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
 
 
 class FilterPresetMessages:
@@ -293,6 +349,8 @@ class AdminMessages:
     CANNOT_RESET_INACTIVE = "ADMIN_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "ADMIN_USER_ALREADY_ACTIVE"
     CANNOT_REACTIVATE_ANONYMIZED = "ADMIN_CANNOT_REACTIVATE_ANONYMIZED"
+    CANNOT_SUSPEND_SELF = "ADMIN_CANNOT_SUSPEND_SELF"
+    CANNOT_SUSPEND_INACTIVE = "ADMIN_CANNOT_SUSPEND_INACTIVE"
     ALREADY_ANONYMIZED = "ADMIN_ALREADY_ANONYMIZED"
     CANNOT_CHANGE_ROLE_INACTIVE = "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
     CANNOT_CHANGE_OWN_ROLE = "ADMIN_CANNOT_CHANGE_OWN_ROLE"
@@ -346,6 +404,7 @@ class UserMessages:
     API_KEY_NOT_FOUND = "USER_API_KEY_NOT_FOUND"
     API_KEY_READ_ONLY = "USER_API_KEY_READ_ONLY"
     API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_GUILD_FORBIDDEN"
+    USERNAME_ALREADY_CHOSEN = "USERNAME_ALREADY_CHOSEN"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"
@@ -363,6 +422,14 @@ class UserMessages:
     OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
     NOT_IN_GUILD = "USER_NOT_IN_GUILD"
+    AVATAR_NOT_FOUND = "USER_AVATAR_NOT_FOUND"
+    AVATAR_INVALID_IMAGE = "USER_AVATAR_INVALID_IMAGE"
+    AVATAR_TOO_LARGE = "USER_AVATAR_TOO_LARGE"
+    AVATAR_NOT_SQUARE = "USER_AVATAR_NOT_SQUARE"
+    AVATAR_TOO_LARGE_DIMENSIONS = "USER_AVATAR_TOO_LARGE_DIMENSIONS"
+    # A read payload's ``avatar_url`` is a path this API serves; writing one
+    # back would store it as though it were an external picture URL.
+    AVATAR_URL_NOT_EXTERNAL = "USER_AVATAR_URL_NOT_EXTERNAL"
 
 
 class ImportMessages:
@@ -432,6 +499,10 @@ class CalendarMessages:
     OWNER_REQUIRED = "CALENDAR_OWNER_REQUIRED"
     WRITE_ACCESS_REQUIRED = "CALENDAR_WRITE_ACCESS_REQUIRED"
     GRANT_CANNOT_MANAGE_MEMBERS = "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS"
+    # A guild calendar lives inside the calendar app, which is what reaches it
+    # and what its removal takes with it. Without the app there is nowhere to
+    # put one.
+    GUILD_APP_REQUIRED = "CALENDAR_GUILD_APP_REQUIRED"
 
 
 class CalendarEventMessages:
@@ -618,8 +689,10 @@ class GuildAppMessages:
     # --- connections ---
     #: No such connection on this install, or no such member connection.
     CONNECTION_NOT_FOUND = "GUILD_APP_CONNECTION_NOT_FOUND"
-    #: Connecting an account is for the connections a vendor authorizes per
-    #: person; a guild-wide credential is configured instead.
+    #: Connecting runs a vendor's flow, and this connection declares none —
+    #: its values are typed into the settings form instead. Named for the
+    #: scope because that is what it meant when only one scope could have a
+    #: flow; a guild-wide connection may now have one too.
     CONNECTION_NOT_INTERACTIVE = "GUILD_APP_CONNECTION_NOT_INTERACTIVE"
     #: Guild-wide values are configured through the config endpoint; a
     #: per-member connection is not.
@@ -653,9 +726,6 @@ class GuildAppMessages:
     #: guild's admins, or for an initiative's managers where the caller manages
     #: nothing.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
-    #: An interactive connection whose pinned definition carries no
-    #: ``connect_path``, so there is no vendor flow to send the member to.
-    CONNECT_PATH_MISSING = "GUILD_APP_CONNECT_PATH_MISSING"
     #: The placement sent is not a shape this build stores, or it names an
     #: initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"

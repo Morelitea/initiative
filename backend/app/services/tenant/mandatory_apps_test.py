@@ -35,7 +35,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.asyncio
 
 PROVIDED_ID = "platform.provided"
 PROVIDED_UID = marketplace_uid("provided")

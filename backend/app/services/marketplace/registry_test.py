@@ -39,7 +39,6 @@ from app.models.platform.marketplace_registry import (
 )
 from app.services.marketplace import registry
 
-pytestmark = pytest.mark.asyncio
 
 REGISTRY_ROOT = "https://registry.example.test/catalog/"
 INDEX_URL = REGISTRY_ROOT + "index.json"

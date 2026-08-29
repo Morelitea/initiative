@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+  Binoculars,
   Check,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -15,8 +16,10 @@ import { useTranslation } from "react-i18next";
 
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { DIRECTORY_SECTION_ID } from "@/components/guildHome/InitiativeDirectory";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { AppsSection } from "@/components/sidebar/AppsSection";
+import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
@@ -39,6 +42,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
@@ -49,24 +53,24 @@ import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
 import { guildPath } from "@/lib/guildUrl";
-import { getInitials } from "@/lib/initials";
-import { obfuscateEmail } from "@/lib/obfuscateEmail";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { INITIATIVES_ROUTE, toolDetailRoute } from "@/lib/tools";
+import { toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
+  const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
   const location = useLocation();
-  const { t } = useTranslation(["nav", "tags"]);
+  const { t } = useTranslation(["nav", "tags", "initiatives"]);
 
   // Auto-close sidebar on mobile after navigation
   useAutoCloseSidebar();
@@ -83,6 +87,16 @@ export const AppSidebar = () => {
 
   // Determine sidebar mode from route
   const isGuildRoute = location.pathname.startsWith("/g/");
+  // The community directory brings its own: what narrows it belongs beside the
+  // cards it narrows, not on the page with them. Only where there is a
+  // directory to narrow, though — where the owner runs none, the page says so
+  // and the sidebar stays the personal one, rather than offering a search and
+  // twelve shelves that answer nothing. While the config is still loading the
+  // directory gets the benefit of the doubt, so the two halves of the screen
+  // arrive at the same answer at the same time.
+  const isCommunityRoute =
+    location.pathname === "/communities" || location.pathname.startsWith("/communities/");
+  const showDirectorySidebar = isCommunityRoute && (communityDirectoryEnabled || configLoading);
 
   // Which project row to highlight. A project is addressed inside its
   // initiative, so the pattern has to carry that segment too.
@@ -102,6 +116,13 @@ export const AppSidebar = () => {
   const guildTreeEnabled = Boolean(activeGuild) && isGuildRoute;
 
   const initiativesQuery = useInitiatives({ enabled: guildTreeEnabled, staleTime: 60_000 });
+
+  // What the guild offers to join, which is what decides whether the "browse"
+  // row is worth a line: with an empty directory it would lead nowhere.
+  const directoryQuery = useInitiativeDirectory({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
 
   const projectsQuery = useProjects(undefined, {
     enabled: guildTreeEnabled,
@@ -207,12 +228,11 @@ export const AppSidebar = () => {
   const canManageInitiative = canManage;
   const getUserPermissions = permissionsFor;
 
-  const userDisplayName = user?.full_name ?? (obfuscateEmail(user?.email) || "User");
-  const userInitials = useMemo(
-    () => getInitials(user?.full_name, user?.email),
-    [user?.full_name, user?.email]
-  );
-  const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
+  // Your own account, so your own name if you set one — and your handle, not
+  // your address, when you have not.
+  const userDisplayName = getUserDisplayName(user);
+  const userInitials = useMemo(() => getInitialsForUser(user), [user]);
+  const avatarSrc = resolveUploadUrl(user?.avatar_url);
 
   // Fetch tags for the tag browser
   const tagsQuery = useTags({ enabled: guildTreeEnabled });
@@ -309,7 +329,9 @@ export const AppSidebar = () => {
         <div className="flex min-h-0 max-w-full flex-1">
           <GuildSidebar isHomeMode={!isGuildRoute} />
           <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-hidden border-r">
-            {!isGuildRoute ? (
+            {showDirectorySidebar ? (
+              <CommunityDirectorySidebar />
+            ) : !isGuildRoute ? (
               <HomeSidebarContent />
             ) : (
               <>
@@ -487,18 +509,33 @@ export const AppSidebar = () => {
                               </div>
                             )}
 
-                            {isGuildAdmin && (
-                              <SidebarMenu>
+                            <SidebarMenu>
+                              {/* The way into an initiative you aren't in yet:
+                                  guild home carries the directory. Only shown
+                                  when the guild actually lists something. */}
+                              {(directoryQuery.data?.length ?? 0) > 0 && (
                                 <SidebarMenuItem>
                                   <SidebarMenuButton asChild size="sm">
-                                    <Link to={gp(INITIATIVES_ROUTE)} search={{ create: "true" }}>
+                                    <Link to={gp("/")} hash={DIRECTORY_SECTION_ID}>
+                                      <Binoculars className="h-4 w-4" />
+                                      <span>{t("initiatives:directory.browse")}</span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              )}
+                              {isGuildAdmin && (
+                                <SidebarMenuItem>
+                                  <SidebarMenuButton asChild size="sm">
+                                    {/* The create dialog lives on guild home
+                                        with the rest of the initiative list. */}
+                                    <Link to={gp("/")} search={{ create: "true" }}>
                                       <Plus className="h-4 w-4" />
                                       <span>{t("addInitiative")}</span>
                                     </Link>
                                   </SidebarMenuButton>
                                 </SidebarMenuItem>
-                              </SidebarMenu>
-                            )}
+                              )}
+                            </SidebarMenu>
                           </SidebarGroupContent>
                         </SidebarGroup>
                       </SidebarContent>

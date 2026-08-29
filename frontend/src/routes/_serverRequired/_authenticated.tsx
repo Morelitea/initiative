@@ -5,9 +5,11 @@ import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
+import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
+import { Galaxy } from "@/components/icons/Galaxy";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
@@ -19,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionDialog } from "@/components/VersionDialog";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
@@ -102,6 +105,12 @@ function AppLayout() {
 
   const clearRecent = useClearRecentView();
   const clearRecents = useClearRecentViews();
+
+  // An account that was handed its handle rather than picking one chooses
+  // here, before anything else: it is how everyone else will see them.
+  if (!loading && user && !user.username_chosen) {
+    return <ChooseHandle />;
+  }
 
   // Now we can have conditional returns
   // Show loading state while auth or guild membership is being determined
@@ -299,6 +308,7 @@ function NoGuildState({
 }) {
   const { t } = useTranslation("guilds");
   const { billing, openPortal, reserveTab } = useBillingPortal();
+  const { communityDirectoryEnabled } = useAppConfig();
   const [guildName, setGuildName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -362,6 +372,19 @@ function NoGuildState({
             </Link>
           </Button>
         </div>
+
+        {/* The other way out of this screen: a guild that opened itself to
+            the directory can be joined here and now, with no invite to wait
+            for and nobody to ask. Only where the platform owner runs a
+            directory — otherwise an invite is the only way in. */}
+        {communityDirectoryEnabled && (
+          <Button variant="outline" asChild className="w-full">
+            <Link to="/communities">
+              <Galaxy className="h-4 w-4" />
+              {t("noGuild.browseCommunities")}
+            </Link>
+          </Button>
+        )}
 
         {/* Direct entry points to the user/platform settings pages so a
             user with no memberships can still manage their account

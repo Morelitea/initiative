@@ -4,14 +4,29 @@ import logging
 from contextlib import suppress
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import text
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 
-from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
+from app.api.deps import (
+    SessionDep,
+    UploadUserDep,
+    UserSessionDep,
+    get_current_active_user,
+)
 from app.core.auth_context import satisfied_provider_ids
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.messages import BillingMessages, GuildMessages
+from app.core.rate_limit import limiter
 from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
@@ -19,11 +34,26 @@ from app.core.security import (
 )
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
-from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
+from app.models.platform.guild import (
+    Guild,
+    GuildCategory,
+    GuildMembership,
+    GuildRole,
+    GuildStatus,
+)
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.platform.guild_image import (
+    BANNER_VARIANTS,
+    IMAGE_SPECS,
+    GuildImageVariant,
+)
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
+    CommunityGuildPage,
+    CommunityGuildRead,
+    GuildBannerRead,
+    GuildEntitlementsRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
     GuildCreate,
@@ -43,7 +73,10 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
+from app.services.platform import guild_images as images_service
+from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.platform import guilds as guilds_service
+from app.services.realtime import manager as realtime_manager
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services import rls as rls_service
@@ -63,6 +96,7 @@ def _serialize_guild(
     retention_days: int | None = None,
     member_count: int = 0,
     administration: GuildAdministration | None = None,
+    images: dict[GuildImageVariant, str] | None = None,
 ) -> GuildRead:
     """Build one entry of the caller's own guild list.
 
@@ -91,7 +125,6 @@ def _serialize_guild(
         id=guild.id,
         name=guild.name,
         description=guild.description,
-        icon_base64=guild.icon_base64,
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=membership.role,
@@ -114,6 +147,25 @@ def _serialize_guild(
         content_read_only=(guild.status == GuildStatus.read_only.value),
         # Admins only: lets their settings UI show/hide the Authentication tab.
         guild_auth_enabled=admin_row.guild_auth_enabled if admin_row else None,
+        # Guild identity, not administration: the directory publishes both to
+        # strangers, so withholding them from the guild's own members would
+        # only mean the settings page could not render its own state.
+        is_community=guild.is_community,
+        categories=[GuildCategory(value) for value in guild.categories],
+        show_member_names=guild.show_member_names,
+        has_adult_content=guild.has_adult_content,
+        # Where the guild's pictures are, not the pictures. Callers that have
+        # no reason to have looked them up pass nothing, which reads the same
+        # as a guild without any. The rest of the banner is stored, so it needs
+        # no such arrangement.
+        icon_url=(images or {}).get(GuildImageVariant.icon),
+        banner=GuildBannerRead(
+            image_url=(images or {}).get(GuildImageVariant.full), **guild.banner
+        ),
+        # Read here rather than passed in, so every payload that names a guild
+        # carries the same figure without each call site remembering to ask.
+        # It costs no query — presence is a dict this process already holds.
+        online_count=realtime_manager.present_count(guild.id),
     )
 
 
@@ -162,8 +214,23 @@ async def list_guilds(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> List[GuildRead]:
+    # A suspended account keeps every membership it had and reaches none of
+    # them, so its guild list is empty — the same thing a suspended guild does
+    # to its members' lists, and it keeps the app coherent rather than offering
+    # doors that all refuse.
+    if current_user.status == UserStatus.suspended:
+        return []
+
     memberships = await guilds_service.list_memberships(
         session, user_id=current_user.id
+    )
+    # One query for the whole list, and only the digests — a guild list is
+    # every guild the caller is in, and a banner is a third of a megabyte.
+    images = await images_service.image_urls(
+        session,
+        [guild.id for guild, *_ in memberships],
+        GuildImageVariant.icon,
+        GuildImageVariant.full,
     )
     payloads: List[GuildRead] = []
     for guild, membership, retention_days, member_count, administration in memberships:
@@ -174,6 +241,7 @@ async def list_guilds(
                 retention_days=retention_days,
                 member_count=member_count,
                 administration=administration,
+                images=images.get(guild.id),
             )
         )
     return payloads
@@ -192,6 +260,131 @@ async def reorder_guilds(
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+#: Directory pages are card grids; a bigger page buys scrolling, not answers.
+MAX_COMMUNITY_PAGE_SIZE = 60
+
+
+@router.get("/communities", response_model=CommunityGuildPage)
+async def list_community_guilds(
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    q: str | None = Query(default=None, max_length=200),
+    category: GuildCategory | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
+) -> CommunityGuildPage:
+    """Browse the guilds that opted into the community directory.
+
+    Runs on the system engine for the reason ``GET /invite/{code}`` does: the
+    caller is a stranger to every guild here, so no guild-scoped role exists to
+    read them under, and the RLS policy that scopes ``guilds`` to the caller's
+    own memberships would return an empty directory. What that engine may see
+    is not what this returns — the filters live in the service (listed AND
+    active, always), and :class:`CommunityGuildRead` carries only what a guild
+    published by opting in: no lifecycle status, no administration, no roster,
+    and nothing at all from inside the guild's own schema. How many people have
+    it open is a count of live connections, named to nobody.
+
+    The directory is a deployment-level feature an owner switches on; where it
+    is off there is nothing to browse and the request is refused rather than
+    answered with an empty page.
+    """
+    try:
+        rows, total = await guilds_service.list_community_guilds(
+            session,
+            user_id=current_user.id,
+            query=q,
+            category=category.value if category else None,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+    except guilds_service.CommunityDirectoryDisabledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    # Who is present is live state held by the process, not a column, so it is
+    # read here for the page being returned rather than joined in the query.
+    online = realtime_manager.present_counts(guild.id for guild, _, _ in rows)
+    # Digests only, in one query: a card names its pictures, never carries them.
+    images = await images_service.image_urls(
+        session,
+        [guild.id for guild, _, _ in rows],
+        GuildImageVariant.icon,
+        GuildImageVariant.card,
+    )
+    return CommunityGuildPage(
+        items=[
+            CommunityGuildRead(
+                id=guild.id,
+                name=guild.name,
+                description=guild.description,
+                icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
+                banner=GuildBannerRead(
+                    image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
+                    **guild.banner,
+                ),
+                categories=[GuildCategory(value) for value in guild.categories],
+                member_count=member_count,
+                online_count=online.get(guild.id, 0),
+                already_member=already_member,
+            )
+            for guild, member_count, already_member in rows
+        ],
+        total=total,
+    )
+
+
+@router.post("/communities/{guild_id}/join", response_model=GuildRead)
+async def join_community_guild(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildRead:
+    """Join a listed community guild. Its listing is the authorization.
+
+    The system engine for the same reason ``accept_invite`` uses it — the user
+    has no membership yet, so there is no guild role to write one under. Joining
+    an already-joined guild is not an error; it returns the guild the caller is
+    already in.
+    """
+    try:
+        guild = await guilds_service.join_community_guild(
+            session, guild_id=guild_id, user=current_user
+        )
+    except guilds_service.CommunityDirectoryDisabledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    except guilds_service.CommunityJoinError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    await session.commit()
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild.id, user_id=current_user.id
+    )
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
+        )
+    member_count = await guilds_service.count_members(session, guild_id=guild.id)
+    return _serialize_guild(
+        guild,
+        membership,
+        member_count=member_count,
+        # Joining is how the caller first earns the full-size banner they were
+        # shown a card of.
+        images=await images_service.image_urls_for(
+            session, guild.id, GuildImageVariant.icon, GuildImageVariant.full
+        ),
+    )
 
 
 @router.get("/invite/{code}", response_model=GuildInviteStatus)
@@ -278,7 +471,6 @@ async def create_guild(
         session,
         name=name,
         description=guild_in.description,
-        icon_base64=guild_in.icon_base64,
         creator=current_user,
         owner=owner,
     )
@@ -371,18 +563,47 @@ async def update_guild(
         user_id=current_user.id,
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
-    icon_provided = "icon_base64" in updates.model_fields_set
     retention_days_provided = "retention_days" in updates.model_fields_set
-    guild = await guilds_service.update_guild(
-        session,
-        guild_id=guild_id,
-        name=updates.name,
-        description=updates.description,
-        icon_base64=updates.icon_base64,
-        icon_provided=icon_provided,
-        retention_days=updates.retention_days,
-        retention_days_provided=retention_days_provided,
-    )
+    categories_provided = "categories" in updates.model_fields_set
+    has_adult_content_provided = "has_adult_content" in updates.model_fields_set
+    banner_provided = "banner" in updates.model_fields_set
+    try:
+        guild = await guilds_service.update_guild(
+            session,
+            guild_id=guild_id,
+            name=updates.name,
+            description=updates.description,
+            retention_days=updates.retention_days,
+            retention_days_provided=retention_days_provided,
+            is_community=updates.is_community,
+            categories=(
+                [category.value for category in updates.categories]
+                if updates.categories
+                else []
+            ),
+            categories_provided=categories_provided,
+            has_adult_content=updates.has_adult_content,
+            has_adult_content_provided=has_adult_content_provided,
+            banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
+            banner_provided=banner_provided,
+            show_member_names=updates.show_member_names,
+        )
+    except guilds_service.CommunityDirectoryDisabledError as exc:
+        # No directory on this deployment, so there is nothing to list in.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
+    except guilds_service.BannerColorError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except guilds_service.CommunityListingError as exc:
+        # The guild does not qualify to be listed. Named specifically (which
+        # rule) rather than as a generic rejection, so the settings page can say
+        # what to fix.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
@@ -394,6 +615,261 @@ async def update_guild(
         retention_days=retention_days,
         member_count=member_count,
         administration=administration,
+        images=await images_service.image_urls_for(
+            session, guild_id, GuildImageVariant.icon, GuildImageVariant.full
+        ),
+    )
+
+
+# --- icons and banners -------------------------------------------------------
+#
+# The pictures a guild is known by are the only guild media a stranger can be
+# shown: a listed guild's icon and its banner's card rendition are what its
+# community-directory card is made of. Which is why these routes are here on
+# the platform router rather than under ``/g/{id}/…``, and why they run on the
+# system engine — see ``guild_images.may_read_image`` for the rule and the
+# reasoning.
+
+
+@router.get("/{guild_id}/entitlements", response_model=GuildEntitlementsRead)
+async def read_guild_entitlements(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildEntitlementsRead:
+    """What an operator has turned on for this guild, for its own admins.
+
+    Its own read rather than fields on the guild payload: these are decisions
+    made *about* a guild rather than by it, they live on the separate
+    ``guild_administration`` row, and a member has no use for them. A guild
+    admin does — it is how their settings page knows to offer the banner
+    colour alone rather than an upload that would come back refused.
+    """
+    await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id)
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    return GuildEntitlementsRead(
+        guild_id=guild_id,
+        banner_image_enabled=(
+            administration.banner_image_enabled if administration else True
+        ),
+    )
+
+
+@router.get("/{guild_id}/image/{sha256}", include_in_schema=False)
+@limiter.limit("600/minute")
+async def read_guild_image(
+    request: Request,
+    guild_id: int,
+    sha256: str,
+    current_user: UploadUserDep,
+    session: AdminSessionDep,
+) -> Response:
+    """Serve one of a guild's images.
+
+    Authenticated like ``/uploads/*`` and for the same reason: this is an
+    ``<img>`` src, so the credential is the HttpOnly session cookie on web and a
+    short-lived uploads-scoped ``?token=`` in a native WebView.
+
+    Everything that isn't served is a 404, whether the image does not exist,
+    has since been replaced, or is not for this caller — a guild that has not
+    published itself gives up nothing at all, its existence included.
+    """
+    image = await images_service.read_image(session, guild_id=guild_id, sha256=sha256)
+    if image is None or not await images_service.may_read_image(
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+        variant=GuildImageVariant(image.variant),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.IMAGE_NOT_FOUND,
+        )
+    return Response(
+        content=image.data,
+        media_type=image.content_type,
+        headers={
+            # The digest is in the path, so these bytes are these bytes
+            # forever. ``private`` because who may have them is decided per
+            # caller: a shared cache must never hand one viewer's copy on.
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+async def _store_guild_images(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user: User,
+    uploads: list[tuple[GuildImageVariant, UploadFile]],
+) -> None:
+    """Validate every part, then store them — never one and then the other.
+
+    Each is checked on its own before anything is written: format read from the
+    bytes rather than from the client's claim about them, weight, and shape.
+    The system engine writes; no request-path role holds an INSERT here, and
+    the caller's authority to be doing this at all was established against a
+    real membership before this is reached.
+    """
+    renditions = []
+    for variant, upload in uploads:
+        try:
+            data = await read_upload_bounded(upload, IMAGE_SPECS[variant].max_bytes)
+        except FileTooLargeError:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=GuildMessages.IMAGE_TOO_LARGE,
+            )
+        try:
+            renditions.append(
+                images_service.validate_rendition(variant, data, upload.content_type)
+            )
+        except images_service.GuildImageError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+
+    await images_service.set_images(
+        session, guild_id=guild_id, user_id=user.id, renditions=renditions
+    )
+
+
+@router.put("/{guild_id}/icon", response_model=GuildRead)
+async def set_guild_icon(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    icon: UploadFile = File(...),
+) -> GuildRead:
+    """Replace the guild's icon. One square picture, resized by the client."""
+    membership = await _ensure_guild_admin(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    await _store_guild_images(
+        session,
+        guild_id=guild_id,
+        user=current_user,
+        uploads=[(GuildImageVariant.icon, icon)],
+    )
+    await session.commit()
+    return await _guild_payload_after_image_change(
+        session, guild_id=guild_id, user=current_user, membership=membership
+    )
+
+
+@router.delete("/{guild_id}/icon", response_model=GuildRead)
+async def clear_guild_icon(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildRead:
+    """Remove the guild's icon. It falls back to its lettered avatar."""
+    membership = await _ensure_guild_admin(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    await images_service.clear_images(
+        session, guild_id=guild_id, variants=[GuildImageVariant.icon]
+    )
+    await session.commit()
+    return await _guild_payload_after_image_change(
+        session, guild_id=guild_id, user=current_user, membership=membership
+    )
+
+
+@router.put("/{guild_id}/banner", response_model=GuildRead)
+async def set_guild_banner(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    full: UploadFile = File(...),
+    card: UploadFile = File(...),
+) -> GuildRead:
+    """Replace the guild's banner with the two renditions of one picture.
+
+    The admin chooses a single image; the settings page resizes it to both
+    renditions and sends them together, so a guild is never left showing a new
+    card over an old front page.
+    """
+    membership = await _ensure_guild_admin(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    if administration is not None and not administration.banner_image_enabled:
+        # Only uploading is gated. The banner surface stays, a banner the guild
+        # already has keeps being served, and what a guild without artwork sets
+        # instead is the colour on ``guilds.banner``, through PATCH.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.BANNER_IMAGE_NOT_ENTITLED,
+        )
+    await _store_guild_images(
+        session,
+        guild_id=guild_id,
+        user=current_user,
+        uploads=list(zip(BANNER_VARIANTS, (full, card))),
+    )
+    await session.commit()
+    return await _guild_payload_after_image_change(
+        session, guild_id=guild_id, user=current_user, membership=membership
+    )
+
+
+@router.delete("/{guild_id}/banner", response_model=GuildRead)
+async def clear_guild_banner(
+    guild_id: int,
+    session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildRead:
+    """Remove the guild's banner. Both surfaces fall back to their plain form."""
+    membership = await _ensure_guild_admin(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    await images_service.clear_images(
+        session, guild_id=guild_id, variants=list(BANNER_VARIANTS)
+    )
+    await session.commit()
+    return await _guild_payload_after_image_change(
+        session, guild_id=guild_id, user=current_user, membership=membership
+    )
+
+
+async def _guild_payload_after_image_change(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user: User,
+    membership: GuildMembership,
+) -> GuildRead:
+    """The guild as its admin now sees it, so the SPA needs no follow-up read.
+
+    Routed into the guild first, and only once the write above has committed.
+    A ``GuildRead`` is not all public-schema: the trash retention window lives
+    in the guild's own schema, which an unrouted session cannot see at all.
+    ``SET ROLE`` drops the system engine's bypass, which is why this runs after
+    the commit rather than around it — and everything read below is then read
+    as the guild admin the caller actually is.
+    """
+    await set_rls_context(
+        session, user_id=user.id, guild_id=guild_id, guild_role="admin"
+    )
+    guild = await guilds_service.get_guild(session, guild_id=guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
+        )
+    return _serialize_guild(
+        guild,
+        membership,
+        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
+        administration=await guilds_service.get_administration(
+            session, guild_id=guild_id
+        ),
+        images=await images_service.image_urls_for(
+            session, guild_id, GuildImageVariant.icon, GuildImageVariant.full
+        ),
     )
 
 
@@ -628,14 +1104,13 @@ async def delete_guild(
         app_revocation_service.drain_revocations(session)
     )
 
-    # Drop the schema + role as best-effort cleanup. Reset the assumed guild role
-    # first (committed) so DROP ROLE can run. With the cross-schema FKs gone,
-    # DROP SCHEMA only locks this guild's tables — no contention with the app's
-    # reads of public.guilds/users. A failed cleanup must NEVER undo the committed
-    # deletion: an orphaned, empty schema is harmless and reclaimed on a retry or
-    # the next provision of that id.
-    await session.exec(text("SELECT set_config('role', 'none', false)"))
-    await session.commit()
+    # Drop the schema + role as best-effort cleanup, on the provisioning engine's
+    # own connection — the guild role this request assumed ended with the commit
+    # above, so there is nothing here for DROP ROLE to trip over. With the
+    # cross-schema FKs gone, DROP SCHEMA only locks this guild's tables — no
+    # contention with the app's reads of public.guilds/users. A failed cleanup
+    # must NEVER undo the committed deletion: an orphaned, empty schema is
+    # harmless and reclaimed on a retry or the next provision of that id.
     try:
         await deprovision_guild(guild_id)
     except Exception:
@@ -734,7 +1209,16 @@ async def accept_invite(
             detail=GuildMessages.GUILD_MEMBERSHIP_MISSING,
         )
     member_count = await guilds_service.count_members(session, guild_id=guild.id)
-    return _serialize_guild(guild, membership, member_count=member_count)
+    return _serialize_guild(
+        guild,
+        membership,
+        member_count=member_count,
+        # Joining is how the caller first earns the full-size banner they were
+        # shown a card of.
+        images=await images_service.image_urls_for(
+            session, guild.id, GuildImageVariant.icon, GuildImageVariant.full
+        ),
+    )
 
 
 @router.patch(

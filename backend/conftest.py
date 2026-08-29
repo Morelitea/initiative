@@ -9,6 +9,7 @@ This module provides the core testing infrastructure including:
 """
 
 import asyncio
+import hashlib
 import os
 from collections.abc import AsyncGenerator
 from contextlib import suppress
@@ -20,6 +21,7 @@ import asyncpg
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from cryptography.hazmat.primitives import serialization as _serialization
 from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 from httpx import ASGITransport, AsyncClient
@@ -39,22 +41,37 @@ from app.testing.schema_harness import clear_search_path_pin
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
-# --- Per-worker isolation (pytest-xdist) ---------------------------------------
+# --- Per-run isolation (checkout + pytest-xdist worker) -------------------------
 # xdist runs each worker as its own OS process, so all Python state in this module
 # is already per-worker. The shared resources are the Postgres DATABASE and the
-# cluster-global ROLES; isolate both per worker so the suite is parallel-safe.
+# cluster-global ROLES; isolate both per run so the suite is parallel-safe.
 #
-# WORKER_ID is xdist's value used VERBATIM ("gw0"/"gw1"/... distributed, "master"
-# standalone) — xdist exports PYTEST_XDIST_WORKER into each worker process before
-# this module is imported. We don't rename it.
+# The key has two parts, because a run is identified by two things:
+#
+#   WORKER_ID  — xdist's value used VERBATIM ("gw0"/"gw1"/... distributed,
+#                "master" standalone). xdist exports PYTEST_XDIST_WORKER into each
+#                worker process before this module is imported; we don't rename it.
+#                Separates the workers WITHIN one run.
+#   CHECKOUT_ID — a digest of this checkout's path. Separates CONCURRENT RUNS from
+#                different worktrees, which are all "master" (or all "gw0", …) and
+#                would otherwise share one database and one set of cluster-global
+#                roles. The path is used rather than the branch so the key survives
+#                a rename or a branch switch mid-run.
 WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
+# parents[1] is the repo root — backend/conftest.py. scripts/dev-ports.sh keys
+# the dev ports off the same directory, so one id names a checkout everywhere.
+CHECKOUT_ID = hashlib.sha256(
+    str(Path(__file__).resolve().parents[1]).encode()
+).hexdigest()[:8]
+RUN_ID = f"{CHECKOUT_ID}_{WORKER_ID}"
 
-# Per-worker, cluster-global role prefix so workers never collide on, or drop,
-# each other's roles (test_gw0_guild_<id>, test_gw0_platform_<tier>). Set BEFORE
-# any migration/provisioning: the platform-role migration and the routing helpers
-# read these at apply time, and guild provisioning is already prefix-aware.
-settings.GUILD_ROLE_PREFIX = f"test_{WORKER_ID}_"
-settings.PLATFORM_ROLE_PREFIX = f"test_{WORKER_ID}_"
+# Per-run, cluster-global role prefix so runs and workers never collide on, or
+# drop, each other's roles (test_<checkout>_gw0_guild_<id>,
+# test_<checkout>_gw0_platform_<tier>). Set BEFORE any migration/provisioning: the
+# platform-role migration and the routing helpers read these at apply time, and
+# guild provisioning is already prefix-aware.
+settings.GUILD_ROLE_PREFIX = f"test_{RUN_ID}_"
+settings.PLATFORM_ROLE_PREFIX = f"test_{RUN_ID}_"
 
 # Advanced-tool handoff tokens are always RS256 (verified across a trust
 # boundary), so any test that mints one needs a real signing key. Generate one
@@ -101,8 +118,9 @@ _base_url = (
     f"{quote(_su_password, safe='')}@{_su_netloc}"
 )
 
-# Per-worker database so a worker's TRUNCATE/DROP never clobbers another's data.
-TEST_DB_NAME = f"initiative_test_{WORKER_ID}"
+# Per-run database so a worker's TRUNCATE/DROP never clobbers another worker's —
+# or another checkout's — data.
+TEST_DB_NAME = f"initiative_test_{RUN_ID}"
 TEST_DATABASE_URL = f"{_base_url}/{TEST_DB_NAME}"
 
 # Bound any single statement against the test DB so a cross-connection deadlock
@@ -188,16 +206,21 @@ async def _set_db_statement_timeout() -> None:
 _MIGRATION_LOCK_KEY = 0x1417A7E5  # arbitrary, suite-specific; the app uses none
 
 
-def _alembic_upgrade_head() -> None:
-    """Run ``alembic upgrade head`` synchronously. Alembic's env.py drives its own
-    event loop (``asyncio.run``), so this must run OUTSIDE a running loop — call it
-    via ``asyncio.to_thread`` from async code."""
+def _alembic_config() -> Config:
+    """Alembic config pointed at this worker's test database."""
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
     config.attributes["configure_logger"] = False
     config.attributes["url_configured"] = True
-    command.upgrade(config, "head")
+    return config
+
+
+def _alembic_upgrade_head() -> None:
+    """Run ``alembic upgrade head`` synchronously. Alembic's env.py drives its own
+    event loop (``asyncio.run``), so this must run OUTSIDE a running loop — call it
+    via ``asyncio.to_thread`` from async code."""
+    command.upgrade(_alembic_config(), "head")
 
 
 async def _migrate_under_lock() -> None:
@@ -247,15 +270,54 @@ async def _refresh_template_rls() -> None:
         await engine.dispose()
 
 
+async def _test_db_is_at_head() -> bool:
+    """True when this worker's database already exists and is stamped at head.
+
+    A warm run is the common case: the per-worker databases persist, so every
+    worker's ``alembic upgrade head`` finds nothing to do. It still pays a
+    connection, an env.py import and — because the shared role DDL forces it —
+    the cross-worker lock, which makes that no-op SERIAL: N workers pay it one
+    after another before any test starts. Asking the version table first turns
+    that into one cheap query per worker, taken in parallel.
+
+    Anything unexpected (no database, no ``alembic_version``, more than one head)
+    returns False and takes the full locked path, which is idempotent."""
+    heads = set(ScriptDirectory.from_config(_alembic_config()).get_heads())
+    if len(heads) != 1:
+        return False
+    try:
+        conn = await asyncpg.connect(
+            user=_su_user,
+            password=_su_password,
+            host=_app_db.hostname,
+            port=_app_db.port or 5432,
+            database=TEST_DB_NAME,
+        )
+    except (asyncpg.InvalidCatalogNameError, OSError):
+        return False
+    try:
+        rows = await conn.fetch("SELECT version_num FROM alembic_version")
+    except asyncpg.PostgresError:
+        return False
+    finally:
+        await conn.close()
+    return {r["version_num"] for r in rows} == heads
+
+
 def _run_test_migrations() -> None:
     """Ensure the worker's test database exists and migrate it (serialized across
     workers by the advisory lock), refresh the template's RLS the way boot does,
     then arm the statement_timeout net.
 
+    The migration is skipped outright when the database is already at head — see
+    ``_test_db_is_at_head``; the two steps after it run against this worker's OWN
+    database, so they need no shared lock and stay parallel.
+
     ``_set_db_statement_timeout`` is a per-worker ``ALTER DATABASE`` on this
     worker's OWN DB — no shared catalog — so it runs OUTSIDE the cross-worker lock,
     and after migrations so a slow migration isn't bounded by it."""
-    asyncio.run(_migrate_under_lock())
+    if not asyncio.run(_test_db_is_at_head()):
+        asyncio.run(_migrate_under_lock())
     asyncio.run(_refresh_template_rls())
     asyncio.run(_set_db_statement_timeout())
 
@@ -371,6 +433,14 @@ async def role_session():
     a cross-schema grant gap pass silently. Set up data with the normal
     ``session`` fixture (factories commit, so the rows are visible to this
     separate connection), then assert via ``await role_session("app_admin")``.
+
+    Set any request context on it the way production does — ``set_config(...,
+    true)``, transaction-scoped, with the statements it applies to in the same
+    transaction. These engines reach Postgres the way the app does, through a
+    pooler in transaction mode, so a connection belongs to one caller only for
+    as long as a transaction lasts; session-level state written on it outlives
+    the test and is handed to whoever gets that connection next. CI runs the
+    whole suite through the pooler for this reason.
 
     Example:
         s = await role_session("app_admin")

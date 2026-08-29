@@ -14,6 +14,33 @@
   "noInitiatives": "No initiatives yet",
   "noInitiativesDescription": "You’re not part of any initiatives in this guild. Check back after an admin invites you or create one if you have permissions.",
   "createInitiative": "Create initiative",
+  "directory": {
+    "browse": "Browse initiatives",
+    "joinError": "Unable to join this initiative right now."
+  },
+  "joinRequests": {
+    "dialogTitle": "Request to join {{name}}",
+    "dialogDescription": "A project manager will review your request. You'll see the initiative once they let you in.",
+    "messageLabel": "Message (optional)",
+    "messagePlaceholder": "Say why you'd like to join…",
+    "messageHint": "A sentence or two for whoever reads the queue.",
+    "send": "Send request",
+    "sending": "Sending…",
+    "requested": "Your request to join {{name}} was sent.",
+    "requestError": "Unable to send this request right now.",
+    "queueTitle": "Requests to join",
+    "queueDescription": "People who asked to join this initiative. Approving adds them as a member.",
+    "queueLoadError": "Unable to load the join requests right now.",
+    "noMessage": "No message",
+    "unknownRequester": "Someone",
+    "priorDenials_one": "Denied {{count}} time before",
+    "priorDenials_other": "Denied {{count}} times before",
+    "approve": "Approve",
+    "deny": "Deny",
+    "approved": "{{name}} joined the initiative.",
+    "denied": "{{name}}'s request was denied.",
+    "resolveError": "Unable to answer this request right now."
+  },
   "manage": {
     "title": "Initiatives",
     "description": "Archive an initiative to hide it from the sidebar without deleting it, grant project managers full access, or delete an initiative into the trash.",
@@ -101,6 +128,24 @@
     "editPermissionNote": "Only guild admins or initiative project managers can edit details.",
     "updated": "Initiative updated.",
     "updateError": "Unable to update initiative right now.",
+    "joinPolicy": {
+      "title": "Joining",
+      "description": "Who in this guild can join this initiative, and how. Joining decides what someone can see — sharing still governs each item inside.",
+      "privateLabel": "Invite only",
+      "privateHelp": "Hidden from the guild directory. Project managers add members by hand.",
+      "requestLabel": "By request",
+      "requestHelp": "Listed in the guild directory. Members ask to join and a project manager approves.",
+      "openLabel": "Anyone can join",
+      "openHelp": "Listed in the guild directory. Any guild member can join themselves, with view-only access to start."
+    },
+    "autoJoin": {
+      "label": "Add every new guild member automatically",
+      "help": "Anyone who joins this guild from now on becomes a member of this initiative, with view-only access to start.",
+      "notRetroactive": "People already in the guild are not added — they can join this initiative themselves from the guild directory.",
+      "requiresOpen": "Auto-join needs the “Anyone can join” policy above. An initiative nobody can enter on their own should not enrol people automatically — anyone who left could never get back in.",
+      "lockedNote": "A guild admin turned on auto-join for this initiative, so it has to stay open to everyone. Ask an admin to turn auto-join off before changing this.",
+      "turnedOff": "Auto-join is off — it is only available while anyone can join."
+    },
     "membersTitle": "Members",
     "membersDescription": "Initiative project managers and guild admins can manage membership.",
     "filterByName": "Filter by name",
@@ -199,7 +244,8 @@
       "createDashboards": "Create Dashboards",
       "viewCounterGroups": "View Counters",
       "createCounterGroups": "Create Counters"
-    }
+    },
+    "handleColumn": "Handle"
   },
   "advancedTools": "Advanced Tools",
   "advancedToolsDescription": "Enable optional tools for this initiative.",

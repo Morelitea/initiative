@@ -13,7 +13,7 @@ response reuses the existing ``CalendarEventSummary`` and ``TaskListRead`` shape
 """
 
 from datetime import datetime
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +46,7 @@ async def list_calendar_entries(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    scope: Optional[Literal["guild"]] = Query(default=None),
     calendar_ids: Optional[List[int]] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),
     start_before: Optional[datetime] = Query(default=None),
@@ -62,8 +63,12 @@ async def list_calendar_entries(
 
     Skip a leg with ``include_events=false`` / ``include_tasks=false`` (e.g. when
     the calendar has that type toggled off). ``calendar_ids`` narrows the event
-    leg to named calendars — a surface showing a single calendar (a guild app)
-    asks for exactly it rather than everything and filtering client-side.
+    leg to named calendars — a surface showing a single calendar asks for
+    exactly it rather than everything and filtering client-side.
+
+    ``scope=guild`` is the same question asked by kind rather than by name: every
+    guild calendar, however many there are. The calendar app shows all of them
+    at once, and a list of ids it had to assemble first would be a page of them.
     """
     events_out = []
     if include_events:
@@ -72,6 +77,7 @@ async def list_calendar_entries(
             current_user,
             guild_context,
             initiative_id=initiative_id,
+            guild_scope=scope == "guild",
             calendar_ids=calendar_ids,
             start_after=start_after,
             start_before=start_before,

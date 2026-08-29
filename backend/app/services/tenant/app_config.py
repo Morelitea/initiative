@@ -15,6 +15,14 @@ Two custody rules run through everything here:
   is written by the app itself when it completes a vendor flow, so this path
   refuses one rather than letting a form overwrite it.
 
+A guild-wide connection is not always typed. One that declares a
+``connect_path`` is filled by the app instead: a guild admin runs the vendor's
+own flow once — an organization-wide install, on the vendor's page, where
+somebody who owns the account grants what it may see — and the app writes what
+came back into that connection's managed fields. The scope is unchanged, since
+the credential is still the guild's; what changes is who fills it and how, and
+:func:`guild_connection_ref` is the handle the two ends are joined by.
+
 Satisfaction is computed from presence alone — which fields have values. This
 build never inspects a credential, calls a vendor, or learns a scope; whether a
 credential carries the permissions it needs is the app's to report, and arrives
@@ -28,6 +36,7 @@ from typing import Any, Optional
 
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import GuildAppMessages
+from app.services.tenant.app_connections import mint_connection_ref
 
 __all__ = [
     "AppConfigError",
@@ -38,13 +47,16 @@ __all__ = [
     "apply_connection_values",
     "config_state",
     "connection_by_id",
+    "connection_id_for_ref",
     "decrypt_connection_secrets",
     "definition_connections",
+    "guild_connection_ref",
     "has_value_map",
     "is_satisfied",
     "member_connection_ids",
     "needs_configuration",
     "prune_to_definition",
+    "runs_vendor_flow",
 ]
 
 #: What a plain field may hold. Generous for a hostname or an account name,
@@ -117,6 +129,62 @@ def connection_by_id(
     for connection in definition_connections(definition):
         if connection.get("id") == connection_id:
             return connection
+    return None
+
+
+def runs_vendor_flow(connection: dict[str, Any] | None) -> bool:
+    """Whether this connection is filled by the app rather than by typing.
+
+    The question a ``connect_path`` answers, asked of either scope. The scope
+    answers a different one — whose credential comes back — and the two are
+    independent: a member authorizing their own account and an admin installing
+    for the whole guild are the same flow run by different people.
+    """
+    return bool(connection) and bool(connection.get("connect_path"))
+
+
+# --- the handle a guild-wide flow is joined by -------------------------------
+
+
+def guild_connection_ref(app: Any, connection_id: str) -> str:
+    """The opaque handle the app writes this guild connection's result against.
+
+    Minted on the admin's first connect and kept, so reconnecting keeps one
+    identity rather than minting a new one each time — the rule a member's ref
+    already follows. Clearing the connection drops it, since the flow it was
+    routing is over; starting again mints a fresh one. It lives on the install
+    row because a guild-wide credential does.
+
+    Mutating rather than returning a new mapping is deliberate: the caller is
+    holding the row inside a transaction it is about to commit, and a ref handed
+    out but not stored is one the write-back would refuse.
+
+    The ref is the authorization: a write-back is accepted for the connection
+    its handle names, and only for one this install actually minted.
+    """
+    refs = dict(app.connection_refs or {})
+    existing = refs.get(connection_id)
+    if isinstance(existing, str) and existing:
+        return existing
+
+    refs[connection_id] = mint_connection_ref()
+    # Reassigned rather than mutated in place: SQLAlchemy tracks a JSONB column
+    # by identity, and a dict changed under it is a change that never lands.
+    app.connection_refs = refs
+    return refs[connection_id]
+
+
+def connection_id_for_ref(app: Any, connection_ref: str) -> Optional[str]:
+    """Which guild connection a handle names, or ``None`` for none of them.
+
+    ``None`` is the ordinary answer for a member's ref, which this install keeps
+    nowhere: the caller tries the per-member rows and finds it there.
+    """
+    if not connection_ref:
+        return None
+    for connection_id, ref in (app.connection_refs or {}).items():
+        if ref == connection_ref:
+            return connection_id
     return None
 
 

@@ -63,6 +63,7 @@
     "cleared": "Credencial borrada.",
     "memberSet": "Un administrador del gremio ya la ha configurado.",
     "memberNotSet": "Un administrador del gremio todavía tiene que configurarla.",
+    "guildFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver esta app.",
     "personalExplainer": "Esta te identifica a ti, así que cada miembro conecta su propia cuenta. Nadie más ve la tuya.",
     "connect": "Conectar",
     "reconnect": "Volver a conectar",

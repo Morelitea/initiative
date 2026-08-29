@@ -9,6 +9,7 @@ import { propertyHandlers } from "./property.handlers";
 import { settingsHandlers } from "./settings.handlers";
 import { tagHandlers } from "./tag.handlers";
 import { taskHandlers } from "./task.handlers";
+import { toolCountHandlers } from "./toolCount.handlers";
 import { userHandlers } from "./user.handlers";
 
 export const handlers = [
@@ -24,4 +25,5 @@ export const handlers = [
   ...commentHandlers,
   ...userHandlers,
   ...propertyHandlers,
+  ...toolCountHandlers,
 ];

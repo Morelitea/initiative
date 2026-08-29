@@ -4,10 +4,15 @@ A calendar is to events what a project is to tasks: creation is gated at the
 initiative level (calendars_enabled + create_calendars), and everything inside
 the calendar flows from its resource-grant DAC (``resource_grants`` +
 ``PUT /{id}/grants``). Events themselves carry no grants.
+
+A calendar with no initiative is a **guild calendar** — it belongs to the guild
+itself, and lives inside the calendar app. There is no initiative to gate its
+creation, so guild membership is the gate: any member may make one, and what
+they made is theirs to share. See ``history/guild-calendars-design.md``.
 """
 
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
@@ -28,6 +33,7 @@ from app.db.session import get_admin_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.platform.user import User
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -45,8 +51,10 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import calendars as calendars_service
+from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 
 router = APIRouter()
 
@@ -129,13 +137,33 @@ async def list_calendars(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    scope: Optional[Literal["guild"]] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit for this "
+            "tool's own default order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
 ) -> CalendarListResponse:
-    """List calendars visible to the current user (guild admins see all)."""
+    """List calendars visible to the current user (guild admins see all).
+
+    ``scope=guild`` narrows to the guild's own calendars — the ones the calendar
+    app holds, belonging to no initiative. That is the opposite of the
+    unfiltered list, which is everything in scope, so it is asked for by name
+    rather than inferred from an absent ``initiative_id``.
+    """
     conditions = [Calendar.guild_id == guild_context.guild_id]
 
-    if initiative_id is not None:
+    if scope == "guild":
+        conditions.append(Calendar.initiative_id.is_(None))
+    elif initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.calendars_enabled:
             return CalendarListResponse(
@@ -158,6 +186,10 @@ async def list_calendars(
         )
     )
 
+    name_match = tool_listing.name_search_clause(Calendar.name, search)
+    if name_match is not None:
+        conditions.append(name_match)
+
     count_subq = select(Calendar.id).where(*conditions).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))
@@ -167,7 +199,15 @@ async def list_calendars(
         select(Calendar)
         .where(*conditions)
         .options(*calendars_service.calendar_loader_options())
-        .order_by(Calendar.name.asc(), Calendar.id.asc())
+    )
+    stmt = (
+        tool_listing.apply_tool_order(
+            stmt,
+            Calendar,
+            sort_by,
+            sort_dir,
+            default=[Calendar.name.asc(), Calendar.id.asc()],
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
@@ -246,19 +286,50 @@ async def create_calendar(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CalendarRead:
-    """Create a calendar. Requires create_calendars permission on the
-    initiative (or guild admin); the creator gets the owner grant."""
-    initiative = await _get_initiative_for_calendar(session, calendar_in.initiative_id)
-    if not initiative.calendars_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarMessages.FEATURE_DISABLED,
+    """Create a calendar; the creator gets the owner grant.
+
+    Two scopes, two gates. An **initiative** calendar needs that initiative's
+    calendars switch on and the ``create_calendars`` permission (or guild
+    admin). A **guild** calendar — ``initiative_id`` omitted — belongs to no
+    initiative, so neither has anything to say about it: guild membership is the
+    gate, which ``GuildContextDep`` has already established. What it needs
+    instead is the calendar app, which is what holds it and what its removal
+    takes with it.
+    """
+    app: Optional[GuildApp] = None
+    initiative: Optional[Initiative] = None
+
+    if calendar_in.initiative_id is None:
+        # Held until this request commits, so the calendar and the app it
+        # belongs to cannot part company midway: an uninstall arriving now waits
+        # and takes this calendar with it.
+        app = await guild_apps_service.find_mounting_app(
+            session,
+            guild_id=guild_context.guild_id,
+            tool=Tool.calendar.value,
+            for_update=True,
         )
-    await _check_create_permission(session, initiative, current_user, guild_context)
+        if app is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=CalendarMessages.GUILD_APP_REQUIRED,
+            )
+    else:
+        initiative = await _get_initiative_for_calendar(
+            session, calendar_in.initiative_id
+        )
+        if not initiative.calendars_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=CalendarMessages.FEATURE_DISABLED,
+            )
+        await _check_create_permission(session, initiative, current_user, guild_context)
+
+    initiative_id = initiative.id if initiative is not None else None
 
     calendar = Calendar(
         guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
+        initiative_id=initiative_id,
         created_by=current_user.id,
         name=calendar_in.name.strip(),
         description=calendar_in.description,
@@ -275,21 +346,29 @@ async def create_calendar(
             role_id=None,
             level=ResourceAccessLevel.owner,
             guild_id=guild_context.guild_id,
-            initiative_id=initiative.id,
+            initiative_id=initiative_id,
         )
     )
 
     # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all initiative members).
+    # code path (defaults to Viewer for all initiative members, which at guild
+    # scope reads as every member of the guild).
     await permissions_service.replace_resource_grants(
         session,
         resource_type="calendar",
         resource_id=calendar.id,
         guild_id=guild_context.guild_id,
-        initiative_id=initiative.id,
+        initiative_id=initiative_id,
         owner_id=current_user.id,
         grants=calendar_in.grants,
     )
+
+    # The app is the container, so it is answerable for this too: uninstalling
+    # walks its artifacts and trashes each one.
+    if app is not None:
+        await guild_apps_service.record_artifact(
+            session, app, artifact_type=Tool.calendar.value, artifact_id=calendar.id
+        )
 
     if calendar_in.tag_ids:
         await tags_service.set_entity_tags(

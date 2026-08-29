@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { UsernameField } from "@/components/UsernameField";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LogoIcon } from "@/components/LogoIcon";
@@ -20,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { slugifyUsername } from "@/lib/usernames";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 
 interface RegisterPageProps {
@@ -33,6 +35,10 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const { register, login } = useAuth();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  // What we offer as a handle: the first word of the name they typed,
+  // reduced to the characters a handle may contain.
+  const suggestedUsername = slugifyUsername(fullName);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +172,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       const createdUser = await register({
         email: email.toLowerCase().trim(),
         password,
+        username: username.trim().toLowerCase(),
         full_name: fullName,
         inviteCode,
         timezone: browserTimezone,
@@ -278,6 +285,13 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                   onChange={(event) => setFullName(event.target.value)}
                 />
               </div>
+              <UsernameField
+                id="register-username"
+                value={username}
+                onChange={setUsername}
+                suggestion={suggestedUsername}
+                disabled={submitting}
+              />
               <div className="space-y-2">
                 <Label htmlFor="register-email">{t("register.emailLabel")}</Label>
                 <Input

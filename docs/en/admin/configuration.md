@@ -30,6 +30,14 @@ See [Installation](installation.md#the-three-database-connections) for how the t
 
 These two together let you run anything from a fully open community server to a locked-down, invite-only, single-organization deployment.
 
+### The community directory
+
+Guilds can also list themselves publicly, so people find and join them without an invite. That whole feature is **off** until you turn it on, from **Settings → Platform → Community** as the [owner](platform-roles.md).
+
+While it's off there is nothing to browse, nobody can join a guild without an invite, and the listing control doesn't appear in guild settings at all. Turning it off again later hides the directory rather than un-listing anyone: switch it back on and the same guilds are there.
+
+Listing is then each guild admin's own decision: they pick the guild's categories and certify that it holds no adult or illegal content. Initiative refuses to list a guild with room for only a single member. See [Listing your guild](../guides/guilds.md#listing-your-guild-administrators).
+
 ## Running behind a reverse proxy
 
 For any real deployment you'll put Initiative behind a reverse proxy that handles HTTPS.

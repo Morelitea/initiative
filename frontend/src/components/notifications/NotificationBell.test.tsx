@@ -102,4 +102,37 @@ describe("NotificationBell export notifications", () => {
     // Imports navigate to the Data-tab report rather than downloading.
     expect(downloadBlob).not.toHaveBeenCalled();
   });
+
+  it("says who knocked and how it was answered, not the generic fallback", async () => {
+    mockInbox([
+      buildNotification({
+        type: "initiative_join_requested" as NotificationType,
+        data: {
+          guild_id: 1,
+          initiative_id: 5,
+          initiative_name: "Apollo",
+          requester_name: "Ada Lovelace",
+          target_path: "/i/5/settings/members",
+        },
+      }),
+      buildNotification({
+        id: 2,
+        type: "initiative_join_approved" as NotificationType,
+        data: { guild_id: 1, initiative_id: 5, initiative_name: "Apollo" },
+      }),
+      buildNotification({
+        id: 3,
+        type: "initiative_join_denied" as NotificationType,
+        data: { guild_id: 1, initiative_id: 6, initiative_name: "Vanguard" },
+      }),
+    ]);
+    renderWithProviders(<NotificationBell />);
+
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+
+    expect(await screen.findByText(/Ada Lovelace asked to join Apollo/i)).toBeInTheDocument();
+    expect(screen.getByText(/request to join Apollo was approved/i)).toBeInTheDocument();
+    expect(screen.getByText(/request to join Vanguard was declined/i)).toBeInTheDocument();
+    expect(screen.queryByText(/new notification/i)).not.toBeInTheDocument();
+  });
 });

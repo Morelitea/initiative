@@ -6,9 +6,12 @@
   "share": {
     "title": "Partage",
     "allMembers": "Tous les membres de l'initiative",
+    "allGuildMembers": "Tout le monde dans le groupe",
     "restricted": "Restreint",
     "allMembersHint": "Tout le monde dans l'initiative peut y accéder.",
+    "allGuildMembersHint": "Tout le monde dans le groupe peut y accéder.",
     "restrictedHint": "Seuls les personnes et rôles que vous ajoutez peuvent y accéder.",
+    "restrictedGuildHint": "Seules les personnes que vous ajoutez peuvent y accéder.",
     "viewer": "Lecteur",
     "editor": "Éditeur",
     "owner": "Propriétaire",

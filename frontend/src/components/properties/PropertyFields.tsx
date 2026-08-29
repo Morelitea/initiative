@@ -7,6 +7,7 @@ import {
   type PropertySummary,
   PropertyType,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { MemberLike } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -57,11 +58,9 @@ export const normalizePropertyValue = (property: PropertySummary): unknown => {
   return property.value ?? null;
 };
 
-/** Pull the ``{id, full_name}`` a ``user_reference`` value carries so the
- *  picker can render the selected name without a search round-trip. */
-const userReferenceValue = (
-  property: PropertySummary
-): { id: number; full_name?: string | null } | null => {
+/** Pull the person a ``user_reference`` value carries so the picker can
+ *  render them without a search round-trip. */
+const userReferenceValue = (property: PropertySummary): MemberLike | null => {
   if (property.type !== PropertyType.user_reference) return null;
   const raw = property.value;
   if (
@@ -70,7 +69,7 @@ const userReferenceValue = (
     "id" in raw &&
     typeof (raw as { id: unknown }).id === "number"
   ) {
-    return raw as { id: number; full_name?: string | null };
+    return raw as MemberLike;
   }
   return null;
 };

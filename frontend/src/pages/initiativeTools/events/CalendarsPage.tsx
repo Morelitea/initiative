@@ -43,6 +43,7 @@ import {
   PropertyFilter,
   type PropertyFilterCondition,
 } from "@/components/properties/PropertyFilter";
+import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -142,11 +143,16 @@ type CalendarsViewProps = {
   /** Focus a single calendar (the /calendars/$calendarId route): it is forced
    * visible so the deep link always shows its events. */
   focusCalendarId?: number;
-  /** A guild calendar rendered as its own whole surface — the calendar app.
-   * Guild apps show guild-level content only, so this mode shows exactly this
-   * calendar's events: no tasks, no projects, no other calendars, no
-   * initiative-flavored filters. */
+  /** A guild calendar rendered as its own whole surface — a deep link to one
+   * of them. Guild apps show guild-level content only, so this mode shows
+   * exactly this calendar's events: no tasks, no projects, no other calendars,
+   * no initiative-flavored filters. */
   soloCalendar?: CalendarSummary;
+  /** The calendar app's own surface: every guild calendar this reader may see,
+   * overlaid. Guild-level content only, like {@link soloCalendar} — but the
+   * app holds many calendars, so this one keeps the calendar list panel and
+   * the create seam. */
+  guildScope?: boolean;
 };
 
 export const CalendarsView = ({
@@ -154,6 +160,7 @@ export const CalendarsView = ({
   canCreate,
   focusCalendarId,
   soloCalendar,
+  guildScope = false,
 }: CalendarsViewProps) => {
   const { t } = useTranslation(["calendars", "tasks", "common", "access"]);
   const router = useRouter();
@@ -172,13 +179,16 @@ export const CalendarsView = ({
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
   const solo = soloCalendar != null;
+  // Both guild surfaces show guild-level content only. What separates them is
+  // how many calendars are in view, not what kind of thing is.
+  const guildOnly = solo || guildScope;
   // Set only by the initiative page's tool tabs — the deep-link surfaces
   // resolve their initiative from the URL instead.
   const isInitiativeTab = fixedInitiativeId != null;
 
-  // Resolve initiative from prop or URL param. A solo (guild) calendar belongs
-  // to no initiative, so none applies.
-  const initiativeId = solo
+  // Resolve initiative from prop or URL param. A guild calendar belongs to no
+  // initiative, so none applies.
+  const initiativeId = guildOnly
     ? null
     : (fixedInitiativeId ?? (initiativeIdParam ? Number(initiativeIdParam) : null));
 
@@ -291,13 +301,34 @@ export const CalendarsView = ({
     return conditions;
   }, [initiativeId, statusFilters, priorityFilters, propertyFilters]);
 
+  // The real calendars backing the list panel, colors, and the create seams.
+  // Asked for before the entries, because on a guild surface they are what
+  // names the entries to fetch.
+  const calendarsQuery = useCalendarsList(
+    guildScope
+      ? { page_size: 200, scope: "guild" }
+      : { page_size: 200, ...(initiativeId ? { initiative_id: initiativeId } : {}) },
+    { enabled: !solo }
+  );
+  const calendars = useMemo(
+    () => (solo ? [soloCalendar] : (calendarsQuery.data?.items ?? [])),
+    [solo, soloCalendar, calendarsQuery.data]
+  );
+  const calendarsById = useMemo(() => {
+    const map = new Map<number, (typeof calendars)[number]>();
+    for (const calendar of calendars) map.set(calendar.id, calendar);
+    return map;
+  }, [calendars]);
+
   // --- One request: events + task markers over the visible window. ---
   const entriesParams = useMemo((): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => {
-    // Solo: exactly this calendar's events, and nothing task- or
-    // initiative-shaped at all.
-    if (solo) {
+    // A guild surface: guild-level events, and nothing task- or
+    // initiative-shaped at all. The app asks by scope rather than by naming its
+    // calendars — the calendars below arrive one page at a time, and an event
+    // on one that fell off the end would simply not be drawn.
+    if (guildOnly) {
       return {
-        calendar_ids: [soloCalendar.id],
+        ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "guild" as const }),
         start_after: visibleRange.start.toISOString(),
         start_before: visibleRange.end.toISOString(),
         tz: userTimezone,
@@ -316,6 +347,7 @@ export const CalendarsView = ({
       include_tasks: true,
     };
   }, [
+    guildOnly,
     solo,
     soloCalendar?.id,
     initiativeId,
@@ -327,26 +359,8 @@ export const CalendarsView = ({
 
   const entriesQuery = useCalendarEntries(entriesParams);
 
-  // The real calendars backing the list panel, colors, and the create seams.
-  const calendarsQuery = useCalendarsList(
-    {
-      page_size: 200,
-      ...(initiativeId ? { initiative_id: initiativeId } : {}),
-    },
-    { enabled: !solo }
-  );
-  const calendars = useMemo(
-    () => (solo ? [soloCalendar] : (calendarsQuery.data?.items ?? [])),
-    [solo, soloCalendar, calendarsQuery.data]
-  );
-  const calendarsById = useMemo(() => {
-    const map = new Map<number, (typeof calendars)[number]>();
-    for (const calendar of calendars) map.set(calendar.id, calendar);
-    return map;
-  }, [calendars]);
-
   // Same param shape the sidebar and dashboard use, so this shares their cache.
-  const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !solo });
+  const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !guildOnly });
   const projectNamesById = useMemo(() => {
     const map = new Map<number, string>();
     for (const project of projectsQuery.data?.items ?? []) map.set(project.id, project.name);
@@ -374,8 +388,16 @@ export const CalendarsView = ({
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
   const { canCreate: canCreateCalendarsDerived } = useToolCreateAccess(Tool.calendar, {
     initiativeId,
+    enabled: !guildOnly,
   });
-  const canCreateCalendars = solo ? false : (canCreate ?? canCreateCalendarsDerived);
+  // At guild scope there is no initiative role to consult: any member of the
+  // guild may add a calendar to the app, and owns what they made. The solo deep
+  // link is one calendar's surface, so it offers no list to add to.
+  const canCreateCalendars = guildScope
+    ? true
+    : solo
+      ? false
+      : (canCreate ?? canCreateCalendarsDerived);
   const writableCalendars = useMemo(() => calendars.filter(isWritableCalendar), [calendars]);
   const canCreateEvents = writableCalendars.length > 0;
 
@@ -398,7 +420,6 @@ export const CalendarsView = ({
         attendees: (event.attendee_previews ?? []).map((att) => ({
           name: att.name,
           avatarUrl: att.avatar_url,
-          avatarBase64: att.avatar_base64,
           userId: att.user_id,
         })),
         properties: event.property_values,
@@ -451,7 +472,7 @@ export const CalendarsView = ({
 
   const calendarImport = useToolImportAction({
     tool: Tool.calendar,
-    canImport: !solo && canCreateCalendars,
+    canImport: !guildOnly && canCreateCalendars,
     fixedInitiativeId,
   });
 
@@ -563,7 +584,7 @@ export const CalendarsView = ({
           says both where you are and that you're looking at calendars. */}
       {isInitiativeTab ? null : (
         <h1 className="font-semibold text-3xl tracking-tight">
-          {solo ? soloCalendar.name : t("title")}
+          {solo ? soloCalendar.name : guildScope ? t("guildScope.title") : t("title")}
         </h1>
       )}
 
@@ -579,7 +600,7 @@ export const CalendarsView = ({
              club calendar is exactly what one imports events into.
              `trailing`, not `actions`: export has no bottom-nav equivalent, so
              the desktop-only slot would put it out of reach on a phone. */
-          !solo ? (
+          !guildOnly ? (
             <ExportButton
               endpoint={toolExportEndpoint(Tool.calendar)}
               params={initiativeId ? { initiative_id: initiativeId } : {}}
@@ -602,8 +623,10 @@ export const CalendarsView = ({
       />
       {calendarImport.dialog}
 
-      {/* Filters — task- and initiative-shaped, so the solo (guild calendar)
-          surface has none of them. */}
+      {/* Filters. Most of them are task- and initiative-shaped, so the guild
+          surface keeps only the one that isn't: which calendars are showing.
+          The solo deep link has a single calendar, so it has nothing to
+          narrow. */}
       {!solo && (
         <ToolFilterPanel
           open={filtersOpen}
@@ -635,49 +658,56 @@ export const CalendarsView = ({
               />
             </div>
 
-            {/* Status filter (for tasks) */}
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByStatusCategory")}
-              </Label>
-              <MultiSelect
-                selectedValues={statusFilters}
-                options={statusOptions}
-                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                placeholder={t("tasks:filters.allStatusCategories")}
-                emptyMessage={t("tasks:filters.noStatusCategories")}
-              />
-            </div>
+            {/* The rest are task- and initiative-shaped: a guild calendar
+                holds neither, so they are absent rather than empty — nothing
+                behind them (the property definitions read) runs here. */}
+            {guildOnly ? null : (
+              <>
+                {/* Status filter (for tasks) */}
+                <div className="w-full sm:w-48 lg:flex-1">
+                  <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                    {t("tasks:filters.filterByStatusCategory")}
+                  </Label>
+                  <MultiSelect
+                    selectedValues={statusFilters}
+                    options={statusOptions}
+                    onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                    placeholder={t("tasks:filters.allStatusCategories")}
+                    emptyMessage={t("tasks:filters.noStatusCategories")}
+                  />
+                </div>
 
-            {/* Priority filter (for tasks) */}
-            <div className="w-full sm:w-48 lg:flex-1">
-              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                {t("tasks:filters.filterByPriority")}
-              </Label>
-              <MultiSelect
-                selectedValues={priorityFilters}
-                options={PRIORITY_ORDER.map((p) => ({
-                  value: p,
-                  label: t(`tasks:priority.${p}` as never),
-                }))}
-                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                placeholder={t("tasks:filters.allPriorities")}
-                emptyMessage={t("tasks:filters.noPriorities")}
-              />
-            </div>
+                {/* Priority filter (for tasks) */}
+                <div className="w-full sm:w-48 lg:flex-1">
+                  <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                    {t("tasks:filters.filterByPriority")}
+                  </Label>
+                  <MultiSelect
+                    selectedValues={priorityFilters}
+                    options={PRIORITY_ORDER.map((p) => ({
+                      value: p,
+                      label: t(`tasks:priority.${p}` as never),
+                    }))}
+                    onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                    placeholder={t("tasks:filters.allPriorities")}
+                    emptyMessage={t("tasks:filters.noPriorities")}
+                  />
+                </div>
 
-            {/* Custom property filters — applied to both events and tasks
+                {/* Custom property filters — applied to both events and tasks
                 rendered on the calendar. Scoped to the active initiative
                 when one is selected, union across accessible initiatives
                 otherwise. Nested inside the same bordered filter container
                 so it lines up with the other controls. */}
-            <div className="w-full">
-              <PropertyFilter
-                value={propertyFilters}
-                onChange={setPropertyFilters}
-                {...(initiativeId != null ? { initiativeId } : {})}
-              />
-            </div>
+                <div className="w-full">
+                  <PropertyFilter
+                    value={propertyFilters}
+                    onChange={setPropertyFilters}
+                    {...(initiativeId != null ? { initiativeId } : {})}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </ToolFilterPanel>
       )}
@@ -686,6 +716,18 @@ export const CalendarsView = ({
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t("loading")}
+        </div>
+      ) : guildScope && calendars.length === 0 ? (
+        /* An empty grid would read as "nothing is happening" rather than
+           "there is nothing to happen in yet". */
+        <div className="rounded-lg border border-dashed p-10 text-center">
+          <p className="font-medium">{t("guildScope.empty")}</p>
+          <p className="mt-1 text-muted-foreground text-sm">{t("guildScope.emptyHint")}</p>
+          {canCreateCalendars ? (
+            <Button className="mt-4" onClick={() => setCreateCalendarOpen(true)}>
+              {t("createCalendar")}
+            </Button>
+          ) : null}
         </div>
       ) : (
         <CalendarView
@@ -714,6 +756,7 @@ export const CalendarsView = ({
       <CreateCalendarDialog
         open={createCalendarOpen}
         onOpenChange={setCreateCalendarOpen}
+        guildScope={guildScope}
         initiativeId={fixedInitiativeId}
         defaultInitiativeId={initiativeId ?? undefined}
       />
@@ -722,6 +765,17 @@ export const CalendarsView = ({
     </div>
   );
 };
+
+/**
+ * The /calendars route — the calendar app's own surface.
+ *
+ * Every guild calendar this reader may see, overlaid in one view: the guild's
+ * own events and nothing else. Which calendars are showing is the reader's to
+ * narrow, and any member may add one.
+ */
+export function GuildCalendarsPage() {
+  return <CalendarsView guildScope />;
+}
 
 /** The /calendars/$calendarId deep link (recents tabs, command palette):
  * the same calendar page with that calendar forced visible, recorded as a

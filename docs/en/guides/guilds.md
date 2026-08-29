@@ -18,12 +18,50 @@ You can belong to many guilds at once. The **guild rail** runs down the far-left
 
 Opening a guild lands you on its **front page**: a row of the guild's tools across the top, one circle each. Pick a tool and everything of that kind in the guild is listed underneath it — every project, document, calendar, queue, counter group or dashboard you have access to, wherever it lives — with the initiative it belongs to, its tags, and when it last changed. Click a name to open it, or an initiative to go there instead.
 
-Only the tools your initiatives actually use appear, so a guild that doesn't run queues never shows a Queues circle. The tool you're looking at is part of the address, so you can bookmark or share the view you're on.
+Only the tools your initiatives actually use appear, so a guild that doesn't run queues never shows a Queues circle.
+
+**Search** narrows the list by name, and the **Name**, **Initiative** and **Last updated** headers sort it — newest changes first until you say otherwise. Both reach everything of that kind in the guild rather than just the rows on screen, so nothing hides on a later page. The tool you're looking at, what you searched for, and the order you put it in are all part of the address, so you can bookmark or share exactly the view you're on.
 
 ![A guild's front page](../images/guilds/guild-front-page.png)
 
 !!! tip "Two guilds at once"
     Open Initiative in two browser tabs and you can have each tab in a different guild — handy if you're juggling, say, a work team and a side project.
+
+## Finding a guild to join
+
+Most guilds are private and you get in by invitation. Some choose to list themselves publicly, and those you can find and join on your own.
+
+Under the **add-a-guild** button on the guild rail, choose **Join a community**. That opens the **community directory**: a card for each listed guild with its banner, icon, description, categories, how many members it has, and how many are there right now.
+
+- **Search** by name or description.
+- **Browse by category** — the shelves group guilds by what they're for.
+- **Join** from a guild's card. There's no invite and no waiting: you're a member as soon as you click.
+
+What you searched for and which shelf you're on are both part of the address, so a filtered view of the directory is a link you can send someone.
+
+![The community directory](../images/guilds/community-directory.png)
+
+!!! info "Not every server has one"
+    The directory is a server-wide feature that starts switched **off**. If you don't see **Join a community**, this server hasn't turned it on, and guilds here are invite-only. That's the platform owner's decision — see [Configuration](../admin/configuration.md).
+
+## Listing your guild (administrators)
+
+A guild admin can put their guild in the directory from **Guild settings → Guild**.
+
+1. Turn on **List in the community directory**.
+2. Pick at least one **category**. This is how people find you when browsing, so choose what your guild is actually for.
+3. **Certify** that the guild holds no adult or illegal content.
+
+![Listing a guild in the community directory](../images/guilds/guild-listing.png)
+
+You can unlist at any time; the guild and everything in it carry on exactly as before, it simply stops appearing to strangers.
+
+The certification is the whole of the content rule — a guild that can't honestly tick it isn't listed. One other thing keeps a guild out of the directory whatever you do:
+
+- A guild whose **member limit is set to one** is never listed — there would be no seat for anyone to join. (A nearly-full guild is fine; it's the limit itself that has to leave room.)
+
+!!! tip "Give arrivals somewhere to land"
+    A listed guild whose initiatives are all invite-only leaves newcomers looking at an empty page — they've joined the guild but can't see any of its work yet. Initiative will tell you when that's the case and point you at the fix: mark one initiative **open** so people can join it themselves, or **auto-join** so they simply arrive in it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
 
 ## Inviting people (administrators)
 

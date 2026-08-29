@@ -23,14 +23,14 @@ from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import operator_catalog as service
 from app.services.marketplace.catalog import upsert_listing
 
-pytestmark = pytest.mark.asyncio
-
 
 #: 14 characters from the catalog's alphabet, written out rather than generated
 #: so a failing uid assertion reads plainly.
 OPERATOR_UID = "0PRT0R00000001"
 BUILTIN_UID = "BB11TT00000001"
 REGISTRY_UID = "REG15TRY000001"
+APP_UID = "APP00000000001"
+BUNDLED_DASH_UID = "DASHB0ARD00001"
 
 
 def _manifest(**overrides) -> dict:
@@ -51,6 +51,62 @@ def _manifest(**overrides) -> dict:
     }
     manifest.update(overrides)
     return manifest
+
+
+#: The read the bundled tile draws, namespaced under the app's own service id.
+OPEN_ITEMS = "app.acme.tracker.open-items"
+
+
+def _app_manifest(dashboards=None, **overrides) -> dict:
+    """An app manifest, optionally carrying the dashboards it bundles."""
+    definition: dict = {
+        "app_kind": "service",
+        "service": {"public_id": "acme.tracker", "protocol": 1},
+        "features": ["endpoints", "widgets"],
+        "endpoints": [{"id": OPEN_ITEMS, "direction": "read"}],
+        "widgets": [
+            {
+                "id": "open-items",
+                "meta": {"name": {"en": "Open items"}},
+                "module_source": "export default () => ({});",
+                "endpoints": [OPEN_ITEMS],
+            }
+        ],
+    }
+    if dashboards is not None:
+        definition["features"] = [*definition["features"], "dashboards"]
+        definition["dashboards"] = dashboards
+    manifest = {
+        "uid": APP_UID,
+        "public_id": "acme.tracker",
+        "kind": "app",
+        "name": "Tracker",
+        "publisher": "Acme",
+        "description": "Track the things.",
+        "avatar_url": "/marketplace/acme-tracker.svg",
+        "version": "1.0.0",
+        "definition": definition,
+    }
+    manifest.update(overrides)
+    return manifest
+
+
+def _bundled_dashboard(uid=BUNDLED_DASH_UID, public_id="acme.tracker-overview") -> dict:
+    return {
+        "uid": uid,
+        "public_id": public_id,
+        "name": "Tracker overview",
+        "description": "At a glance.",
+        "layout": {"columns": 12},
+        "widgets": [
+            {
+                "type": "open-items",
+                "title": "Open",
+                "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
+                "binding": {"endpoint_id": OPEN_ITEMS},
+            }
+        ],
+    }
 
 
 def _write(directory: Path, filename: str, body) -> Path:
@@ -347,6 +403,75 @@ class TestWithdrawal:
 
         assert result.withdrawn == 0
         assert (await _listings(session))["core.shipped"].available is True
+
+
+class TestBundledDashboards:
+    """The seam between the two: a dashboard a manifest bundles is published by
+    the same scan that would otherwise be asked to account for it."""
+
+    async def test_a_bundled_dashboard_survives_the_scan_that_publishes_it(
+        self, session, catalog_dir
+    ):
+        """Its uid is only ever written inside its app's file, so the scan has
+        to read the file to know the directory claims it."""
+        _write(catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()]))
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert (result.published, result.withdrawn, result.skipped) == (1, 0, 0)
+        listings = await _listings(session)
+        assert listings["acme.tracker"].available is True
+        dashboard = listings["acme.tracker-overview"]
+        assert dashboard.available is True
+        assert dashboard.bundled_with_uid == APP_UID
+
+    async def test_a_rescan_leaves_the_bundled_dashboard_alone(
+        self, session, catalog_dir
+    ):
+        _write(catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()]))
+        await service.scan_operator_catalog(session)
+        await session.commit()
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert result.withdrawn == 0
+        assert (await _listings(session))["acme.tracker-overview"].available is True
+
+    async def test_dropping_the_entry_still_withdraws_the_dashboard(
+        self, session, catalog_dir
+    ):
+        """The app no longer ships that arrangement, so it stops being offered
+        — while the app itself carries on."""
+        _write(catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()]))
+        await service.scan_operator_catalog(session)
+        await session.commit()
+
+        _write(catalog_dir, "tracker.json", _app_manifest([]))
+        await service.scan_operator_catalog(session)
+        await session.commit()
+
+        listings = await _listings(session)
+        assert listings["acme.tracker-overview"].available is False
+        assert listings["acme.tracker"].available is True
+
+    async def test_deleting_the_file_withdraws_both(self, session, catalog_dir):
+        """Claiming the dashboard's uid is not exempting it: with the file gone,
+        nothing claims either row."""
+        path = _write(
+            catalog_dir, "tracker.json", _app_manifest([_bundled_dashboard()])
+        )
+        await service.scan_operator_catalog(session)
+        await session.commit()
+
+        path.unlink()
+        await service.scan_operator_catalog(session)
+        await session.commit()
+
+        listings = await _listings(session)
+        assert listings["acme.tracker"].available is False
+        assert listings["acme.tracker-overview"].available is False
 
 
 class TestOneAtATime:

@@ -158,6 +158,36 @@ async def update_interface_colors(
     return settings_row
 
 
+async def community_directory_enabled(session: AsyncSession) -> bool:
+    """Whether the platform owner has the community directory switched on.
+
+    The one read of the switch. Everything the directory consists of — browsing
+    it, joining from it, and a guild listing itself in it — asks this first, so
+    turning it off closes all three at once.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.community_directory_enabled)
+
+
+async def update_community_settings(
+    session: AsyncSession,
+    *,
+    community_directory_enabled: bool,
+) -> AppSetting:
+    """Turn the community directory on or off for the whole deployment.
+
+    Switching it off leaves every guild's own opt-in exactly as it was: the
+    listings simply have nowhere to appear until it is switched back on, so an
+    operator flipping this twice does not silently unpublish anybody.
+    """
+    settings_row = await _ensure_app_settings(session)
+    settings_row.community_directory_enabled = bool(community_directory_enabled)
+    session.add(settings_row)
+    await session.commit()
+    await session.refresh(settings_row)
+    return settings_row
+
+
 async def update_email_settings(
     session: AsyncSession,
     *,

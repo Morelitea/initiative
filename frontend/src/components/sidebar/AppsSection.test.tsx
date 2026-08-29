@@ -88,7 +88,19 @@ describe("AppsSection", () => {
     apps = [app()];
     render(false);
     const link = (await screen.findByText("Guild calendar")).closest("a");
-    expect(link?.getAttribute("href")).toContain("/calendars/12");
+    // The list, not one of them: a member may add calendars to the app, so its
+    // entry leads to everything it holds.
+    expect(link?.getAttribute("href")).toContain("/calendars");
+    expect(link?.getAttribute("href")).not.toContain("/calendars/12");
+  });
+
+  it("still links a tool-instance app that holds nothing yet", async () => {
+    // Its home is where the first one gets made, so an empty app is the one
+    // that most needs a row.
+    apps = [app({ artifacts: [] })];
+    render(false);
+    const link = (await screen.findByText("Guild calendar")).closest("a");
+    expect(link?.getAttribute("href")).toContain("/calendars");
   });
 
   it("hides a disabled app", async () => {
@@ -131,15 +143,16 @@ describe("AppsSection", () => {
   });
 
   it("folds an app with nothing to open under 'show more'", async () => {
-    // A calendar app whose row cannot be resolved has no surface and no
-    // credential, so it is not worth a row until asked for.
-    apps = [app({ artifacts: [] })];
+    // An app that mounts no tool, declares no surface this reader may open and
+    // asks for no credential has nowhere to lead, so it is not worth a row
+    // until asked for.
+    apps = [app({ name: "Widgets only", tool: null, artifacts: [] })];
     render(false);
     await screen.findByText("Apps");
-    expect(screen.queryByText("Guild calendar")).toBeNull();
+    expect(screen.queryByText("Widgets only")).toBeNull();
 
     (await screen.findByText("1 more")).click();
-    const entry = await screen.findByText("Guild calendar");
+    const entry = await screen.findByText("Widgets only");
     expect(entry.closest("a")).toBeNull();
   });
 
@@ -191,9 +204,9 @@ describe("AppsSection", () => {
   });
 
   it("gives the gear to an app with nothing to open, once it is shown", async () => {
-    apps = [app({ artifacts: [] })];
+    apps = [app({ name: "Widgets only", tool: null, artifacts: [] })];
     render(false);
     (await screen.findByText("1 more")).click();
-    expect(await screen.findByLabelText("Guild calendar settings")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Widgets only settings")).toBeInTheDocument();
   });
 });

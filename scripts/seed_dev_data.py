@@ -8,7 +8,9 @@ Designed to run from the backend/ directory (CWD) so app imports resolve.
 Saves created IDs to .vscode/.dev_seed_ids.json for cleanup.
 
 Creates 3 guilds with multiple users, initiatives, projects, tasks, documents,
-tags, and comments to exercise all features of the app.
+tags, and comments to exercise all features of the app, plus six small guilds
+that exist to fill the community directory (which this switches on). Guilds 1
+and 2 stay invite-only so the unlisted case is still there to look at.
 
 Seeded logins (all password "changeme"):
 - admin1..admin4@example.com — dedicated guild admins (platform tier: member).
@@ -51,6 +53,7 @@ from app.core.config import settings  # noqa: E402
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
+from app.services.platform.usernames import allocate_from_seed  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
 from app.services.tenant.dashboard_definition import (  # noqa: E402
@@ -84,7 +87,12 @@ from app.models.platform.access_grant import (  # noqa: E402
     AccessGrantStatus,
     AccessLevel,
 )
-from app.models.platform.guild import Guild, GuildMembership, GuildRole  # noqa: E402
+from app.models.platform.guild import (  # noqa: E402
+    Guild,
+    GuildCategory,
+    GuildMembership,
+    GuildRole,
+)
 from app.models.tenant.queue import (  # noqa: E402
     Queue,
     QueueItem,
@@ -123,8 +131,11 @@ from app.models.tenant.task import (  # noqa: E402
     TaskStatusCategory,
 )
 from app.models.platform.user import User, UserRole, UserStatus  # noqa: E402
-from app.services.platform.app_settings import get_or_create_guild_settings  # noqa: E402
-from app.services.platform.guilds import get_primary_guild  # noqa: E402
+from app.services.platform.app_settings import (  # noqa: E402
+    get_app_settings,
+    get_or_create_guild_settings,
+)
+from app.services.platform import guilds as guilds_service  # noqa: E402
 from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
     ensure_default_initiative,
@@ -294,6 +305,18 @@ def _save_state(state: dict) -> None:
     print(f"  State saved to {STATE_FILE}")
 
 
+def _mark_seed_incomplete() -> None:
+    """Record that a seed is in flight, before the first row is written.
+
+    A seed that stops partway leaves rows that look no different from a
+    finished one, and the next seed collides with them. This marker is what
+    tells the next launch to clear them and start over; the finished seed
+    overwrites it with the real id state.
+    """
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps({"seed_incomplete": True}, indent=2))
+
+
 def _load_state() -> dict | None:
     if not STATE_FILE.exists():
         return None
@@ -405,12 +428,30 @@ async def _create_users(
             )
         ).one_or_none()
         if existing is not None:
+            # A row seeded before handles existed was given one by the
+            # backfill, which marks it unchosen — so signing in would land on
+            # the choose-your-handle screen, unlike a freshly seeded account.
+            # Seeded logins are set up ready to use either way.
+            if not existing.username_chosen:
+                existing.username_chosen = True
+                session.add(existing)
             ids.add("users", existing.id)
             users[ud["full_name"]] = existing
             continue
+        # Seeded people get a handle the way a real account does: from their
+        # name, with the number drawn for them. ``username`` may be given
+        # explicitly where a scenario wants a recognisable one.
+        handle, discriminator = await allocate_from_seed(
+            session, seed=ud.get("username") or ud["full_name"]
+        )
         user = User(
             email_hash=hash_email(ud["email"]),
             email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
+            username=handle,
+            discriminator=discriminator,
+            # Seeded accounts are set up ready to use, so they never meet the
+            # choose-your-handle screen.
+            username_chosen=True,
             full_name=ud["full_name"],
             hashed_password=get_password_hash("changeme"),
             role=ud.get("role", UserRole.member),
@@ -456,28 +497,27 @@ async def _create_guild(
     description: str,
     creator: User,
 ) -> Guild:
-    """Create a guild and admin membership for the creator."""
+    """Create a guild and admin membership for the creator.
+
+    Goes through the service rather than inserting the row here, so a seeded
+    guild is built the same way one made in the app is — in particular it gets
+    the ``guild_administration`` companion every reader assumes exists (the
+    community directory joins against it, and ``get_administration`` raises
+    without it).
+    """
     # Creating a public.guilds row is a bootstrap write: there is no guild to be
     # admin of yet, so no guild-admin RLS leg can authorize it — it must run on the
     # BYPASSRLS login role (app_admin). After seeding a previous guild's content the
     # session is still SET ROLE'd into that guild_<id> (and the admin-role
     # dual-path bypass is retired), so reset to the bare login-role baseline first.
     await set_rls_context(session)
-    guild = Guild(
+    guild = await guilds_service.create_guild(
+        session,
         name=name,
         description=description,
-        created_by=creator.id,
+        creator=creator,
     )
-    session.add(guild)
-    await session.flush()
     ids.add("guilds", guild.id)
-
-    membership = GuildMembership(
-        guild_id=guild.id,
-        user_id=creator.id,
-        role=GuildRole.admin,
-    )
-    session.add(membership)
     ids.add("guild_memberships", {"guild_id": guild.id, "user_id": creator.id})
     await session.flush()
     return guild
@@ -588,6 +628,101 @@ async def _create_initiative(
 
     await session.flush()
     return initiative, pm_role, member_role
+
+
+async def _enable_community_directory(session: AsyncSession) -> None:
+    """Switch the platform's community directory on.
+
+    It is a platform-owner setting that ships off, so a dev database has no
+    directory until this says otherwise — and the listings below would have
+    nowhere to appear.
+    """
+    settings_row = await get_app_settings(session)
+    settings_row.community_directory_enabled = True
+    session.add(settings_row)
+    await session.flush()
+
+
+async def _list_guild_in_directory(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    categories: list[GuildCategory],
+) -> None:
+    """Opt a guild into the directory.
+
+    A listing is the shelves plus the 18+ declaration together — the database
+    refuses a listed guild missing either — and the categories are stored in the
+    same order the app stores them in. A listed guild also shows handles rather
+    than real names, which the update service applies for an admin and
+    ck_guilds_community_member_names refuses to do without.
+
+    Writes ``public.guilds``, so the session must not be routed into a guild
+    schema when this is called.
+    """
+    guild.is_community = True
+    guild.categories = guilds_service.normalize_categories(
+        [c.value for c in categories]
+    )
+    guild.has_adult_content = False
+    guild.show_member_names = False
+    session.add(guild)
+    await session.flush()
+
+
+async def _create_community_guild(
+    session: AsyncSession,
+    ids: IDTracker,
+    *,
+    name: str,
+    description: str,
+    categories: list[GuildCategory],
+    admin: User,
+    members: list[User],
+    initiative_name: str,
+    initiative_description: str,
+    initiative_color: str,
+) -> Guild:
+    """A small guild that exists to be found in the directory.
+
+    Enough to be a believable card — a name, a description, its shelves, and a
+    roster whose size shows on it — plus one initiative everybody in it belongs
+    to, so joining from the directory lands somewhere rather than in a guild
+    that looks broken. The deep content stays in guilds 1-3.
+    """
+    guild = await _create_guild(
+        session,
+        ids,
+        name=name,
+        description=description,
+        creator=admin,
+    )
+    await _list_guild_in_directory(session, guild, categories=categories)
+    guild_id = guild.id
+
+    # Same order the guild sections above use: commit the shared rows, provision
+    # the schema, add the roster, then route in to write the guild's content.
+    await session.commit()
+    _expunge_guild_scoped(session)
+    await provision_guild(guild_id)
+    await _add_guild_members(session, ids, guild, members)
+    await set_rls_context(
+        session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
+    )
+    await _create_initiative(
+        session,
+        ids,
+        guild=guild,
+        name=initiative_name,
+        description=initiative_description,
+        color=initiative_color,
+        pm_user=admin,
+        member_users=members,
+    )
+    await session.commit()
+    _expunge_guild_scoped(session)
+    await set_rls_context(session)
+    return guild
 
 
 async def _create_project(
@@ -1930,18 +2065,24 @@ async def _create_access_grants(
 
 
 async def seed() -> None:
-    if _load_state() is not None:
-        print("Seed data already exists (.vscode/.dev_seed_ids.json found).")
-        print("  Run with --clean first to remove existing data.")
+    state = _load_state()
+    if state is not None:
+        if state.get("seed_incomplete"):
+            print("A previous seed was interrupted and left partial data.")
+            print("  Run with --clean, then dev-migrate, then seed again.")
+        else:
+            print("Seed data already exists (.vscode/.dev_seed_ids.json found).")
+            print("  Run with --clean first to remove existing data.")
         return
 
     print("Seeding dev data (3 guilds, multiple users)...")
+    _mark_seed_incomplete()
     ids = IDTracker()
 
     async with AdminSessionLocal() as session:
         # -- Discover existing entities --
         admin_user = await _find_superuser(session)
-        primary_guild = await get_primary_guild(session)
+        primary_guild = await guilds_service.get_primary_guild(session)
 
         # ==============================================================
         # Users (all password: "changeme")
@@ -6862,6 +7003,96 @@ async def seed() -> None:
         await session.commit()
 
         # ==============================================================
+        # COMMUNITY DIRECTORY
+        # ==============================================================
+        # Guilds 1 and 2 stay invite-only, so the private case is still there to
+        # look at: an unlisted guild has no categories, no 18+ answer, and no
+        # card. Guild 3 is listed, which puts one guild with real content behind
+        # a directory card — the superuser is already in it, so it shows the
+        # already-a-member state next to the joinable ones. The rest are small
+        # guilds that exist to fill the shelves.
+        print("\n  --- Community directory ---")
+        await set_rls_context(session)  # shared/public tables — no guild routing
+        await _enable_community_directory(session)
+        await _list_guild_in_directory(
+            session, g3, categories=[GuildCategory.ttrpg, GuildCategory.social]
+        )
+        await session.commit()
+
+        # One shelf (music) is deliberately left empty, so the "nothing on this
+        # shelf" state is reachable without editing anything.
+        community_specs = [
+            {
+                "name": "The Cartographers' Table",
+                "description": "Hand-drawn maps for tables that want one. "
+                "Weekly critique thread, monthly swap.",
+                "categories": [GuildCategory.art, GuildCategory.ttrpg],
+                "admin": elara,
+                "members": [thorn, vex],
+                "initiative_name": "Map Swap",
+                "initiative_description": "The running map exchange and its critique threads.",
+                "initiative_color": "#0891b2",
+            },
+            {
+                "name": "Midnight Homebrew",
+                "description": "Homebrew rules, monsters, and subclasses — "
+                "brought here to be broken before a table finds the cracks.",
+                "categories": [GuildCategory.ttrpg, GuildCategory.writing],
+                "admin": dm,
+                "members": [sera, kael, aurelia, thorn],
+                "initiative_name": "Playtest Queue",
+                "initiative_description": "Everything waiting on a table to try it.",
+                "initiative_color": "#7c3aed",
+            },
+            {
+                "name": "Sunday Session Zero",
+                "description": "Pick-up games for people without a regular table. "
+                "Say what you play, find four others.",
+                "categories": [GuildCategory.gaming, GuildCategory.social],
+                "admin": finley,
+                "members": [vex, kael, p_member, p_support],
+                "initiative_name": "This Month's Tables",
+                "initiative_description": "Who is running what, and which seats are open.",
+                "initiative_color": "#ea580c",
+            },
+            {
+                "name": "Pixel & Palette",
+                "description": "Digital art, tooling, and the pipelines behind them.",
+                "categories": [GuildCategory.art, GuildCategory.technology],
+                "admin": vex,
+                "members": [elara, sera],
+                "initiative_name": "Studio",
+                "initiative_description": "Works in progress and the tools that made them.",
+                "initiative_color": "#db2777",
+            },
+            {
+                "name": "Dawn Patrol",
+                "description": "An early-morning running club. Routes, times, "
+                "and a standing excuse to be outside before work.",
+                "categories": [GuildCategory.sports, GuildCategory.health],
+                "admin": sera,
+                "members": [thorn, aurelia, finley, dm, kael],
+                "initiative_name": "Season Plan",
+                "initiative_description": "The training block everyone is on.",
+                "initiative_color": "#16a34a",
+            },
+            {
+                "name": "Founders' Roundtable",
+                "description": "Small-company operators comparing notes. "
+                "No pitches, no recruiting.",
+                "categories": [GuildCategory.business, GuildCategory.education],
+                "admin": thorn,
+                "members": [p_operator, p_moderator],
+                "initiative_name": "Roundtable",
+                "initiative_description": "The standing agenda and its notes.",
+                "initiative_color": "#0f766e",
+            },
+        ]
+        for spec in community_specs:
+            print(f"  Listing community guild: {spec['name']}")
+            await _create_community_guild(session, ids, **spec)
+
+        # ==============================================================
         # PAM access grants (platform-role testing paths)
         # ==============================================================
         # Every grant targets a guild the grantee is NOT a member of — PAM
@@ -6950,7 +7181,11 @@ async def seed() -> None:
 
     print("\nDone! Dev data seeded successfully.")
     print(f"  {total_users} users (password: changeme)")
-    print(f"  3 guilds, {len(ids.data['initiatives'])} initiatives")
+    print(
+        f"  {len(ids.data['guilds']) + 1} guilds "
+        f"({len(ids.data['initiatives'])} initiatives); "
+        "community directory on"
+    )
     print(f"  {total_projects} projects, {total_tasks} tasks")
     print(f"  {total_docs} documents, {len(ids.data['tags'])} tags")
     print(
@@ -7014,7 +7249,6 @@ async def clean() -> None:
 
     print("Cleaning up dev data (dropping guild schemas + wiping shared rows)...")
     async with db_session.provisioning_engine.begin() as conn:
-        await conn.exec_driver_sql("SET lock_timeout = '10s'")
         schemas = [
             s
             for (s,) in (
@@ -7023,8 +7257,6 @@ async def clean() -> None:
                 )
             ).all()
         ]
-        for schema in schemas:
-            await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
         roles = [
             r
             for (r,) in (
@@ -7033,7 +7265,20 @@ async def clean() -> None:
                 )
             ).all()
         ]
-        await conn.exec_driver_sql(
+
+    # One transaction per schema, and the truncate in its own. A guild schema is
+    # ~40 tables plus their indexes, so dropping every one of them and cascading
+    # a truncate in a single transaction holds more locks than a default
+    # `max_locks_per_transaction` allows — and the whole clean then rolls back,
+    # leaving the state it was asked to clear.
+    for schema in schemas:
+        async with db_session.provisioning_engine.begin() as sconn:
+            await sconn.exec_driver_sql("SET lock_timeout = '10s'")
+            await sconn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+
+    async with db_session.provisioning_engine.begin() as tconn:
+        await tconn.exec_driver_sql("SET lock_timeout = '10s'")
+        await tconn.exec_driver_sql(
             "TRUNCATE TABLE users, guilds RESTART IDENTITY CASCADE"
         )
 
@@ -7051,6 +7296,18 @@ async def clean() -> None:
     print(
         f"  Dropped {len(schemas)} guild schema(s) + {dropped}/{len(roles)} role(s); wiped users + guilds"
     )
+
+    # The directory switch is a platform setting, so it outlives every guild
+    # that was listed in it. Put it back to the off state a fresh install has,
+    # or the next un-seeded dev database starts with a directory nobody asked
+    # for. app_settings is not truncated above, so this is its own write.
+    async with AdminSessionLocal() as session:
+        await set_rls_context(session)
+        app_settings = await get_app_settings(session)
+        app_settings.community_directory_enabled = False
+        session.add(app_settings)
+        await session.commit()
+    print("  Community directory switched back off")
 
     STATE_FILE.unlink(missing_ok=True)
     print(

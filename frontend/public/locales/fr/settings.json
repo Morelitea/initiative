@@ -70,7 +70,16 @@
     "saving": "Enregistrement…",
     "reset": "Réinitialiser",
     "updateSuccess": "Profil mis à jour",
-    "updateError": "Impossible de mettre à jour le profil"
+    "updateError": "Impossible de mettre à jour le profil",
+    "avatarUploadHelp": "N'importe quelle image. Elle est recadrée en carré et redimensionnée pour vous.",
+    "avatar": {
+      "failed": "Cette image n'a pas pu être enregistrée.",
+      "notAnImage": "Veuillez choisir un fichier image.",
+      "tooLarge": "Ce fichier est trop volumineux. Essayez-en un de moins de 12 Mo.",
+      "unreadable": "Cette image n'a pas pu être lue."
+    },
+    "usernameLabel": "Nom d'utilisateur",
+    "usernameHelp": "C'est ainsi que les autres vous voient. Pour le modifier, adressez-vous à un modérateur."
   },
   "security": {
     "devicesTitle": "Appareils connectés",
@@ -614,7 +623,17 @@
     "changeRoleDescription": "Cela changera le rôle de plateforme de {{email}} en {{role}}.",
     "roleChangeSuccess": "Rôle de plateforme changé en {{role}}",
     "deactivated": "Désactivé",
-    "anonymized": "Anonymisé"
+    "anonymized": "Anonymisé",
+    "changeUsername": "Changer le nom d'utilisateur",
+    "usernameChanged": "Nom d'utilisateur modifié.",
+    "changeUsernameTitle": "Changer le nom d'utilisateur de {{handle}}",
+    "changeUsernameBody": "La personne en sera informée et ne pourra pas revenir en arrière elle-même. Le numéro reste le même.",
+    "suspend": "Suspendre",
+    "unsuspend": "Lever la suspension",
+    "suspendTitle": "Suspendre {{handle}} ?",
+    "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune guilde tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
+    "suspendReasonLabel": "Motif (qui lui sera montré)",
+    "actionError": "L'opération n'a pas abouti. Réessayez."
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",
@@ -733,11 +752,12 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'IA, le stockage des guildes et les services applicatifs pour toute la plateforme.",
+    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'annuaire des communautés, l'IA, le stockage des guildes et les services applicatifs pour toute la plateforme.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
+      "community": "Communauté",
       "ai": "IA",
       "storage": "Stockage",
       "appServices": "Services applicatifs"
@@ -786,6 +806,9 @@
     "delegationJwksLabel": "Clés de signature de délégation (JWKS)",
     "delegationJwksHelp": "La moitié publique de la clé avec laquelle cette application signe ses jetons de délégation. Collez le jeu de clés que l'application publie ; deux entrées signifient qu'une rotation est en cours. Vider le champ le supprime.",
     "delegationJwksInvalid": "Ce n'est pas du JSON valide.",
+    "appDirectoryLabel": "Trouver d'autres applications (annuaire des applications)",
+    "appDirectoryHelp": "Cette application peut demander où répond une autre application installée dans la même guilde. Exige aussi la délégation : un service d'automatisation détient les deux, car agir pour le compte d'une application auprès d'une autre est précisément sa raison d'être.",
+    "appDirectoryBadge": "Trouve d'autres applications",
     "createTitle": "Ajouter un service applicatif",
     "editTitle": "Modifier le service applicatif",
     "createDescription": "Faites pointer Initiative vers un conteneur d'application en fonctionnement. Les deux côtés doivent détenir le même secret partagé.",
@@ -841,7 +864,8 @@
     "tabs": {
       "users": "Utilisateurs",
       "access": "Accès",
-      "guilds": "Groupes"
+      "guilds": "Groupes",
+      "audit": "Audit"
     }
   },
   "guilds": {
@@ -1074,5 +1098,31 @@
     "prefError": "Impossible de mettre à jour la préférence",
     "test": "Tester",
     "testSuccess": "Connexion réussie"
+  },
+  "community": {
+    "title": "Annuaire des communautés",
+    "description": "Permettez aux guildes de se référencer là où toute personne connectée peut les trouver et les rejoindre sans invitation.",
+    "toggleLabel": "Proposer un annuaire des communautés",
+    "helpText": "Tant que c'est activé, un administrateur de guilde peut référencer sa guilde depuis les paramètres de la guilde, et « Rejoindre une communauté » apparaît à côté des guildes de chacun. Une fois désactivé, il n'y a rien à parcourir et aucune guilde ne peut se référencer.",
+    "reversibleNote": "Désactiver masque l'annuaire ; les guildes référencées le restent. En le réactivant, les mêmes guildes réapparaissent.",
+    "enabledToast": "L'annuaire des communautés est activé.",
+    "disabledToast": "L'annuaire des communautés est désactivé.",
+    "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés."
+  },
+  "audit": {
+    "title": "Audit",
+    "description": "Ce qui a été fait aux comptes, par qui et quand. Les entrées sont conservées même après la suppression des comptes qu'elles nomment.",
+    "whenColumn": "Quand",
+    "actionColumn": "Action",
+    "actorColumn": "Effectué par",
+    "subjectColumn": "Concerne",
+    "subjectFilterPlaceholder": "Filtrer par ID de compte",
+    "departedAccount": "Compte n° {{id}} (supprimé)",
+    "empty": "Rien n'a encore été enregistré.",
+    "pageOf": "Page {{page}} sur {{total}} entrées",
+    "actions": {
+      "user.avatar_removed": "Photo de profil supprimée"
+    }
   }
 }

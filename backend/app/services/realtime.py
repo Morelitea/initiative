@@ -31,27 +31,51 @@ class ConnectionManager:
 
     A socket may live in several rooms at once (a user reaches several
     initiatives), so we keep a reverse index for O(1) disconnect.
+
+    It also answers who is *present* in a guild. A socket on this stream is a
+    user with the app open in that guild, which is the thing "online" means, and
+    it is tracked per guild rather than per room: a member of no initiative
+    joins no rooms and is still here. Presence is counted per user, not per
+    socket, so two tabs are one person.
+
+    What that count is bounded by is worth stating: this is one process's own
+    sockets, held in memory. Where the API runs as more than one worker each
+    holds a share, and a count read from one of them is that share rather than
+    the whole. A number that is only ever compared with itself (how busy is this
+    guild) survives that; anything that has to be exact does not, and wants a
+    store the processes share.
     """
 
     def __init__(self) -> None:
         self._rooms: Dict[RoomKey, Set[WebSocket]] = {}
         self._socket_rooms: Dict[WebSocket, Set[RoomKey]] = {}
+        # guild_id -> user_id -> how many of that user's sockets are open here.
+        self._present: Dict[int, Dict[int, int]] = {}
+        self._socket_identity: Dict[WebSocket, Tuple[int, int]] = {}
         self._lock = asyncio.Lock()
 
     async def connect(
-        self, guild_id: int, initiative_ids: Iterable[int], websocket: WebSocket
+        self,
+        guild_id: int,
+        initiative_ids: Iterable[int],
+        websocket: WebSocket,
+        *,
+        user_id: int,
     ) -> None:
         """Register an already-accepted socket under each of its initiative rooms,
-        namespaced to ``guild_id``."""
+        namespaced to ``guild_id``, and mark its user present in that guild."""
         async with self._lock:
             joined = self._socket_rooms.setdefault(websocket, set())
             for initiative_id in initiative_ids:
                 key = (guild_id, initiative_id)
                 self._rooms.setdefault(key, set()).add(websocket)
                 joined.add(key)
+            self._socket_identity[websocket] = (guild_id, user_id)
+            present = self._present.setdefault(guild_id, {})
+            present[user_id] = present.get(user_id, 0) + 1
 
     async def disconnect(self, websocket: WebSocket) -> None:
-        """Remove a socket from every room it joined."""
+        """Remove a socket from every room it joined, and from its guild's roll."""
         async with self._lock:
             for key in self._socket_rooms.pop(websocket, set()):
                 room = self._rooms.get(key)
@@ -59,6 +83,22 @@ class ConnectionManager:
                     room.discard(websocket)
                     if not room:
                         del self._rooms[key]
+            identity = self._socket_identity.pop(websocket, None)
+            if identity is None:
+                return
+            guild_id, user_id = identity
+            present = self._present.get(guild_id)
+            if present is None:
+                return
+            # A user's last socket takes the user out; the last user takes the
+            # guild out, so an empty guild costs nothing to have had someone in.
+            remaining = present.get(user_id, 0) - 1
+            if remaining > 0:
+                present[user_id] = remaining
+            else:
+                present.pop(user_id, None)
+                if not present:
+                    del self._present[guild_id]
 
     async def broadcast(
         self, guild_id: int, initiative_id: int, message: Dict[str, Any]
@@ -74,6 +114,14 @@ class ConnectionManager:
 
     def room_size(self, guild_id: int, initiative_id: int) -> int:
         return len(self._rooms.get((guild_id, initiative_id), set()))
+
+    def present_count(self, guild_id: int) -> int:
+        """How many distinct users have this guild open on this process."""
+        return len(self._present.get(guild_id, {}))
+
+    def present_counts(self, guild_ids: Iterable[int]) -> Dict[int, int]:
+        """``present_count`` for several guilds, for a page of them at a time."""
+        return {guild_id: self.present_count(guild_id) for guild_id in guild_ids}
 
 
 manager = ConnectionManager()

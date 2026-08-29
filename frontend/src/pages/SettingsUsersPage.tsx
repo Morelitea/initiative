@@ -15,6 +15,7 @@ import type {
 import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
 import { TransferContentOwnershipDialog } from "@/components/guilds/TransferContentOwnershipDialog";
 import { UnownedContentCard } from "@/components/guilds/UnownedContentCard";
+import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -40,6 +41,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -171,10 +173,10 @@ export const SettingsUsersPage = () => {
   });
 
   const exportUserCsv = (guildMember: UserGuildMember) => {
-    const safeEmail = guildMember.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const safeHandle = guildMember.username.replace(/[^a-zA-Z0-9._-]+/g, "_");
     exportGuildUsers.mutate({
       params: { user_id: [guildMember.id] },
-      filename: `user-${guildMember.id}-${safeEmail}.csv`,
+      filename: `user-${guildMember.id}-${safeHandle}.csv`,
     });
   };
 
@@ -199,6 +201,11 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">{t("users.unableToLoadSettings")}</p>;
   }
 
+  // The handle leads: every guild has one for every member. A guild that
+  // renders handles sends no names, so that column would be a full one of
+  // em-dashes.
+  const showsNames = Boolean(activeGuild?.show_member_names);
+
   const userColumns: AppColumnDef<UserGuildMember>[] = [
     {
       accessorKey: "id",
@@ -208,26 +215,27 @@ export const SettingsUsersPage = () => {
       ),
     },
     {
-      id: "user",
-      header: t("users.userColumn"),
-      cell: ({ row }) => {
-        const guildMember = row.original;
-        const displayName = guildMember.full_name?.trim() || "—";
-        return (
-          <div>
-            <p className="font-medium">{displayName}</p>
-          </div>
-        );
-      },
+      accessorKey: "username",
+      header: t("users.handleColumn"),
+      cell: ({ row }) => (
+        <p className="text-sm">
+          <UserHandle user={row.original} />
+        </p>
+      ),
     },
-    {
-      accessorKey: "email",
-      header: t("users.emailColumn"),
-      cell: ({ row }) => {
-        const guildMember = row.original;
-        return <p className="text-muted-foreground text-sm">{guildMember.email}</p>;
-      },
-    },
+    ...(showsNames
+      ? [
+          {
+            id: "user",
+            header: t("users.userColumn"),
+            cell: ({ row }) => (
+              <div>
+                <p className="font-medium">{row.original.full_name?.trim() || "—"}</p>
+              </div>
+            ),
+          } satisfies AppColumnDef<UserGuildMember>,
+        ]
+      : []),
     {
       accessorKey: "guild_role",
       header: t("users.guildRoleColumn"),
@@ -309,7 +317,7 @@ export const SettingsUsersPage = () => {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => handleDeleteUser(guildMember.id, guildMember.email)}
+              onClick={() => handleDeleteUser(guildMember.id, getUserDisplayName(guildMember))}
               disabled={isSelf}
             >
               {t("users.removeFromGuild")}

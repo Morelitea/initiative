@@ -2,7 +2,16 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Text, Boolean, String, Integer
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    text,
+)
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -31,18 +40,60 @@ class UserRole(str, Enum):
 
 class UserStatus(str, Enum):
     active = "active"
+    #: Frozen by a platform moderator. Distinct from ``deactivated``, which
+    #: drops every guild and initiative membership — suspension writes this one
+    #: column and nothing else, so lifting it restores the account whole. The
+    #: holder still signs in and reaches their own account; what they lose is
+    #: every guild.
+    suspended = "suspended"
+    #: The holder closed their account. Memberships are dropped; the row and
+    #: its personal data remain so an administrator can reactivate it.
     deactivated = "deactivated"
+    #: Erased. The row is a husk kept only so the work it touched still says
+    #: who did it.
     anonymized = "anonymized"
+
+
+#: The statuses that may hold a session. A suspended account signs in — that is
+#: how its holder reaches their own account, and how they can be told why —
+#: and is stopped at every guild instead.
+LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
+    {UserStatus.active, UserStatus.suspended}
+)
 
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
+    __table_args__ = (
+        # A handle is unique as a pair, and case-insensitively on the name
+        # part: one never differs from another by case alone.
+        Index(
+            "ix_users_handle",
+            text("lower(username)"),
+            "discriminator",
+            unique=True,
+        ),
+    )
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
     __allow_unmapped__ = True
 
     id: Optional[int] = Field(default=None, primary_key=True)
     email_hash: str = Field(sa_column=Column(String(64), unique=True, nullable=False))
     email_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
+    #: The name part of this account's handle — what a person picks and reads.
+    #: Unique with ``discriminator``, case-insensitively (``ix_users_handle``);
+    #: the vocabulary lives in ``app.core.usernames``.
+    username: str = Field(sa_column=Column(String(32), nullable=False))
+    #: The number behind the name, 0000-9999, drawn at random and rendered
+    #: zero-padded beside it. Never chosen by anyone.
+    discriminator: int = Field(sa_column=Column(SmallInteger, nullable=False))
+    #: Whether the handle was picked rather than assigned. False on a row the
+    #: backfill seeded and on an account provisioned from SSO claims, which is
+    #: what routes its owner to the pick screen on their next sign-in.
+    username_chosen: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     full_name: Optional[str] = Field(default=None)
     # NULL = no password set (SSO-only account) — password verification treats
     # a missing hash as "never a match", so such an account can only sign in
@@ -72,10 +123,10 @@ class User(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    avatar_base64: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
+    #: Where this user's picture is: a path this API serves
+    #: (``/api/v1/users/{id}/avatar/{sha256}``, bytes in ``user_avatars``) or a
+    #: URL somewhere else, from an OIDC ``picture`` claim. One or the other,
+    #: never both — see ``app.services.platform.user_avatars``.
     avatar_url: Optional[str] = Field(default=None, nullable=True)
     token_version: int = Field(
         default=1,

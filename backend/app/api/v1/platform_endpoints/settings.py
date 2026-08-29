@@ -27,6 +27,8 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    CommunitySettingsResponse,
+    CommunitySettingsUpdate,
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
@@ -185,6 +187,32 @@ async def update_interface_settings(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
         auth_scope=app_config.AUTH_SCOPE,
+    )
+
+
+@router.put("/community", response_model=CommunitySettingsResponse)
+async def update_community_settings(
+    payload: CommunitySettingsUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> CommunitySettingsResponse:
+    """Turn the community directory on or off for the whole deployment.
+
+    Write-only on purpose: the current value is public — every signed-in page
+    needs it to decide whether to offer the directory — so it is served from
+    ``GET /config`` with the rest of the SPA's boot configuration rather than
+    from a second, capability-gated read of the same boolean.
+
+    Switching it off hides the directory and refuses new listings; it does not
+    clear the opt-in a guild already made, so switching it back on restores the
+    same set of listed guilds.
+    """
+    settings_obj = await app_settings_service.update_community_settings(
+        session,
+        community_directory_enabled=payload.community_directory_enabled,
+    )
+    return CommunitySettingsResponse(
+        community_directory_enabled=settings_obj.community_directory_enabled,
     )
 
 
@@ -453,6 +481,9 @@ async def list_platform_guild_storage(
             guild_auth_enabled=(
                 administration.guild_auth_enabled if administration else False
             ),
+            banner_image_enabled=(
+                administration.banner_image_enabled if administration else True
+            ),
         )
         for g, administration in rows
     ]
@@ -488,6 +519,7 @@ async def update_platform_guild_storage(
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
             guild_auth_enabled=payload.guild_auth_enabled,
+            banner_image_enabled=payload.banner_image_enabled,
         )
         if payload.status is not None and guild.status != payload.status.value:
             logger.info(

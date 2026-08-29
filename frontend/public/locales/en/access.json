@@ -6,9 +6,12 @@
   "share": {
     "title": "Share",
     "allMembers": "All initiative members",
+    "allGuildMembers": "Everyone in the guild",
     "restricted": "Restricted",
     "allMembersHint": "Everyone in the initiative can access this.",
+    "allGuildMembersHint": "Everyone in the guild can access this.",
     "restrictedHint": "Only people and roles you add can access this.",
+    "restrictedGuildHint": "Only people you add can access this.",
     "viewer": "Viewer",
     "editor": "Editor",
     "owner": "Owner",

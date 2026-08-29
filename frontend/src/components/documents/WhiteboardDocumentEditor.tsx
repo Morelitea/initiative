@@ -11,7 +11,7 @@
 
 import { CaptureUpdateAction, Excalidraw, serializeAsJSON } from "@excalidraw/excalidraw";
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@excalidraw/excalidraw/index.css";
 
@@ -48,8 +48,12 @@ export interface WhiteboardDocumentEditorProps {
    *  state to catch up to a live room where another user has been
    *  editing. */
   initialSceneFromCache?: boolean;
-  /** Called on every change with the pruned, persistable scene. */
-  onSerializedChange: (scene: WhiteboardScene) => void;
+  /** Called on every change with the pruned, persistable scene.
+   *  ``isLocal`` is false when the change is a remote-applied update (or
+   *  an echo of one) — the parent needs those to keep the periodic REST
+   *  content-sync fresh, but must not treat them as unsaved local work
+   *  (e.g. for the write-ahead cache). */
+  onSerializedChange: (scene: WhiteboardScene, opts?: { isLocal: boolean }) => void;
   readOnly?: boolean;
   className?: string;
   /** Live collaboration: an already-attached Yjs doc. Null => REST-only mode. */
@@ -61,6 +65,12 @@ export interface WhiteboardDocumentEditorProps {
    *  stale (another user has continued editing while we were gone) and
    *  the Yjs state wins on bootstrap. */
   hasOtherCollaborators?: boolean;
+  /** True once the server's collaborator roster has arrived. The bootstrap
+   *  decision reads ``hasOtherCollaborators``, and the roster lands on the
+   *  socket *after* the sync message — deciding at the moment ``isSynced``
+   *  flips would always see an empty roster and mistake a live room for an
+   *  empty one. Defaults to true for REST-only mode. */
+  collaboratorsReady?: boolean;
   /** Yjs awareness for peer cursor presence. Null in REST-only mode. */
   awareness?: ProviderAwareness | null;
   /** Current user for the cursor label + color. Null-safe. */
@@ -91,6 +101,7 @@ export function WhiteboardDocumentEditor({
   yDoc = null,
   isSynced = true,
   hasOtherCollaborators = false,
+  collaboratorsReady = true,
   awareness = null,
   currentUser = null,
 }: WhiteboardDocumentEditorProps) {
@@ -98,6 +109,11 @@ export function WhiteboardDocumentEditor({
   const { resolvedTheme } = useTheme();
 
   const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  // Mirrors the ref as state so effects that must not run before Excalidraw
+  // is ready (the post-sync bootstrap, peer cursors) re-fire when the API
+  // arrives — the imperative callback can land before or after the provider
+  // reports synced, and a ref alone can't re-trigger an effect.
+  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
   const yMapRef = useRef<Y.Map<string> | null>(null);
   const applyingRemoteRef = useRef(false);
   // Tracks the most recently seen serialized scene (either a local write
@@ -159,12 +175,12 @@ export function WhiteboardDocumentEditor({
   // because handleExcalidrawChange uses the "database" serializer which strips
   // ephemeral appState fields including collaborators.
   useEffect(() => {
-    if (!excalidrawAPIRef.current) return;
-    excalidrawAPIRef.current.updateScene({
+    if (!excalidrawAPI) return;
+    excalidrawAPI.updateScene({
       collaborators: peerCollaborators,
       captureUpdate: CaptureUpdateAction.NEVER,
     });
-  }, [peerCollaborators]);
+  }, [peerCollaborators, excalidrawAPI]);
 
   // Only compute initialData once per mount (the Excalidraw key in the parent
   // forces remount on document switch, so this is safe).
@@ -279,13 +295,22 @@ export function WhiteboardDocumentEditor({
   // After the decision, flip writesAllowedRef so subsequent local edits
   // flow to Yjs, and bootstrapDoneRef so remote updates flow in.
   useEffect(() => {
-    if (!yDoc || !isSynced) return;
+    // Wait for the collaborator roster as well as the sync: the roster
+    // arrives on the socket right after the sync message, and deciding
+    // before it lands would read hasOtherCollaborators as false even in
+    // a live room. Wait for the Excalidraw API too — this effect can win
+    // the race against Excalidraw's mount callback, and completing the
+    // bootstrap without applying the room state would arm writes while
+    // the canvas still shows the REST snapshot: the mount onChange would
+    // then push that older scene into the live room and roll every other
+    // user back to it.
+    if (!yDoc || !isSynced || !collaboratorsReady || !excalidrawAPI) return;
     if (seededForDocRef.current === yDoc) return;
     seededForDocRef.current = yDoc;
 
     const shouldApplyYjsState = hasOtherCollaborators || !initialSceneFromCache;
 
-    if (shouldApplyYjsState && excalidrawAPIRef.current) {
+    if (shouldApplyYjsState) {
       const yMap = yDoc.getMap<string>("excalidraw");
       const raw = yMap.get("scene");
       if (raw) {
@@ -300,10 +325,10 @@ export function WhiteboardDocumentEditor({
           if (parsed.files) {
             const fileArr = Object.values(parsed.files);
             if (fileArr.length > 0) {
-              excalidrawAPIRef.current.addFiles(fileArr);
+              excalidrawAPI.addFiles(fileArr);
             }
           }
-          excalidrawAPIRef.current.updateScene({
+          excalidrawAPI.updateScene({
             elements: parsed.elements,
             appState: parsed.appState as Partial<AppState> as AppState,
             captureUpdate: CaptureUpdateAction.NEVER,
@@ -320,7 +345,14 @@ export function WhiteboardDocumentEditor({
 
     bootstrapDoneRef.current = true;
     writesAllowedRef.current = true;
-  }, [yDoc, isSynced, initialSceneFromCache, hasOtherCollaborators]);
+  }, [
+    yDoc,
+    isSynced,
+    initialSceneFromCache,
+    hasOtherCollaborators,
+    collaboratorsReady,
+    excalidrawAPI,
+  ]);
 
   // ── Local change handler ─────────────────────────────────────────────
   // Excalidraw fires onChange on every re-render (unlike Lexical which
@@ -361,23 +393,26 @@ export function WhiteboardDocumentEditor({
       // downstream writes.
       const serializedWithFiles = JSON.stringify(parsed);
 
+      // An echo is an onChange for state we already know about: either
+      // we're mid-apply of a remote update, or the serialized scene matches
+      // what we last saw (local or remote).
+      const isEcho = applyingRemoteRef.current || serializedWithFiles === prevSerializedRef.current;
+
       // Notify the parent only when the serialized scene actually changed
       // since the last notification. This dedupe is independent of the Yjs
       // dedupe below: we want the parent to see remote-applied updates
       // (so REST content-sync isn't stale), but we must not call the
-      // parent on every echo render or we cause an infinite loop.
+      // parent on every echo render or we cause an infinite loop. The
+      // isLocal flag lets the parent treat only genuine local edits as
+      // unsaved work.
       if (serializedWithFiles !== lastNotifiedSerializedRef.current) {
         lastNotifiedSerializedRef.current = serializedWithFiles;
-        onSerializedChange(parsed);
+        onSerializedChange(parsed, { isLocal: !isEcho });
       }
 
-      // Skip the Yjs write if either (a) we're currently applying a remote
-      // update, or (b) the serialized scene matches what we last saw. Both
-      // conditions indicate this onChange is an echo of state we already
-      // know about, and writing it back to Yjs would interrupt the original
-      // sender's in-progress drag.
-      if (applyingRemoteRef.current) return;
-      if (serializedWithFiles === prevSerializedRef.current) return;
+      // Skip the Yjs write for echoes — writing them back to Yjs would
+      // interrupt the original sender's in-progress drag.
+      if (isEcho) return;
       prevSerializedRef.current = serializedWithFiles;
 
       // Mirror to Yjs when collaborative — but only after the bootstrap has
@@ -410,6 +445,7 @@ export function WhiteboardDocumentEditor({
       <Excalidraw
         excalidrawAPI={(api) => {
           excalidrawAPIRef.current = api;
+          setExcalidrawAPI(api);
         }}
         initialData={initialData}
         onChange={handleExcalidrawChange}

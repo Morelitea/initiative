@@ -26,36 +26,6 @@ from app.testing.factories import (
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_get_or_create_system_user(session: AsyncSession):
-    """Test that system user is created on first call and reused on subsequent calls."""
-    # First call should create the system user
-    system_user1 = await user_service.get_or_create_system_user(session)
-
-    assert system_user1.id is not None
-    assert system_user1.email == user_service.SYSTEM_USER_EMAIL
-    assert system_user1.full_name == user_service.SYSTEM_USER_FULL_NAME
-    assert system_user1.status == UserStatus.deactivated
-    assert system_user1.email_verified is True
-
-    # Second call should return the same user
-    system_user2 = await user_service.get_or_create_system_user(session)
-
-    assert system_user2.id == system_user1.id
-    assert system_user2.email == system_user1.email
-
-    # Verify only one system user exists
-    from app.core.encryption import hash_email
-
-    stmt = select(User).where(
-        User.email_hash == hash_email(user_service.SYSTEM_USER_EMAIL)
-    )
-    result = await session.exec(stmt)
-    all_system_users = result.all()
-    assert len(all_system_users) == 1
-
-
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_guild_admin_true(session: AsyncSession):
     """Test detection when user is the last admin of a guild."""
     # Create a guild with one admin
@@ -241,6 +211,7 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     from app.models.platform.federated_identity import FederatedIdentity
     from app.models.platform.federated_identity_secret import FederatedIdentitySecret
     from app.models.platform.push_token import PushToken
+    from app.models.platform.user_avatar import UserAvatar
     from app.models.platform.user_token import UserToken
     from app.models.platform.user import UserRole
     from app.testing.factories import create_federated_identity
@@ -309,7 +280,10 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     # PII gone.
     assert anonymized.full_name is None
     assert anonymized.avatar_url is None
-    assert anonymized.avatar_base64 is None
+    # The picture is a row of its own, so the column going null is not enough.
+    assert (
+        await session.exec(select(UserAvatar).where(UserAvatar.user_id == original_id))
+    ).first() is None
     # No password: the husk can never authenticate again.
     assert anonymized.hashed_password is None
     # The SSO link and its stored refresh token are gone.
@@ -475,15 +449,10 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
 @pytest.mark.unit
 @pytest.mark.service
 async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
-    """The migration must enable RLS on `users` and install the
-    ``users_no_delete`` restrictive policy that blocks DELETE for any
-    non-bypass session. Application code that tries to drop a user row
-    via the regular ``app_user`` role would silently affect zero rows
-    without this policy.
-
-    Phase 2 (migration 0109) replaced the single wide-open ``users_open``
-    policy with per-tier least-privilege policies; this also asserts that
-    decomposition (open policy gone, floors + tier policies present)."""
+    """``users`` carries FORCE RLS, the ``users_no_delete`` restrictive policy,
+    and the per-role policy set that leaves every request-path write on the
+    caller's own row (migrations 0109, 0144, 0202). User rows are removed on
+    the system engine only."""
     from sqlalchemy import text
 
     rls_enabled = await session.exec(
@@ -507,12 +476,21 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     # Phase 2 decomposed the broad open policy into per-tier policies.
     assert "users_open" not in names
     assert {
+        # Read legs: the request path names other people all the time.
+        "users_app_user_read",
+        "users_app_guild_base_read",
+        "users_platform_read",
+        # Write legs: each one scoped to the caller's own row.
+        "users_app_user_self_update",
+        "users_app_guild_base_self_update",
+        "users_platform_self",
+    } <= names
+    # 0202 retired the table-wide floors and the moderator+ update-all leg.
+    assert {
         "users_app_floor",
         "users_guild_floor",
-        "users_platform_self",
-        "users_platform_read",
         "users_platform_manage",
-    } <= names
+    }.isdisjoint(names)
     deny_policy = next(row for row in rows if row[0] == "users_no_delete")
     # polcmd '6' = DELETE; polpermissive False = restrictive.
     # See: https://www.postgresql.org/docs/current/catalog-pg-policy.html
@@ -573,60 +551,6 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
     )
 
     assert await user_service.is_last_platform_admin(session, plain_admin.id) is False
-
-
-@pytest.mark.unit
-@pytest.mark.service
-async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSession):
-    """reassign_user_content must move document_file_versions.created_by to
-    the system user so hard-deleting an uploader doesn't violate the RESTRICT FK
-    (and version history outlives the user)."""
-    from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
-    from app.testing.factories import create_initiative
-
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.admin
-    )
-    initiative = await create_initiative(session, guild, owner)
-
-    doc = Document(
-        name="Versioned",
-        initiative_id=initiative.id,
-        guild_id=guild.id,
-        created_by=owner.id,
-        document_type=DocumentType.file,
-        file_url="/uploads/v1.pdf",
-        file_content_type="application/pdf",
-        file_size=10,
-        original_filename="v1.pdf",
-    )
-    session.add(doc)
-    await session.flush()
-    version = DocumentFileVersion(
-        document_id=doc.id,
-        guild_id=guild.id,
-        version_number=1,
-        file_url="/uploads/v1.pdf",
-        file_content_type="application/pdf",
-        file_size=10,
-        original_filename="v1.pdf",
-        created_by=owner.id,
-    )
-    session.add(version)
-    await session.commit()
-
-    system_user = await user_service.get_or_create_system_user(session)
-    await user_service.reassign_user_content(session, owner.id, system_user.id)
-    await session.commit()
-
-    refreshed = (
-        await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.id == version.id)
-        )
-    ).one()
-    assert refreshed.created_by == system_user.id
 
 
 @pytest.mark.integration

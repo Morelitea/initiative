@@ -35,6 +35,11 @@ export const PlatformSettingsLayout = () => {
         path: "/settings/platform/branding",
       },
       { value: "email", label: t("platformLayout.tabs.email"), path: "/settings/platform/email" },
+      {
+        value: "community",
+        label: t("platformLayout.tabs.community"),
+        path: "/settings/platform/community",
+      },
       { value: "ai", label: t("platformLayout.tabs.ai"), path: "/settings/platform/ai" },
       {
         value: "storage",

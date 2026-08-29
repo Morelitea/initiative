@@ -16,10 +16,12 @@ from app.core import auth_context
 from app.core.role_context import (
     set_active_role,
     set_content_read_only_guild,
+    set_guild_shows_member_names,
     set_override_sharing_initiatives,
 )
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
 
@@ -38,14 +40,21 @@ async def member_guild_ids(
     cut for members AND guild admins alike (admins keep only the settings
     surface), so no cross-guild aggregate may surface a suspended guild's
     content — the ``/g/{guild_id}`` choke point (``_load_guild_context``)
-    refuses those guilds and this is its aggregate-path twin."""
+    refuses those guilds and this is its aggregate-path twin.
+
+    A suspended *user* is excluded the same way, and for the same reason. They
+    keep every membership, so the join below would otherwise walk all of them:
+    the guild path answers such a caller with nothing, and being the twin of
+    that path means answering the same."""
     await set_rls_context(session, user_id=user_id)
     rows = await session.exec(
         select(GuildMembership.guild_id)
         .join(Guild, Guild.id == GuildMembership.guild_id)
+        .join(User, User.id == GuildMembership.user_id)
         .where(
             GuildMembership.user_id == user_id,
             Guild.status != GuildStatus.suspended.value,
+            User.status != UserStatus.suspended,
         )
     )
     ids = sorted(rows)
@@ -84,18 +93,39 @@ async def gather_across_guilds(
     if satisfied_providers is None:
         ambient = auth_context.satisfied_providers()
         satisfied_providers = ambient if isinstance(ambient, str) else sorted(ambient)
-    # One shared-table read for every guild's role (own rows) AND lifecycle
-    # status, under the user-only context, before we start routing into schemas.
+    # One shared-table read for every guild's role (own rows), the guild's
+    # lifecycle status AND the caller's own, under the user-only context,
+    # before we start routing into schemas.
     await set_rls_context(session, user_id=user_id)
-    role_rows = await session.exec(
-        select(GuildMembership.guild_id, GuildMembership.role, Guild.status)
-        .join(Guild, Guild.id == GuildMembership.guild_id)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.guild_id.in_(tuple(guild_ids)),
+    role_rows = (
+        await session.exec(
+            select(
+                GuildMembership.guild_id,
+                GuildMembership.role,
+                Guild.status,
+                Guild.show_member_names,
+                User.status,
+            )
+            .join(Guild, Guild.id == GuildMembership.guild_id)
+            .join(User, User.id == GuildMembership.user_id)
+            .where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.guild_id.in_(tuple(guild_ids)),
+            )
         )
-    )
-    roles: dict[int, tuple] = {gid: (role, status) for gid, role, status in role_rows}
+    ).all()
+
+    # The caller's own state, checked here rather than only in
+    # ``member_guild_ids``, because a caller may assemble its own guild list
+    # and reach this directly — ``/recents`` does. A suspended account reaches
+    # no guild, so there is nothing across them to gather.
+    if any(caller_status == UserStatus.suspended for *_, caller_status in role_rows):
+        return []
+
+    roles: dict[int, tuple] = {
+        gid: (role, status, shows_names)
+        for gid, role, status, shows_names, _caller in role_rows
+    }
 
     results: list[T] = []
     try:
@@ -104,7 +134,7 @@ async def gather_across_guilds(
             # a prior guild, or anything already on the session) would otherwise be
             # returned by the identity map instead of this guild's row.
             session.expunge_all()
-            role, guild_status = roles.get(guild_id, (None, None))
+            role, guild_status, shows_names = roles.get(guild_id, (None, None, False))
             # Defense in depth for callers that assemble their own guild list
             # (member_guild_ids already filters): membership grants NO content
             # access to a suspended guild, admins included.
@@ -135,6 +165,10 @@ async def gather_across_guilds(
             # guild-admin short-circuit in permissions.py (so my_permission_level /
             # require_*_access see the admin as owner when fetch() serializes here).
             set_active_role(guild_id, role_value)
+            # What this guild calls its members. Each guild answers for its own
+            # rows, so a cross-guild list names people the way each of them
+            # does — the same answer as opening that guild and looking.
+            set_guild_shows_member_names(bool(shows_names))
             # And the per-initiative "Full access" override for this guild, so a
             # full-access PM's restricted content surfaces in cross-guild views too.
             from app.services import rls as rls_service
@@ -150,4 +184,5 @@ async def gather_across_guilds(
         set_active_role(None, None)
         set_override_sharing_initiatives(None)
         set_content_read_only_guild(None)
+        set_guild_shows_member_names(False)
     return results

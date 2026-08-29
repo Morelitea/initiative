@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import func, or_, update as sa_update
+from sqlalchemy import Exists, func, or_, update as sa_update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -44,6 +44,7 @@ from app.services.marketplace.definitions import (
     reserved_prefix_problem,
 )
 from app.services.marketplace import contract
+from app.services.marketplace import registration_lookup
 from app.services.marketplace.manifest_values import check_public_id
 
 __all__ = [
@@ -55,6 +56,7 @@ __all__ = [
     "get_listing_version",
     "resolve_installable_version",
     "listing_versions",
+    "published_uids",
     "upsert_listing",
     "withdraw_listing",
     "withdraw_builtins_except",
@@ -158,6 +160,35 @@ def version_is_compatible(min_app_version: Optional[str]) -> bool:
 # --- reads ------------------------------------------------------------------
 
 
+async def _unoffered_app() -> Exists:
+    """Matches an app listing this deployment does not run the service for.
+
+    Read from the registration snapshot rather than joined from the table: the
+    row holds the app's shared secret, so nothing on the request path holds a
+    grant on it, and the non-secret half is loaded on the system engine
+    instead.
+
+    A listing with no published version and one whose definition names no
+    service — an app that mounts one of this build's own tools — match nothing
+    here and stay on the shelf.
+    """
+    latest = MarketplaceListingVersion
+    offered = sorted(await registration_lookup.enabled_service_ids())
+    return (
+        select(latest.id)
+        .where(
+            latest.id == MarketplaceListing.latest_version_id,
+            latest.definition["app_kind"].astext == "service",
+            # COALESCE so a definition with no service id reads as one nothing
+            # is registered for, rather than as a NULL that matches no branch.
+            func.coalesce(latest.definition["service"]["public_id"].astext, "").notin_(
+                offered
+            ),
+        )
+        .exists()
+    )
+
+
 async def list_listings(
     session: AsyncSession,
     *,
@@ -176,6 +207,12 @@ async def list_listings(
     a caller that has no guild to answer it for: such a dashboard draws that
     app's widgets, so offering it where the app cannot be is offering a canvas
     of tiles with nothing behind them.
+
+    An app whose service this deployment has not wired up is not offered
+    either, for the same reason: a catalog is published to every deployment,
+    and a registration is how one says it runs that app. The rule is read here
+    rather than passed in, so browsing, reading a listing and installing one
+    cannot end up disagreeing about what this deployment carries.
     """
     statement = select(MarketplaceListing)
     count_statement = select(func.count()).select_from(MarketplaceListing)
@@ -194,6 +231,8 @@ async def list_listings(
         )
     else:
         filters.append(MarketplaceListing.bundled_with_uid.is_(None))
+    unoffered_app = await _unoffered_app()
+    filters.append(~unoffered_app)
     if query:
         # Case-insensitive across the three fields someone would actually type.
         needle = f"%{query.strip()}%"
@@ -453,6 +492,37 @@ async def upsert_listing(
         )
 
     return listing
+
+
+def published_uids(manifest: dict[str, Any]) -> set[str]:
+    """Every uid publishing one manifest creates a listing for: its own, plus
+    the dashboards it bundles.
+
+    A bundled dashboard's uid is written only inside its app's manifest, so the
+    manifest is the only place a caller can learn it. Both catalog sources —
+    the shipped build and the operator's directory — sweep what they no longer
+    publish by comparing the rows against the uids their files name, and a
+    sweep that names fewer uids than the publish created retires a row the same
+    pass just wrote.
+
+    Read off the raw manifest, before validation: a file that is present claims
+    what it names whether or not it published, so a manifest with a mistake in
+    it leaves the listings it names exactly as they were. A ``dashboards`` block
+    that is not shaped like one contributes nothing here and is reported by the
+    validator on the publish attempt.
+    """
+    uids = {str(manifest.get("uid", ""))}
+
+    definition = manifest.get("definition")
+    if not isinstance(definition, dict):
+        return uids
+    entries = definition.get("dashboards")
+    if not isinstance(entries, list):
+        return uids
+    for entry in entries:
+        if isinstance(entry, dict) and "uid" in entry:
+            uids.add(str(entry["uid"]))
+    return uids
 
 
 async def _publish_bundled_dashboards(

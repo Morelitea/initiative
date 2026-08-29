@@ -98,9 +98,13 @@ class CreatedByMixin(SQLModel):
     schemas. Guild content lives in a per-guild schema and ``users`` in
     ``public``, and the guild DDL carries a cross-schema user FK on only a
     handful of tables, so no delete rule is declared for a rule the database
-    would not hold. Erasure is enforced in the app instead:
-    ``app.services.platform.users.reassign_user_content`` sweeps every table
-    carrying this mixin, so a new one is covered the moment it is declared.
+    would not hold.
+
+    That makes ``created_by`` a **weak reference**, and deliberately so: it
+    survives the erasure of the account it names, which is what keeps an old
+    thread telling one departed author from another. An id with no row behind
+    it renders as a former member rather than merging into a shared
+    placeholder.
 
     ``created_by_test.py`` fails CI if a guild-schema table carries neither
     this mixin nor an entry in ``tenancy.CREATED_BY_EXEMPT_TABLES``.
@@ -114,9 +118,8 @@ class CreatedByMixin(SQLModel):
 def created_by_models() -> list[type[CreatedByMixin]]:
     """Every mapped model carrying :class:`CreatedByMixin`, by table name.
 
-    The single source for "which tables record an author" — the erasure sweep
-    (``reassign_user_content``) and the completeness test both read it, so a
-    new table joins both the moment it declares the mixin.
+    The single source for "which tables record an author" — the completeness
+    test reads it, so a new table joins the moment it declares the mixin.
     """
     found: dict[str, type[CreatedByMixin]] = {}
     stack = list(CreatedByMixin.__subclasses__())

@@ -40,6 +40,7 @@ import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useMarketplaceListing } from "@/hooks/useMarketplace";
 import { useGuildPath } from "@/lib/guildUrl";
+import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { readConfig, readDefinition } from "@/lib/widgets/definition";
 
 export function MarketplaceListingPage() {
@@ -114,7 +115,7 @@ export function MarketplaceListingPage() {
       <div className="flex flex-wrap items-start gap-4">
         {listing ? (
           <img
-            src={listing.avatar_url}
+            src={resolveArtworkUrl(listing.avatar_url) ?? undefined}
             alt=""
             aria-hidden
             className="h-16 w-16 shrink-0 rounded-xl object-cover"
@@ -192,7 +193,7 @@ export function MarketplaceListingPage() {
           {listing.images.map((image) => (
             <img
               key={image}
-              src={image}
+              src={resolveArtworkUrl(image) ?? undefined}
               alt=""
               aria-hidden
               className="h-48 shrink-0 rounded-lg border object-cover"

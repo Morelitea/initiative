@@ -24,6 +24,7 @@ from sqlalchemy import func, true
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.role_context import guild_shows_member_names
 from app.core.messages import PropertyMessages
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -455,11 +456,14 @@ def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -
     if ptype is PropertyType.user_reference:
         if user is None:
             return {"id": row.value_user_id} if row.value_user_id else None
+        # The same person shape the rest of the API ships: handle always,
+        # ``full_name`` only from a guild that shows real names.
         return {
             "id": user.id,
-            "full_name": user.full_name,
+            "username": user.username,
+            "discriminator": user.discriminator,
+            "full_name": user.full_name if guild_shows_member_names() else None,
             "avatar_url": user.avatar_url,
-            "avatar_base64": user.avatar_base64,
         }
     return None  # pragma: no cover
 

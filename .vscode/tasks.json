@@ -2,11 +2,24 @@
   "version": "2.0.0",
   "tasks": [
     {
+      // First link in the chain: a server left over from a previous run holds
+      // open database sessions, and the seed below drops the guild schemas
+      // those sessions are sitting in.
+      "label": "dev:free-ports",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-cleanup.sh", "--ports-only"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
       "label": "dev:db-start",
       "type": "shell",
       "command": "docker compose up db -d --wait",
       "options": { "cwd": "${workspaceFolder}" },
-      "presentation": { "reveal": "silent", "panel": "shared" }
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "dependsOn": ["dev:free-ports"]
     },
     {
       "label": "dev:migrate",
@@ -27,6 +40,8 @@
       "dependsOn": ["dev:migrate"]
     },
     {
+      // Standalone API server, for running the backend without the debugger
+      // attached. The "Dev Environment" launch config runs uvicorn itself.
       "label": "dev:backend",
       "type": "process",
       "command": "bash",
@@ -48,7 +63,7 @@
       "label": "dev:frontend",
       "type": "process",
       "command": "bash",
-      "args": ["scripts/dev-frontend.sh", "--open"],
+      "args": ["scripts/dev-frontend.sh"],
       "options": { "cwd": "${workspaceFolder}" },
       "isBackground": true,
       "presentation": { "reveal": "silent", "panel": "dedicated" },
@@ -63,8 +78,32 @@
       "dependsOn": ["dev:seed"]
     },
     {
+      // Waits for the API and the SPA, then opens the browser. Backgrounded on
+      // its first line so the chain finishes and the debug session can start
+      // the API — the thing this is waiting for.
+      "label": "dev:open-app",
+      "type": "process",
+      "command": "bash",
+      "args": ["scripts/dev-open.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Waiting for the app",
+          "endsPattern": "Waiting for the app|Opening|Gave up"
+        }
+      },
+      "dependsOn": ["dev:frontend"]
+    },
+    {
+      // Everything the debug session does not own: database, migrations, seed
+      // data, Vite, and the browser opener. The API is the debug target itself,
+      // so it is deliberately not in this chain.
       "label": "dev:setup",
-      "dependsOn": ["dev:backend", "dev:frontend"],
+      "dependsOn": ["dev:open-app"],
       "presentation": { "reveal": "silent" },
       "problemMatcher": []
     },
@@ -74,12 +113,13 @@
       "command": "bash",
       "args": ["scripts/dev-cleanup.sh"],
       "options": { "cwd": "${workspaceFolder}" },
-      "presentation": { "reveal": "always", "panel": "shared" }
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
     },
     {
       "label": "generate:api",
       "type": "shell",
-      "command": "docker compose up db -d --wait && bash scripts/dev-migrate.sh && ( nohup bash scripts/dev-backend.sh > /tmp/initiative-gen-backend.log 2>&1 & ) && for i in $(seq 1 60); do curl -sf http://localhost:8000/api/v1/openapi.json -o /dev/null && break; sleep 1; done && ( cd frontend && pnpm generate:api ); lsof -ti:8000 | xargs -r kill 2>/dev/null || true",
+      "command": ". scripts/dev-ports.sh && [ -n \"$DEV_BACKEND_PORT\" ] && docker compose up db -d --wait && bash scripts/dev-migrate.sh && ( nohup bash scripts/dev-backend.sh > /tmp/initiative-$DEV_CHECKOUT_ID-gen-backend.log 2>&1 & ) && for i in $(seq 1 60); do curl -sf http://localhost:$DEV_BACKEND_PORT/api/v1/openapi.json -o /dev/null && break; sleep 1; done && ( cd frontend && pnpm generate:api ); lsof -ti:$DEV_BACKEND_PORT | xargs -r kill 2>/dev/null || true",
       "options": { "cwd": "${workspaceFolder}" },
       "presentation": { "reveal": "always", "panel": "shared" },
       "problemMatcher": []

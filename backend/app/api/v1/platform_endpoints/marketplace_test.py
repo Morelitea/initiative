@@ -16,9 +16,13 @@ import pytest
 
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages
-from app.testing import create_marketplace_listing
+from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.testing import (
+    create_app_service_registration,
+    create_marketplace_listing,
+    marketplace_uid,
+)
 
-pytestmark = pytest.mark.asyncio
 
 RESCAN_URL = "/api/v1/marketplace/operator-catalog/rescan"
 
@@ -180,6 +184,126 @@ class TestDetail:
         # a listing that silently isn't there.
         assert body["installable"] is False
         assert body["latest_version"]["compatible"] is False
+
+
+class TestAnAppNeedsItsServiceRegistered:
+    """What this deployment carries is narrower than what its catalog holds.
+
+    A catalog reaches every deployment the same way, but an app is realized by
+    a service the operator runs — so the registration is what says this one
+    offers it. Until there is one, browse leaves the listing out and its page
+    answers 404, which is what a guild admin needs: no shelf full of apps that
+    would install into nothing.
+
+    An app that mounts one of this build's own tools is the other half of the
+    rule: nothing has to be wired up for it, so nothing gates it.
+    """
+
+    SERVICE_UID = marketplace_uid("serviceapp")
+    TOOL_UID = marketplace_uid("toolapp")
+
+    @pytest.fixture
+    async def service_app(self, session):
+        return await create_marketplace_listing(
+            session,
+            uid=self.SERVICE_UID,
+            public_id="tests.shop",
+            kind="app",
+            name="Shop",
+            definition={
+                "app_kind": "service",
+                "service": {"public_id": "tests.shop", "protocol": 1},
+                "features": [],
+            },
+        )
+
+    async def _shelf(self, client, actor) -> list[str]:
+        response = await client.get(
+            "/api/v1/marketplace/listings",
+            params={"kind": "app"},
+            headers=actor.headers,
+        )
+        assert response.status_code == 200, response.text
+        return [item["public_id"] for item in response.json()["items"]]
+
+    async def test_an_unwired_service_app_is_not_on_the_shelf(
+        self, client, acting_user, service_app
+    ):
+        actor = await acting_user("member")
+        assert "tests.shop" not in await self._shelf(client, actor)
+
+    async def test_its_page_answers_the_same_as_a_listing_that_is_not_there(
+        self, client, acting_user, service_app
+    ):
+        actor = await acting_user("member")
+        for url in (
+            "/api/v1/marketplace/listings/tests.shop",
+            f"/api/v1/marketplace/listings/by-uid/{self.SERVICE_UID}",
+        ):
+            response = await client.get(url, headers=actor.headers)
+            assert response.status_code == 404, url
+            assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
+    async def test_wiring_the_service_up_puts_it_on_the_shelf(
+        self, client, acting_user, session, service_app
+    ):
+        await create_app_service_registration(session, public_id="tests.shop")
+        actor = await acting_user("member")
+        assert "tests.shop" in await self._shelf(client, actor)
+        response = await client.get(
+            "/api/v1/marketplace/listings/tests.shop", headers=actor.headers
+        )
+        assert response.status_code == 200
+        assert response.json()["installable"] is True
+
+    async def test_the_kill_switch_takes_it_back_off(
+        self, client, acting_user, session, service_app
+    ):
+        """Switched off is switched off everywhere, the shelf included."""
+        registration = await create_app_service_registration(
+            session, public_id="tests.shop"
+        )
+        registration.enabled = False
+        session.add(registration)
+        await session.commit()
+        invalidate_registrations()
+
+        actor = await acting_user("member")
+        assert "tests.shop" not in await self._shelf(client, actor)
+        response = await client.get(
+            "/api/v1/marketplace/listings/tests.shop", headers=actor.headers
+        )
+        assert response.status_code == 404
+
+    async def test_a_service_that_has_not_verified_yet_still_lists(
+        self, client, acting_user, session, service_app
+    ):
+        """The operator's decision is the registration, not the handshake.
+
+        A container that has not answered yet is the ordinary case on a fresh
+        deployment, and a shelf that emptied whenever one restarted would be
+        reporting something nobody chose. What an unverified service stops is
+        what flows through it, which the install itself reports.
+        """
+        await create_app_service_registration(
+            session, public_id="tests.shop", status="unverified"
+        )
+        actor = await acting_user("member")
+        assert "tests.shop" in await self._shelf(client, actor)
+
+    async def test_an_app_that_mounts_a_built_in_tool_needs_no_registration(
+        self, client, acting_user, session
+    ):
+        await create_marketplace_listing(
+            session,
+            uid=self.TOOL_UID,
+            public_id="tests.guild-calendar",
+            kind="app",
+            name="Guild calendar",
+            definition={"app_kind": "tool_instance", "tool": "calendar"},
+        )
+        actor = await acting_user("member")
+        assert "tests.guild-calendar" in await self._shelf(client, actor)
 
 
 class TestAttribution:

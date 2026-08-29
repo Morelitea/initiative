@@ -70,7 +70,16 @@
     "saving": "Guardando…",
     "reset": "Restablecer",
     "updateSuccess": "Perfil actualizado",
-    "updateError": "No se pudo actualizar el perfil"
+    "updateError": "No se pudo actualizar el perfil",
+    "avatarUploadHelp": "Cualquier imagen. La recortamos en cuadrado y la redimensionamos por ti.",
+    "avatar": {
+      "failed": "No se ha podido guardar esa imagen.",
+      "notAnImage": "Elige un archivo de imagen.",
+      "tooLarge": "Ese archivo es demasiado grande. Prueba con uno de menos de 12 MB.",
+      "unreadable": "No se ha podido leer esa imagen."
+    },
+    "usernameLabel": "Nombre de usuario",
+    "usernameHelp": "Así te ven los demás. Si necesitas cambiarlo, pídeselo a un moderador."
   },
   "security": {
     "devicesTitle": "Dispositivos conectados",
@@ -614,7 +623,17 @@
     "changeRoleDescription": "Esto cambiará el rol de plataforma de {{email}} a {{role}}.",
     "roleChangeSuccess": "Rol de plataforma cambiado a {{role}}",
     "deactivated": "Desactivada",
-    "anonymized": "Anonimizada"
+    "anonymized": "Anonimizada",
+    "changeUsername": "Cambiar nombre de usuario",
+    "usernameChanged": "Nombre de usuario cambiado.",
+    "changeUsernameTitle": "Cambiar el nombre de usuario de {{handle}}",
+    "changeUsernameBody": "Se le notificará y no podrá revertirlo por su cuenta. El número no cambia.",
+    "suspend": "Suspender",
+    "unsuspend": "Levantar la suspensión",
+    "suspendTitle": "¿Suspender a {{handle}}?",
+    "suspendBody": "Conserva todo — pertenencias, permisos y todo lo que haya escrito — y no accede a ningún gremio hasta que se levante. Puede seguir entrando en su propia cuenta, donde verá tu motivo.",
+    "suspendReasonLabel": "Motivo (se le mostrará)",
+    "actionError": "No se pudo completar. Inténtalo de nuevo."
   },
   "adminDeleteUser": {
     "title": "Eliminar usuario",
@@ -733,11 +752,12 @@
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
-    "subtitle": "Configura la autenticación, la personalización, el email, la IA, el almacenamiento de los gremios y los servicios de aplicación de toda la plataforma.",
+    "subtitle": "Configura la autenticación, la personalización, el email, el directorio de comunidades, la IA, el almacenamiento de los gremios y los servicios de aplicación de toda la plataforma.",
     "tabs": {
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
+      "community": "Comunidad",
       "ai": "IA",
       "storage": "Almacenamiento",
       "appServices": "Servicios de aplicación"
@@ -786,6 +806,9 @@
     "delegationJwksLabel": "Claves de firma de delegación (JWKS)",
     "delegationJwksHelp": "La mitad pública de la clave con la que esta aplicación firma los tokens de delegación. Pega el conjunto de claves que publica la aplicación; dos entradas indican que hay una rotación en curso. Vaciar el campo lo elimina.",
     "delegationJwksInvalid": "Eso no es JSON válido.",
+    "appDirectoryLabel": "Encontrar otras aplicaciones (directorio de aplicaciones)",
+    "appDirectoryHelp": "Esta aplicación puede preguntar dónde responde otra aplicación instalada en el mismo gremio. También necesita delegación: un servicio de automatización tiene ambos permisos, porque actuar en nombre de una aplicación ante otra es justo para lo que sirve.",
+    "appDirectoryBadge": "Encuentra otras aplicaciones",
     "createTitle": "Añadir servicio de aplicación",
     "editTitle": "Editar servicio de aplicación",
     "createDescription": "Apunta Initiative a un contenedor de aplicación en marcha. Ambas partes deben tener el mismo secreto compartido.",
@@ -841,7 +864,8 @@
     "tabs": {
       "users": "Usuarios",
       "access": "Acceso",
-      "guilds": "Gremios"
+      "guilds": "Gremios",
+      "audit": "Auditoría"
     }
   },
   "guilds": {
@@ -1074,5 +1098,31 @@
     "prefError": "No se pudo actualizar la preferencia",
     "test": "Probar",
     "testSuccess": "Conexión correcta"
+  },
+  "community": {
+    "title": "Directorio de comunidades",
+    "description": "Permite que los gremios se publiquen donde cualquier persona con sesión iniciada pueda encontrarlos y unirse sin invitación.",
+    "toggleLabel": "Ofrecer un directorio de comunidades",
+    "helpText": "Mientras esté activado, quien administre un gremio puede publicarlo desde la configuración del gremio y «Unirse a una comunidad» aparece junto a los gremios de todo el mundo. Mientras esté desactivado, no hay nada que explorar y ningún gremio puede publicarse.",
+    "reversibleNote": "Desactivarlo oculta el directorio; no retira a los gremios que se publicaron. Al volver a activarlo, aparecen los mismos gremios.",
+    "enabledToast": "El directorio de comunidades está activado.",
+    "disabledToast": "El directorio de comunidades está desactivado.",
+    "saveError": "No se pudo cambiar el directorio de comunidades. Inténtalo de nuevo.",
+    "adminOnly": "Necesitas el rol de propietario de la plataforma para ofrecer un directorio de comunidades."
+  },
+  "audit": {
+    "title": "Auditoría",
+    "description": "Qué se hizo a las cuentas, quién lo hizo y cuándo. Las entradas se conservan aunque las cuentas que nombran ya no existan.",
+    "whenColumn": "Cuándo",
+    "actionColumn": "Acción",
+    "actorColumn": "Realizado por",
+    "subjectColumn": "Afecta a",
+    "subjectFilterPlaceholder": "Filtrar por ID de cuenta",
+    "departedAccount": "Cuenta n.º {{id}} (eliminada)",
+    "empty": "Todavía no se ha registrado nada.",
+    "pageOf": "Página {{page}} de {{total}} entradas",
+    "actions": {
+      "user.avatar_removed": "Foto de perfil eliminada"
+    }
   }
 }

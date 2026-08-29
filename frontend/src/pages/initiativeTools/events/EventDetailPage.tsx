@@ -39,6 +39,7 @@ import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 const RSVP_LABEL_KEYS: Record<
   string,
@@ -340,9 +341,7 @@ export function EventDetailPage() {
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
                   <span className="font-medium text-sm">
-                    {attendee.user?.full_name?.trim() ||
-                      attendee.user?.email ||
-                      `User #${attendee.user_id}`}
+                    {getUserDisplayName(attendee.user, `User #${attendee.user_id}`)}
                   </span>
                   <Badge variant={rsvpBadgeVariant(attendee.rsvp_status)}>
                     {t(rsvpLabelKey(attendee.rsvp_status))}

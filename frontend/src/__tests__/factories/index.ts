@@ -10,12 +10,15 @@ export {
   resetCounter as resetFilterPresetCounter,
 } from "./filterPreset.factory";
 export {
+  buildBanner,
   buildGuild,
   buildGuildInviteStatus,
   resetCounter as resetGuildCounter,
 } from "./guild.factory";
 export {
   buildInitiative,
+  buildInitiativeDirectoryEntry,
+  buildInitiativeJoinRequest,
   buildInitiativeMember,
   resetCounter as resetInitiativeCounter,
 } from "./initiative.factory";

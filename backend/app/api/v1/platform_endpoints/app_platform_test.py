@@ -29,7 +29,6 @@ from app.services.marketplace import context_jwt
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.testing import create_app_service_registration
 
-pytestmark = pytest.mark.asyncio
 
 JWKS_URL = "/api/v1/app-platform/jwks.json"
 DELEGATES_JWKS_URL = "/api/v1/app-platform/delegates/%s/jwks.json"

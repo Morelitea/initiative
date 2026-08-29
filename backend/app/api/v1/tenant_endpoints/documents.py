@@ -116,6 +116,9 @@ DOCUMENT_SORT_FIELDS = {
     "name": Document.name,
     "updated_at": Document.updated_at,
     "created_at": Document.created_at,
+    # By the initiative's name rather than its id — the name is the column the
+    # guild home shows. The list statement is joined to Initiative already.
+    "initiative": Initiative.name,
 }
 
 
@@ -682,8 +685,11 @@ async def list_documents(
     ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
-    sort_by: Optional[str] = Query(default=None),
-    sort_dir: Optional[str] = Query(default=None),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description="Order by one of: name, initiative, updated_at, created_at.",
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
 ) -> DocumentListResponse:
     """List documents in the active guild visible to the current user.
 
@@ -1037,7 +1043,7 @@ async def upload_document_file(
         )
     except attachments_service.FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=DocumentMessages.FILE_TOO_LARGE,
         )
     try:
@@ -1191,7 +1197,7 @@ async def upload_document_version(
         )
     except attachments_service.FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=DocumentMessages.FILE_TOO_LARGE,
         )
     try:
@@ -1531,7 +1537,9 @@ async def update_document(
         # Clearing only when the room is inactive still solves PR #347's
         # original problem: non-collab edits need to override any stale
         # pre-existing yjs_state the next time the user re-enables collab.
-        if not collaboration_manager.has_active_collaborators(document.id):
+        if not collaboration_manager.has_active_collaborators(
+            guild_context.guild_id, document.id
+        ):
             document.yjs_state = None
         content_updated = True
         updated = True
@@ -1568,7 +1576,9 @@ async def update_document(
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.
         if content_updated:
-            await collaboration_manager.invalidate_room_if_empty(document.id)
+            await collaboration_manager.invalidate_room_if_empty(
+                guild_context.guild_id, document.id
+            )
     hydrated = await _get_document_or_404(
         session, document_id=document.id, guild_id=guild_context.guild_id
     )

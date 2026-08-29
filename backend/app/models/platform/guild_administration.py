@@ -74,6 +74,16 @@ class GuildAdministration(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # Operator entitlement: may this guild upload banner artwork? Default ON,
+    # so a self-hosted install has it without anyone deciding anything. Where
+    # an operator turns it off, the guild's banner is the flat colour on
+    # ``guilds.banner`` — the surface stays, only the upload half of it
+    # goes, and a banner uploaded before the change keeps being served. Like
+    # the caps above.
+    banner_image_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
 
     guild: Optional["Guild"] = Relationship(
         back_populates="administration",

@@ -82,6 +82,14 @@ interface DataTableProps<TData extends RowData> {
   enableFilterInput?: boolean;
   filterInputPlaceholder?: string;
   filterInputColumnKey?: string;
+  /**
+   * Controlled search text. Passing ``onFilterValueChange`` hands the box to
+   * the caller: it stops filtering the rows already loaded and reports what
+   * was typed instead, which is how a table whose rows arrive a server page at
+   * a time searches the whole set rather than the page in hand.
+   */
+  filterValue?: string;
+  onFilterValueChange?: (value: string) => void;
   enableColumnVisibilityDropdown?: boolean;
   /**
    * When provided, the DataTable treats ``columnVisibility`` as controlled
@@ -116,6 +124,14 @@ interface DataTableProps<TData extends RowData> {
   onPaginationChange?: (pagination: PaginationState) => void;
   onPrefetchPage?: (pageIndex: number) => void;
   manualSorting?: boolean;
+  /**
+   * Controlled sorting, for a caller that keeps the order somewhere of its own
+   * (a URL, say) and hands it back. Without it the table owns the order from
+   * ``initialSorting`` on, and an order changed from outside — the back button
+   * landing on a different one — would leave the headers pointing one way
+   * while the rows arrive in another. The same reason ``pageIndex`` exists.
+   */
+  sorting?: SortingState;
   onSortingChange?: (sorting: SortingState) => void;
   onGroupingChange?: (grouping: GroupingState) => void;
   enableVirtualization?: boolean;
@@ -146,6 +162,8 @@ export function DataTable<TData extends RowData>({
   enableFilterInput = false,
   filterInputPlaceholder = "Filter...",
   filterInputColumnKey = "name",
+  filterValue,
+  onFilterValueChange,
   enableColumnVisibilityDropdown = false,
   columnVisibility: controlledColumnVisibility,
   onColumnVisibilityChange: externalOnColumnVisibilityChange,
@@ -167,6 +185,7 @@ export function DataTable<TData extends RowData>({
   onPaginationChange: externalOnPaginationChange,
   onPrefetchPage,
   manualSorting = false,
+  sorting: controlledSorting,
   onSortingChange: externalOnSortingChange,
   onGroupingChange: externalOnGroupingChange,
   enableVirtualization = false,
@@ -190,7 +209,10 @@ export function DataTable<TData extends RowData>({
     };
   };
   const initialPaginationRef = useRef<PaginationState>(resolveInitialPagination());
-  const [sorting, setSorting] = useState<SortingState>(() => initialSortingRef.current);
+  const [internalSorting, setInternalSorting] = useState<SortingState>(
+    () => initialSortingRef.current
+  );
+  const sorting = controlledSorting ?? internalSorting;
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
     () => (initialStateRef.current?.columnFilters as ColumnFiltersState) ?? []
   );
@@ -318,12 +340,14 @@ export function DataTable<TData extends RowData>({
     if (externalOnSortingChange) {
       return (updater: SortingState | ((old: SortingState) => SortingState)) => {
         const newState = typeof updater === "function" ? updater(sorting) : updater;
-        setSorting(newState);
+        // A controlled caller answers with a new `sorting` prop; setting the
+        // internal copy as well would be a second source of the same truth.
+        if (controlledSorting === undefined) setInternalSorting(newState);
         externalOnSortingChange(newState);
       };
     }
-    return setSorting;
-  }, [externalOnSortingChange, sorting]);
+    return setInternalSorting;
+  }, [externalOnSortingChange, sorting, controlledSorting]);
 
   // The single funnel for grouping changes. `grouping` is controlled state, so
   // setting it directly would move the table without telling the caller — and
@@ -427,7 +451,7 @@ export function DataTable<TData extends RowData>({
     if (!groupingEnabled || grouping.length > 0) {
       return;
     }
-    setSorting((previousSorting) => {
+    setInternalSorting((previousSorting) => {
       const filtered = previousSorting.filter((sort) => !groupingColumnIdSet.has(sort.id));
       if (
         filtered.length === previousSorting.length ||
@@ -445,7 +469,7 @@ export function DataTable<TData extends RowData>({
     if (!groupingEnabled || grouping.length === 0) {
       return;
     }
-    setSorting((previousSorting) => {
+    setInternalSorting((previousSorting) => {
       const groupingSet = new Set(grouping);
       const previousSortMap = new Map(previousSorting.map((sort) => [sort.id, sort]));
       let changed = false;
@@ -682,9 +706,15 @@ export function DataTable<TData extends RowData>({
               {enableFilterInput && (
                 <Input
                   placeholder={filterInputPlaceholder}
-                  value={(table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? ""}
+                  value={
+                    onFilterValueChange
+                      ? (filterValue ?? "")
+                      : ((table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? "")
+                  }
                   onChange={(event) =>
-                    table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
+                    onFilterValueChange
+                      ? onFilterValueChange(event.target.value)
+                      : table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
                   }
                   className="min-w-16 flex-1"
                 />

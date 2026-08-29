@@ -13,6 +13,7 @@ import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -92,7 +93,12 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   id: grant.guild_id,
   name: grant.guild_name ?? `Guild #${grant.guild_id}`,
   description: null,
-  icon_base64: null,
+  icon_url: null,
+  // A blank banner until the guild's own payload arrives with the real one.
+  banner: renderableBanner(),
+  // Nobody is "here" in a guild reached only by a grant until its own payload
+  // arrives and says so.
+  online_count: 0,
   role: "member",
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
@@ -108,6 +114,15 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   content_read_only: false,
   // Admin-only entitlement; a grantee acts as a member here, so it's absent.
   guild_auth_enabled: null,
+  // A grant reaches one named guild directly; the directory is not how the
+  // grantee got here, and this synthetic entry is never listed in it.
+  is_community: false,
+  categories: [],
+  // Whether a guild shows real names is the guild's own setting; a synthetic
+  // entry has no row to read it from, so it takes the default — handles.
+  show_member_names: false,
+  // Guild-admin territory, and a grantee acts as a member — so, unanswered.
+  has_adult_content: null,
   created_at: grant.requested_at,
   updated_at: grant.requested_at,
   accessType: "grant",

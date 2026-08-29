@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, func, or_
+from sqlalchemy import String, and_, cast, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -35,6 +35,8 @@ from app.schemas.tenant.comment import (
 from app.db.query import page_has_next, paginated_query
 from app.services.tenant import comments as comments_service
 from app.services.realtime import broadcast_event
+from app.core import usernames
+from app.core.user_display import display_name, handle_of
 
 router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -444,6 +446,7 @@ async def search_mentionables(
     actual_page = page
 
     if entity_type == MentionEntityType.user:
+        shows_names = bool(guild_context.guild.show_member_names)
         base = (
             select(User)
             .join(InitiativeMember, InitiativeMember.user_id == User.id)
@@ -452,23 +455,44 @@ async def search_mentionables(
                 User.status == UserStatus.active,
             )
         )
-        if query:
-            base = base.where(User.full_name.ilike(f"%{query}%"))
+        if query and (term := query.strip()):
+            # The same rule as every other people search (the guild roster, the
+            # initiative roster, the assignee picker): the handle always, the
+            # name alongside it where the guild shows names, and a whole
+            # ``foobar#1234`` narrowed to the one person who owns it.
+            name_part, number = usernames.parse_handle(term)
+            if number is not None:
+                base = base.where(
+                    func.lower(User.username) == name_part.lower(),
+                    func.lpad(cast(User.discriminator, String), 4, "0").like(
+                        f"{number}%"
+                    ),
+                )
+            else:
+                matches = User.username.ilike(f"%{name_part}%")
+                if shows_names:
+                    matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+                base = base.where(matches)
         count_stmt = select(func.count()).select_from(base.subquery())
-        data_stmt = base.order_by(User.full_name, User.id)
+        order = (User.full_name,) if shows_names else ()
+        data_stmt = base.order_by(*order, User.username, User.discriminator, User.id)
         rows, total_count, actual_page = await paginated_query(
             session, data_stmt, count_stmt, page=page, page_size=page_size
         )
         for user in rows:
-            display = user.full_name or user.email
+            display = display_name(user)
             items.append(
                 MentionSuggestion(
                     type=MentionEntityType.user,
                     id=user.id,
                     display_text=display,
-                    subtitle=user.email if user.full_name else None,
+                    # The handle under the name, which is what tells two
+                    # people with the same name apart. Nothing to add when the
+                    # line above is already the handle.
+                    subtitle=(
+                        handle_of(user) if shows_names and user.full_name else None
+                    ),
                     avatar_url=user.avatar_url,
-                    avatar_base64=user.avatar_base64,
                 )
             )
 

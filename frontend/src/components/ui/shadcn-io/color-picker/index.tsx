@@ -59,6 +59,16 @@ export type ColorPickerProps = Omit<HTMLAttributes<HTMLDivElement>, "onChange"> 
   onChange?: (value: number[]) => void;
 };
 
+/**
+ * The first of these the colour actually has.
+ *
+ * Zero is a real saturation and a real lightness — black is 0,0,0 and grey is
+ * saturation 0 — so a falsy check here reads black as "unset" and opens the
+ * picker on red instead, and a caller that previews live then feeds that red
+ * straight back in as the value.
+ */
+const channel = (...values: number[]) => values.find(Number.isFinite) ?? 0;
+
 export const ColorPicker = ({
   value,
   defaultValue = "#000000",
@@ -70,14 +80,16 @@ export const ColorPicker = ({
   const selectedColor = Color(resolvedValue);
   const defaultColor = Color(defaultValue);
 
-  const [hue, setHue] = useState(selectedColor.hue() || defaultColor.hue() || 0);
+  const [hue, setHue] = useState(channel(selectedColor.hue(), defaultColor.hue(), 0));
   const [saturation, setSaturation] = useState(
-    selectedColor.saturationl() || defaultColor.saturationl() || 100
+    channel(selectedColor.saturationl(), defaultColor.saturationl(), 100)
   );
   const [lightness, setLightness] = useState(
-    selectedColor.lightness() || defaultColor.lightness() || 50
+    channel(selectedColor.lightness(), defaultColor.lightness(), 50)
   );
-  const [alpha, setAlpha] = useState(selectedColor.alpha() * 100 || defaultColor.alpha() * 100);
+  const [alpha, setAlpha] = useState(
+    channel(selectedColor.alpha() * 100, defaultColor.alpha() * 100, 100)
+  );
   const [mode, setMode] = useState("hex");
 
   const setColorValue = useCallback((nextValue: string) => {

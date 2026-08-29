@@ -53,7 +53,7 @@ from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
 from app.testing import create_dashboard, create_guild_app, route_session_to_guild
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = pytest.mark.integration
 
 APP_UID = "SHPAPP00000001"
 PUBLIC_ID = "acme.shop"

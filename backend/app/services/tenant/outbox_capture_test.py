@@ -200,7 +200,13 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     before = len(await _outbox(session, a.guild.id))
 
+    # Back to the shared baseline before building a person: an account is a
+    # platform row, and this session is pointed at a guild by the actor above.
+    await set_rls_context(session)
     joiner = await create_user(session)
+    await set_rls_context(
+        session, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
+    )
     await create_initiative_member(session, a.initiative, joiner)
     await session.commit()
 

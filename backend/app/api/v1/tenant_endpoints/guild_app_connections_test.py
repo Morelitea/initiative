@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import GuildAppMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation
 from app.testing import (
     create_app_service_registration,
@@ -45,8 +46,6 @@ from app.testing import (
     marketplace_uid,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 def _field(key: str, field_type: str, **extra) -> dict:
@@ -72,11 +71,37 @@ GITHUB_CONNECTION = {
     "fields": [_field("access_token", "secret", managed=True)],
 }
 
+#: A guild-wide credential the app fills in rather than the admin typing it.
+#:
+#: The case this exists for is the one no text box can express: a vendor whose
+#: organization-wide install is a page of its own, where somebody who owns the
+#: account chooses what the app may see. What comes back is an installation, and
+#: the app writes down what it says — so every field is ``managed``.
+WORKSPACE_CONNECTION = {
+    "id": "workspace",
+    "scope": "static",
+    "label": {"en": "Organization"},
+    "connect_path": "/install/github",
+    "fields": [_field("owner", "string", managed=True)],
+}
+
 SERVICE_DEFINITION = {
     "app_kind": "service",
     "service": {"public_id": "tests.shop", "protocol": 1},
     "features": [],
     "connections": [ADMIN_CONNECTION, GITHUB_CONNECTION],
+}
+
+#: The same app, where the guild-wide half is obtained rather than typed.
+#:
+#: Kept apart from ``SERVICE_DEFINITION`` on purpose: an unsatisfied static
+#: connection is an install that needs configuring, and every test about
+#: something else would start asserting around one.
+WORKSPACE_DEFINITION = {
+    "app_kind": "service",
+    "service": {"public_id": "tests.shop", "protocol": 1},
+    "features": [],
+    "connections": [WORKSPACE_CONNECTION, GITHUB_CONNECTION],
 }
 
 MEMBER_ONLY_DEFINITION = {
@@ -442,9 +467,14 @@ class TestConnect:
         assert first.json()["connection_ref"] == second.json()["connection_ref"]
         assert len(await _rows(session, a.guild.id)) == 1
 
-    async def test_a_guild_scoped_connection_is_not_connected_to(
+    async def test_a_typed_connection_is_not_connected_to(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
+        """No ``connect_path``, so there is no vendor to send anybody to.
+
+        The scope is not what decides this — a guild-wide connection may run a
+        flow of its own. Declaring one is.
+        """
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
         response = await client.post(
@@ -452,6 +482,83 @@ class TestConnect:
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildAppMessages.CONNECTION_NOT_INTERACTIVE
+
+    async def test_an_admin_starts_the_guild_s_own_vendor_flow(
+        self, client: AsyncClient, acting_user, session: AsyncSession
+    ):
+        """One credential for everybody, obtained rather than typed.
+
+        The same shape a member gets — a handle, a guild, an address to open —
+        because it is the same trip. What differs is who it belongs to when it
+        comes back.
+        """
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(session, a, definition=WORKSPACE_DEFINITION)
+
+        response = await client.post(
+            a.g(f"/apps/{app.id}/connections/workspace/connect"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["connect_path"] == "/install/github"
+        assert body["status"] == "pending"
+
+        connect = urlparse(body["connect_url"])
+        assert f"{connect.scheme}://{connect.netloc}{connect.path}" == (
+            "https://shop.example.test/install/github"
+        )
+        query = parse_qs(connect.query)
+        assert query["connection_ref"] == [body["connection_ref"]]
+        assert query["guild_id"] == [str(a.guild.id)]
+
+        # On the install row, because that is where a guild-wide credential
+        # lives — and no member row was minted for it.
+        await route_session_to_guild(session, a.guild.id)
+        await session.refresh(app)
+        assert app.connection_refs["workspace"] == body["connection_ref"]
+        assert await _rows(session, a.guild.id) == []
+
+    async def test_a_member_may_not_start_the_guild_s_flow(
+        self, client: AsyncClient, acting_user, session: AsyncSession
+    ):
+        """The install it produces is the guild's boundary.
+
+        Any member may connect their own account, because the vendor authorizes
+        them and the credential reaches what they already reach. This one
+        reaches whatever the organization grants, for everybody — which is the
+        admin's to decide, exactly as typing the same connection would be.
+        """
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(session, a, definition=WORKSPACE_DEFINITION)
+        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+        response = await client.post(
+            member.g(f"/apps/{app.id}/connections/workspace/connect"),
+            headers=member.headers,
+        )
+        assert response.status_code == 403
+        assert response.json()["detail"] == GuildAppMessages.ADMIN_REQUIRED
+
+        await route_session_to_guild(session, a.guild.id)
+        await session.refresh(app)
+        assert app.connection_refs == {}
+
+    async def test_the_guild_handle_survives_starting_again(
+        self, client: AsyncClient, acting_user, session: AsyncSession
+    ):
+        """Moving to another organization writes over one connection.
+
+        A fresh handle each time would leave the app holding one Initiative no
+        longer recognizes, and the write-back at the end of the flow the admin
+        actually completed would be refused.
+        """
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(session, a, definition=WORKSPACE_DEFINITION)
+        path = a.g(f"/apps/{app.id}/connections/workspace/connect")
+
+        first = await client.post(path, headers=a.headers)
+        second = await client.post(path, headers=a.headers)
+        assert first.json()["connection_ref"] == second.json()["connection_ref"]
 
     async def test_an_unknown_connection_is_a_404(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -871,6 +978,55 @@ class TestUpgrade:
         assert response.json()["listing_version"] == "1.1.0"
         # And the button goes away rather than offering the version just taken.
         assert response.json()["update_version"] is None
+
+    async def test_a_switched_off_service_still_upgrades_its_installs(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session: AsyncSession,
+        wired_app_services,
+    ):
+        """Whether this deployment runs the service decides whether a guild may
+        *take* the app. The install this guild already has stays theirs, and
+        keeps following the versions its publisher ships, so switching the
+        service back on finds it current rather than a version behind."""
+        uid = marketplace_uid("offbutinstalled")
+        await create_marketplace_listing(
+            session,
+            uid=uid,
+            public_id="tests.offbutinstalled",
+            kind="app",
+            version="1.0.0",
+            definition=SERVICE_DEFINITION,
+        )
+        a = await acting_user(guild_role=GuildRole.admin)
+        installed = await client.post(
+            a.g("/apps/"), headers=a.headers, json={"listing_uid": uid}
+        )
+        app_id = installed.json()["id"]
+
+        shop, _ = wired_app_services
+        shop.enabled = False
+        session.add(shop)
+        await session.commit()
+        invalidate_registrations()
+
+        await create_marketplace_listing(
+            session,
+            uid=uid,
+            public_id="tests.offbutinstalled",
+            kind="app",
+            version="1.1.0",
+            definition=SERVICE_DEFINITION,
+        )
+
+        detail = await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)
+        assert detail.json()["update_version"] == "1.1.0"
+        assert detail.json()["available"] is False
+
+        response = await client.post(a.g(f"/apps/{app_id}/upgrade"), headers=a.headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["listing_version"] == "1.1.0"
 
     async def test_upgrading_to_the_pinned_version_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession

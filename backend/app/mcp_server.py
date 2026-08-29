@@ -57,6 +57,12 @@ _WRITE_ROUTE_MAPS = [
 
 _ROUTE_MAPS = [
     *_WRITE_ROUTE_MAPS,
+    # Carved out of the ``initiatives`` read surface below: a join request names
+    # who asked to be let in and carries their free-text note, which is
+    # membership administration for a manager to answer rather than part of the
+    # project/task surface these tools serve. Ordered ahead of the tag rule so
+    # the exclusion wins.
+    RouteMap(pattern=r".*/join-requests.*", mcp_type=MCPType.EXCLUDE),
     *(
         RouteMap(methods=["GET"], tags={tag}, mcp_type=MCPType.TOOL)
         for tag in READ_TAGS
@@ -66,11 +72,11 @@ _ROUTE_MAPS = [
 ]
 
 
-# Base64 image blobs (avatar/guild icons) can dwarf the useful part of a
-# payload — a single guild ``icon_base64`` is often larger than the rest of a
-# task read combined. They're never actionable to an MCP client, so redact any
-# ``*_base64`` field before the result reaches the caller, keeping the context
-# they consume for the fields that matter.
+# Base64 image blobs can dwarf the useful part of a payload — a single
+# ``avatar_base64`` is often larger than the rest of a task read combined.
+# They're never actionable to an MCP client, so redact any ``*_base64`` field
+# before the result reaches the caller, keeping the context they consume for
+# the fields that matter.
 #
 # We null the value rather than *drop the key*: a tool's structured output is
 # validated against the tool's output schema, and these fields are declared

@@ -70,7 +70,16 @@
     "saving": "Saving…",
     "reset": "Reset",
     "updateSuccess": "Profile updated",
-    "updateError": "Unable to update profile"
+    "updateError": "Unable to update profile",
+    "avatarUploadHelp": "Any image. It is cropped square and resized for you.",
+    "avatar": {
+      "failed": "That picture could not be saved.",
+      "notAnImage": "Please choose an image file.",
+      "tooLarge": "That file is too large to work with. Try one under 12 MB.",
+      "unreadable": "That image could not be read."
+    },
+    "usernameLabel": "Username",
+    "usernameHelp": "How other people see you. Ask a moderator if you need it changed."
   },
   "security": {
     "devicesTitle": "Logged in devices",
@@ -614,7 +623,17 @@
     },
     "changeRoleTitle": "Change platform role",
     "changeRoleDescription": "This will change {{email}}'s platform role to {{role}}.",
-    "roleChangeSuccess": "Platform role changed to {{role}}"
+    "roleChangeSuccess": "Platform role changed to {{role}}",
+    "changeUsername": "Change username",
+    "usernameChanged": "Username changed.",
+    "changeUsernameTitle": "Change {{handle}}'s username",
+    "changeUsernameBody": "They will be told, and they cannot change it back themselves. The number stays as it is.",
+    "suspend": "Suspend",
+    "unsuspend": "Lift suspension",
+    "suspendTitle": "Suspend {{handle}}?",
+    "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no guild until this is lifted. They can still sign in to their own account, where they will see your reason.",
+    "suspendReasonLabel": "Reason (shown to them)",
+    "actionError": "That could not be done. Try again."
   },
   "adminDeleteUser": {
     "title": "Delete User",
@@ -733,11 +752,12 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Configure authentication, branding, email, AI, guild storage, and app services for the entire platform.",
+    "subtitle": "Configure authentication, branding, email, the community directory, AI, guild storage, and app services for the entire platform.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
+      "community": "Community",
       "ai": "AI",
       "storage": "Storage",
       "appServices": "App services"
@@ -786,6 +806,9 @@
     "delegationJwksLabel": "Delegation signing keys (JWKS)",
     "delegationJwksHelp": "The public half of the key this app signs delegation tokens with. Paste the key set the app publishes; two entries mean a rotation is in flight. Clearing the box removes it.",
     "delegationJwksInvalid": "That isn't valid JSON.",
+    "appDirectoryLabel": "Find other apps (app directory)",
+    "appDirectoryHelp": "This app may ask where another app installed in the same guild answers. Needs delegation as well: an automation service holds both, because acting on one app's behalf at another is what it is for.",
+    "appDirectoryBadge": "Finds other apps",
     "createTitle": "Add app service",
     "editTitle": "Edit app service",
     "createDescription": "Point Initiative at a running app container. Both sides must hold the same shared secret.",
@@ -889,7 +912,8 @@
     "tabs": {
       "users": "Users",
       "access": "Access",
-      "guilds": "Guilds"
+      "guilds": "Guilds",
+      "audit": "Audit"
     }
   },
   "storage": {
@@ -1074,5 +1098,31 @@
     "prefError": "Unable to update preference",
     "test": "Test",
     "testSuccess": "Connection successful"
+  },
+  "community": {
+    "title": "Community directory",
+    "description": "Let guilds list themselves where anyone signed in can find them and join without an invite.",
+    "toggleLabel": "Run a community directory",
+    "helpText": "While this is on, a guild admin can list their guild from guild settings, and “Join a community” appears beside everyone's guilds. While it is off, there is nothing to browse and no guild can list itself.",
+    "reversibleNote": "Turning this off hides the directory; it does not un-list the guilds that opted in. Turn it back on and the same guilds are listed again.",
+    "enabledToast": "The community directory is on.",
+    "disabledToast": "The community directory is off.",
+    "saveError": "Could not change the community directory. Please try again.",
+    "adminOnly": "You need the platform owner role to run a community directory."
+  },
+  "audit": {
+    "title": "Audit",
+    "description": "What was done to accounts, by whom, and when. Entries are kept after the accounts they name are gone.",
+    "whenColumn": "When",
+    "actionColumn": "Action",
+    "actorColumn": "Done by",
+    "subjectColumn": "Done to",
+    "subjectFilterPlaceholder": "Filter by account ID",
+    "departedAccount": "Account #{{id}} (deleted)",
+    "empty": "Nothing has been recorded yet.",
+    "pageOf": "Page {{page}} of {{total}} entries",
+    "actions": {
+      "user.avatar_removed": "Profile picture removed"
+    }
   }
 }

@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
+import {
+  deleteMyAvatarApiV1UsersMeAvatarDelete,
+  uploadMyAvatarApiV1UsersMeAvatarPut,
+} from "@/api/generated/users/users";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,20 +18,21 @@ import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { ImageRenditionError, renderAvatar } from "@/lib/imageRenditions";
 import { getInitials } from "@/lib/initials";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
-const dataUrl = (value?: string | null) => {
-  if (!value) {
-    return "";
-  }
-  if (value.startsWith("data:")) {
-    return value;
-  }
-  return `data:image/png;base64,${value}`;
-};
+/** Where this server serves an uploaded picture from. A linked one — from a
+ *  single sign-on account — is any other URL. */
+const UPLOADED_PREFIX = "/api/v1/users/";
+
+const uploadedAvatar = (user: UserRead): string | null =>
+  user.avatar_url?.startsWith(UPLOADED_PREFIX) ? user.avatar_url : null;
+
+const isLinked = (user: UserRead): boolean => Boolean(user.avatar_url) && !uploadedAvatar(user);
 
 interface UserSettingsProfilePageProps {
   user: UserRead;
@@ -43,11 +48,11 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [avatarMode, setAvatarMode] = useState<"upload" | "url">(
-    user.avatar_url ? "url" : "upload"
-  );
-  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url ?? "");
-  const [avatarBase64, setAvatarBase64] = useState(user.avatar_base64 ?? "");
+  const [avatarMode, setAvatarMode] = useState<"upload" | "url">(isLinked(user) ? "url" : "upload");
+  // Only the *linked* URL is edited in this form. An uploaded picture is its
+  // own resource, written the moment it is picked, so it has no draft state.
+  const [avatarUrl, setAvatarUrl] = useState(isLinked(user) ? (user.avatar_url ?? "") : "");
+  const [avatarBusy, setAvatarBusy] = useState(false);
   // The same field is also editable on Settings → Notifications (the
   // overdue-reminder time uses it). Surfacing it here too means a new
   // user can fix a wrong default during their first profile pass
@@ -57,18 +62,17 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
 
   useEffect(() => {
     setFullName(user.full_name ?? "");
-    setAvatarUrl(user.avatar_url ?? "");
-    setAvatarBase64(user.avatar_base64 ?? "");
-    setAvatarMode(user.avatar_url ? "url" : "upload");
+    setAvatarUrl(isLinked(user) ? (user.avatar_url ?? "") : "");
+    setAvatarMode(isLinked(user) ? "url" : "upload");
     setTimezone(user.timezone ?? "UTC");
   }, [user]);
 
   const avatarPreview = useMemo(() => {
     if (avatarMode === "url") {
-      return avatarUrl || user.avatar_url || "";
+      return avatarUrl || "";
     }
-    return avatarBase64 || user.avatar_base64 || "";
-  }, [avatarMode, avatarUrl, avatarBase64, user.avatar_url, user.avatar_base64]);
+    return resolveUploadUrl(uploadedAvatar(user)) ?? "";
+  }, [avatarMode, avatarUrl, user]);
 
   const updateProfile = useUpdateCurrentUser({
     onSuccess: async (_data, variables) => {
@@ -95,29 +99,48 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     },
   });
 
+  /** Write the picture straight away — it is a resource of its own, not a
+   *  field of this form, so there is nothing to save alongside it. */
+  const runAvatar = async (work: () => Promise<unknown>) => {
+    setAvatarBusy(true);
+    try {
+      await work();
+      await refreshUser();
+    } catch (err) {
+      console.error(err);
+      // A picture the browser could not make sense of never reached the
+      // server, so it has its own message rather than an API code.
+      toast.error(
+        err instanceof ImageRenditionError
+          ? t(`settings:profile.avatar.${err.code}`)
+          : getErrorMessage(err, "settings:profile.avatar.failed")
+      );
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
   const handleAvatarUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) {
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setAvatarMode("upload");
-      setAvatarBase64(result);
-    };
-    reader.readAsDataURL(file);
+    setAvatarMode("upload");
+    void runAvatar(async () =>
+      uploadMyAvatarApiV1UsersMeAvatarPut({ file: await renderAvatar(file) })
+    );
   };
 
-  const initials = getInitials(user.full_name, user.email);
+  const handleAvatarRemove = () => void runAvatar(() => deleteMyAvatarApiV1UsersMeAvatarDelete());
+
+  const initials = getInitials(user.full_name, user.username);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Avatar className="h-16 w-16">
-          {avatarPreview ? (
-            <AvatarImage src={dataUrl(avatarPreview)} alt={fullName || user.email} />
-          ) : null}
+          {avatarPreview ? <AvatarImage src={avatarPreview} alt={fullName || user.email} /> : null}
           <AvatarFallback userId={user.id}>{initials}</AvatarFallback>
         </Avatar>
         <div>
@@ -162,12 +185,11 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   payload.current_password = currentPassword;
                 }
               }
-              if (avatarMode === "upload") {
-                payload.avatar_base64 = avatarBase64 || null;
-                payload.avatar_url = null;
-              } else {
+              // The uploaded picture is written on pick, so this form only
+              // carries the linked one. Clearing the field on the URL tab is
+              // how a linked picture is removed.
+              if (avatarMode === "url") {
                 payload.avatar_url = avatarUrl || null;
-                payload.avatar_base64 = null;
               }
               if (timezone !== (user.timezone ?? "UTC")) {
                 payload.timezone = timezone;
@@ -179,6 +201,15 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               <Label>{t("profile.emailLabel")}</Label>
               <Input value={user.email} disabled readOnly />
               <p className="text-muted-foreground text-xs">{t("profile.emailHelp")}</p>
+            </div>
+
+            <div className="space-y-2">
+              {/* Shown, not editable — the same arrangement the address has.
+                  It is how everyone else sees you, so it is the one thing on
+                  this page you would look for and not find. */}
+              <Label>{t("profile.usernameLabel")}</Label>
+              <Input value={getUserHandle(user)} disabled readOnly />
+              <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
             </div>
 
             <div className="space-y-2">
@@ -261,13 +292,20 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   <TabsTrigger value="url">{t("profile.avatarUrlTab")}</TabsTrigger>
                 </TabsBar>
                 <TabsContent value="upload" className="space-y-2">
-                  <Input type="file" accept="image/*" onChange={handleAvatarUpload} />
-                  {avatarBase64 ? (
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    disabled={avatarBusy}
+                    onChange={handleAvatarUpload}
+                  />
+                  <p className="text-muted-foreground text-xs">{t("profile.avatarUploadHelp")}</p>
+                  {uploadedAvatar(user) ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setAvatarBase64("")}
+                      disabled={avatarBusy}
+                      onClick={handleAvatarRemove}
                     >
                       {t("profile.removeUploadedAvatar")}
                     </Button>
@@ -309,9 +347,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   setPassword("");
                   setCurrentPassword("");
                   setConfirmPassword("");
-                  setAvatarUrl(user.avatar_url ?? "");
-                  setAvatarBase64(user.avatar_base64 ?? "");
-                  setAvatarMode(user.avatar_url ? "url" : "upload");
+                  setAvatarUrl(isLinked(user) ? (user.avatar_url ?? "") : "");
+                  setAvatarMode(isLinked(user) ? "url" : "upload");
                   setTimezone(user.timezone ?? "UTC");
                   setError(null);
                 }}

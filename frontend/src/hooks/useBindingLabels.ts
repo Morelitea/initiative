@@ -22,6 +22,7 @@ import { useInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { type FilterNode, isGroup, readConditions } from "@/lib/widgets/conditions";
 import { EMPTY_LABELS, type EntityLabels } from "@/lib/widgets/provenance";
 
@@ -100,8 +101,7 @@ export function useBindingLabels(
       labels.document.set(document.data.id, document.data.name);
     }
     for (const member of initiative.data?.members ?? []) {
-      const name = member.user.full_name;
-      if (name) labels.member.set(member.user.id, name);
+      labels.member.set(member.user.id, getUserDisplayName(member.user));
     }
     for (const tag of tags.data ?? []) labels.tag.set(tag.id, tag.name);
 

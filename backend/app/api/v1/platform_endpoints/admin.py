@@ -1,23 +1,36 @@
 import logging
-from typing import Annotated, List, Sequence
+from typing import Annotated, List, Optional, Sequence
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
+from app.core.audit_events import AuditEventType
+from app.core.user_display import handle_of
+from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
+from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
 from sqlmodel.ext.asyncio.session import AsyncSession
+from app.models.platform.audit_event import AuditEvent
 from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.user import UserRead, AccountDeletionResponse, UserPublic
+from app.schemas.platform.audit import (
+    AuditActor,
+    AuditEventListResponse,
+    AuditEventRead,
+)
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.admin import (
+    AdminSuspensionUpdate,
+    AdminUsernameUpdate,
     PlatformRoleUpdate,
     PlatformAdminCountResponse,
     AdminUserDeleteRequest,
@@ -26,14 +39,23 @@ from app.schemas.platform.admin import (
     AdminInitiativeRoleUpdate,
     GuildBlockerInfo,
 )
-from app.core.encryption import hash_email
-from app.core.messages import AdminMessages, GuildMessages, SettingsMessages
+from app.core.messages import (
+    AdminMessages,
+    AuthMessages,
+    GuildMessages,
+    SettingsMessages,
+)
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import initiatives as initiatives_service
+from app.services import notifications as notifications_service
+from app.services.platform import user_avatars as user_avatars_service
+from app.services import audit as audit_service
+from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
+from app.services.platform.guilds import adopt_guild_name_display
 from app.services.platform import guilds as guilds_service
 
 logger = logging.getLogger(__name__)
@@ -45,7 +67,11 @@ router = APIRouter()
 # ladder (member → support → moderator → admin → owner) maps cleanly onto
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
+AuditReadDep = Annotated[User, Depends(require_capability(Capability.AUDIT_READ))]
 UsersManageDep = Annotated[User, Depends(require_capability(Capability.USERS_MANAGE))]
+ContentModerateDep = Annotated[
+    User, Depends(require_capability(Capability.CONTENT_MODERATE))
+]
 UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DELETE))]
 GuildsManageDep = Annotated[User, Depends(require_capability(Capability.GUILDS_MANAGE))]
 RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
@@ -67,13 +93,7 @@ async def list_all_users(
     than the system admin engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
     """
-    from app.services.platform.users import SYSTEM_USER_EMAIL
-
-    stmt = (
-        select(User)
-        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
-        .order_by(User.created_at.asc())
-    )
+    stmt = select(User).order_by(User.created_at.asc())
     result = await session.exec(stmt)
     return result.all()
 
@@ -99,15 +119,9 @@ async def export_platform_users_csv(
     user_id: Annotated[list[int] | None, Query()] = None,
 ) -> Response:
     """Export platform users as a CSV file. Pass `user_id` one or more times to
-    restrict the export to a subset. Without `user_id`, every user (except the
-    system user) is included. Platform-admin only."""
-    from app.services.platform.users import SYSTEM_USER_EMAIL
-
-    stmt = (
-        select(User)
-        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
-        .order_by(User.created_at.asc())
-    )
+    restrict the export to a subset. Without `user_id`, every user is included.
+    Platform-admin only."""
+    stmt = select(User).order_by(User.created_at.asc())
     if user_id:
         stmt = stmt.where(User.id.in_(user_id))
     result = await session.exec(stmt)
@@ -226,6 +240,283 @@ async def reactivate_user(
     await session.refresh(user)
     # Platform user management stays platform-table-only: initiative
     # membership is guild-schema content this path cannot read.
+    return user
+
+
+@router.delete("/users/{user_id}/avatar", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_user_avatar(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: ContentModerateDep,
+) -> Response:
+    """Take down a user's profile picture.
+
+    People occasionally upload images that breach the terms of use, so removal
+    cannot wait for the uploader to do it. Gated on ``content.moderate``, which
+    is a platform capability — a guild admin is a tenancy role and has no part
+    in this, so a guild's administrator cannot reach a member's profile image.
+
+    Removal only. There is deliberately no path by which one account sets
+    another account's picture.
+
+    The bytes are destroyed rather than hidden. Runs on the system engine
+    because the row policies scope every request-path write to the caller's own
+    avatar, so nothing in the schema grants this — the capability check above
+    is the whole authorization.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+
+    # An externally hosted picture is the same surface by another route, so a
+    # takedown that left it in place would not be one: both go.
+    had_picture = bool(user.avatar_url)
+    removed = await user_avatars_service.delete_avatar(
+        session, user_id=user_id, user=user
+    )
+    if user.avatar_url:
+        user.avatar_url = None
+        session.add(user)
+
+    if removed or had_picture:
+        # Queued before the commit, not after it: silent removal reads as a
+        # bug, so the picture going and the person being told are one write.
+        await notifications_service.queue_avatar_removed(session, user=user)
+        # Recorded in the same transaction, for the same reason: the takedown
+        # and the record of who did it commit together or not at all.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.USER_AVATAR_REMOVED,
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+        )
+
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/audit-events", response_model=AuditEventListResponse)
+async def list_audit_events(
+    session: AdminSessionDep,
+    _current_user: AuditReadDep,
+    event_type: Annotated[list[str] | None, Query()] = None,
+    actor_user_id: Optional[int] = Query(default=None),
+    target_user_id: Optional[int] = Query(default=None),
+    occurred_after: Optional[datetime] = Query(default=None),
+    occurred_before: Optional[datetime] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+) -> AuditEventListResponse:
+    """The audit board: what was done, by whom, to whom, most recent first.
+
+    Gated on ``audit.read`` (support and above). Runs on the system engine
+    because nothing else can read the table — the log is not part of the
+    request path's world in either direction.
+    """
+    base = select(AuditEvent)
+    if event_type:
+        base = base.where(AuditEvent.event_type.in_(event_type))
+    if actor_user_id is not None:
+        base = base.where(AuditEvent.actor_user_id == actor_user_id)
+    if target_user_id is not None:
+        base = base.where(AuditEvent.target_user_id == target_user_id)
+    if occurred_after is not None:
+        base = base.where(AuditEvent.occurred_at >= occurred_after)
+    if occurred_before is not None:
+        base = base.where(AuditEvent.occurred_at <= occurred_before)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
+    events, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+
+    # The rows hold ids, so a name is looked up now rather than stored then.
+    # An account that has since been erased simply resolves to nothing, and the
+    # record of what was done to it stays intact.
+    wanted = {event.actor_user_id for event in events} | {
+        event.target_user_id for event in events if event.target_user_id is not None
+    }
+    handles: dict[int, User] = {}
+    if wanted:
+        rows = await session.exec(select(User).where(User.id.in_(wanted)))
+        handles = {user.id: user for user in rows.all() if user.id is not None}
+
+    def _actor(user_id: Optional[int]) -> Optional[AuditActor]:
+        if user_id is None:
+            return None
+        user = handles.get(user_id)
+        return AuditActor(
+            id=user_id,
+            username=user.username if user else None,
+            discriminator=user.discriminator if user else None,
+        )
+
+    return AuditEventListResponse(
+        items=[
+            AuditEventRead(
+                id=event.id,
+                event_uuid=str(event.event_uuid),
+                event_type=event.event_type,
+                category=str(event.envelope.get("category", "")),
+                tier=event.tier,
+                occurred_at=event.occurred_at,
+                actor=_actor(event.actor_user_id),
+                target_user=_actor(event.target_user_id),
+                guild_id=event.guild_id,
+                target_type=event.target_type,
+                target_id=event.target_id,
+                detail=event.envelope.get("detail") or {},
+            )
+            for event in events
+        ],
+        total_count=total_count,
+        page=actual_page,
+        page_size=page_size,
+        has_next=page_has_next(actual_page, page_size, total_count),
+        has_prev=actual_page > 1,
+    )
+
+
+@router.patch("/users/{user_id}/username", response_model=UserRead)
+async def set_user_username(
+    user_id: int,
+    payload: AdminUsernameUpdate,
+    session: AdminSessionDep,
+    current_user: ContentModerateDep,
+) -> User:
+    """Change someone's username.
+
+    People occasionally pick a handle that breaches the terms of use, and it is
+    the one part of an account everyone else sees, so changing it cannot wait
+    for its owner. Gated on ``content.moderate`` — a platform capability, like
+    the picture takedown beside it; a guild's administrator has no part in this.
+
+    The name part is validated exactly as registration validates it. The number
+    is not the moderator's to choose either: the existing one is kept, and a
+    new one drawn only if that pair is already held.
+
+    This also marks the handle as chosen, so its owner cannot immediately spend
+    a pick on undoing a moderation decision.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    previous_handle = handle_of(user)
+    try:
+        await username_service.set_for_user(
+            session, user=user, name=payload.username, keep_discriminator=True
+        )
+    except UsernameError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
+        ) from exc
+
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await notifications_service.queue_username_changed(
+        session, user=user, previous_handle=previous_handle
+    )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_USERNAME_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"from": previous_handle, "to": handle_of(user)},
+    )
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@router.post("/users/{user_id}/suspension", response_model=UserRead)
+async def set_user_suspension(
+    user_id: int,
+    payload: AdminSuspensionUpdate,
+    session: AdminSessionDep,
+    current_user: UsersManageDep,
+) -> User:
+    """Freeze an account, or let it go.
+
+    Suspension takes nothing away: memberships, grants, assignments and
+    everything the account authored stay exactly where they are, so lifting it
+    restores the account whole. What it does is close every guild — the holder
+    still signs in and reaches their own account, which is how they can be told
+    why.
+
+    Gated on ``users.manage`` (moderator and above). No PAM grant is involved:
+    this is a platform action about an account, not access to a guild's
+    content.
+    """
+    if user_id == current_user.id:
+        # Suspending yourself would take your own guilds away and leave the
+        # lifting of it to someone else.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_SUSPEND_SELF,
+        )
+
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    # A closed or erased account is not a live one to freeze, and thawing it
+    # would quietly reopen an account its owner closed.
+    if user.status not in (UserStatus.active, UserStatus.suspended):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_SUSPEND_INACTIVE,
+        )
+
+    already = user.status == UserStatus.suspended
+    if already == payload.suspended:
+        return user
+
+    user.status = UserStatus.suspended if payload.suspended else UserStatus.active
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+
+    if payload.suspended:
+        await notifications_service.queue_account_suspended(
+            session, user=user, reason=payload.reason
+        )
+    else:
+        await notifications_service.queue_account_unsuspended(session, user=user)
+
+    await audit_service.record(
+        session,
+        event_type=(
+            AuditEventType.USER_SUSPENDED
+            if payload.suspended
+            else AuditEventType.USER_UNSUSPENDED
+        ),
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"reason": payload.reason} if payload.reason else {},
+    )
+    await session.commit()
+    await session.refresh(user)
+
+    if payload.suspended:
+        # Sockets opened before this carry the account as it was when they
+        # joined, so they are re-checked now rather than at the next sweep.
+        # Everywhere at once: this is a change to the account, which has no one
+        # guild to name.
+        await stream_authority.revoke_user_everywhere(user_id)
+
     return user
 
 
@@ -370,9 +661,9 @@ async def check_user_deletion_eligibility(
                 other_members=[
                     UserPublic(
                         id=m.id,
-                        email=m.email,
+                        username=m.username,
+                        discriminator=m.discriminator,
                         full_name=m.full_name,
-                        avatar_base64=m.avatar_base64,
                         avatar_url=m.avatar_url,
                     )
                     for m in gb["other_members"]
@@ -682,6 +973,7 @@ async def admin_get_initiative_members(
     ``public`` backup.
     """
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await adopt_guild_name_display(session, guild_id=guild_id)
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)

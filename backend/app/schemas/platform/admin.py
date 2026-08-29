@@ -79,3 +79,24 @@ class AdminInitiativeRoleUpdate(SanitizedBaseModel):
     """
 
     role: str = Field(..., min_length=1, max_length=100)
+
+
+class AdminUsernameUpdate(SanitizedBaseModel):
+    """The name part a moderator sets on someone else's account.
+
+    The number is not here and never will be: it is drawn, not chosen, by
+    anyone. It is re-drawn only if the new pair is already held.
+    """
+
+    username: str = Field(max_length=64)
+
+
+class AdminSuspensionUpdate(SanitizedBaseModel):
+    """Freeze an account, or let it go.
+
+    ``reason`` is shown to the person it is about, so it is written for them
+    rather than as an internal note.
+    """
+
+    suspended: bool
+    reason: Optional[str] = Field(default=None, max_length=500)

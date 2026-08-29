@@ -82,7 +82,7 @@ async def _verify_and_parse(request: Request, model):
         payload = model.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=_payload_error_code(exc),
         ) from exc
     return claims, payload
@@ -124,7 +124,7 @@ async def apply_guild_tier(
         # of the same body — that corrected write (even reusing the event id)
         # then applies.
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
         ) from exc
     await session.commit()
     return result

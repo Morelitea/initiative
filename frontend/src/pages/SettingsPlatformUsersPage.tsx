@@ -4,8 +4,11 @@ import {
   Download,
   LifeBuoy,
   Mail,
+  PenLine,
   Shield,
   ShieldCheck,
+  ShieldOff,
+  Snowflake,
   Trash2,
   UserCheck,
 } from "lucide-react";
@@ -21,10 +24,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useAdminReactivateUser,
+  useAdminSetSuspension,
+  useAdminSetUsername,
   useAdminTriggerPasswordReset,
   useAdminUpdatePlatformRole,
   useExportPlatformUsersCsv,
@@ -36,6 +52,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
+import { getUserHandle } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
 // Platform roles ordered least → most privileged. A user can only assign a
@@ -109,6 +126,7 @@ export const SettingsPlatformUsersPage = () => {
   const canManageRoles = hasCapability(user, Capability.rolesAssign);
   const canManageUsers = hasCapability(user, Capability.usersManage);
   const canDeleteUsers = hasCapability(user, Capability.usersDelete);
+  const canModerateContent = hasCapability(user, Capability.contentModerate);
   const actorRank = platformRoleRank(user?.role ?? "member");
 
   const usersQuery = usePlatformUsers({ enabled: canView });
@@ -125,6 +143,28 @@ export const SettingsPlatformUsersPage = () => {
       toast.error(getErrorMessage(error, "settings:platformUsers.resetError"));
       setResettingUserId(null);
     },
+  });
+
+  const [renameTarget, setRenameTarget] = useState<UserRead | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [suspendTarget, setSuspendTarget] = useState<UserRead | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
+
+  const setUsername = useAdminSetUsername({
+    onSuccess: () => {
+      toast.success(t("platformUsers.usernameChanged"));
+      setRenameTarget(null);
+      setRenameValue("");
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+  });
+
+  const setSuspension = useAdminSetSuspension({
+    onSuccess: () => {
+      setSuspendTarget(null);
+      setSuspendReason("");
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
   const reactivateUser = useAdminReactivateUser({
@@ -369,6 +409,44 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </Button>
             )}
+            {canModerateContent && !isSelf && platformUser.status !== "anonymized" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRenameTarget(platformUser)}
+              >
+                <PenLine className="h-4 w-4" />
+                {t("platformUsers.changeUsername")}
+              </Button>
+            )}
+            {canManageUsers &&
+              !isSelf &&
+              (platformUser.status === "active" || platformUser.status === "suspended") && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    platformUser.status === "suspended"
+                      ? setSuspension.mutate({ userId: platformUser.id, suspended: false })
+                      : setSuspendTarget(platformUser)
+                  }
+                  disabled={setSuspension.isPending}
+                >
+                  {platformUser.status === "suspended" ? (
+                    <>
+                      <ShieldOff className="h-4 w-4" />
+                      {t("platformUsers.unsuspend")}
+                    </>
+                  ) : (
+                    <>
+                      <Snowflake className="h-4 w-4" />
+                      {t("platformUsers.suspend")}
+                    </>
+                  )}
+                </Button>
+              )}
             <Button
               type="button"
               variant="outline"
@@ -455,6 +533,98 @@ export const SettingsPlatformUsersPage = () => {
         onConfirm={confirmRoleChange}
         isLoading={updatePlatformRole.isPending}
       />
+
+      {/* A rename is typed, so it needs a field rather than a confirmation. */}
+      <Dialog
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+            setRenameValue("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t("platformUsers.changeUsernameTitle", {
+                handle: renameTarget ? getUserHandle(renameTarget) : "",
+              })}
+            </DialogTitle>
+            <DialogDescription>{t("platformUsers.changeUsernameBody")}</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value.toLowerCase())}
+            autoCapitalize="none"
+            placeholder={t("platformUsers.changeUsername")}
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={!renameValue.trim() || setUsername.isPending}
+              onClick={() =>
+                renameTarget &&
+                setUsername.mutate({
+                  userId: renameTarget.id,
+                  username: renameValue.trim().toLowerCase(),
+                })
+              }
+            >
+              {setUsername.isPending ? t("common:submitting") : t("common:save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspending takes nothing away, and the reason is shown to the person
+          it is about — so it is a field here, not an internal note. */}
+      <Dialog
+        open={suspendTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSuspendTarget(null);
+            setSuspendReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t("platformUsers.suspendTitle", {
+                handle: suspendTarget ? getUserHandle(suspendTarget) : "",
+              })}
+            </DialogTitle>
+            <DialogDescription>{t("platformUsers.suspendBody")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="suspend-reason">{t("platformUsers.suspendReasonLabel")}</Label>
+            <Textarea
+              id="suspend-reason"
+              value={suspendReason}
+              onChange={(event) => setSuspendReason(event.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={setSuspension.isPending}
+              onClick={() =>
+                suspendTarget &&
+                setSuspension.mutate({
+                  userId: suspendTarget.id,
+                  suspended: true,
+                  reason: suspendReason.trim() || undefined,
+                })
+              }
+            >
+              {setSuspension.isPending ? t("common:submitting") : t("platformUsers.suspend")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {deleteUserTarget && (
         <AdminDeleteUserDialog

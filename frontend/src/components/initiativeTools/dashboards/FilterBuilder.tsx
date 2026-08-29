@@ -41,6 +41,7 @@ import { Switch } from "@/components/ui/switch";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import {
   type ConditionValue,
   type FilterLeaf,
@@ -92,7 +93,7 @@ export function FilterBuilder({ value, onChange, initiativeId }: FilterBuilderPr
         { value: "me", label: t("dashboards:provenance.me") },
         ...(initiative.data?.members ?? []).map((member) => ({
           value: String(member.user.id),
-          label: member.user.full_name ?? String(member.user.id),
+          label: getUserDisplayName(member.user, String(member.user.id)),
         })),
       ],
     }),

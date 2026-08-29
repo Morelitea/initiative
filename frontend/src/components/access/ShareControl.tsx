@@ -26,13 +26,19 @@ import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
 import { cn } from "@/lib/utils";
+import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 export interface ShareControlProps {
   /** The initiative whose members and roles can be named, or `null` for a
    *  guild-level resource — where the people who can be named are the guild's
-   *  members, and no initiative is read at all. */
+   *  members, and no initiative is read at all.
+   *
+   *  `null` selects the **guild view** of this control. The two views are not
+   *  cosmetic: an initiative has roles and a guild does not, so the guild view
+   *  has no Roles section at all rather than an empty one. See the note above
+   *  {@link ShareControl}. */
   initiativeId: number | null;
   /** Full grant list for the resource (may include the owner-level grant). */
   grants: ResourceGrantSchema[];
@@ -48,6 +54,23 @@ type ShareLevel = "read" | "write";
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+/**
+ * Who can read and write one resource — in one of two views.
+ *
+ * **Initiative view** (`initiativeId` given) shares within an initiative: its
+ * members, and its roles, and "everyone in the initiative".
+ *
+ * **Guild view** (`initiativeId` null) shares a guild-level resource, and it is
+ * a narrower thing rather than the same thing with different words. A guild has
+ * members, so people can be named. A guild has no *roles* — the roles this
+ * control grants to are an initiative's, and there is no initiative here — so
+ * the guild view has no Roles section, rather than one with an empty picker
+ * behind it offering a grant the server would drop on the way in.
+ *
+ * "Everyone" survives both views because both have one: at guild scope the
+ * all-members grant reads as every member of the guild, which is how a guild
+ * calendar arrives shared with the guild.
+ */
 export const ShareControl = ({
   initiativeId,
   grants,
@@ -88,7 +111,14 @@ export const ShareControl = ({
     () => grants.filter((g) => g.user_id != null && g.level !== "owner"),
     [grants]
   );
-  const roleGrants = useMemo(() => grants.filter((g) => g.role_id != null), [grants]);
+  // A role grant cannot mean anything on a guild-level resource: the roles are
+  // an initiative's, and the server drops such a grant rather than storing one
+  // that names nothing. Emptied here so the guild view never carries one
+  // through an edit either — what it shows is what gets saved.
+  const roleGrants = useMemo(
+    () => (guildScoped ? [] : grants.filter((g) => g.role_id != null)),
+    [guildScoped, grants]
+  );
 
   // Roles with "Full access" (override_share_restrictions) always view/edit
   // everything in the initiative, so they show as a locked Editor that can't be
@@ -116,17 +146,18 @@ export const ShareControl = ({
   const userDisplayName = useCallback(
     (userId: number): string => {
       const member = members.find((m) => m.user.id === userId);
-      return member?.user.full_name?.trim() || member?.user.email || `User ${userId}`;
+      return member ? getUserDisplayName(member.user) : `User ${userId}`;
     },
     [members]
   );
 
-  const userEmail = useCallback(
+  // The handle, as the line under a name — what tells two people with the same
+  // name apart. Nothing to show when the name IS the handle.
+  const userHandle = useCallback(
     (userId: number): string | null => {
       const member = members.find((m) => m.user.id === userId);
-      const email = member?.user.email;
-      const name = member?.user.full_name?.trim();
-      return email && email !== name ? email : null;
+      if (!member?.user.full_name?.trim()) return null;
+      return getUserHandle(member.user) || null;
     },
     [members]
   );
@@ -268,12 +299,16 @@ export const ShareControl = ({
               >
                 <span className="flex items-center gap-1">
                   <span className="truncate font-medium text-sm">
-                    {mode === "all" ? t("share.allMembers") : t("share.restricted")}
+                    {mode === "all"
+                      ? t(guildScoped ? "share.allGuildMembers" : "share.allMembers")
+                      : t("share.restricted")}
                   </span>
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
                 </span>
                 <span className="truncate text-muted-foreground text-xs">
-                  {mode === "all" ? t("share.allMembersHint") : t("share.restrictedHint")}
+                  {mode === "all"
+                    ? t(guildScoped ? "share.allGuildMembersHint" : "share.allMembersHint")
+                    : t(guildScoped ? "share.restrictedGuildHint" : "share.restrictedHint")}
                 </span>
               </button>
             </PopoverTrigger>
@@ -292,10 +327,14 @@ export const ShareControl = ({
                   )}
                 >
                   <span className="font-medium text-sm">
-                    {m === "all" ? t("share.allMembers") : t("share.restricted")}
+                    {m === "all"
+                      ? t(guildScoped ? "share.allGuildMembers" : "share.allMembers")
+                      : t("share.restricted")}
                   </span>
                   <span className="text-muted-foreground text-xs">
-                    {m === "all" ? t("share.allMembersHint") : t("share.restrictedHint")}
+                    {m === "all"
+                      ? t(guildScoped ? "share.allGuildMembersHint" : "share.allMembersHint")
+                      : t(guildScoped ? "share.restrictedGuildHint" : "share.restrictedHint")}
                   </span>
                 </button>
               ))}
@@ -341,11 +380,11 @@ export const ShareControl = ({
                       <CommandEmpty>{t("share.noPeople")}</CommandEmpty>
                       <CommandGroup>
                         {availableMembers.map((member) => {
-                          const displayName = member.user.full_name?.trim() || member.user.email;
+                          const displayName = getUserDisplayName(member.user);
                           return (
                             <CommandItem
                               key={member.user.id}
-                              value={`${displayName} ${member.user.email}`}
+                              value={`${displayName} ${getUserHandle(member.user)}`}
                               onSelect={() => {
                                 addUser(member.user.id);
                                 setPeoplePickerOpen(false);
@@ -354,12 +393,11 @@ export const ShareControl = ({
                             >
                               <div className="flex flex-col">
                                 <span className="truncate text-sm">{displayName}</span>
-                                {member.user.full_name?.trim() &&
-                                  member.user.full_name.trim() !== member.user.email && (
-                                    <span className="truncate text-muted-foreground text-xs">
-                                      {member.user.email}
-                                    </span>
-                                  )}
+                                {member.user.full_name?.trim() && (
+                                  <span className="truncate text-muted-foreground text-xs">
+                                    {getUserHandle(member.user)}
+                                  </span>
+                                )}
                               </div>
                             </CommandItem>
                           );
@@ -382,13 +420,13 @@ export const ShareControl = ({
 
               {userGrants.map((grant) => {
                 const userId = grant.user_id as number;
-                const email = userEmail(userId);
+                const handle = userHandle(userId);
                 return (
                   <div key={userId} className="flex items-center gap-2 rounded-md border px-3 py-2">
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-sm">{userDisplayName(userId)}</span>
-                      {email && (
-                        <span className="truncate text-muted-foreground text-xs">{email}</span>
+                      {handle && (
+                        <span className="truncate text-muted-foreground text-xs">{handle}</span>
                       )}
                     </div>
                     <Select
@@ -421,101 +459,109 @@ export const ShareControl = ({
             </div>
           </div>
 
-          {/* Roles */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="font-medium text-sm">{t("share.roles")}</Label>
-              <Popover open={rolePickerOpen} onOpenChange={setRolePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" size="sm" disabled={disabled}>
-                    {t("share.addRoles")}
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-0" align="end">
-                  <Command>
-                    <CommandInput placeholder={t("share.searchRoles")} />
-                    <CommandList>
-                      <CommandEmpty>{t("share.noRoles")}</CommandEmpty>
-                      <CommandGroup>
-                        {availableRoles.map((role) => (
-                          <CommandItem
-                            key={role.id}
-                            value={role.display_name}
-                            onSelect={() => {
-                              addRole(role.id);
-                              setRolePickerOpen(false);
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <span className="truncate text-sm">{role.display_name}</span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-1">
-              {/* Full-access roles: locked Editor, non-removable, non-downgradable */}
-              {fullAccessRoles.map((role) => (
-                <div
-                  key={`full-access-${role.id}`}
-                  className="flex items-center gap-2 rounded-md border px-3 py-2"
-                  title={t("share.fullAccessHint")}
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm">{role.display_name}</span>
-                  <Badge variant="secondary" className="gap-1">
-                    <Lock className="h-3 w-3" />
-                    {t("share.fullAccess")}
-                  </Badge>
-                  <span className="w-[110px] shrink-0 px-3 text-muted-foreground text-sm">
-                    {t("share.editor")}
-                  </span>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
-                    <Lock className="h-4 w-4" />
-                  </span>
-                </div>
-              ))}
-
-              {editableRoleGrants.map((grant) => {
-                const roleId = grant.role_id as number;
-                return (
-                  <div key={roleId} className="flex items-center gap-2 rounded-md border px-3 py-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">
-                      {roleDisplayName(roleId)}
-                    </span>
-                    <Select
-                      value={grant.level === "write" ? "write" : "read"}
-                      onValueChange={(v) => setRoleLevel(roleId, v as ShareLevel)}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="w-[110px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="read">{t("share.viewer")}</SelectItem>
-                        <SelectItem value="write">{t("share.editor")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      onClick={() => removeRole(roleId)}
-                      disabled={disabled}
-                      aria-label={t("share.remove")}
-                    >
-                      <X className="h-4 w-4" />
+          {/* Roles — an initiative's, so the guild view has none. Absent
+              rather than empty: an "Add roles" button over a picker with
+              nothing in it offers a grant that names nothing, which the server
+              would drop on the way in. */}
+          {guildScoped ? null : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium text-sm">{t("share.roles")}</Label>
+                <Popover open={rolePickerOpen} onOpenChange={setRolePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" disabled={disabled}>
+                      {t("share.addRoles")}
+                      <ChevronDown className="h-4 w-4 opacity-50" />
                     </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder={t("share.searchRoles")} />
+                      <CommandList>
+                        <CommandEmpty>{t("share.noRoles")}</CommandEmpty>
+                        <CommandGroup>
+                          {availableRoles.map((role) => (
+                            <CommandItem
+                              key={role.id}
+                              value={role.display_name}
+                              onSelect={() => {
+                                addRole(role.id);
+                                setRolePickerOpen(false);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <span className="truncate text-sm">{role.display_name}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-1">
+                {/* Full-access roles: locked Editor, non-removable, non-downgradable */}
+                {fullAccessRoles.map((role) => (
+                  <div
+                    key={`full-access-${role.id}`}
+                    className="flex items-center gap-2 rounded-md border px-3 py-2"
+                    title={t("share.fullAccessHint")}
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm">{role.display_name}</span>
+                    <Badge variant="secondary" className="gap-1">
+                      <Lock className="h-3 w-3" />
+                      {t("share.fullAccess")}
+                    </Badge>
+                    <span className="w-[110px] shrink-0 px-3 text-muted-foreground text-sm">
+                      {t("share.editor")}
+                    </span>
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
+                      <Lock className="h-4 w-4" />
+                    </span>
                   </div>
-                );
-              })}
+                ))}
+
+                {editableRoleGrants.map((grant) => {
+                  const roleId = grant.role_id as number;
+                  return (
+                    <div
+                      key={roleId}
+                      className="flex items-center gap-2 rounded-md border px-3 py-2"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {roleDisplayName(roleId)}
+                      </span>
+                      <Select
+                        value={grant.level === "write" ? "write" : "read"}
+                        onValueChange={(v) => setRoleLevel(roleId, v as ShareLevel)}
+                        disabled={disabled}
+                      >
+                        <SelectTrigger className="w-[110px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="read">{t("share.viewer")}</SelectItem>
+                          <SelectItem value="write">{t("share.editor")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={() => removeRole(roleId)}
+                        disabled={disabled}
+                        aria-label={t("share.remove")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

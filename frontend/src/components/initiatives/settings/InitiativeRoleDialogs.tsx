@@ -1,12 +1,14 @@
+/**
+ * The three dialogs the Roles section opens: create a role, rename one, delete
+ * one. They live with the section that opens them, so a section route carries
+ * its own modals rather than a shared bundle carrying everyone's.
+ */
+
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 
-import type {
-  InitiativeMemberRead,
-  InitiativeRoleRead,
-} from "@/api/generated/initiativeAPI.schemas";
-import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
+import type { InitiativeRoleRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,53 +31,27 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateRole, useDeleteRole, useUpdateRole } from "@/hooks/useInitiativeRoles";
-import { useRemoveInitiativeMember } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
-import { getUserDisplayName } from "@/lib/userDisplay";
 
-interface InitiativeSettingsDialogsProps {
+export interface InitiativeRoleDialogsProps {
   initiativeId: number;
-  initiativeName: string;
-
-  // Delete initiative dialog
-  showDeleteConfirm: boolean;
-  setShowDeleteConfirm: (open: boolean) => void;
-  isDeletingInitiative: boolean;
-  onConfirmDeleteInitiative: () => void;
-
-  // Create role dialog
   showNewRoleDialog: boolean;
   setShowNewRoleDialog: (open: boolean) => void;
-
-  // Delete role dialog
   roleToDelete: InitiativeRoleRead | null;
   setRoleToDelete: (role: InitiativeRoleRead | null) => void;
-
-  // Rename role dialog
   roleToRename: InitiativeRoleRead | null;
   setRoleToRename: (role: InitiativeRoleRead | null) => void;
-
-  // Remove member dialog
-  memberToRemove: InitiativeMemberRead | null;
-  setMemberToRemove: (member: InitiativeMemberRead | null) => void;
 }
 
-export const InitiativeSettingsDialogs = ({
+export const InitiativeRoleDialogs = ({
   initiativeId,
-  initiativeName,
-  showDeleteConfirm,
-  setShowDeleteConfirm,
-  isDeletingInitiative,
-  onConfirmDeleteInitiative,
   showNewRoleDialog,
   setShowNewRoleDialog,
   roleToDelete,
   setRoleToDelete,
   roleToRename,
   setRoleToRename,
-  memberToRemove,
-  setMemberToRemove,
-}: InitiativeSettingsDialogsProps) => {
+}: InitiativeRoleDialogsProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
   // New role dialog state
@@ -93,20 +69,9 @@ export const InitiativeSettingsDialogs = ({
     }
   }, [roleToRename]);
 
-  // Mutations
   const createRoleMutation = useCreateRole(initiativeId);
   const updateRoleMutation = useUpdateRole(initiativeId);
   const deleteRoleMutation = useDeleteRole(initiativeId);
-
-  const removeMember = useRemoveInitiativeMember({
-    onSuccess: () => {
-      toast.success(t("settings.memberRemoved"));
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.removeMemberError");
-      toast.error(message);
-    },
-  });
 
   const handleCreateRole = () => {
     const name = newRoleName.trim().toLowerCase().replace(/\s+/g, "_");
@@ -147,16 +112,6 @@ export const InitiativeSettingsDialogs = ({
 
   return (
     <>
-      {/* Delete Initiative Dialog — shared with the guild settings Initiatives
-          table so there's a single delete workflow. */}
-      <DeleteInitiativeDialog
-        open={showDeleteConfirm}
-        onOpenChange={setShowDeleteConfirm}
-        initiativeName={initiativeName}
-        isDeleting={isDeletingInitiative}
-        onConfirm={onConfirmDeleteInitiative}
-      />
-
       {/* New Role Dialog */}
       <Dialog
         open={showNewRoleDialog}
@@ -301,50 +256,6 @@ export const InitiativeSettingsDialogs = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Remove Member Confirmation Dialog */}
-      <AlertDialog
-        open={!!memberToRemove}
-        onOpenChange={(open) => !open && setMemberToRemove(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("settings.removeMemberTitle")}</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <span className="block">
-                <Trans
-                  i18nKey="settings.removeMemberDescription"
-                  ns="initiatives"
-                  values={{
-                    name: getUserDisplayName(memberToRemove?.user),
-                  }}
-                  components={{ bold: <strong /> }}
-                />
-              </span>
-              <span className="block text-destructive">{t("settings.removeMemberWarning")}</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removeMember.isPending}>
-              {t("common:cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (memberToRemove) {
-                  removeMember.mutate(
-                    { initiativeId, userId: memberToRemove.user.id },
-                    { onSuccess: () => setMemberToRemove(null) }
-                  );
-                }
-              }}
-              disabled={removeMember.isPending}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              {removeMember.isPending ? t("settings.removing") : t("settings.removeMember")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 };

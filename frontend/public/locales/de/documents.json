@@ -324,6 +324,7 @@
     "readOnly": "Du hast nur Lesezugriff auf dieses Whiteboard."
   },
   "spreadsheet": {
+    "syncing": "Tabelle wird synchronisiert…",
     "exportCsv": "Als CSV exportieren",
     "exportXlsx": "Als Excel exportieren",
     "importFile": "Importieren",
@@ -592,6 +593,8 @@
     "mentionTask": "eine Aufgabe verknüpfen",
     "mentionDoc": "ein Dokument verknüpfen",
     "mentionProject": "ein Projekt verknüpfen",
+    "formattingSyntax": "Formatierung",
+    "markdownHint": "Markdown wird unterstützt: **fett**, *kursiv*, `Code`, Listen und Links.",
     "loading": "Kommentare werden geladen...",
     "loadError": "Kommentare können derzeit nicht geladen werden.",
     "empty": "Noch keine Kommentare. Sei der Erste, der etwas beiträgt.",

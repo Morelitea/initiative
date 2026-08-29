@@ -64,6 +64,11 @@ async def test_mcp_tools_are_curated():
     off_list = [n for n in names if not any(a in n for a in allowed)]
     assert not off_list, f"tools outside the allow-list: {off_list}"
 
+    # Join requests sit on the initiatives router and would otherwise ride in on
+    # its tag, but they name who asked to be let in and quote their note — a
+    # manager's queue, not a working surface. Carved out explicitly.
+    assert not [n for n in names if "join_request" in n]
+
 
 @pytest.mark.unit
 async def test_mcp_write_tools_are_the_curated_safe_set():
@@ -81,7 +86,7 @@ async def test_mcp_write_tools_are_the_curated_safe_set():
 def test_redact_base64_nulls_suffixed_keys_recursively():
     payload = {
         "title": "t",
-        "guild": {"id": 3, "name": "g", "icon_base64": "AAAA"},
+        "guild": {"id": 3, "name": "g", "avatar_base64": "AAAA"},
         "assignees": [
             {"id": 1, "email": "a@example.com", "avatar_base64": "BBBB"},
             {"id": 2, "email": "b@example.com", "avatar_base64": None},
@@ -92,18 +97,18 @@ def test_redact_base64_nulls_suffixed_keys_recursively():
 
     # Keys are kept but nulled — so the structured output still satisfies a
     # schema that declares (and may require) these fields.
-    assert redacted["guild"] == {"id": 3, "name": "g", "icon_base64": None}
+    assert redacted["guild"] == {"id": 3, "name": "g", "avatar_base64": None}
     assert [a["avatar_base64"] for a in redacted["assignees"]] == [None, None]
     # Non-base64 fields (including a lookalike key) keep their values.
     assert redacted["assignees"][0]["email"] == "a@example.com"
     assert redacted["count_base64_ish"] == "kept"
     # Input is not mutated.
-    assert payload["guild"]["icon_base64"] == "AAAA"
+    assert payload["guild"]["avatar_base64"] == "AAAA"
 
 
 @pytest.mark.unit
 async def test_base64_filter_middleware_redacts_content_and_structured():
-    payload = {"guild": {"icon_base64": "AAAA", "name": "g"}}
+    payload = {"guild": {"avatar_base64": "AAAA", "name": "g"}}
     result = ToolResult(
         content=[TextContent(type="text", text=json.dumps(payload))],
         structured_content=payload,
@@ -114,9 +119,9 @@ async def test_base64_filter_middleware_redacts_content_and_structured():
 
     out = await Base64FilterMiddleware().on_call_tool(None, call_next)
 
-    assert out.structured_content == {"guild": {"icon_base64": None, "name": "g"}}
+    assert out.structured_content == {"guild": {"avatar_base64": None, "name": "g"}}
     assert json.loads(out.content[0].text) == {
-        "guild": {"icon_base64": None, "name": "g"}
+        "guild": {"avatar_base64": None, "name": "g"}
     }
 
 

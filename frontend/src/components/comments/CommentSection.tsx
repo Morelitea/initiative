@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 import { CommentInput } from "./CommentInput";
 import { CommentThread } from "./CommentThread";
@@ -117,7 +118,7 @@ export const CommentSection = ({
     const map = new Map<number, string>();
     for (const comment of comments) {
       if (comment.author) {
-        const displayName = comment.author.full_name?.trim() || comment.author.email;
+        const displayName = getUserDisplayName(comment.author);
         map.set(comment.author.id, displayName);
       }
     }
@@ -201,6 +202,8 @@ export const CommentSection = ({
                   {t("comments.mentionProject")}
                 </li>
               </ul>
+              <p className="mt-3 font-medium text-sm">{t("comments.formattingSyntax")}</p>
+              <p className="mt-1 text-muted-foreground text-sm">{t("comments.markdownHint")}</p>
             </HoverCardContent>
           </HoverCard>
         </CardTitle>

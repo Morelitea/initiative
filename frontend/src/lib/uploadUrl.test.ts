@@ -5,6 +5,7 @@ import { apiClient } from "@/api/client";
 
 import { getUploadToken } from "./uploadToken";
 import {
+  resolveArtworkUrl,
   resolveDocumentDownloadUrl,
   resolveDocumentVersionDownloadUrl,
   resolveUploadUrl,
@@ -74,6 +75,18 @@ describe("resolveUploadUrl (native)", () => {
     expect(getUploadTokenMock).toHaveBeenCalled();
   });
 
+  it("keeps the server's path prefix on native", () => {
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue(
+      "https://example.test/initiative/api/v1"
+    );
+    getUploadTokenMock.mockReturnValue(null);
+
+    expect(resolveUploadUrl("/uploads/avatars/abc.png")).toBe(
+      "https://example.test/initiative/uploads/avatars/abc.png"
+    );
+  });
+
   it("omits the token when none is available yet", () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
     vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue("http://10.0.2.2:8000/api/v1");
@@ -82,5 +95,74 @@ describe("resolveUploadUrl (native)", () => {
     expect(resolveUploadUrl("/uploads/avatars/abc.png")).toBe(
       "http://10.0.2.2:8000/uploads/avatars/abc.png"
     );
+  });
+});
+
+describe("resolveArtworkUrl", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("leaves catalog artwork paths alone on web", () => {
+    expect(resolveArtworkUrl("/marketplace/core-guild-calendar.svg")).toBe(
+      "/marketplace/core-guild-calendar.svg"
+    );
+    expect(resolveArtworkUrl("/api/v1/marketplace/media/abc123")).toBe(
+      "/api/v1/marketplace/media/abc123"
+    );
+  });
+
+  it("keeps bundled artwork bundle-relative on native", () => {
+    // Shipped with the web bundle: the native app already holds the file, so
+    // sending the request to the API origin would be a needless round trip.
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue("http://10.0.2.2:8000/api/v1");
+
+    expect(resolveArtworkUrl("/marketplace/core-guild-calendar.svg")).toBe(
+      "/marketplace/core-guild-calendar.svg"
+    );
+    expect(resolveArtworkUrl("/icons/logo.svg")).toBe("/icons/logo.svg");
+  });
+
+  it("addresses mirrored registry artwork at the API origin on native", () => {
+    // Served only by the API: bundle-relative it resolves inside the app's own
+    // origin and the image breaks.
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue("http://10.0.2.2:8000/api/v1");
+
+    expect(resolveArtworkUrl("/api/v1/marketplace/media/abc123")).toBe(
+      "http://10.0.2.2:8000/api/v1/marketplace/media/abc123"
+    );
+  });
+
+  it("keeps the server's path prefix on native", () => {
+    // A server reached at https://host/initiative serves its API — and its
+    // mirrored artwork — under that prefix too, so the prefix has to survive.
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue(
+      "https://example.test/initiative/api/v1"
+    );
+
+    expect(resolveArtworkUrl("/api/v1/marketplace/media/abc123")).toBe(
+      "https://example.test/initiative/api/v1/marketplace/media/abc123"
+    );
+  });
+
+  it("adds no token — the media route is public", () => {
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue("http://10.0.2.2:8000/api/v1");
+    getUploadTokenMock.mockReturnValue("scoped-upload-token");
+
+    expect(resolveArtworkUrl("/api/v1/marketplace/media/abc123")).not.toContain("token=");
+  });
+
+  it("passes absolute URLs and data URIs through, and null for nothing", () => {
+    expect(resolveArtworkUrl("https://cdn.example.test/icon.svg")).toBe(
+      "https://cdn.example.test/icon.svg"
+    );
+    expect(resolveArtworkUrl("data:image/png;base64,AAAA")).toBe("data:image/png;base64,AAAA");
+    expect(resolveArtworkUrl(null)).toBeNull();
+    expect(resolveArtworkUrl(undefined)).toBeNull();
+    expect(resolveArtworkUrl("")).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
@@ -25,15 +25,21 @@ from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.initiative import (
     Initiative,
+    InitiativeJoinRequest,
     InitiativeMember,
     InitiativeRoleModel,
+    JoinRequestStatus,
     PermissionKey,
 )
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.task import Task, TaskAssignee
+from app.core import usernames
 from app.models.platform.user import User
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
+    InitiativeDirectoryEntry,
+    InitiativeJoinRequestCreate,
+    InitiativeJoinRequestRead,
     InitiativeMemberAdd,
     InitiativeMemberUpdate,
     InitiativeRead,
@@ -54,6 +60,7 @@ from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
+from app.services.platform import users as users_service
 from app.services.stream_authz import authority as stream_authority
 from app.services import rls as rls_service
 from app.services.membership import initiative_scope_clause
@@ -215,6 +222,403 @@ async def list_initiatives(
     return [serialize_initiative(initiative) for initiative in initiatives]
 
 
+@router.get("/directory", response_model=List[InitiativeDirectoryEntry])
+async def list_initiative_directory(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> List[InitiativeDirectoryEntry]:
+    """Initiatives in this guild that any member may discover and join.
+
+    Open to every guild member — it lists only what each initiative published
+    about itself (name, description, colour, roster size), never its content.
+    Initiatives whose policy is ``private`` are listed only to their own
+    members — and to guild admins, whose standing already reaches every
+    initiative in the guild.
+
+    Declared before ``/{initiative_id}`` so the literal path wins the match.
+    """
+    return await initiatives_service.list_directory_entries(
+        session,
+        guild_id=guild_context.guild_id,
+        user_id=current_user.id,
+        include_unlisted=rls_service.is_guild_admin(guild_context.role),
+    )
+
+
+@router.post("/{initiative_id}/join", response_model=InitiativeRead)
+async def join_initiative(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeRead:
+    """Join an ``open`` initiative as yourself, with the built-in member role.
+
+    Idempotent: already being a member is a success, not a conflict. Any other
+    join policy answers 403 — the same answer for ``private`` and ``request``,
+    so it says only "not by this route".
+    """
+    # A scoped grantee reaches this guild for a window; the membership row this
+    # would create has no end date, so joining is for real guild members.
+    # (Break-glass is routed as a full guild admin and already adds members.)
+    if guild_context.is_pam and not guild_context.break_glass:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        )
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    if not initiatives_service.is_self_joinable(initiative):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.NOT_JOINABLE,
+        )
+    try:
+        await initiatives_service.self_join(
+            session, initiative=initiative, user_id=current_user.id
+        )
+    except ValueError:
+        # An initiative missing its built-in member role can't take a joiner.
+        # The code is the contract; the exception text is not.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
+        )
+    await session.commit()
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    return serialize_initiative(initiative)
+
+
+# ============================================================================
+# Join requests (join_policy == 'request')
+# ============================================================================
+
+
+def _require_no_scoped_grant(guild_context: GuildContext) -> None:
+    """A scoped grantee may not create or answer a join request.
+
+    A grant reaches the guild for a window; the membership row on the other side
+    of an approval has no end date, so the two are never traded for each other.
+    Break-glass is routed as a full guild admin and passes — it is the same
+    authority a guild admin already exercises over its members.
+    """
+    if guild_context.is_pam and not guild_context.break_glass:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        )
+
+
+async def _load_pending_join_request(
+    session: SessionDep,
+    *,
+    request_id: int,
+    initiative_id: int,
+) -> InitiativeJoinRequest:
+    """One request of this initiative that is still open to an answer."""
+    request = await initiatives_service.get_join_request(
+        session, request_id=request_id, initiative_id=initiative_id
+    )
+    if request is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=InitiativeMessages.JOIN_REQUEST_NOT_FOUND,
+        )
+    if request.status != JoinRequestStatus.pending.value:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=InitiativeMessages.JOIN_REQUEST_ALREADY_RESOLVED,
+        )
+    return request
+
+
+async def _resolve_join_request(
+    initiative_id: int,
+    request_id: int,
+    session: SessionDep,
+    current_user: User,
+    guild_context: GuildContext,
+    *,
+    approved: bool,
+) -> InitiativeJoinRequestRead:
+    """Shared body of approve and deny: same authority, same lifecycle, one
+    boolean apart."""
+    _require_no_scoped_grant(guild_context)
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    # Answering a request grants access, so it takes exactly the authority that
+    # adding a member by hand takes — no separate rule to keep in step.
+    await _require_manager_access(
+        session, initiative, current_user, guild_role=guild_context.role
+    )
+    request = await _load_pending_join_request(
+        session, request_id=request_id, initiative_id=initiative_id
+    )
+    requester = (
+        await session.exec(select(User).where(User.id == request.user_id))
+    ).one_or_none()
+    if requester is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if approved:
+        # A guild admin is an implicit full-access member and must never hold a
+        # standard member role; if the requester was promoted while the request
+        # sat in the queue, say so rather than writing the row.
+        await _guard_guild_admin_role(
+            session,
+            guild_id=initiative.guild_id,
+            target_user_id=request.user_id,
+            role=None,
+        )
+    try:
+        await initiatives_service.resolve_join_request(
+            session, request=request, resolver_id=current_user.id, approved=approved
+        )
+    except initiatives_service.JoinRequestAlreadyResolved:
+        # Another manager answered it between the check above and this write.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=InitiativeMessages.JOIN_REQUEST_ALREADY_RESOLVED,
+        )
+    except ValueError:
+        # The initiative's built-in member role is missing, so it can take no
+        # joiner. The code is the contract; the exception text is not.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
+        )
+    await session.commit()
+
+    await notifications_service.notify_initiative_join_resolved(
+        session,
+        requester,
+        request_id=request.id,
+        initiative_id=initiative.id,
+        initiative_name=initiative.name,
+        guild_id=initiative.guild_id,
+        approved=approved,
+    )
+
+    rows = await initiatives_service.list_join_requests(
+        session,
+        initiative_id=initiative_id,
+        status=None,
+        user_id=request.user_id,
+    )
+    return next(row for row in rows if row.id == request.id)
+
+
+@router.post(
+    "/{initiative_id}/join-requests",
+    response_model=InitiativeJoinRequestRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_join_request(
+    initiative_id: int,
+    payload: InitiativeJoinRequestCreate,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeJoinRequestRead:
+    """Knock on a ``request`` initiative and wait for a manager to answer.
+
+    Any other join policy answers 403 — the same answer for ``private`` and
+    ``open`` alike, so it says only "not by this route" and a private initiative
+    stays exactly as hidden as it was.
+
+    Being refused before does not bar asking again: only a *pending* request is
+    unique, and the refusals stay on file so the manager reading the queue can
+    see the repeat.
+    """
+    _require_no_scoped_grant(guild_context)
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    if not initiatives_service.is_requestable(initiative):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.NOT_REQUESTABLE,
+        )
+    # A guild admin already reaches every initiative in their guild, so there is
+    # nothing here to ask for — and the membership row an approval would write
+    # is one they must never hold (see ``_guard_guild_admin_role``).
+    if rls_service.is_guild_admin(guild_context.role):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=InitiativeMessages.GUILD_ADMIN_NEED_NOT_REQUEST,
+        )
+    if any(m.user_id == current_user.id for m in initiative.memberships):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=InitiativeMessages.ALREADY_A_MEMBER,
+        )
+
+    request, created = await initiatives_service.create_join_request(
+        session,
+        initiative=initiative,
+        user_id=current_user.id,
+        message=payload.message,
+    )
+    if not created:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=InitiativeMessages.JOIN_REQUEST_ALREADY_PENDING,
+        )
+    request_id = request.id
+    await session.commit()
+
+    manager_ids = await initiatives_service.manager_user_ids(
+        session, initiative_id=initiative_id
+    )
+    if manager_ids:
+        managers = (
+            await session.exec(select(User).where(User.id.in_(tuple(manager_ids))))
+        ).all()
+        await notifications_service.notify_initiative_join_requested(
+            session,
+            list(managers),
+            request_id=request_id,
+            initiative_id=initiative.id,
+            initiative_name=initiative.name,
+            guild_id=initiative.guild_id,
+            requester=current_user,
+            message=payload.message,
+        )
+
+    rows = await initiatives_service.list_join_requests(
+        session, initiative_id=initiative_id, status=None, user_id=current_user.id
+    )
+    return next(row for row in rows if row.id == request_id)
+
+
+@router.get(
+    "/{initiative_id}/join-requests/me",
+    response_model=List[InitiativeJoinRequestRead],
+)
+async def list_my_join_requests(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> List[InitiativeJoinRequestRead]:
+    """The caller's own knocks at this door, newest first.
+
+    ``initiative_join_requests`` is a guild-level table — the schema boundary is
+    its only database gate, because a requester is by definition not yet a
+    member and an initiative-membership gate would hide their own row from them.
+    So who may read which rows is decided here: this route is scoped to the
+    caller's ``user_id`` and nothing else, and the queue below is manager-only.
+    """
+    await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+    return await initiatives_service.list_join_requests(
+        session,
+        initiative_id=initiative_id,
+        status=None,
+        user_id=current_user.id,
+    )
+
+
+@router.get(
+    "/{initiative_id}/join-requests",
+    response_model=List[InitiativeJoinRequestRead],
+)
+async def list_join_requests(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    request_status: Annotated[
+        JoinRequestStatus | None,
+        Query(
+            alias="status",
+            description=(
+                "Narrow the queue to one status. Omit for the pending queue — "
+                "the rows that are still open to an answer."
+            ),
+        ),
+    ] = None,
+) -> List[InitiativeJoinRequestRead]:
+    """The join-request queue for one initiative.
+
+    Manager-only, matching who may answer it; a plain member of the initiative
+    has no more business reading who asked to get in than a non-member does. A
+    requester reads their own rows through ``/join-requests/me`` instead.
+    """
+    initiative = await _get_initiative_or_404(
+        initiative_id, session, guild_context.guild_id
+    )
+    await _require_manager_access(
+        session, initiative, current_user, guild_role=guild_context.role
+    )
+    return await initiatives_service.list_join_requests(
+        session,
+        initiative_id=initiative_id,
+        status=(
+            request_status.value
+            if request_status is not None
+            else JoinRequestStatus.pending.value
+        ),
+    )
+
+
+@router.post(
+    "/{initiative_id}/join-requests/{request_id}/approve",
+    response_model=InitiativeJoinRequestRead,
+)
+async def approve_join_request(
+    initiative_id: int,
+    request_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeJoinRequestRead:
+    """Let the requester in, with the built-in ``member`` role.
+
+    The membership row is the one every join path produces, so the requester's
+    access flips through ``initiative_access`` with no policy change. Someone who
+    became a member by another route while the request waited is absorbed: the
+    row is resolved and the call succeeds.
+    """
+    return await _resolve_join_request(
+        initiative_id,
+        request_id,
+        session,
+        current_user,
+        guild_context,
+        approved=True,
+    )
+
+
+@router.post(
+    "/{initiative_id}/join-requests/{request_id}/deny",
+    response_model=InitiativeJoinRequestRead,
+)
+async def deny_join_request(
+    initiative_id: int,
+    request_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> InitiativeJoinRequestRead:
+    """Turn the request down. No membership row, so nothing about what the
+    requester can see changes; the row stays as history, and they may ask
+    again."""
+    return await _resolve_join_request(
+        initiative_id,
+        request_id,
+        session,
+        current_user,
+        guild_context,
+        approved=False,
+    )
+
+
 @router.get("/{initiative_id}", response_model=InitiativeRead)
 async def get_initiative(
     initiative_id: int,
@@ -271,6 +675,7 @@ async def create_initiative(
         name=initiative_in.name,
         description=initiative_in.description,
         guild_id=guild_id,
+        join_policy=initiative_in.join_policy.value,
         # One master switch per toggleable tool, derived — a new Tool member
         # flows through without touching this endpoint.
         **{
@@ -317,7 +722,7 @@ async def update_initiative(
         session, initiative, current_user, guild_role=guild_context.role
     )
 
-    update_data = initiative_in.dict(exclude_unset=True)
+    update_data = initiative_in.model_dump(exclude_unset=True)
     # Archiving hides the initiative from every member's sidebar — a guild-wide
     # visibility change. The UI only exposes the toggle to guild admins; this is
     # the matching server-side backstop, using the existing guild-admin-required
@@ -331,6 +736,39 @@ async def update_initiative(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ADMIN_REQUIRED,
         )
+    # Auto-join enrols every future guild member, so it shapes onboarding for
+    # the whole guild rather than for one initiative — guild admins only, the
+    # same shape as the archive toggle above. join_policy stays with whoever may
+    # already edit the initiative.
+    if (
+        update_data.get("auto_join") is not None
+        and update_data["auto_join"] != initiative.auto_join
+        and not rls_service.is_guild_admin(guild_context.role)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.AUTO_JOIN_ADMIN_ONLY,
+        )
+    if "join_policy" in update_data or "auto_join" in update_data:
+        # The column stores the plain string, so normalize whichever form the
+        # payload validated into before comparing or persisting.
+        join_policy = update_data.get("join_policy")
+        join_policy = getattr(join_policy, "value", join_policy)
+        try:
+            initiatives_service.validate_join_settings(
+                initiative,
+                join_policy=join_policy,
+                auto_join=update_data.get("auto_join"),
+            )
+        except ValueError:
+            # The only way the pair is incoherent. The code is the contract;
+            # the exception text is not.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=InitiativeMessages.AUTO_JOIN_REQUIRES_OPEN,
+            )
+        if join_policy is not None:
+            update_data["join_policy"] = join_policy
     if "name" in update_data and update_data["name"] is not None:
         if await _initiative_name_exists(
             session,
@@ -523,7 +961,7 @@ async def update_initiative_role(
             )
         if not (role.is_builtin and role.name == "project_manager"):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=InitiativeMessages.OVERRIDE_PM_ONLY,
             )
         role.override_share_restrictions = role_in.override_share_restrictions
@@ -756,8 +1194,11 @@ async def get_initiative_members(
     stmt = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
-        .order_by(User.full_name, User.id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            users_service.visible_to_other_people(),
+        )
+        .order_by(User.username, User.discriminator, User.id)
     )
     result = await session.exec(stmt)
     return result.all()
@@ -808,15 +1249,34 @@ async def search_initiative_members(
     base = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            users_service.visible_to_other_people(),
+        )
     )
+    shows_names = bool(guild_context.guild.show_member_names)
     if search and (term := search.strip()):
-        base = base.where(User.full_name.ilike(f"%{term}%"))
+        # Matches what this guild renders. A substring filter over a field the
+        # guild does not show would be that field, read one query at a time.
+        name_part, number = usernames.parse_handle(term)
+        if number is not None:
+            base = base.where(
+                func.lower(User.username) == name_part.lower(),
+                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
+            )
+        else:
+            matches = User.username.ilike(f"%{name_part}%")
+            if shows_names:
+                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+            base = base.where(matches)
     if user_id:
         base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
+    order = (User.full_name.asc(),) if shows_names else ()
+    data_stmt = base.order_by(
+        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+    )
 
     users, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size
