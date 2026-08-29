@@ -457,7 +457,7 @@ class TestCatalogIsolation:
                 text(
                     "SELECT public_id FROM public.marketplace_listings WHERE uid = :u"
                 ),
-                {"u": INSTALL_UID},
+                params={"u": INSTALL_UID},
             )
         ).all()
         assert [row[0] for row in found] == ["tests.install"]
@@ -468,7 +468,7 @@ class TestCatalogIsolation:
                     "UPDATE public.marketplace_listings "
                     "SET description = 'rewritten' WHERE uid = :u"
                 ),
-                {"u": INSTALL_UID},
+                params={"u": INSTALL_UID},
             )
         await routed.rollback()
 

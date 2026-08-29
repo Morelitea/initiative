@@ -31,7 +31,7 @@ async def _nullability(session, table: str) -> dict[str, bool]:
             "SELECT column_name, is_nullable FROM information_schema.columns "
             "WHERE table_schema = 'public' AND table_name = :t"
         ),
-        {"t": table},
+        params={"t": table},
     )
     return {name: nullable == "YES" for name, nullable in rows}
 
@@ -43,7 +43,7 @@ async def _constraints(session, table: str, contype: str) -> dict[str, str]:
             # contype is "char"; compare as text so asyncpg binds a str param
             "WHERE conrelid = ('public.' || :t)::regclass AND contype::text = :ct"
         ),
-        {"t": table, "ct": contype},
+        params={"t": table, "ct": contype},
     )
     return {name: definition for name, definition in rows}
 

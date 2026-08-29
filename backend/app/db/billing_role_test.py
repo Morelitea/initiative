@@ -60,7 +60,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     row = (
         await s.exec(
             text("SELECT id, status FROM guilds WHERE id = :gid"),
-            {"gid": guild_a.id},
+            params={"gid": guild_a.id},
         )
     ).one()
     assert row.id == guild_a.id
@@ -71,7 +71,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
                 "SELECT guild_id, tier_name, max_storage_bytes, max_users "
                 "FROM guild_administration WHERE guild_id = :gid"
             ),
-            {"gid": guild_a.id},
+            params={"gid": guild_a.id},
         )
     ).one()
     assert caps.guild_id == guild_a.id
@@ -80,20 +80,20 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
         text(
             "UPDATE guild_administration SET tier_name = 'gold' WHERE guild_id = :gid"
         ),
-        {"gid": guild_a.id},
+        params={"gid": guild_a.id},
     )
     assert updated.rowcount == 1
 
     status_updated = await s.exec(
         text("UPDATE guilds SET status = 'active' WHERE id = :gid"),
-        {"gid": guild_a.id},
+        params={"gid": guild_a.id},
     )
     assert status_updated.rowcount == 1
 
     count = (
         await s.exec(
             text("SELECT count(guild_id) FROM guild_memberships WHERE guild_id = :gid"),
-            {"gid": guild_a.id},
+            params={"gid": guild_a.id},
         )
     ).scalar_one()
     assert count == 1
@@ -103,7 +103,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
             "INSERT INTO billing_event_log (event_id, guild_id, op, source, applied_at) "
             "VALUES ('probe-evt-a', :gid, 'guild_tier', 'paddle_webhook', now())"
         ),
-        {"gid": guild_a.id},
+        params={"gid": guild_a.id},
     )
     await s.rollback()  # leave no probe state behind
 
@@ -146,14 +146,16 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
 
     # --- Guild pinning: the GUC's guild is the whole visible world ----------
     invisible = (
-        await s.exec(text("SELECT id FROM guilds WHERE id = :gid"), {"gid": guild_b.id})
+        await s.exec(
+            text("SELECT id FROM guilds WHERE id = :gid"), params={"gid": guild_b.id}
+        )
     ).one_or_none()
     assert invisible is None, "RLS must hide every guild but the pinned one"
 
     cross_caps = (
         await s.exec(
             text("SELECT guild_id FROM guild_administration WHERE guild_id = :gid"),
-            {"gid": guild_b.id},
+            params={"gid": guild_b.id},
         )
     ).one_or_none()
     assert cross_caps is None, "RLS must hide every guild's caps but the pinned one"
@@ -162,14 +164,14 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
         text(
             "UPDATE guild_administration SET tier_name = 'stolen' WHERE guild_id = :gid"
         ),
-        {"gid": guild_b.id},
+        params={"gid": guild_b.id},
     )
     assert cross_update.rowcount == 0
 
     cross_count = (
         await s.exec(
             text("SELECT count(guild_id) FROM guild_memberships WHERE guild_id = :gid"),
-            {"gid": guild_b.id},
+            params={"gid": guild_b.id},
         )
     ).scalar_one()
     assert cross_count == 0
@@ -203,7 +205,7 @@ async def test_unpinned_billing_guc_sees_nothing(session, role_session, guilds):
         text(
             "UPDATE guild_administration SET tier_name = 'nowhere' WHERE guild_id = :gid"
         ),
-        {"gid": guild_a.id},
+        params={"gid": guild_a.id},
     )
     assert unpinned_update.rowcount == 0
 
@@ -227,7 +229,7 @@ async def test_billing_role_attributes_are_least_privilege(session):
                 "SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreaterole "
                 "FROM pg_roles WHERE rolname = :r"
             ),
-            {"r": role},
+            params={"r": role},
         )
     ).one()
     assert attrs.rolcanlogin is False
@@ -244,7 +246,7 @@ async def test_billing_role_attributes_are_least_privilege(session):
                 "JOIN pg_roles member ON member.oid = m.member "
                 "WHERE granted.rolname = :r AND member.rolname = 'app_user'"
             ),
-            {"r": role},
+            params={"r": role},
         )
     ).one()
     assert membership.inherit_option is False, (
