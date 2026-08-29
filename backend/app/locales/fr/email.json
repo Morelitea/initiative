@@ -160,5 +160,31 @@
       "body": "Votre accès à <strong>{{guildName}}</strong> a été révoqué.",
       "textBody": "Votre accès à {{guildName}} a été révoqué. {{link}}"
     }
+  },
+  "initiativeJoinRequest": {
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "requested": {
+      "subject": "Demande d’adhésion à {{initiativeName}}",
+      "title": "Nouvelle demande d’adhésion",
+      "buttonLabel": "Examiner la demande",
+      "body": "<strong>{{requester}}</strong> a demandé à rejoindre <strong>{{initiativeName}}</strong>.",
+      "note": "Message : <em>{{message}}</em>",
+      "noteText": "Message : {{message}}",
+      "textBody": "{{requester}} a demandé à rejoindre {{initiativeName}}. Examinez la demande sur {{link}}."
+    },
+    "approved": {
+      "subject": "Vous avez rejoint {{initiativeName}}",
+      "title": "Demande d’adhésion approuvée",
+      "buttonLabel": "Ouvrir l’initiative",
+      "body": "Votre demande pour rejoindre <strong>{{initiativeName}}</strong> a été approuvée : vous en êtes maintenant membre.",
+      "textBody": "Votre demande pour rejoindre {{initiativeName}} a été approuvée : vous en êtes maintenant membre. {{link}}"
+    },
+    "denied": {
+      "subject": "Demande d’adhésion à {{initiativeName}} refusée",
+      "title": "Demande d’adhésion refusée",
+      "buttonLabel": "Parcourir les initiatives",
+      "body": "Votre demande pour rejoindre <strong>{{initiativeName}}</strong> a été refusée.",
+      "textBody": "Votre demande pour rejoindre {{initiativeName}} a été refusée. {{link}}"
+    }
   }
 }

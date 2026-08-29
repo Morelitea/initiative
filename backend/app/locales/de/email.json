@@ -160,5 +160,31 @@
       "body": "Dein Zugriff auf <strong>{{guildName}}</strong> wurde entzogen.",
       "textBody": "Dein Zugriff auf {{guildName}} wurde entzogen. {{link}}"
     }
+  },
+  "initiativeJoinRequest": {
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "requested": {
+      "subject": "Beitrittsanfrage für {{initiativeName}}",
+      "title": "Neue Beitrittsanfrage",
+      "buttonLabel": "Anfrage prüfen",
+      "body": "<strong>{{requester}}</strong> möchte <strong>{{initiativeName}}</strong> beitreten.",
+      "note": "Nachricht: <em>{{message}}</em>",
+      "noteText": "Nachricht: {{message}}",
+      "textBody": "{{requester}} möchte {{initiativeName}} beitreten. Prüfe die Anfrage unter {{link}}."
+    },
+    "approved": {
+      "subject": "Du bist jetzt Mitglied von {{initiativeName}}",
+      "title": "Beitrittsanfrage genehmigt",
+      "buttonLabel": "Initiative öffnen",
+      "body": "Deine Anfrage, <strong>{{initiativeName}}</strong> beizutreten, wurde genehmigt – du bist jetzt Mitglied.",
+      "textBody": "Deine Anfrage, {{initiativeName}} beizutreten, wurde genehmigt – du bist jetzt Mitglied. {{link}}"
+    },
+    "denied": {
+      "subject": "Beitrittsanfrage für {{initiativeName}} abgelehnt",
+      "title": "Beitrittsanfrage abgelehnt",
+      "buttonLabel": "Initiativen durchsuchen",
+      "body": "Deine Anfrage, <strong>{{initiativeName}}</strong> beizutreten, wurde abgelehnt.",
+      "textBody": "Deine Anfrage, {{initiativeName}} beizutreten, wurde abgelehnt. {{link}}"
+    }
   }
 }

@@ -11,9 +11,12 @@
  *
  *  - already a member → a link into the initiative, badged with your role;
  *  - `open` → a Join button, which creates the membership row RLS reads;
- *  - `request` → the card and nothing else. Knocking ships with the request
- *    flow; a button that can't do anything yet would be a promise, not an
- *    affordance.
+ *  - `request` → a Request to join button, or the standing "requested" mark
+ *    once you've knocked. Nothing about what you can see moves until a manager
+ *    answers, so the card says only that you asked.
+ *
+ * A manager also sees how many people are waiting at their own door: the count
+ * reads zero for everyone who couldn't act on it anyway.
  *
  * The initiative's colour is the card's identity: it tints the border and
  * header wash, the same treatment project cards give their initiative colour.
@@ -21,7 +24,7 @@
  */
 
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, Loader2, Plus, Users } from "lucide-react";
+import { Check, ChevronRight, Clock, Loader2, Plus, Users } from "lucide-react";
 import { type CSSProperties, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +33,7 @@ import type {
   InitiativeRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinPolicy } from "@/api/generated/initiativeAPI.schemas";
+import { RequestToJoinDialog } from "@/components/initiatives/RequestToJoinDialog";
 import { Markdown } from "@/components/Markdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -121,6 +125,10 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
     },
   });
   const joiningId = joinInitiative.isPending ? joinInitiative.variables?.initiativeId : undefined;
+
+  // Which door is being knocked on, if any — the dialog is one instance for the
+  // whole section rather than one per card.
+  const [requesting, setRequesting] = useState<{ id: number; name: string } | null>(null);
 
   // Nothing to show and nothing to add: the guild simply has no initiatives
   // this reader can reach, and the surrounding page says so where it matters.
@@ -226,7 +234,29 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
               {t(POLICY_HINT_KEY[entry.join_policy] as never)}
             </p>
           </div>
-          {renderMembershipBadge(entry)}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Reads zero for anyone who couldn't answer the queue anyway, so
+                the number appearing at all is the permission check — and it
+                leads to the queue, which is a route of its own. */}
+            {entry.pending_join_request_count > 0 ? (
+              <Link
+                to={gp(`${initiativeRoute(entry.id)}/settings/members`)}
+                className="shrink-0 rounded-md outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                title={t("directory.pendingRequests", {
+                  count: entry.pending_join_request_count,
+                })}
+              >
+                <Badge variant="default" className="gap-1">
+                  <Clock className="h-3 w-3" aria-hidden="true" />
+                  <span aria-hidden="true">{entry.pending_join_request_count}</span>
+                  <span className="sr-only">
+                    {t("directory.pendingRequests", { count: entry.pending_join_request_count })}
+                  </span>
+                </Badge>
+              </Link>
+            ) : null}
+            {renderMembershipBadge(entry)}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex-1 pb-4">
@@ -247,9 +277,8 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
           {canEnter(entry) ? renderToolStats(entry) : null}
         </div>
         {/* Nothing to offer a card you're already in — its title leads there.
-            A `request` card carries no action until the request flow exists;
-            an empty slot would only hold an empty promise. */}
-        {entry.is_member ? null : entry.join_policy === InitiativeJoinPolicy.open ? (
+            Otherwise the policy decides: walk in, or ask. */}
+        {canEnter(entry) ? null : entry.join_policy === InitiativeJoinPolicy.open ? (
           <Button
             size="sm"
             disabled={joinInitiative.isPending}
@@ -264,6 +293,23 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
               t("directory.join")
             )}
           </Button>
+        ) : entry.join_policy === InitiativeJoinPolicy.request ? (
+          entry.has_pending_request ? (
+            // Waiting on a manager is a state, not an action: nothing the
+            // requester can press moves it along.
+            <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
+              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+              {t("directory.requested")}
+            </span>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRequesting({ id: entry.id, name: entry.name })}
+            >
+              {t("directory.requestToJoin")}
+            </Button>
+          )
         ) : null}
       </CardFooter>
     </Card>
@@ -310,6 +356,16 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
           {renderGroup(mine, "directory.groups.mine")}
           {renderGroup(joinable, "directory.groups.joinable")}
         </CollapsibleContent>
+
+        <RequestToJoinDialog
+          initiative={requesting}
+          open={requesting !== null}
+          onOpenChange={(next) => {
+            if (!next) {
+              setRequesting(null);
+            }
+          }}
+        />
       </section>
     </Collapsible>
   );

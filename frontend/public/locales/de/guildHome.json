@@ -29,6 +29,10 @@
     "join": "Beitreten",
     "joining": "Trete bei…",
     "joined": "Du bist {{name}} beigetreten.",
+    "requestToJoin": "Beitritt anfragen",
+    "requested": "Angefragt",
+    "pendingRequests_one": "{{count}} wartet auf Beitritt",
+    "pendingRequests_other": "{{count}} warten auf Beitritt",
     "policy": {
       "open": "Offen für alle Gildenmitglieder",
       "request": "Beitritt auf Anfrage",

@@ -15,6 +15,18 @@
     "added": {
       "title": "Zur Initiative hinzugefügt",
       "body": "Du wurdest zu {{initiative}} hinzugefügt"
+    },
+    "joinRequested": {
+      "title": "Neue Beitrittsanfrage",
+      "body": "{{requester}} möchte {{initiative}} beitreten"
+    },
+    "joinApproved": {
+      "title": "Beitrittsanfrage genehmigt",
+      "body": "Du bist jetzt Mitglied von {{initiative}}"
+    },
+    "joinDenied": {
+      "title": "Beitrittsanfrage abgelehnt",
+      "body": "Deine Anfrage, {{initiative}} beizutreten, wurde abgelehnt"
     }
   },
   "project": {

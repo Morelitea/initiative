@@ -29,6 +29,10 @@
     "join": "Join",
     "joining": "Joining…",
     "joined": "You joined {{name}}.",
+    "requestToJoin": "Request to join",
+    "requested": "Requested",
+    "pendingRequests_one": "{{count}} waiting to join",
+    "pendingRequests_other": "{{count}} waiting to join",
     "policy": {
       "open": "Open to all guild members",
       "request": "Joins by request",

@@ -168,7 +168,6 @@ async def test_search_project_members_returns_write_access_set(
     assert set(body["items"][0].keys()) == {
         "id",
         "full_name",
-        "avatar_base64",
         "avatar_url",
         "status",
     }

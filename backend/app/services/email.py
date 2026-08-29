@@ -515,6 +515,71 @@ async def send_access_grant_email(
     )
 
 
+async def send_initiative_join_request_email(
+    session: AsyncSession,
+    user: User,
+    *,
+    event: str,
+    initiative_name: str,
+    link: str,
+    requester: str | None = None,
+    message: str | None = None,
+) -> None:
+    """Email an initiative join-request lifecycle event.
+
+    ``event`` is one of ``requested`` | ``approved`` | ``denied``. ``requester``
+    and ``message`` belong to ``requested`` only — that one goes to the
+    initiative's managers and carries what they need to decide; the other two go
+    to the requester and carry the outcome.
+
+    ``link`` is supplied by the caller because these are guild-scoped: it is the
+    guild-aware smart link, not a bare frontend path.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    base = f"initiativeJoinRequest.{event}"
+    button = _cta_button(email_t(f"{base}.buttonLabel", locale=locale), link, accent)
+    vars_ = {"initiativeName": initiative_name, "requester": requester or ""}
+    # The requester's note is their own free text. email_t escapes interpolated
+    # values in the `email` namespace, so it lands in the HTML part as literal
+    # text; the line is omitted entirely when they wrote nothing, rather than
+    # rendering an empty quotation.
+    note_html = ""
+    note_text = ""
+    if message:
+        note_html = f"<p>{email_t(f'{base}.note', locale=locale, message=message)}</p>"
+        note_text = "\n\n" + email_t(
+            f"{base}.noteText", locale=locale, message=message, escape=False
+        )
+    body = f"""
+    <p>{email_t("initiativeJoinRequest.greeting", locale=locale, name=name)}</p>
+    <p>{email_t(f"{base}.body", locale=locale, **vars_)}</p>
+    {note_html}
+    <p style="margin:24px 0;">{button}</p>
+    """
+    html_body = _build_html_layout(
+        email_t(f"{base}.title", locale=locale), body, accent, locale=locale
+    )
+    text_body = (
+        email_t(f"{base}.textBody", locale=locale, link=link, escape=False, **vars_)
+        + note_text
+    )
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject=email_t(
+            f"{base}.subject",
+            locale=locale,
+            initiativeName=initiative_name,
+            escape=False,
+        ),
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
+
+
 async def send_task_assignment_digest_email(
     session: AsyncSession,
     user: User,

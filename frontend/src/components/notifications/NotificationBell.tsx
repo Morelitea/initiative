@@ -252,6 +252,19 @@ const notificationText = (
       return t("notifications.eventReminder", {
         eventTitle: data.event_title ?? "an event",
       });
+    case "initiative_join_requested":
+      return t("notifications.initiativeJoinRequested", {
+        requester: data.requester_name ?? "Someone",
+        initiativeName: data.initiative_name ?? "an initiative",
+      });
+    case "initiative_join_approved":
+      return t("notifications.initiativeJoinApproved", {
+        initiativeName: data.initiative_name ?? "an initiative",
+      });
+    case "initiative_join_denied":
+      return t("notifications.initiativeJoinDenied", {
+        initiativeName: data.initiative_name ?? "an initiative",
+      });
     case "export_ready":
       return t("notifications.exportReady");
     case "export_failed":
