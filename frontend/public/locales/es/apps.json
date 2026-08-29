@@ -173,6 +173,10 @@
       "title": "Casi",
       "body": "El otro servicio te ha identificado, pero Initiative no lo ha registrado. Conéctate de nuevo desde los ajustes de la aplicación: no se ha perdido nada."
     },
+    "awaiting_approval": {
+      "title": "Esperando una aprobación",
+      "body": "El otro servicio ha pedido a alguien que sea propietario de esa organización que apruebe esta app. No ha fallado nada y aún no hay nada configurado: cuando la aprueben, vuelve a conectar desde los ajustes de la app."
+    },
     "closeTab": "Puedes cerrar esta pestaña."
   }
 }
