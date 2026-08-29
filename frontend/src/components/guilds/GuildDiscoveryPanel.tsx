@@ -17,6 +17,10 @@
  * categories and the content certification together, and a guild whose seat
  * limit leaves no room to join is told so instead of being offered a toggle
  * that can only fail.
+ *
+ * The 18+ question is asked there and nowhere else. It is a directory question,
+ * so a guild that keeps to itself never sees it; the certification in the
+ * dialog is what answers it, at the moment it starts to matter.
  */
 
 import { useEffect, useState } from "react";
@@ -59,11 +63,9 @@ export const GuildDiscoveryPanel = () => {
   }
 
   const listed = activeGuild.is_community;
-  const isAdult = activeGuild.has_adult_content === true;
   // null is unlimited. Only an operator sets this, so an admin who hits it is
   // told who to ask rather than offered a control they cannot satisfy.
   const seatLimited = activeGuild.max_users != null && activeGuild.max_users < MIN_COMMUNITY_SEATS;
-  const canList = !isAdult && !seatLimited;
 
   const save = async (updates: Partial<GuildRead>) => {
     setSaving(true);
@@ -120,7 +122,7 @@ export const GuildDiscoveryPanel = () => {
             <Switch
               id="guild-is-community"
               checked={listed}
-              disabled={saving || (!listed && !canList)}
+              disabled={saving || (!listed && seatLimited)}
               onCheckedChange={handleToggle}
             />
             <Label htmlFor="guild-is-community">{t("guilds:settings.discoveryToggleLabel")}</Label>
@@ -130,11 +132,6 @@ export const GuildDiscoveryPanel = () => {
           {!listed && seatLimited ? (
             <p className="text-muted-foreground text-sm">
               {t("guilds:settings.discoveryCapacityBlocked")}
-            </p>
-          ) : null}
-          {!listed && isAdult && !seatLimited ? (
-            <p className="text-muted-foreground text-sm">
-              {t("guilds:settings.discoveryAdultHint")}
             </p>
           ) : null}
 
@@ -177,28 +174,6 @@ export const GuildDiscoveryPanel = () => {
             </fieldset>
           ) : null}
 
-          {/* The 18+ declaration. Its own decision, and one a guild that never
-              lists itself is free to make either way — but a listed guild has
-              already certified the opposite, so it is de-list-first. */}
-          <div className="space-y-2 border-t pt-4">
-            <div className="flex items-center gap-3">
-              <Switch
-                id="guild-has-adult-content"
-                checked={isAdult}
-                disabled={saving || listed}
-                onCheckedChange={(next) => void save({ has_adult_content: next })}
-              />
-              <Label htmlFor="guild-has-adult-content">
-                {t("guilds:settings.discoveryAdultLabel")}
-              </Label>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {listed
-                ? t("guilds:settings.discoveryAdultLocked")
-                : t("guilds:settings.discoveryAdultHint")}
-            </p>
-          </div>
-
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           {message ? <p className="text-primary text-sm">{message}</p> : null}
         </CardContent>
@@ -213,8 +188,8 @@ export const GuildDiscoveryPanel = () => {
           const ok = await save({
             is_community: true,
             categories,
-            // Ticking the certification in the dialog is what answers the 18+
-            // question; there is no other path from unanswered to "no".
+            // Ticking the certification is what answers the 18+ question — the
+            // only path to "no", from unanswered or from a previous "yes".
             has_adult_content: false,
           });
           if (ok) setPublishing(false);
