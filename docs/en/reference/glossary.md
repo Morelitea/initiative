@@ -12,11 +12,23 @@ A **workspace** — one separate space for one group of people and all their wor
 
 ### Initiative
 
-A **folder for a big effort** inside a guild. It gathers related projects, documents, and tools, and it's only visible to its members. (Yes, the app and the "initiative" feature share a name — context usually makes it clear.) See [Working with initiatives](../guides/initiatives.md).
+A **folder for a big effort** inside a guild. It gathers related projects, documents, and tools, and its contents are only visible to its members. (Yes, the app and the "initiative" feature share a name — context usually makes it clear.) See [Working with initiatives](../guides/initiatives.md).
 
 ### Default Initiative
 
 The starter initiative every new guild comes with, so there's always somewhere to begin. It can be renamed but not deleted.
+
+### Community directory
+
+The public list of guilds that have chosen to be found, browsable by category and joinable without an invite. Off until the server's owner turns it on. See [Finding a guild to join](../guides/guilds.md#finding-a-guild-to-join).
+
+### Join policy
+
+How an initiative lets people in: **invite only** (a manager adds you), **by request** (you ask, a manager answers), or **anyone can join** (one click). See [How people join an initiative](../guides/initiatives.md#how-people-join-an-initiative).
+
+### Auto-join
+
+A setting on an "anyone can join" initiative that puts every new arrival in the guild into it automatically, so nobody lands in an empty guild. Applies to people who join from then on.
 
 ### Project
 
