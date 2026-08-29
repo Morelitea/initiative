@@ -140,7 +140,6 @@
       "removeBanner": "Banner entfernen",
       "bannerColorLabel": "Bannerfläche",
       "bannerColorHint": "Die Fläche wird angezeigt, wenn es kein Bannerbild gibt. Bannertext ist schwarz oder weiß, damit er auf jeder Fläche lesbar bleibt, und folgt dem besten Kontrast zur Fläche, bis du ihn änderst.",
-      "useColor": "Diese Farbe verwenden",
       "bannerColorOnly": "Der Tarif dieser Gilde enthält keine Bannerbilder. Wähle stattdessen unten eine Farbe.",
       "bannerTextColorLabel": "Bannertext",
       "resetColor": "Auf Standard zurücksetzen",

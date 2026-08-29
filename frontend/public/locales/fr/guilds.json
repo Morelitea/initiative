@@ -140,7 +140,6 @@
       "removeBanner": "Retirer la bannière",
       "bannerColorLabel": "Fond de la bannière",
       "bannerColorHint": "Le fond s'affiche lorsqu'il n'y a pas d'image de bannière. Le texte de la bannière est noir ou blanc pour rester lisible sur n'importe quel fond, et suit le meilleur contraste avec le fond jusqu'à ce que tu le changes.",
-      "useColor": "Utiliser cette couleur",
       "bannerColorOnly": "La formule de cette guilde n'inclut pas d'images de bannière. Choisis plutôt une couleur ci-dessous.",
       "bannerTextColorLabel": "Texte de la bannière",
       "resetColor": "Rétablir par défaut",

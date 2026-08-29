@@ -140,7 +140,6 @@
       "removeBanner": "Remove banner",
       "bannerColorLabel": "Banner fill",
       "bannerColorHint": "The fill shows when there is no banner image. Banner text is black or white so it stays readable on any fill, and follows the fill's best contrast until you change it.",
-      "useColor": "Use this colour",
       "bannerColorOnly": "This guild's plan doesn't include banner images. Pick a colour below instead.",
       "bannerTextColorLabel": "Banner text",
       "resetColor": "Reset to default",
