@@ -87,6 +87,11 @@ const sortGuilds = (guildList: GuildEntry[]): GuildEntry[] => {
   });
 };
 
+/** What every guild's banner is until it says otherwise — mirrors the server's
+ *  own defaults, for the synthetic entries below that have no guild row yet. */
+const DEFAULT_BANNER_COLOR = "#2563eb";
+const DEFAULT_BANNER_TEXT_COLOR = "#ffffff";
+
 /** Build a synthetic switcher entry for a guild reachable only via a live grant. */
 const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   id: grant.guild_id,
@@ -94,7 +99,10 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   description: null,
   icon_url: null,
   banner_url: null,
-  banner_color: null,
+  // A guild reached through a grant is still a guild, and every guild has a
+  // banner. The real values arrive with the guild itself.
+  banner_color: DEFAULT_BANNER_COLOR,
+  banner_text_color: DEFAULT_BANNER_TEXT_COLOR,
   role: "member",
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,

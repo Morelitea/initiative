@@ -479,5 +479,6 @@
   "IMAGE_WRONG_RATIO": "Esa imagen no tiene la forma adecuada para este espacio.",
   "IMAGE_NOT_FOUND": "Esa imagen ya no está disponible.",
   "BANNER_COLOR_INVALID": "Elige un color con el formato #rrggbb.",
-  "BANNER_IMAGE_NOT_ENTITLED": "Las imágenes de banner no están incluidas en el plan de este gremio. Elige un color de banner en su lugar."
+  "BANNER_IMAGE_NOT_ENTITLED": "Las imágenes de banner no están incluidas en el plan de este gremio. Elige un color de banner en su lugar.",
+  "BANNER_TEXT_COLOR_INVALID": "El texto del banner es blanco o negro."
 }

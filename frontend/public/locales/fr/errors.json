@@ -479,5 +479,6 @@
   "IMAGE_WRONG_RATIO": "Cette image n'a pas le bon format pour cet emplacement.",
   "IMAGE_NOT_FOUND": "Cette image n'est plus disponible.",
   "BANNER_COLOR_INVALID": "Choisis une couleur au format #rrggbb.",
-  "BANNER_IMAGE_NOT_ENTITLED": "Les images de bannière ne sont pas incluses dans la formule de cette guilde. Choisis plutôt une couleur de bannière."
+  "BANNER_IMAGE_NOT_ENTITLED": "Les images de bannière ne sont pas incluses dans la formule de cette guilde. Choisis plutôt une couleur de bannière.",
+  "BANNER_TEXT_COLOR_INVALID": "Le texte de la bannière est noir ou blanc."
 }

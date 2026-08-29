@@ -138,11 +138,13 @@
       "bannerHint": "Cualquier imagen. La recortamos a 4:1 y la redimensionamos por ti — unos 2400 × 600 funciona mejor.",
       "bannerPreviewAlt": "Vista previa del banner del gremio",
       "removeBanner": "Quitar banner",
-      "bannerColorLabel": "Color del banner",
-      "bannerColorHint": "Se muestra cuando no hay imagen de banner.",
-      "useColor": "Usar este color",
-      "clearColor": "Quitar color",
-      "bannerColorOnly": "El plan de este gremio no incluye imágenes de banner. Elige un color más abajo."
+      "bannerColorLabel": "Relleno del banner",
+      "bannerColorHint": "El relleno se muestra cuando no hay imagen de banner. El texto del banner es blanco o negro para que siga siendo legible sobre cualquier relleno, y sigue el mejor contraste con el relleno hasta que lo cambies.",
+      "bannerColorOnly": "El plan de este gremio no incluye imágenes de banner. Elige un color más abajo.",
+      "bannerTextColorLabel": "Texto del banner",
+      "resetColor": "Restablecer",
+      "textLight": "Claro",
+      "textDark": "Oscuro"
     }
   },
   "users": {

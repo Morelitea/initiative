@@ -11,10 +11,15 @@
  * Nothing is applied to the picture itself. The directory's artwork fades out
  * along its bottom edge because that fade is painted into the file; a guild's
  * banner is shown as uploaded.
+ *
+ * A banner that is only a colour is a band, not a hero: it is sized by the
+ * copy on it rather than by the viewport, because there is nothing in it to
+ * see and a screen-height rectangle of one colour is just a wall.
  */
 
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
+import { readableTextColor } from "@/lib/contrastColor";
 import { cn } from "@/lib/utils";
 
 /**
@@ -65,50 +70,51 @@ const useFullBleed = <T extends HTMLElement>() => {
   return { ref, style };
 };
 
-/**
- * Whether black or white reads better on this colour, by relative luminance.
- *
- * The copy carries a light halo over artwork so the detail behind it stays
- * visible. There is nothing to see through it over a flat colour, so there the
- * halo goes and the text simply takes the side of the contrast it needs.
- */
-const isLight = (hex: string): boolean => {
-  const value = hex.replace("#", "");
-  if (value.length !== 6) return true;
-  const channel = (at: number) => {
-    const srgb = Number.parseInt(value.slice(at, at + 2), 16) / 255;
-    return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4) > 0.45;
-};
-
 export type PageBannerProps = {
   title: ReactNode;
   subtitle?: ReactNode;
   /** The picture to run behind the copy. */
   imageUrl?: string | null;
-  /** Shown when there is no picture. */
+  /** What fills the banner where there is no picture. */
   color?: string | null;
+  /**
+   * What the copy is written in. A guild stores this, because artwork is not
+   * one colour and what reads over a picture is not ours to guess. Left unset,
+   * it is the best contrast against `color`.
+   */
+  textColor?: string | null;
   /** Alt text for the picture; empty for artwork that says nothing. */
   imageAlt?: string;
+  /**
+   * Hold the copy at a dark neutral inside a halo of the artwork's own light,
+   * instead of using `textColor`. For a fixed light-toned illustration the
+   * theme changes under the words and the picture does not, so the halo is
+   * what keeps the detail behind them visible.
+   */
+  haloOverImage?: boolean;
 };
 
-export function PageBanner({ title, subtitle, imageUrl, color, imageAlt = "" }: PageBannerProps) {
+export function PageBanner({
+  title,
+  subtitle,
+  imageUrl,
+  color,
+  textColor,
+  imageAlt = "",
+  haloOverImage = false,
+}: PageBannerProps) {
   const banner = useFullBleed<HTMLDivElement>();
-  const overColor = !imageUrl && !!color;
-  // Over artwork the copy is held at a dark neutral with a halo of the image's
-  // own light: the theme changes under it, the picture does not. Over a flat
-  // colour it takes whichever end of the scale the colour leaves room for.
-  const dark = overColor ? !isLight(color) : false;
+  const halo = !!imageUrl && haloOverImage;
+  const ink = textColor ?? readableTextColor(color ?? "");
 
   // It runs the full width of the content area rather than of the page: the
   // shell renders a page in a padded, centred column, and this is widened back
   // out to everything beside the sidebar.
   //
-  // From `lg` up the image is in flow, sharing a grid cell with the copy, so
-  // the banner is as tall as whichever needs more room — the image at its own
-  // proportions, with the copy centred on it, and a title that wraps to more
-  // lines opens the banner up rather than running past it.
+  // With a picture, from `lg` up the image is in flow, sharing a grid cell
+  // with the copy, so the banner is as tall as whichever needs more room — the
+  // image at its own proportions, with the copy centred on it, and a title
+  // that wraps to more lines opens the banner up rather than running past it.
   //
   // Below that a 4:1 strip would be too short to hold a heading, so the image
   // is taken out of flow to fill a banner the copy sizes instead, over a
@@ -117,10 +123,14 @@ export function PageBanner({ title, subtitle, imageUrl, color, imageAlt = "" }: 
   // is clipped: what shows is the middle of the picture at something like its
   // own size, all of it top to bottom. Both are positioned, so the copy paints
   // over the image rather than under it.
+  //
+  // With only a colour there is no picture to give the banner a size, and none
+  // to lose by keeping it short — so it is a band the copy sizes, at a smaller
+  // type scale, rather than a hero.
   return (
     <div
       ref={banner.ref}
-      style={{ ...banner.style, ...(overColor ? { backgroundColor: color } : null) }}
+      style={{ ...banner.style, ...(imageUrl ? null : { backgroundColor: color ?? undefined }) }}
       className="relative -mx-4 -mt-4 grid overflow-hidden md:-mx-8 md:-mt-8"
     >
       {imageUrl ? (
@@ -132,36 +142,33 @@ export function PageBanner({ title, subtitle, imageUrl, color, imageAlt = "" }: 
       ) : null}
       <div
         className={cn(
-          "relative col-start-1 row-start-1 flex flex-col items-center justify-center gap-1 px-4 py-10 text-center sm:gap-2 md:px-8",
-          // A picture in flow from `lg` up gives the banner its height; a flat
-          // colour has none of its own, so the copy keeps sizing it.
+          "relative col-start-1 row-start-1 flex flex-col items-center justify-center gap-1 px-4 text-center sm:gap-2 md:px-8",
           imageUrl
-            ? "min-h-[85vw] sm:min-h-[45vw] md:min-h-[28vw] lg:min-h-0"
-            : "min-h-[38vw] sm:min-h-[22vw] md:min-h-[14vw] lg:min-h-[10rem]"
+            ? "min-h-[85vw] py-10 sm:min-h-[45vw] md:min-h-[28vw] lg:min-h-0"
+            : "min-h-28 py-6 sm:min-h-32 lg:min-h-36"
         )}
       >
         <h1
           className={cn(
-            "text-balance font-black text-4xl tracking-tight sm:text-5xl lg:text-6xl",
-            overColor
-              ? dark
-                ? "text-white"
-                : "text-neutral-900"
-              : "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
+            "text-balance font-black tracking-tight",
+            imageUrl ? "text-4xl sm:text-5xl lg:text-6xl" : "text-2xl sm:text-3xl lg:text-4xl",
+            halo &&
+              "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
           )}
+          style={halo ? undefined : { color: ink }}
         >
           {title}
         </h1>
         {subtitle ? (
           <p
             className={cn(
-              "max-w-2xl text-balance font-medium text-base sm:text-lg lg:text-xl",
-              overColor
-                ? dark
-                  ? "text-white/85"
-                  : "text-neutral-900/80"
-                : "text-neutral-800 [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)]"
+              "max-w-2xl text-balance font-medium",
+              imageUrl ? "text-base sm:text-lg lg:text-xl" : "text-sm sm:text-base",
+              halo &&
+                "text-neutral-800 [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)]"
             )}
+            // Slightly softened against the fill, the way the halo variant is.
+            style={halo ? undefined : { color: ink, opacity: 0.88 }}
           >
             {subtitle}
           </p>

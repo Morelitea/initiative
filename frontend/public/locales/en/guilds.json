@@ -138,11 +138,13 @@
       "bannerHint": "Any image. It is cropped to 4:1 and resized for you — around 2400 × 600 works best.",
       "bannerPreviewAlt": "Guild banner preview",
       "removeBanner": "Remove banner",
-      "bannerColorLabel": "Banner colour",
-      "bannerColorHint": "Shown when there is no banner image.",
-      "useColor": "Use this colour",
-      "clearColor": "Clear colour",
-      "bannerColorOnly": "This guild's plan doesn't include banner images. Pick a colour below instead."
+      "bannerColorLabel": "Banner fill",
+      "bannerColorHint": "The fill shows when there is no banner image. Banner text is black or white so it stays readable on any fill, and follows the fill's best contrast until you change it.",
+      "bannerColorOnly": "This guild's plan doesn't include banner images. Pick a colour below instead.",
+      "bannerTextColorLabel": "Banner text",
+      "resetColor": "Reset to default",
+      "textLight": "Light",
+      "textDark": "Dark"
     }
   },
   "users": {

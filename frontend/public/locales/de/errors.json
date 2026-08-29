@@ -479,5 +479,6 @@
   "IMAGE_WRONG_RATIO": "Dieses Bild hat für diese Stelle das falsche Format.",
   "IMAGE_NOT_FOUND": "Dieses Bild ist nicht mehr verfügbar.",
   "BANNER_COLOR_INVALID": "Wähle eine Farbe im Format #rrggbb.",
-  "BANNER_IMAGE_NOT_ENTITLED": "Bannerbilder sind im Tarif dieser Gilde nicht enthalten. Wähle stattdessen eine Bannerfarbe."
+  "BANNER_IMAGE_NOT_ENTITLED": "Bannerbilder sind im Tarif dieser Gilde nicht enthalten. Wähle stattdessen eine Bannerfarbe.",
+  "BANNER_TEXT_COLOR_INVALID": "Bannertext ist schwarz oder weiß."
 }
