@@ -195,13 +195,18 @@ async def test_creating_an_initiative_is_captured(session, acting_user):
 async def test_adding_a_member_reports_against_the_initiative(session, acting_user):
     """A membership row has no id of its own, so it reports its owner — which
     is also the change a subscriber can act on."""
-    from app.testing import create_initiative_member, create_user
-
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     before = len(await _outbox(session, a.guild.id))
 
-    joiner = await create_user(session)
-    await create_initiative_member(session, a.initiative, joiner)
+    # Through the actor seam rather than a bare ``create_user``: an account is
+    # a platform row, and this session is routed into a guild, which holds no
+    # INSERT on ``public.users``.
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
     await session.commit()
 
     new_rows = (await _outbox(session, a.guild.id))[before:]

@@ -79,6 +79,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
+from app.db.session import _RLS_PARAMS_INFO_KEY, set_rls_context
 from app.services.tenant.initiatives import create_builtin_roles
 from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
@@ -149,7 +150,21 @@ async def create_user(
 
     user_data = {**defaults, **overrides}
     user = User(**user_data)
-    session.add(user)
+
+    # An account is a platform row. A session already routed into a guild holds
+    # no INSERT on ``public.users`` (migration 0202), so this drops to the
+    # shared baseline for the write and puts the routing back — the same move
+    # ``anonymize_user`` makes when it crosses between the two planes. Without
+    # it, a test that builds a second person after routing gets a permission
+    # error from the factory rather than from anything it is testing.
+    routed = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if routed and routed.get("guild_id") is not None:
+        await set_rls_context(session, user_id=routed.get("user_id"))
+        session.add(user)
+        await session.flush()
+        await set_rls_context(session, **routed)
+    else:
+        session.add(user)
 
     if commit:
         await session.commit()
