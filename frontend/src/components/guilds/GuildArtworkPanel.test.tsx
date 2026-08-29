@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildBanner, buildGuild } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
@@ -43,7 +43,11 @@ describe("GuildArtworkPanel", () => {
 
     const { container } = renderWithProviders(
       <GuildArtworkPanel
-        guild={buildGuild({ id: 1, role: "admin", banner_url: "/api/v1/guilds/1/image/abc" })}
+        guild={buildGuild({
+          id: 1,
+          role: "admin",
+          banner: buildBanner({ image_url: "/api/v1/guilds/1/image/abc" }),
+        })}
       />
     );
 
@@ -58,7 +62,12 @@ describe("GuildArtworkPanel", () => {
 
     const { container } = renderWithProviders(
       <GuildArtworkPanel
-        guild={buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_color: "#2a9d8f" })}
+        guild={buildGuild({
+          id: 1,
+          role: "admin",
+          name: "Ravenloft",
+          banner: buildBanner({ color: "#2a9d8f" }),
+        })}
       />
     );
 
@@ -79,7 +88,12 @@ describe("GuildArtworkPanel", () => {
         const body = await request.json();
         patched.push(body);
         return HttpResponse.json(
-          buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_text_color: "#000000" })
+          buildGuild({
+            id: 1,
+            role: "admin",
+            name: "Ravenloft",
+            banner: buildBanner({ text_color: "#000000" }),
+          })
         );
       })
     );
@@ -94,7 +108,10 @@ describe("GuildArtworkPanel", () => {
     expect(screen.getByText("Ravenloft")).toHaveStyle({ color: "rgb(0, 0, 0)" });
     // ...and so does the server, without anyone pressing anything else.
     await waitFor(() => expect(patched).toHaveLength(1));
-    expect(patched[0]).toMatchObject({ banner_text_color: "#000000" });
+    // The whole banner rides in the body, since that is what it is.
+    expect(patched[0]).toMatchObject({
+      banner: { color: "#2563eb", text_color: "#000000", text_align: "center", fade: "strong" },
+    });
     expect(screen.queryByRole("button", { name: /use this colour/i })).not.toBeInTheDocument();
   });
 
@@ -128,30 +145,42 @@ describe("GuildArtworkPanel", () => {
       http.patch("*/api/v1/guilds/:guildId", async ({ request }) => {
         patched.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json(
-          buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_text_align: "left" })
+          buildGuild({
+            id: 1,
+            role: "admin",
+            name: "Ravenloft",
+            banner: buildBanner({ text_align: "left" }),
+          })
         );
       })
     );
 
     renderWithProviders(
       <GuildArtworkPanel
-        guild={buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_fade: "weak" })}
+        guild={buildGuild({
+          id: 1,
+          role: "admin",
+          name: "Ravenloft",
+          banner: buildBanner({ fade: "weak" }),
+        })}
       />
     );
 
     await userEvent.click(await screen.findByRole("button", { name: "Left" }));
 
     await waitFor(() => expect(patched).toHaveLength(1));
-    // Both layout values ride together, so a PATCH carries the guild's own
-    // fade rather than resetting the half the admin did not touch.
-    expect(patched[0]).toMatchObject({ banner_text_align: "left", banner_fade: "weak" });
+    // The whole banner rides together, so a PATCH carries the guild's own fade
+    // rather than resetting the part the admin did not touch.
+    expect(patched[0]).toMatchObject({ banner: { text_align: "left", fade: "weak" } });
   });
 
   it("offers three fades, with the guild's own already pressed", async () => {
     entitlements(true);
 
     renderWithProviders(
-      <GuildArtworkPanel guild={buildGuild({ id: 1, role: "admin", banner_fade: "weak" })} />
+      <GuildArtworkPanel
+        guild={buildGuild({ id: 1, role: "admin", banner: buildBanner({ fade: "weak" }) })}
+      />
     );
 
     expect(await screen.findByRole("button", { name: "Soft" })).toHaveAttribute(
@@ -177,8 +206,7 @@ describe("GuildArtworkPanel", () => {
         guild={buildGuild({
           id: 1,
           role: "admin",
-          banner_fade: "strong",
-          banner_text_align: "left",
+          banner: buildBanner({ fade: "strong", text_align: "left" }),
         })}
       />
     );
@@ -187,11 +215,6 @@ describe("GuildArtworkPanel", () => {
 
     // Null is a reset, not a removal — a banner is never without a layout.
     await waitFor(() => expect(patched).toHaveLength(1));
-    expect(patched[0]).toMatchObject({
-      banner_color: null,
-      banner_text_color: null,
-      banner_text_align: null,
-      banner_fade: null,
-    });
+    expect(patched[0]).toEqual({ banner: null });
   });
 });

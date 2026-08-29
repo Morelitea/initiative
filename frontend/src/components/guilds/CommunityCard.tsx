@@ -24,11 +24,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useJoinCommunityGuild } from "@/hooks/useCommunities";
 import { useGuilds } from "@/hooks/useGuilds";
+import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildCategoryLabel } from "@/lib/guildCategories";
 import { guildPath } from "@/lib/guildUrl";
-import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
@@ -55,16 +55,21 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
     }
   };
 
-  const bannerUrl = guild.banner_card_url ? resolveHeaderlessApiUrl(guild.banner_card_url) : null;
+  const banner = renderableBanner(guild.banner);
 
   return (
     <Card className="flex h-full flex-col overflow-hidden">
-      {bannerUrl ? (
-        <img src={bannerUrl} alt="" className="aspect-[4/1] w-full object-cover" loading="lazy" />
+      {banner.image_url ? (
+        <img
+          src={banner.image_url}
+          alt=""
+          className="aspect-[4/1] w-full object-cover"
+          loading="lazy"
+        />
       ) : (
         <div
           className="aspect-[4/1] w-full"
-          style={{ backgroundColor: guild.banner_color }}
+          style={{ backgroundColor: banner.color }}
           aria-hidden="true"
         />
       )}

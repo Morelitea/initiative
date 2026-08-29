@@ -10,6 +10,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildBanner } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -40,9 +41,7 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   name: "Riverside Players",
   description: "Community theatre.",
   icon_url: null,
-  banner_card_url: null,
-  banner_color: "#2563eb",
-  banner_text_color: "#ffffff",
+  banner: buildBanner(),
   categories: ["art"],
   member_count: 12,
   online_count: 0,
@@ -140,7 +139,9 @@ describe("CommunitiesPage", () => {
 
   it("puts the guild's banner across the top of its card", async () => {
     directoryFor.mockReturnValue(
-      directoryResult([community({ banner_card_url: "/api/v1/guilds/1/image/abc" })])
+      directoryResult([
+        community({ banner: buildBanner({ image_url: "/api/v1/guilds/1/image/abc" }) }),
+      ])
     );
 
     const { container } = renderDirectory();
@@ -153,7 +154,9 @@ describe("CommunitiesPage", () => {
   });
 
   it("uses the banner colour on a card whose guild set one instead", async () => {
-    directoryFor.mockReturnValue(directoryResult([community({ banner_color: "#2a9d8f" })]));
+    directoryFor.mockReturnValue(
+      directoryResult([community({ banner: buildBanner({ color: "#2a9d8f" }) })])
+    );
 
     const { container } = renderDirectory();
 

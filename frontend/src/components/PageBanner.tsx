@@ -4,10 +4,8 @@
  * The community directory's own header and a guild's front page are the same
  * shape: a 4:1 strip running the width of the content area, a title and a
  * subtitle over it, and a layout that stops being a strip on a phone. That
- * shape lives here once; the two callers differ only in what they hand it —
- * the directory its shipped artwork and its own copy, a guild its banner (or
- * the colour it picked instead), its name and description, and the two layout
- * choices its admin made.
+ * shape lives here once; the two callers differ only in the banner they hand it
+ * — the directory its shipped artwork, a guild the one its admin set.
  *
  * The copy's minimums are what give a banner its height, at every width; the
  * picture covers whatever that comes to. The directory's artwork also fades
@@ -25,7 +23,8 @@
 
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
-import { readableTextColor, readableTextShadow } from "@/lib/contrastColor";
+import type { GuildBannerRead } from "@/api/generated/initiativeAPI.schemas";
+import { readableTextShadow } from "@/lib/contrastColor";
 import { cn } from "@/lib/utils";
 
 /**
@@ -104,9 +103,6 @@ const useFullBleed = <T extends HTMLElement>() => {
   return { ref, style, inset, header, compact };
 };
 
-export type PageBannerAlign = "center" | "left";
-export type PageBannerFade = "none" | "weak" | "strong";
-
 /**
  * A fade is a second grid row of `extend` pixels below the banner's own, and
  * exactly that much taken back off the banner's bottom margin.
@@ -134,7 +130,7 @@ export type PageBannerFade = "none" | "weak" | "strong";
 const FADE_OVERLAP = 24;
 /** Below this many CSS pixels of content area, a banner is on a phone. */
 const COMPACT_WIDTH = 640;
-const FADES: Record<Exclude<PageBannerFade, "none">, { narrow: number; wide: number }> = {
+const FADES: Record<Exclude<GuildBannerRead["fade"], "none">, { narrow: number; wide: number }> = {
   weak: { narrow: 28, wide: 48 },
   strong: { narrow: 96, wide: 224 },
 };
@@ -142,33 +138,27 @@ const FADES: Record<Exclude<PageBannerFade, "none">, { narrow: number; wide: num
 export type PageBannerProps = {
   title: ReactNode;
   subtitle?: ReactNode;
-  /** The picture to run behind the copy. */
-  imageUrl?: string | null;
-  /** What fills the banner where there is no picture. */
-  color?: string | null;
   /**
-   * What the copy is written in. A guild stores this, because artwork is not
-   * one colour and what reads over a picture is not ours to guess. Left unset,
-   * it is the best contrast against `color`.
+   * The banner to render, whole: the picture to run behind the copy, the fill
+   * that shows where there is none, the colour the copy is written in, where
+   * it sits across the width, and how far the banner dissolves into the page
+   * below it. Anything but a `none` fade extends the banner past where it
+   * would have ended and fades it out there, so the page's own content rides
+   * over the tail.
+   *
+   * Built by `renderableBanner`, which resolves the picture's URL and answers
+   * for a header that has no guild banner of its own.
    */
-  textColor?: string | null;
-  /** Where the copy sits across the banner. Centred unless asked otherwise. */
-  align?: PageBannerAlign;
-  /**
-   * How far the banner dissolves into the page below it. Anything but `none`
-   * extends the banner past where it would have ended and fades it out there,
-   * so the page's own content rides over the tail.
-   */
-  fade?: PageBannerFade;
+  banner: GuildBannerRead;
   /** Chips for the banner's top-right corner — a guild's roster and room counts. */
   badges?: ReactNode;
   /** Alt text for the picture; empty for artwork that says nothing. */
   imageAlt?: string;
   /**
    * Hold the copy at a dark neutral inside a halo of the artwork's own light,
-   * instead of using `textColor`. For a fixed light-toned illustration the
-   * theme changes under the words and the picture does not, so the halo is
-   * what keeps the detail behind them visible.
+   * instead of using the banner's `text_color`. For a fixed light-toned
+   * illustration the theme changes under the words and the picture does not,
+   * so the halo is what keeps the detail behind them visible.
    */
   haloOverImage?: boolean;
 };
@@ -176,19 +166,14 @@ export type PageBannerProps = {
 export function PageBanner({
   title,
   subtitle,
-  imageUrl,
-  color,
-  textColor,
-  align = "center",
-  fade = "none",
+  banner: { image_url: imageUrl, color, text_color: ink, text_align: align, fade },
   badges,
   imageAlt = "",
   haloOverImage = false,
 }: PageBannerProps) {
-  const banner = useFullBleed<HTMLDivElement>();
+  const box = useFullBleed<HTMLDivElement>();
   const halo = !!imageUrl && haloOverImage;
-  const ink = textColor ?? readableTextColor(color ?? "");
-  const extend = fade === "none" ? 0 : FADES[fade][banner.compact ? "narrow" : "wide"];
+  const extend = fade === "none" ? 0 : FADES[fade][box.compact ? "narrow" : "wide"];
   // Masking the ground rather than the whole banner is what keeps the fade off
   // the words: the copy is a sibling of this layer, not a child of it.
   const dissolve: CSSProperties = extend
@@ -218,13 +203,13 @@ export function PageBanner({
   // is a band the copy sizes, at a smaller type scale, rather than a hero.
   return (
     <div
-      ref={banner.ref}
+      ref={box.ref}
       style={{
-        ...banner.style,
+        ...box.style,
         // Up behind the shell's sticky bar, so the artwork runs under the
         // recents tabs; the copy pads itself back down by the same amount, so
         // only the picture goes up there and none of the words do.
-        ...(banner.header ? { marginTop: -banner.header } : null),
+        ...(box.header ? { marginTop: -box.header } : null),
         // The extra row is a fixed track the ground spans; the margin gives
         // back exactly what it added, so nothing below the banner moves.
         ...(extend ? { gridTemplateRows: `auto ${extend}px`, marginBottom: -extend } : null),
@@ -239,7 +224,7 @@ export function PageBanner({
         style={{
           gridRow: extend ? "1 / span 2" : "1",
           gridColumn: "1",
-          ...(imageUrl ? null : { backgroundColor: color ?? undefined }),
+          ...(imageUrl || !color ? null : { backgroundColor: color }),
           ...dissolve,
         }}
         className="relative"
@@ -264,8 +249,8 @@ export function PageBanner({
           gridColumn: "1",
           // Back down by what the banner rose behind the sticky bar, so the
           // words sit where they always did and only the artwork went up.
-          ...(banner.header ? { paddingTop: banner.header } : null),
-          ...(align === "left" && banner.inset.left ? { paddingLeft: banner.inset.left } : null),
+          ...(box.header ? { paddingTop: box.header } : null),
+          ...(align === "left" && box.inset.left ? { paddingLeft: box.inset.left } : null),
         }}
         className={cn(
           "relative flex flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
@@ -320,8 +305,8 @@ export function PageBanner({
           style={{
             // Clear of the sticky bar, for the same reason the copy is: the
             // banner goes up behind it, and nothing readable follows it there.
-            ...(banner.header ? { top: banner.header + 16 } : null),
-            ...(banner.inset.right ? { right: banner.inset.right } : null),
+            ...(box.header ? { top: box.header + 16 } : null),
+            ...(box.inset.right ? { right: box.inset.right } : null),
           }}
           className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 md:top-6 md:right-8"
         >

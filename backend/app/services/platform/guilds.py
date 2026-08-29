@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
@@ -15,9 +15,7 @@ from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
-    DEFAULT_BANNER_COLOR,
-    DEFAULT_BANNER_FADE,
-    DEFAULT_BANNER_TEXT_ALIGN,
+    DEFAULT_BANNER,
     DEFAULT_BANNER_TEXT_COLOR,
     Guild,
     GuildCategory,
@@ -660,6 +658,26 @@ def normalize_banner_color(value: str | None, *, fallback: str) -> str:
     return candidate
 
 
+def normalize_banner(values: Mapping[str, str] | None) -> dict[str, str]:
+    """The whole banner, canonical. ``None`` is a reset to the default.
+
+    A banner is never colourless and never without a layout, so there is
+    nothing here for "empty" to mean — every key comes back. The layout values
+    arrive already inside their vocabularies (the request schema types them as
+    the enums), leaving the colours to normalize.
+    """
+    if values is None:
+        return dict(DEFAULT_BANNER)
+    return {
+        "color": normalize_banner_color(
+            values.get("color"), fallback=DEFAULT_BANNER["color"]
+        ),
+        "text_color": normalize_banner_text_color(values.get("text_color")),
+        "text_align": values.get("text_align") or DEFAULT_BANNER["text_align"],
+        "fade": values.get("fade") or DEFAULT_BANNER["fade"],
+    }
+
+
 async def update_guild(
     session: AsyncSession,
     *,
@@ -673,14 +691,8 @@ async def update_guild(
     categories_provided: bool = False,
     has_adult_content: bool | None = None,
     has_adult_content_provided: bool = False,
-    banner_color: str | None = None,
-    banner_color_provided: bool = False,
-    banner_text_color: str | None = None,
-    banner_text_color_provided: bool = False,
-    banner_text_align: str | None = None,
-    banner_text_align_provided: bool = False,
-    banner_fade: str | None = None,
-    banner_fade_provided: bool = False,
+    banner: Mapping[str, str] | None = None,
+    banner_provided: bool = False,
     show_member_names: bool | None = None,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
@@ -699,31 +711,10 @@ async def update_guild(
         if guild.description != normalized_description:
             guild.description = normalized_description
             updated = True
-    if banner_color_provided:
-        normalized_color = normalize_banner_color(
-            banner_color, fallback=DEFAULT_BANNER_COLOR
-        )
-        if guild.banner_color != normalized_color:
-            guild.banner_color = normalized_color
-            updated = True
-    if banner_text_color_provided:
-        normalized_text_color = normalize_banner_text_color(banner_text_color)
-        if guild.banner_text_color != normalized_text_color:
-            guild.banner_text_color = normalized_text_color
-            updated = True
-    # The layout pair. The schema already refused anything outside the two
-    # vocabularies, so the only thing left to decide here is what a null means —
-    # and it means the same as it does for the colours above: back to the
-    # default, which is what the reset control sends.
-    if banner_text_align_provided:
-        normalized_align = banner_text_align or DEFAULT_BANNER_TEXT_ALIGN
-        if guild.banner_text_align != normalized_align:
-            guild.banner_text_align = normalized_align
-            updated = True
-    if banner_fade_provided:
-        normalized_fade = banner_fade or DEFAULT_BANNER_FADE
-        if guild.banner_fade != normalized_fade:
-            guild.banner_fade = normalized_fade
+    if banner_provided:
+        normalized_banner = normalize_banner(banner)
+        if guild.banner != normalized_banner:
+            guild.banner = normalized_banner
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.

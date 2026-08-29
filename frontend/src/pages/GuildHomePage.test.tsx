@@ -4,6 +4,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  buildBanner,
   buildDocumentSummary,
   buildGuild,
   buildInitiative,
@@ -102,7 +103,7 @@ describe("GuildHomePage", () => {
           role: "admin",
           name: "Ravenloft Chronicle",
           description: "A long campaign in the mists",
-          banner_url: "/api/v1/guilds/1/image/abc",
+          banner: buildBanner({ image_url: "/api/v1/guilds/1/image/abc" }),
         }),
       },
     });
@@ -119,7 +120,11 @@ describe("GuildHomePage", () => {
     const { container } = renderPage(GuildHomePage, {
       guilds: {
         activeGuildId: 1,
-        activeGuild: buildGuild({ id: 1, role: "admin", banner_color: "#2a9d8f" }),
+        activeGuild: buildGuild({
+          id: 1,
+          role: "admin",
+          banner: buildBanner({ color: "#2a9d8f" }),
+        }),
       },
     });
 
@@ -184,8 +189,7 @@ describe("GuildHomePage", () => {
         activeGuild: buildGuild({
           id: 1,
           role: "admin",
-          banner_text_align: "left",
-          banner_fade: "strong",
+          banner: buildBanner({ text_align: "left", fade: "strong" }),
         }),
       },
     });
@@ -205,7 +209,11 @@ describe("GuildHomePage", () => {
     renderPage(GuildHomePage, {
       guilds: {
         activeGuildId: 1,
-        activeGuild: buildGuild({ id: 1, role: "admin", banner_text_align: "center" }),
+        activeGuild: buildGuild({
+          id: 1,
+          role: "admin",
+          banner: buildBanner({ text_align: "center" }),
+        }),
       },
     });
 
@@ -221,7 +229,11 @@ describe("GuildHomePage", () => {
     renderPage(GuildHomePage, {
       guilds: {
         activeGuildId: 1,
-        activeGuild: buildGuild({ id: 1, role: "admin", banner_text_align: "left" }),
+        activeGuild: buildGuild({
+          id: 1,
+          role: "admin",
+          banner: buildBanner({ text_align: "left" }),
+        }),
       },
     });
 

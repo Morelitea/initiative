@@ -40,20 +40,27 @@ import {
   updateGuildApiV1GuildsGuildIdPatch,
   useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet,
 } from "@/api/generated/guilds/guilds";
-import { BannerFade, BannerTextAlign, type GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import {
+  BannerFade,
+  BannerTextAlign,
+  type GuildBannerRead,
+  type GuildBannerWrite,
+  type GuildRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
+import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { DARK_TEXT, LIGHT_TEXT, readableTextColor, readableTextShadow } from "@/lib/contrastColor";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { ImageRenditionError, renderGuildBanner, renderGuildIcon } from "@/lib/imageRenditions";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
-type Busy = "icon" | "banner" | "color" | "layout" | null;
+type Busy = "icon" | "banner" | "look" | null;
 
 /**
  * How much of the preview each fade eats, as a share of its height.
@@ -64,7 +71,7 @@ type Busy = "icon" | "banner" | "color" | "layout" | null;
  * *impression* of each setting rather than its exact geometry — enough to
  * choose between them, which is what a preview is for.
  */
-const PREVIEW_FADE: Record<BannerFade, string | undefined> = {
+const PREVIEW_FADE: Record<GuildBannerRead["fade"], string | undefined> = {
   none: undefined,
   weak: "linear-gradient(to bottom, #000 65%, transparent 100%)",
   strong: "linear-gradient(to bottom, #000 15%, transparent 100%)",
@@ -74,10 +81,10 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
   const { refreshGuilds, updateGuildInState } = useGuilds();
   const [busy, setBusy] = useState<Busy>(null);
-  const [color, setColor] = useState(guild.banner_color);
-  const [textColor, setTextColor] = useState(guild.banner_text_color);
-  const [align, setAlign] = useState<BannerTextAlign>(guild.banner_text_align);
-  const [fade, setFade] = useState<BannerFade>(guild.banner_fade);
+  // The banner as this panel is showing it, which is what the pickers below
+  // draft against and what a save sends — the whole of it, since the endpoint
+  // replaces the banner rather than merging into it.
+  const [draft, setDraft] = useState(guild.banner);
   // Only an admin reaches this panel, which is who may read this. Until the
   // answer lands, assume artwork is on offer: it is the ordinary case, and the
   // server is what actually decides.
@@ -85,56 +92,41 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const mayUploadBanner = entitlements.data?.banner_image_enabled ?? true;
 
   useEffect(() => {
-    setColor(guild.banner_color);
-    setTextColor(guild.banner_text_color);
-    setAlign(guild.banner_text_align);
-    setFade(guild.banner_fade);
-  }, [guild.banner_color, guild.banner_text_color, guild.banner_text_align, guild.banner_fade]);
+    setDraft(guild.banner);
+  }, [guild.banner]);
 
-  /** Write both colours; the reply is the whole guild, so state is replaced. */
-  const saveColors = (fill: string, ink: string) =>
-    void run("color", async () =>
+  /** Show a change, without writing it — for a picker still being dragged. */
+  const draftLook = (change: Partial<GuildBannerWrite>) =>
+    setDraft((current) => ({ ...current, ...change }));
+
+  /**
+   * Show a change and save it. Everything here saves the moment it is picked —
+   * there is nothing to confirm about a look the preview above is already
+   * showing — and every save sends the whole banner, since that is what it is.
+   *
+   * `null` is the reset: the server puts the whole default back rather than
+   * clearing anything, because a banner is never colourless and never without
+   * a layout.
+   */
+  const commitLook = (change: Partial<GuildBannerWrite> | null) => {
+    const banner = change && { ...draft, ...change };
+    if (banner) setDraft(banner);
+    void run("look", async () =>
       // The endpoint answers with the whole guild; the cast is the generated
       // client's, which types a PATCH body as unknown.
       updateGuildApiV1GuildsGuildIdPatch(guild.id, {
-        banner_color: fill,
-        banner_text_color: ink,
+        banner,
       } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
     );
+  };
 
   // Picking a fill moves the text with it. Not a lock — the control stays
   // editable, and over artwork the fill is not what the words sit on anyway —
   // but it means the common case is right without anyone thinking about it.
-  const draftFill = (next: string) => {
-    setColor(next);
-    setTextColor(readableTextColor(next));
-  };
-
-  const commitFill = (next: string) => {
-    const ink = readableTextColor(next);
-    setColor(next);
-    setTextColor(ink);
-    saveColors(next, ink);
-  };
-
-  const commitTextColor = (next: string) => {
-    setTextColor(next);
-    saveColors(color, next);
-  };
-
-  /** Where the copy sits, and how the banner ends. Saved the moment it is
-   *  picked, like the colours — there is nothing to confirm about a look you
-   *  can already see. */
-  const commitLayout = (next: { align?: BannerTextAlign; fade?: BannerFade }) => {
-    if (next.align) setAlign(next.align);
-    if (next.fade) setFade(next.fade);
-    void run("layout", async () =>
-      updateGuildApiV1GuildsGuildIdPatch(guild.id, {
-        banner_text_align: next.align ?? align,
-        banner_fade: next.fade ?? fade,
-      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
-    );
-  };
+  const withReadableText = (color: string) => ({
+    color,
+    text_color: readableTextColor(color),
+  });
 
   /** Every write here answers with the whole guild, so state is replaced, not patched. */
   const applied = async (updated: GuildRead) => {
@@ -180,7 +172,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   };
 
   const iconUrl = guild.icon_url ? resolveHeaderlessApiUrl(guild.icon_url) : null;
-  const bannerUrl = guild.banner_url ? resolveHeaderlessApiUrl(guild.banner_url) : null;
+  const bannerUrl = renderableBanner(guild.banner).image_url;
 
   return (
     <Card>
@@ -233,7 +225,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
               rather than somewhere else on the page. */}
           <div
             className={`relative flex aspect-[4/1] w-full items-center overflow-hidden rounded-lg border ${
-              align === BannerTextAlign.left ? "justify-start" : "justify-center"
+              draft.text_align === BannerTextAlign.left ? "justify-start" : "justify-center"
             }`}
           >
             {/* The ground and the fade on it, under the name rather than over
@@ -243,9 +235,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
             <div
               className="absolute inset-0"
               style={{
-                backgroundColor: color,
-                maskImage: PREVIEW_FADE[fade],
-                WebkitMaskImage: PREVIEW_FADE[fade],
+                backgroundColor: draft.color,
+                maskImage: PREVIEW_FADE[draft.fade],
+                WebkitMaskImage: PREVIEW_FADE[draft.fade],
               }}
             >
               {bannerUrl ? (
@@ -258,7 +250,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
             </div>
             <span
               className="relative truncate px-4 font-black text-lg sm:text-2xl"
-              style={{ color: textColor, textShadow: readableTextShadow(textColor) }}
+              style={{ color: draft.text_color, textShadow: readableTextShadow(draft.text_color) }}
             >
               {guild.name}
             </span>
@@ -303,10 +295,10 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
               </Label>
               <ColorPickerPopover
                 id="guild-banner-color"
-                value={color}
+                value={draft.color}
                 disabled={busy !== null}
-                onChange={draftFill}
-                onChangeComplete={commitFill}
+                onChange={(next) => draftLook(withReadableText(next))}
+                onChangeComplete={(next) => commitLook(withReadableText(next))}
                 triggerLabel={t("guilds:settings.artwork.bannerColorLabel")}
               />
             </div>
@@ -323,9 +315,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                     key={option.value}
                     type="button"
                     size="sm"
-                    variant={textColor === option.value ? "default" : "outline"}
-                    aria-pressed={textColor === option.value}
-                    onClick={() => commitTextColor(option.value)}
+                    variant={draft.text_color === option.value ? "default" : "outline"}
+                    aria-pressed={draft.text_color === option.value}
+                    onClick={() => commitLook({ text_color: option.value })}
                   >
                     {option.label}
                   </Button>
@@ -348,9 +340,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                     key={option.value}
                     type="button"
                     size="sm"
-                    variant={align === option.value ? "default" : "outline"}
-                    aria-pressed={align === option.value}
-                    onClick={() => commitLayout({ align: option.value })}
+                    variant={draft.text_align === option.value ? "default" : "outline"}
+                    aria-pressed={draft.text_align === option.value}
+                    onClick={() => commitLook({ text_align: option.value })}
                   >
                     {option.label}
                   </Button>
@@ -371,9 +363,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                     key={option.value}
                     type="button"
                     size="sm"
-                    variant={fade === option.value ? "default" : "outline"}
-                    aria-pressed={fade === option.value}
-                    onClick={() => commitLayout({ fade: option.value })}
+                    variant={draft.fade === option.value ? "default" : "outline"}
+                    aria-pressed={draft.fade === option.value}
+                    onClick={() => commitLook({ fade: option.value })}
                   >
                     {option.label}
                   </Button>
@@ -389,19 +381,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
             variant="ghost"
             size="sm"
             disabled={busy !== null}
-            onClick={() =>
-              // Null is a reset here, not a removal — a banner is never
-              // colourless and never without a layout, so the server puts all
-              // four back to their defaults.
-              void run("color", async () =>
-                updateGuildApiV1GuildsGuildIdPatch(guild.id, {
-                  banner_color: null,
-                  banner_text_color: null,
-                  banner_text_align: null,
-                  banner_fade: null,
-                } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
-              )
-            }
+            onClick={() => commitLook(null)}
           >
             {t("guilds:settings.artwork.resetColor")}
           </Button>

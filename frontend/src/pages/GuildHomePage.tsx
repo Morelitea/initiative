@@ -33,8 +33,8 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
+import { renderableBanner } from "@/lib/banner";
 import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
-import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -140,9 +140,7 @@ export function GuildHomePage() {
   // Every guild has a banner — the artwork it uploaded, or the colour it wears
   // instead — so this is the guild's header rather than a decoration it might
   // be without. A guild with no artwork gets a short band, not a hero.
-  const bannerUrl = activeGuild?.banner_url
-    ? resolveHeaderlessApiUrl(activeGuild.banner_url)
-    : null;
+  const banner = renderableBanner(activeGuild?.banner);
 
   // A faded banner is extended past where it would have ended, and the page's
   // own content is pulled back over the tail — so everything below the banner
@@ -150,11 +148,7 @@ export function GuildHomePage() {
   return (
     <div className="space-y-6">
       <PageBanner
-        imageUrl={bannerUrl}
-        color={activeGuild?.banner_color}
-        textColor={activeGuild?.banner_text_color}
-        align={activeGuild?.banner_text_align}
-        fade={activeGuild?.banner_fade}
+        banner={banner}
         title={activeGuild?.name ?? t("title")}
         subtitle={activeGuild?.description ?? t("subtitle")}
         badges={
@@ -162,7 +156,7 @@ export function GuildHomePage() {
             <GuildBannerBadges
               memberCount={activeGuild.member_count}
               onlineCount={activeGuild.online_count}
-              ink={activeGuild.banner_text_color}
+              ink={banner.text_color}
             />
           ) : null
         }
@@ -180,11 +174,7 @@ export function GuildHomePage() {
           />
         ) : (
           <>
-            <GuildToolRail
-              tools={tools}
-              selected={selected}
-              align={activeGuild?.banner_text_align}
-            />
+            <GuildToolRail tools={tools} selected={selected} align={banner.text_align} />
 
             {isLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">

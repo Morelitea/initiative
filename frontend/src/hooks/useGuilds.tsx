@@ -10,14 +10,10 @@ import {
 } from "react";
 
 import { apiClient } from "@/api/client";
-import {
-  type AccessGrantRead,
-  BannerFade,
-  BannerTextAlign,
-  type GuildRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -92,26 +88,14 @@ const sortGuilds = (guildList: GuildEntry[]): GuildEntry[] => {
   });
 };
 
-/** What every guild's banner is until it says otherwise — mirrors the server's
- *  own defaults, for the synthetic entries below that have no guild row yet. */
-const DEFAULT_BANNER_COLOR = "#2563eb";
-const DEFAULT_BANNER_TEXT_COLOR = "#ffffff";
-const DEFAULT_BANNER_TEXT_ALIGN = BannerTextAlign.center;
-const DEFAULT_BANNER_FADE = BannerFade.strong;
-
 /** Build a synthetic switcher entry for a guild reachable only via a live grant. */
 const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   id: grant.guild_id,
   name: grant.guild_name ?? `Guild #${grant.guild_id}`,
   description: null,
   icon_url: null,
-  banner_url: null,
-  // A guild reached through a grant is still a guild, and every guild has a
-  // banner. The real values arrive with the guild itself.
-  banner_color: DEFAULT_BANNER_COLOR,
-  banner_text_color: DEFAULT_BANNER_TEXT_COLOR,
-  banner_text_align: DEFAULT_BANNER_TEXT_ALIGN,
-  banner_fade: DEFAULT_BANNER_FADE,
+  // A blank banner until the guild's own payload arrives with the real one.
+  banner: renderableBanner(),
   // Nobody is "here" in a guild reached only by a grant until its own payload
   // arrives and says so.
   online_count: 0,
