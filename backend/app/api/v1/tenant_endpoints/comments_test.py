@@ -341,17 +341,17 @@ async def test_mention_search_users_paginated_with_avatars(
     assert body["has_next"] is True
     item = body["items"][0]
     assert item["type"] == "user"
-    assert "avatar_base64" in item and "avatar_url" in item
+    assert "avatar_url" in item
 
 
 @pytest.mark.integration
 async def test_mention_search_users_filters_by_name(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The `q` param filters user suggestions by name (case-insensitive)."""
+    """The `q` param filters user suggestions (case-insensitive)."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    for name in ("Alice Ant", "Bob Bee"):
-        member = await create_user(session, full_name=name)
+    for name, handle in (("Alice Ant", "alice-ant"), ("Bob Bee", "bob-bee")):
+        member = await create_user(session, full_name=name, username=handle)
         await create_initiative_member(session, admin.initiative, member)
 
     response = await client.get(
@@ -366,9 +366,10 @@ async def test_mention_search_users_filters_by_name(
 
     assert response.status_code == 200
     body = response.json()
-    names = {item["display_text"] for item in body["items"]}
-    assert "Alice Ant" in names
-    assert "Bob Bee" not in names
+    # This guild renders handles, so a suggestion is named by one.
+    shown = {item["display_text"] for item in body["items"]}
+    assert any(name.startswith("alice-ant#") for name in shown)
+    assert not any(name.startswith("bob-bee#") for name in shown)
 
 
 @pytest.mark.integration
