@@ -151,7 +151,10 @@ def _dimensions(data: bytes) -> tuple[int, int] | None:
     change that. It parses headers rather than decoding, so nothing hands these
     bytes to an image library.
     """
-    if data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR":
+    # Each branch checks it has the bytes it is about to read: a stored icon
+    # can carry a format's opening marks and stop before its dimensions, and a
+    # short read here would fault the upgrade rather than skip one icon.
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR" and len(data) >= 24:
         width, height = struct.unpack(">II", data[16:24])
         return int(width), int(height)
     if data[:6] in (b"GIF87a", b"GIF89a") and len(data) >= 10:

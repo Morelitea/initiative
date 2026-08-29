@@ -885,3 +885,59 @@ async def test_a_member_does_not_read_entitlements(client: AsyncClient, acting_u
     )
 
     assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_a_truncated_image_is_a_bad_upload_not_a_fault(
+    client: AsyncClient, acting_user
+):
+    """A file can carry a format's opening marks and stop before its
+    dimensions. That is an answer about the upload, not an error."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    # PNG signature + IHDR marker and nothing after it.
+    stub = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR"
+
+    response = await client.put(
+        f"/api/v1/guilds/{a.guild.id}/icon",
+        headers=a.headers,
+        files=_icon_files(icon=stub),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "IMAGE_INVALID"
+
+
+@pytest.mark.integration
+async def test_dropping_below_the_seat_floor_stops_publishing_artwork(
+    client: AsyncClient, acting_user, session: AsyncSession, community_directory_on
+):
+    """An operator can take a guild out of the directory without the guild
+    doing anything, and what the listing published goes with it."""
+    from app.models.platform.guild_administration import GuildAdministration
+
+    a = await acting_user(guild_role=GuildRole.admin)
+    await _set_icon(client, a.guild.id, a.headers)
+    await _set_banner(client, a.guild.id, a.headers)
+    await _list_as_community(session, a.guild)
+    stranger = await create_user(session, email="seat-floor@example.com")
+    headers = get_auth_headers(stranger)
+    icon = await _variant_url(session, a.guild.id, GuildImageVariant.icon)
+    card = await _card_url(session, a.guild.id)
+    assert (await client.get(icon, headers=headers)).status_code == 200
+
+    administration = (
+        await session.exec(
+            select(GuildAdministration).where(
+                GuildAdministration.guild_id == a.guild.id
+            )
+        )
+    ).one()
+    administration.max_users = 1
+    session.add(administration)
+    await session.commit()
+
+    assert (await client.get(icon, headers=headers)).status_code == 404
+    assert (await client.get(card, headers=headers)).status_code == 404
+    # The directory it left agrees.
+    directory = await client.get("/api/v1/guilds/communities", headers=headers)
+    assert all(g["id"] != a.guild.id for g in directory.json()["items"])

@@ -944,6 +944,53 @@ async def _assert_listable(session: AsyncSession, guild: Guild) -> None:
         raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CAPACITY)
 
 
+def community_listing_filters() -> list:
+    """The conditions a guild must meet to be showing a card in the directory.
+
+    One list, because three paths ask the same question and must agree: the
+    directory that lists a guild, the join that its listing authorizes, and the
+    images that listing publishes. A guild that has dropped out of the first
+    must drop out of the other two in the same instant.
+
+    Two of the three are CHECK constraints on ``guilds`` as well (a listed
+    guild is on a shelf and has declared itself free of adult content), so a
+    row that reaches this query already satisfies them. The seat cap is not: it
+    lives on ``guild_administration``, only an operator sets it, and it can be
+    lowered long after the listing was made.
+    """
+    return [
+        Guild.is_community.is_(True),
+        Guild.status == GuildStatus.active.value,
+        # NULL is unlimited, hence the explicit null leg.
+        or_(
+            GuildAdministration.max_users.is_(None),
+            GuildAdministration.max_users >= MIN_COMMUNITY_SEATS,
+        ),
+    ]
+
+
+async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> bool:
+    """Whether this guild is showing a card in the directory right now.
+
+    Asked per request rather than inherited from whatever produced a link, so a
+    guild that un-lists itself — or that an operator drops below the seat floor
+    — stops being reachable through it immediately.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if not await app_settings_service.community_directory_enabled(session):
+        return False
+    statement = (
+        select(func.count())
+        .select_from(Guild)
+        .join(GuildAdministration, GuildAdministration.guild_id == Guild.id)
+        .where(Guild.id == guild_id)
+    )
+    for condition in community_listing_filters():
+        statement = statement.where(condition)
+    return bool((await session.exec(statement)).one())
+
+
 async def list_community_guilds(
     session: AsyncSession,
     *,
@@ -955,17 +1002,9 @@ async def list_community_guilds(
 ) -> tuple[list[tuple[Guild, int, bool]], int]:
     """The community directory: (guild, member_count, already_member) + total.
 
-    Three filters are not optional and are applied here rather than by the
-    caller. A guild appears only while it has opted in (``is_community``), only
-    while it is ``active`` — a suspended or frozen guild takes no new members,
-    and the invite path already refuses one — and only while its seat cap leaves
-    room for a joiner.
-
-    That last one is re-checked here, unlike the has-a-category and
-    no-adult-content rules: those are CHECK constraints on ``guilds``, so a row
-    that reaches this query already satisfies them. The cap lives on
-    ``guild_administration`` and only an operator sets it, so it can be lowered
-    long after the listing was made and no CHECK can see it.
+    Which guilds appear is not this function's decision — it is
+    ``community_listing_filters()``, so the directory, the join it authorizes,
+    and the images it publishes cannot drift apart.
 
     Ordered by member count, busiest first, since that is what someone with no
     guild yet is choosing between; ``query`` narrows on name or description
@@ -996,15 +1035,7 @@ async def list_community_guilds(
         .scalar_subquery()
     )
 
-    filters = [
-        Guild.is_community.is_(True),
-        Guild.status == GuildStatus.active.value,
-        # NULL is unlimited, hence the explicit null leg.
-        or_(
-            GuildAdministration.max_users.is_(None),
-            GuildAdministration.max_users >= MIN_COMMUNITY_SEATS,
-        ),
-    ]
+    filters = community_listing_filters()
     if category:
         filters.append(Guild.categories.contains([category]))
     if query and query.strip():
@@ -1047,11 +1078,11 @@ async def join_community_guild(
 ) -> Guild:
     """Join a listed community guild — the invite-free half of the directory.
 
-    The opt-in is the authorization, so this checks exactly what an invite
-    redemption checks in its place: the guild is listed, it is ``active``, and
-    it has room. A guild that is not listed is reported as not found rather
-    than as forbidden — an unlisted guild has published nothing, and its
-    existence at a given id is part of that.
+    The opt-in is the authorization, so this asks the directory's own question
+    (``is_listed_in_directory``) rather than a version of it. A guild that is
+    not listed is reported as not found rather than as forbidden — an unlisted
+    guild has published nothing, and its existence at a given id is part of
+    that.
 
     Runs on the system engine for the same reason ``accept_invite`` does: the
     caller is not a member yet, so no guild-scoped role exists to write the
@@ -1062,15 +1093,9 @@ async def join_community_guild(
         guild = await get_guild(session, guild_id=guild_id)
     except ValueError as exc:
         raise CommunityJoinError(GuildMessages.GUILD_NOT_FOUND) from exc
-    if not guild.is_community or guild.status != GuildStatus.active.value:
-        raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
-    # The same seat-cap floor the directory filters on, so a guild it does not
-    # show cannot be joined by asking for it directly either.
-    administration = await get_administration(session, guild_id=guild_id)
-    if (
-        administration.max_users is not None
-        and administration.max_users < MIN_COMMUNITY_SEATS
-    ):
+    # Exactly what the directory shows, so a guild it does not list cannot be
+    # joined by asking for it directly either.
+    if not await is_listed_in_directory(session, guild_id=guild_id):
         raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
     # Capacity is enforced inside ensure_membership, which is also where a
     # repeat join short-circuits to the existing membership.

@@ -77,10 +77,9 @@ async def may_read_image(
     """Whether ``user_id`` has somewhere to see this variant.
 
     Membership is checked first because it answers for every variant and is the
-    common case. The listing legs are the directory's own filters — opted in,
-    active, and a directory to be listed in — asked again here rather than
-    inherited from whatever page produced the URL, so a guild that un-lists
-    itself stops serving its card immediately.
+    common case. The listing leg is asked of the directory itself rather than
+    inherited from whatever page produced the URL, so a guild that stops being
+    listed stops serving its card in the same instant.
     """
     from app.services.platform import access_grants as access_grants_service
     from app.services.platform import guilds as guilds_service
@@ -103,21 +102,11 @@ async def may_read_image(
 
     if not IMAGE_SPECS[variant].published:
         return False
-    return await _is_listed(session, guild_id=guild_id)
-
-
-async def _is_listed(session: AsyncSession, *, guild_id: int) -> bool:
-    """Whether this guild is currently showing a card in the directory."""
-    from app.services.platform import app_settings as app_settings_service
-
-    if not await app_settings_service.community_directory_enabled(session):
-        return False
-    guild = await session.get(Guild, guild_id)
-    return (
-        guild is not None
-        and bool(guild.is_community)
-        and guild.status == GuildStatus.active.value
-    )
+    # The directory's own question, not a copy of it: what a guild publishes by
+    # being listed stops being published the moment it stops being listed —
+    # including when an operator drops it below the seat floor, which is a way
+    # out of the directory that has nothing to do with the guild.
+    return await guilds_service.is_listed_in_directory(session, guild_id=guild_id)
 
 
 async def read_image(
@@ -309,7 +298,11 @@ def probe_image(data: bytes) -> tuple[str, int, int] | None:
     all state their dimensions in the first few dozen bytes, so this needs no
     image library and hands no uploaded pixels to one.
     """
-    if data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR":
+    # Every branch checks it has the bytes it is about to read: a file can
+    # carry a format's opening marks and stop before its dimensions, and a
+    # short read here would raise past the caller that turns a bad upload into
+    # a reply about it.
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR" and len(data) >= 24:
         width, height = struct.unpack(">II", data[16:24])
         return "image/png", int(width), int(height)
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
