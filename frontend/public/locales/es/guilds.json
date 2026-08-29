@@ -125,6 +125,13 @@
     "discoveryCapacityBlocked": "Este gremio solo tiene sitio para una persona, así que nadie podría unirse desde el directorio. Pide a tu operador de plataforma que suba el límite de miembros.",
     "discoveryListed": "Publicado en el directorio de comunidades.",
     "discoveryNotListed": "Sin publicar. Solo puede unirse quien tenga una invitación.",
+    "autoJoinPromptTitle": "Los nuevos miembros llegarán a un gremio vacío",
+    "autoJoinPromptBody": "Unirse a este gremio no incluye a nadie en una iniciativa, y el contenido de una iniciativa permanece oculto hasta estar dentro. Elige dónde deben llegar los recién llegados.",
+    "autoJoinPromptChooseLabel": "Iniciativa para los nuevos miembros",
+    "autoJoinPromptEffect": "La iniciativa que elijas quedará abierta a cualquiera del gremio, y todo el que se una al gremio a partir de ahora se añadirá a ella. Los miembros que ya están aquí no se añaden.",
+    "autoJoinPromptAction": "Establecer como iniciativa de llegada",
+    "autoJoinPromptDone": "Los nuevos miembros del gremio llegarán ahora a {{name}}.",
+    "autoJoinPromptCreateHint": "Si prefieres recibirlos en un sitio nuevo, crea una iniciativa y activa la incorporación automática en sus ajustes de Unirse.",
     "artwork": {
       "title": "Imágenes",
       "none": "Ninguna",

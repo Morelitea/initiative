@@ -426,6 +426,55 @@ async def _apply_stored_context(session: AsyncSession) -> None:
 
 
 @asynccontextmanager
+async def guild_schema_context(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    guild_role: str = "admin",
+) -> AsyncGenerator[AsyncSession, None]:
+    """Borrow an already-open session for one guild's schema, then hand it back.
+
+    A platform/bootstrapping handler runs with ``search_path = public`` and
+    cannot see guild content at all, so work that has to touch a guild schema
+    from there routes the session in first (the same move
+    ``seed_guild_content`` and the ``oidc_sync`` per-guild loop make). What this
+    adds is the return trip: several callers keep using the session after the
+    excursion, so whatever context they were carrying is put back on the way
+    out — including the freshness stamp, which this excursion must not renew.
+
+    A session that carried no context at all (the system engine on its login
+    role) is returned to exactly that: the current transaction is neutralized
+    and the stored params are dropped, so later transactions start pristine
+    rather than replaying a context this helper invented.
+
+    The session must already be inside the caller's transaction; this neither
+    commits nor rolls back.
+    """
+    previous = session.info.get(_RLS_PARAMS_INFO_KEY)
+    previous_established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
+    routed = False
+    try:
+        await set_rls_context(session, guild_id=guild_id, guild_role=guild_role)
+        routed = True
+        yield session
+    finally:
+        # Restoring the stored params comes first and cannot fail, so the
+        # caller's next transaction replays the caller's own context whatever
+        # happened in between.
+        session.info[_RLS_PARAMS_INFO_KEY] = previous if previous is not None else {}
+        if previous_established is not None:
+            session.info[_RLS_ESTABLISHED_INFO_KEY] = previous_established
+        # Routing that did not complete leaves a transaction that accepts no
+        # further statements, and its own rollback puts the settings back; more
+        # SQL there would only replace the real error with a second one.
+        if routed and session.in_transaction():
+            await _apply_stored_context(session)
+        if previous is None:
+            session.info.pop(_RLS_PARAMS_INFO_KEY, None)
+            session.info.pop(_RLS_ESTABLISHED_INFO_KEY, None)
+
+
+@asynccontextmanager
 async def rls_session(
     user_id: int,
     guild_id: int,

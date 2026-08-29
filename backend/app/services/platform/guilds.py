@@ -232,7 +232,58 @@ async def ensure_membership(
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
+    await enroll_new_member_in_auto_join_initiatives(
+        session, guild_id=guild_id, user_id=user_id, role=role
+    )
     return membership
+
+
+async def enroll_new_member_in_auto_join_initiatives(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    role: GuildRole,
+) -> None:
+    """Put a brand-new guild member into the guild's auto-join initiatives.
+
+    Called on a genuine membership insert only, which is what makes this the
+    onboarding hook rather than a sweep: someone who was already in the guild
+    is returned earlier and is never re-enrolled.
+
+    A guild admin is skipped. They already reach every initiative in their guild
+    by standing, and the built-in ``member`` role is one they must never hold
+    (see ``_guard_guild_admin_role``) — so for them there is nothing to grant and
+    a row to avoid. This also covers guild creation, where the admin membership
+    is written before the guild's schema exists at all.
+
+    The initiatives live in the guild's schema and the join paths that reach here
+    run on the system engine with ``search_path = public``, so the work is done
+    through a routed excursion that hands the session back as it found it. The
+    whole excursion sits inside a savepoint: landing somewhere useful is a
+    convenience, and it must never be the reason someone's guild join fails.
+    """
+    if role == GuildRole.admin:
+        return
+    from app.db.session import guild_schema_context
+    from app.services.tenant import initiatives as initiatives_service
+
+    try:
+        async with session.begin_nested():
+            async with guild_schema_context(session, guild_id=guild_id):
+                # A second savepoint so a failure unwinds before the excursion
+                # restores the caller's context, rather than during it.
+                async with session.begin_nested():
+                    await initiatives_service.enroll_in_auto_join_initiatives(
+                        session, guild_id=guild_id, user_id=user_id
+                    )
+    except Exception:
+        logger.exception(
+            "auto-join: user %s joined guild %s but was enrolled in none of its "
+            "auto-join initiatives",
+            user_id,
+            guild_id,
+        )
 
 
 # Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII

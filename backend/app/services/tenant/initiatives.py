@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+import logging
 from typing import Iterable
 
 from sqlalchemy import case, desc, func, or_, true
@@ -29,6 +30,8 @@ from app.schemas.tenant.initiative import (
     InitiativeJoinRequestRead,
 )
 
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_INITIATIVE_NAME = "Default Initiative"
 DEFAULT_INITIATIVE_COLOR = "#2563eb"
@@ -673,6 +676,7 @@ async def list_directory_entries(
             description=initiative.description,
             color=initiative.color,
             join_policy=initiative.join_policy,
+            auto_join=initiative.auto_join,
             member_count=count,
             is_member=member,
             has_pending_request=pending,
@@ -741,6 +745,71 @@ async def self_join(
             raise
         return existing
     return membership
+
+
+async def list_auto_join_initiatives(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+) -> list[Initiative]:
+    """The initiatives a new member of ``guild_id`` is enrolled in on arrival.
+
+    Live ones only — an archived or soft-deleted initiative is not somewhere to
+    land. ``ck_initiatives_auto_join_open`` already guarantees every row here is
+    ``join_policy = 'open'``, i.e. one the same person could have joined by
+    themselves from the directory a moment later. Enrolment therefore hands out
+    nothing that was not already on offer; it only saves the click.
+
+    The session must already be routed into the guild's schema.
+    """
+    result = await session.exec(
+        select(Initiative)
+        .where(
+            Initiative.guild_id == guild_id,
+            Initiative.auto_join.is_(True),
+            Initiative.is_archived.is_(False),
+            Initiative.deleted_at.is_(None),
+        )
+        .order_by(Initiative.id.asc())
+    )
+    return list(result.all())
+
+
+async def enroll_in_auto_join_initiatives(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> list[int]:
+    """Enrol a brand-new guild member in the guild's auto-join initiatives.
+
+    Each enrolment routes through :func:`self_join`, so an arrival lands on the
+    same membership row every other join path writes — built-in ``member`` role,
+    ``oidc_managed`` false, so group sync neither reaps nor fights it.
+
+    Best effort, per initiative: one initiative that cannot take a member (its
+    built-in ``member`` role is missing, say) is logged and skipped inside its
+    own savepoint, so the rest still enrol and the guild join that triggered
+    this never fails over an onboarding convenience.
+
+    Returns the ids actually joined. The session must already be routed into the
+    guild's schema; flush-only, the caller owns the transaction.
+    """
+    joined: list[int] = []
+    for initiative in await list_auto_join_initiatives(session, guild_id=guild_id):
+        try:
+            async with session.begin_nested():
+                await self_join(session, initiative=initiative, user_id=user_id)
+        except Exception:
+            logger.exception(
+                "auto-join: user %s was not enrolled in initiative %s of guild %s",
+                user_id,
+                initiative.id,
+                guild_id,
+            )
+            continue
+        joined.append(initiative.id)
+    return joined
 
 
 # ============================================================================

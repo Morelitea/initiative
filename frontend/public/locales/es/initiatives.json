@@ -138,6 +138,14 @@
       "openLabel": "Cualquiera puede unirse",
       "openHelp": "Aparece en el directorio del gremio. Cualquier miembro del gremio puede unirse por su cuenta, con acceso de solo lectura al principio."
     },
+    "autoJoin": {
+      "label": "Añadir automáticamente a cada nuevo miembro del gremio",
+      "help": "Quien se una a este gremio a partir de ahora pasará a ser miembro de esta iniciativa, con acceso de solo lectura al principio.",
+      "notRetroactive": "Las personas que ya están en el gremio no se añaden: pueden unirse a esta iniciativa por su cuenta desde el directorio del gremio.",
+      "requiresOpen": "La incorporación automática requiere la política «Cualquiera puede unirse» de arriba. Una iniciativa a la que nadie puede entrar por su cuenta no debería inscribir a nadie automáticamente: quien la abandonara no podría volver a entrar.",
+      "lockedNote": "Un administrador del gremio activó la incorporación automática en esta iniciativa, así que debe seguir abierta a todo el mundo. Pide a un administrador que la desactive antes de cambiar esto.",
+      "turnedOff": "La incorporación automática está desactivada: solo está disponible mientras cualquiera pueda unirse."
+    },
     "membersTitle": "Miembros",
     "membersDescription": "Los gerentes de proyecto de la iniciativa y los administradores del gremio pueden gestionar la membresía.",
     "filterByName": "Filtrar por nombre",

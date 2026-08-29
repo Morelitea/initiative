@@ -25,6 +25,11 @@ interface InitiativeSettingsDetailsTabProps {
   /** How guild members may join this initiative. */
   joinPolicy: InitiativeJoinPolicy;
   onChangeJoinPolicy: (value: InitiativeJoinPolicy) => void;
+  /** Whether every new guild member is enrolled here on arrival. */
+  autoJoin: boolean;
+  onChangeAutoJoin: (next: boolean) => void;
+  /** Auto-join is the guild admin's to set, even among initiative managers. */
+  canManageAutoJoin: boolean;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -41,6 +46,9 @@ export const InitiativeSettingsDetailsTab = ({
   onToggleTool,
   joinPolicy,
   onChangeJoinPolicy,
+  autoJoin,
+  onChangeAutoJoin,
+  canManageAutoJoin,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -113,6 +121,10 @@ export const InitiativeSettingsDetailsTab = ({
         onChange={onChangeJoinPolicy}
         canManage={canManageMembers}
         isSaving={isSaving}
+        autoJoin={autoJoin}
+        // Absent for a manager who is not a guild admin: the server refuses the
+        // field from them, so the control is not offered rather than shown inert.
+        onChangeAutoJoin={canManageAutoJoin ? onChangeAutoJoin : undefined}
       />
       <AdvancedToolsSection
         layout="card"

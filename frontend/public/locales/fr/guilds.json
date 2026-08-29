@@ -125,6 +125,13 @@
     "discoveryCapacityBlocked": "Cette guilde n’a de place que pour une personne : personne ne pourrait la rejoindre depuis l’annuaire. Demandez à votre opérateur de plateforme d’augmenter la limite de membres.",
     "discoveryListed": "Inscrite à l’annuaire des communautés.",
     "discoveryNotListed": "Non inscrite. Seules les personnes disposant d’une invitation peuvent la rejoindre.",
+    "autoJoinPromptTitle": "Les nouveaux membres arriveront dans une guilde vide",
+    "autoJoinPromptBody": "Rejoindre cette guilde n’inscrit personne dans une initiative, et le contenu d’une initiative reste caché tant qu’on n’y est pas. Choisissez où les nouveaux arrivants doivent atterrir.",
+    "autoJoinPromptChooseLabel": "Initiative pour les nouveaux membres",
+    "autoJoinPromptEffect": "L’initiative choisie devient accessible à tous les membres de la guilde, et toute personne qui rejoint la guilde à partir de maintenant y sera ajoutée. Les membres déjà présents ne sont pas ajoutés.",
+    "autoJoinPromptAction": "Définir comme initiative d’accueil",
+    "autoJoinPromptDone": "Les nouveaux membres de la guilde arriveront désormais dans {{name}}.",
+    "autoJoinPromptCreateHint": "Pour les accueillir ailleurs, créez une initiative puis activez l’adhésion automatique dans ses paramètres d’adhésion.",
     "artwork": {
       "title": "Images",
       "none": "Aucune",

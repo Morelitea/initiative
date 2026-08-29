@@ -2726,6 +2726,7 @@ export interface InitiativeDirectoryEntry {
   description: string | null;
   color: string | null;
   join_policy: InitiativeJoinPolicy;
+  auto_join: boolean;
   member_count: number;
   is_member: boolean;
   has_pending_request: boolean;

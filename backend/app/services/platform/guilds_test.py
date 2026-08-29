@@ -8,15 +8,25 @@ Tests the business logic in app.services.guilds including:
 - Guild resolution and permissions
 """
 
+import logging
+
 import pytest
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import _RLS_PARAMS_INFO_KEY
 from app.models.platform.guild import GuildInvite, GuildRole
+from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.services.platform import guilds as guild_service
-from app.testing.factories import create_guild, create_guild_membership, create_user
+from app.testing.factories import (
+    create_guild,
+    create_guild_membership,
+    create_initiative,
+    create_user,
+)
+from app.testing.schema_harness import route_session_to_guild
 
 
 @pytest.mark.unit
@@ -824,3 +834,236 @@ async def test_list_memberships_includes_member_count(session: AsyncSession):
 
     assert counts[shared.id] == 2
     assert counts[solo.id] == 1
+
+
+# ============================================================================
+# Auto-join enrolment (discovery §5): the hook on the genuine-join chokepoint
+# ============================================================================
+
+
+async def _initiative_role_names(
+    session: AsyncSession, *, guild_id: int, user_id: int
+) -> dict[int, str]:
+    """The initiatives ``user_id`` belongs to in ``guild_id``, by role name."""
+    await route_session_to_guild(session, guild_id)
+    rows = (
+        await session.exec(
+            select(InitiativeMember, InitiativeRoleModel)
+            .join(
+                InitiativeRoleModel,
+                InitiativeRoleModel.id == InitiativeMember.role_id,
+            )
+            .where(InitiativeMember.user_id == user_id)
+        )
+    ).all()
+    return {member.initiative_id: role.name for member, role in rows}
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSession):
+    """Arriving in a guild lands the new member in its auto-join initiatives —
+    with the built-in member role, and not managed by OIDC."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    welcome = await create_initiative(
+        session, guild, admin, name="Welcome", join_policy="open", auto_join=True
+    )
+    lounge = await create_initiative(
+        session, guild, admin, name="Lounge", join_policy="open", auto_join=True
+    )
+    # Open, but nobody is put in it automatically.
+    opt_in = await create_initiative(
+        session, guild, admin, name="Opt in", join_policy="open"
+    )
+    private = await create_initiative(session, guild, admin, name="Private")
+
+    joiner = await create_user(session, email="joiner@example.com")
+    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
+    await session.commit()
+
+    roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
+    assert roles == {welcome.id: "member", lounge.id: "member"}
+    assert opt_in.id not in roles
+    assert private.id not in roles
+
+    member_row = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == welcome.id,
+                InitiativeMember.user_id == joiner.id,
+            )
+        )
+    ).one()
+    assert member_row.oidc_managed is False
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
+    session: AsyncSession,
+):
+    """An initiative nobody can open is not somewhere to land."""
+    from datetime import datetime as _datetime
+
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    live = await create_initiative(
+        session, guild, admin, name="Live", join_policy="open", auto_join=True
+    )
+    archived = await create_initiative(
+        session,
+        guild,
+        admin,
+        name="Archived",
+        join_policy="open",
+        auto_join=True,
+        is_archived=True,
+    )
+    deleted = await create_initiative(
+        session,
+        guild,
+        admin,
+        name="Deleted",
+        join_policy="open",
+        auto_join=True,
+        deleted_at=_datetime.now(timezone.utc),
+    )
+
+    joiner = await create_user(session, email="joiner@example.com")
+    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
+    await session.commit()
+
+    roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
+    assert set(roles) == {live.id}
+    assert archived.id not in roles
+    assert deleted.id not in roles
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_returning_member_is_not_re_enrolled(session: AsyncSession):
+    """Enrolment is onboarding, not a sweep: someone already in the guild is
+    returned early and picks up nothing, even if auto-join was switched on
+    after they arrived."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    member = await create_user(session, email="member@example.com")
+    await create_guild_membership(session, user=member, guild=guild)
+    later = await create_initiative(
+        session, guild, admin, name="Added later", join_policy="open", auto_join=True
+    )
+
+    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=member.id)
+    await session.commit()
+
+    roles = await _initiative_role_names(session, guild_id=guild.id, user_id=member.id)
+    assert later.id not in roles
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
+    """A guild admin already reaches every initiative in their guild, and the
+    built-in member role is one they must never hold."""
+    founder = await create_user(session)
+    guild = await create_guild(session, creator=founder)
+    welcome = await create_initiative(
+        session, guild, founder, name="Welcome", join_policy="open", auto_join=True
+    )
+
+    second_admin = await create_user(session, email="admin2@example.com")
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=second_admin.id, role=GuildRole.admin
+    )
+    await session.commit()
+
+    roles = await _initiative_role_names(
+        session, guild_id=guild.id, user_id=second_admin.id
+    )
+    assert welcome.id not in roles
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_guild_without_auto_join_initiatives_admits_normally(
+    session: AsyncSession,
+):
+    """The unchanged case: nothing flagged, nothing enrolled, no error."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_initiative(session, guild, admin, name="Private")
+
+    joiner = await create_user(session, email="joiner@example.com")
+    membership = await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=joiner.id
+    )
+    await session.commit()
+
+    assert membership.role == GuildRole.member
+    assert (
+        await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
+        == {}
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, caplog):
+    """An initiative that cannot take a member is logged and skipped; the guild
+    join stands and the other initiatives still enrol."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    broken = await create_initiative(
+        session, guild, admin, name="Broken", join_policy="open", auto_join=True
+    )
+    healthy = await create_initiative(
+        session, guild, admin, name="Healthy", join_policy="open", auto_join=True
+    )
+    # An initiative whose built-in member role is gone can take no joiner.
+    await route_session_to_guild(session, guild.id)
+    await session.exec(
+        delete(InitiativeRoleModel).where(
+            InitiativeRoleModel.initiative_id == broken.id,
+            InitiativeRoleModel.name == "member",
+        )
+    )
+    await session.commit()
+
+    joiner = await create_user(session, email="joiner@example.com")
+    with caplog.at_level(logging.ERROR):
+        membership = await guild_service.ensure_membership(
+            session, guild_id=guild.id, user_id=joiner.id
+        )
+    await session.commit()
+
+    assert membership.role == GuildRole.member
+    roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
+    assert set(roles) == {healthy.id}
+    assert any("auto-join" in record.message for record in caplog.records)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_enrolment_hands_the_session_back_unrouted(session: AsyncSession):
+    """The excursion into the guild schema is invisible to the caller, which
+    keeps using the session afterwards."""
+    admin = await create_user(session)
+    guild = await create_guild(session, creator=admin)
+    await create_initiative(
+        session, guild, admin, name="Welcome", join_policy="open", auto_join=True
+    )
+    joiner = await create_user(session, email="joiner@example.com")
+
+    assert _RLS_PARAMS_INFO_KEY not in session.info
+    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
+
+    assert _RLS_PARAMS_INFO_KEY not in session.info
+    # ... and a shared-table read still works on the caller's own terms.
+    await session.commit()
+    assert (
+        await guild_service.get_membership(
+            session, guild_id=guild.id, user_id=joiner.id
+        )
+        is not None
+    )

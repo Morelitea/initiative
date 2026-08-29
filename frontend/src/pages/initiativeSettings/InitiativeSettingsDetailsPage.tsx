@@ -2,18 +2,19 @@
  * `/settings` — an initiative's name, description, colour, how people join it,
  * and which optional tools it offers.
  *
- * The name/description/colour form saves on its button; the join policy and the
- * tool switches are single settings that save on change, each sending only the
- * field that moved.
+ * The name/description/colour form saves on its button; the join policy, the
+ * auto-join switch, and the tool switches are single settings that save on
+ * change, each sending only the field that moved — with the one coupling the
+ * server enforces (auto-join needs an open policy) resolved before the request.
  */
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
+import {
   InitiativeJoinPolicy,
-  InitiativeUpdate,
-  Tool,
+  type InitiativeUpdate,
+  type Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeSettingsDetailsTab } from "@/components/initiatives/settings/InitiativeSettingsDetailsTab";
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
@@ -27,7 +28,7 @@ const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsDetailsPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const { initiativeId, initiative, canManageMembers } = useInitiativeSettings();
+  const { initiativeId, initiative, canManageMembers, isGuildAdmin } = useInitiativeSettings();
 
   const [name, setName] = useState(initiative?.name ?? "");
   const [description, setDescription] = useState(initiative?.description ?? "");
@@ -69,8 +70,28 @@ export const InitiativeSettingsDetailsPage = () => {
 
   // Only the field the manager touched is sent, so an unrelated save never
   // rewrites a policy this screen wasn't asked about.
+  //
+  // The one exception is auto-join, which is not an independent field: it is
+  // valid only alongside `open`, so a guild admin closing the initiative sends
+  // both halves at once rather than being handed a refusal for a pair the UI
+  // let them assemble. A manager who is not a guild admin cannot send the field
+  // at all, so for them the section locks the other policies instead.
   const handleChangeJoinPolicy = (value: InitiativeJoinPolicy) => {
-    updateInitiative.mutate({ initiativeId, data: { join_policy: value } });
+    const clearsAutoJoin =
+      isGuildAdmin && Boolean(initiative?.auto_join) && value !== InitiativeJoinPolicy.open;
+    updateInitiative.mutate(
+      {
+        initiativeId,
+        data: clearsAutoJoin ? { join_policy: value, auto_join: false } : { join_policy: value },
+      },
+      clearsAutoJoin
+        ? { onSuccess: () => toast.info(t("initiatives:settings.autoJoin.turnedOff")) }
+        : undefined
+    );
+  };
+
+  const handleChangeAutoJoin = (next: boolean) => {
+    updateInitiative.mutate({ initiativeId, data: { auto_join: next } });
   };
 
   // One handler for every toggleable tool's master switch — the update field
@@ -104,6 +125,9 @@ export const InitiativeSettingsDetailsPage = () => {
       onToggleTool={handleToggleTool}
       joinPolicy={initiative.join_policy}
       onChangeJoinPolicy={handleChangeJoinPolicy}
+      autoJoin={initiative.auto_join}
+      onChangeAutoJoin={handleChangeAutoJoin}
+      canManageAutoJoin={isGuildAdmin}
       canManageMembers={canManageMembers}
       isSaving={updateInitiative.isPending}
       onSaveDetails={handleSaveDetails}

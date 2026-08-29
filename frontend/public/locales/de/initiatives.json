@@ -138,6 +138,14 @@
       "openLabel": "Alle können beitreten",
       "openHelp": "Im Gildenverzeichnis gelistet. Jedes Gildenmitglied kann selbst beitreten, zunächst mit Lesezugriff."
     },
+    "autoJoin": {
+      "label": "Jedes neue Gildenmitglied automatisch hinzufügen",
+      "help": "Wer dieser Gilde ab jetzt beitritt, wird Mitglied dieser Initiative — zunächst mit reinem Lesezugriff.",
+      "notRetroactive": "Personen, die bereits in der Gilde sind, werden nicht hinzugefügt — sie können dieser Initiative selbst über das Gildenverzeichnis beitreten.",
+      "requiresOpen": "Automatischer Beitritt erfordert oben die Richtlinie „Alle können beitreten“. Einer Initiative, der niemand von sich aus beitreten kann, sollte niemand automatisch zugeordnet werden — wer sie verlässt, käme nie wieder hinein.",
+      "lockedNote": "Ein Gildenadmin hat den automatischen Beitritt für diese Initiative aktiviert, deshalb muss sie für alle offen bleiben. Bitte einen Admin, den automatischen Beitritt zuerst zu deaktivieren.",
+      "turnedOff": "Automatischer Beitritt ist aus — er ist nur möglich, solange alle beitreten können."
+    },
     "membersTitle": "Mitglieder",
     "membersDescription": "Initiative-Projektmanager und Gilden-Administratoren können die Mitgliedschaft verwalten.",
     "filterByName": "Nach Name filtern",

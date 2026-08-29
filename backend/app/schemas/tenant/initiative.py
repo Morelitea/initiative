@@ -217,6 +217,12 @@ class InitiativeDirectoryEntry(SanitizedBaseModel):
     description: Optional[str] = None
     color: Optional[str] = None
     join_policy: InitiativeJoinPolicy
+    # Whether new guild members are enrolled here on arrival. Discloses nothing
+    # a card does not already: ``ck_initiatives_auto_join_open`` means only an
+    # ``open`` initiative can carry it, and an open one is listed to every guild
+    # member anyway. It is what lets a guild's admin see, from the list they
+    # would pick from, whether arrivals currently land anywhere at all.
+    auto_join: bool = False
     member_count: int = 0
     is_member: bool = False
     has_pending_request: bool = False

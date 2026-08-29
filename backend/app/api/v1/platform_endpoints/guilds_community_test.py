@@ -17,14 +17,19 @@ from app.models.platform.guild import (
     GuildRole,
     GuildStatus,
 )
+from app.models.tenant.initiative import InitiativeMember
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform import app_settings as app_settings_service
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
+    create_initiative,
+    create_project,
     create_user,
     get_auth_headers,
     guild_administration,
 )
+from app.testing.schema_harness import route_session_to_guild
 
 
 @pytest.fixture(autouse=True)
@@ -923,3 +928,154 @@ async def test_switching_the_directory_off_keeps_the_guilds_opt_in(
 
     assert response.status_code == 200
     assert [item["name"] for item in response.json()["items"]] == ["Open Table"]
+
+
+# ============================================================================
+# Auto-join enrolment on arrival (discovery §5)
+# ============================================================================
+
+
+async def _initiative_with_shared_project(
+    session: AsyncSession, guild: Guild, owner, *, name: str, auto_join: bool
+):
+    """An initiative plus a project shared with everyone in it.
+
+    Gate 4 is satisfied for any member, so initiative membership is the only
+    thing that decides whether the project is reachable.
+    """
+    initiative = await create_initiative(
+        session, guild, owner, name=name, join_policy="open", auto_join=auto_join
+    )
+    project = await create_project(session, initiative, owner, name=f"{name} work")
+    await route_session_to_guild(session, guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=guild.id,
+            initiative_id=initiative.id,
+        )
+    )
+    await session.commit()
+    return initiative, project
+
+
+@pytest.mark.integration
+async def test_community_join_enrols_in_auto_join_initiatives(
+    client: AsyncClient, session: AsyncSession
+):
+    """Joining a public guild lands the arrival in real content.
+
+    The membership row is the only thing that moves, and RLS does the rest: the
+    auto-join initiative's project is reachable the moment the join returns,
+    while its opt-in sibling in the same guild stays hidden.
+    """
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session, name="Open Table", creator=owner)
+    await _list_as_community(session, guild)
+    welcome, welcome_project = await _initiative_with_shared_project(
+        session, guild, owner, name="Welcome", auto_join=True
+    )
+    _optin, optin_project = await _initiative_with_shared_project(
+        session, guild, owner, name="Opt in", auto_join=False
+    )
+
+    joiner = await create_user(session, email="joiner@example.com")
+    headers = get_auth_headers(joiner)
+
+    # Not in the guild yet: the guild gate refuses before RLS is ever consulted.
+    before = await client.get(
+        f"/api/v1/g/{guild.id}/projects/{welcome_project.id}", headers=headers
+    )
+    assert before.status_code == 403
+
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+    assert response.status_code == 200
+
+    after = await client.get(
+        f"/api/v1/g/{guild.id}/projects/{welcome_project.id}", headers=headers
+    )
+    assert after.status_code == 200
+    assert after.json()["name"] == "Welcome work"
+
+    # The initiative that did not ask for arrivals is still hidden — so the
+    # enrolment, not plain guild membership, is what opened the first one.
+    sibling = await client.get(
+        f"/api/v1/g/{guild.id}/projects/{optin_project.id}", headers=headers
+    )
+    assert sibling.status_code == 404
+
+    await route_session_to_guild(session, guild.id)
+    rows = (
+        await session.exec(
+            select(InitiativeMember).where(InitiativeMember.user_id == joiner.id)
+        )
+    ).all()
+    assert [row.initiative_id for row in rows] == [welcome.id]
+    assert rows[0].oidc_managed is False
+
+
+@pytest.mark.integration
+async def test_community_join_of_a_guild_with_no_auto_join_initiatives(
+    client: AsyncClient, session: AsyncSession
+):
+    """The unchanged path: nothing flagged, so the join behaves exactly as it
+    did before the feature."""
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session, name="Open Table", creator=owner)
+    await _list_as_community(session, guild)
+    await create_initiative(session, guild, owner, name="Private")
+
+    joiner = await create_user(session, email="joiner@example.com")
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=get_auth_headers(joiner)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["role"] == GuildRole.member.value
+    await route_session_to_guild(session, guild.id)
+    rows = (
+        await session.exec(
+            select(InitiativeMember).where(InitiativeMember.user_id == joiner.id)
+        )
+    ).all()
+    assert rows == []
+
+
+@pytest.mark.integration
+async def test_repeat_community_join_does_not_duplicate_enrolment(
+    client: AsyncClient, session: AsyncSession
+):
+    """A second join is still a no-op, enrolment included."""
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session, name="Open Table", creator=owner)
+    await _list_as_community(session, guild)
+    welcome = await create_initiative(
+        session, guild, owner, name="Welcome", join_policy="open", auto_join=True
+    )
+
+    joiner = await create_user(session, email="joiner@example.com")
+    headers = get_auth_headers(joiner)
+    first = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+    second = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    await route_session_to_guild(session, guild.id)
+    rows = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.user_id == joiner.id,
+                InitiativeMember.initiative_id == welcome.id,
+            )
+        )
+    ).all()
+    assert len(rows) == 1
