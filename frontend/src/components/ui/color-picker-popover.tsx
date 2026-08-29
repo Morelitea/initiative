@@ -68,9 +68,18 @@ export const ColorPickerPopover = ({
     onChangeCompleteRef.current = onChangeComplete;
   });
 
+  // What the picker was last opened on — the colour a commit is measured
+  // against. It cannot be `value`: a caller that previews live moves its own
+  // state from `onChange`, so by the time the popover closes `value` has
+  // already caught up with the draft, and comparing the two would say nothing
+  // changed and never commit. While the popover is closed the two are the same
+  // thing, so this also follows a colour changed from elsewhere.
+  const committedRef = useRef(value);
+
   useEffect(() => {
     if (!open) {
       setDraftColor(value);
+      committedRef.current = value;
     }
   }, [open, value]);
 
@@ -82,12 +91,13 @@ export const ColorPickerPopover = ({
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (!nextOpen && draftColor !== value) {
+      if (!nextOpen && draftColor !== committedRef.current) {
+        committedRef.current = draftColor;
         onChangeCompleteRef.current?.(draftColor);
       }
       setOpen(nextOpen);
     },
-    [draftColor, value]
+    [draftColor]
   );
 
   const swatchStyle = useMemo(() => ({ backgroundColor: draftColor }), [draftColor]);

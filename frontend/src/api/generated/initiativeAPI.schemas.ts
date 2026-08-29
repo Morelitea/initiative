@@ -5335,6 +5335,14 @@ export type ListProjectsApiV1GGuildIdProjectsGetParams = {
    */
   slim?: boolean;
   /**
+   * Order by one of: name, initiative, updated_at. Omit to keep the reader's own manual order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -5566,7 +5574,13 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
    * @maximum 100
    */
   page_size?: number;
+  /**
+   * Order by one of: name, initiative, updated_at, created_at.
+   */
   sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
   sort_dir?: string | null;
 };
 
@@ -5845,6 +5859,18 @@ export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody = {
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;
   /**
+   * Case-insensitive substring match on name.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -5871,6 +5897,18 @@ export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams = {
 
 export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
   initiative_id?: number | null;
+  /**
+   * Case-insensitive substring match on name.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
   /**
    * @minimum 1
    */
@@ -5900,6 +5938,18 @@ export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   /**
+   * Case-insensitive substring match on name.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -5919,6 +5969,18 @@ export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams = {
 
 export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
   initiative_id?: number | null;
+  /**
+   * Case-insensitive substring match on name.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for this tool's own default order.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
   /**
    * @minimum 1
    */

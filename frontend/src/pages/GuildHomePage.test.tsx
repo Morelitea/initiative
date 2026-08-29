@@ -343,6 +343,168 @@ describe("GuildHomePage", () => {
     await waitFor(() => expect(asked).toEqual(["2"]));
   });
 
+  it("asks the server for most-recently-updated first, unasked", async () => {
+    stubInitiatives();
+    const asked: URL[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        asked.push(new URL(request.url));
+        return page([buildProject({ id: 1, name: "Lunar Lander" })]);
+      })
+    );
+
+    renderHome();
+
+    expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+    expect(asked[0].searchParams.get("sort_by")).toBe("updated_at");
+    expect(asked[0].searchParams.get("sort_dir")).toBe("desc");
+  });
+
+  it("searches the whole guild rather than the page in hand", async () => {
+    stubInitiatives();
+    const asked: string[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        const search = new URL(request.url).searchParams.get("search");
+        asked.push(search ?? "");
+        return page(
+          search
+            ? [buildProject({ id: 2, name: "Rover Telemetry" })]
+            : [
+                buildProject({ id: 1, name: "Lunar Lander" }),
+                buildProject({ id: 2, name: "Rover Telemetry" }),
+              ]
+        );
+      })
+    );
+
+    renderHome();
+    await screen.findByRole("link", { name: "Lunar Lander" });
+
+    await userEvent.type(screen.getByPlaceholderText("Search by name…"), "rover");
+
+    // The text goes to the server, and the row it does not match leaves — it
+    // was never a client-side filter over the twenty rows already fetched.
+    await waitFor(() => expect(asked).toContain("rover"));
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: "Lunar Lander" })).not.toBeInTheDocument()
+    );
+    expect(screen.getByRole("link", { name: "Rover Telemetry" })).toBeInTheDocument();
+  });
+
+  it("keeps the search box on screen when the search finds nothing", async () => {
+    stubInitiatives();
+    server.use(
+      guildHttp.get("/projects/", ({ request }) =>
+        new URL(request.url).searchParams.get("search")
+          ? page([])
+          : page([buildProject({ id: 1, name: "Lunar Lander" })])
+      )
+    );
+
+    renderHome();
+    await screen.findByRole("link", { name: "Lunar Lander" });
+
+    await userEvent.type(screen.getByPlaceholderText("Search by name…"), "zzz");
+
+    // Not the "nothing here yet" story, which would take away the only way to
+    // unsay the search.
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: "Lunar Lander" })).not.toBeInTheDocument()
+    );
+    expect(screen.getByPlaceholderText("Search by name…")).toHaveValue("zzz");
+    expect(screen.queryByText("Nothing here yet")).not.toBeInTheDocument();
+  });
+
+  it("sorts by a column header, and says so in the address", async () => {
+    stubInitiatives();
+    const asked: URL[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        asked.push(new URL(request.url));
+        return page([buildProject({ id: 1, name: "Lunar Lander" })]);
+      })
+    );
+
+    renderHome();
+    await screen.findByRole("link", { name: "Lunar Lander" });
+
+    await userEvent.click(screen.getByRole("button", { name: /^name/i }));
+
+    await waitFor(() => expect(asked.at(-1)?.searchParams.get("sort_by")).toBe("name"));
+    expect(asked.at(-1)?.searchParams.get("sort_dir")).toBe("asc");
+  });
+
+  it("takes the order from the address, so a sorted table is a link", async () => {
+    stubInitiatives();
+    const asked: URL[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        asked.push(new URL(request.url));
+        return page([buildProject({ id: 1, name: "Lunar Lander" })]);
+      })
+    );
+
+    renderHome({ sort: "initiative", dir: "desc" });
+
+    expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+    expect(asked[0].searchParams.get("sort_by")).toBe("initiative");
+    expect(asked[0].searchParams.get("sort_dir")).toBe("desc");
+  });
+
+  it("toggles from the order in the address, not the one it mounted with", async () => {
+    stubInitiatives();
+    const asked: URL[] = [];
+    server.use(
+      guildHttp.get("/projects/", ({ request }) => {
+        asked.push(new URL(request.url));
+        return page([buildProject({ id: 1, name: "Lunar Lander" })]);
+      })
+    );
+
+    const { router } = renderHome();
+    await screen.findByRole("link", { name: "Lunar Lander" });
+
+    // The order changes after the table mounted — the back button landing on
+    // one, say. The headers have to follow it, or the next click toggles from
+    // where the table came in rather than from what the rows are actually in.
+    await router.navigate({ to: "/", search: { sort: "name", dir: "asc" } });
+    await waitFor(() => expect(asked.at(-1)?.searchParams.get("sort_by")).toBe("name"));
+
+    await userEvent.click(screen.getByRole("button", { name: /^name/i }));
+
+    // Ascending was showing, so one click means descending.
+    await waitFor(() => expect(asked.at(-1)?.searchParams.get("sort_dir")).toBe("desc"));
+    expect(asked.at(-1)?.searchParams.get("sort_by")).toBe("name");
+  });
+
+  it("drops a half-typed search when the tool changes under it", async () => {
+    stubInitiatives({ queues_enabled: true });
+    const asked: string[] = [];
+    server.use(
+      guildHttp.get("/projects/", () => page([buildProject({ id: 1, name: "Lunar Lander" })])),
+      guildHttp.get("/queues/", ({ request }) => {
+        asked.push(new URL(request.url).searchParams.get("search") ?? "");
+        return page([buildQueueSummary({ id: 3, name: "Launch Window" })]);
+      })
+    );
+
+    const { router } = renderHome();
+    await screen.findByRole("link", { name: "Lunar Lander" });
+
+    // Typed, then a tool picked before the search had gone anywhere — the
+    // rail's own link carries the tool and nothing else.
+    await userEvent.type(screen.getByPlaceholderText("Search by name…"), "rover");
+    await router.navigate({ to: "/", search: { tool: "queues" } });
+
+    expect(await screen.findByRole("link", { name: "Launch Window" })).toBeInTheDocument();
+    // The new tool is not narrowed by what was meant for the last one, and the
+    // box that text was typed into is empty.
+    await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+    expect(asked.every((search) => search === "")).toBe(true);
+    expect(screen.getByPlaceholderText("Search by name…")).toHaveValue("");
+  });
+
   it("says so when the selected tool has nothing in the guild", async () => {
     stubInitiatives();
     stubTools({ documents: [] });

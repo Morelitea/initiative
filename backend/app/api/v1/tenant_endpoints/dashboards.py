@@ -69,6 +69,7 @@ from app.services.marketplace.installs import (
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 from app.services.tenant.dashboard_definition import (
     DashboardDefinitionError,
     normalize_dashboard_config,
@@ -211,6 +212,17 @@ async def list_dashboards(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit for this "
+            "tool's own default order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
 ) -> DashboardListResponse:
@@ -244,6 +256,10 @@ async def list_dashboards(
         )
     )
 
+    name_match = tool_listing.name_search_clause(Dashboard.name, search)
+    if name_match is not None:
+        conditions.append(name_match)
+
     count_subq = select(Dashboard.id).where(*conditions).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))
@@ -253,7 +269,15 @@ async def list_dashboards(
         select(Dashboard)
         .where(*conditions)
         .options(*dashboards_service.dashboard_loader_options())
-        .order_by(Dashboard.name.asc(), Dashboard.id.asc())
+    )
+    stmt = (
+        tool_listing.apply_tool_order(
+            stmt,
+            Dashboard,
+            sort_by,
+            sort_dir,
+            default=[Dashboard.name.asc(), Dashboard.id.asc()],
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

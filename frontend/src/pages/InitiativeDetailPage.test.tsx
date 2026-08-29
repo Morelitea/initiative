@@ -87,9 +87,9 @@ describe("InitiativeDetailPage", () => {
     stubEverything();
     renderAt();
 
-    // TOOL_TABS opens with documents.
-    expect(await screen.findByRole("tab", { name: "Documents" })).toBeInTheDocument();
-    expect(selectedTab()).toHaveAccessibleName("Documents");
+    // The tabs follow the registry order, which opens with projects.
+    expect(await screen.findByRole("tab", { name: "Projects" })).toBeInTheDocument();
+    expect(selectedTab()).toHaveAccessibleName("Projects");
   });
 
   // A permission change shouldn't dead-end a bookmark someone already has.
@@ -97,9 +97,9 @@ describe("InitiativeDetailPage", () => {
     stubEverything({ queues_enabled: false });
     renderAt(Tool.queue);
 
-    expect(await screen.findByRole("tab", { name: "Documents" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Projects" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Queues" })).not.toBeInTheDocument();
-    expect(selectedTab()).toHaveAccessibleName("Documents");
+    expect(selectedTab()).toHaveAccessibleName("Projects");
   });
 
   it("links each tab at its own URL rather than swapping state", async () => {

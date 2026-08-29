@@ -68,6 +68,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
@@ -230,6 +231,17 @@ async def list_counter_groups(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit for this "
+            "tool's own default order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> CounterGroupListResponse:
@@ -262,6 +274,10 @@ async def list_counter_groups(
         )
     )
 
+    name_match = tool_listing.name_search_clause(CounterGroup.name, search)
+    if name_match is not None:
+        conditions.append(name_match)
+
     count_subq = select(CounterGroup.id).where(*conditions).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
     total_count = (await session.exec(count_stmt)).one()
@@ -275,7 +291,15 @@ async def list_counter_groups(
             selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
             tags_service.TOOL_TAG_LINKS[Tool.counter_group].load_options(),
         )
-        .order_by(CounterGroup.updated_at.desc(), CounterGroup.id.desc())
+    )
+    stmt = (
+        tool_listing.apply_tool_order(
+            stmt,
+            CounterGroup,
+            sort_by,
+            sort_dir,
+            default=[CounterGroup.updated_at.desc(), CounterGroup.id.desc()],
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
