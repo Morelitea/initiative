@@ -80,6 +80,41 @@ BANNER_TEXT_COLORS: tuple[str, str] = ("#ffffff", "#000000")
 DEFAULT_BANNER_TEXT_COLOR = BANNER_TEXT_COLORS[0]
 
 
+class BannerTextAlign(str, Enum):
+    """Where a banner's name and description sit across its width.
+
+    Two answers, not a free position: centred reads as a masthead and is what a
+    banner with artwork built around a middle wants, while left-aligned lines
+    the copy up with the page's own content and is what a photograph with its
+    subject on one side wants. Anything finer would be a design tool, and the
+    guild is choosing between two looks rather than laying one out.
+    """
+
+    center = "center"
+    left = "left"
+
+
+class BannerFade(str, Enum):
+    """How far a banner dissolves into the page beneath it.
+
+    ``none`` ends the banner at an edge — a band with the page starting under
+    it. The other two extend it past that edge and fade it out there, so the
+    page's own content rides over the tail rather than starting below it: a
+    ``weak`` fade is a soft join, a ``strong`` one lets the banner read as the
+    page's background rather than as a strip on it.
+    """
+
+    none = "none"
+    weak = "weak"
+    strong = "strong"
+
+
+DEFAULT_BANNER_TEXT_ALIGN = BannerTextAlign.center.value
+#: An existing guild's banner must look tomorrow the way it looks today, so the
+#: banner that fades is the one whose guild asks for it.
+DEFAULT_BANNER_FADE = BannerFade.none.value
+
+
 class Guild(SQLModel, table=True):
     __tablename__ = "guilds"
     __allow_unmapped__ = True
@@ -128,6 +163,22 @@ class Guild(SQLModel, table=True):
         sa_column=Column(
             String(7), nullable=False, server_default=DEFAULT_BANNER_TEXT_COLOR
         ),
+    )
+    # How the banner is laid out: where the copy sits across it, and whether it
+    # ends at an edge or dissolves into the page. Both are presentation the
+    # guild picks, stored beside the colours they act on, and both are NOT NULL
+    # with a default for the same reason those are — there is no "banner with
+    # no layout" case downstream. Constrained by CHECK to the two enums above,
+    # since these values are read straight into a stylesheet.
+    banner_text_align: str = Field(
+        default=DEFAULT_BANNER_TEXT_ALIGN,
+        sa_column=Column(
+            String(8), nullable=False, server_default=DEFAULT_BANNER_TEXT_ALIGN
+        ),
+    )
+    banner_fade: str = Field(
+        default=DEFAULT_BANNER_FADE,
+        sa_column=Column(String(8), nullable=False, server_default=DEFAULT_BANNER_FADE),
     )
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(

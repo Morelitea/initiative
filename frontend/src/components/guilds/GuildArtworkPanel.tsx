@@ -15,6 +15,13 @@
  * artwork. It is a choice between two colours rather than a picker: black or
  * white is what keeps the words readable on a fill nobody here chose.
  *
+ * Beside the two colours are the two layout choices: where the copy sits
+ * across the banner, and whether the banner ends at an edge or is extended
+ * past it and dissolved into the page under the page's own content. Both are
+ * closed sets rather than sliders, and both save the moment they are picked —
+ * there is nothing to confirm about a look the preview above is already
+ * showing.
+ *
  * Where an operator has not given a guild banner artwork, this offers the
  * colour and no upload: an upload control that only ever answers "no" is worse
  * than none. The server refuses it regardless — this is what the settings page
@@ -33,7 +40,7 @@ import {
   updateGuildApiV1GuildsGuildIdPatch,
   useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet,
 } from "@/api/generated/guilds/guilds";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { BannerFade, BannerTextAlign, type GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -41,12 +48,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
-import { DARK_TEXT, LIGHT_TEXT, readableTextColor } from "@/lib/contrastColor";
+import { DARK_TEXT, LIGHT_TEXT, readableTextColor, readableTextShadow } from "@/lib/contrastColor";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { ImageRenditionError, renderGuildBanner, renderGuildIcon } from "@/lib/imageRenditions";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
-type Busy = "icon" | "banner" | "color" | null;
+type Busy = "icon" | "banner" | "color" | "layout" | null;
+
+/**
+ * How much of the preview each fade eats, as a share of its height.
+ *
+ * The real banner fades over a fixed distance measured up from its bottom
+ * edge, which is what keeps a short colour band and a tall photograph both
+ * looking right. A 4:1 preview is neither of those heights, so this shows the
+ * *impression* of each setting rather than its exact geometry — enough to
+ * choose between them, which is what a preview is for.
+ */
+const PREVIEW_FADE: Record<BannerFade, string | undefined> = {
+  none: undefined,
+  weak: "linear-gradient(to bottom, #000 65%, transparent 100%)",
+  strong: "linear-gradient(to bottom, #000 15%, transparent 100%)",
+};
 
 export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
@@ -54,6 +76,8 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const [busy, setBusy] = useState<Busy>(null);
   const [color, setColor] = useState(guild.banner_color);
   const [textColor, setTextColor] = useState(guild.banner_text_color);
+  const [align, setAlign] = useState<BannerTextAlign>(guild.banner_text_align);
+  const [fade, setFade] = useState<BannerFade>(guild.banner_fade);
   // Only an admin reaches this panel, which is who may read this. Until the
   // answer lands, assume artwork is on offer: it is the ordinary case, and the
   // server is what actually decides.
@@ -63,7 +87,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   useEffect(() => {
     setColor(guild.banner_color);
     setTextColor(guild.banner_text_color);
-  }, [guild.banner_color, guild.banner_text_color]);
+    setAlign(guild.banner_text_align);
+    setFade(guild.banner_fade);
+  }, [guild.banner_color, guild.banner_text_color, guild.banner_text_align, guild.banner_fade]);
 
   /** Write both colours; the reply is the whole guild, so state is replaced. */
   const saveColors = (fill: string, ink: string) =>
@@ -94,6 +120,20 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const commitTextColor = (next: string) => {
     setTextColor(next);
     saveColors(color, next);
+  };
+
+  /** Where the copy sits, and how the banner ends. Saved the moment it is
+   *  picked, like the colours — there is nothing to confirm about a look you
+   *  can already see. */
+  const commitLayout = (next: { align?: BannerTextAlign; fade?: BannerFade }) => {
+    if (next.align) setAlign(next.align);
+    if (next.fade) setFade(next.fade);
+    void run("layout", async () =>
+      updateGuildApiV1GuildsGuildIdPatch(guild.id, {
+        banner_text_align: next.align ?? align,
+        banner_fade: next.fade ?? fade,
+      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
+    );
   };
 
   /** Every write here answers with the whole guild, so state is replaced, not patched. */
@@ -192,19 +232,33 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
               reads from the draft colours below, so the pickers answer here
               rather than somewhere else on the page. */}
           <div
-            className="relative flex aspect-[4/1] w-full items-center justify-center overflow-hidden rounded-lg border"
-            style={{ backgroundColor: color }}
+            className={`relative flex aspect-[4/1] w-full items-center overflow-hidden rounded-lg border ${
+              align === BannerTextAlign.left ? "justify-start" : "justify-center"
+            }`}
           >
-            {bannerUrl ? (
-              <img
-                src={bannerUrl}
-                alt={t("guilds:settings.artwork.bannerPreviewAlt")}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : null}
+            {/* The ground and the fade on it, under the name rather than over
+                it — the same arrangement the real banner uses, so what the
+                fade does to the picture is visible and what it does to the
+                words (nothing) is too. */}
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundColor: color,
+                maskImage: PREVIEW_FADE[fade],
+                WebkitMaskImage: PREVIEW_FADE[fade],
+              }}
+            >
+              {bannerUrl ? (
+                <img
+                  src={bannerUrl}
+                  alt={t("guilds:settings.artwork.bannerPreviewAlt")}
+                  className="h-full w-full object-cover"
+                />
+              ) : null}
+            </div>
             <span
               className="relative truncate px-4 font-black text-lg sm:text-2xl"
-              style={{ color: textColor }}
+              style={{ color: textColor, textShadow: readableTextShadow(textColor) }}
             >
               {guild.name}
             </span>
@@ -278,7 +332,58 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                 ))}
               </div>
             </fieldset>
+            <fieldset className="space-y-2" disabled={busy !== null}>
+              <legend className="pb-2 font-medium text-sm">
+                {t("guilds:settings.artwork.bannerAlignLabel")}
+              </legend>
+              <div className="flex gap-2">
+                {[
+                  {
+                    value: BannerTextAlign.center,
+                    label: t("guilds:settings.artwork.alignCenter"),
+                  },
+                  { value: BannerTextAlign.left, label: t("guilds:settings.artwork.alignLeft") },
+                ].map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={align === option.value ? "default" : "outline"}
+                    aria-pressed={align === option.value}
+                    onClick={() => commitLayout({ align: option.value })}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="space-y-2" disabled={busy !== null}>
+              <legend className="pb-2 font-medium text-sm">
+                {t("guilds:settings.artwork.bannerFadeLabel")}
+              </legend>
+              <div className="flex gap-2">
+                {[
+                  { value: BannerFade.none, label: t("guilds:settings.artwork.fadeNone") },
+                  { value: BannerFade.weak, label: t("guilds:settings.artwork.fadeWeak") },
+                  { value: BannerFade.strong, label: t("guilds:settings.artwork.fadeStrong") },
+                ].map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={fade === option.value ? "default" : "outline"}
+                    aria-pressed={fade === option.value}
+                    onClick={() => commitLayout({ fade: option.value })}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </fieldset>
           </div>
+          <p className="text-muted-foreground text-sm">
+            {t("guilds:settings.artwork.bannerFadeHint")}
+          </p>
           <Button
             type="button"
             variant="ghost"
@@ -286,11 +391,14 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
             disabled={busy !== null}
             onClick={() =>
               // Null is a reset here, not a removal — a banner is never
-              // colourless, so the server puts both back to their defaults.
+              // colourless and never without a layout, so the server puts all
+              // four back to their defaults.
               void run("color", async () =>
                 updateGuildApiV1GuildsGuildIdPatch(guild.id, {
                   banner_color: null,
                   banner_text_color: null,
+                  banner_text_align: null,
+                  banner_fade: null,
                 } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
               )
             }

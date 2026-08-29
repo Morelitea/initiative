@@ -1020,3 +1020,115 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
     assert refused.json()["detail"] == "BANNER_TEXT_COLOR_INVALID"
     assert accepted.status_code == 200
     assert accepted.json()["banner_text_color"] == "#000000"
+
+
+# --- how the banner is laid out -----------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_banner_starts_centred_and_unfaded(client: AsyncClient, acting_user):
+    """The layout an existing guild's banner already has, so nothing moves
+    under a guild that never asked for it."""
+    from app.models.platform.guild import DEFAULT_BANNER_FADE, DEFAULT_BANNER_TEXT_ALIGN
+
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.get("/api/v1/guilds/", headers=a.headers)
+
+    entry = next(g for g in response.json() if g["id"] == a.guild.id)
+    assert entry["banner_text_align"] == DEFAULT_BANNER_TEXT_ALIGN
+    assert entry["banner_fade"] == DEFAULT_BANNER_FADE
+
+
+@pytest.mark.integration
+async def test_an_admin_sets_the_alignment_and_the_fade(
+    client: AsyncClient, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_text_align": "left", "banner_fade": "strong"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["banner_text_align"] == "left"
+    assert response.json()["banner_fade"] == "strong"
+
+
+@pytest.mark.integration
+async def test_a_layout_outside_the_vocabulary_is_refused(
+    client: AsyncClient, acting_user
+):
+    """Both values are read straight into a stylesheet, so the closed
+    vocabulary is the whole of what may be stored."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    align = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_text_align": "justify"},
+    )
+    fade = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_fade": "extreme"},
+    )
+
+    assert align.status_code == 422
+    assert fade.status_code == 422
+
+
+@pytest.mark.integration
+async def test_a_null_layout_is_a_reset(client: AsyncClient, acting_user):
+    """Same as the colours: a banner is never without a layout, so null puts
+    the default back rather than clearing anything."""
+    from app.models.platform.guild import DEFAULT_BANNER_FADE, DEFAULT_BANNER_TEXT_ALIGN
+
+    a = await acting_user(guild_role=GuildRole.admin)
+    await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_text_align": "left", "banner_fade": "weak"},
+    )
+
+    response = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_text_align": None, "banner_fade": None},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["banner_text_align"] == DEFAULT_BANNER_TEXT_ALIGN
+    assert response.json()["banner_fade"] == DEFAULT_BANNER_FADE
+
+
+@pytest.mark.integration
+async def test_a_member_cannot_lay_out_the_banner(client: AsyncClient, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin)
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=b.headers,
+        json={"banner_fade": "strong"},
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_the_guild_list_says_how_many_are_here_now(
+    client: AsyncClient, acting_user
+):
+    """The roster and the room: a guild's banner shows both, so both ride in
+    the payload it is drawn from. Nobody is connected in a test, so the live
+    half is zero — what matters is that it is stated rather than absent."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.get("/api/v1/guilds/", headers=a.headers)
+
+    entry = next(g for g in response.json() if g["id"] == a.guild.id)
+    assert entry["member_count"] == 1
+    assert entry["online_count"] == 0

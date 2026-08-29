@@ -45,8 +45,13 @@ export const GuildToolRail = ({ tools, selected }: GuildToolRailProps) => {
                 <span
                   className={cn(
                     "flex h-14 w-14 items-center justify-center rounded-full border transition-colors",
+                    // The selected circle's tint is translucent, and the rail
+                    // can be sitting over a guild banner that is fading out
+                    // beneath it — so the page's own ground goes under the
+                    // tint rather than letting the artwork show through the
+                    // one circle that is meant to stand out.
                     isSelected
-                      ? "border-primary bg-primary/10 text-primary"
+                      ? "border-primary bg-background bg-linear-to-b from-primary/10 to-primary/10 text-primary"
                       : "border-transparent bg-muted hover:bg-accent"
                   )}
                 >
