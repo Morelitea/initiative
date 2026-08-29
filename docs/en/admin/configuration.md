@@ -36,7 +36,7 @@ Guilds can also list themselves publicly, so people find and join them without a
 
 While it's off there is nothing to browse, nobody can join a guild without an invite, and the listing control doesn't appear in guild settings at all. Turning it off again later hides the directory rather than un-listing anyone: switch it back on and the same guilds are there.
 
-Listing is then each guild admin's own decision, and Initiative refuses to list a guild marked 18+ or one with room for only a single member. See [Listing your guild](../guides/guilds.md#listing-your-guild-administrators).
+Listing is then each guild admin's own decision: they pick the guild's categories and certify that it holds no adult or illegal content. Initiative refuses to list a guild with room for only a single member. See [Listing your guild](../guides/guilds.md#listing-your-guild-administrators).
 
 ## Running behind a reverse proxy
 

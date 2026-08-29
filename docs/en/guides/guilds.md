@@ -54,9 +54,8 @@ A guild admin can put their guild in the directory from **Guild settings → Gui
 
 You can unlist at any time; the guild and everything in it carry on exactly as before, it simply stops appearing to strangers.
 
-Two things keep a guild out of the directory whatever you set:
+The certification is the whole of the content rule — a guild that can't honestly tick it isn't listed. One other thing keeps a guild out of the directory whatever you do:
 
-- A guild marked **18+** is never listed.
 - A guild whose **member limit is set to one** is never listed — there would be no seat for anyone to join. (A nearly-full guild is fine; it's the limit itself that has to leave room.)
 
 !!! tip "Give arrivals somewhere to land"

@@ -56,7 +56,6 @@ const adminGuild = (overrides: Partial<GuildRead> = {}) =>
   buildGuild({ id: 7, role: "admin", ...overrides });
 
 const listingToggle = () => screen.getByLabelText("List this guild");
-const adultToggle = () => screen.getByLabelText("This guild contains adult content (18+)");
 const dialog = () => screen.getByRole("dialog");
 const certify = () => within(dialog()).getByLabelText("This guild contains no adult content");
 
@@ -235,29 +234,42 @@ describe("GuildDiscoveryPanel", () => {
 
       expect(listingToggle()).toBeEnabled();
     });
+  });
 
-    it("does not offer the toggle to a guild that has declared itself 18+", () => {
-      renderPanel(adminGuild({ has_adult_content: true }));
-
-      expect(listingToggle()).toBeDisabled();
-      expect(adultToggle()).toBeChecked();
-    });
-
-    it("declares adult content on a guild that is not listed", async () => {
+  /** The 18+ question belongs to the directory, so the panel never puts it to a
+   *  guild outside one — the certification in the dialog is where it is asked. */
+  describe("the 18+ question", () => {
+    it("is not put to a guild that keeps to itself", () => {
       renderPanel(adminGuild());
 
-      await userEvent.click(adultToggle());
-
-      await waitFor(() => {
-        expect(patchGuild).toHaveBeenCalledWith(7, { has_adult_content: true });
-      });
+      expect(screen.queryByText(/adult content \(18\+\)/)).not.toBeInTheDocument();
     });
 
-    it("makes a listed guild come off the directory before turning 18+", () => {
+    it("is not put to a listed guild either", () => {
       renderPanel(adminGuild({ is_community: true, categories: ["art"] }));
 
-      expect(adultToggle()).toBeDisabled();
-      expect(screen.getByText(/Un-list this guild/)).toBeInTheDocument();
+      expect(screen.queryByText(/adult content \(18\+\)/)).not.toBeInTheDocument();
+    });
+
+    it("still offers the listing to a guild that had declared itself 18+", async () => {
+      renderPanel(adminGuild({ has_adult_content: true }));
+
+      expect(listingToggle()).toBeEnabled();
+
+      await userEvent.click(listingToggle());
+      await screen.findByRole("dialog");
+      await userEvent.click(within(dialog()).getByRole("button", { name: "Gaming" }));
+      await userEvent.click(certify());
+      await userEvent.click(within(dialog()).getByRole("button", { name: "List this guild" }));
+
+      // The certification answers the question afresh, whatever it said before.
+      await waitFor(() => {
+        expect(patchGuild).toHaveBeenCalledWith(7, {
+          is_community: true,
+          categories: ["gaming"],
+          has_adult_content: false,
+        });
+      });
     });
   });
 
