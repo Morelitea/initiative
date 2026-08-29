@@ -160,7 +160,6 @@ async def test_search_project_members_returns_write_access_set(
 
     assert response.status_code == 200
     body = response.json()
-    # This guild renders handles, so that is what the roster is named by.
     handles = {item["username"] for item in body["items"]}
     # Owner (admin) + write-granted member are assignable.
     assert admin.user.username in handles
@@ -178,7 +177,7 @@ async def test_search_project_members_returns_write_access_set(
         "status",
     }
 
-    # The filter matches what the guild renders.
+    # The filter matches what the guild renders — the handle always.
     response = await client.get(
         admin.g(f"/projects/{project.id}/members/search"),
         headers=admin.headers,
@@ -188,14 +187,13 @@ async def test_search_project_members_returns_write_access_set(
     body = response.json()
     assert [item["username"] for item in body["items"]] == ["quill"]
 
-    # And a term only in the real name matches nothing here, for the same
-    # reason it matches nothing on the guild roster.
+    # And her name too, because this guild takes the default and shows names.
     response = await client.get(
         admin.g(f"/projects/{project.id}/members/search"),
         headers=admin.headers,
         params={"search": "Wanda"},
     )
-    assert response.json()["items"] == []
+    assert [item["username"] for item in response.json()["items"]] == ["quill"]
 
     # Id filter (a picker resolving stored ids into handles) narrows the same
     # assignable set — the read-only member is not resolvable through it.

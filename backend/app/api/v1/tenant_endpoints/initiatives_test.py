@@ -482,7 +482,7 @@ async def test_search_initiative_members_slim_and_filtered(
         "status",
     }
 
-    # Filtered by name.
+    # Filtered by handle, which every guild has for every member.
     response = await client.get(
         admin.g(f"/initiatives/{initiative.id}/members/search"),
         headers=admin.headers,
@@ -491,12 +491,23 @@ async def test_search_initiative_members_slim_and_filtered(
     assert response.status_code == 200
     body = response.json()
     assert body["total_count"] == 1
-    # This guild renders handles, so that is what the search matches on.
     assert body["items"][0]["username"] == "wonderland"
 
-    # And a term that appears only in the real name matches nothing, which is
-    # the half that matters: a filter over a field the guild does not show
-    # would be that field, read one query at a time.
+    # This guild takes the default and shows names, so a term that appears
+    # only in the real name finds her too.
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "Alice"},
+    )
+    assert response.json()["total_count"] == 1
+
+    # Turn names off and the same term matches nothing, which is the half that
+    # matters: the search reaches exactly what the guild renders.
+    admin.guild.show_member_names = False
+    session.add(admin.guild)
+    await session.commit()
+
     response = await client.get(
         admin.g(f"/initiatives/{initiative.id}/members/search"),
         headers=admin.headers,
@@ -2244,7 +2255,11 @@ async def test_join_request_notifies_managers(
         initiative_role="member",
     )
     member = await acting_user(
-        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        full_name="Ada Lovelace",
+        username="ada",
+        discriminator=1815,
     )
 
     response = await client.post(
@@ -2260,7 +2275,9 @@ async def test_join_request_notifies_managers(
     assert len(notes) == 1
     assert notes[0].data["initiative_id"] == initiative.id
     assert notes[0].data["requester_id"] == member.user.id
-    assert notes[0].data["requester_name"] == "Ada Lovelace"
+    # A notification is read on the cross-guild list, away from the guild it
+    # was written in, so it names her by handle whatever this guild renders.
+    assert notes[0].data["requester_name"] == "ada#1815"
     assert notes[0].data["request_id"] == response.json()["id"]
     # It was sent to be acted on, so it opens the queue rather than the
     # initiative's front page. Only managers ever receive one.
@@ -2413,7 +2430,11 @@ async def test_join_request_emails_the_managers(
         initiative_role="member",
     )
     member = await acting_user(
-        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        full_name="Ada Lovelace",
+        username="ada",
+        discriminator=1815,
     )
 
     response = await client.post(
@@ -2426,7 +2447,8 @@ async def test_join_request_emails_the_managers(
     assert [m["recipient_id"] for m in sent] == [manager.user.id]
     assert sent[0]["event"] == "requested"
     assert sent[0]["initiative_name"] == "Knockable"
-    assert sent[0]["requester"] == "Ada Lovelace"
+    # Mail is read outside the guild too, so the handle names her there as well.
+    assert sent[0]["requester"] == "ada#1815"
     assert sent[0]["message"] == "I maintain the parser"
     # Guild-scoped news, so the link carries the guild rather than being a bare
     # frontend path.

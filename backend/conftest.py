@@ -434,6 +434,14 @@ async def role_session():
     ``session`` fixture (factories commit, so the rows are visible to this
     separate connection), then assert via ``await role_session("app_admin")``.
 
+    Set any request context on it the way production does — ``set_config(...,
+    true)``, transaction-scoped, with the statements it applies to in the same
+    transaction. These engines reach Postgres the way the app does, through a
+    pooler in transaction mode, so a connection belongs to one caller only for
+    as long as a transaction lasts; session-level state written on it outlives
+    the test and is handed to whoever gets that connection next. CI runs the
+    whole suite through the pooler for this reason.
+
     Example:
         s = await role_session("app_admin")
         # raises asyncpg InsufficientPrivilege if the code reads a guild schema

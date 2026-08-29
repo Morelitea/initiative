@@ -366,10 +366,10 @@ async def test_mention_search_users_filters_by_name(
 
     assert response.status_code == 200
     body = response.json()
-    # This guild renders handles, so a suggestion is named by one.
-    shown = {item["display_text"] for item in body["items"]}
-    assert any(name.startswith("alice-ant#") for name in shown)
-    assert not any(name.startswith("bob-bee#") for name in shown)
+    # This guild takes the default and shows names, so a suggestion is named
+    # by one, with the handle under it to tell two of the same name apart.
+    assert {item["display_text"] for item in body["items"]} == {"Alice Ant"}
+    assert body["items"][0]["subtitle"].startswith("alice-ant#")
 
 
 @pytest.mark.integration
