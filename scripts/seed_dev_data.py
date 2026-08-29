@@ -53,6 +53,7 @@ from app.core.config import settings  # noqa: E402
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL  # noqa: E402
 from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
+from app.services.platform.usernames import allocate_from_seed  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
 from app.services.tenant.dashboard_definition import (  # noqa: E402
@@ -430,9 +431,20 @@ async def _create_users(
             ids.add("users", existing.id)
             users[ud["full_name"]] = existing
             continue
+        # Seeded people get a handle the way a real account does: from their
+        # name, with the number drawn for them. ``username`` may be given
+        # explicitly where a scenario wants a recognisable one.
+        handle, discriminator = await allocate_from_seed(
+            session, seed=ud.get("username") or ud["full_name"]
+        )
         user = User(
             email_hash=hash_email(ud["email"]),
             email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
+            username=handle,
+            discriminator=discriminator,
+            # Seeded accounts are set up ready to use, so they never meet the
+            # choose-your-handle screen.
+            username_chosen=True,
             full_name=ud["full_name"],
             hashed_password=get_password_hash("changeme"),
             role=ud.get("role", UserRole.member),
