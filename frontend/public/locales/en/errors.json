@@ -471,5 +471,13 @@
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirm this guild contains no adult content before listing it.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "A guild marked 18+ cannot be listed in the community directory.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "This guild has room for only one person, so it cannot be listed in the community directory.",
-  "COMMUNITY_DIRECTORY_DISABLED": "This deployment doesn't run a community directory."
+  "COMMUNITY_DIRECTORY_DISABLED": "This deployment doesn't run a community directory.",
+  "IMAGE_EMPTY": "That image was empty.",
+  "IMAGE_TOO_LARGE": "That image is too large.",
+  "IMAGE_INVALID": "That file is not a PNG, JPEG, WebP or GIF image.",
+  "IMAGE_WRONG_SIZE": "That image is larger than this slot allows.",
+  "IMAGE_WRONG_RATIO": "That image is the wrong shape for this slot.",
+  "IMAGE_NOT_FOUND": "That picture is no longer available.",
+  "BANNER_COLOR_INVALID": "Pick a colour in #rrggbb form.",
+  "BANNER_IMAGE_NOT_ENTITLED": "Banner images aren't included on this guild's plan. Pick a banner colour instead."
 }

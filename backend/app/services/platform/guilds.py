@@ -51,6 +51,10 @@ class CommunityDirectoryDisabledError(Exception):
     """Raised when the deployment runs no community directory at all."""
 
 
+class BannerColorError(Exception):
+    """Raised when a banner colour is not a ``#rrggbb`` value."""
+
+
 # A guild whose seat cap is one can never admit a joiner, so listing it would
 # publish a card whose only button is guaranteed to fail. Unlike a guild that is
 # merely full today, this one can never have room, which is why it is refused
@@ -466,7 +470,6 @@ async def create_guild(
     *,
     name: str,
     description: str | None = None,
-    icon_base64: str | None = None,
     creator: User | None = None,
     owner: User | None = None,
 ) -> Guild:
@@ -485,7 +488,6 @@ async def create_guild(
         description=description.strip()
         if description and description.strip()
         else None,
-        icon_base64=icon_base64,
         created_by=creator.id if creator else None,
         created_at=now,
         updated_at=now,
@@ -558,14 +560,39 @@ async def seed_guild_content(
         )
 
 
+#: The characters a hex colour is made of, checked one at a time. An explicit
+#: set rather than a pattern: the value ends up inside a style attribute, and
+#: "which characters are allowed" should be readable as exactly that.
+_HEX_DIGITS = frozenset("0123456789abcdef")
+
+
+def normalize_banner_color(value: str | None) -> str | None:
+    """``#rrggbb`` lowercased, or None. Anything else raises.
+
+    Accepts the ``#rrggbb`` a colour input produces in any case, and an empty
+    string as "no colour" — the settings page clears the field rather than
+    sending null when someone removes it.
+    """
+    if value is None:
+        return None
+    candidate = value.strip().lower()
+    if not candidate:
+        return None
+    if (
+        len(candidate) != 7
+        or candidate[0] != "#"
+        or any(character not in _HEX_DIGITS for character in candidate[1:])
+    ):
+        raise BannerColorError(GuildMessages.BANNER_COLOR_INVALID)
+    return candidate
+
+
 async def update_guild(
     session: AsyncSession,
     *,
     guild_id: int,
     name: str | None = None,
     description: str | None = None,
-    icon_base64: str | None = None,
-    icon_provided: bool = False,
     retention_days: int | None = None,
     retention_days_provided: bool = False,
     is_community: bool | None = None,
@@ -573,11 +600,14 @@ async def update_guild(
     categories_provided: bool = False,
     has_adult_content: bool | None = None,
     has_adult_content_provided: bool = False,
+    banner_color: str | None = None,
+    banner_color_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
     max_users_provided: bool = False,
     guild_auth_enabled: bool | None = None,
+    banner_image_enabled: bool | None = None,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -589,9 +619,11 @@ async def update_guild(
         if guild.description != normalized_description:
             guild.description = normalized_description
             updated = True
-    if icon_provided and icon_base64 != guild.icon_base64:
-        guild.icon_base64 = icon_base64
-        updated = True
+    if banner_color_provided:
+        normalized_color = normalize_banner_color(banner_color)
+        if guild.banner_color != normalized_color:
+            guild.banner_color = normalized_color
+            updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
     if is_community is not None and guild.is_community != is_community:
@@ -635,6 +667,7 @@ async def update_guild(
         max_storage_bytes_provided
         or max_users_provided
         or guild_auth_enabled is not None
+        or banner_image_enabled is not None
     ):
         administration_updated = False
         administration = await get_administration(session, guild_id=guild_id)
@@ -658,6 +691,12 @@ async def update_guild(
             and administration.guild_auth_enabled != guild_auth_enabled
         ):
             administration.guild_auth_enabled = guild_auth_enabled
+            administration_updated = True
+        if (
+            banner_image_enabled is not None
+            and administration.banner_image_enabled != banner_image_enabled
+        ):
+            administration.banner_image_enabled = banner_image_enabled
             administration_updated = True
         if administration_updated:
             session.add(administration)

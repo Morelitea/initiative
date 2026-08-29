@@ -13,7 +13,6 @@ from app.models.platform.guild import GuildCategory, GuildRole, GuildStatus
 class GuildBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[RawTextStr] = None
 
 
 class GuildCreate(GuildBase):
@@ -86,6 +85,17 @@ class GuildRead(GuildBase):
     # The 18+ declaration. ``None`` — unanswered — is the normal state for a
     # guild that has never been listed; listing requires an explicit ``False``.
     has_adult_content: Optional[bool] = None
+    # Where to fetch the guild's banner at full size, or ``None`` when it has
+    # none. A URL, never the bytes: the image is ~350 KB and this payload is a
+    # list of every guild the caller is in.
+    banner_url: Optional[str] = None
+    # The flat colour a guild may pick instead of banner artwork. Ignored when
+    # ``banner_url`` is set — a picture is a choice already made.
+    banner_color: Optional[str] = None
+    # Where to fetch the guild's icon, or ``None`` when it has none. A URL, as
+    # above: this payload lists every guild the caller is in, and the icon used
+    # to be a data URI inlined into all of them.
+    icon_url: Optional[str] = None
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -130,7 +140,6 @@ class GuildInviteStatus(SanitizedBaseModel):
 class GuildUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[RawTextStr] = None
     # Trash retention period in days. None means "never auto-purge".
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
@@ -143,6 +152,10 @@ class GuildUpdate(SanitizedBaseModel):
     # opt-in has no third state).
     is_community: Optional[bool] = None
     categories: Optional[List[GuildCategory]] = None
+    # The banner's flat-colour alternative, ``#rrggbb``. Omit-to-skip like the
+    # fields above; an explicit null clears it. The uploaded image is set
+    # through its own endpoint, not here — it is bytes, not a field.
+    banner_color: Optional[RawTextStr] = None
     # The 18+ declaration, and the one field here where null is an ANSWER
     # rather than a skip — it puts the guild back to undeclared. Omitting the
     # field is how you leave it alone, so this is read from
@@ -186,6 +199,9 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Per-guild sign-in entitlement (operator toggle). Only meaningful under the
     # per-guild AUTH_SCOPE posture; the dashboard hides the control otherwise.
     guild_auth_enabled: bool = False
+    # Whether this guild may upload banner artwork (operator toggle). On by
+    # default; a guild without it picks a banner colour instead.
+    banner_image_enabled: bool = True
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
@@ -203,6 +219,8 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
     status: Optional[GuildStatus] = None
     # Per-guild sign-in entitlement. Omit-to-skip (a bool is never null here).
     guild_auth_enabled: Optional[bool] = None
+    # Banner-artwork entitlement. Omit-to-skip, same as the one above.
+    banner_image_enabled: Optional[bool] = None
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
@@ -252,7 +270,24 @@ class GuildSummary(SanitizedBaseModel):
 
     id: int
     name: str
-    icon_base64: Optional[RawTextStr] = None
+    icon_url: Optional[str] = None
+
+
+class GuildEntitlementsRead(SanitizedBaseModel):
+    """What an operator has turned on for one guild, for its own admins.
+
+    Deliberately its own read rather than fields on :class:`GuildRead`: these
+    are the operator's decisions about a guild, they live on the separate
+    ``guild_administration`` row, and only a guild admin has any use for them —
+    a member's guild payload should not be carrying them at all.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    guild_id: int
+    # Whether this guild may upload banner artwork. Off means the settings page
+    # offers the banner colour alone; a banner already uploaded keeps showing.
+    banner_image_enabled: bool = True
 
 
 class GuildMembershipUpdate(SanitizedBaseModel):
@@ -295,11 +330,17 @@ class CommunityGuildRead(SanitizedBaseModel):
     id: int
     name: str
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[RawTextStr] = None
+    icon_url: Optional[str] = None
     categories: List[GuildCategory] = []
     member_count: int = 0
     online_count: int = 0
     already_member: bool = False
+    # The card rendition of the guild's banner, as a URL. A directory page is up
+    # to sixty of these, so the bytes stay out of the payload and are fetched
+    # (and then cached) per card.
+    banner_card_url: Optional[str] = None
+    # Its flat-colour alternative, which needs no fetch at all.
+    banner_color: Optional[str] = None
 
 
 class CommunityGuildPage(SanitizedBaseModel):

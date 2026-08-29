@@ -26,12 +26,14 @@ import { GuildToolRail } from "@/components/guildHome/GuildToolRail";
 import { GuildToolTable } from "@/components/guildHome/GuildToolTable";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
 import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
+import { PageBanner } from "@/components/PageBanner";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
+import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -134,14 +136,32 @@ export function GuildHomePage() {
     }
   }, [isLoading, totalCount, page, pageCount, setSearch]);
 
+  // A guild that has set a banner — a picture or a colour — gets the same
+  // header the community directory has, carrying its own name and description
+  // instead of ours. One that has set neither keeps the plain heading: a hero
+  // invented for it would say nothing.
+  const bannerUrl = activeGuild?.banner_url
+    ? resolveHeaderlessApiUrl(activeGuild.banner_url)
+    : null;
+  const hasBanner = Boolean(bannerUrl || activeGuild?.banner_color);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-bold text-2xl tracking-tight md:text-3xl">
-          {activeGuild?.name ?? t("title")}
-        </h1>
-        <p className="text-muted-foreground">{t("subtitle")}</p>
-      </div>
+      {hasBanner ? (
+        <PageBanner
+          imageUrl={bannerUrl}
+          color={activeGuild?.banner_color}
+          title={activeGuild?.name ?? t("title")}
+          subtitle={activeGuild?.description ?? undefined}
+        />
+      ) : (
+        <div>
+          <h1 className="font-bold text-2xl tracking-tight md:text-3xl">
+            {activeGuild?.name ?? t("title")}
+          </h1>
+          <p className="text-muted-foreground">{t("subtitle")}</p>
+        </div>
+      )}
 
       {hasNoInitiatives ? (
         <GuildHomeEmptyState

@@ -227,22 +227,20 @@ async def test_create_guild(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_create_guild_with_icon(client: AsyncClient, session: AsyncSession):
-    """Test creating a guild with an icon."""
+async def test_a_new_guild_has_no_icon_yet(client: AsyncClient, session: AsyncSession):
+    """An icon is a picture, not a field: a guild is created and then given
+    one, through ``PUT /guilds/{id}/icon``."""
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
-    payload = {
-        "name": "Icon Guild",
-        "description": "Guild with icon",
-        "icon_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-    }
-
-    response = await client.post("/api/v1/guilds/", headers=headers, json=payload)
+    response = await client.post(
+        "/api/v1/guilds/",
+        headers=headers,
+        json={"name": "Icon Guild", "description": "Guild with icon"},
+    )
 
     assert response.status_code == 201
-    data = response.json()
-    assert data["icon_base64"] is not None
+    assert response.json()["icon_url"] is None
 
 
 @pytest.mark.integration

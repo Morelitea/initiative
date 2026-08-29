@@ -86,8 +86,14 @@ class Guild(SQLModel, table=True):
     description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    icon_base64: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
+    # The banner's flat-colour alternative: ``#rrggbb``, or NULL for a guild
+    # that uploaded artwork or wants no banner at all. Identity, like the name
+    # and description above — three bytes that ride in the payload those
+    # columns already travel in, so choosing one costs neither a request nor
+    # any storage. The pictures themselves are rows in ``guild_images``.
+    # A CHECK constrains the shape; see the guild-banners migration.
+    banner_color: Optional[str] = Field(
+        default=None, sa_column=Column(String(7), nullable=True)
     )
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(

@@ -362,7 +362,7 @@ export const CreateTaskWizard = () => {
                 className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
                 onClick={() => handleGuildSelect(guild.id, guild.name)}
               >
-                <GuildAvatar name={guild.name} icon={guild.icon_base64} active={false} size="sm" />
+                <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} size="sm" />
                 <span className="font-medium text-sm">{guild.name}</span>
               </button>
             ))}
