@@ -1923,10 +1923,16 @@ async def test_resolving_a_request_someone_else_answered_conflicts(
 ):
     """A decision is claimed before it is granted.
 
-    Two managers answering at once both clear the pending check, so the write
-    itself is the gate: the second one matches no row and is refused, rather
-    than an approval creating a member that a simultaneous denial then records
-    as refused.
+    The guard is the ``WHERE status = 'pending'`` on the write, not the check
+    the caller did first — so a second answer matches no row and is refused,
+    and nothing is granted behind it. That is what stops an approval creating a
+    member that a simultaneous denial then records as refused.
+
+    This drives the two answers sequentially rather than truly concurrently.
+    It doesn't need to interleave them: the claim never consults the caller's
+    in-memory snapshot, only the row's committed state, so a stale pending
+    snapshot and an already-settled row take the same path. Serializing the
+    two writers is Postgres's row lock, not this code.
     """
     manager = await acting_user(guild_role=GuildRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
