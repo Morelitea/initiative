@@ -1800,12 +1800,16 @@ async def process_event_reminders() -> None:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
 
 
-async def notify_avatar_removed(session: AsyncSession, *, user: User) -> None:
+async def queue_avatar_removed(session: AsyncSession, *, user: User) -> None:
     """Tell a user their profile picture was taken down.
 
     In-app only. There is no preference to consult and no email or push: this
     is not something a user opts out of being told, and it is not urgent enough
     to interrupt them on a device.
+
+    Queues rather than sends: the caller commits, so the removal and the notice
+    of it land together or not at all. A picture that vanished with no
+    explanation is a support ticket.
     """
     await user_notifications.create_notification(
         session,
@@ -1813,4 +1817,3 @@ async def notify_avatar_removed(session: AsyncSession, *, user: User) -> None:
         notification_type=NotificationType.avatar_removed,
         data={"target_path": "/settings/profile"},
     )
-    await session.commit()

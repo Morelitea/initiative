@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import delete, select
 
@@ -127,11 +129,11 @@ async def get_avatar(session: AsyncSession, *, user_id: int) -> UserAvatar | Non
 
 async def store_avatar(
     session: AsyncSession, *, user: "User", avatar: ValidatedAvatar
-) -> UserAvatar:
+) -> str:
     """Write ``avatar`` as the user's picture, replacing any it had.
 
     One row per user, so a replacement overwrites in place and there is never
-    an orphan set of bytes to sweep.
+    an orphan set of bytes to sweep. Returns the stored digest.
 
     ``users.avatar_url`` is set to the serving path in the same transaction.
     That column already meant "where this user's picture is", and an uploaded
@@ -139,29 +141,31 @@ async def store_avatar(
     ours there keeps every payload that carries a user able to name the image
     without a second query, and leaves exactly one field for a client to read.
     """
-    row = await get_avatar(session, user_id=user.id)
-    if row is None:
-        row = UserAvatar(
-            user_id=user.id,
-            sha256=avatar.sha256,
-            content_type=avatar.content_type,
-            byte_size=avatar.byte_size,
-            width=avatar.width,
-            height=avatar.height,
-            data=avatar.data,
+    # Upsert rather than read-then-write: the row is keyed by user alone, so
+    # two uploads landing together (a double-click, two tabs) would otherwise
+    # both find nothing and both insert. Last writer wins, which is what
+    # "replace my picture" means.
+    values = {
+        "user_id": user.id,
+        "sha256": avatar.sha256,
+        "content_type": avatar.content_type,
+        "byte_size": avatar.byte_size,
+        "width": avatar.width,
+        "height": avatar.height,
+        "data": avatar.data,
+        "created_at": datetime.now(timezone.utc),
+    }
+    statement = pg_insert(UserAvatar).values(**values)
+    await session.exec(
+        statement.on_conflict_do_update(
+            index_elements=[UserAvatar.user_id],
+            set_={k: v for k, v in values.items() if k != "user_id"},
         )
-    else:
-        row.sha256 = avatar.sha256
-        row.content_type = avatar.content_type
-        row.byte_size = avatar.byte_size
-        row.width = avatar.width
-        row.height = avatar.height
-        row.data = avatar.data
-    session.add(row)
+    )
     user.avatar_url = avatar_url(user.id, avatar.sha256)
     session.add(user)
     await session.flush()
-    return row
+    return values["sha256"]
 
 
 async def delete_avatar(

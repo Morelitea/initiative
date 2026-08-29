@@ -275,11 +275,13 @@ async def remove_user_avatar(
     if user.avatar_url:
         user.avatar_url = None
         session.add(user)
-    await session.commit()
 
     if removed or had_picture:
-        # Silent removal reads as a bug and arrives as a support ticket.
-        await notifications_service.notify_avatar_removed(session, user=user)
+        # Queued before the commit, not after it: silent removal reads as a
+        # bug, so the picture going and the person being told are one write.
+        await notifications_service.queue_avatar_removed(session, user=user)
+
+    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

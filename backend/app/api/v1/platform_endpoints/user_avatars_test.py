@@ -309,3 +309,94 @@ async def test_anonymizing_a_user_leaves_no_face(
     ).first() is None
     refreshed = (await session.exec(select(User).where(User.id == user.id))).first()
     assert refreshed is not None and refreshed.avatar_url is None
+
+
+# --- the three things a review caught -----------------------------------------
+
+
+@pytest.mark.integration
+async def test_storing_does_not_depend_on_what_the_read_saw(
+    session: AsyncSession, monkeypatch
+):
+    """The row is keyed by user alone, so the write must not be conditional on
+    a read that another request can invalidate.
+
+    Two uploads landing together — a double-click, two tabs — both looked,
+    both found nothing, and the second lost to the primary key. The stale read
+    is forced here rather than raced for, so this fails deterministically if
+    the write stops being an upsert.
+    """
+    from app.services.platform import user_avatars as service
+
+    user = await create_user(session)
+    await service.store_avatar(
+        session, user=user, avatar=service.validate_avatar(png(256, 256))
+    )
+    await session.commit()
+
+    # The picture is there, but this request's read happened before it landed.
+    async def saw_nothing(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(service, "get_avatar", saw_nothing)
+
+    await service.store_avatar(
+        session, user=user, avatar=service.validate_avatar(jpeg(256, 256))
+    )
+    await session.commit()
+
+    rows = (
+        await session.exec(select(UserAvatar).where(UserAvatar.user_id == user.id))
+    ).all()
+    assert len(rows) == 1
+    # Last writer wins, which is what "replace my picture" means.
+    assert rows[0].content_type == "image/jpeg"
+
+
+@pytest.mark.integration
+async def test_a_stored_picture_is_named_on_the_user_row(
+    client: AsyncClient, session: AsyncSession
+):
+    """``users.avatar_url`` is what every payload naming a person carries, so a
+    ``user_avatars`` row nothing points at is a picture that has disappeared.
+    This is the invariant the backfill has to preserve too."""
+    user = await create_user(session)
+    await _upload(client, get_auth_headers(user))
+
+    row = (
+        await session.exec(select(UserAvatar).where(UserAvatar.user_id == user.id))
+    ).first()
+    stored = (await session.exec(select(User).where(User.id == user.id))).first()
+
+    assert row is not None and stored is not None
+    assert stored.avatar_url == f"/api/v1/users/{user.id}/avatar/{row.sha256}"
+    # And that URL actually serves.
+    assert (await client.get(stored.avatar_url)).status_code == 200
+
+
+@pytest.mark.integration
+async def test_a_takedown_and_its_notice_are_one_write(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The person being told is part of the takedown, not a step after it."""
+    from app.services.platform import user_notifications
+
+    owner = await create_user(session)
+    moderator = await create_user(session, role=UserRole.moderator)
+    await _upload(client, get_auth_headers(owner))
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("notification store is down")
+
+    monkeypatch.setattr(user_notifications, "create_notification", boom)
+
+    with pytest.raises(RuntimeError):
+        await client.delete(
+            f"/api/v1/admin/users/{owner.id}/avatar",
+            headers=get_auth_headers(moderator),
+        )
+
+    # The picture is still there: it is not taken down without the notice.
+    assert (
+        await session.exec(select(UserAvatar).where(UserAvatar.user_id == owner.id))
+    ).first() is not None

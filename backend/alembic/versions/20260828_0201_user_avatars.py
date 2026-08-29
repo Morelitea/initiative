@@ -111,6 +111,15 @@ def _copy_avatars(conn) -> None:
         ":data, now()) "
         "ON CONFLICT (user_id) DO NOTHING"
     )
+    # Moving the bytes is only half of it: ``users.avatar_url`` is what every
+    # payload naming a person carries, so a row nothing points at is a picture
+    # that has silently disappeared. Spelled out here rather than built by
+    # ``user_avatars.avatar_url()`` — a revision states what it writes.
+    name_it = sa.text(
+        "UPDATE public.users SET avatar_url = "
+        "'/api/v1/users/' || id || '/avatar/' || :sha256 "
+        "WHERE id = :user_id"
+    )
 
     written = 0
     skipped: list[int] = []
@@ -133,19 +142,24 @@ def _copy_avatars(conn) -> None:
                 skipped.append(user_id)
                 continue
             mime, data = decoded
+            digest = hashlib.sha256(data).hexdigest()
             conn.execute(
                 insert,
                 {
                     "user_id": user_id,
-                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "sha256": digest,
                     "content_type": mime,
                     "byte_size": len(data),
                     "data": data,
                 },
             )
+            conn.execute(name_it, {"user_id": user_id, "sha256": digest})
             written += 1
 
     if skipped:
+        # ``avatar_url`` is left as it is. The two were only ever alternatives
+        # by app convention, never by constraint, so a row here may still hold
+        # a valid externally hosted picture that this has no business clearing.
         print(
             f"user_avatars backfill: {len(skipped)} row(s) held an unusable "
             f"avatar and were left behind (user ids: {sorted(skipped)[:20]})"
@@ -155,6 +169,22 @@ def _copy_avatars(conn) -> None:
             f"user_avatars backfill accounted for {written} written + "
             f"{len(skipped)} skipped of {expected} rows — refusing to drop "
             "users.avatar_base64 with data unaccounted for"
+        )
+
+    # Every picture carried over must also be named by the row it belongs to,
+    # or it exists without being reachable.
+    named = conn.execute(
+        sa.text(
+            "SELECT count(*) FROM public.users u JOIN public.user_avatars a "
+            "ON a.user_id = u.id "
+            "WHERE u.avatar_url = '/api/v1/users/' || u.id || '/avatar/' || a.sha256"
+        )
+    ).scalar_one()
+    if named != written:
+        raise RuntimeError(
+            f"user_avatars backfill moved {written} pictures but named "
+            f"{named} of them on users.avatar_url — refusing to drop "
+            "users.avatar_base64 while a carried-over picture is unreachable"
         )
 
 
