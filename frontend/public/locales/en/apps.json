@@ -173,6 +173,10 @@
       "title": "Nearly there",
       "body": "The other service signed you in, but Initiative did not record it. Connect again from the app's settings — nothing was lost."
     },
+    "awaiting_approval": {
+      "title": "Waiting on an owner",
+      "body": "The other service asked somebody who owns that organization to approve this app. Nothing went wrong and nothing is set up yet — once they approve it, connect again from the app's settings."
+    },
     "closeTab": "You can close this tab."
   }
 }

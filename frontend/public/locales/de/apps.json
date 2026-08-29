@@ -173,6 +173,10 @@
       "title": "Fast geschafft",
       "body": "Der andere Dienst hat dich angemeldet, Initiative hat es aber nicht gespeichert. Verbinde dich in den Einstellungen der App erneut – es ging nichts verloren."
     },
+    "awaiting_approval": {
+      "title": "Warten auf eine Freigabe",
+      "body": "Der andere Dienst hat jemanden, dem diese Organisation gehört, um Freigabe dieser App gebeten. Es ist nichts schiefgegangen und noch nichts eingerichtet – sobald sie freigegeben ist, verbinde dich erneut über die Einstellungen der App."
+    },
     "closeTab": "Du kannst diesen Tab schließen."
   }
 }

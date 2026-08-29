@@ -78,6 +78,7 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services.auth import sessions as session_service
+from app.services.platform import billing_claim
 from app.services.platform import usernames as username_service
 from app.services.auth.identity import (
     ResolutionOutcome,
@@ -345,6 +346,9 @@ async def register_user(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=AuthMessages.UNABLE_TO_CREATE_USER,
                 )
+            # Registration seeds the new account a guild of its own; claim it
+            # for them. Fire-and-forget, once the seed has committed.
+            billing_claim.claim_new_guild(user_id=user_id, guild_id=guild_id)
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register user due to integrity error")

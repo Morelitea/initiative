@@ -173,6 +173,10 @@
       "title": "Presque",
       "body": "L'autre service vous a identifié, mais Initiative ne l'a pas enregistré. Reconnectez-vous depuis les réglages de l'application — rien n'a été perdu."
     },
+    "awaiting_approval": {
+      "title": "En attente d'une approbation",
+      "body": "L'autre service a demandé à une personne propriétaire de cette organisation d'approuver cette app. Rien n'a échoué et rien n'est encore configuré : une fois approuvée, reconnectez-vous depuis les réglages de l'app."
+    },
     "closeTab": "Vous pouvez fermer cet onglet."
   }
 }
