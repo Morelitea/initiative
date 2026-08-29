@@ -79,17 +79,16 @@ export const getInitialsForUser = (user: DisplayableUser | null | undefined): st
 /** The minimum shape needed to resolve an avatar image source. */
 export interface AvatarSourceUser {
   avatar_url?: string | null;
-  avatar_base64?: string | null;
 }
 
 /**
  * The single source of truth for "what image src do we render for this user":
- * a resolved upload URL when present, else the inline base64 blob, else
- * undefined (the caller falls back to initials). Centralises the
- * ``resolveUploadUrl(avatar_url) || avatar_base64`` idiom that was duplicated
- * across the assignee picker, mentions, and task views.
+ * the picture's URL if they have one, else undefined and the caller falls back
+ * to initials. ``avatar_url`` is either a path this server serves the uploaded
+ * picture from or one linked from a single sign-on account; both resolve the
+ * same way.
  */
 export const getAvatarSrc = (user: AvatarSourceUser | null | undefined): string | undefined => {
   if (!user) return undefined;
-  return resolveUploadUrl(user.avatar_url ?? undefined) || user.avatar_base64 || undefined;
+  return resolveUploadUrl(user.avatar_url ?? undefined) || undefined;
 };

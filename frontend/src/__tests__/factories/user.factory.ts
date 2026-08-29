@@ -68,7 +68,6 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
     id: counter,
     email: `user-${counter}@example.com`,
     full_name: `User ${counter}`,
-    avatar_base64: null,
     avatar_url: null,
     ...overrides,
   };
@@ -82,7 +81,6 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
   return {
     id: counter,
     full_name: `User ${counter}`,
-    avatar_base64: null,
     avatar_url: null,
     status: "active",
     ...overrides,
@@ -96,7 +94,6 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     id: counter,
     email: `user-${counter}@example.com`,
     full_name: `User ${counter}`,
-    avatar_base64: null,
     avatar_url: null,
     role: "member",
     capabilities: capabilitiesForRole(role),
@@ -117,7 +114,6 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
     id: counter,
     email: `user-${counter}@example.com`,
     full_name: `User ${counter}`,
-    avatar_base64: null,
     avatar_url: null,
     role: "member",
     guild_role: "member",

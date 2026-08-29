@@ -15,6 +15,7 @@ from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
+from app.services.platform import user_avatars as user_avatars_service
 from app.models.tenant._mixins import created_by_models
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
@@ -495,8 +496,10 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # live on the identity links — remove the links themselves.
     await identity_service.delete_user_identities(session, user_id=user_id)
     user.full_name = None
-    user.avatar_base64 = None
     user.avatar_url = None
+    # The picture is a row of its own now, so nulling the column is not enough
+    # — the husk must not keep a face.
+    await user_avatars_service.delete_avatar(session, user_id=user_id)
 
     # Reset notification + interface preferences to defaults so the row
     # doesn't leak the user's behavioural profile.

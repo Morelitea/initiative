@@ -58,6 +58,7 @@ _RLS_SHARED_TABLES = {
     "platform_ai_connections",
     "storage_backfill_state",
     "user_api_keys",
+    "user_avatars",
     "user_view_preferences",
     "users",
 }

@@ -1,32 +1,36 @@
 /**
- * Preparing the pictures a guild is known by.
+ * Preparing an uploaded picture for storage.
  *
- * A guild admin picks one file. What the server stores are fixed renditions —
- * a square icon, and a banner in two sizes because its card appears up to sixty
- * times on a directory page and its front-page version is a third of a
- * megabyte. Producing those here rather than on the server means nobody is
- * asked to prepare two files, and the backend needs no image decoder in its
- * request path; it still checks format, weight, and shape on what arrives.
+ * Someone picks one file. What the server stores are fixed renditions — a
+ * square guild icon or profile picture, and a guild banner in two sizes
+ * because its card appears up to sixty times on a directory page and its
+ * front-page version is a third of a megabyte. Producing those here rather
+ * than on the server means nobody is asked to prepare two files, and the
+ * backend needs no image decoder in its request path; it still checks format,
+ * weight, and shape on what arrives.
  *
- * The specs mirror ``app/models/platform/guild_image.py``. Both sides check
- * against them, so a change is two edits — the server's is the one that
- * decides.
+ * The specs mirror ``app/models/platform/guild_image.py`` and
+ * ``app/models/platform/user_avatar.py``. Both sides check against them, so a
+ * change is two edits — the server's is the one that decides.
  */
 
 /** What one stored rendition must be. */
-export type GuildImageSpec = {
+export type ImageSpec = {
   width: number;
   height: number;
   maxBytes: number;
 };
 
-export const GUILD_ICON: GuildImageSpec = { width: 256, height: 256, maxBytes: 64 * 1024 };
-export const GUILD_BANNER_CARD: GuildImageSpec = {
+export const GUILD_ICON: ImageSpec = { width: 256, height: 256, maxBytes: 64 * 1024 };
+/** A profile picture. Square, and the same weight as a guild icon: both are
+ *  shown at 24-40px in lists and around 128px on their own settings page. */
+export const AVATAR: ImageSpec = { width: 256, height: 256, maxBytes: 64 * 1024 };
+export const GUILD_BANNER_CARD: ImageSpec = {
   width: 1040,
   height: 260,
   maxBytes: 60 * 1024,
 };
-export const GUILD_BANNER_FULL: GuildImageSpec = {
+export const GUILD_BANNER_FULL: ImageSpec = {
   width: 2400,
   height: 600,
   maxBytes: 350 * 1024,
@@ -35,7 +39,7 @@ export const GUILD_BANNER_FULL: GuildImageSpec = {
 /** The largest file we will read at all, before any of it is decoded. */
 export const MAX_SOURCE_BYTES = 12 * 1024 * 1024;
 
-export class GuildImageError extends Error {
+export class ImageRenditionError extends Error {
   constructor(readonly code: "notAnImage" | "tooLarge" | "unreadable") {
     super(code);
   }
@@ -53,7 +57,7 @@ async function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
     try {
       return await createImageBitmap(file);
     } catch {
-      throw new GuildImageError("notAnImage");
+      throw new ImageRenditionError("notAnImage");
     }
   }
   // Test environments and older WebViews: go through an <img> instead.
@@ -62,7 +66,7 @@ async function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
     return await new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
-      image.onerror = () => reject(new GuildImageError("notAnImage"));
+      image.onerror = () => reject(new ImageRenditionError("notAnImage"));
       image.src = url;
     });
   } finally {
@@ -79,14 +83,14 @@ async function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
  */
 function drawCover(
   source: CanvasImageSource & { width: number; height: number },
-  spec: GuildImageSpec
+  spec: ImageSpec
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = spec.width;
   canvas.height = spec.height;
   const context = canvas.getContext("2d");
   if (!context) {
-    throw new GuildImageError("unreadable");
+    throw new ImageRenditionError("unreadable");
   }
   const scale = Math.max(spec.width / source.width, spec.height / source.height);
   const width = source.width * scale;
@@ -100,7 +104,7 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
-async function encode(canvas: HTMLCanvasElement, spec: GuildImageSpec): Promise<File> {
+async function encode(canvas: HTMLCanvasElement, spec: ImageSpec): Promise<File> {
   // WebP for the weight; PNG only if this browser cannot produce WebP, in
   // which case the ladder below is what keeps it inside the cap.
   for (const type of ["image/webp", "image/png"]) {
@@ -109,19 +113,19 @@ async function encode(canvas: HTMLCanvasElement, spec: GuildImageSpec): Promise<
       if (!blob || blob.type !== type) break; // this format isn't available
       if (blob.size <= spec.maxBytes) {
         const extension = type === "image/webp" ? "webp" : "png";
-        return new File([blob], `guild-image.${extension}`, { type });
+        return new File([blob], `image.${extension}`, { type });
       }
     }
   }
-  throw new GuildImageError("tooLarge");
+  throw new ImageRenditionError("tooLarge");
 }
 
-async function render(file: File, specs: GuildImageSpec[]): Promise<File[]> {
+async function render(file: File, specs: ImageSpec[]): Promise<File[]> {
   if (!file.type.startsWith("image/")) {
-    throw new GuildImageError("notAnImage");
+    throw new ImageRenditionError("notAnImage");
   }
   if (file.size > MAX_SOURCE_BYTES) {
-    throw new GuildImageError("tooLarge");
+    throw new ImageRenditionError("tooLarge");
   }
   const source = await loadBitmap(file);
   try {
@@ -145,4 +149,10 @@ export async function renderGuildIcon(file: File): Promise<File> {
 export async function renderGuildBanner(file: File): Promise<{ full: File; card: File }> {
   const [full, card] = await render(file, [GUILD_BANNER_FULL, GUILD_BANNER_CARD]);
   return { full, card };
+}
+
+/** One square picture of a person from whatever they picked. */
+export async function renderAvatar(file: File): Promise<File> {
+  const [avatar] = await render(file, [AVATAR]);
+  return avatar;
 }

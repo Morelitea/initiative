@@ -33,14 +33,12 @@ class CollaboratorInfo:
         websocket: WebSocket,
         can_write: bool = False,
         avatar_url: Optional[str] = None,
-        avatar_base64: Optional[str] = None,
     ):
         self.user_id = user_id
         self.name = name
         self.websocket = websocket
         self.can_write = can_write
         self.avatar_url = avatar_url
-        self.avatar_base64 = avatar_base64
         self.cursor_position: Optional[Dict[str, Any]] = None
         self.connected_at = datetime.now(timezone.utc)
 
@@ -251,7 +249,6 @@ class DocumentRoom:
                 "name": c.name,
                 "can_write": c.can_write,
                 "avatar_url": c.avatar_url,
-                "avatar_base64": c.avatar_base64,
                 "cursor": c.cursor_position,
             }
             for c in self.collaborators.values()

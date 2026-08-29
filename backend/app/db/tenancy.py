@@ -64,6 +64,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "push_tokens",
         "auto_delegation_jti_blocklist",
         "user_view_preferences",  # personal UI state (filters/sort/view-mode)
+        # The picture on a user's profile. Public-plane identity like the row
+        # it hangs off: one user spans guilds, and the bytes are served to
+        # anyone holding the URL.
+        "user_avatars",
         # Tenancy roster — must be readable *before* a request is routed
         "guilds",
         # The operator-set half of a guild (caps / plan label / sign-in

@@ -234,7 +234,7 @@ export const AppSidebar = () => {
     () => getInitials(user?.full_name, user?.email),
     [user?.full_name, user?.email]
   );
-  const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
+  const avatarSrc = resolveUploadUrl(user?.avatar_url);
 
   // Fetch tags for the tag browser
   const tagsQuery = useTags({ enabled: guildTreeEnabled });

@@ -70,7 +70,14 @@
     "saving": "Enregistrement…",
     "reset": "Réinitialiser",
     "updateSuccess": "Profil mis à jour",
-    "updateError": "Impossible de mettre à jour le profil"
+    "updateError": "Impossible de mettre à jour le profil",
+    "avatarUploadHelp": "N'importe quelle image. Elle est recadrée en carré et redimensionnée pour vous.",
+    "avatar": {
+      "failed": "Cette image n'a pas pu être enregistrée.",
+      "notAnImage": "Veuillez choisir un fichier image.",
+      "tooLarge": "Ce fichier est trop volumineux. Essayez-en un de moins de 12 Mo.",
+      "unreadable": "Cette image n'a pas pu être lue."
+    }
   },
   "security": {
     "devicesTitle": "Appareils connectés",

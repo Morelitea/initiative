@@ -80,7 +80,6 @@ interface UserValue {
   id: number;
   full_name?: string | null;
   avatar_url?: string | null;
-  avatar_base64?: string | null;
 }
 
 const extractUser = (raw: unknown): UserValue | null => {

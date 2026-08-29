@@ -35,9 +35,7 @@ export const QueueItemRow = ({
   const { t } = useTranslation("queues");
 
   const userInitials = item.user ? getInitials(item.user.full_name, item.user.email) : null;
-  const userAvatarSrc = item.user
-    ? resolveUploadUrl(item.user.avatar_url) || item.user.avatar_base64 || undefined
-    : undefined;
+  const userAvatarSrc = item.user ? resolveUploadUrl(item.user.avatar_url) || undefined : undefined;
   const isHeld = item.held_at_round !== null;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

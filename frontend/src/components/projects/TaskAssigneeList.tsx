@@ -37,7 +37,7 @@ export const TaskAssigneeList = ({ assignees, size = "sm", className }: TaskAssi
         // anonymized rows — both leak the prior user's identity.
         const avatarSrc = anonymized
           ? undefined
-          : resolveUploadUrl(assignee.avatar_url) || assignee.avatar_base64 || undefined;
+          : resolveUploadUrl(assignee.avatar_url) || undefined;
         const initials = getInitialsForUser(assignee);
 
         return (

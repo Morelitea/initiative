@@ -420,7 +420,6 @@ export const CalendarsView = ({
         attendees: (event.attendee_previews ?? []).map((att) => ({
           name: att.name,
           avatarUrl: att.avatar_url,
-          avatarBase64: att.avatar_base64,
           userId: att.user_id,
         })),
         properties: event.property_values,

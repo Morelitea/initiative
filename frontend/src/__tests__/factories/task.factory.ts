@@ -19,7 +19,6 @@ export function buildTaskAssignee(
     id: counter,
     full_name: `Assignee ${counter}`,
     avatar_url: null,
-    avatar_base64: null,
     ...overrides,
   };
 }

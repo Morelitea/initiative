@@ -480,5 +480,10 @@
   "IMAGE_NOT_FOUND": "Esa imagen ya no está disponible.",
   "BANNER_COLOR_INVALID": "Elige un color con el formato #rrggbb.",
   "BANNER_IMAGE_NOT_ENTITLED": "Las imágenes de banner no están incluidas en el plan de este gremio. Elige un color de banner en su lugar.",
-  "BANNER_TEXT_COLOR_INVALID": "El texto del banner es blanco o negro."
-}
+  "USER_AVATAR_NOT_FOUND": "Esa imagen ya no está disponible.",
+  "USER_AVATAR_INVALID_IMAGE": "Ese archivo no es una imagen PNG, JPEG o WebP.",
+  "USER_AVATAR_TOO_LARGE": "Esa imagen es demasiado grande.",
+  "USER_AVATAR_NOT_SQUARE": "Una foto de perfil tiene que ser cuadrada.",
+  "USER_AVATAR_TOO_LARGE_DIMENSIONS": "Esa imagen supera el tamaño permitido para una foto de perfil.",
+  "USER_AVATAR_URL_NOT_EXTERNAL": "Esa dirección es de este servidor. Enlaza una imagen alojada en otro sitio o sube una.",
+  "BANNER_TEXT_COLOR_INVALID": "El texto del banner es blanco o negro."}

@@ -27,7 +27,6 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
       email: "author@example.com",
       full_name: "Comment Author",
       avatar_url: null,
-      avatar_base64: null,
     },
     ...overrides,
   };
@@ -47,7 +46,6 @@ export function buildRecentActivityEntry(
       email: "author@example.com",
       full_name: "Comment Author",
       avatar_url: null,
-      avatar_base64: null,
     },
     task_id: null,
     task_title: null,

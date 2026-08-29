@@ -131,8 +131,6 @@ describe("buildTaskCalendarEntries", () => {
 
     expect(entry.color).toBe(COLOR);
     expect(entry.tags).toEqual([tag]);
-    expect(entry.attendees).toEqual([
-      { name: "Alice", avatarUrl: null, avatarBase64: null, userId: 42 },
-    ]);
+    expect(entry.attendees).toEqual([{ name: "Alice", avatarUrl: null, userId: 42 }]);
   });
 });

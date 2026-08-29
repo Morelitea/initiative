@@ -3,7 +3,7 @@
  *
  * Both are uploaded rather than typed, and both are resized here before they
  * are sent — an admin picks one file per picture and the browser produces the
- * renditions the server stores (see ``lib/guildImages``). Nobody is asked to
+ * renditions the server stores (see ``lib/imageRenditions``). Nobody is asked to
  * prepare a thumbnail, and nobody has to know what 4:1 means to get it right.
  *
  * Every guild has a banner: the artwork it uploaded, or the colour it wears
@@ -43,7 +43,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { DARK_TEXT, LIGHT_TEXT, readableTextColor } from "@/lib/contrastColor";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { GuildImageError, renderGuildBanner, renderGuildIcon } from "@/lib/guildImages";
+import { ImageRenditionError, renderGuildBanner, renderGuildIcon } from "@/lib/imageRenditions";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 type Busy = "icon" | "banner" | "color" | null;
@@ -112,7 +112,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
       // A picture the browser could not make sense of never reached the
       // server, so it has its own message rather than an API code.
       toast.error(
-        error instanceof GuildImageError
+        error instanceof ImageRenditionError
           ? t(`guilds:settings.artwork.${error.code}`)
           : getErrorMessage(error, "guilds:settings.artwork.failed")
       );

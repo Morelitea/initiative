@@ -27,10 +27,9 @@ export interface CollaboratorInfo {
   user_id: number;
   name: string;
   can_write: boolean;
-  /** Uploaded avatar path (needs ``resolveUploadUrl`` to become absolute). */
+  /** The picture's URL — a path this server serves, or one linked from a
+   *  single sign-on account. Needs ``resolveUploadUrl`` to become absolute. */
   avatar_url?: string | null;
-  /** Inline base64 data URL set for users who haven't uploaded a file. */
-  avatar_base64?: string | null;
   cursor?: {
     anchor: { path: number[]; offset: number };
     focus: { path: number[]; offset: number };
@@ -654,7 +653,6 @@ export class CollaborationProvider implements Provider {
               user_id: number;
               name: string;
               avatar_url?: string | null;
-              avatar_base64?: string | null;
             }
           | undefined;
         if (user) {
@@ -667,7 +665,6 @@ export class CollaborationProvider implements Provider {
                 name: user.name,
                 can_write: true, // Default to true, server will correct if needed
                 avatar_url: user.avatar_url ?? null,
-                avatar_base64: user.avatar_base64 ?? null,
               },
             ];
             this.emitCollaborators();

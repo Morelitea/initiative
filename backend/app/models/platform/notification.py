@@ -29,6 +29,7 @@ class NotificationType(str, Enum):
     export_failed = "export_failed"
     import_ready = "import_ready"
     import_failed = "import_failed"
+    avatar_removed = "avatar_removed"
 
 
 class Notification(SQLModel, table=True):

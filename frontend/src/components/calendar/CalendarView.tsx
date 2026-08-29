@@ -68,12 +68,8 @@ export const CALENDAR_VIEW_MODE_KEY = "calendar:view-mode";
 
 export type CalendarEntryAttendee = {
   name: string;
-  /** Uploaded avatar path; needs ``resolveUploadUrl`` to become absolute.
-   *  Preferred over ``avatarBase64`` when both are set. */
+  /** The picture's URL; needs ``resolveUploadUrl`` to become absolute. */
   avatarUrl?: string | null;
-  /** Inline base64 data URL for users without an uploaded avatar.
-   *  Rendered as-is (already a full data URL). */
-  avatarBase64?: string | null;
   /** User id for the deterministic avatar tint. Optional because some
    *  entry sources (e.g. event summaries, which carry just attendee
    *  names) don't expose ids yet; those render a neutral fallback. */
@@ -1584,8 +1580,7 @@ function ListView({
                   <TooltipTrigger asChild>
                     <div className="flex shrink-0 -space-x-1.5 pt-0.5">
                       {entry.attendees.slice(0, 4).map((att, i) => {
-                        const src =
-                          resolveUploadUrl(att.avatarUrl) || att.avatarBase64 || undefined;
+                        const src = resolveUploadUrl(att.avatarUrl) || undefined;
                         return (
                           <Avatar
                             key={att.userId}

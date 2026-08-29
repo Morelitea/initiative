@@ -6,7 +6,6 @@ export type UserOption = {
   id: number;
   label: string;
   avatarUrl?: string | null;
-  avatarBase64?: string | null;
 };
 
 export const priorityVariant: Record<TaskPriority, "default" | "secondary" | "destructive"> = {

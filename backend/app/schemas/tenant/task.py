@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel
 
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -30,7 +30,6 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     id: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
-    avatar_base64: Optional[RawTextStr] = None
     status: UserStatus = UserStatus.active
 
 

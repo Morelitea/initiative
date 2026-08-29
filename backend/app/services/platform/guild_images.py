@@ -25,7 +25,6 @@ rather than spread across the endpoints that serve it.
 from __future__ import annotations
 
 import hashlib
-import struct
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -33,6 +32,8 @@ from sqlalchemy import insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.image_headers import read_image_header
+from app.core.messages import GuildMessages
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.guild_image import (
     IMAGE_CONTENT_TYPES,
@@ -267,8 +268,6 @@ def validate_rendition(
       the full banner would defeat the point of having two.
     * they are the variant's shape, within a rounding tolerance.
     """
-    from app.core.messages import GuildMessages
-
     spec = IMAGE_SPECS[variant]
     if not data:
         raise GuildImageError(GuildMessages.IMAGE_EMPTY)
@@ -296,79 +295,11 @@ def probe_image(data: bytes) -> tuple[str, int, int] | None:
 
     Header parsing rather than decoding: the formats a guild image may be in
     all state their dimensions in the first few dozen bytes, so this needs no
-    image library and hands no uploaded pixels to one.
+    image library and hands no uploaded pixels to one. The reader itself is
+    shared with the other upload paths — see ``app.core.image_headers``; which
+    formats are *allowed* here is still ``_ALLOWED_CONTENT_TYPES`` below.
     """
-    # Every branch checks it has the bytes it is about to read: a file can
-    # carry a format's opening marks and stop before its dimensions, and a
-    # short read here would raise past the caller that turns a bad upload into
-    # a reply about it.
-    if data[:8] == b"\x89PNG\r\n\x1a\n" and data[12:16] == b"IHDR" and len(data) >= 24:
-        width, height = struct.unpack(">II", data[16:24])
-        return "image/png", int(width), int(height)
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return _probe_webp(data)
-    if data[:6] in (b"GIF87a", b"GIF89a") and len(data) >= 10:
-        width, height = struct.unpack("<HH", data[6:10])
-        return "image/gif", int(width), int(height)
-    if data[:2] == b"\xff\xd8":
-        return _probe_jpeg(data)
-    return None
-
-
-def _probe_webp(data: bytes) -> tuple[str, int, int] | None:
-    """WebP dimensions, across the three chunk layouts the format allows."""
-    chunk = data[12:16]
-    if chunk == b"VP8X" and len(data) >= 30:
-        width = int.from_bytes(data[24:27], "little") + 1
-        height = int.from_bytes(data[27:30], "little") + 1
-        return "image/webp", width, height
-    if chunk == b"VP8 " and len(data) >= 30:
-        width = struct.unpack("<H", data[26:28])[0] & 0x3FFF
-        height = struct.unpack("<H", data[28:30])[0] & 0x3FFF
-        return "image/webp", width, height
-    if chunk == b"VP8L" and len(data) >= 25:
-        bits = int.from_bytes(data[21:25], "little")
-        width = (bits & 0x3FFF) + 1
-        height = ((bits >> 14) & 0x3FFF) + 1
-        return "image/webp", width, height
-    return None
-
-
-#: JPEG frame markers that carry the image dimensions. The others are skipped.
-_JPEG_SOF = {
-    0xC0,
-    0xC1,
-    0xC2,
-    0xC3,
-    0xC5,
-    0xC6,
-    0xC7,
-    0xC9,
-    0xCA,
-    0xCB,
-    0xCD,
-    0xCE,
-    0xCF,
-}
-
-
-def _probe_jpeg(data: bytes) -> tuple[str, int, int] | None:
-    """Walk a JPEG's segment chain to its start-of-frame marker."""
-    index = 2
-    length = len(data)
-    while index + 3 < length:
-        if data[index] != 0xFF:
-            return None
-        marker = data[index + 1]
-        # Standalone markers carry no length field.
-        if marker in (0xD8, 0xD9) or 0xD0 <= marker <= 0xD7:
-            index += 2
-            continue
-        segment = struct.unpack(">H", data[index + 2 : index + 4])[0]
-        if marker in _JPEG_SOF:
-            if index + 9 > length:
-                return None
-            height, width = struct.unpack(">HH", data[index + 5 : index + 9])
-            return "image/jpeg", int(width), int(height)
-        index += 2 + segment
-    return None
+    header = read_image_header(data)
+    if header is None:
+        return None
+    return header.content_type, header.width, header.height

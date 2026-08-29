@@ -4,10 +4,10 @@ import {
   GUILD_BANNER_CARD,
   GUILD_BANNER_FULL,
   GUILD_ICON,
-  GuildImageError,
+  ImageRenditionError,
   MAX_SOURCE_BYTES,
   renderGuildIcon,
-} from "./guildImages";
+} from "./imageRenditions";
 
 const file = (bytes: number, type: string) =>
   new File([new Uint8Array(bytes)], "pick.bin", { type });
@@ -28,7 +28,7 @@ describe("guild image specs", () => {
 
 describe("renderGuildIcon", () => {
   it("refuses a file that is not an image before reading any of it", async () => {
-    await expect(renderGuildIcon(file(16, "application/pdf"))).rejects.toThrow(GuildImageError);
+    await expect(renderGuildIcon(file(16, "application/pdf"))).rejects.toThrow(ImageRenditionError);
     await expect(renderGuildIcon(file(16, "application/pdf"))).rejects.toMatchObject({
       code: "notAnImage",
     });
