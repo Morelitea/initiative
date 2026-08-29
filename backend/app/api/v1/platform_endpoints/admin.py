@@ -26,7 +26,6 @@ from app.schemas.platform.admin import (
     AdminInitiativeRoleUpdate,
     GuildBlockerInfo,
 )
-from app.core.encryption import hash_email
 from app.core.messages import (
     AdminMessages,
     AuthMessages,
@@ -77,13 +76,7 @@ async def list_all_users(
     than the system admin engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
     """
-    from app.services.platform.users import SYSTEM_USER_EMAIL
-
-    stmt = (
-        select(User)
-        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
-        .order_by(User.created_at.asc())
-    )
+    stmt = select(User).order_by(User.created_at.asc())
     result = await session.exec(stmt)
     return result.all()
 
@@ -109,15 +102,9 @@ async def export_platform_users_csv(
     user_id: Annotated[list[int] | None, Query()] = None,
 ) -> Response:
     """Export platform users as a CSV file. Pass `user_id` one or more times to
-    restrict the export to a subset. Without `user_id`, every user (except the
-    system user) is included. Platform-admin only."""
-    from app.services.platform.users import SYSTEM_USER_EMAIL
-
-    stmt = (
-        select(User)
-        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
-        .order_by(User.created_at.asc())
-    )
+    restrict the export to a subset. Without `user_id`, every user is included.
+    Platform-admin only."""
+    stmt = select(User).order_by(User.created_at.asc())
     if user_id:
         stmt = stmt.where(User.id.in_(user_id))
     result = await session.exec(stmt)
@@ -426,7 +413,8 @@ async def check_user_deletion_eligibility(
                 other_members=[
                     UserPublic(
                         id=m.id,
-                        email=m.email,
+                        username=m.username,
+                        discriminator=m.discriminator,
                         full_name=m.full_name,
                         avatar_url=m.avatar_url,
                     )

@@ -11,6 +11,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import usernames
 from app.db.session import set_rls_context
 from app.models.tenant.calendar_event import (
     CalendarEvent,
@@ -120,6 +121,8 @@ def _unsaved_event(
 def _unsaved_user(tz: str) -> User:
     """In-memory recipient for the pure-unit formatting tests (never persisted)."""
     return User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash="x",
         email_encrypted="x",
         hashed_password="x",

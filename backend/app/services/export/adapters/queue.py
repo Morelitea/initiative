@@ -29,6 +29,7 @@ from app.models.tenant.queue import Queue, QueueItem
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
+from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -167,7 +168,7 @@ def _report_payload(
     generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
-    author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+    author = display_name(user) or et("fallback.unknownAuthor", loc)
     parts = [et("summary.items", loc, count=len(items))]
     if queue.is_active:
         parts.append(et("round", loc, round=queue.current_round))
@@ -212,7 +213,7 @@ def _row(queue: Queue, item: QueueItem, order: int, locale: str) -> dict[str, An
 def _member(item: QueueItem) -> str | None:
     if item.user is None:
         return None
-    return item.user.full_name or item.user.email or None
+    return display_name(item.user) or None
 
 
 def _tags(item: QueueItem) -> list[str]:

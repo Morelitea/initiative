@@ -35,6 +35,7 @@ from app.schemas.tenant.comment import (
 from app.db.query import page_has_next, paginated_query
 from app.services.tenant import comments as comments_service
 from app.services.realtime import broadcast_event
+from app.core.user_display import display_name
 
 router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -460,7 +461,7 @@ async def search_mentionables(
             session, data_stmt, count_stmt, page=page, page_size=page_size
         )
         for user in rows:
-            display = user.full_name or user.email
+            display = display_name(user)
             items.append(
                 MentionSuggestion(
                     type=MentionEntityType.user,

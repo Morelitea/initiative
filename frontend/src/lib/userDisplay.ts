@@ -6,52 +6,80 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
  * The minimum shape of a user object needed to render a display name.
  *
  * Anything that comes back from the API and represents a person — guild
- * member, comment author, task assignee, mention candidate, etc. —
- * should fit this shape. ``status`` is optional because some legacy or
- * lightweight endpoints don't include it; absent ``status`` is treated
- * as a live user.
+ * member, comment author, task assignee, mention candidate, etc. — should fit
+ * this shape. ``status`` is optional because some lightweight endpoints don't
+ * include it; absent ``status`` is treated as a live user.
+ *
+ * ``full_name`` arrives only from a guild that shows real names; everywhere
+ * else the server has already left it out, so nothing here has to know which
+ * guild it is rendering for.
  */
 export interface DisplayableUser {
   id?: number | null;
+  username?: string | null;
+  discriminator?: number | null;
   full_name?: string | null;
-  email?: string | null;
   status?: UserStatus | string | null;
 }
+
+/** ``0012`` — the number as it is always written, four digits. */
+export const formatDiscriminator = (discriminator?: number | null): string =>
+  discriminator == null ? "" : String(discriminator).padStart(4, "0");
+
+/**
+ * ``foobar#1234`` — the handle as one string.
+ *
+ * For places with no styling to carry the distinction: a title attribute, a
+ * copied value, an export. On screen prefer `<UserHandle>`, which renders the
+ * number in its own weight.
+ */
+export const getUserHandle = (user: DisplayableUser | null | undefined): string => {
+  if (!user?.username) return "";
+  return `${user.username}#${formatDiscriminator(user.discriminator)}`;
+};
 
 /**
  * The single source of truth for "what string do we render for this user".
  *
- * - Anonymized → ``"Deleted user #<id>"`` (per-user so multiple deleted
- *   users in a list stay distinguishable without leaking PII).
- * - Otherwise → ``full_name`` if present, else ``email`` if present, else
- *   the supplied ``fallback`` (defaults to ``"User"``).
+ * A real name where the guild shows names, the handle otherwise — and the
+ * handle for an account that is no longer in use, whose name the server has
+ * already withheld. A handle is never redacted: it is a pseudonym and a unique
+ * identifier at once, and an old thread stays legible only if it survives.
  *
- * Use this anywhere you would have written
- * ``user.full_name ?? user.email ?? "User"`` so an anonymized user
- * doesn't accidentally render an empty string or the literal "null".
+ * Use this anywhere you would have written `user.full_name ?? "User"`.
  */
 export const getUserDisplayName = (
   user: DisplayableUser | null | undefined,
   fallback = "User"
 ): string => {
   if (!user) return fallback;
-  if (isAnonymizedUser(user)) {
-    return user.id != null ? `Deleted user #${user.id}` : "Deleted user";
-  }
   const name = user.full_name?.trim();
   if (name) return name;
-  const email = user.email?.trim();
-  if (email) return email;
+  const handle = getUserHandle(user);
+  if (handle) return handle;
+  // Nothing to name them by: an id the caller has not resolved yet, or one
+  // whose account is gone. Either way the caller's placeholder is the honest
+  // answer, and it carries the id, so two of them stay distinguishable.
   return fallback;
 };
 
 /**
- * True when the user's account has been anonymized (PII removed).
+ * True when the account has been anonymized (its personal data erased).
  *
- * Centralised so callers don't compare to the magic string everywhere.
+ * Centralised so callers don't compare to the magic string everywhere. The
+ * handle still renders — this is what decides whether to show a face and a
+ * colour that belonged to the person behind it.
  */
 export const isAnonymizedUser = (user: DisplayableUser | null | undefined): boolean =>
   user?.status === "anonymized";
+
+/**
+ * True when the account is no longer in use — deactivated by its owner, or
+ * anonymized. Its handle still renders; this drives the muted styling and the
+ * badge that say so, rather than replacing the name.
+ */
+export const isInactiveUser = (user: DisplayableUser | null | undefined): boolean =>
+  user?.status === "anonymized" || user?.status === "deactivated";
 
 /**
  * Whether we hold enough of a user to name them — i.e. whether
@@ -59,21 +87,18 @@ export const isAnonymizedUser = (user: DisplayableUser | null | undefined): bool
  * caller's fallback. Pickers use this to decide which selected ids they still
  * need to resolve from the server instead of rendering "User #<id>".
  */
-export const hasDisplayName = (user: DisplayableUser | null | undefined): boolean => {
-  if (!user) return false;
-  if (isAnonymizedUser(user)) return true;
-  return Boolean(user.full_name?.trim() || user.email?.trim());
-};
+export const hasDisplayName = (user: DisplayableUser | null | undefined): boolean =>
+  Boolean(user?.full_name?.trim() || user?.username?.trim());
 
 /**
- * Initials to render in an avatar fallback for the given user. Returns
- * the muted ``–`` sentinel for anonymized accounts; otherwise delegates
- * to ``getInitials`` with the user's name (or email fallback).
+ * Initials to render in an avatar fallback for the given user. Returns the
+ * muted `–` sentinel for anonymized accounts; otherwise takes them from the
+ * name, or from the handle when there is no name to take them from.
  */
 export const getInitialsForUser = (user: DisplayableUser | null | undefined): string => {
   if (!user) return getInitials(undefined);
-  if (isAnonymizedUser(user)) return ANONYMIZED_INITIALS;
-  return getInitials(user.full_name ?? undefined, user.email ?? undefined);
+  if (user.status === "anonymized") return ANONYMIZED_INITIALS;
+  return getInitials(user.full_name ?? undefined, user.username ?? undefined);
 };
 
 /** The minimum shape needed to resolve an avatar image source. */

@@ -38,6 +38,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.services.platform import usernames as username_service
 
 logger = logging.getLogger(__name__)
 
@@ -280,10 +281,22 @@ async def _provision(
         normalized = f"{subject}@oidc.local"
         verified = False
 
+    # A random handle, not one built from the claims. The claims feed the
+    # suggestions on the pick screen instead, so an account abandoned partway
+    # through is left holding nothing that identifies its owner — and a
+    # corporate IdP's ``preferred_username`` is offered rather than imposed.
+    handle, discriminator = await username_service.allocate_from_seed(session)
+
     user = User(
         email_hash=hash_email(normalized),
         email_encrypted=encrypt_field(normalized, SALT_EMAIL),
-        full_name=full_name or normalized,
+        username=handle,
+        discriminator=discriminator,
+        # Assigned, not picked: its owner chooses one on their next sign-in.
+        username_chosen=False,
+        # An address is not a display name. With no name claim there is simply
+        # no name, and the handle carries the display.
+        full_name=full_name,
         # SSO-only account: no password. Verification treats a NULL hash as
         # never-a-match, so this account signs in only through its provider.
         hashed_password=None,

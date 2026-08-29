@@ -14,6 +14,7 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.calendar_event import EventRecurrence
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
 from app.services.export.property_values import property_export_dict
+from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +123,10 @@ def event_export_dict(event: CalendarEvent) -> dict:
         "updated_at": event.updated_at.isoformat(),
         "attendees": [
             {
-                "name": attendee.user.full_name or None,
-                "email": attendee.user.email or None,
+                "name": display_name(attendee.user),
+                # An address is never a guild's to hand out, so ATTENDEE
+                # carries the participant without a reachable mailbox.
+                "email": None,
                 "rsvp": attendee.rsvp_status.value
                 if hasattr(attendee.rsvp_status, "value")
                 else str(attendee.rsvp_status),

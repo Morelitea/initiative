@@ -15,6 +15,7 @@ export interface AuthContextValue {
   register: (payload: {
     email: string;
     password: string;
+    username: string;
     full_name?: string;
     inviteCode?: string;
   }) => Promise<unknown>;

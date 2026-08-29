@@ -21,6 +21,7 @@ from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
+from app.core import usernames
 
 # The squashed baseline (v0.53.5 snapshot). Databases stamped at an older
 # revision must go through a v0.53.x release first — see check_pre_baseline_db.
@@ -45,6 +46,9 @@ async def init_owner() -> None:
             email_hash=hash_email(settings.FIRST_OWNER_EMAIL),
             email_encrypted=encrypt_field(settings.FIRST_OWNER_EMAIL, SALT_EMAIL),
             full_name=settings.FIRST_OWNER_FULL_NAME,
+            username=usernames.first_name_of(settings.FIRST_OWNER_FULL_NAME)
+            or usernames.random_name(),
+            discriminator=usernames.random_discriminator(),
             hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),
             role=UserRole.owner,
             email_verified=True,

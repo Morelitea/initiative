@@ -50,6 +50,7 @@ from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
+from app.core.user_display import display_name
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -218,12 +219,14 @@ async def websocket_collaborate(
             guild_id, document_id, session
         )
 
-    logger.info(f"Collaboration: {user.email} authenticated for document {document_id}")
+    logger.info(
+        f"Collaboration: user {user.id} authenticated for document {document_id}"
+    )
 
     # Create collaborator info
     collaborator = CollaboratorInfo(
         user_id=user.id,
-        name=user.full_name or user.email,
+        name=display_name(user),
         websocket=websocket,
         can_write=can_write,
         avatar_url=user.avatar_url,

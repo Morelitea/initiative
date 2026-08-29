@@ -24,6 +24,7 @@ from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.platform.csv_export import safe_filename_component
+from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -117,7 +118,7 @@ def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) 
     generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
     # Both attribution fields can be absent (some OAuth-provisioned accounts
     # carry neither) — never render the literal "None".
-    author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+    author = display_name(user) or et("fallback.unknownAuthor", loc)
     return {
         # The project name is user data — never translated.
         "title": envelope.project.name,

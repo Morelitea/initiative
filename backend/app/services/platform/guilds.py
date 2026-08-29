@@ -623,6 +623,7 @@ async def update_guild(
     banner_color_provided: bool = False,
     banner_text_color: str | None = None,
     banner_text_color_provided: bool = False,
+    show_member_names: bool | None = None,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
@@ -680,6 +681,16 @@ async def update_guild(
     # already-listed guild has to fail for the same reason as one that lists a
     # guild with none. Two of the three rules are also database CHECKs; this is
     # what turns them into an error a person can read.
+    if show_member_names is not None and guild.show_member_names != show_member_names:
+        guild.show_member_names = show_member_names
+        updated = True
+    # Members of a listed guild are known by their handle. Listing one turns
+    # names off in the same write rather than refusing the request, so an admin
+    # never has to do it in two steps — ck_guilds_community_member_names is what
+    # makes it impossible to end up with both.
+    if guild.is_community and guild.show_member_names:
+        guild.show_member_names = False
+        updated = True
     if guild.is_community:
         await _assert_listable(session, guild)
     if updated:

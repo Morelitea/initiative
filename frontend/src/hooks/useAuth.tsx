@@ -25,6 +25,8 @@ interface LoginPayload {
 interface RegisterPayload {
   email: string;
   password: string;
+  /** The name part of the handle. The number behind it is drawn server-side. */
+  username: string;
   full_name?: string;
   inviteCode?: string;
   /** Optional IANA timezone name resolved from the browser at submit
@@ -165,6 +167,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async ({
     email,
     password,
+    username,
     full_name,
     inviteCode,
     timezone,
@@ -172,7 +175,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }: RegisterPayload) => {
     const response = await apiClient.post<UserRead>(
       "/auth/register",
-      { email, password, full_name, timezone, captcha_token },
+      { email, password, username, full_name, timezone, captcha_token },
       inviteCode
         ? {
             params: { invite_code: inviteCode },

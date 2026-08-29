@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, computed_field
+from pydantic import ConfigDict, EmailStr, Field, computed_field, model_validator
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
 
@@ -18,6 +19,36 @@ from app.core.config import settings
 # There is deliberately no schema by which one account edits another's profile.
 # A guild admin manages *membership* — who is in the guild — not the person's
 # record, which spans every guild they belong to.
+#
+# Two identity rules are enforced here rather than per endpoint, so the shapes
+# themselves are the proof:
+#
+# * An address never reaches a guild. ``email`` is absent from every
+#   guild-scoped shape — roster, picker and member management alike — and kept
+#   only on ``UserRead`` (your own account) and the platform admin reads.
+# * A real name is shown only where a guild has asked for it.
+#   ``GuildNameVisibility`` drops ``full_name`` unless the request's guild has
+#   ``show_member_names`` set, which a community-listed guild cannot.
+#
+# What is always present is the handle: ``username`` plus ``discriminator``,
+# rendered ``foobar#1234`` with the number muted. They are two fields rather
+# than one string because the client styles them differently.
+
+
+class GuildNameVisibility(SanitizedBaseModel):
+    """Drops ``full_name`` unless the request's guild renders real names.
+
+    One validator rather than a branch at each serializer: the flag is set with
+    the guild context (``app.core.role_context``), so nothing that builds one of
+    these shapes has to remember. A request outside any guild renders handles
+    too, which is the same default.
+    """
+
+    @model_validator(mode="after")
+    def _apply_guild_name_visibility(self):
+        if not guild_shows_member_names():
+            object.__setattr__(self, "full_name", None)
+        return self
 
 
 class UserBase(SanitizedBaseModel):
@@ -37,6 +68,9 @@ class UserCreate(SanitizedBaseModel):
     # ``/admin/users/{id}/platform-role`` (capability-gated, bounded
     # delegation). See SEC-1.
     email: EmailStr
+    # The name part of the handle. The number behind it is drawn server-side —
+    # it is never anyone's to choose.
+    username: str = Field(max_length=64)
     full_name: Optional[str] = None
     # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
@@ -56,12 +90,13 @@ class UserCreate(SanitizedBaseModel):
     captcha_token: Optional[str] = None
 
 
-class UserPublic(SanitizedBaseModel):
-    """Public user information exposed to other users.
+class UserPublic(GuildNameVisibility):
+    """A person, as everyone else sees them.
 
-    Includes ``status`` so the frontend can render the "Deleted user #{id}"
-    placeholder for anonymized accounts wherever a person appears
-    (comment authors, task assignees, mentions, calendar attendees).
+    The handle (``username`` + ``discriminator``) is always here and is what
+    renders when there is no name to show. ``status`` comes along so the
+    frontend can mark an account that is no longer in use without replacing the
+    identifier that keeps an old thread legible.
     """
 
     model_config = ConfigDict(
@@ -69,14 +104,21 @@ class UserPublic(SanitizedBaseModel):
     )
 
     id: int
-    email: EmailStr
+    username: str
+    discriminator: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
 
 class UserGuildMember(UserPublic):
-    """User information for guild member management (includes role/status but not personal settings)"""
+    """A member, for the guild's own member-management surface.
+
+    Carries the membership facts a guild admin manages — guild role, whether
+    the membership is OIDC-managed, when the account joined — and none of the
+    account's own: no address, and a name only where the guild shows names. Two
+    members are told apart by their handle, which is unique.
+    """
 
     role: UserRole  # Platform role
     guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
@@ -87,14 +129,13 @@ class UserGuildMember(UserPublic):
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
 
-class UserSummary(SanitizedBaseModel):
+class UserSummary(GuildNameVisibility):
     """Slim user projection for typeahead and picker surfaces.
 
-    Drops the fields pickers never read — email, platform/guild role,
-    ``initiative_roles`` (an N+1 enrichment on the full roster), and
-    timestamps — while keeping the avatar so members still render with a
-    face. The payload is bounded by pagination on the endpoints that serve
-    it, not by dropping the avatar.
+    Drops what pickers never read — platform/guild role, ``initiative_roles``
+    (an N+1 enrichment on the full roster) and timestamps — while keeping the
+    avatar so members still render with a face. The payload is bounded by
+    pagination on the endpoints that serve it, not by dropping the avatar.
     """
 
     model_config = ConfigDict(
@@ -102,6 +143,8 @@ class UserSummary(SanitizedBaseModel):
     )
 
     id: int
+    username: str
+    discriminator: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
@@ -126,6 +169,11 @@ class UserRead(UserBase):
     )
 
     id: int
+    username: str
+    discriminator: int
+    # Whether this account picked its handle. False routes the SPA to the
+    # choose-your-handle screen before anything else.
+    username_chosen: bool = False
     status: UserStatus
     email_verified: bool
     created_at: datetime
@@ -181,6 +229,17 @@ class UserRead(UserBase):
         see ``app.core.capabilities``.
         """
         return sorted(c.value for c in capabilities_for(self.role))
+
+
+class UsernameClaim(SanitizedBaseModel):
+    """The name part an account picks for itself.
+
+    Available once, to an account whose handle was assigned rather than chosen
+    (``username_chosen`` false) — every account created without a form gets one
+    that way. The number behind the name is drawn server-side.
+    """
+
+    username: str = Field(max_length=64)
 
 
 class UserInitiativeRole(SanitizedBaseModel):

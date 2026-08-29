@@ -102,3 +102,16 @@ class UploadTokenResponse(SanitizedBaseModel):
     upload_token: str
     token_type: str = "upload_token"
     expires_in: int
+
+
+class UsernameAvailabilityResponse(SanitizedBaseModel):
+    """Whether a name part can still be handed out.
+
+    Almost always ``true``: the number behind a name is what resolves
+    contention, so this answers about the two cases that survive — a reserved
+    or malformed name, and one whose ten thousand numbers are all taken.
+    ``reason`` carries the flat code for those.
+    """
+
+    available: bool
+    reason: Optional[str] = None

@@ -26,6 +26,7 @@ import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
 import { cn } from "@/lib/utils";
+import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -145,17 +146,18 @@ export const ShareControl = ({
   const userDisplayName = useCallback(
     (userId: number): string => {
       const member = members.find((m) => m.user.id === userId);
-      return member?.user.full_name?.trim() || member?.user.email || `User ${userId}`;
+      return member ? getUserDisplayName(member.user) : `User ${userId}`;
     },
     [members]
   );
 
-  const userEmail = useCallback(
+  // The handle, as the line under a name — what tells two people with the same
+  // name apart. Nothing to show when the name IS the handle.
+  const userHandle = useCallback(
     (userId: number): string | null => {
       const member = members.find((m) => m.user.id === userId);
-      const email = member?.user.email;
-      const name = member?.user.full_name?.trim();
-      return email && email !== name ? email : null;
+      if (!member?.user.full_name?.trim()) return null;
+      return getUserHandle(member.user) || null;
     },
     [members]
   );
@@ -378,11 +380,11 @@ export const ShareControl = ({
                       <CommandEmpty>{t("share.noPeople")}</CommandEmpty>
                       <CommandGroup>
                         {availableMembers.map((member) => {
-                          const displayName = member.user.full_name?.trim() || member.user.email;
+                          const displayName = getUserDisplayName(member.user);
                           return (
                             <CommandItem
                               key={member.user.id}
-                              value={`${displayName} ${member.user.email}`}
+                              value={`${displayName} ${getUserHandle(member.user)}`}
                               onSelect={() => {
                                 addUser(member.user.id);
                                 setPeoplePickerOpen(false);
@@ -391,12 +393,11 @@ export const ShareControl = ({
                             >
                               <div className="flex flex-col">
                                 <span className="truncate text-sm">{displayName}</span>
-                                {member.user.full_name?.trim() &&
-                                  member.user.full_name.trim() !== member.user.email && (
-                                    <span className="truncate text-muted-foreground text-xs">
-                                      {member.user.email}
-                                    </span>
-                                  )}
+                                {member.user.full_name?.trim() && (
+                                  <span className="truncate text-muted-foreground text-xs">
+                                    {getUserHandle(member.user)}
+                                  </span>
+                                )}
                               </div>
                             </CommandItem>
                           );
@@ -419,13 +420,13 @@ export const ShareControl = ({
 
               {userGrants.map((grant) => {
                 const userId = grant.user_id as number;
-                const email = userEmail(userId);
+                const handle = userHandle(userId);
                 return (
                   <div key={userId} className="flex items-center gap-2 rounded-md border px-3 py-2">
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-sm">{userDisplayName(userId)}</span>
-                      {email && (
-                        <span className="truncate text-muted-foreground text-xs">{email}</span>
+                      {handle && (
+                        <span className="truncate text-muted-foreground text-xs">{handle}</span>
                       )}
                     </div>
                     <Select

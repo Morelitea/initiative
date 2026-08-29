@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Boolean, String, Integer
+from sqlalchemy import Column, DateTime, Boolean, SmallInteger, String, Integer
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -43,6 +43,20 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email_hash: str = Field(sa_column=Column(String(64), unique=True, nullable=False))
     email_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))
+    #: The name part of this account's handle — what a person picks and reads.
+    #: Unique with ``discriminator``, case-insensitively (``ix_users_handle``);
+    #: the vocabulary lives in ``app.core.usernames``.
+    username: str = Field(sa_column=Column(String(32), nullable=False))
+    #: The number behind the name, 0000-9999, drawn at random and rendered
+    #: zero-padded beside it. Never chosen by anyone.
+    discriminator: int = Field(sa_column=Column(SmallInteger, nullable=False))
+    #: Whether the handle was picked rather than assigned. False on a row the
+    #: backfill seeded and on an account provisioned from SSO claims, which is
+    #: what routes its owner to the pick screen on their next sign-in.
+    username_chosen: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     full_name: Optional[str] = Field(default=None)
     # NULL = no password set (SSO-only account) — password verification treats
     # a missing hash as "never a match", so such an account can only sign in

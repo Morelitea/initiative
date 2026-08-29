@@ -213,7 +213,8 @@
       "createDashboards": "Crear paneles",
       "viewCounterGroups": "Ver contadores",
       "createCounterGroups": "Crear contadores"
-    }
+    },
+    "handleColumn": "Identificador"
   },
   "advancedTools": "Herramientas avanzadas",
   "advancedToolsDescription": "Habilita herramientas opcionales para esta iniciativa.",

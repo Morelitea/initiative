@@ -221,15 +221,17 @@ export const UserStatus = {
 } as const;
 
 /**
- * Public user information exposed to other users.
+ * A person, as everyone else sees them.
  *
- * Includes ``status`` so the frontend can render the "Deleted user #{id}"
- * placeholder for anonymized accounts wherever a person appears
- * (comment authors, task assignees, mentions, calendar attendees).
+ * The handle (``username`` + ``discriminator``) is always here and is what
+ * renders when there is no name to show. ``status`` comes along so the
+ * frontend can mark an account that is no longer in use without replacing the
+ * identifier that keeps an old thread legible.
  */
 export interface UserPublic {
   id: number;
-  email: string;
+  username: string;
+  discriminator: number;
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
@@ -2558,6 +2560,7 @@ export interface GuildRead {
   guild_auth_enabled: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
+  show_member_names: boolean;
   has_adult_content: boolean | null;
   banner_url: string | null;
   banner_color: string;
@@ -2594,6 +2597,7 @@ export interface GuildUpdate {
   retention_days?: number | null;
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
+  show_member_names?: boolean | null;
   banner_color?: string | null;
   banner_text_color?: string | null;
   has_adult_content?: boolean | null;
@@ -4495,6 +4499,8 @@ export interface UploadTokenResponse {
 
 export interface UserCreate {
   email: string;
+  /** @maxLength 64 */
+  username: string;
   full_name?: string | null;
   /** @maxLength 256 */
   password: string;
@@ -4509,11 +4515,17 @@ export interface UserInitiativeRole {
 }
 
 /**
- * User information for guild member management (includes role/status but not personal settings)
+ * A member, for the guild's own member-management surface.
+ *
+ * Carries the membership facts a guild admin manages — guild role, whether
+ * the membership is OIDC-managed, when the account joined — and none of the
+ * account's own: no address, and a name only where the guild shows names. Two
+ * members are told apart by their handle, which is unique.
  */
 export interface UserGuildMember {
   id: number;
-  email: string;
+  username: string;
+  discriminator: number;
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
@@ -4530,6 +4542,9 @@ export interface UserRead {
   full_name: string | null;
   role: UserRole;
   id: number;
+  username: string;
+  discriminator: number;
+  username_chosen: boolean;
   status: UserStatus;
   email_verified: boolean;
   created_at: string;
@@ -4658,14 +4673,15 @@ export interface UserStatsResponse {
 /**
  * Slim user projection for typeahead and picker surfaces.
  *
- * Drops the fields pickers never read — email, platform/guild role,
- * ``initiative_roles`` (an N+1 enrichment on the full roster), and
- * timestamps — while keeping the avatar so members still render with a
- * face. The payload is bounded by pagination on the endpoints that serve
- * it, not by dropping the avatar.
+ * Drops what pickers never read — platform/guild role, ``initiative_roles``
+ * (an N+1 enrichment on the full roster) and timestamps — while keeping the
+ * avatar so members still render with a face. The payload is bounded by
+ * pagination on the endpoints that serve it, not by dropping the avatar.
  */
 export interface UserSummary {
   id: number;
+  username: string;
+  discriminator: number;
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
@@ -4697,6 +4713,31 @@ export type UserViewPreferencesMapItems = { [key: string]: unknown };
  */
 export interface UserViewPreferencesMap {
   items?: UserViewPreferencesMapItems;
+}
+
+/**
+ * Whether a name part can still be handed out.
+ *
+ * Almost always ``true``: the number behind a name is what resolves
+ * contention, so this answers about the two cases that survive — a reserved
+ * or malformed name, and one whose ten thousand numbers are all taken.
+ * ``reason`` carries the flat code for those.
+ */
+export interface UsernameAvailabilityResponse {
+  available: boolean;
+  reason?: string | null;
+}
+
+/**
+ * The name part an account picks for itself.
+ *
+ * Available once, to an account whose handle was assigned rather than chosen
+ * (``username_chosen`` false) — every account created without a form gets one
+ * that way. The number behind the name is drawn server-side.
+ */
+export interface UsernameClaim {
+  /** @maxLength 64 */
+  username: string;
 }
 
 export interface VerificationConfirmRequest {
@@ -4958,6 +4999,14 @@ export type RegisterUserApiV1AuthRegisterPostParams = {
 };
 
 export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean };
+
+export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
+  /**
+   * The name part to check
+   * @maxLength 64
+   */
+  username: string;
+};
 
 export type GuildProviderLoginApiV1AuthGGuildIdProviderSlugLoginGetParams = {
   next?: string;
@@ -5745,7 +5794,7 @@ export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {
 
 export type SearchUsersApiV1GGuildIdUsersSearchGetParams = {
   /**
-   * Case-insensitive substring match on the member's name.
+   * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Real names are matched only in a guild that shows them.
    */
   search?: string | null;
   user_id?: number[] | null;

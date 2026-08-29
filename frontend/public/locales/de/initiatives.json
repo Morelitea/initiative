@@ -213,7 +213,8 @@
       "createDashboards": "Dashboards erstellen",
       "viewCounterGroups": "Zähler anzeigen",
       "createCounterGroups": "Zähler erstellen"
-    }
+    },
+    "handleColumn": "Handle"
   },
   "advancedTools": "Erweiterte Tools",
   "advancedToolsDescription": "Aktiviere optionale Tools für diese Initiative.",

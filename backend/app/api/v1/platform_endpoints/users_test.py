@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import usernames
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
@@ -527,6 +528,8 @@ async def test_inactive_user_cannot_access_endpoints(
 
     # Create inactive user
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("inactive@example.com"),
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",

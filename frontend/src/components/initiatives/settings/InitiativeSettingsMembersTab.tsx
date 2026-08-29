@@ -29,6 +29,8 @@ import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
+import { UserHandle } from "@/components/UserHandle";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 interface InitiativeSettingsMembersTabProps {
   initiativeId: number;
@@ -56,7 +58,7 @@ const isAdminOnly = (member: { isGuildAdmin: boolean; isManager: boolean }) =>
 // A unified row for the members table: a real initiative member, or a guild
 // admin who is an implicit full-access member with no membership row.
 type DisplayMember = {
-  user: { id: number; full_name: string | null; email: string };
+  user: { id: number; full_name: string | null; username: string; discriminator: number };
   role_id: number | null;
   role_display_name: string | null;
   role_name: string | null;
@@ -118,7 +120,8 @@ export const InitiativeSettingsMembersTab = ({
       user: {
         id: member.user.id,
         full_name: member.user.full_name,
-        email: member.user.email,
+        username: member.user.username,
+        discriminator: member.user.discriminator,
       },
       role_id: member.role_id ?? null,
       role_display_name: member.role_display_name ?? null,
@@ -138,7 +141,8 @@ export const InitiativeSettingsMembersTab = ({
         user: {
           id: candidate.id,
           full_name: candidate.full_name,
-          email: candidate.email,
+          username: candidate.username,
+          discriminator: candidate.discriminator,
         },
         role_id: null,
         role_display_name: null,
@@ -278,12 +282,13 @@ export const InitiativeSettingsMembersTab = ({
       },
       {
         id: "email",
-        accessorKey: "user.email",
-        header: t("settings.emailColumn"),
-        cell: ({ row }) => {
-          const member = row.original;
-          return <span className="text-muted-foreground">{member.user.email}</span>;
-        },
+        accessorKey: "user.username",
+        header: t("settings.handleColumn"),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            <UserHandle user={row.original.user} />
+          </span>
+        ),
       },
       {
         accessorKey: "role_name",
@@ -443,7 +448,7 @@ export const InitiativeSettingsMembersTab = ({
                 <SearchableCombobox
                   items={availableUsers.map((candidate) => ({
                     value: String(candidate.id),
-                    label: candidate.full_name?.trim() || candidate.email,
+                    label: getUserDisplayName(candidate),
                   }))}
                   value={selectedUserId}
                   onValueChange={setSelectedUserId}

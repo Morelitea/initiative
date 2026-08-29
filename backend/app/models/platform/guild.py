@@ -163,6 +163,14 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # Whether this guild renders members' real names. Off means it renders
+    # handles instead, which is the default and the only option for a listed
+    # guild — ck_guilds_community_member_names makes that structural, so the
+    # effective rule is this one column rather than a pair to reconcile.
+    show_member_names: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     # Which shelves the guild files itself under (see GuildCategory). A listed
     # guild must be on at least one — a card nobody can find by browsing is not
     # a listing — which the ck_guilds_community_categories CHECK enforces.

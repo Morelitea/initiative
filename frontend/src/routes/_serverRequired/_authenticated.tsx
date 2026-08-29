@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
+import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
@@ -104,6 +105,12 @@ function AppLayout() {
 
   const clearRecent = useClearRecentView();
   const clearRecents = useClearRecentViews();
+
+  // An account that was handed its handle rather than picking one chooses
+  // here, before anything else: it is how everyone else will see them.
+  if (!loading && user && !user.username_chosen) {
+    return <ChooseHandle />;
+  }
 
   // Now we can have conditional returns
   // Show loading state while auth or guild membership is being determined

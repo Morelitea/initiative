@@ -213,7 +213,8 @@
       "createDashboards": "Create Dashboards",
       "viewCounterGroups": "View Counters",
       "createCounterGroups": "Create Counters"
-    }
+    },
+    "handleColumn": "Handle"
   },
   "advancedTools": "Advanced Tools",
   "advancedToolsDescription": "Enable optional tools for this initiative.",

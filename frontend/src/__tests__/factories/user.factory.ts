@@ -66,7 +66,8 @@ export function buildUserPublic(overrides: Partial<UserPublic> = {}): UserPublic
   counter++;
   return {
     id: counter,
-    email: `user-${counter}@example.com`,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
     ...overrides,
@@ -80,6 +81,8 @@ export function buildUserSummary(overrides: Partial<UserSummary> = {}): UserSumm
   counter++;
   return {
     id: counter,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
@@ -93,6 +96,9 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
   return {
     id: counter,
     email: `user-${counter}@example.com`,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
+    username_chosen: true,
     full_name: `User ${counter}`,
     avatar_url: null,
     role: "member",
@@ -112,7 +118,8 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
   counter++;
   return {
     id: counter,
-    email: `user-${counter}@example.com`,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
     role: "member",

@@ -213,7 +213,8 @@
       "createDashboards": "Créer des tableaux de bord",
       "viewCounterGroups": "Voir les compteurs",
       "createCounterGroups": "Créer des compteurs"
-    }
+    },
+    "handleColumn": "Identifiant"
   },
   "advancedTools": "Outils avancés",
   "advancedToolsDescription": "Activez des outils optionnels pour cette initiative.",

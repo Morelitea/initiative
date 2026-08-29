@@ -18,6 +18,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import usernames
 from app.core.encryption import (
     decrypt_token,
     encrypt_field,
@@ -367,6 +368,8 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
     # Create user with known password
     password = "testpassword123"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("login@example.com"),
         email_encrypted=encrypt_field("login@example.com", SALT_EMAIL),
         full_name="Login User",
@@ -399,6 +402,8 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     """Test that login fails with wrong password."""
     password = "correct_password"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("test@example.com"),
         email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
         full_name="Test User",
@@ -428,6 +433,8 @@ async def test_login_refused_for_account_without_password(
     any password yields the same incorrect-credentials refusal, with no 500
     from verifying against a missing hash."""
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("sso-only@example.com"),
         email_encrypted=encrypt_field("sso-only@example.com", SALT_EMAIL),
         full_name="SSO Only",
@@ -456,6 +463,8 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot login."""
     password = "testpassword"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("inactive@example.com"),
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
@@ -484,6 +493,8 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
     """Test that users with unverified emails cannot login."""
     password = "testpassword"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("unverified@example.com"),
         email_encrypted=encrypt_field("unverified@example.com", SALT_EMAIL),
         full_name="Unverified User",
@@ -528,6 +539,8 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     """Test that login email is case-insensitive."""
     password = "testpassword"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("test@example.com"),
         email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
         full_name="Test User",
@@ -571,6 +584,8 @@ async def test_login_rehashes_legacy_bcrypt_password(
     assert legacy_hash.startswith("$2"), "test setup expected a real bcrypt hash"
 
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("legacy@example.com"),
         email_encrypted=encrypt_field("legacy@example.com", SALT_EMAIL),
         full_name="Legacy User",
@@ -1699,6 +1714,8 @@ async def test_login_grandfathers_existing_short_password(
     password — never to ``verify_password`` on the login path."""
     short_password = "shortpw"  # 7 chars — would fail the policy if applied
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("legacy-short@example.com"),
         email_encrypted=encrypt_field("legacy-short@example.com", SALT_EMAIL),
         full_name="Legacy Short",
@@ -1868,6 +1885,8 @@ async def _make_login_user(
     password: str = "testpassword123",
 ) -> tuple[User, str]:
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email(email),
         email_encrypted=encrypt_field(email, SALT_EMAIL),
         full_name="Refresh User",

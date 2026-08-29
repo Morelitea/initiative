@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 interface QueueItemRowProps {
@@ -34,7 +34,7 @@ export const QueueItemRow = ({
 }: QueueItemRowProps) => {
   const { t } = useTranslation("queues");
 
-  const userInitials = item.user ? getInitials(item.user.full_name, item.user.email) : null;
+  const userInitials = item.user ? getInitialsForUser(item.user) : null;
   const userAvatarSrc = item.user ? resolveUploadUrl(item.user.avatar_url) || undefined : undefined;
   const isHeld = item.held_at_round !== null;
 
