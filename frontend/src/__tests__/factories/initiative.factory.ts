@@ -1,10 +1,11 @@
 import type {
   InitiativeDirectoryEntry,
+  InitiativeJoinRequestRead,
   InitiativeMemberRead,
   InitiativeRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
-import { buildUserPublic } from "./user.factory";
+import { buildUserPublic, buildUserSummary } from "./user.factory";
 
 let counter = 0;
 
@@ -67,6 +68,28 @@ export function buildInitiativeDirectoryEntry(
     member_count: 3,
     is_member: false,
     has_pending_request: false,
+    // Reads zero for anyone who couldn't answer the queue anyway.
+    pending_join_request_count: 0,
+    ...overrides,
+  };
+}
+
+/** One row of an initiative's join-request queue. Pending and never denied
+ *  before — the plain knock a manager sees most of the time. */
+export function buildInitiativeJoinRequest(
+  overrides: Partial<InitiativeJoinRequestRead> = {}
+): InitiativeJoinRequestRead {
+  counter++;
+  return {
+    id: counter,
+    initiative_id: 1,
+    user: buildUserSummary(),
+    status: "pending",
+    message: null,
+    created_at: "2026-01-15T00:00:00.000Z",
+    resolved_at: null,
+    resolved_by: null,
+    prior_denials: 0,
     ...overrides,
   };
 }

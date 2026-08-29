@@ -115,7 +115,10 @@ def _event_target_path(event_id: int | None) -> str:
 
 def _initiative_target_path(initiative_id: int | None) -> str:
     if initiative_id is None:
-        return "/i"
+        # No one initiative to open, so land on the guild's front page — which
+        # is where the initiative list lives now that the standalone page is
+        # gone. "/i" would only redirect here anyway.
+        return "/"
     return f"/i/{initiative_id}"
 
 
@@ -300,6 +303,222 @@ async def notify_initiative_membership(
             )
         except Exception as exc:
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+    await session.commit()
+
+
+async def _send_join_request_push(
+    session: AsyncSession,
+    recipient: User,
+    *,
+    notification_type: NotificationType,
+    title_key: str,
+    body_key: str,
+    target_path: str,
+    guild_id: int,
+    initiative_id: int,
+    **body_vars: str,
+) -> None:
+    """Push half of the join-request notifications, best effort.
+
+    Gated on ``push_initiative_addition``: all three events are news about the
+    recipient's initiative membership — asked for, granted, or refused — so they
+    honour the preference that already governs that topic rather than adding a
+    fourth toggle for the same idea.
+    """
+    if recipient.push_initiative_addition is False:
+        return
+    locale = _recipient_locale(recipient)
+    try:
+        await push_notifications.send_push_to_user(
+            session=session,
+            user_id=recipient.id,
+            notification_type=notification_type,
+            title=_nt(title_key, locale),
+            body=_nt(body_key, locale, **body_vars),
+            data={
+                "type": notification_type.value,
+                "initiative_id": str(initiative_id),
+                "guild_id": str(guild_id),
+                "target_path": target_path,
+            },
+        )
+    except Exception as exc:
+        logger.error("Failed to send push notification: %s", exc, exc_info=True)
+
+
+async def _send_join_request_email(
+    session: AsyncSession,
+    recipient: User,
+    *,
+    event: str,
+    initiative_name: str,
+    target_path: str,
+    guild_id: int,
+    requester: str | None = None,
+    message: str | None = None,
+) -> None:
+    """Email half of the join-request notifications, best effort.
+
+    Gated on ``email_initiative_addition`` for the same reason the push half is
+    gated on its counterpart: all three events are news about the recipient's
+    initiative membership, so they honour the preference that already governs
+    that topic instead of growing a second toggle for the same idea.
+
+    The link is the guild-aware smart link — these events mean nothing outside
+    the guild they happened in.
+    """
+    if recipient.email_initiative_addition is False:
+        return
+    link = (
+        _build_smart_link(target_path=target_path, guild_id=guild_id)
+        or app_config.APP_URL
+    )
+    try:
+        await email_service.send_initiative_join_request_email(
+            session,
+            recipient,
+            event=event,
+            initiative_name=initiative_name,
+            link=link,
+            requester=requester,
+            message=message,
+        )
+    except email_service.EmailNotConfiguredError:
+        logger.warning(
+            "SMTP not configured; skipping join-request email for %s", recipient.email
+        )
+    except Exception as exc:
+        logger.error("Failed to send join-request email: %s", exc, exc_info=True)
+
+
+async def notify_initiative_join_requested(
+    session: AsyncSession,
+    managers: list[User],
+    *,
+    request_id: int,
+    initiative_id: int,
+    initiative_name: str,
+    guild_id: int,
+    requester: User,
+    message: str | None = None,
+) -> None:
+    """Tell an initiative's managers that someone knocked.
+
+    Addressed to the people who can answer it — the manager-role members — and
+    it carries no initiative *content*, only who asked, what they said, and
+    where to answer.
+    """
+    # Straight to the queue rather than the initiative: the recipient was told
+    # about this to act on it, and only a manager is ever sent one.
+    target_path = f"{_initiative_target_path(initiative_id)}/settings/members"
+    requester_name = requester.full_name or f"#{requester.id}"
+    for manager in managers:
+        await user_notifications.create_notification(
+            session,
+            user_id=manager.id,
+            notification_type=NotificationType.initiative_join_requested,
+            data={
+                "request_id": request_id,
+                "initiative_id": initiative_id,
+                "initiative_name": initiative_name,
+                "guild_id": guild_id,
+                "requester_id": requester.id,
+                "requester_name": requester_name,
+                "target_path": target_path,
+                "smart_link": _build_smart_link(
+                    target_path=target_path, guild_id=guild_id
+                ),
+            },
+        )
+        await _send_join_request_push(
+            session,
+            manager,
+            notification_type=NotificationType.initiative_join_requested,
+            title_key="initiative.joinRequested.title",
+            body_key="initiative.joinRequested.body",
+            target_path=target_path,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+            requester=requester_name,
+            initiative=initiative_name,
+        )
+        await _send_join_request_email(
+            session,
+            manager,
+            event="requested",
+            initiative_name=initiative_name,
+            target_path=target_path,
+            guild_id=guild_id,
+            requester=requester_name,
+            message=message,
+        )
+    await session.commit()
+
+
+async def notify_initiative_join_resolved(
+    session: AsyncSession,
+    requester: User,
+    *,
+    request_id: int,
+    initiative_id: int,
+    initiative_name: str,
+    guild_id: int,
+    approved: bool,
+) -> None:
+    """Tell the requester how their knock was answered.
+
+    An approval points at the initiative — the membership row now exists, so the
+    link resolves. A denial points at the directory instead, which is as far as
+    they can go.
+    """
+    notification_type = (
+        NotificationType.initiative_join_approved
+        if approved
+        else NotificationType.initiative_join_denied
+    )
+    target_path = (
+        _initiative_target_path(initiative_id)
+        if approved
+        else _initiative_target_path(None)
+    )
+    await user_notifications.create_notification(
+        session,
+        user_id=requester.id,
+        notification_type=notification_type,
+        data={
+            "request_id": request_id,
+            "initiative_id": initiative_id,
+            "initiative_name": initiative_name,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+    )
+    await _send_join_request_push(
+        session,
+        requester,
+        notification_type=notification_type,
+        title_key=(
+            "initiative.joinApproved.title"
+            if approved
+            else "initiative.joinDenied.title"
+        ),
+        body_key=(
+            "initiative.joinApproved.body" if approved else "initiative.joinDenied.body"
+        ),
+        target_path=target_path,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        initiative=initiative_name,
+    )
+    await _send_join_request_email(
+        session,
+        requester,
+        event="approved" if approved else "denied",
+        initiative_name=initiative_name,
+        target_path=target_path,
+        guild_id=guild_id,
+    )
     await session.commit()
 
 

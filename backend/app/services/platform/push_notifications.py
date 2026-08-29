@@ -32,6 +32,12 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.task_assignment: "task_assignment",
     NotificationType.overdue_tasks: "overdue_tasks",
     NotificationType.initiative_added: "initiative_added",
+    # Join requests are initiative-membership news, so they ride the channel the
+    # installed app already registers for it rather than asking for a new one
+    # (a new channel id would mean a native release).
+    NotificationType.initiative_join_requested: "initiative_added",
+    NotificationType.initiative_join_approved: "initiative_added",
+    NotificationType.initiative_join_denied: "initiative_added",
     NotificationType.project_added: "project_added",
     NotificationType.user_pending_approval: "user_pending_approval",
     NotificationType.mention: "mention",

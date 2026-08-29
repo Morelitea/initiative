@@ -6,6 +6,7 @@ import type {
   InitiativeMemberRead,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { InitiativeJoinRequestQueue } from "@/components/initiatives/settings/InitiativeJoinRequestQueue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TabsContent } from "@/components/ui/tabs";
 import {
   useAddInitiativeMember,
   useRemoveInitiativeMember,
@@ -406,7 +406,11 @@ export const InitiativeSettingsMembersTab = ({
   ]);
 
   return (
-    <TabsContent value="members">
+    <div className="space-y-4">
+      {/* Requests come before the roster: they are the roster's inbox, and
+          answering one is the same act as adding a member by hand. Manager-only,
+          matching who may answer them. */}
+      {canManageMembers ? <InitiativeJoinRequestQueue initiativeId={initiativeId} /> : null}
       <Card>
         <CardHeader>
           <CardTitle>{t("settings.membersTitle")}</CardTitle>
@@ -499,6 +503,6 @@ export const InitiativeSettingsMembersTab = ({
           ) : null}
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 };

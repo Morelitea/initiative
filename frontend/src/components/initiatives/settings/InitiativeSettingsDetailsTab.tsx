@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 interface InitiativeSettingsDetailsTabProps {
@@ -49,7 +48,7 @@ export const InitiativeSettingsDetailsTab = ({
   const { t } = useTranslation(["initiatives", "common"]);
 
   return (
-    <TabsContent value="details">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>{t("settings.detailsTitle")}</CardTitle>
@@ -123,6 +122,6 @@ export const InitiativeSettingsDetailsTab = ({
         onToggle={onToggleTool}
         idPrefix="settings"
       />
-    </TabsContent>
+    </div>
   );
 };

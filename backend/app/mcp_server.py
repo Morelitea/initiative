@@ -57,6 +57,12 @@ _WRITE_ROUTE_MAPS = [
 
 _ROUTE_MAPS = [
     *_WRITE_ROUTE_MAPS,
+    # Carved out of the ``initiatives`` read surface below: a join request names
+    # who asked to be let in and carries their free-text note, which is
+    # membership administration for a manager to answer rather than part of the
+    # project/task surface these tools serve. Ordered ahead of the tag rule so
+    # the exclusion wins.
+    RouteMap(pattern=r".*/join-requests.*", mcp_type=MCPType.EXCLUDE),
     *(
         RouteMap(methods=["GET"], tags={tag}, mcp_type=MCPType.TOOL)
         for tag in READ_TAGS

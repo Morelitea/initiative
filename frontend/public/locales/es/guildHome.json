@@ -29,6 +29,10 @@
     "join": "Unirse",
     "joining": "Uniéndote…",
     "joined": "Te has unido a {{name}}.",
+    "requestToJoin": "Solicitar unirse",
+    "requested": "Solicitado",
+    "pendingRequests_one": "{{count}} esperando para unirse",
+    "pendingRequests_other": "{{count}} esperando para unirse",
     "policy": {
       "open": "Abierta a todos los miembros del gremio",
       "request": "Unirse mediante solicitud",

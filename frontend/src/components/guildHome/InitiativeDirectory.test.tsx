@@ -7,6 +7,7 @@ import {
   buildGuild,
   buildInitiative,
   buildInitiativeDirectoryEntry,
+  buildInitiativeJoinRequest,
   buildInitiativeMember,
   buildUser,
 } from "@/__tests__/factories";
@@ -45,6 +46,16 @@ const renderDirectory = (entries: InitiativeDirectoryEntry[], user?: UserRead) =
 const openEntry = () =>
   buildInitiativeDirectoryEntry({ id: OPEN_ID, name: "Nebula", join_policy: "open" });
 
+const REQUEST_ID = 6;
+
+const requestEntry = (overrides: Partial<InitiativeDirectoryEntry> = {}) =>
+  buildInitiativeDirectoryEntry({
+    id: REQUEST_ID,
+    name: "Vanguard",
+    join_policy: "request",
+    ...overrides,
+  });
+
 /** The group a heading names, so a card can be asserted to be in one. */
 const group = (name: string) => screen.getByRole("heading", { name }).parentElement as HTMLElement;
 
@@ -55,10 +66,11 @@ describe("InitiativeDirectory", () => {
       buildInitiativeDirectoryEntry({ id: 6, name: "Vanguard", join_policy: "request" }),
     ]);
 
-    // The request-policy card is listed — discoverable — but knocking ships
-    // with the request flow, so it carries no action yet.
+    // A request-policy card asks rather than walks in, so exactly one card
+    // carries the Join button.
     expect(await screen.findByText("Vanguard")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Join" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Request to join" })).toBeInTheDocument();
   });
 
   it("splits the ones you're in from the ones you could join", async () => {
@@ -264,6 +276,107 @@ describe("InitiativeDirectory", () => {
     renderDirectory([openEntry()]);
     await screen.findByTestId("mounted");
     expect(screen.queryByText("Nebula")).not.toBeInTheDocument();
+  });
+
+  it("sends a request to join, with the note the reader wrote", async () => {
+    const requests: Array<{ id: string; body: unknown }> = [];
+    server.use(
+      guildHttp.post("/initiatives/:id/join-requests", async ({ params, request }) => {
+        requests.push({ id: String(params.id), body: await request.json() });
+        return HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: 6 }), {
+          status: 201,
+        });
+      })
+    );
+
+    renderDirectory([requestEntry()]);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Request to join" }));
+    await userEvent.type(await screen.findByLabelText(/Message/), "I run the Thursday session.");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toEqual({
+      id: String(REQUEST_ID),
+      body: { message: "I run the Thursday session." },
+    });
+    expect(toast.success).toHaveBeenCalledWith("Your request to join Vanguard was sent.");
+  });
+
+  it("sends a request with no note at all", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      guildHttp.post("/initiatives/:id/join-requests", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: 6 }), {
+          status: 201,
+        });
+      })
+    );
+
+    renderDirectory([requestEntry()]);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Request to join" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Send request" }));
+
+    // The note is optional, and an empty one is sent as no note rather than "".
+    await waitFor(() => expect(bodies).toEqual([{ message: null }]));
+  });
+
+  it("shows a knock already waiting as a state, not a button", async () => {
+    renderDirectory([requestEntry({ has_pending_request: true })]);
+
+    expect(await screen.findByText("Requested")).toBeInTheDocument();
+    // Nothing the requester can press moves it along.
+    expect(screen.queryByRole("button", { name: "Request to join" })).not.toBeInTheDocument();
+  });
+
+  it("explains a refused request in the reader's own words", async () => {
+    server.use(
+      guildHttp.post("/initiatives/:id/join-requests", () =>
+        HttpResponse.json({ detail: "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING" }, { status: 409 })
+      )
+    );
+
+    renderDirectory([requestEntry()]);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Request to join" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Send request" }));
+
+    // The backend answers with a code; the reader gets the mapped sentence.
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "You already have a request waiting on this initiative"
+      )
+    );
+  });
+
+  it("tells a manager how many are waiting at their own door", async () => {
+    renderDirectory([
+      buildInitiativeDirectoryEntry({
+        id: 7,
+        name: "Apollo",
+        join_policy: "request",
+        is_member: true,
+        pending_join_request_count: 3,
+      }),
+    ]);
+
+    // The count reads zero for anyone who couldn't answer the queue, so its
+    // presence is the permission check.
+    expect(await screen.findByText("3 waiting to join")).toBeInTheDocument();
+    // And it leads to the queue itself, which is a route of its own.
+    expect(screen.getByRole("link", { name: "3 waiting to join" })).toHaveAttribute(
+      "href",
+      "/g/1/i/7/settings/members"
+    );
+  });
+
+  it("leaves the waiting count off a card with nobody waiting", async () => {
+    renderDirectory([requestEntry()]);
+
+    expect(await screen.findByText("Vanguard")).toBeInTheDocument();
+    expect(screen.queryByText(/waiting to join/)).not.toBeInTheDocument();
   });
 
   it("joins an open initiative and says so", async () => {

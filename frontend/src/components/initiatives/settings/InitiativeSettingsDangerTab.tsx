@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TabsContent } from "@/components/ui/tabs";
 
 interface InitiativeSettingsDangerTabProps {
   isDefault: boolean;
@@ -30,7 +29,7 @@ export const InitiativeSettingsDangerTab = ({
   const { t } = useTranslation(["initiatives", "common"]);
 
   return (
-    <TabsContent value="danger">
+    <div>
       <Card className="border-destructive/40">
         <CardHeader>
           <CardTitle className="text-destructive">{t("settings.dangerTitle")}</CardTitle>
@@ -87,6 +86,6 @@ export const InitiativeSettingsDangerTab = ({
           ) : null}
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 };

@@ -6,8 +6,12 @@ from pydantic import ConfigDict, Field, create_model
 from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
-from app.models.tenant.initiative import InitiativeJoinPolicy, PermissionKey
-from app.schemas.platform.user import UserPublic
+from app.models.tenant.initiative import (
+    InitiativeJoinPolicy,
+    JoinRequestStatus,
+    PermissionKey,
+)
+from app.schemas.platform.user import UserPublic, UserSummary
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import (
@@ -18,6 +22,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+
+#: A join request's note is a sentence or two for the managers reading the
+#: queue, not a document — so it is capped well below the 8 KB plain-text
+#: ceiling every ``SanitizedBaseModel`` string already carries.
+JOIN_REQUEST_MESSAGE_MAX_LENGTH = 1000
 
 
 # Derived bases: one `{tool.plural}_enabled` master-switch field per
@@ -211,6 +220,44 @@ class InitiativeDirectoryEntry(SanitizedBaseModel):
     member_count: int = 0
     is_member: bool = False
     has_pending_request: bool = False
+    # How many people are waiting at this door — the badge on a manager's card.
+    # Zero for everyone who could not act on the queue anyway (see
+    # ``list_directory_entries``), so the directory never tells a bystander how
+    # many of their peers asked to get in.
+    pending_join_request_count: int = 0
+
+
+class InitiativeJoinRequestCreate(SanitizedBaseModel):
+    """A guild member knocking on a ``request``-policy initiative."""
+
+    message: Optional[str] = Field(
+        default=None, max_length=JOIN_REQUEST_MESSAGE_MAX_LENGTH
+    )
+
+
+class InitiativeJoinRequestRead(SanitizedBaseModel):
+    """One row of an initiative's join-request queue.
+
+    Carries everything the manager needs to decide without a second call: who
+    is asking (the same slim user projection the member pickers use), what they
+    said, when they asked, and how many times this initiative has turned them
+    down before — a denied requester may ask again, so the history is what keeps
+    the repeat visible.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    initiative_id: int
+    user: UserSummary
+    status: JoinRequestStatus
+    message: Optional[str] = None
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[int] = None
+    prior_denials: int = 0
 
 
 def serialize_role(

@@ -5,19 +5,27 @@ import { useTranslation } from "react-i18next";
 import type {
   InitiativeCreate,
   InitiativeDirectoryEntry,
+  InitiativeJoinRequestCreate,
+  InitiativeJoinRequestRead,
   InitiativeRead,
+  JoinRequestStatus,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost,
+  approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost,
   createInitiativeApiV1GGuildIdInitiativesPost,
+  createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost,
   deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete,
+  denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost,
   getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey,
   getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet,
   getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey,
   getListInitiativesApiV1GGuildIdInitiativesGetQueryKey,
+  getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey,
   joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost,
   listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet,
   listInitiativesApiV1GGuildIdInitiativesGet,
+  listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet,
   removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete,
   updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch,
   updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch,
@@ -25,6 +33,7 @@ import {
 import {
   invalidateAllInitiatives,
   invalidateInitiative,
+  invalidateInitiativeJoinRequests,
   invalidateInitiativeMembers,
   invalidateInitiativeMembership,
 } from "@/api/query-keys";
@@ -80,6 +89,41 @@ export const useInitiativeDirectory = (options?: QueryOpts<InitiativeDirectoryEn
     queryKey: getListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGetQueryKey(guildId),
     queryFn: () => listInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet(guildId),
     enabled: guildId > 0 && userEnabled,
+    ...rest,
+  });
+};
+
+/**
+ * One initiative's join-request queue — who has knocked, and what they said.
+ *
+ * Manager-only on the server (a plain member has no more business reading who
+ * asked to get in than a non-member does), so callers gate the mount on the
+ * same standing that gates managing the roster; a stray call answers 403 and
+ * the queue simply doesn't render.
+ *
+ * `status` defaults to the pending rows, which is the queue in the sense that
+ * matters: the ones still open to an answer.
+ */
+export const useInitiativeJoinRequests = (
+  initiativeId: number | null,
+  params?: { status?: JoinRequestStatus },
+  options?: QueryOpts<InitiativeJoinRequestRead[]>
+) => {
+  const guildId = useActiveGuildId();
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<InitiativeJoinRequestRead[]>({
+    queryKey: getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey(
+      guildId,
+      initiativeId!,
+      params
+    ),
+    queryFn: () =>
+      listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet(
+        guildId,
+        initiativeId!,
+        params
+      ),
+    enabled: guildId > 0 && initiativeId !== null && userEnabled,
     ...rest,
   });
 };
@@ -185,6 +229,78 @@ export const useJoinInitiative = (
         joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost(guildId, initiativeId),
       invalidate: () => invalidateInitiativeMembership(),
       errorKey: "initiatives:directory.joinError",
+    },
+    options
+  );
+
+/**
+ * Knock on a `request` initiative: ask a manager to let you in.
+ *
+ * Nothing about what the requester can see changes until someone answers — the
+ * only thing that moves is the card's own state, so the directory is what has
+ * to re-read (its `has_pending_request`), along with the queue the managers
+ * are watching.
+ */
+export const useRequestToJoinInitiative = (
+  options?: MutationOpts<
+    InitiativeJoinRequestRead,
+    { initiativeId: number; data: InitiativeJoinRequestCreate }
+  >
+) =>
+  useGuildMutation<
+    InitiativeJoinRequestRead,
+    { initiativeId: number; data: InitiativeJoinRequestCreate }
+  >(
+    {
+      mutationFn: (guildId, { initiativeId, data }) =>
+        createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost(
+          guildId,
+          initiativeId,
+          data
+        ),
+      invalidate: (_data, { initiativeId }) =>
+        Promise.all([invalidateAllInitiatives(), invalidateInitiativeJoinRequests(initiativeId)]),
+      errorKey: "initiatives:joinRequests.requestError",
+    },
+    options
+  );
+
+/**
+ * Answer one knock. Approving writes the membership row every join path ends
+ * at, so it refreshes as broadly as a self-join does; denying moves only the
+ * queue, but both take the same route so a resolved row never lingers in one
+ * surface after leaving another.
+ */
+export const useResolveJoinRequest = (
+  options?: MutationOpts<
+    InitiativeJoinRequestRead,
+    { initiativeId: number; requestId: number; approved: boolean }
+  >
+) =>
+  useGuildMutation<
+    InitiativeJoinRequestRead,
+    { initiativeId: number; requestId: number; approved: boolean }
+  >(
+    {
+      mutationFn: (guildId, { initiativeId, requestId, approved }) =>
+        approved
+          ? approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost(
+              guildId,
+              initiativeId,
+              requestId
+            )
+          : denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost(
+              guildId,
+              initiativeId,
+              requestId
+            ),
+      invalidate: (_data, { initiativeId }) =>
+        Promise.all([
+          invalidateInitiativeMembership(),
+          invalidateInitiativeMembers(initiativeId),
+          invalidateInitiativeJoinRequests(initiativeId),
+        ]),
+      errorKey: "initiatives:joinRequests.resolveError",
     },
     options
   );

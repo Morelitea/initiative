@@ -13,7 +13,7 @@ vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-import { InitiativeSettingsPage } from "./InitiativeSettingsPage";
+import { InitiativeSettingsDetailsPage } from "./InitiativeSettingsDetailsPage";
 
 const INITIATIVE_ID = 7;
 
@@ -26,7 +26,6 @@ function stubInitiative(joinPolicy: InitiativeJoinPolicy = "private") {
         buildInitiative({ id: INITIATIVE_ID, name: "Apollo", join_policy: joinPolicy }),
       ])
     ),
-    guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([])),
     guildHttp.patch("/initiatives/:id", async ({ request }) => {
       const body = await request.json();
       patches.push(body);
@@ -36,30 +35,28 @@ function stubInitiative(joinPolicy: InitiativeJoinPolicy = "private") {
   return patches;
 }
 
-const renderSettings = () =>
-  renderPage(InitiativeSettingsPage, {
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+const renderDetails = (role: "admin" | "member" = "admin") =>
+  renderPage(InitiativeSettingsDetailsPage, {
+    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
     initialRoute: "/g/$guildId/i/$initiativeId/settings",
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
-describe("InitiativeSettingsPage join policy", () => {
-  it("offers only the two policies this release can deliver", async () => {
+describe("InitiativeSettingsDetailsPage", () => {
+  it("offers every way into an initiative", async () => {
     stubInitiative();
 
-    renderSettings();
+    renderDetails();
 
     expect(await screen.findByRole("radio", { name: /Invite only/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /By request/ })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Anyone can join/ })).toBeInTheDocument();
-    // Knocking arrives with the request flow; offering it now would promise a
-    // queue nobody can approve from.
-    expect(screen.queryByRole("radio", { name: /By request/ })).not.toBeInTheDocument();
   });
 
   it("saves the chosen policy on its own, touching no other field", async () => {
     const patches = stubInitiative();
 
-    renderSettings();
+    renderDetails();
 
     await userEvent.click(await screen.findByRole("radio", { name: /Anyone can join/ }));
 
@@ -67,14 +64,32 @@ describe("InitiativeSettingsPage join policy", () => {
     expect(patches[0]).toEqual({ join_policy: "open" });
   });
 
-  it("keeps a policy it cannot offer rather than silently downgrading it", async () => {
+  it("saves the by-request policy", async () => {
+    const patches = stubInitiative();
+
+    renderDetails();
+
+    await userEvent.click(await screen.findByRole("radio", { name: /By request/ }));
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({ join_policy: "request" });
+  });
+
+  it("shows the initiative's current policy as the chosen one", async () => {
     stubInitiative("request");
 
-    renderSettings();
+    renderDetails();
 
-    // The initiative is already `request`, so the option is shown — selected —
-    // instead of the screen quietly resetting it to one of its own two.
-    const requestOption = await screen.findByRole("radio", { name: /By request/ });
-    expect(requestOption).toBeChecked();
+    expect(await screen.findByRole("radio", { name: /By request/ })).toBeChecked();
+  });
+
+  it("refuses the section to someone who reached the address without the standing", async () => {
+    stubInitiative();
+
+    // Straight to the section, with no layout in front of it.
+    renderDetails("member");
+
+    expect(await screen.findByText("Permission required")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Invite only/ })).not.toBeInTheDocument();
   });
 });

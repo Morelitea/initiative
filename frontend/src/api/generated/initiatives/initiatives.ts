@@ -25,6 +25,8 @@ import type {
   HTTPValidationError,
   InitiativeCreate,
   InitiativeDirectoryEntry,
+  InitiativeJoinRequestCreate,
+  InitiativeJoinRequestRead,
   InitiativeMemberAdd,
   InitiativeMemberUpdate,
   InitiativeRead,
@@ -32,6 +34,7 @@ import type {
   InitiativeRoleRead,
   InitiativeRoleUpdate,
   InitiativeUpdate,
+  ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
   MyInitiativePermissions,
   SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGetParams,
   UserPublic,
@@ -573,6 +576,860 @@ export const useJoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost = <
 > => {
   return useMutation(
     getJoinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Knock on a ``request`` initiative and wait for a manager to answer.
+ *
+ * Any other join policy answers 403 — the same answer for ``private`` and
+ * ``open`` alike, so it says only "not by this route" and a private initiative
+ * stays exactly as hidden as it was.
+ *
+ * Being refused before does not bar asking again: only a *pending* request is
+ * unique, and the refusals stay on file so the manager reading the queue can
+ * see the repeat.
+ * @summary Create Join Request
+ */
+export const createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost = (
+  guildId: number,
+  initiativeId: number,
+  initiativeJoinRequestCreate: BodyType<InitiativeJoinRequestCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeJoinRequestRead>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: initiativeJoinRequestCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCreateJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost>
+      >,
+      TError,
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeJoinRequestCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost>
+    >,
+    TError,
+    { guildId: number; initiativeId: number; data: BodyType<InitiativeJoinRequestCreate> },
+    TContext
+  > => {
+    const mutationKey = ["createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost>
+      >,
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeJoinRequestCreate> }
+    > = (props) => {
+      const { guildId, initiativeId, data } = props ?? {};
+
+      return createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost(
+        guildId,
+        initiativeId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type CreateJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost>
+    >
+  >;
+export type CreateJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPostMutationBody =
+  BodyType<InitiativeJoinRequestCreate>;
+export type CreateJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Join Request
+ */
+export const useCreateJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost>
+      >,
+      TError,
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeJoinRequestCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPost>>,
+  TError,
+  { guildId: number; initiativeId: number; data: BodyType<InitiativeJoinRequestCreate> },
+  TContext
+> => {
+  return useMutation(
+    getCreateJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * The join-request queue for one initiative.
+ *
+ * Manager-only, matching who may answer it; a plain member of the initiative
+ * has no more business reading who asked to get in than a non-member does. A
+ * requester reads their own rows through ``/join-requests/me`` instead.
+ * @summary List Join Requests
+ */
+export const listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet = (
+  guildId: number,
+  initiativeId: number,
+  params?: ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeJoinRequestRead[]>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests`,
+      method: "GET",
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey = (
+  guildId: number,
+  initiativeId: number,
+  params?: ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams
+) => {
+  return [
+    `/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  params?: ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey(
+      guildId,
+      initiativeId,
+      params
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>>
+  > = ({ signal }) =>
+    listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet(
+      guildId,
+      initiativeId,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      initiativeId !== null &&
+      initiativeId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>>
+  >;
+export type ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet<
+  TData = Awaited<
+    ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  params: undefined | ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet<
+  TData = Awaited<
+    ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  params?: ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet<
+  TData = Awaited<
+    ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  params?: ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Join Requests
+ */
+
+export function useListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet<
+  TData = Awaited<
+    ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  params?: ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetQueryOptions(
+      guildId,
+      initiativeId,
+      params,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The caller's own knocks at this door, newest first.
+ *
+ * ``initiative_join_requests`` is a guild-level table — the schema boundary is
+ * its only database gate, because a requester is by definition not yet a
+ * member and an initiative-membership gate would hide their own row from them.
+ * So who may read which rows is decided here: this route is scoped to the
+ * caller's ``user_id`` and nothing else, and the queue below is manager-only.
+ * @summary List My Join Requests
+ */
+export const listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet = (
+  guildId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeJoinRequestRead[]>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests/me`,
+      method: "GET",
+      signal,
+    },
+    options
+  );
+};
+
+export const getListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGetQueryKey = (
+  guildId: number,
+  initiativeId: number
+) => {
+  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests/me`] as const;
+};
+
+export const getListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    initiativeId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGetQueryKey(
+        guildId,
+        initiativeId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+      >
+    > = ({ signal }) =>
+      listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet(
+        guildId,
+        initiativeId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled:
+        guildId !== null &&
+        guildId !== undefined &&
+        initiativeId !== null &&
+        initiativeId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type ListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+    >
+  >;
+export type ListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet<
+  TData = Awaited<
+    ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet<
+  TData = Awaited<
+    ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet<
+  TData = Awaited<
+    ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Join Requests
+ */
+
+export function useListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet<
+  TData = Awaited<
+    ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof listMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getListMyJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsMeGetQueryOptions(
+      guildId,
+      initiativeId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Let the requester in, with the built-in ``member`` role.
+ *
+ * The membership row is the one every join path produces, so the requester's
+ * access flips through ``initiative_access`` with no policy change. Someone who
+ * became a member by another route while the request waited is absorbed: the
+ * row is resolved and the call succeeds.
+ * @summary Approve Join Request
+ */
+export const approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost =
+  (
+    guildId: number,
+    initiativeId: number,
+    requestId: number,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<InitiativeJoinRequestRead>(
+      {
+        url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests/${requestId}/approve`,
+        method: "POST",
+        signal,
+      },
+      options
+    );
+  };
+
+export const getApproveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost
+        >
+      >,
+      TError,
+      { guildId: number; initiativeId: number; requestId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost
+      >
+    >,
+    TError,
+    { guildId: number; initiativeId: number; requestId: number },
+    TContext
+  > => {
+    const mutationKey = [
+      "approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost
+        >
+      >,
+      { guildId: number; initiativeId: number; requestId: number }
+    > = (props) => {
+      const { guildId, initiativeId, requestId } = props ?? {};
+
+      return approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost(
+        guildId,
+        initiativeId,
+        requestId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ApproveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost
+      >
+    >
+  >;
+
+export type ApproveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Approve Join Request
+ */
+export const useApproveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost
+          >
+        >,
+        TError,
+        { guildId: number; initiativeId: number; requestId: number },
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost
+      >
+    >,
+    TError,
+    { guildId: number; initiativeId: number; requestId: number },
+    TContext
+  > => {
+    return useMutation(
+      getApproveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePostMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
+/**
+ * Turn the request down. No membership row, so nothing about what the
+ * requester can see changes; the row stays as history, and they may ask
+ * again.
+ * @summary Deny Join Request
+ */
+export const denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost = (
+  guildId: number,
+  initiativeId: number,
+  requestId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeJoinRequestRead>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/join-requests/${requestId}/deny`,
+      method: "POST",
+      signal,
+    },
+    options
+  );
+};
+
+export const getDenyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost
+        >
+      >,
+      TError,
+      { guildId: number; initiativeId: number; requestId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost
+      >
+    >,
+    TError,
+    { guildId: number; initiativeId: number; requestId: number },
+    TContext
+  > => {
+    const mutationKey = [
+      "denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost
+        >
+      >,
+      { guildId: number; initiativeId: number; requestId: number }
+    > = (props) => {
+      const { guildId, initiativeId, requestId } = props ?? {};
+
+      return denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost(
+        guildId,
+        initiativeId,
+        requestId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DenyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost
+      >
+    >
+  >;
+
+export type DenyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Deny Join Request
+ */
+export const useDenyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost
+        >
+      >,
+      TError,
+      { guildId: number; initiativeId: number; requestId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<
+      typeof denyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost
+    >
+  >,
+  TError,
+  { guildId: number; initiativeId: number; requestId: number },
+  TContext
+> => {
+  return useMutation(
+    getDenyJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPostMutationOptions(
+      options
+    ),
     queryClient
   );
 };

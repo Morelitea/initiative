@@ -2729,6 +2729,7 @@ export interface InitiativeDirectoryEntry {
   member_count: number;
   is_member: boolean;
   has_pending_request: boolean;
+  pending_join_request_count: number;
 }
 
 export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
@@ -2741,6 +2742,61 @@ export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
  */
 export interface InitiativeGroupedCountsResponse {
   counts: InitiativeGroupedCountsResponseCounts;
+}
+
+/**
+ * A guild member knocking on a ``request``-policy initiative.
+ */
+export interface InitiativeJoinRequestCreate {
+  message?: string | null;
+}
+
+/**
+ * Slim user projection for typeahead and picker surfaces.
+ *
+ * Drops the fields pickers never read — email, platform/guild role,
+ * ``initiative_roles`` (an N+1 enrichment on the full roster), and
+ * timestamps — while keeping the avatar so members still render with a
+ * face. The payload is bounded by pagination on the endpoints that serve
+ * it, not by dropping the avatar.
+ */
+export interface UserSummary {
+  id: number;
+  full_name: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+}
+
+/**
+ * Lifecycle of a row in ``initiative_join_requests``.
+ */
+export type JoinRequestStatus = (typeof JoinRequestStatus)[keyof typeof JoinRequestStatus];
+
+export const JoinRequestStatus = {
+  pending: "pending",
+  approved: "approved",
+  denied: "denied",
+} as const;
+
+/**
+ * One row of an initiative's join-request queue.
+ *
+ * Carries everything the manager needs to decide without a second call: who
+ * is asking (the same slim user projection the member pickers use), what they
+ * said, when they asked, and how many times this initiative has turned them
+ * down before — a denied requester may ask again, so the history is what keeps
+ * the repeat visible.
+ */
+export interface InitiativeJoinRequestRead {
+  id: number;
+  initiative_id: number;
+  user: UserSummary;
+  status: JoinRequestStatus;
+  message: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: number | null;
+  prior_denials: number;
 }
 
 /**
@@ -3067,6 +3123,9 @@ export const NotificationType = {
   task_assignment: "task_assignment",
   overdue_tasks: "overdue_tasks",
   initiative_added: "initiative_added",
+  initiative_join_requested: "initiative_join_requested",
+  initiative_join_approved: "initiative_join_approved",
+  initiative_join_denied: "initiative_join_denied",
   project_added: "project_added",
   user_pending_approval: "user_pending_approval",
   mention: "mention",
@@ -4656,22 +4715,6 @@ export interface UserStatsResponse {
 }
 
 /**
- * Slim user projection for typeahead and picker surfaces.
- *
- * Drops the fields pickers never read — email, platform/guild role,
- * ``initiative_roles`` (an N+1 enrichment on the full roster), and
- * timestamps — while keeping the avatar so members still render with a
- * face. The payload is bounded by pagination on the endpoints that serve
- * it, not by dropping the avatar.
- */
-export interface UserSummary {
-  id: number;
-  full_name: string | null;
-  avatar_url: string | null;
-  status: UserStatus;
-}
-
-/**
  * Paginated envelope for the slim user search/typeahead endpoints.
  */
 export interface UserSummaryListResponse {
@@ -5235,6 +5278,13 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams = {
+  /**
+   * Narrow the queue to one status. Omit for the pending queue — the rows that are still open to an answer.
+   */
+  status?: JoinRequestStatus | null;
 };
 
 export type GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetParams = {
