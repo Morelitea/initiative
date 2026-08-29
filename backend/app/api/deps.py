@@ -40,7 +40,12 @@ from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user import (
+    LOGIN_STATUSES,
+    User,
+    UserRole,
+    UserStatus,
+)
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
@@ -379,7 +384,14 @@ async def get_current_user_optional(
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    if current_user.status != UserStatus.active:
+    """The caller, if their account may hold a session at all.
+
+    A *suspended* account may: its holder still reaches their own profile,
+    preferences, export and deletion, and being able to sign in is how they can
+    be told anything. Suspension bites at the guild instead — see
+    ``_load_guild_context``.
+    """
+    if current_user.status not in LOGIN_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
         )
@@ -539,6 +551,14 @@ async def _load_guild_context(
     ``get_guild_membership``, where both values exist — WS / keepalive callers
     have no delegation token, so the shared resolver never deals with one.
     """
+    # A suspended account reaches no guild, by any route — not as a member and
+    # not on a PAM grant, which is why this sits ahead of both branches. It
+    # learns no more about why than a non-member does: the same generic code,
+    # so a guild is never told that one of its members was suspended. Nothing
+    # is revoked; the membership is still theirs when the suspension lifts.
+    if current_user.status == UserStatus.suspended:
+        raise GuildAccessError()
+
     # Set minimal RLS context before querying guild_memberships (RLS-protected).
     # Full guild context is set later by get_guild_session / RLSSessionDep.
     # No standing bypass: a user reads their own membership row via the own-row

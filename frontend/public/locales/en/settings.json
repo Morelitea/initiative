@@ -621,7 +621,17 @@
     },
     "changeRoleTitle": "Change platform role",
     "changeRoleDescription": "This will change {{email}}'s platform role to {{role}}.",
-    "roleChangeSuccess": "Platform role changed to {{role}}"
+    "roleChangeSuccess": "Platform role changed to {{role}}",
+    "changeUsername": "Change username",
+    "usernameChanged": "Username changed.",
+    "changeUsernameTitle": "Change {{handle}}'s username",
+    "changeUsernameBody": "They will be told, and they cannot change it back themselves. The number stays as it is.",
+    "suspend": "Suspend",
+    "unsuspend": "Lift suspension",
+    "suspendTitle": "Suspend {{handle}}?",
+    "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no guild until this is lifted. They can still sign in to their own account, where they will see your reason.",
+    "suspendReasonLabel": "Reason (shown to them)",
+    "actionError": "That could not be done. Try again."
   },
   "adminDeleteUser": {
     "title": "Delete User",

@@ -210,6 +210,13 @@ async def list_guilds(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> List[GuildRead]:
+    # A suspended account keeps every membership it had and reaches none of
+    # them, so its guild list is empty — the same thing a suspended guild does
+    # to its members' lists, and it keeps the app coherent rather than offering
+    # doors that all refuse.
+    if current_user.status == UserStatus.suspended:
+        return []
+
     memberships = await guilds_service.list_memberships(
         session, user_id=current_user.id
     )

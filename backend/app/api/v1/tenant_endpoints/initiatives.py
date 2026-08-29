@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
@@ -33,6 +33,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.task import Task, TaskAssignee
+from app.core import usernames
 from app.models.platform.user import User
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
@@ -59,6 +60,7 @@ from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
+from app.services.platform import users as users_service
 from app.services.stream_authz import authority as stream_authority
 from app.services import rls as rls_service
 from app.services.membership import initiative_scope_clause
@@ -1192,8 +1194,11 @@ async def get_initiative_members(
     stmt = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
-        .order_by(User.full_name, User.id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            users_service.visible_to_other_people(),
+        )
+        .order_by(User.username, User.discriminator, User.id)
     )
     result = await session.exec(stmt)
     return result.all()
@@ -1244,15 +1249,34 @@ async def search_initiative_members(
     base = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            users_service.visible_to_other_people(),
+        )
     )
+    shows_names = bool(guild_context.guild.show_member_names)
     if search and (term := search.strip()):
-        base = base.where(User.full_name.ilike(f"%{term}%"))
+        # Matches what this guild renders. A substring filter over a field the
+        # guild does not show would be that field, read one query at a time.
+        name_part, number = usernames.parse_handle(term)
+        if number is not None:
+            base = base.where(
+                func.lower(User.username) == name_part.lower(),
+                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
+            )
+        else:
+            matches = User.username.ilike(f"%{name_part}%")
+            if shows_names:
+                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+            base = base.where(matches)
     if user_id:
         base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
+    order = (User.full_name.asc(),) if shows_names else ()
+    data_stmt = base.order_by(
+        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+    )
 
     users, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size

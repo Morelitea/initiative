@@ -621,7 +621,17 @@
     },
     "changeRoleTitle": "Plattformrolle ändern",
     "changeRoleDescription": "Dadurch wird die Plattformrolle von {{email}} in {{role}} geändert.",
-    "roleChangeSuccess": "Plattformrolle in {{role}} geändert"
+    "roleChangeSuccess": "Plattformrolle in {{role}} geändert",
+    "changeUsername": "Benutzernamen ändern",
+    "usernameChanged": "Benutzername geändert.",
+    "changeUsernameTitle": "Benutzernamen von {{handle}} ändern",
+    "changeUsernameBody": "Die Person wird benachrichtigt und kann die Änderung nicht selbst rückgängig machen. Die Nummer bleibt unverändert.",
+    "suspend": "Sperren",
+    "unsuspend": "Sperre aufheben",
+    "suspendTitle": "{{handle}} sperren?",
+    "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Gilde erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
+    "suspendReasonLabel": "Begründung (wird angezeigt)",
+    "actionError": "Das hat nicht geklappt. Bitte erneut versuchen."
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",

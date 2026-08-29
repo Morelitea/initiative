@@ -16,6 +16,8 @@ import {
   listAllUsersApiV1AdminUsersGet,
   listAuditEventsApiV1AdminAuditEventsGet,
   reactivateUserApiV1AdminUsersUserIdReactivatePost,
+  setUserSuspensionApiV1AdminUsersUserIdSuspensionPost,
+  setUserUsernameApiV1AdminUsersUserIdUsernamePatch,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
   updatePlatformRoleApiV1AdminUsersUserIdPlatformRolePatch,
 } from "@/api/generated/admin/admin";
@@ -203,6 +205,37 @@ export const useAdminReactivateUser = (options?: MutationOpts<UserRead, number>)
   useApiMutation<UserRead, number>(
     {
       mutationFn: (userId) => reactivateUserApiV1AdminUsersUserIdReactivatePost(userId),
+      invalidate: () => invalidateAdminUsers(),
+    },
+    options
+  );
+
+type SetUsernameVars = { userId: number; username: string };
+
+/** Change someone's username (``content.moderate``). The number is not the
+ *  moderator's to choose; the server keeps the one they have. */
+export const useAdminSetUsername = (options?: MutationOpts<UserRead, SetUsernameVars>) =>
+  useApiMutation<UserRead, SetUsernameVars>(
+    {
+      mutationFn: ({ userId, username }) =>
+        setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, { username }),
+      invalidate: () => invalidateAdminUsers(),
+    },
+    options
+  );
+
+type SetSuspensionVars = { userId: number; suspended: boolean; reason?: string };
+
+/** Freeze an account, or let it go (``users.manage``). Takes nothing away —
+ *  memberships, grants and content are all still there when it is lifted. */
+export const useAdminSetSuspension = (options?: MutationOpts<UserRead, SetSuspensionVars>) =>
+  useApiMutation<UserRead, SetSuspensionVars>(
+    {
+      mutationFn: ({ userId, suspended, reason }) =>
+        setUserSuspensionApiV1AdminUsersUserIdSuspensionPost(userId, {
+          suspended,
+          reason: reason || null,
+        }),
       invalidate: () => invalidateAdminUsers(),
     },
     options
