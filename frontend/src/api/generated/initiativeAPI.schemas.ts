@@ -536,6 +536,41 @@ export interface AttachmentUploadResponse {
 }
 
 /**
+ * Who an id points at now, or nothing if the account is gone.
+ */
+export interface AuditActor {
+  id: number;
+  username: string | null;
+  discriminator: number | null;
+}
+
+export type AuditEventReadDetail = { [key: string]: unknown };
+
+export interface AuditEventRead {
+  id: number;
+  event_uuid: string;
+  event_type: string;
+  category: string;
+  tier: number;
+  occurred_at: string;
+  actor: AuditActor;
+  target_user: AuditActor | null;
+  guild_id: number | null;
+  target_type: string | null;
+  target_id: number | null;
+  detail: AuditEventReadDetail;
+}
+
+export interface AuditEventListResponse {
+  items: AuditEventRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+/**
  * One registry provider for the operator admin — never the secret.
  */
 export interface AuthProviderAdminRead {
@@ -5073,6 +5108,23 @@ export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
 
 export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
   user_id?: number[] | null;
+};
+
+export type ListAuditEventsApiV1AdminAuditEventsGetParams = {
+  event_type?: string[] | null;
+  actor_user_id?: number | null;
+  target_user_id?: number | null;
+  occurred_after?: string | null;
+  occurred_before?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
 };
 
 export type AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams = {

@@ -68,6 +68,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.
         "user_avatars",
+        # What a moderator did, and to whom. Cross-guild platform security
+        # that has to outlive any guild — and every reference in it is a plain
+        # integer, so it outlives the accounts it names too.
+        "audit_events",
         # Tenancy roster — must be readable *before* a request is routed
         "guilds",
         # The operator-set half of a guild (caps / plan label / sign-in

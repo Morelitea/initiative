@@ -52,6 +52,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport } fr
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings'
 import { Route as ServerRequiredAuthenticatedSettingsAdminIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/index'
 import { Route as ServerRequiredAuthenticatedSettingsAdminAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/access'
+import { Route as ServerRequiredAuthenticatedSettingsAdminAuditRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/audit'
 import { Route as ServerRequiredAuthenticatedSettingsAdminGuildsRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/guilds'
 import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/users'
 import { Route as ServerRequiredAuthenticatedSettingsGuildSplatRouteImport } from './routes/_serverRequired/_authenticated/settings/guild.$'
@@ -365,6 +366,12 @@ const ServerRequiredAuthenticatedSettingsAdminAccessRoute =
   ServerRequiredAuthenticatedSettingsAdminAccessRouteImport.update({
     id: '/access',
     path: '/access',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsAdminAuditRoute =
+  ServerRequiredAuthenticatedSettingsAdminAuditRouteImport.update({
+    id: '/audit',
+    path: '/audit',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsAdminGuildsRoute =
@@ -887,6 +894,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   '/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/$': typeof ServerRequiredAuthenticatedSettingsGuildSplatRoute
@@ -989,6 +997,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/$': typeof ServerRequiredAuthenticatedSettingsGuildSplatRoute
@@ -1097,6 +1106,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
   '/_serverRequired/_authenticated/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/_serverRequired/_authenticated/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/_serverRequired/_authenticated/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/_serverRequired/_authenticated/settings/guild/$': typeof ServerRequiredAuthenticatedSettingsGuildSplatRoute
@@ -1206,6 +1216,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/marketplace'
     | '/g/$guildId/settings'
     | '/settings/admin/access'
+    | '/settings/admin/audit'
     | '/settings/admin/guilds'
     | '/settings/admin/users'
     | '/settings/guild/$'
@@ -1308,6 +1319,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/g/$guildId/marketplace'
     | '/settings/admin/access'
+    | '/settings/admin/audit'
     | '/settings/admin/guilds'
     | '/settings/admin/users'
     | '/settings/guild/$'
@@ -1415,6 +1427,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/marketplace'
     | '/_serverRequired/_authenticated/g/$guildId/settings'
     | '/_serverRequired/_authenticated/settings/admin/access'
+    | '/_serverRequired/_authenticated/settings/admin/audit'
     | '/_serverRequired/_authenticated/settings/admin/guilds'
     | '/_serverRequired/_authenticated/settings/admin/users'
     | '/_serverRequired/_authenticated/settings/guild/$'
@@ -1790,6 +1803,13 @@ declare module '@tanstack/react-router' {
       path: '/access'
       fullPath: '/settings/admin/access'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminAccessRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
+    }
+    '/_serverRequired/_authenticated/settings/admin/audit': {
+      id: '/_serverRequired/_authenticated/settings/admin/audit'
+      path: '/audit'
+      fullPath: '/settings/admin/audit'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminAuditRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
     }
     '/_serverRequired/_authenticated/settings/admin/guilds': {
@@ -2281,6 +2301,7 @@ const ServerRequiredAuthenticatedProfileRouteWithChildren =
 
 interface ServerRequiredAuthenticatedSettingsAdminRouteChildren {
   ServerRequiredAuthenticatedSettingsAdminAccessRoute: typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  ServerRequiredAuthenticatedSettingsAdminAuditRoute: typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   ServerRequiredAuthenticatedSettingsAdminGuildsRoute: typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   ServerRequiredAuthenticatedSettingsAdminUsersRoute: typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   ServerRequiredAuthenticatedSettingsAdminIndexRoute: typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
@@ -2290,6 +2311,8 @@ const ServerRequiredAuthenticatedSettingsAdminRouteChildren: ServerRequiredAuthe
   {
     ServerRequiredAuthenticatedSettingsAdminAccessRoute:
       ServerRequiredAuthenticatedSettingsAdminAccessRoute,
+    ServerRequiredAuthenticatedSettingsAdminAuditRoute:
+      ServerRequiredAuthenticatedSettingsAdminAuditRoute,
     ServerRequiredAuthenticatedSettingsAdminGuildsRoute:
       ServerRequiredAuthenticatedSettingsAdminGuildsRoute,
     ServerRequiredAuthenticatedSettingsAdminUsersRoute:

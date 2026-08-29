@@ -900,7 +900,8 @@
     "tabs": {
       "users": "Users",
       "access": "Access",
-      "guilds": "Guilds"
+      "guilds": "Guilds",
+      "audit": "Audit"
     }
   },
   "storage": {
@@ -1096,5 +1097,20 @@
     "disabledToast": "The community directory is off.",
     "saveError": "Could not change the community directory. Please try again.",
     "adminOnly": "You need the platform owner role to run a community directory."
+  },
+  "audit": {
+    "title": "Audit",
+    "description": "What was done to accounts, by whom, and when. Entries are kept after the accounts they name are gone.",
+    "whenColumn": "When",
+    "actionColumn": "Action",
+    "actorColumn": "Done by",
+    "subjectColumn": "Done to",
+    "subjectFilterPlaceholder": "Filter by account ID",
+    "departedAccount": "Account #{{id}} (deleted)",
+    "empty": "Nothing has been recorded yet.",
+    "pageOf": "Page {{page}} of {{total}} entries",
+    "actions": {
+      "user.avatar_removed": "Profile picture removed"
+    }
   }
 }

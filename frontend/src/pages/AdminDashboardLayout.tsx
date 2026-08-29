@@ -39,6 +39,12 @@ export const AdminDashboardLayout = () => {
         capabilities: [Capability.guildsManage],
       },
       {
+        value: "audit",
+        label: t("adminDashboard.tabs.audit"),
+        path: "/settings/admin/audit",
+        capabilities: [Capability.auditRead],
+      },
+      {
         value: "access",
         label: t("adminDashboard.tabs.access"),
         path: "/settings/admin/access",
