@@ -4,7 +4,7 @@ icon: lucide/users
 
 # Your first guild
 
-A **guild** is a workspace — a separate space for one group of people and all their work. Before you can do much, you need to be in one. There are two ways: **join** an existing guild, or **create** a new one.
+A **guild** is a workspace — a separate space for one group of people and all their work. Before you can do much, you need to be in one. There are three ways: **join** an existing guild by invitation, **find** one that has listed itself publicly, or **create** a new one.
 
 ## Joining a guild (the usual way)
 
@@ -18,6 +18,12 @@ That's all there is to it. The guild now appears on the **guild rail** down the 
 
 !!! note "Invite links can expire"
     For safety, an invite link may have a limited number of uses or an expiry date. If yours says it's no longer valid, ask the person who sent it for a fresh one.
+
+## Finding a guild yourself
+
+Some guilds list themselves publicly so anyone can find them. Under the **add-a-guild** button on the guild rail, choose **Join a community** to browse them by category or search by name — then join straight from a guild's card, no invite needed.
+
+If you don't see **Join a community**, this server hasn't switched the directory on, and every guild here is invite-only. There's more in [Finding a guild to join](../guides/guilds.md#finding-a-guild-to-join).
 
 ## Creating a guild
 

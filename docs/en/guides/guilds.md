@@ -25,6 +25,43 @@ Only the tools your initiatives actually use appear, so a guild that doesn't run
 !!! tip "Two guilds at once"
     Open Initiative in two browser tabs and you can have each tab in a different guild — handy if you're juggling, say, a work team and a side project.
 
+## Finding a guild to join
+
+Most guilds are private and you get in by invitation. Some choose to list themselves publicly, and those you can find and join on your own.
+
+Under the **add-a-guild** button on the guild rail, choose **Join a community**. That opens the **community directory**: a card for each listed guild with its banner, icon, description, categories, how many members it has, and how many are there right now.
+
+- **Search** by name or description.
+- **Browse by category** — the shelves group guilds by what they're for.
+- **Join** from a guild's card. There's no invite and no waiting: you're a member as soon as you click.
+
+What you searched for and which shelf you're on are both part of the address, so a filtered view of the directory is a link you can send someone.
+
+![The community directory](../images/guilds/community-directory.png)
+
+!!! info "Not every server has one"
+    The directory is a server-wide feature that starts switched **off**. If you don't see **Join a community**, this server hasn't turned it on, and guilds here are invite-only. That's the platform owner's decision — see [Configuration](../admin/configuration.md).
+
+## Listing your guild (administrators)
+
+A guild admin can put their guild in the directory from **Guild settings → Guild**.
+
+1. Turn on **List in the community directory**.
+2. Pick at least one **category**. This is how people find you when browsing, so choose what your guild is actually for.
+3. **Certify** that the guild holds no adult or illegal content.
+
+![Listing a guild in the community directory](../images/guilds/guild-listing.png)
+
+You can unlist at any time; the guild and everything in it carry on exactly as before, it simply stops appearing to strangers.
+
+Two things keep a guild out of the directory whatever you set:
+
+- A guild marked **18+** is never listed.
+- A guild with room for only one more member is never listed, so nobody clicks Join on something they can't get into.
+
+!!! tip "Give arrivals somewhere to land"
+    A listed guild whose initiatives are all invite-only leaves newcomers looking at an empty page — they've joined the guild but can't see any of its work yet. Initiative will tell you when that's the case and point you at the fix: mark one initiative **open** so people can join it themselves, or **auto-join** so they simply arrive in it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
+
 ## Inviting people (administrators)
 
 Guild administrators bring new people in with **invite links**.

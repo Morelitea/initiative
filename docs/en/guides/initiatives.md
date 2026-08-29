@@ -29,13 +29,57 @@ Clicking an initiative's **title** in the sidebar opens its **dashboard** — an
 
 ## Adding members
 
-An initiative is only visible to its **members**. To bring people in:
+An initiative's **contents** are visible only to its **members**. To bring people in by hand:
 
 1. Open the initiative and go to its **settings → Members**.
 2. **Add** people from your guild.
 3. Give each person a **role** (see below).
 
-People who aren't members of an initiative simply don't see it — it's not hidden behind a "no entry" sign, it's just not there for them. This is how an initiative keeps sensitive work private to the people involved, even from other members of the same guild.
+An invite-only initiative isn't just closed to people who aren't in it — it isn't there for them at all. No "no entry" sign, no name in a list: nothing. This is how an initiative keeps sensitive work private to the people involved, even from other members of the same guild.
+
+An initiative that invites the guild in (below) is listed by name, description, and size so people can find it — but that's all a non-member sees. Its projects, documents, and everything else stay out of reach until they actually join.
+
+## How people join an initiative
+
+Being added by hand isn't the only way in. Each initiative decides for itself how people from the guild may join it, under **settings → Details → Joining**:
+
+| Setting | What it means |
+|---|---|
+| **Invite only** | Nobody joins on their own. A manager adds them. This is the default, and what every initiative made before this feature still uses. |
+| **By request** | Listed for the guild to see. Someone asks to join, and a manager approves or declines. |
+| **Anyone can join** | Listed for the guild to see, and any member joins in one click. |
+
+![Choosing how people join an initiative](../images/initiatives/join-policy.png)
+
+Anything that isn't invite-only appears in the **Initiatives** section of the guild's front page — its name, colour, description, and how many people are in it — split into the ones you're already in and the ones you could join.
+
+![The initiative list on a guild's front page](../images/initiatives/guild-home-initiatives.png)
+
+Whichever way someone arrives, they get the built-in **member** role — view-only on the always-on tools — and sharing still decides each project and document inside. Opening an initiative up doesn't expose anything that was private to it; it only changes who may walk in.
+
+### Asking to join
+
+On a **by request** initiative, the card offers **Request to join**, and the person can add a short note saying who they are or why they're asking.
+
+The initiative's managers are notified — in the app, and by push or email if they've got those turned on — and the request waits in **settings → Members**, above the roster. Each one shows who asked, what they wrote, when, and whether that person has been declined here before. **Approve** adds them as a member; **Decline** doesn't.
+
+Being declined isn't a ban. The person can ask again, and only one request of theirs can be open at a time.
+
+![The join-request queue](../images/initiatives/join-request-queue.png)
+
+### Adding everyone automatically
+
+A guild admin can go one step further and mark an **anyone can join** initiative as **auto-join**. From then on, everyone who arrives in the guild — by invite, from the [community directory](guilds.md#finding-a-guild-to-join), or through single sign-on — lands in it already a member, with nothing to click.
+
+This is how you stop a newcomer meeting an empty guild. It's worth having at least one for any guild that lists itself publicly.
+
+Two things to know:
+
+- It applies to people arriving **from now on**. It doesn't reach back and add everyone already in the guild.
+- Only an **anyone can join** initiative can carry it, so auto-join never hands out access that the person couldn't have given themselves from the list a moment later.
+
+!!! tip "Guild admins are already everywhere"
+    A guild admin reaches every initiative in their guild by virtue of being an admin, so they're not enrolled as ordinary members and don't appear in these lists as needing to join.
 
 ## Roles and what they unlock
 
@@ -67,7 +111,7 @@ There's a full walkthrough of roles and how they combine with sharing in [Initia
 
 Open an initiative's **settings** to find:
 
-- **Details** — name, color, and description.
+- **Details** — name, color, description, and **Joining** (how people may join; see [How people join an initiative](#how-people-join-an-initiative)).
 - **Members** — who's in, and their roles.
 - **Roles** — create roles and set their permissions.
 - **Danger zone** — archive, unarchive, or delete the initiative.
