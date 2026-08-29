@@ -145,6 +145,12 @@ async def sync_oidc_assignments(
     # Apply matched guild roles, and ensure a membership exists for every guild
     # that has a matched initiative so the initiative member can be added below.
     ensure_member_guilds = set(guild_roles) | set(initiative_guild.values())
+    # Guilds this sync admits the user to for the first time, as a plain member.
+    # They are as new to the guild as an invite redeemer, so the guild's
+    # auto-join initiatives take them in the same way (below, in the routed
+    # per-guild loop). Admins are left out for the same reason the invite path
+    # leaves them out — standing access already, and no member role to hold.
+    newly_admitted_guilds: set[int] = set()
     for guild_id in sorted(ensure_member_guilds):
         desired = guild_roles.get(guild_id)
         membership = await _get_guild_membership(
@@ -164,6 +170,8 @@ async def sync_oidc_assignments(
                 session, user_id=user_id, guild_id=guild_id, role=role
             )
             result.guilds_added.append(guild_id)
+            if role != GuildRole.admin:
+                newly_admitted_guilds.add(guild_id)
             # Event-driven seats (billing plan D5); no-op unless billing is
             # configured. Once per changed guild, not per member row.
             billing_ping.notify_membership_changed(guild_id)
@@ -188,6 +196,7 @@ async def sync_oidc_assignments(
     # --- Initiative resolution + membership (guild-scoped, routed per guild) ---
     from app.services.tenant.initiatives import (
         clear_user_task_assignments_for_initiative,
+        enroll_in_auto_join_initiatives,
     )
 
     for gid in relevant_guilds:
@@ -267,6 +276,30 @@ async def sync_oidc_assignments(
                 )
                 await session.delete(im)
                 result.initiatives_removed.append(im.initiative_id)
+
+        # Onboarding for a first-time arrival, once the claims have had their
+        # say. It runs last because the claims are authoritative about role:
+        # enrolment would otherwise write a plain member row that the mapping
+        # loop above then declines to touch (it leaves non-oidc-managed rows
+        # alone by design), and a user mapped to a manager role would silently
+        # land as a member. Enrolling afterwards is a no-op for any initiative
+        # the claims already placed them in, so this only fills the gaps.
+        #
+        # The rows are ordinary (``oidc_managed`` false), so the sweep above
+        # leaves them alone and a later sync neither reaps nor fights them.
+        if gid in newly_admitted_guilds:
+            try:
+                async with session.begin_nested():
+                    await enroll_in_auto_join_initiatives(
+                        session, guild_id=gid, user_id=user_id
+                    )
+            except Exception:
+                logger.exception(
+                    "auto-join: user %s was admitted to guild %s by claim sync "
+                    "but enrolled in none of its auto-join initiatives",
+                    user_id,
+                    gid,
+                )
         await session.flush()
 
     # --- Remove stale guild memberships ---

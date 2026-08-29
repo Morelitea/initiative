@@ -138,6 +138,14 @@
       "openLabel": "Anyone can join",
       "openHelp": "Listed in the guild directory. Any guild member can join themselves, with view-only access to start."
     },
+    "autoJoin": {
+      "label": "Add every new guild member automatically",
+      "help": "Anyone who joins this guild from now on becomes a member of this initiative, with view-only access to start.",
+      "notRetroactive": "People already in the guild are not added — they can join this initiative themselves from the guild directory.",
+      "requiresOpen": "Auto-join needs the “Anyone can join” policy above. An initiative nobody can enter on their own should not enrol people automatically — anyone who left could never get back in.",
+      "lockedNote": "A guild admin turned on auto-join for this initiative, so it has to stay open to everyone. Ask an admin to turn auto-join off before changing this.",
+      "turnedOff": "Auto-join is off — it is only available while anyone can join."
+    },
     "membersTitle": "Members",
     "membersDescription": "Initiative project managers and guild admins can manage membership.",
     "filterByName": "Filter by name",

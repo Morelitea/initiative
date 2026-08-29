@@ -33,6 +33,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 import { cn } from "@/lib/utils";
 
+import { CommunityAutoJoinPrompt } from "./CommunityAutoJoinPrompt";
 import { PublishGuildDialog } from "./PublishGuildDialog";
 
 /** A guild with one seat can never admit a joiner, so it is never listed.
@@ -136,6 +137,10 @@ export const GuildDiscoveryPanel = () => {
               {t("guilds:settings.discoveryAdultHint")}
             </p>
           ) : null}
+
+          {/* A listing is a front door; this is about the room behind it. Shown
+              only while the guild is listed, and only until it has one. */}
+          {listed ? <CommunityAutoJoinPrompt /> : null}
 
           {/* The shelves only matter once the guild is on one. They are editable
               here afterwards; the dialog is only for the first publication. */}

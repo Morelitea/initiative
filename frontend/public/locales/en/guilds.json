@@ -125,6 +125,13 @@
     "discoveryCapacityBlocked": "This guild has room for only one person, so nobody could join it from the directory. Ask your platform operator to raise its member limit.",
     "discoveryListed": "Listed in the community directory.",
     "discoveryNotListed": "Not listed. Only people with an invite can join.",
+    "autoJoinPromptTitle": "New members will arrive to an empty guild",
+    "autoJoinPromptBody": "Joining this guild puts nobody in an initiative, and an initiative's contents stay hidden until someone is in it. Pick where newcomers should land.",
+    "autoJoinPromptChooseLabel": "Initiative for new members",
+    "autoJoinPromptEffect": "The initiative you pick becomes joinable by anyone in the guild, and everyone who joins the guild from now on is added to it. Members already here are not added.",
+    "autoJoinPromptAction": "Set as the landing initiative",
+    "autoJoinPromptDone": "New guild members will now land in {{name}}.",
+    "autoJoinPromptCreateHint": "To welcome people somewhere new instead, create an initiative, then turn on auto-join in its Joining settings.",
     "artwork": {
       "title": "Pictures",
       "none": "None",

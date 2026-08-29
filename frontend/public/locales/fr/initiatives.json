@@ -138,6 +138,14 @@
       "openLabel": "Ouverte à tous",
       "openHelp": "Listée dans le répertoire de la guilde. Tout membre de la guilde peut la rejoindre lui-même, en lecture seule au départ."
     },
+    "autoJoin": {
+      "label": "Ajouter automatiquement chaque nouveau membre de la guilde",
+      "help": "Toute personne qui rejoint cette guilde à partir de maintenant devient membre de cette initiative, avec un accès en lecture seule pour commencer.",
+      "notRetroactive": "Les personnes déjà dans la guilde ne sont pas ajoutées : elles peuvent rejoindre cette initiative elles-mêmes depuis l’annuaire de la guilde.",
+      "requiresOpen": "L’adhésion automatique nécessite la politique « Tout le monde peut rejoindre » ci-dessus. Une initiative que personne ne peut rejoindre seul ne devrait inscrire personne automatiquement : qui la quitterait ne pourrait jamais y revenir.",
+      "lockedNote": "Un administrateur de guilde a activé l’adhésion automatique pour cette initiative, elle doit donc rester ouverte à tous. Demandez à un administrateur de la désactiver avant de changer ceci.",
+      "turnedOff": "L’adhésion automatique est désactivée : elle n’est possible que tant que tout le monde peut rejoindre."
+    },
     "membersTitle": "Membres",
     "membersDescription": "Les chefs de projet et les administrateurs du groupe peuvent gérer les membres.",
     "filterByName": "Filtrer par nom",

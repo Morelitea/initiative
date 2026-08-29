@@ -125,6 +125,13 @@
     "discoveryCapacityBlocked": "Diese Gilde hat nur für eine Person Platz, also könnte ihr niemand über das Verzeichnis beitreten. Bitte deinen Plattformbetreiber, das Mitgliederlimit zu erhöhen.",
     "discoveryListed": "Im Community-Verzeichnis eingetragen.",
     "discoveryNotListed": "Nicht eingetragen. Nur Personen mit Einladung können beitreten.",
+    "autoJoinPromptTitle": "Neue Mitglieder landen in einer leeren Gilde",
+    "autoJoinPromptBody": "Der Beitritt zu dieser Gilde fügt niemanden einer Initiative hinzu, und die Inhalte einer Initiative bleiben verborgen, bis man darin ist. Wähle, wo Neuankömmlinge landen sollen.",
+    "autoJoinPromptChooseLabel": "Initiative für neue Mitglieder",
+    "autoJoinPromptEffect": "Die gewählte Initiative wird für alle in der Gilde beitretbar, und wer der Gilde ab jetzt beitritt, wird ihr hinzugefügt. Bereits vorhandene Mitglieder werden nicht hinzugefügt.",
+    "autoJoinPromptAction": "Als Landeplatz festlegen",
+    "autoJoinPromptDone": "Neue Gildenmitglieder landen jetzt in {{name}}.",
+    "autoJoinPromptCreateHint": "Wenn du Leute stattdessen woanders begrüßen möchtest, erstelle eine Initiative und aktiviere dort in den Beitritts-Einstellungen den automatischen Beitritt.",
     "artwork": {
       "title": "Bilder",
       "none": "Keins",

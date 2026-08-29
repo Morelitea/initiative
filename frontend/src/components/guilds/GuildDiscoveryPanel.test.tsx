@@ -9,9 +9,12 @@
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildGuild, buildInitiative } from "@/__tests__/factories";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -157,6 +160,44 @@ describe("GuildDiscoveryPanel", () => {
       await userEvent.click(listingToggle());
       await screen.findByRole("dialog");
       expect(certify()).not.toBeChecked();
+    });
+  });
+
+  /** A listing is a front door; the prompt is about the room behind it. */
+  describe("the auto-join prompt", () => {
+    it("is absent while the guild is not listed", () => {
+      renderPanel(adminGuild());
+
+      expect(
+        screen.queryByText("New members will arrive to an empty guild")
+      ).not.toBeInTheDocument();
+    });
+
+    it("warns a listed guild that has nothing to land people in", async () => {
+      // The default handler's initiative carries no auto-join.
+      renderPanel(adminGuild({ is_community: true, categories: ["art"] }));
+
+      expect(
+        await screen.findByText("New members will arrive to an empty guild")
+      ).toBeInTheDocument();
+    });
+
+    it("is gone once an initiative takes new members", async () => {
+      server.use(
+        guildHttp.get("/initiatives/", () =>
+          HttpResponse.json([
+            buildInitiative({ name: "Welcome", join_policy: "open", auto_join: true }),
+          ])
+        )
+      );
+
+      renderPanel(adminGuild({ is_community: true, categories: ["art"] }));
+
+      await waitFor(() =>
+        expect(
+          screen.queryByText("New members will arrive to an empty guild")
+        ).not.toBeInTheDocument()
+      );
     });
   });
 

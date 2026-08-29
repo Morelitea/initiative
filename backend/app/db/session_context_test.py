@@ -22,6 +22,7 @@ from app.db.session import (
     _RLS_PARAMS_INFO_KEY,
     RLS_CONTEXT_MAX_AGE_SECONDS,
     StaleAuthorizationContext,
+    guild_schema_context,
     set_rls_context,
 )
 from app.models.platform.guild import GuildRole
@@ -166,3 +167,60 @@ async def test_harness_pin_survives_commit(session):
     await session.commit()
     sp = (await session.exec(text("SELECT current_setting('search_path')"))).scalar()
     assert f"guild_{guild.id}" in sp
+
+
+@pytest.mark.database
+async def test_guild_schema_context_returns_an_unrouted_session_as_it_found_it(
+    session, role_session
+):
+    """The excursion a platform handler makes into one guild's schema leaves no
+    trace: the stored params go, and the connection is back on its login role
+    with the public search_path."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+
+    s = await role_session("app_admin")
+    assert _RLS_PARAMS_INFO_KEY not in s.info
+
+    async with guild_schema_context(s, guild_id=guild.id):
+        assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild.id)
+        assert f"guild_{guild.id}" in await _scalar(
+            s, "SELECT current_setting('search_path')"
+        )
+
+    assert _RLS_PARAMS_INFO_KEY not in s.info
+    assert _RLS_ESTABLISHED_INFO_KEY not in s.info
+    assert (await _scalar(s, "SELECT current_user")) == "app_admin"
+    assert "guild_" not in await _scalar(s, "SELECT current_setting('search_path')")
+    # And the next transaction replays nothing, so the session is genuinely back
+    # to the login role rather than wearing a context this helper invented.
+    await s.commit()
+    assert (await _scalar(s, "SELECT current_user")) == "app_admin"
+
+
+@pytest.mark.database
+async def test_guild_schema_context_restores_a_callers_own_context(
+    session, role_session
+):
+    """A caller that was already routed gets its own routing back — including
+    the freshness stamp, which the excursion must not renew."""
+    user = await create_user(session)
+    guild_a = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild_a)
+    guild_b = await create_guild(session, creator=user)
+
+    s = await role_session("app_user")
+    await set_rls_context(
+        s, user_id=user.id, guild_id=guild_a.id, guild_role=GuildRole.admin.value
+    )
+    stamp = s.info[_RLS_ESTABLISHED_INFO_KEY]
+
+    async with guild_schema_context(s, guild_id=guild_b.id):
+        assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild_b.id)
+
+    assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild_a.id)
+    assert f"guild_{guild_a.id}" in await _scalar(
+        s, "SELECT current_setting('search_path')"
+    )
+    assert s.info[_RLS_ESTABLISHED_INFO_KEY] == stamp
+    assert s.info[_RLS_PARAMS_INFO_KEY]["user_id"] == user.id
