@@ -63,7 +63,7 @@ async def ingest_event(
     body = raw_body(request)
     if len(body) > MAX_EVENT_REQUEST_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=AppChannelMessages.EVENT_TOO_LARGE,
         )
 

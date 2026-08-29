@@ -1080,14 +1080,36 @@ async def test_engine_identities_warn_on_privileged_app_login(
 async def test_engine_identities_flag_an_unused_temporary_grant(caplog):
     """The request login needs no TEMPORARY on the database. Only the database
     owner can revoke it, so the app reports the drift and names the command
-    rather than trying to change it."""
+    rather than trying to change it.
+
+    Asserted against what the login actually holds. A database that has been
+    handed over (``create-provisioner.sql`` revokes the grant) must draw no
+    notice, and one that has not must draw one — reading the state first is
+    what makes this a test of the report rather than of whichever database the
+    developer happens to be pointed at.
+    """
+    import app.db.session as db_session
+
+    async with db_session.engine.connect() as conn:
+        holds_temp = (
+            await conn.execute(
+                text(
+                    "SELECT has_database_privilege("
+                    "  session_user, current_database(), 'TEMP')"
+                )
+            )
+        ).scalar_one()
+
     with caplog.at_level("WARNING", logger="app.db.schema_provisioning"):
         await schema_provisioning.verify_engine_identities()
     joined = "\n".join(r.getMessage() for r in caplog.records)
-    # The test database keeps the default grant, so the notice is expected here.
-    assert "PRIVILEGE DRIFT" in joined
-    assert "REVOKE TEMPORARY ON DATABASE" in joined
-    assert "create-provisioner.sql" in joined
+
+    if holds_temp:
+        assert "PRIVILEGE DRIFT" in joined
+        assert "REVOKE TEMPORARY ON DATABASE" in joined
+        assert "create-provisioner.sql" in joined
+    else:
+        assert "REVOKE TEMPORARY ON DATABASE" not in joined
 
 
 async def test_effective_grants_pass_for_privileged_logins(engine, monkeypatch):

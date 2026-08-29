@@ -26,7 +26,7 @@ async def _reset_backfill_row(admin_session):
     """Create the table (if needed) and reset the singleton to idle before each
     test — the UNLOGGED table persists across tests within a worker."""
     await storage_backfill.get_status(admin_session)  # ensures table + row
-    await admin_session.execute(
+    await admin_session.exec(
         text(
             "UPDATE storage_backfill_state SET status = 'idle', heartbeat = NULL, "
             "started_at = NULL, finished_at = NULL, copied = 0, skipped = 0, "
@@ -61,9 +61,9 @@ async def test_stale_running_can_be_reclaimed(admin_session) -> None:
     """A 'running' row whose heartbeat has gone stale (dead worker) is reclaimable
     so a backfill can't be wedged forever by a crash."""
     assert await storage_backfill.try_claim(admin_session) is True
-    await admin_session.execute(
+    await admin_session.exec(
         text("UPDATE storage_backfill_state SET heartbeat = :hb"),
-        {"hb": storage_backfill._now() - timedelta(hours=2)},
+        params={"hb": storage_backfill._now() - timedelta(hours=2)},
     )
     await admin_session.commit()
 

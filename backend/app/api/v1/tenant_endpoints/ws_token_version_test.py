@@ -22,7 +22,6 @@ from app.api.v1.tenant_endpoints.events import _user_from_token as events_authen
 from app.api.v1.tenant_endpoints.queues import _ws_authenticate as queues_authenticate
 from app.testing import create_user, get_auth_token
 
-pytestmark = pytest.mark.asyncio
 
 # Each entry is the endpoint-local WS authenticator under test.
 WS_AUTHENTICATORS = [

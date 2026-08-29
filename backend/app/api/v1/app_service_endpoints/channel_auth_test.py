@@ -41,7 +41,7 @@ from app.testing import (
     register_app_service,
 )
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.auth]
+pytestmark = pytest.mark.auth
 
 INSTALLS = "/api/v1/app-service/installs"
 

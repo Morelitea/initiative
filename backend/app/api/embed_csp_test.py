@@ -20,7 +20,6 @@ from app.services.marketplace.registration_lookup import (
 )
 from app.testing import create_app_service_registration
 
-pytestmark = pytest.mark.asyncio
 
 FRAMED = "https://framed.example.test"
 SECOND = "https://second.example.test"

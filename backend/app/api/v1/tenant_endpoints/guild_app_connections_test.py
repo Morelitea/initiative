@@ -47,8 +47,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.asyncio
-
 
 def _field(key: str, field_type: str, **extra) -> dict:
     return {"key": key, "type": field_type, "label": {"en": key}, **extra}

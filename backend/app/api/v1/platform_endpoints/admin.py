@@ -416,7 +416,7 @@ async def set_user_username(
         )
     except UsernameError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
         ) from exc
 
     user.updated_at = datetime.now(timezone.utc)

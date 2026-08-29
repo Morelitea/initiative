@@ -1037,7 +1037,7 @@ async def upload_document_file(
         )
     except attachments_service.FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=DocumentMessages.FILE_TOO_LARGE,
         )
     try:
@@ -1191,7 +1191,7 @@ async def upload_document_version(
         )
     except attachments_service.FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=DocumentMessages.FILE_TOO_LARGE,
         )
     try:

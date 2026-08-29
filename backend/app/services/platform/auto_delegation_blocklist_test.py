@@ -91,7 +91,7 @@ async def test_request_role_cannot_delete_blocklist(session, role_session):
 
     user = await role_session("app_user")
     with pytest.raises(DBAPIError):
-        await user.execute(text("DELETE FROM auto_delegation_jti_blocklist"))
+        await user.exec(text("DELETE FROM auto_delegation_jti_blocklist"))
     await user.rollback()
 
     # Still there — the failed DELETE changed nothing.

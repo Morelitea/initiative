@@ -34,7 +34,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.asyncio
 
 CALENDAR_APP_UID = marketplace_uid("guildcalendar")
 

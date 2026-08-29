@@ -99,6 +99,6 @@ def parse_body(request: Request, model: Type[ModelT]) -> ModelT:
         return model.model_validate_json(raw_body(request) or b"{}")
     except ValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=AppChannelMessages.INVALID_PAYLOAD,
         ) from exc
