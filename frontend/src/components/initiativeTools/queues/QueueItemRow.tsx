@@ -6,7 +6,6 @@ import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -141,7 +140,7 @@ export const QueueItemRow = ({
       {item.user && (
         <Avatar className="h-7 w-7 shrink-0">
           {userAvatarSrc ? (
-            <AvatarImage src={userAvatarSrc} alt={item.user.full_name ?? ""} />
+            <AvatarImage src={userAvatarSrc} alt={getUserDisplayName(item.user, "")} />
           ) : null}
           <AvatarFallback userId={item.user.id} className="text-xs">
             {userInitials}

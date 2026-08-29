@@ -78,6 +78,8 @@ const SelectChip = ({ option, slug, unknownLabel, dense }: SelectChipProps) => {
 
 interface UserValue {
   id: number;
+  username?: string | null;
+  discriminator?: number | null;
   full_name?: string | null;
   avatar_url?: string | null;
 }

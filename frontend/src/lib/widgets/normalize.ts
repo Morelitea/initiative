@@ -21,6 +21,7 @@ import type {
   TaskListRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 import type {
   CalendarEntryRow,
@@ -65,7 +66,9 @@ export const normalizeTasks = (tasks: TaskListRead[]): TaskRow[] =>
     completedAt: toEpoch(task.completed_at),
     projectId: task.project_id ?? null,
     projectName: task.project_name ?? null,
-    assignees: (task.assignees ?? []).map((assignee) => assignee.full_name ?? "").filter(Boolean),
+    assignees: (task.assignees ?? [])
+      .map((assignee) => getUserDisplayName(assignee, ""))
+      .filter(Boolean),
     createdAt: toEpoch(task.created_at) ?? 0,
     updatedAt: toEpoch(task.updated_at) ?? 0,
     tags: (task.tags ?? []).map((tag) => tag.name),
@@ -98,7 +101,7 @@ export const normalizeProjects = (
       progress: total > 0 ? done / total : 0,
       taskCount: total,
       doneCount: done,
-      ownerName: project.owner?.full_name ?? null,
+      ownerName: project.owner ? getUserDisplayName(project.owner) : null,
       tags: (project.tags ?? []).map((tag) => tag.name),
     };
   });

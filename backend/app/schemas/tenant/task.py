@@ -14,13 +14,16 @@ from app.schemas.tenant.property import PropertySummary, PropertyValueInput
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
+from app.schemas.platform.user import GuildNameVisibility
 
 
-class TaskAssigneeSummary(SanitizedBaseModel):
+class TaskAssigneeSummary(GuildNameVisibility):
     """Minimal assignee data for task lists.
 
-    Includes ``status`` so the frontend can render the "Deleted user
-    #{id}" placeholder for anonymized assignees inline.
+    A person appears here, so it follows the same two rules every other
+    guild-scoped shape does: the handle is always present and is what renders
+    when there is no name to show, and ``full_name`` arrives only from a guild
+    that shows real names.
     """
 
     model_config = ConfigDict(
@@ -28,6 +31,8 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     )
 
     id: int
+    username: str
+    discriminator: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active

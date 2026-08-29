@@ -337,19 +337,39 @@ def upgrade() -> None:
             f'ON TABLE public.users TO "{role}"'
         )
 
+    # On by default, which is what a private workspace expects. A guild listed
+    # in the community directory renders handles, and the CHECK below keeps
+    # that structural rather than a rule to remember.
     op.add_column(
         "guilds",
         sa.Column(
             "show_member_names",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("false"),
+            server_default=sa.text("true"),
         ),
     )
+    # A listed guild has to end up off before the CHECK below is created, and
+    # the default above turned every row on. The write is set up the way the
+    # ``public.users`` seeding in this file is (see ``_seed_handles``).
+    op.execute("ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY")
+    try:
+        conn.execute(
+            sa.text("UPDATE public.guilds SET show_member_names = NOT is_community")
+        )
+    finally:
+        op.execute("ALTER TABLE public.guilds FORCE ROW LEVEL SECURITY")
     op.create_check_constraint(
         "ck_guilds_community_member_names",
         "guilds",
         "NOT (is_community AND show_member_names)",
+    )
+    # 0138 pinned the guild-admin write path on ``public.guilds`` to a literal
+    # column list, so every column added since names itself — as 0196 did for
+    # the directory columns and 0200 for the banner. This is one a guild's own
+    # admin sets, from Settings -> Guild.
+    op.execute(
+        "GRANT UPDATE (show_member_names) ON TABLE public.guilds TO app_guild_base"
     )
 
 

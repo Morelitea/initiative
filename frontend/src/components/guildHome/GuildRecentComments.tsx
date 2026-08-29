@@ -19,10 +19,9 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentComments } from "@/hooks/useComments";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getInitials } from "@/lib/initials";
 import { entityRefRoute, TOOLS, taskRoute, toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 const RECENT_COMMENTS_PARAMS = { limit: 10 };
@@ -100,7 +99,7 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
       <Avatar className="h-8 w-8 shrink-0">
         {authorAvatarSrc ? <AvatarImage src={authorAvatarSrc} /> : null}
         <AvatarFallback userId={entry.author?.id ?? null} className="text-xs">
-          {getInitials(entry.author?.full_name, entry.author?.email)}
+          {getInitialsForUser(entry.author)}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

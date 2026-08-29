@@ -1081,11 +1081,15 @@ export interface TaskStatusRead {
 /**
  * Minimal assignee data for task lists.
  *
- * Includes ``status`` so the frontend can render the "Deleted user
- * #{id}" placeholder for anonymized assignees inline.
+ * A person appears here, so it follows the same two rules every other
+ * guild-scoped shape does: the handle is always present and is what renders
+ * when there is no name to show, and ``full_name`` arrives only from a guild
+ * that shows real names.
  */
 export interface TaskAssigneeSummary {
   id: number;
+  username: string;
+  discriminator: number;
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
@@ -1299,9 +1303,17 @@ export interface ChangelogResponse {
   entries: ChangelogEntry[];
 }
 
+/**
+ * Who wrote a comment.
+ *
+ * An address never reaches a guild, so there is none here; the handle names
+ * the author, and ``full_name`` arrives only from a guild that shows real
+ * names.
+ */
 export interface CommentAuthor {
   id: number;
-  email: string;
+  username: string;
+  discriminator: number;
   full_name?: string | null;
   avatar_url?: string | null;
 }

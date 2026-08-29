@@ -58,12 +58,11 @@ import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
 import { guildPath } from "@/lib/guildUrl";
-import { getInitials } from "@/lib/initials";
-import { obfuscateEmail } from "@/lib/obfuscateEmail";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
@@ -229,11 +228,10 @@ export const AppSidebar = () => {
   const canManageInitiative = canManage;
   const getUserPermissions = permissionsFor;
 
-  const userDisplayName = user?.full_name ?? (obfuscateEmail(user?.email) || "User");
-  const userInitials = useMemo(
-    () => getInitials(user?.full_name, user?.email),
-    [user?.full_name, user?.email]
-  );
+  // Your own account, so your own name if you set one — and your handle, not
+  // your address, when you have not.
+  const userDisplayName = getUserDisplayName(user);
+  const userInitials = useMemo(() => getInitialsForUser(user), [user]);
   const avatarSrc = resolveUploadUrl(user?.avatar_url);
 
   // Fetch tags for the tag browser

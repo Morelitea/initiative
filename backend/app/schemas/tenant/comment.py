@@ -7,6 +7,7 @@ from typing import Optional
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.platform.user import GuildNameVisibility
 
 
 class MentionEntityType(str, Enum):
@@ -16,11 +17,19 @@ class MentionEntityType(str, Enum):
     project = "project"
 
 
-class CommentAuthor(SanitizedBaseModel):
+class CommentAuthor(GuildNameVisibility):
+    """Who wrote a comment.
+
+    An address never reaches a guild, so there is none here; the handle names
+    the author, and ``full_name`` arrives only from a guild that shows real
+    names.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    email: str
+    username: str
+    discriminator: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
 
@@ -133,7 +142,9 @@ class MentionSuggestion(SanitizedBaseModel):
     type: MentionEntityType
     id: int
     display_text: str
-    subtitle: Optional[str] = None  # email for users, project name for tasks
+    #: The line under the name: the handle for a person (what tells two of
+    #: the same name apart), the project for a task.
+    subtitle: Optional[str] = None
     # Populated for ``user`` suggestions so the picker can render a face
     # (parity with the member typeaheads); ``None`` for non-user entities.
     avatar_url: Optional[str] = None

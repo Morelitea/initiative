@@ -1,6 +1,7 @@
 import { isSameDay, parseISO } from "date-fns";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 import type { CalendarEntry } from "./CalendarView";
 
@@ -25,13 +26,11 @@ export function buildTaskCalendarEntries(
   color: string,
   draggable = true
 ): CalendarEntry[] {
-  const attendees = task.assignees
-    .filter((a) => a.full_name)
-    .map((a) => ({
-      name: a.full_name as string,
-      avatarUrl: a.avatar_url,
-      userId: a.id,
-    }));
+  const attendees = task.assignees.map((a) => ({
+    name: getUserDisplayName(a),
+    avatarUrl: a.avatar_url,
+    userId: a.id,
+  }));
 
   const base = {
     title: task.title,

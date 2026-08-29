@@ -20,7 +20,7 @@ from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
-from app.core.user_display import display_name
+from app.core.user_display import handle_of
 
 try:  # premailer inlines our <style> rules so they survive Gmail/Outlook stripping <style>
     from premailer import transform as _premailer_transform
@@ -193,7 +193,14 @@ def _user_locale(user: User) -> str:
 
 
 def _display_name(user: User) -> str:
-    return display_name(user)
+    """What to call the person this email is addressed to.
+
+    Their own name, if they have set one — this is the only place someone is
+    named to themselves, and it is the same greeting whichever guild the mail
+    was written from, or none at all. Everyone *else* an email mentions is
+    named by the caller, which passes the handle.
+    """
+    return (user.full_name or "").strip() or handle_of(user)
 
 
 def _inline_css(html: str) -> str:

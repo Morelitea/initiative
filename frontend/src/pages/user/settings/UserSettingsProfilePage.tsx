@@ -23,7 +23,7 @@ import { getInitials } from "@/lib/initials";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
 /** Where this server serves an uploaded picture from. A linked one — from a
  *  single sign-on account — is any other URL. */
@@ -134,7 +134,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
 
   const handleAvatarRemove = () => void runAvatar(() => deleteMyAvatarApiV1UsersMeAvatarDelete());
 
-  const initials = getInitials(user.full_name, user.email);
+  const initials = getInitials(user.full_name, user.username);
 
   return (
     <div className="space-y-6">
@@ -201,6 +201,15 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               <Label>{t("profile.emailLabel")}</Label>
               <Input value={user.email} disabled readOnly />
               <p className="text-muted-foreground text-xs">{t("profile.emailHelp")}</p>
+            </div>
+
+            <div className="space-y-2">
+              {/* Shown, not editable — the same arrangement the address has.
+                  It is how everyone else sees you, so it is the one thing on
+                  this page you would look for and not find. */}
+              <Label>{t("profile.usernameLabel")}</Label>
+              <Input value={getUserHandle(user)} disabled readOnly />
+              <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
             </div>
 
             <div className="space-y-2">

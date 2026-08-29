@@ -77,7 +77,9 @@
       "notAnImage": "Elige un archivo de imagen.",
       "tooLarge": "Ese archivo es demasiado grande. Prueba con uno de menos de 12 MB.",
       "unreadable": "No se ha podido leer esa imagen."
-    }
+    },
+    "usernameLabel": "Nombre de usuario",
+    "usernameHelp": "Así te ven los demás. Si necesitas cambiarlo, pídeselo a un moderador."
   },
   "security": {
     "devicesTitle": "Dispositivos conectados",
