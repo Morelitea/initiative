@@ -399,7 +399,7 @@ async def claim_my_username(
         )
     except UsernameError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
         ) from exc
 
     current_user.updated_at = datetime.now(timezone.utc)
@@ -590,7 +590,7 @@ async def update_users_me(
         candidate = update_data["task_completion_visual_feedback"]
         if candidate not in TASK_COMPLETION_VISUAL_FEEDBACK_VALUES:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=UserMessages.INVALID_TASK_COMPLETION_VISUAL_FEEDBACK,
             )
         current_user.task_completion_visual_feedback = candidate

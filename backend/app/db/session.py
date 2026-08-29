@@ -3,9 +3,11 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional, Sequence
+from urllib.parse import urlparse
 
 from alembic import command
 from alembic.config import Config
+from asyncpg.exceptions import InvalidCatalogNameError
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
@@ -513,6 +515,27 @@ def _get_alembic_config() -> Config:
     return config
 
 
+def _database_name(url: str) -> str:
+    return urlparse(url.replace("+asyncpg", "")).path.lstrip("/") or "?"
+
+
 async def run_migrations() -> None:
     config = _get_alembic_config()
-    await asyncio.to_thread(command.upgrade, config, "head")
+    try:
+        await asyncio.to_thread(command.upgrade, config, "head")
+    except InvalidCatalogNameError as exc:
+        # The database itself is infrastructure's to make, not the app's: the
+        # compose image creates it from POSTGRES_DB on first boot, and an
+        # existing install has one already. Say so, rather than let a
+        # connection error surface as forty frames of driver traceback.
+        name = _database_name(settings.DATABASE_URL)
+        raise RuntimeError(
+            f"Database {name!r} does not exist. The compose image creates it "
+            f"from POSTGRES_DB the first time its volume is initialised, and "
+            f"only then — on a server that already has a volume, make it by "
+            f"hand as the superuser:\n"
+            f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
+            f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
+            f"then hand it over with backend/scripts/create-provisioner.sql. "
+            f"The app does not create its own database."
+        ) from exc

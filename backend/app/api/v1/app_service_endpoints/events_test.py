@@ -29,7 +29,7 @@ from app.testing import (
     register_app_service,
 )
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = pytest.mark.integration
 
 EVENTS = "/api/v1/app-service/events"
 SHOP_UID = "TESTAPP0000001"

@@ -71,6 +71,6 @@ async def enforce_password_policy(password: str) -> None:
         await validate_new_password(password)
     except PasswordPolicyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=exc.code,
         ) from exc

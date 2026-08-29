@@ -15,7 +15,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import text
 
 from app.api.deps import (
     SessionDep,
@@ -720,7 +719,7 @@ async def _store_guild_images(
             data = await read_upload_bounded(upload, IMAGE_SPECS[variant].max_bytes)
         except FileTooLargeError:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=GuildMessages.IMAGE_TOO_LARGE,
             )
         try:
@@ -1105,14 +1104,13 @@ async def delete_guild(
         app_revocation_service.drain_revocations(session)
     )
 
-    # Drop the schema + role as best-effort cleanup. Reset the assumed guild role
-    # first (committed) so DROP ROLE can run. With the cross-schema FKs gone,
-    # DROP SCHEMA only locks this guild's tables — no contention with the app's
-    # reads of public.guilds/users. A failed cleanup must NEVER undo the committed
-    # deletion: an orphaned, empty schema is harmless and reclaimed on a retry or
-    # the next provision of that id.
-    await session.exec(text("SELECT set_config('role', 'none', false)"))
-    await session.commit()
+    # Drop the schema + role as best-effort cleanup, on the provisioning engine's
+    # own connection — the guild role this request assumed ended with the commit
+    # above, so there is nothing here for DROP ROLE to trip over. With the
+    # cross-schema FKs gone, DROP SCHEMA only locks this guild's tables — no
+    # contention with the app's reads of public.guilds/users. A failed cleanup
+    # must NEVER undo the committed deletion: an orphaned, empty schema is
+    # harmless and reclaimed on a retry or the next provision of that id.
     try:
         await deprovision_guild(guild_id)
     except Exception:

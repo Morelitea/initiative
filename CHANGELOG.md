@@ -61,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Starting the app against a missing database says so.** It used to end in a page of driver traceback; it now names the database and how to create it. The app does not make its own — the container image does that the first time it starts.
+
 - **Real names no longer appeared in a guild that shows usernames.** The rule reached the member lists and pickers but not the surfaces that carry a person alongside something else — a task's assignees, a comment's author, the latest comments on the guild front page, a project's activity, calendar attendees, queue rows, custom `user_reference` properties, dashboard filters and the data a custom widget is handed. All of them now name people the same way the rest of the guild does, including the cross-guild "my" lists, where each guild answers for its own rows. A comment also carried its author's email address, which no guild ever needed.
 
 - **A guild admin could not turn "show real names" on or off.** Saving the setting failed outright. It is now on by default, so guilds keep showing names as before; a guild listed in the community directory still shows usernames and no longer offers the control at all.

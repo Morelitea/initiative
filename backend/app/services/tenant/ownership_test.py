@@ -1,6 +1,5 @@
 """Ownership: what it is, where it lives, and what happens when someone leaves."""
 
-import pytest
 from sqlmodel import select
 
 from app.core.tools import Tool
@@ -18,8 +17,6 @@ from app.testing import (
     route_session_to_guild,
 )
 from app.models.platform.guild import GuildMembership, GuildRole
-
-pytestmark = pytest.mark.asyncio
 
 
 # ── Invariants over the Tool enum ───────────────────────────────────────────

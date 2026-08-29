@@ -484,7 +484,7 @@ async def upload_backup(
         )
     except FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=ImportEngineMessages.IMPORT_TOO_LARGE,
         )
 

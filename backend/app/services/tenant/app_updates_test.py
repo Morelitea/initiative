@@ -12,7 +12,6 @@ system-engine session against the configured database rather than the test one.
 
 import asyncio
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,8 +26,6 @@ from app.testing import (
     marketplace_uid,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 def _definition(name: str = "Cal") -> dict:

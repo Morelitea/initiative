@@ -48,7 +48,7 @@ from app.testing.delegation import (
     register_delegate,
 )
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+pytestmark = pytest.mark.integration
 
 BASE = "/api/v1/app-service"
 SHOP_UID = "TESTAPP0000001"

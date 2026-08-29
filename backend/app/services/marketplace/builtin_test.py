@@ -17,7 +17,6 @@ Withdrawing has to be careful in the other direction too: a file this build
 ships but cannot read or validate must never take its own listing down.
 """
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.marketplace import MarketplaceListing
@@ -31,8 +30,6 @@ from app.services.marketplace.definitions import (
     normalize_publisher,
     normalize_listing_definition,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _seeded(session) -> dict[str, MarketplaceListing]:

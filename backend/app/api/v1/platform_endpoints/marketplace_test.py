@@ -23,7 +23,6 @@ from app.testing import (
     marketplace_uid,
 )
 
-pytestmark = pytest.mark.asyncio
 
 RESCAN_URL = "/api/v1/marketplace/operator-catalog/rescan"
 

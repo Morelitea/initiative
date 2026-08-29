@@ -23,8 +23,6 @@ from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import operator_catalog as service
 from app.services.marketplace.catalog import upsert_listing
 
-pytestmark = pytest.mark.asyncio
-
 
 #: 14 characters from the catalog's alphabet, written out rather than generated
 #: so a failing uid assertion reads plainly.

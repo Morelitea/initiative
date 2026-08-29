@@ -25,7 +25,6 @@ from app.services.marketplace.installs import (
 from app.testing import create_guild, create_guild_app, create_user
 from app.testing.schema_harness import route_session_to_guild
 
-pytestmark = pytest.mark.asyncio
 
 APP_UID = "TYG4VVZKAWRMBZ"
 DASH_UID = "J9H7S9T7GP7FAG"

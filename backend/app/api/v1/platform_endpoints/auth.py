@@ -269,7 +269,7 @@ async def register_user(
             )
         except UsernameError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
             ) from exc
 
         if normalized_invite:

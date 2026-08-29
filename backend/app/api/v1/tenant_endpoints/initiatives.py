@@ -722,7 +722,7 @@ async def update_initiative(
         session, initiative, current_user, guild_role=guild_context.role
     )
 
-    update_data = initiative_in.dict(exclude_unset=True)
+    update_data = initiative_in.model_dump(exclude_unset=True)
     # Archiving hides the initiative from every member's sidebar — a guild-wide
     # visibility change. The UI only exposes the toggle to guild admins; this is
     # the matching server-side backstop, using the existing guild-admin-required
@@ -961,7 +961,7 @@ async def update_initiative_role(
             )
         if not (role.is_builtin and role.name == "project_manager"):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=InitiativeMessages.OVERRIDE_PM_ONLY,
             )
         role.override_share_restrictions = role_in.override_share_restrictions

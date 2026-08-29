@@ -74,7 +74,6 @@ def test_platform_role_name_is_identifier_safe_for_valid_tiers(tier):
     assert re.fullmatch(rf"[A-Za-z0-9_]*platform_{tier}", name), name
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "hostile_platform_role",
     ["owner'; DROP ROLE app_admin; --", "superuser", "member ", "", "ADMIN"],
@@ -87,7 +86,6 @@ async def test_set_rls_context_rejects_unknown_platform_tier(hostile_platform_ro
         await set_rls_context(None, platform_role=hostile_platform_role)
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "hostile_guild_role",
     ["admin'; --", "owner", "superuser", "Admin", "member x"],

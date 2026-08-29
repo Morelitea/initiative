@@ -67,7 +67,7 @@ async def upload_attachment(
         contents = await read_upload_bounded(file, MAX_IMAGE_BYTES)
     except FileTooLargeError:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=AttachmentMessages.TOO_LARGE,
         )
     if not contents:

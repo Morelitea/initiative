@@ -24,7 +24,6 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.testing import create_marketplace_listing, marketplace_uid
 
-pytestmark = pytest.mark.asyncio
 
 INSTALL_UID = marketplace_uid("sprinthealth")
 WITHDRAWN_UID = marketplace_uid("withdrawn")
@@ -454,7 +453,7 @@ class TestCatalogIsolation:
         await set_rls_context(routed, user_id=a.user.id, guild_id=a.guild.id)
 
         found = (
-            await routed.execute(
+            await routed.exec(
                 text(
                     "SELECT public_id FROM public.marketplace_listings WHERE uid = :u"
                 ),
@@ -464,7 +463,7 @@ class TestCatalogIsolation:
         assert [row[0] for row in found] == ["tests.install"]
 
         with pytest.raises(DBAPIError):
-            await routed.execute(
+            await routed.exec(
                 text(
                     "UPDATE public.marketplace_listings "
                     "SET description = 'rewritten' WHERE uid = :u"
@@ -474,7 +473,7 @@ class TestCatalogIsolation:
         await routed.rollback()
 
         with pytest.raises(DBAPIError):
-            await routed.execute(
+            await routed.exec(
                 text(
                     "INSERT INTO public.marketplace_listings "
                     "(uid, public_id, kind, source, name, publisher, description, "

@@ -5,7 +5,6 @@ honour ``token_version`` so that logout / password reset / password change
 (which revoke purely by bumping the counter) also close realtime sockets.
 """
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import JWT_ALGORITHM, create_access_token
@@ -13,8 +12,6 @@ from app.models.platform.user import UserStatus
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing import create_user, get_auth_token, get_new_access_token
-
-pytestmark = pytest.mark.asyncio
 
 
 async def test_valid_token_authenticates(session: AsyncSession):
