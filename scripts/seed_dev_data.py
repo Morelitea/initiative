@@ -653,7 +653,9 @@ async def _list_guild_in_directory(
 
     A listing is the shelves plus the 18+ declaration together — the database
     refuses a listed guild missing either — and the categories are stored in the
-    same order the app stores them in.
+    same order the app stores them in. A listed guild also shows handles rather
+    than real names, which the update service applies for an admin and
+    ck_guilds_community_member_names refuses to do without.
 
     Writes ``public.guilds``, so the session must not be routed into a guild
     schema when this is called.
@@ -663,6 +665,7 @@ async def _list_guild_in_directory(
         [c.value for c in categories]
     )
     guild.has_adult_content = False
+    guild.show_member_names = False
     session.add(guild)
     await session.flush()
 
