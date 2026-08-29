@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-08-29
+
 ### Added
 
 - **The guild home's table searches and sorts the whole guild.** A search box sits above it, and the **Name**, **Initiative** and **Last updated** headers now order it — most recently updated first until you say otherwise. Both reach the guild's whole set for that tool rather than the rows already on screen, so a search never answers "nothing" while the match sits on page 4, and both ride in the address, so a searched and sorted table is a link you can send. Every circle behaves the same way: projects, documents, queues, counters, calendars and dashboards all take the same search and the same three orders.
