@@ -196,7 +196,8 @@
     "removeUserTitle": "Benutzer aus der Gilde entfernen?",
     "removeUserDescription": "Dadurch wird {{email}} aus der Gilde entfernt. Dies kann nicht rückgängig gemacht werden.",
     "removeConfirmLabel": "Entfernen",
-    "failedToUpdateRole": "Rolle konnte nicht aktualisiert werden"
+    "failedToUpdateRole": "Rolle konnte nicht aktualisiert werden",
+    "handleColumn": "Handle"
   },
   "notMember": {
     "title": "Gilde nicht verfügbar",
@@ -396,5 +397,12 @@
       "certifyDuty": "Du bist Admin dieser Gilde, also liegt die Durchsetzung bei dir. Von dir wird erwartet, dass du auf solche Inhalte achtest und sie entfernst. Eine Gilde, die das nicht mehr erfüllt, wird aus dem Verzeichnis entfernt.",
       "confirm": "Gilde eintragen"
     }
+  },
+  "nameDisplay": {
+    "title": "Wie Mitglieder benannt werden",
+    "description": "Ob diese Gilde die echten Namen der Leute zeigt oder die von ihnen gewählten Benutzernamen.",
+    "toggleLabel": "Vollständige Namen zeigen",
+    "toggleHint": "Aus erscheinen Mitglieder mit ihrem Benutzernamen. An wird ihr vollständiger Name gezeigt, sofern hinterlegt.",
+    "listedLock": "Eine im Community-Verzeichnis gelistete Gilde zeigt immer Benutzernamen."
   }
 }

@@ -33,6 +33,8 @@ from app.core.encryption import (
 )
 from app.core.messages import AuthMessages, GuildMessages, OidcMessages
 from app.core.password_policy import enforce_password_policy
+from app.core import usernames
+from app.core.usernames import UsernameError
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
@@ -69,12 +71,14 @@ from app.schemas.platform.auth import (
     PasswordResetRequest,
     PasswordResetSubmit,
     UploadTokenResponse,
+    UsernameAvailabilityResponse,
     VerificationConfirmRequest,
     VerificationSendResponse,
 )
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services.auth import sessions as session_service
+from app.services.platform import usernames as username_service
 from app.services.auth.identity import (
     ResolutionOutcome,
     link_identity,
@@ -242,6 +246,11 @@ async def register_user(
         user_kwargs: dict[str, Any] = dict(
             email_hash=hash_email(normalized_email),
             email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
+            # Filled in by ``insert_with_handle`` below, which owns the insert
+            # so it can redraw the number if another registration took it.
+            username="",
+            discriminator=0,
+            username_chosen=True,
             full_name=user_in.full_name,
             hashed_password=get_password_hash(user_in.password),
             role=user_role,
@@ -251,8 +260,17 @@ async def register_user(
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
         user = User(**user_kwargs)
-        session.add(user)
-        await session.flush()
+        # The handle: the name part as typed, the number drawn here. Registering
+        # is where an account picks one, so it counts as chosen and its owner
+        # never meets the pick screen.
+        try:
+            await username_service.insert_with_handle(
+                session, user=user, name=user_in.username
+            )
+        except UsernameError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+            ) from exc
 
         if normalized_invite:
             try:
@@ -278,9 +296,7 @@ async def register_user(
             )
             await session.commit()
         else:
-            guild_name_source = (
-                user.full_name or user.email.split("@", 1)[0]
-            ).strip() or user.email
+            guild_name_source = (user.full_name or "").strip() or user.username
             guild_name = (
                 guild_name_source
                 if guild_name_source.lower().endswith("guild")
@@ -510,6 +526,32 @@ async def refresh_access_token(
     set_session_cookie(response, access_token, max_age=access_max_age)
     set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
+
+
+@router.get("/username-available", response_model=UsernameAvailabilityResponse)
+@limiter.limit("60/minute")
+async def check_username_available(
+    request: Request,
+    session: AdminSessionDep,
+    username: str = Query(max_length=64, description="The name part to check"),
+) -> UsernameAvailabilityResponse:
+    """Whether a name part can still be handed out.
+
+    Registration happens before there is a session, so this is unauthenticated.
+    It answers about the exact candidate typed and nothing else — it does not
+    enumerate — and it answers about the name part only: the number behind it
+    is drawn server-side.
+    """
+    try:
+        usernames.validate(username)
+    except UsernameError as exc:
+        return UsernameAvailabilityResponse(available=False, reason=exc.code)
+
+    if not await username_service.has_free_slot(session, name=username):
+        return UsernameAvailabilityResponse(
+            available=False, reason="USERNAME_UNAVAILABLE"
+        )
+    return UsernameAvailabilityResponse(available=True)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

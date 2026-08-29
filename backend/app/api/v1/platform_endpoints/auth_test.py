@@ -18,6 +18,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import usernames
 from app.core.encryption import (
     decrypt_token,
     encrypt_field,
@@ -89,6 +90,7 @@ async def test_register_first_user(client: AsyncClient):
     """Test that first registered user becomes owner and gets a guild."""
     user_data = {
         "email": "first@example.com",
+        "username": "first",
         "full_name": "First User",
         "password": "securepassword123",
     }
@@ -129,6 +131,7 @@ async def test_register_with_invite_blocked_when_guild_full(
         f"/api/v1/auth/register?invite_code={invite.code}",
         json={
             "email": "reg-newuser@example.com",
+            "username": "reg-newuser",
             "full_name": "New User",
             "password": "password1234",
         },
@@ -146,6 +149,7 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
 
     user_data = {
         "email": "existing@example.com",
+        "username": "existing",
         "full_name": "Duplicate User",
         "password": "password1234",
     }
@@ -162,6 +166,7 @@ async def test_register_normalizes_email(client: AsyncClient):
     """Test that email is normalized during registration."""
     user_data = {
         "email": "  TEST@EXAMPLE.COM  ",
+        "username": "test",
         "full_name": "Test User",
         "password": "password1234",
     }
@@ -187,6 +192,7 @@ async def test_register_persists_browser_timezone(
         "/api/v1/auth/register",
         json={
             "email": "tz-user@example.com",
+            "username": "tz-user",
             "full_name": "TZ User",
             "password": "password1234",
             "timezone": "America/Los_Angeles",
@@ -211,6 +217,7 @@ async def test_register_rejects_invalid_timezone(client: AsyncClient):
         "/api/v1/auth/register",
         json={
             "email": "bad-tz@example.com",
+            "username": "bad-tz",
             "full_name": "Bad TZ",
             "password": "password1234",
             "timezone": "Mars/Olympus_Mons",
@@ -233,6 +240,7 @@ async def test_register_without_timezone_keeps_utc_default(
         "/api/v1/auth/register",
         json={
             "email": "no-tz@example.com",
+            "username": "no-tz",
             "full_name": "No TZ",
             "password": "password1234",
         },
@@ -269,6 +277,7 @@ async def test_register_requires_captcha_token_when_configured(
         "/api/v1/auth/register",
         json={
             "email": "needs-captcha@example.com",
+            "username": "needs-captcha",
             "full_name": "Needs Captcha",
             "password": "password1234",
         },
@@ -295,6 +304,7 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
         "/api/v1/auth/register",
         json={
             "email": "bootstrap@example.com",
+            "username": "bootstrap",
             "full_name": "Bootstrap",
             "password": "password1234",
         },
@@ -320,6 +330,7 @@ async def test_register_no_captcha_required_when_provider_unset(
         "/api/v1/auth/register",
         json={
             "email": "no-captcha@example.com",
+            "username": "no-captcha",
             "full_name": "No Captcha",
             "password": "password1234",
         },
@@ -352,6 +363,7 @@ async def test_register_with_valid_captcha_token_succeeds(
         "/api/v1/auth/register",
         json={
             "email": "good-token@example.com",
+            "username": "good-token",
             "full_name": "Good Token",
             "password": "password1234",
             "captcha_token": "stub-valid-token",
@@ -367,6 +379,8 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
     # Create user with known password
     password = "testpassword123"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("login@example.com"),
         email_encrypted=encrypt_field("login@example.com", SALT_EMAIL),
         full_name="Login User",
@@ -399,6 +413,8 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     """Test that login fails with wrong password."""
     password = "correct_password"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("test@example.com"),
         email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
         full_name="Test User",
@@ -428,6 +444,8 @@ async def test_login_refused_for_account_without_password(
     any password yields the same incorrect-credentials refusal, with no 500
     from verifying against a missing hash."""
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("sso-only@example.com"),
         email_encrypted=encrypt_field("sso-only@example.com", SALT_EMAIL),
         full_name="SSO Only",
@@ -456,6 +474,8 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot login."""
     password = "testpassword"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("inactive@example.com"),
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
@@ -484,6 +504,8 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
     """Test that users with unverified emails cannot login."""
     password = "testpassword"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("unverified@example.com"),
         email_encrypted=encrypt_field("unverified@example.com", SALT_EMAIL),
         full_name="Unverified User",
@@ -528,6 +550,8 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     """Test that login email is case-insensitive."""
     password = "testpassword"
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("test@example.com"),
         email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
         full_name="Test User",
@@ -571,6 +595,8 @@ async def test_login_rehashes_legacy_bcrypt_password(
     assert legacy_hash.startswith("$2"), "test setup expected a real bcrypt hash"
 
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("legacy@example.com"),
         email_encrypted=encrypt_field("legacy@example.com", SALT_EMAIL),
         full_name="Legacy User",
@@ -1015,6 +1041,7 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
         idp,
         id_token_claims={
             "email": "new@example.com",
+            "username": "new",
             "email_verified": True,
             "name": "New User",
         },
@@ -1059,7 +1086,11 @@ async def test_oidc_callback_establishes_refresh_session(
     response = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={"email": "sso-session@example.com", "email_verified": True},
+        id_token_claims={
+            "email": "sso-session@example.com",
+            "username": "sso-session",
+            "email_verified": True,
+        },
     )
     assert response.status_code in (302, 307)
     assert response.cookies.get(REFRESH_COOKIE_NAME)
@@ -1110,7 +1141,11 @@ async def test_oidc_callback_survives_session_store_failure(
     response = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={"email": "sso-besteffort@example.com", "email_verified": True},
+        id_token_claims={
+            "email": "sso-besteffort@example.com",
+            "username": "sso-besteffort",
+            "email_verified": True,
+        },
     )
     assert response.status_code in (302, 307)
     assert response.headers["location"].endswith("/oidc/callback")
@@ -1151,7 +1186,11 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     response = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={"email": "sso-rotate@example.com", "email_verified": True},
+        id_token_claims={
+            "email": "sso-rotate@example.com",
+            "username": "sso-rotate",
+            "email_verified": True,
+        },
     )
     assert response.status_code in (302, 307)
 
@@ -1242,7 +1281,11 @@ async def test_oidc_next_returns_browser_to_requested_page(
     response = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={"email": "stepup@example.com", "email_verified": True},
+        id_token_claims={
+            "email": "stepup@example.com",
+            "username": "stepup",
+            "email_verified": True,
+        },
         login_params={"next": "/g/5/projects/3"},
     )
     assert response.status_code in (302, 307)
@@ -1278,7 +1321,11 @@ async def test_oidc_next_rejects_non_relative_paths(
     response = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={"email": "tamper@example.com", "email_verified": True},
+        id_token_claims={
+            "email": "tamper@example.com",
+            "username": "tamper",
+            "email_verified": True,
+        },
     )
     assert response.headers["location"].endswith("/oidc/callback")
 
@@ -1505,7 +1552,11 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
 
-    claims = {"email": "member@example.com", "email_verified": True, "name": "Member"}
+    claims = {
+        "email": "member@example.com",
+        "email_verified": True,
+        "name": "Member",
+    }
     response = await _run_oidc_flow(client, idp, id_token_claims=claims)
 
     assert response.status_code in (302, 307)
@@ -1557,7 +1608,11 @@ async def test_oidc_callback_mobile_flow_issues_device_token(
     response = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={"email": "mobile@example.com", "email_verified": True},
+        id_token_claims={
+            "email": "mobile@example.com",
+            "username": "mobile",
+            "email_verified": True,
+        },
         login_params={"mobile": "true", "device_name": "Pixel"},
     )
     assert response.status_code in (302, 307)
@@ -1580,6 +1635,7 @@ async def test_oidc_callback_enriches_missing_email_from_userinfo(
         userinfo_claims={
             "sub": "idp-subject-1",
             "email": "fromuserinfo@example.com",
+            "username": "fromuserinfo",
             "email_verified": True,
             "name": "Info User",
         }
@@ -1640,6 +1696,7 @@ async def test_register_rejects_password_shorter_than_minimum(client: AsyncClien
         "/api/v1/auth/register",
         json={
             "email": "tooshort@example.com",
+            "username": "tooshort",
             "full_name": "Too Short",
             "password": "elevenchars",  # 11 chars
         },
@@ -1664,6 +1721,7 @@ async def test_register_rejects_breached_password(client: AsyncClient, monkeypat
         "/api/v1/auth/register",
         json={
             "email": "breached@example.com",
+            "username": "breached",
             "full_name": "Breached",
             "password": "long-enough-but-pwned",
         },
@@ -1682,6 +1740,7 @@ async def test_register_accepts_compliant_password(client: AsyncClient):
         "/api/v1/auth/register",
         json={
             "email": "ok@example.com",
+            "username": "ok-user",
             "full_name": "OK User",
             "password": "twelve-chars",  # exactly 12 chars
         },
@@ -1699,6 +1758,8 @@ async def test_login_grandfathers_existing_short_password(
     password — never to ``verify_password`` on the login path."""
     short_password = "shortpw"  # 7 chars — would fail the policy if applied
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("legacy-short@example.com"),
         email_encrypted=encrypt_field("legacy-short@example.com", SALT_EMAIL),
         full_name="Legacy Short",
@@ -1840,6 +1901,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
         "/api/v1/auth/register",
         json={
             "email": "seedfail@example.com",
+            "username": "seedfail",
             "full_name": "Seed Fail",
             "password": "securepassword123",
         },
@@ -1868,6 +1930,8 @@ async def _make_login_user(
     password: str = "testpassword123",
 ) -> tuple[User, str]:
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email(email),
         email_encrypted=encrypt_field(email, SALT_EMAIL),
         full_name="Refresh User",

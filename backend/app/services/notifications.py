@@ -28,6 +28,7 @@ from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
 from app.services.platform import push_notifications
+from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ async def enqueue_task_assignment_event(
             "task_title": task.title,
             "project_id": task.project_id,
             "project_name": project_name,
-            "assigned_by_name": assigned_by.full_name or assigned_by.email,
+            "assigned_by_name": display_name(assigned_by),
             "guild_id": guild_id,
             "target_path": target_path,
             "smart_link": smart_link,
@@ -179,7 +180,7 @@ async def enqueue_task_assignment_event(
             project_id=task.project_id,
             task_title=task.title,
             project_name=project_name,
-            assigned_by_name=assigned_by.full_name or assigned_by.email,
+            assigned_by_name=display_name(assigned_by),
             assigned_by_id=assigned_by.id,
         )
         session.add(event)
@@ -608,7 +609,7 @@ async def notify_document_mention(
         return
     target_path = _document_target_path(document_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    mentioned_by_name = display_name(mentioned_by)
     locale = _recipient_locale(mentioned_user)
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -707,7 +708,7 @@ async def notify_comment_mention(
         return
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    mentioned_by_name = display_name(mentioned_by)
     locale = _recipient_locale(mentioned_user)
 
     # Always create in-app notification
@@ -808,7 +809,7 @@ async def notify_task_mentioned_in_comment(
         return
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    mentioned_by_name = display_name(mentioned_by)
     locale = _recipient_locale(assignee)
 
     # Always create in-app notification
@@ -899,7 +900,7 @@ async def notify_comment_on_task(
 
     target_path = _task_target_path(task_id, None)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    commenter_name = commenter.full_name or commenter.email
+    commenter_name = display_name(commenter)
     locale = _recipient_locale(assignee)
 
     # Always create in-app notification
@@ -984,7 +985,7 @@ async def notify_comment_on_resource(
 
     target_path = _tool_target_path(entity_type, entity_id)
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    commenter_name = commenter.full_name or commenter.email
+    commenter_name = display_name(commenter)
     locale = _recipient_locale(owner)
 
     # Always create in-app notification
@@ -1085,7 +1086,7 @@ async def notify_comment_reply(
         return
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    replier_name = replier.full_name or replier.email
+    replier_name = display_name(replier)
     locale = _recipient_locale(parent_author)
 
     # Always create in-app notification
@@ -1262,7 +1263,7 @@ async def notify_event_invitation(
     """Notify a user they were added as an attendee on a calendar event."""
     if attendee.id == organizer.id:
         return
-    organizer_name = organizer.full_name or organizer.email
+    organizer_name = display_name(organizer)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     await _deliver_event_notification(
@@ -1300,7 +1301,7 @@ async def notify_event_updated(
     """Notify an attendee that an event's details changed (or was rescheduled)."""
     if attendee.id == editor.id:
         return
-    editor_name = editor.full_name or editor.email
+    editor_name = display_name(editor)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     key = "event.rescheduled" if time_changed else "event.updated"
@@ -1336,7 +1337,7 @@ async def notify_event_cancelled(
     """Notify an attendee that an event was cancelled (deleted)."""
     if attendee.id == canceller.id:
         return
-    canceller_name = canceller.full_name or canceller.email
+    canceller_name = display_name(canceller)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     await _deliver_event_notification(
@@ -1374,7 +1375,7 @@ async def notify_event_rsvp(
     """Notify the organizer that an attendee responded to their event."""
     if organizer.id == responder.id:
         return
-    responder_name = responder.full_name or responder.email
+    responder_name = display_name(responder)
     status_value = (
         rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
     )

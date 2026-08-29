@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import usernames
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
@@ -179,8 +180,8 @@ async def test_disabling_both_assignment_channels_clears_the_queue(
 async def test_list_users_in_guild(client: AsyncClient, session: AsyncSession):
     """Test listing users in a guild."""
     guild = await create_guild(session)
-    user1 = await create_user(session, email="user1@example.com", full_name="User One")
-    user2 = await create_user(session, email="user2@example.com", full_name="User Two")
+    user1 = await create_user(session, username="user-one", full_name="User One")
+    user2 = await create_user(session, username="user-two", full_name="User Two")
 
     await create_guild_membership(session, user=user1, guild=guild)
     await create_guild_membership(session, user=user2, guild=guild)
@@ -192,9 +193,10 @@ async def test_list_users_in_guild(client: AsyncClient, session: AsyncSession):
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
-    emails = {user["email"] for user in data}
-    assert "user1@example.com" in emails
-    assert "user2@example.com" in emails
+    # Members are named by handle. An address is never a guild's to hand out,
+    # so it is absent from the shape entirely.
+    assert {user["username"] for user in data} == {"user-one", "user-two"}
+    assert all("email" not in user for user in data)
 
 
 @pytest.mark.integration
@@ -204,9 +206,9 @@ async def test_search_users_returns_slim_paginated_envelope(
     """The slim search endpoint returns a UserSummary envelope (no email /
     role / initiative_roles) and honours page_size."""
     guild = await create_guild(session)
-    caller = await create_user(session, email="caller@example.com", full_name="Aaa")
-    other = await create_user(session, email="other@example.com", full_name="Bbb")
-    third = await create_user(session, email="third@example.com", full_name="Ccc")
+    caller = await create_user(session, username="aaa-caller", full_name="Aaa")
+    other = await create_user(session, username="bbb-other", full_name="Bbb")
+    third = await create_user(session, username="ccc-third", full_name="Ccc")
     for user in (caller, other, third):
         await create_guild_membership(session, user=user, guild=guild)
 
@@ -226,26 +228,29 @@ async def test_search_users_returns_slim_paginated_envelope(
     assert body["has_next"] is True
     assert body["has_prev"] is False
     assert len(body["items"]) == 2
-    # Ordered by full_name — the first two of Aaa/Bbb/Ccc.
-    assert [item["full_name"] for item in body["items"]] == ["Aaa", "Bbb"]
-    # Slim projection: no email, no platform role, no initiative_roles.
+    # This guild renders handles, so it orders by them too.
+    assert [item["username"] for item in body["items"]] == ["aaa-caller", "bbb-other"]
+    # Slim projection: no email, no platform role, no initiative_roles — and
+    # no name, because this guild does not show them.
     summary = body["items"][0]
     assert set(summary.keys()) == {
         "id",
+        "username",
+        "discriminator",
         "full_name",
         "avatar_url",
         "status",
     }
+    assert summary["full_name"] is None
 
 
 @pytest.mark.integration
 async def test_search_users_filters_by_name(client: AsyncClient, session: AsyncSession):
-    """The `search` param is a case-insensitive substring match on the name."""
+    """The `search` param is a case-insensitive substring match on the handle's
+    name part — which is what this guild renders, so it is what it matches."""
     guild = await create_guild(session)
-    caller = await create_user(
-        session, email="caller@example.com", full_name="Alice Smith"
-    )
-    bob = await create_user(session, email="bob@example.com", full_name="Bob Jones")
+    caller = await create_user(session, username="asmith", full_name="Alice Smith")
+    bob = await create_user(session, username="bjones", full_name="Bob Jones")
     for user in (caller, bob):
         await create_guild_membership(session, user=user, guild=guild)
 
@@ -254,13 +259,13 @@ async def test_search_users_filters_by_name(client: AsyncClient, session: AsyncS
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/search",
         headers=headers,
-        params={"search": "smith"},
+        params={"search": "SMITH"},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["total_count"] == 1
-    assert [item["full_name"] for item in body["items"]] == ["Alice Smith"]
+    assert [item["username"] for item in body["items"]] == ["asmith"]
 
 
 @pytest.mark.integration
@@ -293,7 +298,7 @@ async def test_search_users_filters_by_user_id(
     assert response.status_code == 200
     body = response.json()
     assert body["total_count"] == 1
-    assert [item["full_name"] for item in body["items"]] == ["Bob Jones"]
+    assert [item["username"] for item in body["items"]] == [bob.username]
 
     # An id outside the guild is filtered out, not resolved.
     response = await client.get(
@@ -527,6 +532,8 @@ async def test_inactive_user_cannot_access_endpoints(
 
     # Create inactive user
     user = User(
+        username=usernames.random_name(),
+        discriminator=usernames.random_discriminator(),
         email_hash=hash_email("inactive@example.com"),
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
@@ -669,7 +676,7 @@ async def test_list_users_only_shows_guild_members(
     data = response.json()
     # Should only see user1, not user2
     assert len(data) == 1
-    assert data[0]["email"] == "user1@example.com"
+    assert data[0]["id"] == user1.id
 
 
 def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
@@ -713,7 +720,7 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
     header_row, data_rows = _parse_csv(response.content)
     assert header_row == [
         "user_id",
-        "email",
+        "handle",
         "full_name",
         "guild_role",
         "platform_role",
@@ -723,8 +730,13 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
         "created_at",
         "initiative_roles",
     ]
-    emails = {row[1] for row in data_rows}
-    assert emails == {"admin@example.com", "member@example.com"}
+    handles = {row[1] for row in data_rows}
+    assert handles == {
+        f"{admin.username}#{admin.discriminator:04d}",
+        f"{member.username}#{member.discriminator:04d}",
+    }
+    # No address anywhere in the file.
+    assert not any("@" in cell for row in data_rows for cell in row)
 
 
 @pytest.mark.integration
@@ -769,11 +781,13 @@ async def test_export_users_csv_single_user_id(
     )
 
     assert response.status_code == 200
-    assert f"user-{target.id}-" in response.headers["content-disposition"]
+    assert (
+        f"user-{target.id}-{target.username}" in response.headers["content-disposition"]
+    )
     _, data_rows = _parse_csv(response.content)
     assert len(data_rows) == 1
     assert data_rows[0][0] == str(target.id)
-    assert data_rows[0][1] == "target@example.com"
+    assert data_rows[0][1] == f"{target.username}#{target.discriminator:04d}"
 
 
 @pytest.mark.integration
@@ -800,8 +814,11 @@ async def test_export_users_csv_multi_user_id(
     assert response.status_code == 200
     assert "-users-" in response.headers["content-disposition"]
     _, data_rows = _parse_csv(response.content)
-    emails = {row[1] for row in data_rows}
-    assert emails == {"a@example.com", "b@example.com"}
+    handles = {row[1] for row in data_rows}
+    assert handles == {
+        f"{a.username}#{a.discriminator:04d}",
+        f"{b.username}#{b.discriminator:04d}",
+    }
 
 
 @pytest.mark.integration

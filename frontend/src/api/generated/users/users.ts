@@ -42,6 +42,7 @@ import type {
   UserSelfUpdate,
   UserStatsResponse,
   UserSummaryListResponse,
+  UsernameClaim,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -270,6 +271,102 @@ export const useUpdateUsersMeApiV1UsersMePatch = <
   TContext
 > => {
   return useMutation(getUpdateUsersMeApiV1UsersMePatchMutationOptions(options), queryClient);
+};
+/**
+ * Pick the handle for an account that was assigned one.
+ *
+ * Every account created without a form — provisioned from SSO claims, or
+ * carried over from before handles existed — starts with one it did not
+ * choose, and picks its own here. Once picked, a handle changes only through
+ * a moderator.
+ * @summary Claim My Username
+ */
+export const claimMyUsernameApiV1UsersMeUsernamePatch = (
+  usernameClaim: BodyType<UsernameClaim>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/users/me/username`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: usernameClaim,
+      signal,
+    },
+    options
+  );
+};
+
+export const getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+    TError,
+    { data: BodyType<UsernameClaim> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+  TError,
+  { data: BodyType<UsernameClaim> },
+  TContext
+> => {
+  const mutationKey = ["claimMyUsernameApiV1UsersMeUsernamePatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+    { data: BodyType<UsernameClaim> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return claimMyUsernameApiV1UsersMeUsernamePatch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>
+>;
+export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationBody = BodyType<UsernameClaim>;
+export type ClaimMyUsernameApiV1UsersMeUsernamePatchMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Claim My Username
+ */
+export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+      TError,
+      { data: BodyType<UsernameClaim> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimMyUsernameApiV1UsersMeUsernamePatch>>,
+  TError,
+  { data: BodyType<UsernameClaim> },
+  TContext
+> => {
+  return useMutation(
+    getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Check if the current user can be deleted and what blockers exist.

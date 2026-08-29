@@ -20,6 +20,7 @@ from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
 from app.services.platform import app_settings as app_settings_service
+from app.core.user_display import display_name
 
 try:  # premailer inlines our <style> rules so they survive Gmail/Outlook stripping <style>
     from premailer import transform as _premailer_transform
@@ -192,7 +193,7 @@ def _user_locale(user: User) -> str:
 
 
 def _display_name(user: User) -> str:
-    return user.full_name or user.email
+    return display_name(user)
 
 
 def _inline_css(html: str) -> str:

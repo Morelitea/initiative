@@ -11,6 +11,7 @@ from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 from app.schemas.platform.user import UserPublic
+from app.core.user_display import display_name
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
@@ -253,7 +254,7 @@ def serialize_calendar_event_summary(
     for att in attendees_list:
         user = getattr(att, "user", None)
         if user:
-            display = user.full_name or user.email
+            display = display_name(user)
             names.append(display)
             previews.append(
                 CalendarEventAttendeePreview(

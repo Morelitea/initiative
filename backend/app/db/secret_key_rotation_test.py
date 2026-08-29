@@ -10,6 +10,8 @@ Rows encrypted under some *other* key are classified ``failed`` and left untouch
 (no UPDATE), so they can't be corrupted by these tests.
 """
 
+import secrets
+
 import pytest
 from sqlalchemy import text
 
@@ -103,12 +105,15 @@ async def _insert_user(conn, email: str, *, key: str) -> int:
     return await conn.scalar(
         text(
             "INSERT INTO public.users "
-            "(email_hash, email_encrypted, hashed_password, created_at, updated_at) "
-            "VALUES (:h, :e, 'x', now(), now()) RETURNING id"
+            "(email_hash, email_encrypted, hashed_password, username, "
+            "discriminator, created_at, updated_at) "
+            "VALUES (:h, :e, 'x', :u, :d, now(), now()) RETURNING id"
         ),
         {
             "h": hash_email(email, secret_key=key),
             "e": encrypt_field(email, SALT_EMAIL, secret_key=key),
+            "u": f"rotate-{secrets.token_hex(4)}",
+            "d": secrets.randbelow(10000),
         },
     )
 
@@ -171,10 +176,16 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
             user_id = await conn.scalar(
                 text(
                     "INSERT INTO public.users "
-                    "(email_hash, email_encrypted, hashed_password, created_at, updated_at) "
-                    "VALUES (:h, :e, 'x', now(), now()) RETURNING id"
+                    "(email_hash, email_encrypted, hashed_password, username, "
+                    "discriminator, created_at, updated_at) "
+                    "VALUES (:h, :e, 'x', :u, :d, now(), now()) RETURNING id"
                 ),
-                {"h": old_hash, "e": old_email_ct},
+                {
+                    "h": old_hash,
+                    "e": old_email_ct,
+                    "u": f"rotate-{secrets.token_hex(4)}",
+                    "d": secrets.randbelow(10000),
+                },
             )
 
         _use_keys(monkeypatch, old=OLD, new=NEW)

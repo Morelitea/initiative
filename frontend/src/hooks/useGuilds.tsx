@@ -122,6 +122,9 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   // grantee got here, and this synthetic entry is never listed in it.
   is_community: false,
   categories: [],
+  // Whether a guild shows real names is the guild's own setting; a synthetic
+  // entry has no row to read it from, so it takes the default — handles.
+  show_member_names: false,
   // Guild-admin territory, and a grantee acts as a member — so, unanswered.
   has_adult_content: null,
   created_at: grant.requested_at,

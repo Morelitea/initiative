@@ -25,6 +25,7 @@ from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.export.markdown import blocks_from_markdown
+from app.core.user_display import display_name
 
 # Comment mentions are stored as ``@[Display Name](id)`` / ``#type[Text](id)``;
 # a printed report shows ``@Display Name`` / the display text, not the
@@ -115,7 +116,7 @@ class TasksTableAdapter:
         generated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
         # Both attribution fields can be absent (some OAuth-provisioned
         # accounts carry neither) — never render the literal "None".
-        author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+        author = display_name(user) or et("fallback.unknownAuthor", loc)
         subtitle = " · ".join(
             [
                 et("summary.tasks", loc, count=len(tasks)),
@@ -160,7 +161,7 @@ class TasksTableAdapter:
         loc = export_locale(user)
         local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
         generated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
-        author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+        author = display_name(user) or et("fallback.unknownAuthor", loc)
         data = {
             "title": et("title.tasks", loc),
             "subtitle": " · ".join(
@@ -219,7 +220,7 @@ def _row(task: Task, locale: str) -> dict[str, Any]:
         if task.priority
         else "",
         "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
-        "assignees": ", ".join(a.full_name or a.email for a in (task.assignees or [])),
+        "assignees": ", ".join(display_name(a) for a in (task.assignees or [])),
         # Not a projected column (absent from _COLUMNS): drives the checklist
         # layout's checkbox state.
         "done": bool(
@@ -242,7 +243,7 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         else "",
         "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
         "start": task.start_date.strftime("%Y-%m-%d") if task.start_date else "",
-        "assignees": [a.full_name or a.email for a in (task.assignees or [])],
+        "assignees": [display_name(a) for a in (task.assignees or [])],
         "tags": sorted(
             link.tag.name for link in task.tag_links if link.tag is not None
         ),
@@ -255,7 +256,7 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
         ],
         "comments": [
             {
-                "author": (c.author.full_name or c.author.email) if c.author else "",
+                "author": display_name(c.author) if c.author else "",
                 "date": c.created_at.strftime("%Y-%m-%d"),
                 # ``content`` is NOT NULL today, but guard anyway: a present-but
                 # -null value would reach the template's multiline() as `none`

@@ -9,17 +9,15 @@ from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
+from app.core import usernames
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.core.security import get_password_hash
 from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
 from app.services.platform import user_avatars as user_avatars_service
-from app.models.tenant._mixins import created_by_models
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import TaskAssignee
-from app.models.tenant.document import ProjectDocument
 from app.models.platform.notification import Notification
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.project_activity import ProjectFavorite
@@ -29,35 +27,6 @@ from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
-
-SYSTEM_USER_EMAIL = "deleted-user@system.internal"
-SYSTEM_USER_FULL_NAME = "[Deleted User]"
-
-
-async def get_or_create_system_user(session: AsyncSession) -> User:
-    """Get or create the system user for deleted user content."""
-    stmt = select(User).where(User.email_hash == hash_email(SYSTEM_USER_EMAIL))
-    result = await session.exec(stmt)
-    system_user = result.one_or_none()
-
-    if system_user:
-        return system_user
-
-    # Create system user
-    now = datetime.now(timezone.utc)
-    system_user = User(
-        email_hash=hash_email(SYSTEM_USER_EMAIL),
-        email_encrypted=encrypt_field(SYSTEM_USER_EMAIL, SALT_EMAIL),
-        full_name=SYSTEM_USER_FULL_NAME,
-        hashed_password=get_password_hash("SYSTEM_USER_NO_LOGIN"),
-        status=UserStatus.deactivated,
-        email_verified=True,
-        created_at=now,
-        updated_at=now,
-    )
-    session.add(system_user)
-    await session.flush()
-    return system_user
 
 
 async def is_last_admin_of_guild(
@@ -471,6 +440,14 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
 
     user.status = UserStatus.anonymized
     user.token_version += 1
+    # The handle stays — it is a pseudonym and a unique identifier, and what
+    # keeps an old thread legible after the person behind it is gone. One that
+    # was *assigned* rather than picked was seeded from a first name, so it is
+    # replaced with a generated one; a handle its owner chose is theirs to be
+    # left holding.
+    if not user.username_chosen:
+        user.username = usernames.random_name()
+        user.discriminator = usernames.random_discriminator()
     # Demote any platform admin to member. The row is now an empty husk
     # that can't act on anything; leaving the admin role on it would be
     # misleading in audit views and would inflate any role-only count
@@ -550,46 +527,6 @@ async def _dispatch_queued_revocations(session: AsyncSession) -> None:
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )
-
-
-async def reassign_user_content(
-    session: AsyncSession,
-    user_id: int,
-    system_user_id: int,
-) -> None:
-    """Re-point authorship in the routed guild schema at the system user.
-
-    Hard delete vaporises the user row, but the content the rest of the guild
-    can still see — documents, comments, uploaded files, everything else they
-    made — has to outlive it. ``created_by`` is the same column on every table
-    that has one, so this sweeps the registry rather than a list that has to be
-    remembered: a new table is covered as soon as it declares
-    ``CreatedByMixin``.
-
-    One column sits outside that registry and is swept by hand: a junction's
-    ``attached_by_id``, which names who linked two rows rather than who made
-    one.
-
-    Ownership is a different thing and moves separately; this only rewrites who
-    the row records as its author.
-
-    The caller routes the session into one guild schema before calling, and
-    calls again per guild.
-    """
-    for model in created_by_models():
-        await session.exec(
-            update(model)
-            .where(model.created_by == user_id)
-            .values(created_by=system_user_id)
-        )
-
-    await session.exec(
-        update(ProjectDocument)
-        .where(ProjectDocument.attached_by_id == user_id)
-        .values(attached_by_id=system_user_id)
-    )
-
-    await session.flush()
 
 
 async def count_capability_holders(
@@ -702,9 +639,10 @@ async def hard_delete_user(
 
     Ownership and authorship part ways here. ``remove_user_from_guild_initiatives``
     releases the owner grants below, leaving that content unowned for a guild
-    admin to claim, while ``reassign_user_content`` re-points the *authorship*
-    columns at the system user — not because authorship changes hands, but
-    because the row it named is about to stop existing.
+    admin to claim. Authorship is left exactly where it is: ``created_by`` is a
+    weak reference — a plain integer, with no foreign key that fires across the
+    schema boundary — so the id stays and the rows keep telling one departed
+    author from another. A guild that could once see who did what still can.
 
     Args:
         session: Database session
@@ -721,10 +659,6 @@ async def hard_delete_user(
         DocumentPropertyValue,
         CalendarEventPropertyValue,
     )
-
-    # Get system user (shared ``users`` row — no routing needed).
-    system_user = await get_or_create_system_user(session)
-    system_user_id = system_user.id
 
     # Sweep EVERY guild schema, not just current memberships. An anonymized
     # user has no membership rows left (anonymize drops them), and even an
@@ -747,10 +681,6 @@ async def hard_delete_user(
         await initiatives_service.remove_user_from_guild_initiatives(
             session, guild_id=gid, user_id=user_id
         )
-
-        # Reassign authored content (documents, comments, uploads, queues, …)
-        # to the system user so it survives the deletion.
-        await reassign_user_content(session, user_id, system_user_id)
 
         # Scrub the display name out of content that embedded it as literal
         # text (@-mentions in comments, document mention nodes, digest name

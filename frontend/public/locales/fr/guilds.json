@@ -196,7 +196,8 @@
     "removeUserTitle": "Retirer l'utilisateur du groupe ?",
     "removeUserDescription": "Cela retirera {{email}} du groupe. Cette action est irréversible.",
     "removeConfirmLabel": "Retirer",
-    "failedToUpdateRole": "Échec de la mise à jour du rôle"
+    "failedToUpdateRole": "Échec de la mise à jour du rôle",
+    "handleColumn": "Identifiant"
   },
   "notMember": {
     "title": "Groupe non disponible",
@@ -396,5 +397,12 @@
       "certifyDuty": "Vous êtes administrateur de cette guilde : c’est à vous de le faire respecter. Vous êtes censé surveiller ce type de contenu et le supprimer. Une guilde qui cesse de respecter cela est retirée de l’annuaire.",
       "confirm": "Inscrire la guilde"
     }
+  },
+  "nameDisplay": {
+    "title": "Comment les membres sont nommés",
+    "description": "Si cette guilde affiche les vrais noms des personnes ou les noms d'utilisateur qu'elles ont choisis.",
+    "toggleLabel": "Afficher les noms complets",
+    "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un.",
+    "listedLock": "Une guilde listée dans l'annuaire communautaire affiche toujours les noms d'utilisateur."
   }
 }

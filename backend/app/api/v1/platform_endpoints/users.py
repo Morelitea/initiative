@@ -13,7 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func
+from sqlalchemy import String, cast, func, or_
 from sqlmodel import select
 
 from app.api.deps import (
@@ -32,6 +32,9 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
+from app.core import usernames
+from app.core.user_display import handle_of
+from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
     create_access_token,
@@ -51,6 +54,7 @@ from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.user import (
+    UsernameClaim,
     UserGuildMember,
     UserRead,
     UserSelfUpdate,
@@ -83,6 +87,8 @@ from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
+from app.services.platform import usernames as username_service
+from app.services.platform.guilds import adopt_guild_name_display
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.services.platform import user_avatars as user_avatars_service
@@ -194,7 +200,12 @@ async def search_users(
     guild_context: GuildContextDep,
     search: Optional[str] = Query(
         default=None,
-        description="Case-insensitive substring match on the member's name.",
+        description=(
+            "Matches the handle's name part. Type the whole handle "
+            "(`foobar#1234`) to pin one member; a partial number after `#` is a "
+            "prefix of the four digits as rendered. Real names are matched only "
+            "in a guild that shows them."
+        ),
     ),
     user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
     page: int = Query(default=1, ge=1),
@@ -216,13 +227,29 @@ async def search_users(
         .join(GuildMembership, GuildMembership.user_id == User.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
     )
+    shows_names = bool(guild_context.guild.show_member_names)
     if search and (term := search.strip()):
-        base = base.where(User.full_name.ilike(f"%{term}%"))
+        name_part, number = usernames.parse_handle(term)
+        if number is not None:
+            # The whole handle was typed: this member, not a family of them.
+            base = base.where(
+                func.lower(User.username) == name_part.lower(),
+                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
+            )
+        else:
+            matches = User.username.ilike(f"%{name_part}%")
+            if shows_names:
+                # A name is searchable exactly where it is showable.
+                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+            base = base.where(matches)
     if user_id:
         base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    data_stmt = base.order_by(User.full_name.asc(), User.id.asc())
+    order = (User.full_name.asc(),) if shows_names else ()
+    data_stmt = base.order_by(
+        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+    )
 
     users, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size
@@ -240,7 +267,7 @@ async def search_users(
 
 _GUILD_CSV_HEADERS = [
     "user_id",
-    "email",
+    "handle",
     "full_name",
     "guild_role",
     "platform_role",
@@ -280,13 +307,14 @@ async def export_users_csv(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
+    shows_names = bool(guild_context.guild.show_member_names)
     csv_rows = []
     for user, guild_role, oidc_managed in rows:
         csv_rows.append(
             [
                 user.id,
-                user.email,
-                user.full_name or "",
+                handle_of(user),
+                (user.full_name or "") if shows_names else "",
                 guild_role.value,
                 user.role.value if hasattr(user.role, "value") else user.role,
                 oidc_managed,
@@ -301,7 +329,10 @@ async def export_users_csv(
 
     if len(rows) == 1 and user_id:
         single_user = rows[0][0]
-        filename = f"user-{single_user.id}-{csv_export.safe_filename_component(single_user.email)}.csv"
+        filename = (
+            f"user-{single_user.id}-"
+            f"{csv_export.safe_filename_component(single_user.username)}.csv"
+        )
     else:
         guild_slug = csv_export.safe_filename_component(
             guild_context.guild.name or "guild"
@@ -335,6 +366,41 @@ def _assignment_digest_turned_off(user: User, update_data: dict) -> bool:
         _next("push_task_assignment", user.push_task_assignment),
     )
     return was_on and not now_on
+
+
+@router.patch("/me/username", response_model=UserRead)
+async def claim_my_username(
+    payload: UsernameClaim,
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserRead:
+    """Pick the handle for an account that was assigned one.
+
+    Every account created without a form — provisioned from SSO claims, or
+    carried over from before handles existed — starts with one it did not
+    choose, and picks its own here. Once picked, a handle changes only through
+    a moderator.
+    """
+    if current_user.username_chosen:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.USERNAME_ALREADY_CHOSEN,
+        )
+
+    try:
+        await username_service.claim_for_user(
+            session, user=current_user, name=payload.username
+        )
+    except UsernameError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+        ) from exc
+
+    current_user.updated_at = datetime.now(timezone.utc)
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    return UserRead.model_validate(current_user)
 
 
 @router.patch("/me", response_model=UserRead)
@@ -637,6 +703,7 @@ async def get_my_initiative_members(
     ``public`` backup.
     """
     await set_rls_context(session, guild_id=guild_id)
+    await adopt_guild_name_display(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

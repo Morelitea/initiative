@@ -120,3 +120,24 @@ def content_read_only_active(guild_id: Optional[int]) -> bool:
     if guild_id is None:
         return False
     return _content_read_only_guild.get() == guild_id
+
+
+# Whether the guild this request is addressed to renders members' real names.
+# Guild-scoped payloads carry ``full_name`` only when it is set. Recorded here,
+# alongside the RLS context, so one model validator on the user schemas answers
+# the question for every endpoint rather than each serializer remembering to —
+# the same reason ``content_read_only`` lives here. Unset (the default) means
+# handles, which is also what a request outside any guild gets.
+_guild_shows_member_names: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "guild_shows_member_names", default=False
+)
+
+
+def set_guild_shows_member_names(shows: bool) -> None:
+    """Record whether the request's guild renders real names."""
+    _guild_shows_member_names.set(bool(shows))
+
+
+def guild_shows_member_names() -> bool:
+    """Whether the request's guild renders real names."""
+    return _guild_shows_member_names.get()

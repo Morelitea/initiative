@@ -78,6 +78,7 @@ from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
+from app.core import usernames
 from app.services.tenant.initiatives import create_builtin_roles
 from app.services.tenant.task_completion import sync_completed_at
 from app.testing.schema_harness import route_session_to_guild
@@ -113,9 +114,14 @@ async def create_user(
         .lower()
         .strip()
     )
+    # A handle is unique on (name, number). Tests that care about a specific
+    # one pass it; everything else gets a distinct pair without having to.
     defaults = {
         "email_hash": hash_email(email_raw),
         "email_encrypted": encrypt_field(email_raw, SALT_EMAIL),
+        "username": usernames.random_name(),
+        "discriminator": usernames.random_discriminator(),
+        "username_chosen": True,
         "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,

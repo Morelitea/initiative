@@ -187,8 +187,8 @@ export function useListAllUsersApiV1AdminUsersGet<
 
 /**
  * Export platform users as a CSV file. Pass `user_id` one or more times to
- * restrict the export to a subset. Without `user_id`, every user (except the
- * system user) is included. Platform-admin only.
+ * restrict the export to a subset. Without `user_id`, every user is included.
+ * Platform-admin only.
  * @summary Export Platform Users Csv
  */
 export const exportPlatformUsersCsvApiV1AdminUsersExportCsvGet = (

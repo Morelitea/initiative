@@ -628,7 +628,10 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, session: AsyncS
     data = response.json()
     assert data["guild_id"] == guild.id
     assert data["max_uses"] == 5
-    assert data["invitee_email"] == "invitee@example.com"
+    # Read back masked: whoever typed the address already has it, and a
+    # guild's other admins never did. Redemption still matches the whole
+    # address, from the ciphertext.
+    assert data["invitee_email"] == "i•••@example.com"
     assert data["uses"] == 0
     assert len(data["code"]) == 22
 

@@ -51,6 +51,7 @@ from app.schemas.tenant.trash import (
 )
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import ownership as ownership_service
+from app.core.user_display import display_name
 from app.services.tenant.soft_delete import (
     hard_purge_entity,
     restore_entity,
@@ -108,7 +109,7 @@ async def _resolve_display_name(
         if getattr(user.status, "value", str(user.status)) == "anonymized":
             display = f"Deleted user #{user_id}"
         else:
-            display = user.full_name or user.email or f"User #{user_id}"
+            display = display_name(user) or f"User #{user_id}"
     cache[user_id] = display
     return display
 

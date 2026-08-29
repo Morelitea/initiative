@@ -196,7 +196,8 @@
     "removeUserTitle": "Remove user from guild?",
     "removeUserDescription": "This will remove {{email}} from the guild. This cannot be undone.",
     "removeConfirmLabel": "Remove",
-    "failedToUpdateRole": "Failed to update role"
+    "failedToUpdateRole": "Failed to update role",
+    "handleColumn": "Handle"
   },
   "notMember": {
     "title": "Guild not available",
@@ -396,5 +397,12 @@
       "certifyDuty": "You are an admin of this guild, so this is yours to enforce. You are expected to watch for this content and remove it. A guild that stops meeting this is removed from the directory.",
       "confirm": "List this guild"
     }
+  },
+  "nameDisplay": {
+    "title": "How members are named",
+    "description": "Whether this guild shows people's real names, or the usernames they chose.",
+    "toggleLabel": "Show full names",
+    "toggleHint": "Off, members appear by username. On, their full name is shown where they have entered one.",
+    "listedLock": "A guild listed in the community directory always shows usernames."
   }
 }

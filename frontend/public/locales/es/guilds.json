@@ -196,7 +196,8 @@
     "removeUserTitle": "¿Eliminar usuario del gremio?",
     "removeUserDescription": "Esto eliminará a {{email}} del gremio. Esta acción no se puede deshacer.",
     "removeConfirmLabel": "Eliminar",
-    "failedToUpdateRole": "No se pudo actualizar el rol"
+    "failedToUpdateRole": "No se pudo actualizar el rol",
+    "handleColumn": "Identificador"
   },
   "notMember": {
     "title": "Gremio no disponible",
@@ -396,5 +397,12 @@
       "certifyDuty": "Eres administrador de este gremio, así que hacerlo cumplir te corresponde a ti. Se espera que vigiles este tipo de contenido y lo elimines. Un gremio que deje de cumplirlo se retira del directorio.",
       "confirm": "Publicar gremio"
     }
+  },
+  "nameDisplay": {
+    "title": "Cómo se nombra a los miembros",
+    "description": "Si este gremio muestra los nombres reales de las personas o los nombres de usuario que eligieron.",
+    "toggleLabel": "Mostrar nombres completos",
+    "toggleHint": "Desactivado, los miembros aparecen por su nombre de usuario. Activado, se muestra su nombre completo si lo han indicado.",
+    "listedLock": "Un gremio listado en el directorio de la comunidad siempre muestra nombres de usuario."
   }
 }
