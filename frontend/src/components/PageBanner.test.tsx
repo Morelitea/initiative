@@ -102,7 +102,7 @@ describe("PageBanner", () => {
     const banner = container.firstElementChild as HTMLElement;
     expect(banner.style.marginBottom).toBe("");
     expect(fadeRow(container)).toBe("");
-    expect(ground(container).className).not.toContain("row-span-2");
+    expect(ground(container).style.gridRow).toBe("1");
   });
 
   it("fades into the page and takes back exactly what it added", () => {
@@ -115,10 +115,10 @@ describe("PageBanner", () => {
     const banner = container.firstElementChild as HTMLElement;
     expect(fadeRow(container)).toBe("auto 224px");
     expect(banner.style.marginBottom).toBe("-224px");
-    // The ground spans both rows, so what dissolves is the fill and the
-    // artwork; the copy is a sibling of it and stays opaque.
-    expect(ground(container).className).toContain("row-span-2");
-    expect(container.querySelector("h1")?.parentElement?.className).not.toContain("row-span-2");
+    // The ground spans both rows — the fade band is as much banner as the
+    // rest of it — while the copy sits in the first row alone and stays opaque.
+    expect(ground(container).style.gridRow).toBe("1 / span 2");
+    expect(container.querySelector("h1")?.parentElement?.style.gridRow).toBe("1");
   });
 
   it("fades over a shorter tail on the weaker setting", () => {
@@ -140,5 +140,16 @@ describe("PageBanner", () => {
     // Not inside the heading's box — the counts are about the banner, not
     // something it says.
     expect(container.querySelector("h1")?.parentElement).not.toBe(corner);
+  });
+
+  it("covers the banner with the picture rather than letting it set the height", () => {
+    // A picture sized to its own 4:1 would stop above a fade's band and leave
+    // it empty — a hard edge over nothing, which is not a fade.
+    render(<PageBanner imageUrl="/images/banner.webp" fade="strong" title="Ravenloft" />);
+
+    const image = screen.getByRole("presentation", { hidden: true });
+    expect(image.className).toContain("object-cover");
+    expect(image.className).toContain("inset-0");
+    expect(image.className).toContain("h-full");
   });
 });

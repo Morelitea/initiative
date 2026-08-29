@@ -9,13 +9,18 @@
  * the colour it picked instead), its name and description, and the two layout
  * choices its admin made.
  *
- * Nothing is applied to the picture itself beyond the fade the guild asked
- * for. The directory's artwork fades out along its bottom edge because that
- * fade is painted into the file; a guild's banner is shown as uploaded.
+ * The copy's minimums are what give a banner its height, at every width; the
+ * picture covers whatever that comes to. The directory's artwork also fades
+ * out along its bottom edge because that fade is painted into the file, which
+ * is separate from the fade a guild can ask for here.
  *
  * A banner that is only a colour is a band, not a hero: it is sized by the
  * copy on it rather than by the viewport, because there is nothing in it to
  * see and a screen-height rectangle of one colour is just a wall.
+ *
+ * It also rises behind the shell's sticky bar by that bar's own height, so a
+ * guild's artwork runs under the recents tabs. Only the picture goes up there:
+ * the copy and the badges pad themselves back down by the same amount.
  */
 
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
@@ -41,12 +46,20 @@ const useFullBleed = <T extends HTMLElement>() => {
   // Anything on the banner that should line up with the page below it (the
   // left-aligned copy, the badges in the corner) indents by these.
   const [inset, setInset] = useState({ left: 0, right: 0 });
+  // How tall the shell's sticky bar above the page is. The banner rises behind
+  // it by exactly this much, so the artwork runs under the recents tabs rather
+  // than starting beneath them. Zero where there is no such bar — on a phone,
+  // where that row is hidden, and in a shell that has none.
+  const [header, setHeader] = useState(0);
 
   useLayoutEffect(() => {
     const element = ref.current;
     const column = element?.parentElement;
-    const area = element?.closest("main")?.parentElement;
+    const main = element?.closest("main");
+    const area = main?.parentElement;
     if (!column || !area) return;
+    // The sticky bar is the content area's own previous sibling in the shell.
+    const bar = area.previousElementSibling;
 
     const measure = () => {
       const columnBox = column.getBoundingClientRect();
@@ -68,6 +81,8 @@ const useFullBleed = <T extends HTMLElement>() => {
       setInset((current) =>
         current.left === left && current.right === right ? current : { left, right }
       );
+      const barHeight = bar ? bar.getBoundingClientRect().height : 0;
+      setHeader((current) => (current === barHeight ? current : barHeight));
     };
     measure();
 
@@ -75,10 +90,11 @@ const useFullBleed = <T extends HTMLElement>() => {
     const observer = new ResizeObserver(measure);
     observer.observe(area);
     observer.observe(column);
+    if (bar) observer.observe(bar);
     return () => observer.disconnect();
   }, []);
 
-  return { ref, style, inset };
+  return { ref, style, inset, header };
 };
 
 export type PageBannerAlign = "center" | "left";
@@ -92,7 +108,9 @@ export type PageBannerFade = "none" | "weak" | "strong";
  * move, the page's next element does not move, and the space between them is
  * banner rather than nothing — so the tool rail and the table end up sitting
  * over a banner that is dissolving underneath them. The extra row is a fixed
- * track so that the artwork, which spans both, still sizes only the first one.
+ * track, and the ground spans both, so the fade band is as much banner as the
+ * rest of it — an empty band under a picture that stopped short would be a
+ * hard edge over nothing, which is what a fade must not be.
  *
  * `tail` is how far up from the very bottom the fade begins, and is always
  * `extend` plus the same small overlap: the dissolve covers the whole extra
@@ -171,45 +189,52 @@ export function PageBanner({
   // out to everything beside the sidebar.
   //
   // With a picture, from `lg` up the image is in flow, sharing a grid cell
-  // with the copy, so the banner is as tall as whichever needs more room — the
-  // image at its own proportions, with the copy over it, and a title that
-  // wraps to more lines opens the banner up rather than running past it.
+  // with the copy, so the banner is as tall as whichever needs more room.
   //
-  // Below that a 4:1 strip would be too short to hold a heading, so the image
-  // is taken out of flow to fill a banner the copy sizes instead, over a
-  // minimum that keeps a phone's close to square rather than a strip. There it
-  // is matched to the banner's height and centred, so its width overhangs and
-  // is clipped: what shows is the middle of the picture at something like its
-  // own size, all of it top to bottom. Both are positioned, so the copy paints
-  // over the image rather than under it.
+  // The banner's height comes from the copy's minimums at every width, and the
+  // picture covers whatever that turns out to be. It has to be that way round
+  // rather than the picture setting the height: a fade adds a band of banner
+  // below the copy, and a picture sized to its own 4:1 would end above that
+  // band and leave it empty — a hard edge over nothing, which is not a fade.
+  // Covering also means a title that wraps to more lines opens the banner up
+  // and takes the picture with it, and that a phone gets something close to
+  // square rather than a strip too short to read a heading on.
   //
-  // With only a colour there is no picture to give the banner a size, and none
-  // to lose by keeping it short — so it is a band the copy sizes, at a smaller
-  // type scale, rather than a hero.
+  // With only a colour there is no picture to lose by keeping it short — so it
+  // is a band the copy sizes, at a smaller type scale, rather than a hero.
   return (
     <div
       ref={banner.ref}
       style={{
         ...banner.style,
-        // The extra row is a fixed track, so the artwork spanning both still
-        // sizes only the first; the margin gives back exactly what it added.
+        // Up behind the shell's sticky bar, so the artwork runs under the
+        // recents tabs; the copy pads itself back down by the same amount, so
+        // only the picture goes up there and none of the words do.
+        ...(banner.header ? { marginTop: -banner.header } : null),
+        // The extra row is a fixed track the ground spans; the margin gives
+        // back exactly what it added, so nothing below the banner moves.
         ...(extend ? { gridTemplateRows: `auto ${extend}px`, marginBottom: -extend } : null),
       }}
       className="relative -mx-4 -mt-4 grid overflow-hidden md:-mx-8 md:-mt-8"
     >
-      {/* The ground: the fill, the artwork, and the fade over both. It spans
-          the banner's row and the fade's, and stretches to them, so the image
-          still gives the banner its height at `lg` exactly as it did when it
-          was a child of the banner itself. */}
+      {/* The ground: the fill, the artwork, and the fade over both. `gridRow`
+          is set outright rather than by `row-start`/`row-span` classes, whose
+          longhand and shorthand would be settling which wins between them in
+          the stylesheet rather than here. */}
       <div
-        style={{ ...(imageUrl ? null : { backgroundColor: color ?? undefined }), ...dissolve }}
-        className={cn("relative col-start-1 row-start-1", extend && "row-span-2")}
+        style={{
+          gridRow: extend ? "1 / span 2" : "1",
+          gridColumn: "1",
+          ...(imageUrl ? null : { backgroundColor: color ?? undefined }),
+          ...dissolve,
+        }}
+        className="relative"
       >
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={imageAlt}
-            className="absolute inset-y-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 lg:static lg:h-auto lg:w-full lg:max-w-full lg:translate-x-0"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         ) : null}
       </div>
@@ -220,14 +245,22 @@ export function PageBanner({
         // rail and the table below them start. Centred copy is centred on the
         // whole banner, which is what being centred means. Until the measure
         // lands the class padding holds it, so nothing starts off-screen.
-        style={
-          align === "left" && banner.inset.left ? { paddingLeft: banner.inset.left } : undefined
-        }
+        style={{
+          gridRow: "1",
+          gridColumn: "1",
+          // Back down by what the banner rose behind the sticky bar, so the
+          // words sit where they always did and only the artwork went up.
+          ...(banner.header ? { paddingTop: banner.header } : null),
+          ...(align === "left" && banner.inset.left ? { paddingLeft: banner.inset.left } : null),
+        }}
         className={cn(
-          "relative col-start-1 row-start-1 flex flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
+          "relative flex flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
           align === "left" ? "items-start text-left" : "items-center text-center",
+          // These minimums are the banner's height at every width — the
+          // picture covers whatever they come to. `lg` keeps a hero roughly
+          // the proportion the artwork is cut to.
           imageUrl
-            ? "min-h-[85vw] py-10 sm:min-h-[45vw] md:min-h-[28vw] lg:min-h-0"
+            ? "min-h-[85vw] py-10 sm:min-h-[45vw] md:min-h-[28vw] lg:min-h-[20vw]"
             : "min-h-28 py-6 sm:min-h-32 lg:min-h-36"
         )}
       >
@@ -267,7 +300,12 @@ export function PageBanner({
           with what is below them however wide the shell happens to be. */}
       {badges ? (
         <div
-          style={banner.inset.right ? { right: banner.inset.right } : undefined}
+          style={{
+            // Clear of the sticky bar, for the same reason the copy is: the
+            // banner goes up behind it, and nothing readable follows it there.
+            ...(banner.header ? { top: banner.header + 16 } : null),
+            ...(banner.inset.right ? { right: banner.inset.right } : null),
+          }}
           className="absolute top-4 right-4 z-10 flex flex-wrap items-center justify-end gap-2 md:top-6 md:right-8"
         >
           {badges}
@@ -275,7 +313,7 @@ export function PageBanner({
       ) : null}
       {/* The fade's own row. Nothing in it — the ground behind it is the whole
           point, and the page's next element is pulled back over it. */}
-      {extend ? <div className="col-start-1 row-start-2" /> : null}
+      {extend ? <div style={{ gridRow: "2", gridColumn: "1" }} /> : null}
     </div>
   );
 }

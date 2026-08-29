@@ -82,15 +82,17 @@ describe("CommunitiesPage", () => {
     // the image describes nothing on its own and stays out of the a11y tree.
     const banner = container.querySelector('img[src="/images/community-banner.webp"]');
     expect(banner).toHaveAttribute("alt", "");
-    // The image's layer and the copy are one grid cell, so the banner is as
-    // tall as whichever needs more room: a translation that wraps to more
-    // lines on a narrow screen opens the banner up rather than running past
-    // its edge.
-    expect(banner?.parentElement).toHaveClass("row-start-1");
-    expect(screen.getByRole("heading", { level: 1 }).parentElement).toHaveClass("row-start-1");
-    // Below that the image fills a banner the copy sizes, rather than setting
-    // the height itself and leaving a strip too short to read a heading on.
-    expect(banner).toHaveClass("absolute", "lg:static");
+    // The image's layer and the copy share one grid cell, so the copy is what
+    // gives the banner its height: a translation that wraps to more lines on a
+    // narrow screen opens the banner up rather than running past its edge.
+    const ground = banner?.parentElement as HTMLElement | null;
+    expect(ground?.style.gridRow).toBe("1");
+    expect(
+      (screen.getByRole("heading", { level: 1 }).parentElement as HTMLElement).style.gridRow
+    ).toBe("1");
+    // The picture covers whatever that comes to, rather than setting the
+    // height itself and leaving a strip too short to read a heading on.
+    expect(banner).toHaveClass("absolute", "inset-0", "object-cover");
   });
 
   it("says so, and asks nothing, where the owner runs no directory", async () => {

@@ -97,6 +97,10 @@ async def _list_as_community(session: AsyncSession, guild: Guild) -> Guild:
     guild.is_community = True
     guild.categories = ["other"]
     guild.has_adult_content = False
+    # A listed guild is known by handles, never names. The endpoint turns this
+    # off in the same write; writing the row directly has to do it too, or
+    # ck_guilds_community_member_names refuses the row.
+    guild.show_member_names = False
     session.add(guild)
     await session.commit()
     await session.refresh(guild)
