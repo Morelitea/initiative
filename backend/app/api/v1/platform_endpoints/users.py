@@ -31,7 +31,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.config import settings
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
 from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
@@ -50,9 +49,8 @@ from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.tenant.initiative import InitiativeMember
-from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user import User, UserStatus
 from app.schemas.platform.user import (
-    UserCreate,
     UserGuildMember,
     UserRead,
     UserSelfUpdate,
@@ -318,68 +316,6 @@ async def export_users_csv(
     )
 
 
-@guild_router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    user_in: UserCreate,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
-) -> User:
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
-
-    normalized_email = user_in.email.lower().strip()
-    statement = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(statement)
-    if result.one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.EMAIL_ALREADY_REGISTERED,
-        )
-
-    # Admin-created accounts go through the same policy as self-registration.
-    await enforce_password_policy(user_in.password)
-
-    guild_id = guild_context.guild_id
-
-    user = User(
-        email_hash=hash_email(normalized_email),
-        email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
-        full_name=user_in.full_name,
-        hashed_password=get_password_hash(user_in.password),
-        # Always a plain platform ``member`` — a guild admin must never be
-        # able to mint an elevated platform role (owner/admin/...) from this
-        # endpoint. Platform roles are changed only via the capability-gated,
-        # bounded-delegation flow at ``/admin/users/{id}/platform-role``.
-        # ``UserCreate`` no longer carries a ``role`` field, so there is
-        # nothing in the request body to honour here. See SEC-1.
-        role=UserRole.member,
-        email_verified=True,
-    )
-    session.add(user)
-    await session.flush()
-    # Platform role and guild role are independent - new users join as guild members
-    try:
-        await guilds_service.ensure_membership(
-            session,
-            guild_id=guild_id,
-            user_id=user.id,
-            role=GuildRole.member,
-        )
-    except guilds_service.GuildCapacityError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    await session.commit()
-    await session.refresh(user)
-    await initiatives_service.load_user_initiative_roles(session, [user])
-    return user
-
-
 def _assignment_digest_turned_off(user: User, update_data: dict) -> bool:
     """Whether this update leaves the user wanting no assignment digest at all.
 
@@ -612,17 +548,17 @@ async def update_users_me(
 @guild_router.post("/{user_id}/approve", response_model=UserRead)
 async def approve_user(
     user_id: int,
-    session: SessionDep,
+    session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role="admin",
-    )
+    """Let a pending member of this guild sign in.
 
+    Runs on the system engine: the row is another account's, and an account is
+    not a guild's to write. ``GuildAdminContext`` plus the membership join
+    below are the authorization — the guild admin may only reach someone who is
+    already a member of the guild they administer.
+    """
     stmt = (
         select(User)
         .join(GuildMembership, GuildMembership.user_id == User.id)
@@ -652,6 +588,13 @@ async def approve_user(
         session.add(user)
         await session.commit()
         await session.refresh(user)
+    # Initiative roles live in the guild schema; SET ROLE into it for the read.
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+    )
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
 

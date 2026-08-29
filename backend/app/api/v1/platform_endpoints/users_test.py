@@ -17,7 +17,7 @@ from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
-from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user import User, UserStatus
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 from app.testing.factories import (
@@ -233,7 +233,6 @@ async def test_search_users_returns_slim_paginated_envelope(
     assert set(summary.keys()) == {
         "id",
         "full_name",
-        "avatar_base64",
         "avatar_url",
         "status",
     }
@@ -344,147 +343,6 @@ async def test_search_users_requires_membership(
 
 
 @pytest.mark.integration
-async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSession):
-    """Test that guild admin can update other users."""
-    guild = await create_guild(session)
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(
-        session, email="member@example.com", full_name="Old Name"
-    )
-
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(admin)
-
-    update_data = {"full_name": "New Name"}
-
-    response = await client.patch(
-        f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=headers,
-        json=update_data,
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["full_name"] == "New Name"
-
-
-@pytest.mark.integration
-async def test_update_user_cannot_change_status(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild admin must not be able to deactivate/anonymize a co-member by
-    mass-assigning ``status`` through the generic PATCH edit endpoint. Status
-    changes belong to the dedicated deactivate/approve flow; here they are
-    rejected outright (like platform ``role``), and the target is untouched."""
-    guild = await create_guild(session)
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(admin)
-
-    response = await client.patch(
-        f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=headers,
-        json={"status": UserStatus.deactivated.value},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "USER_STATUS_WRONG_ENDPOINT"
-
-    # The member's status is unchanged — the attempt was rejected, not applied.
-    await session.refresh(member)
-    assert member.status == UserStatus.active
-
-
-@pytest.mark.integration
-async def test_admin_password_reset_revokes_sessions_and_device_tokens(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild admin resetting a member's password must invalidate the
-    member's outstanding JWT and active device tokens. Otherwise an
-    attacker who compromised the account keeps a working session after
-    the admin's "fix"."""
-    from app.models.platform.user_token import UserToken, UserTokenPurpose
-    from app.services.platform import user_tokens
-
-    guild = await create_guild(session)
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-
-    # The member's pre-reset session: a JWT bound to the current
-    # token_version and a long-lived device token.
-    member_jwt = get_auth_token(member)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=member.id, device_name="Member's phone"
-    )
-
-    # Sanity check: both credentials work before the reset.
-    pre_jwt = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"Bearer {member_jwt}"},
-    )
-    assert pre_jwt.status_code == 200
-    pre_device = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-    )
-    assert pre_device.status_code == 200
-
-    # Admin resets the member's password.
-    reset = await client.patch(
-        f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=get_auth_headers(admin),
-        json={"password": "brand-new-secret-123"},
-    )
-    assert reset.status_code == 200
-
-    # The member's old JWT is now rejected (token_version bumped).
-    post_jwt = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"Bearer {member_jwt}"},
-    )
-    assert post_jwt.status_code == 401
-
-    # The member's device token is now rejected (consumed).
-    post_device = await client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-    )
-    assert post_device.status_code == 401
-
-    # The device token row is marked consumed in the DB.
-    token_row = (
-        await session.exec(
-            select(UserToken).where(
-                UserToken.user_id == member.id,
-                UserToken.purpose == UserTokenPurpose.device_auth,
-            )
-        )
-    ).one()
-    assert token_row.consumed_at is not None
-
-
-@pytest.mark.integration
 async def test_self_service_password_change_revokes_sessions_and_device_tokens(
     client: AsyncClient, session: AsyncSession
 ):
@@ -533,35 +391,6 @@ async def test_self_service_password_change_revokes_sessions_and_device_tokens(
         )
     ).one()
     assert token_row.consumed_at is not None
-
-
-@pytest.mark.integration
-async def test_update_user_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
-):
-    """Test that regular members cannot update other users."""
-    guild = await create_guild(session)
-    member1 = await create_user(session, email="member1@example.com")
-    member2 = await create_user(session, email="member2@example.com")
-
-    await create_guild_membership(
-        session, user=member1, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(
-        session, user=member2, guild=guild, role=GuildRole.member
-    )
-
-    headers = get_auth_headers(member1)
-
-    update_data = {"full_name": "Hacked Name"}
-
-    response = await client.patch(
-        f"/api/v1/g/{guild.id}/users/{member2.id}",
-        headers=headers,
-        json=update_data,
-    )
-
-    assert response.status_code == 403
 
 
 @pytest.mark.integration
@@ -695,7 +524,6 @@ async def test_inactive_user_cannot_access_endpoints(
     client: AsyncClient, session: AsyncSession
 ):
     """Test that inactive users cannot access protected endpoints."""
-    from app.models.platform.user import User, UserStatus
 
     # Create inactive user
     user = User(
@@ -1230,138 +1058,3 @@ async def test_initiative_members_excludes_anonymized(
     ids = {member["id"] for member in response.json()}
     assert departing.id not in ids
     assert survivor.id in ids
-
-
-@pytest.mark.integration
-async def test_create_user_ignores_requested_platform_role(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild admin cannot escalate a new account to a platform role.
-
-    Regression for SEC-1: ``POST /users/`` previously trusted the request
-    body's ``role`` field, letting a guild admin mint a platform ``owner``
-    (config.manage + data.bypass) with a chosen password. The created user
-    must always be a plain platform ``member`` regardless of what the body
-    asks for.
-    """
-    guild = await create_guild(session)
-    admin = await create_user(session, email="admin@example.com")
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    headers = get_auth_headers(admin)
-
-    for requested_role in ("owner", "operator", "moderator", "support"):
-        new_email = f"escalate-{requested_role}@example.com"
-        response = await client.post(
-            f"/api/v1/g/{guild.id}/users/",
-            headers=headers,
-            json={
-                "email": new_email,
-                "full_name": "Should Be Member",
-                "password": "testpassword123",
-                "role": requested_role,
-            },
-        )
-
-        # The smuggled ``role`` field is ignored, not rejected: creation
-        # still succeeds, but the resulting platform role is always member.
-        assert response.status_code == 201, response.text
-        assert response.json()["role"] == UserRole.member.value
-
-        created = (
-            await session.exec(
-                select(User).where(User.email_hash == hash_email(new_email))
-            )
-        ).one()
-        assert created.role == UserRole.member
-
-
-@pytest.mark.integration
-async def test_create_user_happy_path_creates_member(
-    client: AsyncClient, session: AsyncSession
-):
-    """Default admin-created account succeeds and is a platform member."""
-    guild = await create_guild(session)
-    admin = await create_user(session, email="happy-admin@example.com")
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    headers = get_auth_headers(admin)
-
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/users/",
-        headers=headers,
-        json={
-            "email": "newmember@example.com",
-            "full_name": "New Member",
-            "password": "testpassword123",
-        },
-    )
-
-    assert response.status_code == 201, response.text
-    body = response.json()
-    assert body["full_name"] == "New Member"
-    assert body["role"] == UserRole.member.value
-
-
-@pytest.mark.integration
-async def test_create_user_blocked_when_guild_full(
-    client: AsyncClient, session: AsyncSession
-):
-    """A guild admin creating a member into a full guild is refused (403)."""
-    guild = await create_guild(session, max_users=1)
-    admin = await create_user(session, email="cap-admin@example.com")
-    # The admin's own membership fills the single seat (count 1 == cap).
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/users/",
-        headers=get_auth_headers(admin),
-        json={
-            "email": "capped-newuser@example.com",
-            "full_name": "Should Not Be Created",
-            "password": "testpassword123",
-        },
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
-
-    # The rejected account must not have been persisted.
-    leaked = (
-        await session.exec(
-            select(User).where(
-                User.email_hash == hash_email("capped-newuser@example.com")
-            )
-        )
-    ).one_or_none()
-    assert leaked is None
-
-
-@pytest.mark.integration
-async def test_create_user_allowed_under_user_cap(
-    client: AsyncClient, session: AsyncSession
-):
-    """Under the cap, admin-create still succeeds and the count grows."""
-    guild = await create_guild(session, max_users=5)
-    admin = await create_user(session, email="under-admin@example.com")
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/users/",
-        headers=get_auth_headers(admin),
-        json={
-            "email": "under-newuser@example.com",
-            "full_name": "Second Seat",
-            "password": "testpassword123",
-        },
-    )
-
-    assert response.status_code == 201, response.text

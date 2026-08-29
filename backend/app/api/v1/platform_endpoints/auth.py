@@ -16,10 +16,10 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import delete as sql_delete, select
+from sqlmodel import delete as sql_delete, select, update as sql_update
 
 from app.api.deps import SessionDep, get_current_active_user, get_current_user_optional
-from app.db.session import get_admin_session
+from app.db.session import get_admin_session, set_rls_context
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
@@ -105,6 +105,32 @@ from app.models.platform.user_token import UserTokenPurpose
 
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+
+
+async def _upgrade_password_hash(
+    admin_session: AsyncSession, *, user: User, password: str
+) -> None:
+    """Re-hash a password that verified against outdated hashing parameters.
+
+    Runs on the system engine. The row is the sign-in's own, but this happens
+    before a session exists, so there is no request-path identity for the
+    own-row rule on ``public.users`` to match against.
+
+    Best-effort: a transient failure must not turn a successful authentication
+    into a 500. The next sign-in retries the upgrade, and the stored hash keeps
+    verifying until then.
+    """
+    try:
+        new_hash = get_password_hash(password)
+        await admin_session.exec(
+            sql_update(User).where(User.id == user.id).values(hashed_password=new_hash)
+        )
+        await admin_session.commit()
+        user.hashed_password = new_hash
+    except Exception:
+        await admin_session.rollback()
+        logger.exception("Failed to upgrade password hash for user %s", user.id)
+
 
 logger = logging.getLogger(__name__)
 
@@ -371,17 +397,9 @@ async def login_access_token(
         )
 
     if password_needs_rehash(user.hashed_password):
-        # Best-effort: a transient DB error or argon2 hashing failure here
-        # must not turn a successful authentication into a 500. The next
-        # login will retry the upgrade, and the legacy bcrypt hash keeps
-        # working until then.
-        try:
-            user.hashed_password = get_password_hash(form_data.password)
-            session.add(user)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            logger.exception("Failed to upgrade password hash for user %s", user.id)
+        await _upgrade_password_hash(
+            admin_session, user=user, password=form_data.password
+        )
 
     # The new login model end-to-end (history/auth-detailed-design.md §3): the
     # server-side session is load-bearing — the access token carries sid/amr/sat
@@ -511,6 +529,10 @@ async def logout(
     # auth_sessions — which the request-path role doesn't touch — never for
     # the token_version bump above.)
     if current_user is not None:
+        # ``SessionDep`` carries no context of its own, and the write below is
+        # this caller's own row — name them so the own-row rule on
+        # ``public.users`` matches.
+        await set_rls_context(session, user_id=current_user.id)
         current_user.token_version += 1
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("DeviceToken "):
@@ -572,6 +594,7 @@ async def issue_upload_token(
 async def create_device_token(
     request: Request,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     payload: DeviceTokenRequest,
 ) -> DeviceTokenResponse:
     """
@@ -599,14 +622,9 @@ async def create_device_token(
         )
 
     if password_needs_rehash(user.hashed_password):
-        # Best-effort upgrade — see login_access_token for rationale.
-        try:
-            user.hashed_password = get_password_hash(payload.password)
-            session.add(user)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            logger.exception("Failed to upgrade password hash for user %s", user.id)
+        await _upgrade_password_hash(
+            admin_session, user=user, password=payload.password
+        )
 
     device_token = await user_tokens.create_device_token(
         session,
@@ -1382,9 +1400,18 @@ async def resend_verification_email(
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def confirm_verification(
-    request: Request, session: SessionDep, payload: VerificationConfirmRequest
+    request: Request,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
+    payload: VerificationConfirmRequest,
 ) -> VerificationSendResponse:
-    record = await user_tokens.consume_token(
+    # Validated first, spent last. The two writes land on different engines —
+    # the account is the system engine's (the caller holds a token, not a
+    # session) and the token is the request path's — so the order decides which
+    # way a failure between them falls. Verifying first means a failure leaves a
+    # token that verifies an already-verified account, which is a no-op; the
+    # other order would spend the token and leave the account unverified.
+    record = await user_tokens.get_valid_token(
         session,
         token=payload.token,
         purpose=UserTokenPurpose.email_verification,
@@ -1395,7 +1422,7 @@ async def confirm_verification(
             detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN,
         )
     user_stmt = select(User).where(User.id == record.user_id)
-    user_result = await session.exec(user_stmt)
+    user_result = await admin_session.exec(user_stmt)
     user = user_result.one_or_none()
     if not user:
         raise HTTPException(
@@ -1404,9 +1431,12 @@ async def confirm_verification(
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
+        admin_session.add(user)
+        await admin_session.commit()
+
+    record.consumed_at = datetime.now(timezone.utc)
+    session.add(record)
+    await session.commit()
     return VerificationSendResponse(status="verified")
 
 
@@ -1462,23 +1492,36 @@ async def reset_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN,
         )
+    # The caller holds a one-shot token rather than a session, so the row is
+    # written on the system engine.
     stmt = select(User).where(User.id == record.user_id)
-    result = await session.exec(stmt)
+    result = await admin_session.exec(stmt)
     user = result.one_or_none()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
+    # Device tokens are revoked and committed on the request path first: they
+    # live on a table the system engine holds no UPDATE on, so the two halves
+    # cannot share a transaction, and this is the order that fails safely — a
+    # failure after this point signs the account out everywhere and leaves the
+    # old password standing, rather than changing the password while a device
+    # token survives it.
+    await user_tokens.revoke_active_device_tokens(session, user_id=user.id)
+    await session.commit()
+
     user.hashed_password = get_password_hash(payload.password)
-    # Bump token_version and revoke device tokens / API keys / refresh sessions
-    # so no stale credential (JWT, device token, or captured refresh) survives.
+    # Bump token_version and revoke API keys / refresh sessions so no stale
+    # credential (JWT or captured refresh) survives either. ``token_version``
+    # is bumped on ``user``, which is bound to the system engine here, so that
+    # half commits with the password below.
     await user_tokens.revoke_user_sessions(
         session, user=user, admin_session=admin_session
     )
     if not user.email_verified:
         user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)
-    session.add(user)
+    admin_session.add(user)
     await session.commit()
-    await session.refresh(user)
+    await admin_session.commit()
     return VerificationSendResponse(status="reset")

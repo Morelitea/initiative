@@ -71,14 +71,16 @@ async def test_support_reads_all_users(session):
     assert {u1.id, u2.id} <= ids
 
 
-async def test_support_cannot_update_others_but_moderator_can(session):
-    """``users.manage`` is moderator+. Support has read-all but no update-all, so an
-    UPDATE of another user touches 0 rows (RLS USING filters it out); moderator's
-    ``users_platform_manage`` lets the same UPDATE land."""
+@pytest.mark.parametrize("tier", ["support", "moderator", "operator", "owner"])
+async def test_no_tier_updates_another_account(session, tier):
+    """An account is written by the person it names. Every tier reads every
+    account (``users_platform_read``) and writes only its own
+    (``users_platform_self``), so an UPDATE of someone else touches 0 rows.
+    Platform user management runs on the system engine instead (0202)."""
     actor = await create_user(session)
     target = await create_user(session)
 
-    await _assume(session, "support", actor.id)
+    await _assume(session, tier, actor.id)
     res = await session.exec(
         text("UPDATE users SET full_name = 'sx' WHERE id = :id"),
         params={"id": target.id},
@@ -86,10 +88,16 @@ async def test_support_cannot_update_others_but_moderator_can(session):
     await _reset(session)
     assert res.rowcount == 0
 
-    await _assume(session, "moderator", actor.id)
+
+@pytest.mark.parametrize("tier", ["support", "moderator", "operator", "owner"])
+async def test_every_tier_updates_its_own_account(session, tier):
+    """The same policy is what lets a moderator edit their own profile."""
+    actor = await create_user(session)
+
+    await _assume(session, tier, actor.id)
     res = await session.exec(
-        text("UPDATE users SET full_name = 'mx' WHERE id = :id"),
-        params={"id": target.id},
+        text("UPDATE users SET full_name = 'mine' WHERE id = :id"),
+        params={"id": actor.id},
     )
     await _reset(session)
     assert res.rowcount == 1
