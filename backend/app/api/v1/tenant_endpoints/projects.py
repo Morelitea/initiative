@@ -40,7 +40,8 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
     PermissionKey,
 )
-from app.models.platform.user import User
+from app.core import usernames
+from app.models.platform.user import User, UserStatus
 from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document, ProjectDocument
 from app.models.tenant.tag import ProjectTag
@@ -1822,11 +1823,16 @@ async def search_project_members(
     # to reference initiative members when written (see replace_resource_grants),
     # so the membership list is a complete superset of the assignable users.
     members = getattr(project.initiative, "memberships", None) or []
+    shows_names = bool(guild_context.guild.show_member_names)
     assignable: list[User] = []
     seen: set[int] = set()
     for member in members:
         user = member.user
         if user is None or user.id in seen:
+            continue
+        # A suspended account keeps its membership and its grants, and is not
+        # offered as someone to assign work to while the suspension lasts.
+        if user.status == UserStatus.suspended:
             continue
         if permissions_service.has_project_write_access(project, user):
             assignable.append(user)
@@ -1834,12 +1840,36 @@ async def search_project_members(
 
     term = (search or "").strip().lower()
     if term:
-        assignable = [u for u in assignable if term in (u.full_name or "").lower()]
+        # Matches what this guild renders, for the same reason the roster
+        # search does: a filter over a hidden field is that field.
+        name_part, number = usernames.parse_handle(term)
+        needle = name_part.lower()
+        if number is not None:
+            assignable = [
+                u
+                for u in assignable
+                if u.username.lower() == needle
+                and f"{u.discriminator:04d}".startswith(number)
+            ]
+        else:
+            assignable = [
+                u
+                for u in assignable
+                if needle in u.username.lower()
+                or (shows_names and needle in (u.full_name or "").lower())
+            ]
     if user_id:
         wanted = set(user_id)
         assignable = [u for u in assignable if u.id in wanted]
 
-    assignable.sort(key=lambda u: ((u.full_name or "").lower(), u.id))
+    assignable.sort(
+        key=lambda u: (
+            (u.full_name or "").lower() if shows_names else "",
+            u.username.lower(),
+            u.discriminator,
+            u.id,
+        )
+    )
 
     total_count = len(assignable)
     actual_page = clamp_page(page, page_size, total_count)

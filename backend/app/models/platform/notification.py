@@ -33,6 +33,9 @@ class NotificationType(str, Enum):
     import_ready = "import_ready"
     import_failed = "import_failed"
     avatar_removed = "avatar_removed"
+    username_changed = "username_changed"
+    account_suspended = "account_suspended"
+    account_unsuspended = "account_unsuspended"
 
 
 class Notification(SQLModel, table=True):

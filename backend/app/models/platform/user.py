@@ -40,8 +40,26 @@ class UserRole(str, Enum):
 
 class UserStatus(str, Enum):
     active = "active"
+    #: Frozen by a platform moderator. Distinct from ``deactivated``, which
+    #: drops every guild and initiative membership — suspension writes this one
+    #: column and nothing else, so lifting it restores the account whole. The
+    #: holder still signs in and reaches their own account; what they lose is
+    #: every guild.
+    suspended = "suspended"
+    #: The holder closed their account. Memberships are dropped; the row and
+    #: its personal data remain so an administrator can reactivate it.
     deactivated = "deactivated"
+    #: Erased. The row is a husk kept only so the work it touched still says
+    #: who did it.
     anonymized = "anonymized"
+
+
+#: The statuses that may hold a session. A suspended account signs in — that is
+#: how its holder reaches their own account, and how they can be told why —
+#: and is stopped at every guild instead.
+LOGIN_STATUSES: frozenset[UserStatus] = frozenset(
+    {UserStatus.active, UserStatus.suspended}
+)
 
 
 class User(SQLModel, table=True):

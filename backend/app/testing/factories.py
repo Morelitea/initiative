@@ -149,6 +149,7 @@ async def create_user(
 
     user_data = {**defaults, **overrides}
     user = User(**user_data)
+
     session.add(user)
 
     if commit:

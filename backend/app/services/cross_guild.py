@@ -20,6 +20,7 @@ from app.core.role_context import (
 )
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
 
@@ -38,14 +39,21 @@ async def member_guild_ids(
     cut for members AND guild admins alike (admins keep only the settings
     surface), so no cross-guild aggregate may surface a suspended guild's
     content — the ``/g/{guild_id}`` choke point (``_load_guild_context``)
-    refuses those guilds and this is its aggregate-path twin."""
+    refuses those guilds and this is its aggregate-path twin.
+
+    A suspended *user* is excluded the same way, and for the same reason. They
+    keep every membership, so the join below would otherwise walk all of them:
+    the guild path answers such a caller with nothing, and being the twin of
+    that path means answering the same."""
     await set_rls_context(session, user_id=user_id)
     rows = await session.exec(
         select(GuildMembership.guild_id)
         .join(Guild, Guild.id == GuildMembership.guild_id)
+        .join(User, User.id == GuildMembership.user_id)
         .where(
             GuildMembership.user_id == user_id,
             Guild.status != GuildStatus.suspended.value,
+            User.status != UserStatus.suspended,
         )
     )
     ids = sorted(rows)
@@ -84,18 +92,37 @@ async def gather_across_guilds(
     if satisfied_providers is None:
         ambient = auth_context.satisfied_providers()
         satisfied_providers = ambient if isinstance(ambient, str) else sorted(ambient)
-    # One shared-table read for every guild's role (own rows) AND lifecycle
-    # status, under the user-only context, before we start routing into schemas.
+    # One shared-table read for every guild's role (own rows), the guild's
+    # lifecycle status AND the caller's own, under the user-only context,
+    # before we start routing into schemas.
     await set_rls_context(session, user_id=user_id)
-    role_rows = await session.exec(
-        select(GuildMembership.guild_id, GuildMembership.role, Guild.status)
-        .join(Guild, Guild.id == GuildMembership.guild_id)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.guild_id.in_(tuple(guild_ids)),
+    role_rows = (
+        await session.exec(
+            select(
+                GuildMembership.guild_id,
+                GuildMembership.role,
+                Guild.status,
+                User.status,
+            )
+            .join(Guild, Guild.id == GuildMembership.guild_id)
+            .join(User, User.id == GuildMembership.user_id)
+            .where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.guild_id.in_(tuple(guild_ids)),
+            )
         )
-    )
-    roles: dict[int, tuple] = {gid: (role, status) for gid, role, status in role_rows}
+    ).all()
+
+    # The caller's own state, checked here rather than only in
+    # ``member_guild_ids``, because a caller may assemble its own guild list
+    # and reach this directly — ``/recents`` does. A suspended account reaches
+    # no guild, so there is nothing across them to gather.
+    if any(caller_status == UserStatus.suspended for *_, caller_status in role_rows):
+        return []
+
+    roles: dict[int, tuple] = {
+        gid: (role, status) for gid, role, status, _caller in role_rows
+    }
 
     results: list[T] = []
     try:

@@ -778,3 +778,18 @@ async def hard_delete_user(
     await session.delete(user)
 
     await session.commit()
+
+
+def visible_to_other_people():
+    """Rows that may appear where a person is listed as someone to work with.
+
+    A suspended account is not one: it vanishes from rosters, pickers, search,
+    mention candidates and presence for as long as the suspension lasts. What
+    it does **not** vanish from is work it already touched — a comment it wrote
+    still says who wrote it, because suspension is reversible and removes the
+    account from nothing.
+
+    A clause rather than a filtered query, so each surface keeps its own
+    joins and its own gates and only borrows the predicate.
+    """
+    return User.status != UserStatus.suspended

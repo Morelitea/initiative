@@ -216,6 +216,7 @@ export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
 
 export const UserStatus = {
   active: "active",
+  suspended: "suspended",
   deactivated: "deactivated",
   anonymized: "anonymized",
 } as const;
@@ -284,6 +285,17 @@ export interface AdminInitiativeRoleUpdate {
   role: string;
 }
 
+/**
+ * Freeze an account, or let it go.
+ *
+ * ``reason`` is shown to the person it is about, so it is written for them
+ * rather than as an internal note.
+ */
+export interface AdminSuspensionUpdate {
+  suspended: boolean;
+  reason?: string | null;
+}
+
 export type AdminUserDeleteRequestAction =
   (typeof AdminUserDeleteRequestAction)[keyof typeof AdminUserDeleteRequestAction];
 
@@ -301,6 +313,17 @@ export type AdminUserDeleteRequestProjectTransfers = { [key: string]: number } |
 export interface AdminUserDeleteRequest {
   action: AdminUserDeleteRequestAction;
   project_transfers?: AdminUserDeleteRequestProjectTransfers;
+}
+
+/**
+ * The name part a moderator sets on someone else's account.
+ *
+ * The number is not here and never will be: it is drawn, not chosen, by
+ * anyone. It is re-drawn only if the new pair is already held.
+ */
+export interface AdminUsernameUpdate {
+  /** @maxLength 64 */
+  username: string;
 }
 
 export interface ApiKeyCreateRequest {
@@ -3187,6 +3210,9 @@ export const NotificationType = {
   import_ready: "import_ready",
   import_failed: "import_failed",
   avatar_removed: "avatar_removed",
+  username_changed: "username_changed",
+  account_suspended: "account_suspended",
+  account_unsuspended: "account_unsuspended",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };

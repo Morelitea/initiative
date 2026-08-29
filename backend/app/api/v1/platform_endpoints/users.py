@@ -173,7 +173,10 @@ async def list_users(
     stmt = (
         select(User, GuildMembership.role, GuildMembership.oidc_managed)
         .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(GuildMembership.guild_id == guild_context.guild_id)
+        .where(
+            GuildMembership.guild_id == guild_context.guild_id,
+            users_service.visible_to_other_people(),
+        )
         .order_by(User.created_at.asc())
     )
     result = await session.exec(stmt)
@@ -225,7 +228,10 @@ async def search_users(
     base = (
         select(User)
         .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(GuildMembership.guild_id == guild_context.guild_id)
+        .where(
+            GuildMembership.guild_id == guild_context.guild_id,
+            users_service.visible_to_other_people(),
+        )
     )
     shows_names = bool(guild_context.guild.show_member_names)
     if search and (term := search.strip()):

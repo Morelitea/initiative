@@ -494,6 +494,16 @@ async def test_search_initiative_members_slim_and_filtered(
     # This guild renders handles, so that is what the search matches on.
     assert body["items"][0]["username"] == "wonderland"
 
+    # And a term that appears only in the real name matches nothing, which is
+    # the half that matters: a filter over a field the guild does not show
+    # would be that field, read one query at a time.
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "Alice"},
+    )
+    assert response.json()["total_count"] == 0
+
 
 @pytest.mark.integration
 async def test_search_initiative_members_filters_by_user_id(

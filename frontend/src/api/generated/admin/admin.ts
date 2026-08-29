@@ -28,8 +28,10 @@ import type {
   AdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetParams,
   AdminGuildRoleUpdate,
   AdminInitiativeRoleUpdate,
+  AdminSuspensionUpdate,
   AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatchParams,
   AdminUserDeleteRequest,
+  AdminUsernameUpdate,
   AuditEventListResponse,
   ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   HTTPValidationError,
@@ -779,6 +781,216 @@ export function useListAuditEventsApiV1AdminAuditEventsGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Change someone's username.
+ *
+ * People occasionally pick a handle that breaches the terms of use, and it is
+ * the one part of an account everyone else sees, so changing it cannot wait
+ * for its owner. Gated on ``content.moderate`` — a platform capability, like
+ * the picture takedown beside it; a guild's administrator has no part in this.
+ *
+ * The name part is validated exactly as registration validates it. The number
+ * is not the moderator's to choose either: the existing one is kept, and a
+ * new one drawn only if that pair is already held.
+ *
+ * This also marks the handle as chosen, so its owner cannot immediately spend
+ * a pick on undoing a moderation decision.
+ * @summary Set User Username
+ */
+export const setUserUsernameApiV1AdminUsersUserIdUsernamePatch = (
+  userId: number,
+  adminUsernameUpdate: BodyType<AdminUsernameUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/admin/users/${userId}/username`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: adminUsernameUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+    TError,
+    { userId: number; data: BodyType<AdminUsernameUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+  TError,
+  { userId: number; data: BodyType<AdminUsernameUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setUserUsernameApiV1AdminUsersUserIdUsernamePatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+    { userId: number; data: BodyType<AdminUsernameUpdate> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return setUserUsernameApiV1AdminUsersUserIdUsernamePatch(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>
+>;
+export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationBody =
+  BodyType<AdminUsernameUpdate>;
+export type SetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set User Username
+ */
+export const useSetUserUsernameApiV1AdminUsersUserIdUsernamePatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+      TError,
+      { userId: number; data: BodyType<AdminUsernameUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setUserUsernameApiV1AdminUsersUserIdUsernamePatch>>,
+  TError,
+  { userId: number; data: BodyType<AdminUsernameUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetUserUsernameApiV1AdminUsersUserIdUsernamePatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Freeze an account, or let it go.
+ *
+ * Suspension takes nothing away: memberships, grants, assignments and
+ * everything the account authored stay exactly where they are, so lifting it
+ * restores the account whole. What it does is close every guild — the holder
+ * still signs in and reaches their own account, which is how they can be told
+ * why.
+ *
+ * Gated on ``users.manage`` (moderator and above). No PAM grant is involved:
+ * this is a platform action about an account, not access to a guild's
+ * content.
+ * @summary Set User Suspension
+ */
+export const setUserSuspensionApiV1AdminUsersUserIdSuspensionPost = (
+  userId: number,
+  adminSuspensionUpdate: BodyType<AdminSuspensionUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/admin/users/${userId}/suspension`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: adminSuspensionUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+    TError,
+    { userId: number; data: BodyType<AdminSuspensionUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+  TError,
+  { userId: number; data: BodyType<AdminSuspensionUpdate> },
+  TContext
+> => {
+  const mutationKey = ["setUserSuspensionApiV1AdminUsersUserIdSuspensionPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+    { userId: number; data: BodyType<AdminSuspensionUpdate> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return setUserSuspensionApiV1AdminUsersUserIdSuspensionPost(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>
+>;
+export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationBody =
+  BodyType<AdminSuspensionUpdate>;
+export type SetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set User Suspension
+ */
+export const useSetUserSuspensionApiV1AdminUsersUserIdSuspensionPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+      TError,
+      { userId: number; data: BodyType<AdminSuspensionUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setUserSuspensionApiV1AdminUsersUserIdSuspensionPost>>,
+  TError,
+  { userId: number; data: BodyType<AdminSuspensionUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getSetUserSuspensionApiV1AdminUsersUserIdSuspensionPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Get the count of platform admins (``users.read``, role-scoped session).
  * @summary Get Platform Admin Count

@@ -621,7 +621,17 @@
     "changeRoleDescription": "Cela changera le rôle de plateforme de {{email}} en {{role}}.",
     "roleChangeSuccess": "Rôle de plateforme changé en {{role}}",
     "deactivated": "Désactivé",
-    "anonymized": "Anonymisé"
+    "anonymized": "Anonymisé",
+    "changeUsername": "Changer le nom d'utilisateur",
+    "usernameChanged": "Nom d'utilisateur modifié.",
+    "changeUsernameTitle": "Changer le nom d'utilisateur de {{handle}}",
+    "changeUsernameBody": "La personne en sera informée et ne pourra pas revenir en arrière elle-même. Le numéro reste le même.",
+    "suspend": "Suspendre",
+    "unsuspend": "Lever la suspension",
+    "suspendTitle": "Suspendre {{handle}} ?",
+    "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune guilde tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
+    "suspendReasonLabel": "Motif (qui lui sera montré)",
+    "actionError": "L'opération n'a pas abouti. Réessayez."
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",

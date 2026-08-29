@@ -161,3 +161,43 @@ def _is_handle_conflict(exc: IntegrityError) -> bool:
     would swallow the real answer.
     """
     return "ix_users_handle" in str(getattr(exc, "orig", exc))
+
+
+async def set_for_user(
+    session: AsyncSession,
+    *,
+    user: User,
+    name: str,
+    keep_discriminator: bool = False,
+) -> None:
+    """Give ``user`` the handle ``name``, and mark it chosen.
+
+    ``keep_discriminator`` keeps the number they already have, drawing a new
+    one only if that pair is held. A moderator renaming an account is changing
+    the part people read, not reshuffling the part that makes it unique.
+
+    Marks the handle chosen either way: a moderation decision is not something
+    its subject undoes by spending a pick they still had.
+    """
+    validated = usernames.validate(name)
+    candidates: list[int] = []
+    if keep_discriminator and user.discriminator is not None:
+        candidates.append(user.discriminator)
+
+    for _ in range(_CLAIM_ATTEMPTS):
+        candidate = (
+            candidates.pop(0) if candidates else usernames.random_discriminator()
+        )
+        try:
+            async with session.begin_nested():
+                user.username = validated
+                user.discriminator = candidate
+                user.username_chosen = True
+                session.add(user)
+                await session.flush()
+        except IntegrityError as exc:
+            if not _is_handle_conflict(exc):
+                raise
+            continue
+        return
+    raise UsernameError("USERNAME_UNAVAILABLE")

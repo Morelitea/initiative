@@ -621,7 +621,17 @@
     "changeRoleDescription": "Esto cambiará el rol de plataforma de {{email}} a {{role}}.",
     "roleChangeSuccess": "Rol de plataforma cambiado a {{role}}",
     "deactivated": "Desactivada",
-    "anonymized": "Anonimizada"
+    "anonymized": "Anonimizada",
+    "changeUsername": "Cambiar nombre de usuario",
+    "usernameChanged": "Nombre de usuario cambiado.",
+    "changeUsernameTitle": "Cambiar el nombre de usuario de {{handle}}",
+    "changeUsernameBody": "Se le notificará y no podrá revertirlo por su cuenta. El número no cambia.",
+    "suspend": "Suspender",
+    "unsuspend": "Levantar la suspensión",
+    "suspendTitle": "¿Suspender a {{handle}}?",
+    "suspendBody": "Conserva todo — pertenencias, permisos y todo lo que haya escrito — y no accede a ningún gremio hasta que se levante. Puede seguir entrando en su propia cuenta, donde verá tu motivo.",
+    "suspendReasonLabel": "Motivo (se le mostrará)",
+    "actionError": "No se pudo completar. Inténtalo de nuevo."
   },
   "adminDeleteUser": {
     "title": "Eliminar usuario",

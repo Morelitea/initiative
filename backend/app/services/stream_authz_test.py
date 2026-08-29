@@ -17,6 +17,7 @@ from fastapi import status
 from app.api.deps import GuildAccessError
 from app.services import stream_authz
 from app.services.stream_authz import StreamAuthority
+from app.models.platform.user import UserStatus
 
 
 class FakeWebSocket:
@@ -122,10 +123,17 @@ async def test_leave_removes_socket_from_room(authority) -> None:
 # ── continuous re-authorization (every level) ────────────────────────────────
 
 
-def _patch_recheck(monkeypatch, *, establish_ok: bool, authorized: bool):
-    """Drive ``_still_authorized`` without a DB: control ``establish_guild_access``
-    (the guild / PAM gate) and the adapter ``authorize`` (the initiative + DAC
-    gate) independently, and return the authorize closure to register."""
+def _patch_recheck(
+    monkeypatch,
+    *,
+    establish_ok: bool,
+    authorized: bool,
+    account_status: UserStatus = UserStatus.active,
+):
+    """Drive ``_still_authorized`` without a DB: control the account's own
+    status, ``establish_guild_access`` (the guild / PAM gate) and the adapter
+    ``authorize`` (the initiative + DAC gate) independently, and return the
+    authorize closure to register."""
 
     class _FakeSession:
         async def __aenter__(self):
@@ -136,6 +144,11 @@ def _patch_recheck(monkeypatch, *, establish_ok: bool, authorized: bool):
 
         async def exec(self, *_a, **_k):
             return None
+
+        async def get(self, _model, _pk):
+            # The account as it stands now, which is the point: the socket
+            # carries the one it joined with.
+            return SimpleNamespace(id=USER.id, status=account_status)
 
     seen_satisfied: list = []
 
@@ -286,3 +299,58 @@ async def test_revoke_is_scoped_to_guild_and_user(authority, monkeypatch) -> Non
     assert target.closed == status.WS_1008_POLICY_VIOLATION
     assert other_user.closed is None  # different user — not re-checked
     assert other_guild.closed is None  # different guild — not re-checked
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "account_status",
+    [UserStatus.suspended, UserStatus.deactivated, UserStatus.anonymized],
+)
+async def test_revoke_disconnects_when_the_account_is_no_longer_live(
+    authority, monkeypatch, account_status
+) -> None:
+    """Both guild gates still pass — what changed is the account itself.
+
+    A socket carries the account as it was when it joined, so the check has to
+    read it again; suspension in particular leaves every membership in place,
+    so nothing else here would notice.
+    """
+    authorize, _ = _patch_recheck(
+        monkeypatch,
+        establish_ok=True,
+        authorized=True,
+        account_status=account_status,
+    )
+    ws = FakeWebSocket()
+    await _join(
+        authority,
+        ws,
+        guild_id=1,
+        resource_type="document",
+        resource_id=3,
+        authorize=authorize,
+    )
+
+    await authority.revoke_user_everywhere(USER.id)
+
+    assert ws.closed == status.WS_1008_POLICY_VIOLATION
+    assert authority.room_size(1, "document", 3) == 0
+
+
+@pytest.mark.unit
+async def test_a_live_account_keeps_its_socket(authority, monkeypatch) -> None:
+    authorize, _ = _patch_recheck(monkeypatch, establish_ok=True, authorized=True)
+    ws = FakeWebSocket()
+    await _join(
+        authority,
+        ws,
+        guild_id=1,
+        resource_type="document",
+        resource_id=3,
+        authorize=authorize,
+    )
+
+    await authority.revoke_user_everywhere(USER.id)
+
+    assert ws.closed is None
+    assert authority.room_size(1, "document", 3) == 1

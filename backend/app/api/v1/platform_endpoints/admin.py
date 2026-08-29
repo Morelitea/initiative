@@ -8,6 +8,8 @@ from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability
 from app.core.audit_events import AuditEventType
+from app.core.user_display import handle_of
+from app.core.usernames import UsernameError
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
 from app.db.query import page_has_next, paginated_query
 from app.db.session import get_admin_session, set_rls_context
@@ -27,6 +29,8 @@ from app.schemas.platform.audit import (
 )
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.admin import (
+    AdminSuspensionUpdate,
+    AdminUsernameUpdate,
     PlatformRoleUpdate,
     PlatformAdminCountResponse,
     AdminUserDeleteRequest,
@@ -49,6 +53,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
+from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
 from app.services.platform.guilds import adopt_guild_name_display
 from app.services.platform import guilds as guilds_service
@@ -375,6 +380,144 @@ async def list_audit_events(
         has_next=page_has_next(actual_page, page_size, total_count),
         has_prev=actual_page > 1,
     )
+
+
+@router.patch("/users/{user_id}/username", response_model=UserRead)
+async def set_user_username(
+    user_id: int,
+    payload: AdminUsernameUpdate,
+    session: AdminSessionDep,
+    current_user: ContentModerateDep,
+) -> User:
+    """Change someone's username.
+
+    People occasionally pick a handle that breaches the terms of use, and it is
+    the one part of an account everyone else sees, so changing it cannot wait
+    for its owner. Gated on ``content.moderate`` — a platform capability, like
+    the picture takedown beside it; a guild's administrator has no part in this.
+
+    The name part is validated exactly as registration validates it. The number
+    is not the moderator's to choose either: the existing one is kept, and a
+    new one drawn only if that pair is already held.
+
+    This also marks the handle as chosen, so its owner cannot immediately spend
+    a pick on undoing a moderation decision.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    previous_handle = handle_of(user)
+    try:
+        await username_service.set_for_user(
+            session, user=user, name=payload.username, keep_discriminator=True
+        )
+    except UsernameError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+        ) from exc
+
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await notifications_service.queue_username_changed(
+        session, user=user, previous_handle=previous_handle
+    )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_USERNAME_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"from": previous_handle, "to": handle_of(user)},
+    )
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@router.post("/users/{user_id}/suspension", response_model=UserRead)
+async def set_user_suspension(
+    user_id: int,
+    payload: AdminSuspensionUpdate,
+    session: AdminSessionDep,
+    current_user: UsersManageDep,
+) -> User:
+    """Freeze an account, or let it go.
+
+    Suspension takes nothing away: memberships, grants, assignments and
+    everything the account authored stay exactly where they are, so lifting it
+    restores the account whole. What it does is close every guild — the holder
+    still signs in and reaches their own account, which is how they can be told
+    why.
+
+    Gated on ``users.manage`` (moderator and above). No PAM grant is involved:
+    this is a platform action about an account, not access to a guild's
+    content.
+    """
+    if user_id == current_user.id:
+        # Suspending yourself would take your own guilds away and leave the
+        # lifting of it to someone else.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_SUSPEND_SELF,
+        )
+
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    # A closed or erased account is not a live one to freeze, and thawing it
+    # would quietly reopen an account its owner closed.
+    if user.status not in (UserStatus.active, UserStatus.suspended):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_SUSPEND_INACTIVE,
+        )
+
+    already = user.status == UserStatus.suspended
+    if already == payload.suspended:
+        return user
+
+    user.status = UserStatus.suspended if payload.suspended else UserStatus.active
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+
+    if payload.suspended:
+        await notifications_service.queue_account_suspended(
+            session, user=user, reason=payload.reason
+        )
+    else:
+        await notifications_service.queue_account_unsuspended(session, user=user)
+
+    await audit_service.record(
+        session,
+        event_type=(
+            AuditEventType.USER_SUSPENDED
+            if payload.suspended
+            else AuditEventType.USER_UNSUSPENDED
+        ),
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={"reason": payload.reason} if payload.reason else {},
+    )
+    await session.commit()
+    await session.refresh(user)
+
+    if payload.suspended:
+        # Sockets opened before this carry the account as it was when they
+        # joined, so they are re-checked now rather than at the next sweep.
+        # Everywhere at once: this is a change to the account, which has no one
+        # guild to name.
+        await stream_authority.revoke_user_everywhere(user_id)
+
+    return user
 
 
 @router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)

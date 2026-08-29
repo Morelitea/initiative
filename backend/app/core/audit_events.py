@@ -28,6 +28,9 @@ class AuditEventType(str, Enum):
     # Trust & safety: what a moderator does to an account, none of which needs
     # a PAM grant because none of it reaches a guild's content.
     USER_AVATAR_REMOVED = "user.avatar_removed"
+    USER_USERNAME_CHANGED = "user.username_changed"
+    USER_SUSPENDED = "user.suspended"
+    USER_UNSUSPENDED = "user.unsuspended"
 
 
 class AuditCategory(str, Enum):
@@ -50,6 +53,15 @@ class AuditEventMeta:
 
 AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.USER_AVATAR_REMOVED: AuditEventMeta(
+        tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    AuditEventType.USER_USERNAME_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    AuditEventType.USER_SUSPENDED: AuditEventMeta(
+        tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    AuditEventType.USER_UNSUSPENDED: AuditEventMeta(
         tier=2, category=AuditCategory.MODERATION, is_write=True
     ),
 }
