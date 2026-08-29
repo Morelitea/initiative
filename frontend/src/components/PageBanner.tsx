@@ -51,6 +51,11 @@ const useFullBleed = <T extends HTMLElement>() => {
   // than starting beneath them. Zero where there is no such bar — on a phone,
   // where that row is hidden, and in a shell that has none.
   const [header, setHeader] = useState(0);
+  // Whether the banner is running in a phone-width content area. It decides
+  // how much height the fade may spend, which is the one measurement a media
+  // query cannot make here: the banner's width is the content area's, not the
+  // viewport's, and the two differ by whichever sidebars are open.
+  const [compact, setCompact] = useState(false);
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -83,6 +88,8 @@ const useFullBleed = <T extends HTMLElement>() => {
       );
       const barHeight = bar ? bar.getBoundingClientRect().height : 0;
       setHeader((current) => (current === barHeight ? current : barHeight));
+      const narrow = areaBox.width < COMPACT_WIDTH;
+      setCompact((current) => (current === narrow ? current : narrow));
     };
     measure();
 
@@ -94,7 +101,7 @@ const useFullBleed = <T extends HTMLElement>() => {
     return () => observer.disconnect();
   }, []);
 
-  return { ref, style, inset, header };
+  return { ref, style, inset, header, compact };
 };
 
 export type PageBannerAlign = "center" | "left";
@@ -112,17 +119,24 @@ export type PageBannerFade = "none" | "weak" | "strong";
  * rest of it — an empty band under a picture that stopped short would be a
  * hard edge over nothing, which is what a fade must not be.
  *
- * `tail` is how far up from the very bottom the fade begins, and is always
- * `extend` plus the same small overlap: the dissolve covers the whole extra
- * row and reaches a couple of dozen pixels into the banner proper, never
- * further. That is what lets one pair of numbers serve both a tall photograph
- * and the short band a guild with no artwork gets — a percentage stop strong
- * enough to matter on the first would wash out the title on the second.
+ * The fade begins `extend` plus the same small overlap up from the very
+ * bottom: the dissolve covers the whole extra row and reaches a couple of
+ * dozen pixels into the banner proper, never further. That is what lets one
+ * number serve both a tall photograph and the short band a guild with no
+ * artwork gets — a percentage stop strong enough to matter on the first would
+ * wash out the title on the second.
+ *
+ * Each strength is two numbers rather than one because a phone has a fraction
+ * of the height to spend: 224px of dissolve is a quarter of a laptop's banner
+ * and half a phone's screen. The narrow figure is picked from the measured
+ * width, in a layout effect, so it is in place before the first paint.
  */
 const FADE_OVERLAP = 24;
-const FADES: Record<Exclude<PageBannerFade, "none">, number> = {
-  weak: 48,
-  strong: 224,
+/** Below this many CSS pixels of content area, a banner is on a phone. */
+const COMPACT_WIDTH = 640;
+const FADES: Record<Exclude<PageBannerFade, "none">, { narrow: number; wide: number }> = {
+  weak: { narrow: 28, wide: 48 },
+  strong: { narrow: 96, wide: 224 },
 };
 
 export type PageBannerProps = {
@@ -174,7 +188,7 @@ export function PageBanner({
   const banner = useFullBleed<HTMLDivElement>();
   const halo = !!imageUrl && haloOverImage;
   const ink = textColor ?? readableTextColor(color ?? "");
-  const extend = fade === "none" ? 0 : FADES[fade];
+  const extend = fade === "none" ? 0 : FADES[fade][banner.compact ? "narrow" : "wide"];
   // Masking the ground rather than the whole banner is what keeps the fade off
   // the words: the copy is a sibling of this layer, not a child of it.
   const dissolve: CSSProperties = extend
@@ -257,17 +271,20 @@ export function PageBanner({
           "relative flex flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
           align === "left" ? "items-start text-left" : "items-center text-center",
           // These minimums are the banner's height at every width — the
-          // picture covers whatever they come to. `lg` keeps a hero roughly
-          // the proportion the artwork is cut to.
+          // picture covers whatever they come to. They fall away faster than
+          // the screen does: a phone has a page to show under the banner and
+          // the least room to show it in, so the hero is a band there and only
+          // opens out once there is height to spend. `lg` keeps it roughly the
+          // proportion the artwork is cut to.
           imageUrl
-            ? "min-h-[85vw] py-10 sm:min-h-[45vw] md:min-h-[28vw] lg:min-h-[20vw]"
-            : "min-h-28 py-6 sm:min-h-32 lg:min-h-36"
+            ? "min-h-[44vw] py-6 sm:min-h-[38vw] sm:py-10 md:min-h-[28vw] lg:min-h-[20vw]"
+            : "min-h-24 py-5 sm:min-h-32 sm:py-6 lg:min-h-36"
         )}
       >
         <h1
           className={cn(
             "text-balance font-black tracking-tight",
-            imageUrl ? "text-4xl sm:text-5xl lg:text-6xl" : "text-2xl sm:text-3xl lg:text-4xl",
+            imageUrl ? "text-3xl sm:text-5xl lg:text-6xl" : "text-xl sm:text-3xl lg:text-4xl",
             halo &&
               "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
           )}
@@ -281,7 +298,7 @@ export function PageBanner({
           <p
             className={cn(
               "max-w-2xl text-balance font-medium",
-              imageUrl ? "text-base sm:text-lg lg:text-xl" : "text-sm sm:text-base",
+              imageUrl ? "text-sm sm:text-lg lg:text-xl" : "text-xs sm:text-base",
               halo &&
                 "text-neutral-800 [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)]"
             )}

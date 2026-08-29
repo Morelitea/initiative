@@ -80,10 +80,10 @@ describe("PageBanner", () => {
   it("is a short band with only a colour, and a tall one with a picture", () => {
     const { container, rerender } = render(<PageBanner color="#2563eb" title="Ravenloft" />);
     const band = container.querySelector("h1")?.parentElement;
-    expect(band?.className).toContain("min-h-28");
+    expect(band?.className).toContain("min-h-24");
 
     rerender(<PageBanner imageUrl="/images/banner.webp" title="Ravenloft" />);
-    expect(container.querySelector("h1")?.parentElement?.className).toContain("min-h-[85vw]");
+    expect(container.querySelector("h1")?.parentElement?.className).toContain("min-h-[44vw]");
   });
 
   it("centres the copy unless it is asked to align it left", () => {
@@ -151,5 +151,27 @@ describe("PageBanner", () => {
     expect(image.className).toContain("object-cover");
     expect(image.className).toContain("inset-0");
     expect(image.className).toContain("h-full");
+  });
+
+  it("spends less height on a fade in a narrow content area", () => {
+    // A phone has a page to show under the banner and the least room to show
+    // it in, so the dissolve is a fraction of what a laptop's is. The width is
+    // the content area's, not the viewport's, so it is measured rather than
+    // asked of a media query.
+    // The measure only runs inside the shell it measures, so the banner is
+    // rendered in one; jsdom reports a zero-width layout, which is narrow.
+    const { container } = render(
+      <div>
+        <main>
+          <div>
+            <PageBanner color="#2563eb" fade="strong" title="Ravenloft" />
+          </div>
+        </main>
+      </div>
+    );
+
+    const shellBanner = container.querySelector("main div > div") as HTMLElement;
+    expect(shellBanner.style.gridTemplateRows).toBe("auto 96px");
+    expect(shellBanner.style.marginBottom).toBe("-96px");
   });
 });
