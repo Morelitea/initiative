@@ -54,6 +54,7 @@ from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 
 router = APIRouter()
 
@@ -137,6 +138,17 @@ async def list_calendars(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     scope: Optional[Literal["guild"]] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit for this "
+            "tool's own default order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=200),
 ) -> CalendarListResponse:
@@ -174,6 +186,10 @@ async def list_calendars(
         )
     )
 
+    name_match = tool_listing.name_search_clause(Calendar.name, search)
+    if name_match is not None:
+        conditions.append(name_match)
+
     count_subq = select(Calendar.id).where(*conditions).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))
@@ -183,7 +199,15 @@ async def list_calendars(
         select(Calendar)
         .where(*conditions)
         .options(*calendars_service.calendar_loader_options())
-        .order_by(Calendar.name.asc(), Calendar.id.asc())
+    )
+    stmt = (
+        tool_listing.apply_tool_order(
+            stmt,
+            Calendar,
+            sort_by,
+            sort_dir,
+            default=[Calendar.name.asc(), Calendar.id.asc()],
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

@@ -3,13 +3,13 @@
  * fixed and the tool only supplies the rows (see `useGuildToolRows`), so
  * switching tools swaps the data, not the layout.
  *
- * Rows are read a server page at a time, in the order that tool's endpoint
- * returns them (recently-updated or by name, depending on the tool). There is
- * deliberately no client-side sort or filter here: either would only reach the
- * page already in hand, and a table that answers "no matches" while the guild
- * holds matches on page 4 is worse than no filter at all. Both come back the
- * moment the remaining list endpoints accept `search`/`sort_by` — the page's
- * pagination is already server-driven.
+ * Rows are read a server page at a time, and the search box and the three
+ * sortable headers go to the server with them. Nothing here filters or sorts
+ * the page already in hand: that would answer "no matches" while the guild
+ * holds matches on page 4, and would sort the accident of pagination rather
+ * than the guild's work. The columns every tool shares — name, initiative,
+ * last updated — are the ones that sort, because they are the only ones every
+ * tool's endpoint can order by; the tool's own column is its own business.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -19,12 +19,14 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import type { GuildToolRow } from "@/hooks/useGuildToolRows";
 import { useGuildPath } from "@/lib/guildUrl";
-import type { AppColumnDef } from "@/lib/table";
+import type { AppColumn, AppColumnDef } from "@/lib/table";
 import { initiativeRoute, toolCamelPlural } from "@/lib/tools";
 
 /** The leaf keys under `guildHome.columns.detail` — one per tool. */
@@ -88,6 +90,37 @@ const TagsCell = ({ row }: { row: GuildToolRow }) => {
   );
 };
 
+/** A column header that toggles that column's sort. The arrow reads the
+ *  table's own state, which the page keeps in the address bar. */
+const SortHeader = ({ column, label }: { column: AppColumn<GuildToolRow>; label: string }) => {
+  const isSorted = column.getIsSorted();
+  return (
+    <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+      {label}
+      <SortIcon isSorted={isSorted} />
+    </Button>
+  );
+};
+
+/** The columns every tool's list endpoint can order by, as it names them. */
+export const GUILD_TOOL_SORT_FIELDS = ["name", "initiative", "updated_at"] as const;
+export type GuildToolSortField = (typeof GUILD_TOOL_SORT_FIELDS)[number];
+
+/** Table column id → the field name the endpoints take, and back. */
+const SORT_FIELD_BY_COLUMN: Record<string, GuildToolSortField> = {
+  name: "name",
+  initiative: "initiative",
+  updated: "updated_at",
+};
+const COLUMN_BY_SORT_FIELD: Record<GuildToolSortField, string> = {
+  name: "name",
+  initiative: "initiative",
+  updated_at: "updated",
+};
+
+export const isGuildToolSortField = (value: unknown): value is GuildToolSortField =>
+  typeof value === "string" && (GUILD_TOOL_SORT_FIELDS as readonly string[]).includes(value);
+
 interface GuildToolTableProps {
   tool: Tool;
   rows: GuildToolRow[];
@@ -99,6 +132,13 @@ interface GuildToolTableProps {
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  /** The search text, as it is in the address bar. */
+  search: string;
+  onSearchChange: (search: string) => void;
+  /** One of {@link GUILD_TOOL_SORT_FIELDS}, and which way. */
+  sortBy: GuildToolSortField;
+  sortDir: "asc" | "desc";
+  onSortChange: (sortBy: GuildToolSortField, sortDir: "asc" | "desc") => void;
 }
 
 export const GuildToolTable = ({
@@ -111,6 +151,11 @@ export const GuildToolTable = ({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  search,
+  onSearchChange,
+  sortBy,
+  sortDir,
+  onSortChange,
 }: GuildToolTableProps) => {
   const { t } = useTranslation("guildHome");
 
@@ -123,20 +168,24 @@ export const GuildToolTable = ({
     () => [
       {
         accessorKey: "name",
-        header: t("columns.name"),
+        header: ({ column }) => <SortHeader column={column} label={t("columns.name")} />,
         cell: ({ row }) => <NameCell row={row.original} />,
+        enableSorting: true,
         enableHiding: false,
       },
       {
         id: "initiative",
-        header: t("columns.initiative"),
+        header: ({ column }) => <SortHeader column={column} label={t("columns.initiative")} />,
         cell: ({ row }) => (
           <InitiativeCell initiativeId={row.original.initiativeId} initiatives={initiativesById} />
         ),
+        enableSorting: true,
       },
       {
         id: "detail",
-        // Each tool names this column in its own terms ("Progress", "Items", …).
+        // Each tool names this column in its own terms ("Progress", "Items",
+        // …), and each means something different by it, so there is no one
+        // ordering for the endpoints to agree on. It does not sort.
         header: t(detailColumnKey(tool)),
         cell: ({ row }) => (
           <span className="text-sm">
@@ -152,10 +201,11 @@ export const GuildToolTable = ({
       },
       {
         id: "updated",
-        header: t("columns.updated"),
+        header: ({ column }) => <SortHeader column={column} label={t("columns.updated")} />,
         cell: ({ row }) => (
           <RelativeTime date={row.original.updatedAt} className="text-muted-foreground text-sm" />
         ),
+        enableSorting: true,
       },
     ],
     [t, tool, initiativesById]
@@ -166,7 +216,24 @@ export const GuildToolTable = ({
       columns={columns}
       data={rows}
       getRowId={(row: GuildToolRow) => String(row.id)}
+      enableFilterInput
+      filterInputPlaceholder={t("searchPlaceholder")}
+      filterValue={search}
+      onFilterValueChange={onSearchChange}
       enableColumnVisibilityDropdown
+      manualSorting
+      initialSorting={[{ id: COLUMN_BY_SORT_FIELD[sortBy], desc: sortDir === "desc" }]}
+      onSortingChange={(sorting) => {
+        // Clearing the sort altogether lands back on the guild home's own
+        // default rather than on whatever each endpoint would do unsorted.
+        const next = sorting[0];
+        const field = next ? SORT_FIELD_BY_COLUMN[next.id] : undefined;
+        if (!field) {
+          onSortChange("updated_at", "desc");
+          return;
+        }
+        onSortChange(field, next.desc ? "desc" : "asc");
+      }}
       enablePagination
       manualPagination
       pageCount={pageCount}

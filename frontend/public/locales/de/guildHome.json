@@ -5,6 +5,7 @@
   "loading": "Wird geladen…",
   "loadError": "Dieses Werkzeug konnte nicht geladen werden. Bitte versuche es später erneut.",
   "guildWide": "Gildenweit",
+  "searchPlaceholder": "Nach Namen suchen…",
   "empty": {
     "title": "Noch nichts vorhanden",
     "description": "In der Gilde gibt es noch nichts dieser Art, oder nichts davon ist für dich freigegeben."

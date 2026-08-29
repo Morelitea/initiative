@@ -5,6 +5,7 @@
   "loading": "Cargando…",
   "loadError": "No se pudo cargar esta herramienta. Inténtalo de nuevo más tarde.",
   "guildWide": "Todo el gremio",
+  "searchPlaceholder": "Buscar por nombre…",
   "empty": {
     "title": "Aún no hay nada",
     "description": "Todavía no existe nada de este tipo en el gremio, o nada se ha compartido contigo."

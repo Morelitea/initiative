@@ -82,6 +82,14 @@ interface DataTableProps<TData extends RowData> {
   enableFilterInput?: boolean;
   filterInputPlaceholder?: string;
   filterInputColumnKey?: string;
+  /**
+   * Controlled search text. Passing ``onFilterValueChange`` hands the box to
+   * the caller: it stops filtering the rows already loaded and reports what
+   * was typed instead, which is how a table whose rows arrive a server page at
+   * a time searches the whole set rather than the page in hand.
+   */
+  filterValue?: string;
+  onFilterValueChange?: (value: string) => void;
   enableColumnVisibilityDropdown?: boolean;
   /**
    * When provided, the DataTable treats ``columnVisibility`` as controlled
@@ -146,6 +154,8 @@ export function DataTable<TData extends RowData>({
   enableFilterInput = false,
   filterInputPlaceholder = "Filter...",
   filterInputColumnKey = "name",
+  filterValue,
+  onFilterValueChange,
   enableColumnVisibilityDropdown = false,
   columnVisibility: controlledColumnVisibility,
   onColumnVisibilityChange: externalOnColumnVisibilityChange,
@@ -682,9 +692,15 @@ export function DataTable<TData extends RowData>({
               {enableFilterInput && (
                 <Input
                   placeholder={filterInputPlaceholder}
-                  value={(table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? ""}
+                  value={
+                    onFilterValueChange
+                      ? (filterValue ?? "")
+                      : ((table.getColumn(filterInputColumnKey)?.getFilterValue() as string) ?? "")
+                  }
                   onChange={(event) =>
-                    table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
+                    onFilterValueChange
+                      ? onFilterValueChange(event.target.value)
+                      : table.getColumn(filterInputColumnKey)?.setFilterValue(event.target.value)
                   }
                   className="min-w-16 flex-1"
                 />

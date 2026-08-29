@@ -18,7 +18,9 @@ You can belong to many guilds at once. The **guild rail** runs down the far-left
 
 Opening a guild lands you on its **front page**: a row of the guild's tools across the top, one circle each. Pick a tool and everything of that kind in the guild is listed underneath it — every project, document, calendar, queue, counter group or dashboard you have access to, wherever it lives — with the initiative it belongs to, its tags, and when it last changed. Click a name to open it, or an initiative to go there instead.
 
-Only the tools your initiatives actually use appear, so a guild that doesn't run queues never shows a Queues circle. The tool you're looking at is part of the address, so you can bookmark or share the view you're on.
+Only the tools your initiatives actually use appear, so a guild that doesn't run queues never shows a Queues circle.
+
+**Search** narrows the list by name, and the **Name**, **Initiative** and **Last updated** headers sort it — newest changes first until you say otherwise. Both reach everything of that kind in the guild rather than just the rows on screen, so nothing hides on a later page. The tool you're looking at, what you searched for, and the order you put it in are all part of the address, so you can bookmark or share exactly the view you're on.
 
 ![A guild's front page](../images/guilds/guild-front-page.png)
 

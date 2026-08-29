@@ -9,6 +9,7 @@
  * checks: a new `Tool` member fails to build here until it can produce rows.
  */
 
+import { keepPreviousData } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -51,12 +52,41 @@ const ColourDot = ({ colour }: { colour: string }) => (
   />
 );
 
-export function useGuildToolRows(tool: Tool, page: number, pageSize: number) {
+/** How the guild home's one table is narrowed and ordered, in the terms every
+ *  tool's list endpoint accepts. */
+export interface GuildToolQuery {
+  /** Case-insensitive substring of the name, searched across the whole set. */
+  search?: string;
+  /** One of `name`, `initiative`, `updated_at`. */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+}
+
+export function useGuildToolRows(
+  tool: Tool,
+  page: number,
+  pageSize: number,
+  view: GuildToolQuery = {}
+) {
   const { t } = useTranslation("guildHome");
 
-  const params = { page, page_size: pageSize };
-  // Only the selected tool fetches; the rest stay mounted but idle.
-  const only = (candidate: Tool) => ({ enabled: candidate === tool });
+  // Search and sort go to the server, not to the rows already in hand: the
+  // table holds one page of a guild-wide list, and filtering that page would
+  // answer "no matches" while the guild holds matches on page 4.
+  const params = {
+    page,
+    page_size: pageSize,
+    ...(view.search ? { search: view.search } : {}),
+    ...(view.sortBy ? { sort_by: view.sortBy, sort_dir: view.sortDir ?? "asc" } : {}),
+  };
+  // Only the selected tool fetches; the rest stay mounted but idle. The
+  // selected one keeps the rows it already has while a new page, search or
+  // order is in flight — otherwise the table (and the search box in its
+  // toolbar) would be replaced by a loading line on every keystroke.
+  const only = (candidate: Tool) => ({
+    enabled: candidate === tool,
+    placeholderData: keepPreviousData,
+  });
 
   const projects = useProjects(params, only(Tool.project));
   const documents = useDocumentsList(params, only(Tool.document));

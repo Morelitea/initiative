@@ -5,6 +5,7 @@
   "loading": "Chargement…",
   "loadError": "Impossible de charger cet outil. Veuillez réessayer plus tard.",
   "guildWide": "Toute la guilde",
+  "searchPlaceholder": "Rechercher par nom…",
   "empty": {
     "title": "Rien pour l'instant",
     "description": "Rien de ce type n'existe encore dans la guilde, ou rien ne vous a été partagé."

@@ -68,6 +68,7 @@ from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 from app.schemas.tenant.tag import TagSetRequest
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
@@ -255,6 +256,17 @@ async def list_queues(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None, description="Case-insensitive substring match on name."
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit for this "
+            "tool's own default order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> QueueListResponse:
@@ -291,6 +303,10 @@ async def list_queues(
         )
     )
 
+    name_match = tool_listing.name_search_clause(Queue.name, search)
+    if name_match is not None:
+        conditions.append(name_match)
+
     # Count query
     count_subq = select(Queue.id).where(*conditions).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
@@ -306,7 +322,15 @@ async def list_queues(
             selectinload(Queue.initiative).selectinload(Initiative.memberships),
             tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
         )
-        .order_by(Queue.updated_at.desc(), Queue.id.desc())
+    )
+    stmt = (
+        tool_listing.apply_tool_order(
+            stmt,
+            Queue,
+            sort_by,
+            sort_dir,
+            default=[Queue.updated_at.desc(), Queue.id.desc()],
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

@@ -23,8 +23,12 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
-import { GuildToolRail } from "@/components/guildHome/GuildToolRail";
-import { GuildToolTable } from "@/components/guildHome/GuildToolTable";
+import { GuildToolRail, TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
+import {
+  type GuildToolSortField,
+  GuildToolTable,
+  isGuildToolSortField,
+} from "@/components/guildHome/GuildToolTable";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
 import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
 import { PageBanner } from "@/components/PageBanner";
@@ -35,6 +39,7 @@ import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { renderableBanner } from "@/lib/banner";
 import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -46,6 +51,9 @@ export function GuildHomePage() {
     tool?: string;
     page?: number;
     create?: string;
+    q?: string;
+    sort?: string;
+    dir?: string;
   };
 
   const initiativesQuery = useInitiatives();
@@ -104,7 +112,7 @@ export function GuildHomePage() {
 
   const page = search.page ?? 1;
   const setSearch = useCallback(
-    (next: { page?: number }) => {
+    (next: { page?: number; q?: string; sort?: string; dir?: string }) => {
       void navigate({
         to: ".",
         search: { ...search, ...next },
@@ -112,6 +120,52 @@ export function GuildHomePage() {
       });
     },
     [navigate, search]
+  );
+
+  // The search text and the order are in the address, like the tool and the
+  // page: a narrowed table is a link someone can send. The default order is
+  // left out of it — most-recently-updated is what the endpoints do unasked,
+  // so spelling it in every URL would only be noise.
+  const query = search.q ?? "";
+  const sortBy: GuildToolSortField = isGuildToolSortField(search.sort) ? search.sort : "updated_at";
+  const sortDir: "asc" | "desc" =
+    search.dir === "asc" || search.dir === "desc"
+      ? search.dir
+      : sortBy === "updated_at"
+        ? "desc"
+        : "asc";
+
+  // What is typed goes into the box at once and to the server a beat later, so
+  // a search is one request rather than one per keystroke.
+  const [draftQuery, setDraftQuery] = useState(query);
+  const lastPushedQuery = useRef(query);
+  useEffect(() => {
+    // A query that changed elsewhere — the back button, a pasted link — wins
+    // over a draft nobody is typing into.
+    if (query !== lastPushedQuery.current) {
+      lastPushedQuery.current = query;
+      setDraftQuery(query);
+    }
+  }, [query]);
+  useEffect(() => {
+    if (draftQuery === query) return;
+    const timer = setTimeout(() => {
+      lastPushedQuery.current = draftQuery;
+      setSearch({ q: draftQuery || undefined, page: undefined });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [draftQuery, query, setSearch]);
+
+  const handleSortChange = useCallback(
+    (field: GuildToolSortField, direction: "asc" | "desc") => {
+      const isDefault = field === "updated_at" && direction === "desc";
+      setSearch({
+        sort: isDefault ? undefined : field,
+        dir: isDefault ? undefined : direction,
+        page: undefined,
+      });
+    },
+    [setSearch]
   );
 
   // Page size is a view preference, not a URL concern — the `page` param stays
@@ -125,7 +179,11 @@ export function GuildHomePage() {
     [setSearch]
   );
 
-  const { rows, totalCount, isLoading, isError } = useGuildToolRows(selected, page, pageSize);
+  const { rows, totalCount, isLoading, isError } = useGuildToolRows(selected, page, pageSize, {
+    search: query || undefined,
+    sortBy,
+    sortDir,
+  });
 
   const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
   // A bookmarked page outlives the rows it pointed at, and a hand-typed one
@@ -174,35 +232,53 @@ export function GuildHomePage() {
           />
         ) : (
           <>
-            <GuildToolRail tools={tools} selected={selected} align={banner.text_align} />
-
-            {isLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t("loading")}
+            {/* The rail and the table are one tray: the circles are its top
+                edge rising, and everything a tool has to say sits in the same
+                surface underneath them. Whatever the table is doing —
+                arriving, failing, empty — happens in there, so the edge the
+                circles melt into is always the thing they melt into. */}
+            <div>
+              <GuildToolRail tools={tools} selected={selected} align={banner.text_align} />
+              <div
+                className={cn("rounded-b-2xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4", TOOL_TRAY_SURFACE)}
+              >
+                {/* A search that found nothing still renders the table: the
+                    box that found nothing is in its toolbar, and taking it
+                    away would leave no way to unsay the search. */}
+                {isLoading ? (
+                  <div className="flex items-center gap-2 p-2 text-muted-foreground text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("loading")}
+                  </div>
+                ) : isError ? (
+                  <p className="p-2 text-destructive text-sm">{t("loadError")}</p>
+                ) : totalCount === 0 && !query ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{t("empty.title")}</CardTitle>
+                      <CardDescription>{t("empty.description")}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ) : (
+                  <GuildToolTable
+                    tool={selected}
+                    rows={rows}
+                    initiatives={initiativesQuery.data ?? []}
+                    totalCount={totalCount}
+                    page={page}
+                    pageCount={pageCount}
+                    pageSize={pageSize}
+                    onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
+                    onPageSizeChange={handlePageSizeChange}
+                    search={draftQuery}
+                    onSearchChange={setDraftQuery}
+                    sortBy={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleSortChange}
+                  />
+                )}
               </div>
-            ) : isError ? (
-              <p className="text-destructive text-sm">{t("loadError")}</p>
-            ) : totalCount === 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("empty.title")}</CardTitle>
-                  <CardDescription>{t("empty.description")}</CardDescription>
-                </CardHeader>
-              </Card>
-            ) : (
-              <GuildToolTable
-                tool={selected}
-                rows={rows}
-                initiatives={initiativesQuery.data ?? []}
-                totalCount={totalCount}
-                page={page}
-                pageCount={pageCount}
-                pageSize={pageSize}
-                onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
-                onPageSizeChange={handlePageSizeChange}
-              />
-            )}
+            </div>
 
             {/* The guild's initiative list, which is also its discovery surface:
               the ones you're in, then the ones you could join. */}

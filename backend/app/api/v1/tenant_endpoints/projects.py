@@ -54,6 +54,7 @@ from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import tool_listing
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
@@ -1040,6 +1041,14 @@ async def list_projects(
             "initiative. For project pickers and other list-only callers."
         ),
     ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit to keep the "
+            "reader's own manual order."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=0, ge=0, le=100),
 ) -> ProjectListResponse:
@@ -1080,8 +1089,19 @@ async def list_projects(
             ),
         )
         .where(*conditions)
-        .order_by(ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc())
         .options(*load_options)
+    )
+    # No sort asked for keeps the per-user manual order the projects page
+    # drags into place; a sort replaces it for this request only. The
+    # statement is already joined to Initiative, so ordering by it needs no
+    # second join.
+    data_stmt = tool_listing.apply_tool_order(
+        data_stmt,
+        Project,
+        sort_by,
+        sort_dir,
+        default=[ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()],
+        initiative_joined=True,
     )
     # page_size<=0 serves FETCH_ALL_WINDOW-sized pages (bounded response,
     # SEC-14) that honor ``page`` — has_next tells the caller to keep walking.
