@@ -428,6 +428,13 @@ async def _create_users(
             )
         ).one_or_none()
         if existing is not None:
+            # A row seeded before handles existed was given one by the
+            # backfill, which marks it unchosen — so signing in would land on
+            # the choose-your-handle screen, unlike a freshly seeded account.
+            # Seeded logins are set up ready to use either way.
+            if not existing.username_chosen:
+                existing.username_chosen = True
+                session.add(existing)
             ids.add("users", existing.id)
             users[ud["full_name"]] = existing
             continue
