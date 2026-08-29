@@ -1918,6 +1918,47 @@ async def test_approving_an_already_resolved_request_conflicts(
 
 
 @pytest.mark.integration
+async def test_resolving_a_request_someone_else_answered_conflicts(
+    session: AsyncSession, acting_user
+):
+    """A decision is claimed before it is granted.
+
+    Two managers answering at once both clear the pending check, so the write
+    itself is the gate: the second one matches no row and is refused, rather
+    than an approval creating a member that a simultaneous denial then records
+    as refused.
+    """
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+    request, _ = await initiatives_service.create_join_request(
+        session, initiative=initiative, user_id=member.user.id, message=None
+    )
+    await session.commit()
+
+    # The first manager settles it.
+    await initiatives_service.resolve_join_request(
+        session, request=request, resolver_id=manager.user.id, approved=False
+    )
+    await session.commit()
+
+    # The second still holds the row it read while the request was pending.
+    with pytest.raises(initiatives_service.JoinRequestAlreadyResolved):
+        await initiatives_service.resolve_join_request(
+            session, request=request, resolver_id=manager.user.id, approved=True
+        )
+
+    # The denial stands, and no membership was written behind it.
+    assert request.status == "denied"
+    assert (
+        await initiatives_service.get_initiative_membership(
+            session, initiative_id=initiative.id, user_id=member.user.id
+        )
+        is None
+    )
+
+
+@pytest.mark.integration
 async def test_approving_when_already_a_member_succeeds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

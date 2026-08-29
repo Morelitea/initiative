@@ -378,6 +378,12 @@ async def _resolve_join_request(
         await initiatives_service.resolve_join_request(
             session, request=request, resolver_id=current_user.id, approved=approved
         )
+    except initiatives_service.JoinRequestAlreadyResolved:
+        # Another manager answered it between the check above and this write.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=InitiativeMessages.JOIN_REQUEST_ALREADY_RESOLVED,
+        )
     except ValueError:
         # The initiative's built-in member role is missing, so it can take no
         # joiner. The code is the contract; the exception text is not.

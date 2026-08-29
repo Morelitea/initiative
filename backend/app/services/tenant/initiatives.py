@@ -7,7 +7,7 @@ from typing import Iterable
 from sqlalchemy import case, desc, func, or_, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased, selectinload
-from sqlmodel import select, delete
+from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import InitiativeMessages
@@ -838,6 +838,15 @@ async def create_join_request(
     return request, True
 
 
+class JoinRequestAlreadyResolved(Exception):
+    """Another manager settled the request first.
+
+    Raised when the atomic claim in :func:`resolve_join_request` matches no
+    row, which can only mean the status moved off ``pending`` between the
+    caller's check and its write.
+    """
+
+
 async def resolve_join_request(
     session: AsyncSession,
     *,
@@ -852,9 +861,35 @@ async def resolve_join_request(
     ``oidc_managed`` false — and someone who became a member by another route
     while the request sat in the queue is absorbed rather than colliding.
 
-    Flush-only; the caller owns the transaction, and is responsible for having
-    checked that the request is still pending.
+    The row is claimed before anything is granted: one UPDATE that fires only
+    while the status is still ``pending``, so two managers answering at once
+    cannot both write. The loser matches no row and raises
+    :class:`JoinRequestAlreadyResolved`. Claiming first is what keeps an
+    approval from creating a membership that a simultaneous denial then
+    records as refused.
+
+    Flush-only; the caller owns the transaction.
     """
+    resolved = (
+        JoinRequestStatus.approved.value if approved else JoinRequestStatus.denied.value
+    )
+    result = await session.exec(
+        update(InitiativeJoinRequest)
+        .where(
+            InitiativeJoinRequest.id == request.id,
+            InitiativeJoinRequest.status == JoinRequestStatus.pending.value,
+        )
+        .values(
+            status=resolved,
+            resolved_at=datetime.now(timezone.utc),
+            resolved_by=resolver_id,
+        )
+    )
+    if result.rowcount == 0:
+        raise JoinRequestAlreadyResolved()
+    # Keep the in-memory row in step with the write, since the caller returns it.
+    await session.refresh(request)
+
     membership: InitiativeMember | None = None
     if approved:
         initiative = await session.get(Initiative, request.initiative_id)
@@ -863,12 +898,6 @@ async def resolve_join_request(
         membership = await self_join(
             session, initiative=initiative, user_id=request.user_id
         )
-    request.status = (
-        JoinRequestStatus.approved.value if approved else JoinRequestStatus.denied.value
-    )
-    request.resolved_at = datetime.now(timezone.utc)
-    request.resolved_by = resolver_id
-    session.add(request)
     await session.flush()
     return membership
 
