@@ -479,9 +479,11 @@ The path depends on **where the table lives**:
 
 3. **`access_grants`** is platform-scoped (managed cross-guild) like `users`: its endpoints use `AdminSessionDep` with explicit capability + ownership checks, with `platform_<tier>` policies for the admin queue and an own-row policy for requesters.
 
-4. **Renaming / dropping** — `DROP POLICY IF EXISTS …` and `DISABLE ROW LEVEL SECURITY` before the DDL; always provide a clean downgrade.
+4. **Backfill a new table BEFORE you lock it down.** `FORCE ROW LEVEL SECURITY` binds the table's *owner* — which is `app_provisioner`, the role every migration runs as. Once FORCE is on, the migration's own `INSERT` must satisfy a policy, and those policies key on request GUCs (`app.current_user_id`, `app.current_guild_id`) that a migration has no value for: nothing matches and the write is rejected with `new row violates row-level security policy`. Order the `upgrade()` as **create table → move the rows in → `ENABLE`/`FORCE` RLS + policies + grants** (migration `0179` is the reference; `0200`/`0201` shipped the wrong order and broke every upgrade that had rows to carry). A fresh install has nothing to backfill, so the backfill never executes and **CI stays green while every real upgrade fails** — `app/db/migration_backfill_order_test.py` is what catches it instead. Writing to a table that *already* existed is the other way round: lift `NO FORCE ROW LEVEL SECURITY`, write, and restore `FORCE` in the same transaction (`try`/`finally`).
 
-5. **Session-variable constants** (for the `public` shared-table policies and the PAM read path) — use these NULLIF-guarded forms in migration SQL:
+5. **Renaming / dropping** — `DROP POLICY IF EXISTS …` and `DISABLE ROW LEVEL SECURITY` before the DDL; always provide a clean downgrade.
+
+6. **Session-variable constants** (for the `public` shared-table policies and the PAM read path) — use these NULLIF-guarded forms in migration SQL:
    ```python
    # Always NULLIF-guard the cast: a PAM grantee (and any unset context) leaves the
    # value empty, and a bare ''::int raises and faults the WHOLE query for every
@@ -499,7 +501,7 @@ The path depends on **where the table lives**:
    ```
    > **`public` holds no guild content, on any install.** The pre-schema-per-guild copies that legacy deployments carried as a backstop were dropped in `20260811_0163`; guild content exists only in `guild_<id>` schemas, so an unrouted query for it finds no table rather than the wrong rows.
 
-6. **Verify after migration** as `app_user` (not the superuser): for a shared/platform table, confirm each tier hits its ceiling (a missing policy silently returns zero rows; a wrong one leaks). For guild content, `SET ROLE guild_<id>` and confirm only that guild's schema is reachable.
+7. **Verify after migration** as `app_user` (not the superuser): for a shared/platform table, confirm each tier hits its ceiling (a missing policy silently returns zero rows; a wrong one leaks). For guild content, `SET ROLE guild_<id>` and confirm only that guild's schema is reachable.
 
 ### Rules for writing frontend code
 
