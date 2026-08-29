@@ -126,7 +126,7 @@ export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRail
                     search={{ tool: toolRouteSegment(tool) }}
                     aria-current={isSelected ? "page" : undefined}
                     className={cn(
-                      "group flex w-[5.25rem] flex-col items-center gap-2 rounded-lg pt-5 pb-1 text-center outline-none transition-colors",
+                      "group flex w-20 flex-col items-center rounded-lg pt-5 pb-1 text-center outline-none transition-colors",
                       "focus-visible:ring-2 focus-visible:ring-ring"
                     )}
                   >
@@ -157,7 +157,7 @@ export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRail
                     </span>
                     <span
                       className={cn(
-                        "w-full truncate px-1 text-xs",
+                        "w-full px-1 text-xs text-wrap -mt-3 z-5",
                         isSelected
                           ? "font-semibold text-primary"
                           : "font-medium text-muted-foreground group-hover:text-foreground"
