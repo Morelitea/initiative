@@ -126,7 +126,7 @@ describe("GuildHomePage", () => {
     expect(container.querySelector('[style*="rgb(42, 157, 143)"]')).not.toBeNull();
   });
 
-  it("keeps the plain heading for a guild that has set no banner at all", async () => {
+  it("heads a guild with no artwork with its colour, not a plain title", async () => {
     stubInitiatives();
     stubTools();
 
@@ -135,6 +135,8 @@ describe("GuildHomePage", () => {
     });
 
     await screen.findByRole("heading", { level: 1 });
+    // Every guild has a banner; this one's is the colour it wears by default.
+    expect(container.querySelector('[style*="rgb(37, 99, 235)"]')).not.toBeNull();
     expect(container.querySelector("img")).toBeNull();
   });
 

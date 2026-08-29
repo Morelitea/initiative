@@ -555,7 +555,10 @@ async def test_a_colour_that_is_not_one_is_refused(client: AsyncClient, acting_u
 
 
 @pytest.mark.integration
-async def test_clearing_the_colour(client: AsyncClient, acting_user):
+async def test_a_null_colour_is_a_reset_not_a_removal(client: AsyncClient, acting_user):
+    """A banner is never colourless, so there is nothing for null to clear."""
+    from app.models.platform.guild import DEFAULT_BANNER_COLOR
+
     a = await acting_user(guild_role=GuildRole.admin)
     await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
@@ -568,7 +571,58 @@ async def test_clearing_the_colour(client: AsyncClient, acting_user):
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_color"] is None
+    assert response.json()["banner_color"] == DEFAULT_BANNER_COLOR
+
+
+@pytest.mark.integration
+async def test_every_guild_starts_with_a_banner(client: AsyncClient, acting_user):
+    """No guild is ever without one, so nothing downstream renders a guild
+    that has none."""
+    from app.models.platform.guild import (
+        DEFAULT_BANNER_COLOR,
+        DEFAULT_BANNER_TEXT_COLOR,
+    )
+
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.get("/api/v1/guilds/", headers=a.headers)
+
+    entry = next(g for g in response.json() if g["id"] == a.guild.id)
+    assert entry["banner_color"] == DEFAULT_BANNER_COLOR
+    assert entry["banner_text_color"] == DEFAULT_BANNER_TEXT_COLOR
+
+
+@pytest.mark.integration
+async def test_the_banner_text_colour_is_the_guilds_to_set(
+    client: AsyncClient, acting_user
+):
+    """Artwork is not one colour, so what reads over it is not ours to guess."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_color": "#f5f0e8", "banner_text_color": "#000000"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["banner_text_color"] == "#000000"
+
+
+@pytest.mark.integration
+async def test_the_picker_may_send_an_alpha_byte(client: AsyncClient, acting_user):
+    """The shared colour picker emits ``#rrggbbaa``; a banner is a fill with
+    nothing behind it, so the alpha is dropped rather than refused."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    response = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_color": "#2A9D8FFF"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["banner_color"] == "#2a9d8f"
 
 
 @pytest.mark.integration
@@ -941,3 +995,28 @@ async def test_dropping_below_the_seat_floor_stops_publishing_artwork(
     # The directory it left agrees.
     directory = await client.get("/api/v1/guilds/communities", headers=headers)
     assert all(g["id"] != a.guild.id for g in directory.json()["items"])
+
+
+@pytest.mark.integration
+async def test_banner_text_is_black_or_white_and_nothing_else(
+    client: AsyncClient, acting_user
+):
+    """A fill the guild picked, or artwork of any colour, stays readable only
+    at one end of the scale or the other — so those are the only two."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    refused = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_text_color": "#808080"},
+    )
+    accepted = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"banner_text_color": "#000000"},
+    )
+
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "BANNER_TEXT_COLOR_INVALID"
+    assert accepted.status_code == 200
+    assert accepted.json()["banner_text_color"] == "#000000"

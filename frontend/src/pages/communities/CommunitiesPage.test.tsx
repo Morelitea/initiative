@@ -41,7 +41,8 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   description: "Community theatre.",
   icon_url: null,
   banner_card_url: null,
-  banner_color: null,
+  banner_color: "#2563eb",
+  banner_text_color: "#ffffff",
   categories: ["art"],
   member_count: 12,
   online_count: 0,
@@ -157,14 +158,16 @@ describe("CommunitiesPage", () => {
     expect(container.querySelector('[style*="rgb(42, 157, 143)"]')).not.toBeNull();
   });
 
-  it("leaves a card with neither exactly as it was", async () => {
+  it("gives a card with no artwork the colour its guild wears", async () => {
     directoryFor.mockReturnValue(directoryResult([community()]));
 
     const { container } = renderDirectory();
 
     await screen.findByText("Riverside Players");
-    // The page's own hero artwork is the only image on the page.
+    // The page's own hero artwork is the only image on the page...
     expect(container.querySelectorAll("img")).toHaveLength(1);
+    // ...but the card still has a banner.
+    expect(container.querySelector('[style*="rgb(37, 99, 235)"]')).not.toBeNull();
   });
 
   it("says who is there now beside how many there are", async () => {

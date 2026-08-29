@@ -84,6 +84,8 @@ class GuildMessages:
     IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
     IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
     BANNER_COLOR_INVALID = "BANNER_COLOR_INVALID"
+    # Banner text is black or white; nothing between the two is offered.
+    BANNER_TEXT_COLOR_INVALID = "BANNER_TEXT_COLOR_INVALID"
     # Banner artwork is not part of what this guild has; the colour is.
     BANNER_IMAGE_NOT_ENTITLED = "BANNER_IMAGE_NOT_ENTITLED"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"

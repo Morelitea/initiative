@@ -160,6 +160,7 @@ def _serialize_guild(
         icon_url=(images or {}).get(GuildImageVariant.icon),
         banner_url=(images or {}).get(GuildImageVariant.full),
         banner_color=guild.banner_color,
+        banner_text_color=guild.banner_text_color,
     )
 
 
@@ -310,6 +311,7 @@ async def list_community_guilds(
                 icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
                 banner_card_url=images.get(guild.id, {}).get(GuildImageVariant.card),
                 banner_color=guild.banner_color,
+                banner_text_color=guild.banner_text_color,
                 categories=[GuildCategory(value) for value in guild.categories],
                 member_count=member_count,
                 online_count=online.get(guild.id, 0),
@@ -552,6 +554,7 @@ async def update_guild(
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
     banner_color_provided = "banner_color" in updates.model_fields_set
+    banner_text_color_provided = "banner_text_color" in updates.model_fields_set
     try:
         guild = await guilds_service.update_guild(
             session,
@@ -571,6 +574,8 @@ async def update_guild(
             has_adult_content_provided=has_adult_content_provided,
             banner_color=updates.banner_color,
             banner_color_provided=banner_color_provided,
+            banner_text_color=updates.banner_text_color,
+            banner_text_color_provided=banner_text_color_provided,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         # No directory on this deployment, so there is nothing to list in.

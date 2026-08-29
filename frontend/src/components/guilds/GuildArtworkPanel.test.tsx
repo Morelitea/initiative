@@ -34,7 +34,7 @@ describe("GuildArtworkPanel", () => {
     );
     // The label stays — the banner still exists as a thing this guild has.
     expect(screen.queryByLabelText("Banner")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Banner colour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Banner fill")).toBeInTheDocument();
   });
 
   it("keeps showing a banner the guild already had", async () => {
@@ -50,6 +50,21 @@ describe("GuildArtworkPanel", () => {
       expect(container.querySelector('img[src="/api/v1/guilds/1/image/abc"]')).not.toBeNull()
     );
     expect(screen.getByRole("button", { name: "Remove banner" })).toBeInTheDocument();
+  });
+
+  it("offers banner text as two colours, never a picker", async () => {
+    entitlements(true);
+
+    renderWithProviders(<GuildArtworkPanel guild={buildGuild({ id: 1, role: "admin" })} />);
+
+    // Black or white only: a fill the guild picked, or artwork of any colour,
+    // stays readable only at one end of the scale or the other.
+    expect(await screen.findByRole("button", { name: "Light" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "Dark" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByLabelText("Banner text")).not.toBeInTheDocument();
   });
 
   it("always offers the icon — it is not part of that entitlement", async () => {

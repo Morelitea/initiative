@@ -138,11 +138,14 @@
       "bannerHint": "Beliebiges Bild. Es wird für dich auf 4:1 zugeschnitten und skaliert — etwa 2400 × 600 eignet sich am besten.",
       "bannerPreviewAlt": "Vorschau des Gilden-Banners",
       "removeBanner": "Banner entfernen",
-      "bannerColorLabel": "Bannerfarbe",
-      "bannerColorHint": "Wird angezeigt, wenn es kein Bannerbild gibt.",
+      "bannerColorLabel": "Bannerfläche",
+      "bannerColorHint": "Die Fläche wird angezeigt, wenn es kein Bannerbild gibt. Bannertext ist schwarz oder weiß, damit er auf jeder Fläche lesbar bleibt, und folgt dem besten Kontrast zur Fläche, bis du ihn änderst.",
       "useColor": "Diese Farbe verwenden",
-      "clearColor": "Farbe entfernen",
-      "bannerColorOnly": "Der Tarif dieser Gilde enthält keine Bannerbilder. Wähle stattdessen unten eine Farbe."
+      "bannerColorOnly": "Der Tarif dieser Gilde enthält keine Bannerbilder. Wähle stattdessen unten eine Farbe.",
+      "bannerTextColorLabel": "Bannertext",
+      "resetColor": "Auf Standard zurücksetzen",
+      "textLight": "Hell",
+      "textDark": "Dunkel"
     }
   },
   "users": {

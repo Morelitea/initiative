@@ -479,5 +479,6 @@
   "IMAGE_WRONG_RATIO": "That image is the wrong shape for this slot.",
   "IMAGE_NOT_FOUND": "That picture is no longer available.",
   "BANNER_COLOR_INVALID": "Pick a colour in #rrggbb form.",
-  "BANNER_IMAGE_NOT_ENTITLED": "Banner images aren't included on this guild's plan. Pick a banner colour instead."
+  "BANNER_IMAGE_NOT_ENTITLED": "Banner images aren't included on this guild's plan. Pick a banner colour instead.",
+  "BANNER_TEXT_COLOR_INVALID": "Banner text is black or white."
 }

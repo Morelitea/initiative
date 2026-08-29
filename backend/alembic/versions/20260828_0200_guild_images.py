@@ -22,10 +22,16 @@ them: a stranger browsing the directory holds no role that could reach
 description they sit beside on ``public.guilds``, rather than guild content —
 so they are also outside the guild's storage quota.
 
-A guild that would rather not find artwork picks a flat ``banner_color``
-instead: one more identity column on ``public.guilds``, because that is what it
-is — three bytes a guild picked, in the payload those columns already travel
-in, costing no request and no storage at all.
+Every guild has a banner from the moment it exists: the artwork it uploaded, or
+a flat colour. Two more identity columns on ``public.guilds`` carry it —
+``banner_color`` fills the banner where there is no artwork, and
+``banner_text_color`` is what the guild's name and description are written in,
+over either. Both are NOT NULL with defaults, so no path downstream has a
+"guild with no banner" case to render, and both cost no request and no storage.
+
+The defaults are literals here, as every value a revision writes must be: a
+migration cannot ask the running app what its accent is, and a value that
+changed later would reach back and change what this one did.
 
 Whether a given guild may upload banner artwork is an operator entitlement on
 ``guild_administration`` — ``banner_image_enabled``, defaulted ON so nothing
@@ -99,6 +105,17 @@ _IMAGE_MEMBER = (
 # than reaching back and changing what this one did.
 _VARIANT_LITERALS = "'icon', 'card', 'full'"
 
+# What a guild's banner is before anyone touches it. Literals, because a
+# revision states the values it writes: it cannot ask the running app what its
+# accent is, and a value that changed later would reach back and change what
+# this revision did to databases upgrading through it.
+_DEFAULT_BANNER_COLOR = "#2563eb"
+_DEFAULT_BANNER_TEXT_COLOR = "#ffffff"
+# Banner text is one of exactly two colours: a fill is the guild's to pick and
+# artwork can be anything, so the words on it stay readable only by sitting at
+# one end of the scale or the other.
+_BANNER_TEXT_COLORS = "'#ffffff', '#000000'"
+
 # What a legacy icon must be to come across, spelled out here rather than read
 # from ``IMAGE_SPECS`` — a revision states what it accepted, so tightening the
 # rule later changes the next migration rather than what this one did.
@@ -107,12 +124,12 @@ _ICON_MAX_EDGE = 256
 _ICON_MAX_BYTES = 64 * 1024
 _ICON_RATIO_TOLERANCE = 0.02
 
-# ``icon_base64`` leaves the guild-admin column grant; ``banner_color`` joins
-# it. The images themselves are written by the system engine, not through this
-# grant.
+# ``icon_base64`` leaves the guild-admin column grant; the two banner colours
+# join it. The images themselves are written by the system engine, not through
+# this grant.
 _GUILD_ADMIN_COLUMNS = (
     "name, description, is_community, categories, "
-    "has_adult_content, banner_color, updated_at"
+    "has_adult_content, banner_color, banner_text_color, updated_at"
 )
 
 
@@ -281,18 +298,29 @@ def _carry_over_icons() -> None:
 
 
 def upgrade() -> None:
-    op.add_column(
-        "guilds",
-        sa.Column("banner_color", sa.String(length=7), nullable=True),
-    )
-    # ``#rrggbb``, lowercase, or nothing. A CHECK rather than only a schema
-    # validator: this value is interpolated into a style attribute, so the
-    # database is where the shape is settled for every path that can write it.
-    op.create_check_constraint(
-        "ck_guilds_banner_color",
-        "guilds",
-        "banner_color IS NULL OR banner_color ~ '^#[0-9a-f]{6}$'",
-    )
+    # A CHECK on each rather than only a schema validator: these values are
+    # interpolated into a style attribute, and one of them is an accessibility
+    # floor — so the database is where both are settled, for every path that
+    # can write them.
+    for column, default, check in (
+        (
+            "banner_color",
+            _DEFAULT_BANNER_COLOR,
+            "banner_color ~ '^#[0-9a-f]{6}$'",
+        ),
+        (
+            "banner_text_color",
+            _DEFAULT_BANNER_TEXT_COLOR,
+            f"banner_text_color IN ({_BANNER_TEXT_COLORS})",
+        ),
+    ):
+        op.add_column(
+            "guilds",
+            sa.Column(
+                column, sa.String(length=7), nullable=False, server_default=default
+            ),
+        )
+        op.create_check_constraint(f"ck_guilds_{column}", "guilds", check)
     # Operator entitlement, beside the caps and the sign-in one. Defaulted ON so
     # every existing guild — and every self-hosted install — keeps the whole
     # feature. Read-only to every request-path role, like the rest of this
@@ -356,7 +384,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.add_column("guilds", sa.Column("icon_base64", sa.Text(), nullable=True))
+    op.execute("ALTER TABLE public.guilds ADD COLUMN IF NOT EXISTS icon_base64 text")
     conn = op.get_bind()
     op.execute("ALTER TABLE public.guilds NO FORCE ROW LEVEL SECURITY")
     try:
@@ -385,5 +413,12 @@ def downgrade() -> None:
     )
     op.drop_table("guild_images")
     op.drop_column("guild_administration", "banner_image_enabled")
-    op.drop_constraint("ck_guilds_banner_color", "guilds", type_="check")
-    op.drop_column("guilds", "banner_color")
+    # ``IF EXISTS`` on both: a downgrade has to bring the table back from
+    # whatever shape it is actually in, not only from the one the upgrade above
+    # leaves. (It also lets this revision be re-applied over a database that
+    # stopped part-way through it.)
+    for column in ("banner_color", "banner_text_color"):
+        op.execute(
+            f"ALTER TABLE public.guilds DROP CONSTRAINT IF EXISTS ck_guilds_{column}"
+        )
+        op.execute(f"ALTER TABLE public.guilds DROP COLUMN IF EXISTS {column}")

@@ -6,10 +6,14 @@
  * renditions the server stores (see ``lib/guildImages``). Nobody is asked to
  * prepare a thumbnail, and nobody has to know what 4:1 means to get it right.
  *
- * A guild that would rather not go and find banner artwork picks a colour
- * instead. It is the same banner either way — the front page and the directory
- * card both render whichever is set — so the two controls sit together, and
- * the colour is what shows when there is no picture.
+ * Every guild has a banner: the artwork it uploaded, or the colour it wears
+ * instead. So there are two colours here, not one — the fill, and what the
+ * guild's name and description are written in. The text colour is a setting
+ * rather than something derived, because artwork is not one colour and what
+ * reads over a picture is not ours to guess; picking a fill moves it to the
+ * best contrast against that fill, which is the answer whenever there is no
+ * artwork. It is a choice between two colours rather than a picker: black or
+ * white is what keeps the words readable on a fill nobody here chose.
  *
  * Where an operator has not given a guild banner artwork, this offers the
  * colour and no upload: an upload control that only ever answers "no" is worse
@@ -32,16 +36,15 @@ import {
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
+import { DARK_TEXT, LIGHT_TEXT, readableTextColor } from "@/lib/contrastColor";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { GuildImageError, renderGuildBanner, renderGuildIcon } from "@/lib/guildImages";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
-
-/** The colour offered before anyone has picked one. */
-const DEFAULT_BANNER_COLOR = "#3f6fb5";
 
 type Busy = "icon" | "banner" | "color" | null;
 
@@ -49,7 +52,8 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
   const { refreshGuilds, updateGuildInState } = useGuilds();
   const [busy, setBusy] = useState<Busy>(null);
-  const [color, setColor] = useState(guild.banner_color ?? DEFAULT_BANNER_COLOR);
+  const [color, setColor] = useState(guild.banner_color);
+  const [textColor, setTextColor] = useState(guild.banner_text_color);
   // Only an admin reaches this panel, which is who may read this. Until the
   // answer lands, assume artwork is on offer: it is the ordinary case, and the
   // server is what actually decides.
@@ -57,8 +61,17 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   const mayUploadBanner = entitlements.data?.banner_image_enabled ?? true;
 
   useEffect(() => {
-    setColor(guild.banner_color ?? DEFAULT_BANNER_COLOR);
-  }, [guild.banner_color]);
+    setColor(guild.banner_color);
+    setTextColor(guild.banner_text_color);
+  }, [guild.banner_color, guild.banner_text_color]);
+
+  // Picking a fill moves the text with it. Not a lock — the control stays
+  // editable, and over artwork the fill is not what the words sit on anyway —
+  // but it means the common case is right without anyone thinking about it.
+  const pickFill = (next: string) => {
+    setColor(next);
+    setTextColor(readableTextColor(next));
+  };
 
   /** Every write here answers with the whole guild, so state is replaced, not patched. */
   const applied = async (updated: GuildRead) => {
@@ -197,21 +210,52 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="guild-banner-color">
-            {t("guilds:settings.artwork.bannerColorLabel")}
-          </Label>
-          <div className="flex items-center gap-3">
-            <Input
-              id="guild-banner-color"
-              type="color"
-              value={color}
-              disabled={busy !== null}
-              onChange={(event) => setColor(event.target.value)}
-              className="h-10 w-16 p-1"
-            />
+          <div className="flex flex-wrap items-end gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="guild-banner-color">
+                {t("guilds:settings.artwork.bannerColorLabel")}
+              </Label>
+              <ColorPickerPopover
+                id="guild-banner-color"
+                value={color}
+                disabled={busy !== null}
+                onChange={pickFill}
+                triggerLabel={t("guilds:settings.artwork.bannerColorLabel")}
+              />
+            </div>
+            <fieldset className="space-y-2" disabled={busy !== null}>
+              <legend className="pb-2 font-medium text-sm">
+                {t("guilds:settings.artwork.bannerTextColorLabel")}
+              </legend>
+              <div className="flex gap-2">
+                {[
+                  { value: LIGHT_TEXT, label: t("guilds:settings.artwork.textLight") },
+                  { value: DARK_TEXT, label: t("guilds:settings.artwork.textDark") },
+                ].map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={textColor === option.value ? "default" : "outline"}
+                    aria-pressed={textColor === option.value}
+                    onClick={() => setTextColor(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+          {/* The two colours as they will actually be seen together. */}
+          <div
+            className="flex min-h-16 items-center justify-center rounded-lg border px-4 text-center font-black text-xl"
+            style={{ backgroundColor: color, color: textColor }}
+          >
+            {guild.name}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              variant="outline"
               disabled={busy !== null}
               onClick={() =>
                 void run("color", async () =>
@@ -219,28 +263,30 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                   // generated client's, which types a PATCH body as unknown.
                   updateGuildApiV1GuildsGuildIdPatch(guild.id, {
                     banner_color: color,
+                    banner_text_color: textColor,
                   } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
                 )
               }
             >
               {t("guilds:settings.artwork.useColor")}
             </Button>
-            {guild.banner_color ? (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={busy !== null}
-                onClick={() =>
-                  void run("color", async () =>
-                    updateGuildApiV1GuildsGuildIdPatch(guild.id, {
-                      banner_color: null,
-                    } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
-                  )
-                }
-              >
-                {t("guilds:settings.artwork.clearColor")}
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy !== null}
+              onClick={() =>
+                // Null is a reset here, not a removal — a banner is never
+                // colourless, so the server puts both back to their defaults.
+                void run("color", async () =>
+                  updateGuildApiV1GuildsGuildIdPatch(guild.id, {
+                    banner_color: null,
+                    banner_text_color: null,
+                  } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
+                )
+              }
+            >
+              {t("guilds:settings.artwork.resetColor")}
+            </Button>
           </div>
           <p className="text-muted-foreground text-sm">
             {t("guilds:settings.artwork.bannerColorHint")}
