@@ -57,7 +57,7 @@ You can unlist at any time; the guild and everything in it carry on exactly as b
 Two things keep a guild out of the directory whatever you set:
 
 - A guild marked **18+** is never listed.
-- A guild with room for only one more member is never listed, so nobody clicks Join on something they can't get into.
+- A guild whose **member limit is set to one** is never listed — there would be no seat for anyone to join. (A nearly-full guild is fine; it's the limit itself that has to leave room.)
 
 !!! tip "Give arrivals somewhere to land"
     A listed guild whose initiatives are all invite-only leaves newcomers looking at an empty page — they've joined the guild but can't see any of its work yet. Initiative will tell you when that's the case and point you at the fix: mark one initiative **open** so people can join it themselves, or **auto-join** so they simply arrive in it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
