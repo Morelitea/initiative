@@ -147,6 +147,16 @@ export function GuildHomePage() {
       setDraftQuery(query);
     }
   }, [query]);
+  // Switching tools is a fresh list: the rail's link carries no `q`, so the
+  // box empties with it and a keystroke still waiting from the last tool is
+  // dropped rather than landing on the new one.
+  const lastTool = useRef(selected);
+  useEffect(() => {
+    if (lastTool.current === selected) return;
+    lastTool.current = selected;
+    lastPushedQuery.current = query;
+    setDraftQuery(query);
+  }, [selected, query]);
   useEffect(() => {
     if (draftQuery === query) return;
     const timer = setTimeout(() => {

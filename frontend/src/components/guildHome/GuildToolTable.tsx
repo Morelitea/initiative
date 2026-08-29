@@ -222,7 +222,9 @@ export const GuildToolTable = ({
       onFilterValueChange={onSearchChange}
       enableColumnVisibilityDropdown
       manualSorting
-      initialSorting={[{ id: COLUMN_BY_SORT_FIELD[sortBy], desc: sortDir === "desc" }]}
+      // Controlled, not seeded: the order lives in the address, so the back
+      // button can change it after this mounts and the headers have to follow.
+      sorting={[{ id: COLUMN_BY_SORT_FIELD[sortBy], desc: sortDir === "desc" }]}
       onSortingChange={(sorting) => {
         // Clearing the sort altogether lands back on the guild home's own
         // default rather than on whatever each endpoint would do unsorted.
