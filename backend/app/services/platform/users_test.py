@@ -479,15 +479,10 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
 @pytest.mark.unit
 @pytest.mark.service
 async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
-    """The migration must enable RLS on `users` and install the
-    ``users_no_delete`` restrictive policy that blocks DELETE for any
-    non-bypass session. Application code that tries to drop a user row
-    via the regular ``app_user`` role would silently affect zero rows
-    without this policy.
-
-    Phase 2 (migration 0109) replaced the single wide-open ``users_open``
-    policy with per-tier least-privilege policies; this also asserts that
-    decomposition (open policy gone, floors + tier policies present)."""
+    """``users`` carries FORCE RLS, the ``users_no_delete`` restrictive policy,
+    and the per-role policy set that leaves every request-path write on the
+    caller's own row (migrations 0109, 0144, 0202). User rows are removed on
+    the system engine only."""
     from sqlalchemy import text
 
     rls_enabled = await session.exec(
@@ -511,12 +506,21 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     # Phase 2 decomposed the broad open policy into per-tier policies.
     assert "users_open" not in names
     assert {
+        # Read legs: the request path names other people all the time.
+        "users_app_user_read",
+        "users_app_guild_base_read",
+        "users_platform_read",
+        # Write legs: each one scoped to the caller's own row.
+        "users_app_user_self_update",
+        "users_app_guild_base_self_update",
+        "users_platform_self",
+    } <= names
+    # 0202 retired the table-wide floors and the moderator+ update-all leg.
+    assert {
         "users_app_floor",
         "users_guild_floor",
-        "users_platform_self",
-        "users_platform_read",
         "users_platform_manage",
-    } <= names
+    }.isdisjoint(names)
     deny_policy = next(row for row in rows if row[0] == "users_no_delete")
     # polcmd '6' = DELETE; polpermissive False = restrictive.
     # See: https://www.postgresql.org/docs/current/catalog-pg-policy.html

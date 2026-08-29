@@ -36,7 +36,6 @@ import type {
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   SearchUsersApiV1GGuildIdUsersSearchGetParams,
-  UserCreate,
   UserGuildMember,
   UserPublic,
   UserRead,
@@ -1367,94 +1366,6 @@ export function useListUsersApiV1GGuildIdUsersGet<
 }
 
 /**
- * @summary Create User
- */
-export const createUserApiV1GGuildIdUsersPost = (
-  guildId: number,
-  userCreate: BodyType<UserCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/g/${guildId}/users/`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: userCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getCreateUserApiV1GGuildIdUsersPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createUserApiV1GGuildIdUsersPost>>,
-    TError,
-    { guildId: number; data: BodyType<UserCreate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createUserApiV1GGuildIdUsersPost>>,
-  TError,
-  { guildId: number; data: BodyType<UserCreate> },
-  TContext
-> => {
-  const mutationKey = ["createUserApiV1GGuildIdUsersPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createUserApiV1GGuildIdUsersPost>>,
-    { guildId: number; data: BodyType<UserCreate> }
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return createUserApiV1GGuildIdUsersPost(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateUserApiV1GGuildIdUsersPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createUserApiV1GGuildIdUsersPost>>
->;
-export type CreateUserApiV1GGuildIdUsersPostMutationBody = BodyType<UserCreate>;
-export type CreateUserApiV1GGuildIdUsersPostMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Create User
- */
-export const useCreateUserApiV1GGuildIdUsersPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createUserApiV1GGuildIdUsersPost>>,
-      TError,
-      { guildId: number; data: BodyType<UserCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof createUserApiV1GGuildIdUsersPost>>,
-  TError,
-  { guildId: number; data: BodyType<UserCreate> },
-  TContext
-> => {
-  return useMutation(getCreateUserApiV1GGuildIdUsersPostMutationOptions(options), queryClient);
-};
-/**
  * Slim, searchable, paginated roster for typeahead/pickers.
  *
  * Same authorization as the full member list (``RLSSessionDep`` +
@@ -1811,6 +1722,12 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
 }
 
 /**
+ * Let a pending member of this guild sign in.
+ *
+ * Runs on the system engine: the row is another account's, and an account is
+ * not a guild's to write. ``GuildAdminContext`` plus the membership join
+ * below are the authorization — the guild admin may only reach someone who is
+ * already a member of the guild they administer.
  * @summary Approve User
  */
 export const approveUserApiV1GGuildIdUsersUserIdApprovePost = (
