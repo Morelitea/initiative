@@ -73,6 +73,7 @@ from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.services.auth.identity import has_federated_identity
 from app.services.auth.platform_provider import is_login_ready
+from app.services.platform import billing_claim
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.platform import guilds as guilds_service
@@ -511,6 +512,10 @@ async def create_guild(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
+    # Committed and seeded. Claimed for the owner — who holds the admin
+    # membership — rather than the caller. Fire-and-forget.
+    billing_claim.claim_new_guild(user_id=owner.id, guild_id=guild.id)
+
     # The owner's membership — the caller's own in the ordinary case. When the
     # guild was created for another account the caller holds none, so the
     # response describes the guild through its admin.
