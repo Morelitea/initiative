@@ -198,9 +198,7 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     before = len(await _outbox(session, a.guild.id))
 
-    # Through the actor seam rather than a bare ``create_user``: an account is
-    # a platform row, and this session is routed into a guild, which holds no
-    # INSERT on ``public.users``.
+    # Through the actor seam, which is how this suite adds a second person.
     await acting_user(
         guild_role=GuildRole.member,
         guild=a.guild,

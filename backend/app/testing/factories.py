@@ -151,12 +151,10 @@ async def create_user(
     user_data = {**defaults, **overrides}
     user = User(**user_data)
 
-    # An account is a platform row. A session already routed into a guild holds
-    # no INSERT on ``public.users`` (migration 0202), so this drops to the
-    # shared baseline for the write and puts the routing back — the same move
-    # ``anonymize_user`` makes when it crosses between the two planes. Without
-    # it, a test that builds a second person after routing gets a permission
-    # error from the factory rather than from anything it is testing.
+    # An account is a platform row, so it is written on the shared baseline and
+    # the routing is put back afterwards — the same move ``anonymize_user``
+    # makes when it crosses between the two planes. This keeps a test that
+    # builds a person mid-scenario from having to know where the session is.
     routed = session.info.get(_RLS_PARAMS_INFO_KEY)
     if routed and routed.get("guild_id") is not None:
         await set_rls_context(session, user_id=routed.get("user_id"))

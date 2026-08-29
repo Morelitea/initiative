@@ -551,11 +551,11 @@ async def _load_guild_context(
     ``get_guild_membership``, where both values exist — WS / keepalive callers
     have no delegation token, so the shared resolver never deals with one.
     """
-    # A suspended account reaches no guild, by any route — not as a member and
-    # not on a PAM grant, which is why this sits ahead of both branches. It
-    # learns no more about why than a non-member does: the same generic code,
-    # so a guild is never told that one of its members was suspended. Nothing
-    # is revoked; the membership is still theirs when the suspension lifts.
+    # A suspended account reaches no guild. Ahead of the branches below so it
+    # holds for membership and for a grant alike, and it answers with the same
+    # generic code every other refusal here uses, so a guild is not told that
+    # one of its members was suspended. Nothing is revoked: the membership is
+    # still theirs when the suspension lifts.
     if current_user.status == UserStatus.suspended:
         raise GuildAccessError()
 

@@ -27,10 +27,8 @@ def downgrade() -> None:
     # writes it is gone. Rows that do are moved back to ``active`` first, since
     # a frozen account with no way to unfreeze it is worse than a live one.
     #
-    # ``public.users`` is FORCE ROW LEVEL SECURITY — policy-bound even for the
-    # owner this runs as — so the flag is lifted and restored around the write,
-    # inside the same transaction. Without that the statement would match
-    # nothing and report success.
+    # The write is set up the way every other ``public.users`` backfill in
+    # this directory is (see 0201, 0203).
     conn = op.get_bind()
     op.execute("ALTER TABLE public.users NO FORCE ROW LEVEL SECURITY")
     try:
