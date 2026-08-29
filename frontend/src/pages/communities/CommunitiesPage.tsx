@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCommunityGuilds } from "@/hooks/useCommunities";
+import { renderableBanner } from "@/lib/banner";
 import { getErrorCode } from "@/lib/errorMessage";
 import { asGuildCategory } from "@/lib/guildCategories";
 
@@ -77,7 +78,10 @@ export function CommunitiesPage() {
   // what it fades into is the page.
   const hero = (
     <PageBanner
-      imageUrl="/images/community-banner.webp"
+      // The artwork ships with the app rather than being served per guild, so
+      // it needs no resolving; the rest is what a header with no guild banner
+      // behind it looks like.
+      banner={{ ...renderableBanner(), image_url: "/images/community-banner.webp" }}
       haloOverImage
       title={t("guilds:community.heroTitle")}
       subtitle={t("guilds:community.heroSubtitle")}

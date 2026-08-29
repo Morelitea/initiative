@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from enum import Enum
+import json
 from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Boolean, Column, DateTime, String, Integer, Text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import text
 from sqlalchemy.orm import validates
 from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
@@ -110,10 +112,16 @@ class BannerFade(str, Enum):
     strong = "strong"
 
 
-DEFAULT_BANNER_TEXT_ALIGN = BannerTextAlign.center.value
-#: A banner reads better as the top of the page than as a strip laid on it, so
-#: the dissolve is the default and a hard edge is the thing a guild opts into.
-DEFAULT_BANNER_FADE = BannerFade.strong.value
+#: What a banner is before anyone touches it.
+DEFAULT_BANNER: dict[str, str] = {
+    "color": DEFAULT_BANNER_COLOR,
+    "text_color": DEFAULT_BANNER_TEXT_COLOR,
+    "text_align": BannerTextAlign.center.value,
+    "fade": BannerFade.strong.value,
+}
+
+#: The keys a banner has, and the only ones it may have.
+BANNER_KEYS: tuple[str, ...] = tuple(DEFAULT_BANNER)
 
 
 class Guild(SQLModel, table=True):
@@ -137,49 +145,13 @@ class Guild(SQLModel, table=True):
     description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    # The banner. ``banner_color`` is what fills it where the guild has
-    # uploaded no artwork; ``banner_text_color`` is what its name and
-    # description are written in, over the fill or over the artwork.
-    #
-    # Neither is nullable: every guild has a banner from the moment it exists,
-    # so nothing downstream has a "guild with no banner" case to render. The
-    # text colour is stored rather than derived because artwork is not one
-    # colour — a picture light enough to need dark text is nobody's to guess,
-    # so the guild says. It is *defaulted* from the fill's best contrast, which
-    # is the answer whenever there is no artwork, and constrained to
-    # ``BANNER_TEXT_COLORS`` so saying it can never mean saying something
-    # unreadable.
-    #
-    # Identity, like the name and description above — six bytes that ride in
-    # the payload those columns already travel in. CHECKs constrain the shape;
-    # see the guild-images migration.
-    banner_color: str = Field(
-        default=DEFAULT_BANNER_COLOR,
+    banner: dict[str, str] = Field(
+        default_factory=lambda: dict(DEFAULT_BANNER),
         sa_column=Column(
-            String(7), nullable=False, server_default=DEFAULT_BANNER_COLOR
+            MutableDict.as_mutable(JSONB),
+            nullable=False,
+            server_default=json.dumps(DEFAULT_BANNER),
         ),
-    )
-    banner_text_color: str = Field(
-        default=DEFAULT_BANNER_TEXT_COLOR,
-        sa_column=Column(
-            String(7), nullable=False, server_default=DEFAULT_BANNER_TEXT_COLOR
-        ),
-    )
-    # How the banner is laid out: where the copy sits across it, and whether it
-    # ends at an edge or dissolves into the page. Both are presentation the
-    # guild picks, stored beside the colours they act on, and both are NOT NULL
-    # with a default for the same reason those are — there is no "banner with
-    # no layout" case downstream. Constrained by CHECK to the two enums above,
-    # since these values are read straight into a stylesheet.
-    banner_text_align: str = Field(
-        default=DEFAULT_BANNER_TEXT_ALIGN,
-        sa_column=Column(
-            String(8), nullable=False, server_default=DEFAULT_BANNER_TEXT_ALIGN
-        ),
-    )
-    banner_fade: str = Field(
-        default=DEFAULT_BANNER_FADE,
-        sa_column=Column(String(8), nullable=False, server_default=DEFAULT_BANNER_FADE),
     )
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(

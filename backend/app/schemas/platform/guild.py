@@ -9,16 +9,52 @@ from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
 from app.core.email_masking import mask_email
 from app.models.platform.guild import (
-    DEFAULT_BANNER_COLOR,
-    DEFAULT_BANNER_FADE,
-    DEFAULT_BANNER_TEXT_ALIGN,
-    DEFAULT_BANNER_TEXT_COLOR,
+    DEFAULT_BANNER,
     BannerFade,
     BannerTextAlign,
     GuildCategory,
     GuildRole,
     GuildStatus,
 )
+
+
+class GuildBannerRead(SanitizedBaseModel):
+    """A guild's banner, whole — the picture and the look around it.
+
+    ``image_url`` is where to fetch the artwork, never the bytes: a banner is
+    ~350 KB and this rides in payloads that list every guild the caller is in.
+    Which rendition it names is the surface's business — a guild's own front
+    page gets the full one, a directory card the card one. ``None`` means no
+    artwork, not no banner: the fill is what shows then.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    image_url: Optional[str] = None
+    color: str = DEFAULT_BANNER["color"]
+    text_color: str = DEFAULT_BANNER["text_color"]
+    text_align: BannerTextAlign = BannerTextAlign(DEFAULT_BANNER["text_align"])
+    fade: BannerFade = BannerFade(DEFAULT_BANNER["fade"])
+
+
+class GuildBannerWrite(SanitizedBaseModel):
+    """The banner a guild admin sets, whole.
+
+    Every field is required: the banner is one value and this replaces it, so a
+    body naming two of the four would have to mean "leave the rest" — a merge
+    the caller cannot see the result of. Sending ``null`` for the whole object
+    is how you go back to the default. The artwork is set through its own
+    endpoint; it is bytes, not a look.
+
+    The layout fields are typed as their enums, so anything outside the
+    vocabulary is a 422 rather than a rule the service restates; the colours
+    are text here and normalized in the service.
+    """
+
+    color: RawTextStr
+    text_color: RawTextStr
+    text_align: BannerTextAlign
+    fade: BannerFade
 
 
 class GuildBase(SanitizedBaseModel):
@@ -100,20 +136,9 @@ class GuildRead(GuildBase):
     # The 18+ declaration. ``None`` — unanswered — is the normal state for a
     # guild that has never been listed; listing requires an explicit ``False``.
     has_adult_content: Optional[bool] = None
-    # Where to fetch the guild's banner at full size, or ``None`` when it has
-    # none. A URL, never the bytes: the image is ~350 KB and this payload is a
-    # list of every guild the caller is in.
-    banner_url: Optional[str] = None
-    # The banner's two colours. ``banner_color`` fills it where there is no
-    # artwork; ``banner_text_color`` writes the guild's name and description
-    # over whichever it turns out to be. Never null — every guild has a banner.
-    banner_color: str = DEFAULT_BANNER_COLOR
-    banner_text_color: str = DEFAULT_BANNER_TEXT_COLOR
-    # How the banner is laid out: where the copy sits across it, and whether it
-    # ends at an edge or fades into the page under the page's own content.
-    # Never null, like the colours — every guild has a banner.
-    banner_text_align: BannerTextAlign = BannerTextAlign(DEFAULT_BANNER_TEXT_ALIGN)
-    banner_fade: BannerFade = BannerFade(DEFAULT_BANNER_FADE)
+    # The guild's banner, at full size. Never absent — every guild has one, so
+    # nothing downstream renders a guild that has none.
+    banner: GuildBannerRead = GuildBannerRead()
     # How many of this guild's members have it open right now. A live reading
     # taken from the process answering the request rather than a stored
     # column — the same figure the directory card shows, and the same caveat: a
@@ -121,9 +146,9 @@ class GuildRead(GuildBase):
     # anything. Zero is also what a request served by a process holding none of
     # the guild's sockets answers.
     online_count: int = 0
-    # Where to fetch the guild's icon, or ``None`` when it has none. A URL, as
-    # above: this payload lists every guild the caller is in, and the icon used
-    # to be a data URI inlined into all of them.
+    # Where to fetch the guild's icon, or ``None`` when it has none. A URL like
+    # the banner's: this payload lists every guild the caller is in, and the
+    # icon used to be a data URI inlined into all of them.
     icon_url: Optional[str] = None
 
 
@@ -193,18 +218,10 @@ class GuildUpdate(SanitizedBaseModel):
     # the guild turns it off in the same write and the endpoint refuses to set
     # both, which ck_guilds_community_member_names also enforces.
     show_member_names: Optional[bool] = None
-    # The banner's two colours, ``#rrggbb``. Omit-to-skip like the fields
-    # above; an explicit null puts one back to its default rather than clearing
-    # it, since a banner is never colourless. The uploaded artwork is set
-    # through its own endpoint, not here — it is bytes, not a field.
-    banner_color: Optional[RawTextStr] = None
-    banner_text_color: Optional[RawTextStr] = None
-    # The banner's layout, same omit-to-skip / null-resets-to-default shape as
-    # the colours above. Typed as the enums rather than validated in the
-    # service: the vocabulary is closed, so a value outside it is a malformed
-    # request (422) rather than a rule the service has to state.
-    banner_text_align: Optional[BannerTextAlign] = None
-    banner_fade: Optional[BannerFade] = None
+    # The whole banner, replaced. Omit-to-skip like the fields above; an
+    # explicit null puts it back to the default rather than clearing it, since
+    # a banner is never colourless and never without a layout.
+    banner: Optional[GuildBannerWrite] = None
     # The 18+ declaration, and the one field here where null is an ANSWER
     # rather than a skip — it puts the guild back to undeclared. Omitting the
     # field is how you leave it alone, so this is read from
@@ -384,13 +401,11 @@ class CommunityGuildRead(SanitizedBaseModel):
     member_count: int = 0
     online_count: int = 0
     already_member: bool = False
-    # The card rendition of the guild's banner, as a URL. A directory page is up
-    # to sixty of these, so the bytes stay out of the payload and are fetched
-    # (and then cached) per card.
-    banner_card_url: Optional[str] = None
-    # Its colours, which need no fetch at all.
-    banner_color: str = DEFAULT_BANNER_COLOR
-    banner_text_color: str = DEFAULT_BANNER_TEXT_COLOR
+    # The guild's banner, its ``image_url`` naming the card rendition rather
+    # than the full one: a directory page is up to sixty of these, so the bytes
+    # stay out of the payload and are fetched (and then cached) per card. The
+    # rest of it needs no fetch at all.
+    banner: GuildBannerRead = GuildBannerRead()
 
 
 class CommunityGuildPage(SanitizedBaseModel):

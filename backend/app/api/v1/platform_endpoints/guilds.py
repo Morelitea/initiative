@@ -36,8 +36,6 @@ from app.core.security import (
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import (
-    BannerFade,
-    BannerTextAlign,
     Guild,
     GuildCategory,
     GuildMembership,
@@ -55,6 +53,7 @@ from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.guild import (
     CommunityGuildPage,
     CommunityGuildRead,
+    GuildBannerRead,
     GuildEntitlementsRead,
     GuildAuthPolicyRead,
     GuildAuthPolicyUpdate,
@@ -158,14 +157,12 @@ def _serialize_guild(
         has_adult_content=guild.has_adult_content,
         # Where the guild's pictures are, not the pictures. Callers that have
         # no reason to have looked them up pass nothing, which reads the same
-        # as a guild without any. The banner colour is a column, so it needs no
-        # such arrangement.
+        # as a guild without any. The rest of the banner is stored, so it needs
+        # no such arrangement.
         icon_url=(images or {}).get(GuildImageVariant.icon),
-        banner_url=(images or {}).get(GuildImageVariant.full),
-        banner_color=guild.banner_color,
-        banner_text_color=guild.banner_text_color,
-        banner_text_align=BannerTextAlign(guild.banner_text_align),
-        banner_fade=BannerFade(guild.banner_fade),
+        banner=GuildBannerRead(
+            image_url=(images or {}).get(GuildImageVariant.full), **guild.banner
+        ),
         # Read here rather than passed in, so every payload that names a guild
         # carries the same figure without each call site remembering to ask.
         # It costs no query — presence is a dict this process already holds.
@@ -325,9 +322,10 @@ async def list_community_guilds(
                 name=guild.name,
                 description=guild.description,
                 icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
-                banner_card_url=images.get(guild.id, {}).get(GuildImageVariant.card),
-                banner_color=guild.banner_color,
-                banner_text_color=guild.banner_text_color,
+                banner=GuildBannerRead(
+                    image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
+                    **guild.banner,
+                ),
                 categories=[GuildCategory(value) for value in guild.categories],
                 member_count=member_count,
                 online_count=online.get(guild.id, 0),
@@ -569,10 +567,7 @@ async def update_guild(
     retention_days_provided = "retention_days" in updates.model_fields_set
     categories_provided = "categories" in updates.model_fields_set
     has_adult_content_provided = "has_adult_content" in updates.model_fields_set
-    banner_color_provided = "banner_color" in updates.model_fields_set
-    banner_text_color_provided = "banner_text_color" in updates.model_fields_set
-    banner_text_align_provided = "banner_text_align" in updates.model_fields_set
-    banner_fade_provided = "banner_fade" in updates.model_fields_set
+    banner_provided = "banner" in updates.model_fields_set
     try:
         guild = await guilds_service.update_guild(
             session,
@@ -590,16 +585,8 @@ async def update_guild(
             categories_provided=categories_provided,
             has_adult_content=updates.has_adult_content,
             has_adult_content_provided=has_adult_content_provided,
-            banner_color=updates.banner_color,
-            banner_color_provided=banner_color_provided,
-            banner_text_color=updates.banner_text_color,
-            banner_text_color_provided=banner_text_color_provided,
-            banner_text_align=(
-                updates.banner_text_align.value if updates.banner_text_align else None
-            ),
-            banner_text_align_provided=banner_text_align_provided,
-            banner_fade=updates.banner_fade.value if updates.banner_fade else None,
-            banner_fade_provided=banner_fade_provided,
+            banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
+            banner_provided=banner_provided,
             show_member_names=updates.show_member_names,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
@@ -813,7 +800,7 @@ async def set_guild_banner(
     if administration is not None and not administration.banner_image_enabled:
         # Only uploading is gated. The banner surface stays, a banner the guild
         # already has keeps being served, and what a guild without artwork sets
-        # instead is the colour on ``guilds.banner_color``, through PATCH.
+        # instead is the colour on ``guilds.banner``, through PATCH.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.BANNER_IMAGE_NOT_ENTITLED,

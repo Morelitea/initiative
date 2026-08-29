@@ -23,7 +23,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import type { GuildEntry } from "@/hooks/useGuilds";
 import { routeTree } from "@/routeTree.gen";
 
-import { buildGuild } from "./factories";
+import { buildBanner, buildGuild } from "./factories";
 import { renderPage } from "./helpers/render";
 
 const appConfig = vi.hoisted(() => ({ directory: true }));
@@ -49,9 +49,7 @@ const community: CommunityGuildRead = {
   name: "Riverside Players",
   description: "Community theatre.",
   icon_url: null,
-  banner_card_url: null,
-  banner_color: "#2563eb",
-  banner_text_color: "#ffffff",
+  banner: buildBanner(),
   categories: ["art"],
   member_count: 12,
   already_member: false,

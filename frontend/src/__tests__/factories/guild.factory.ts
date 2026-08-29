@@ -1,6 +1,21 @@
-import type { GuildInviteStatus, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  GuildBannerRead,
+  GuildInviteStatus,
+  GuildRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
+
+export function buildBanner(overrides: Partial<GuildBannerRead> = {}): GuildBannerRead {
+  return {
+    image_url: null,
+    color: "#2563eb",
+    text_color: "#ffffff",
+    text_align: "center",
+    fade: "strong",
+    ...overrides,
+  };
+}
 
 export function resetCounter(): void {
   counter = 0;
@@ -13,11 +28,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     name: `Guild ${counter}`,
     description: `Description for guild ${counter}`,
     icon_url: null,
-    banner_url: null,
-    banner_color: "#2563eb",
-    banner_text_color: "#ffffff",
-    banner_text_align: "center",
-    banner_fade: "strong",
+    banner: buildBanner(),
     online_count: 0,
     role: "member",
     position: counter - 1,

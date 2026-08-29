@@ -1419,6 +1419,23 @@ export const GuildCategory = {
 } as const;
 
 /**
+ * A guild's banner, whole — the picture and the look around it.
+ *
+ * ``image_url`` is where to fetch the artwork, never the bytes: a banner is
+ * ~350 KB and this rides in payloads that list every guild the caller is in.
+ * Which rendition it names is the surface's business — a guild's own front
+ * page gets the full one, a directory card the card one. ``None`` means no
+ * artwork, not no banner: the fill is what shows then.
+ */
+export interface GuildBannerRead {
+  image_url: string | null;
+  color: string;
+  text_color: string;
+  text_align: BannerTextAlign;
+  fade: BannerFade;
+}
+
+/**
  * One card in the community directory.
  *
  * Deliberately not a :class:`GuildRead`: the reader is a stranger, so this
@@ -1441,9 +1458,7 @@ export interface CommunityGuildRead {
   member_count: number;
   online_count: number;
   already_member: boolean;
-  banner_card_url: string | null;
-  banner_color: string;
-  banner_text_color: string;
+  banner: GuildBannerRead;
 }
 
 /**
@@ -2549,6 +2564,26 @@ export interface GuildAuthPolicyUpdate {
   provider_id?: number | null;
 }
 
+/**
+ * The banner a guild admin sets, whole.
+ *
+ * Every field is required: the banner is one value and this replaces it, so a
+ * body naming two of the four would have to mean "leave the rest" — a merge
+ * the caller cannot see the result of. Sending ``null`` for the whole object
+ * is how you go back to the default. The artwork is set through its own
+ * endpoint; it is bytes, not a look.
+ *
+ * The layout fields are typed as their enums, so anything outside the
+ * vocabulary is a 422 rather than a rule the service restates; the colours
+ * are text here and normalized in the service.
+ */
+export interface GuildBannerWrite {
+  color: string;
+  text_color: string;
+  text_align: BannerTextAlign;
+  fade: BannerFade;
+}
+
 export interface GuildCreate {
   name: string;
   description?: string | null;
@@ -2665,11 +2700,7 @@ export interface GuildRead {
   categories: GuildCategory[];
   show_member_names: boolean;
   has_adult_content: boolean | null;
-  banner_url: string | null;
-  banner_color: string;
-  banner_text_color: string;
-  banner_text_align: BannerTextAlign;
-  banner_fade: BannerFade;
+  banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
 }
@@ -2704,10 +2735,7 @@ export interface GuildUpdate {
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
   show_member_names?: boolean | null;
-  banner_color?: string | null;
-  banner_text_color?: string | null;
-  banner_text_align?: BannerTextAlign | null;
-  banner_fade?: BannerFade | null;
+  banner?: GuildBannerWrite | null;
   has_adult_content?: boolean | null;
 }
 

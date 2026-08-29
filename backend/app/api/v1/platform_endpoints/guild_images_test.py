@@ -15,7 +15,12 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import (
+    DEFAULT_BANNER,
+    Guild,
+    GuildRole,
+    GuildStatus,
+)
 from app.models.platform.guild_image import (
     IMAGE_SPECS,
     GuildImage,
@@ -46,6 +51,16 @@ def _png(width: int, height: int, padding: int = 0) -> bytes:
 def _spec_png(variant: GuildImageVariant, padding: int = 0) -> bytes:
     spec = IMAGE_SPECS[variant]
     return _png(spec.width, spec.height, padding)
+
+
+def _banner(**overrides: str) -> dict[str, str]:
+    """A whole banner to PATCH: the defaults, with whatever a test changes.
+
+    The endpoint replaces the banner rather than merging into it, so every
+    field is named on every write — the panel that sends this is showing all
+    four.
+    """
+    return {**DEFAULT_BANNER, **overrides}
 
 
 def _banner_files(
@@ -144,8 +159,10 @@ async def test_admin_sets_banner_and_gets_its_url_back(
 
     payload = await _set_banner(client, a.guild.id, a.headers)
 
-    assert payload["banner_url"] is not None
-    assert payload["banner_url"].startswith(f"/api/v1/guilds/{a.guild.id}/image/")
+    assert payload["banner"]["image_url"] is not None
+    assert payload["banner"]["image_url"].startswith(
+        f"/api/v1/guilds/{a.guild.id}/image/"
+    )
 
 
 @pytest.mark.integration
@@ -195,7 +212,7 @@ async def test_clearing_a_banner_removes_both_renditions(
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_url"] is None
+    assert response.json()["banner"]["image_url"] is None
     rows = (
         await session.exec(select(GuildImage).where(GuildImage.guild_id == a.guild.id))
     ).all()
@@ -309,7 +326,7 @@ async def test_a_member_gets_both_renditions(
     a = await acting_user(guild_role=GuildRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
 
-    full = await client.get(payload["banner_url"], headers=a.headers)
+    full = await client.get(payload["banner"]["image_url"], headers=a.headers)
     card = await client.get(await _card_url(session, a.guild.id), headers=a.headers)
 
     assert full.status_code == 200
@@ -328,7 +345,7 @@ async def test_a_stranger_gets_nothing_from_an_unlisted_guild(
     stranger = await create_user(session, email="stranger@example.com")
     headers = get_auth_headers(stranger)
 
-    full = await client.get(payload["banner_url"], headers=headers)
+    full = await client.get(payload["banner"]["image_url"], headers=headers)
     card = await client.get(await _card_url(session, a.guild.id), headers=headers)
 
     assert full.status_code == 404
@@ -347,7 +364,7 @@ async def test_a_stranger_gets_the_card_of_a_listed_guild_but_not_its_front_page
     headers = get_auth_headers(stranger)
 
     card = await client.get(await _card_url(session, a.guild.id), headers=headers)
-    full = await client.get(payload["banner_url"], headers=headers)
+    full = await client.get(payload["banner"]["image_url"], headers=headers)
 
     assert card.status_code == 200
     assert full.status_code == 404
@@ -394,7 +411,7 @@ async def test_a_suspended_guild_serves_nobody(
         await client.get(url, headers=get_auth_headers(stranger))
     ).status_code == 404
     assert (
-        await client.get(payload["banner_url"], headers=a.headers)
+        await client.get(payload["banner"]["image_url"], headers=a.headers)
     ).status_code == 404
 
 
@@ -411,7 +428,9 @@ async def test_a_replaced_banners_url_stops_resolving(client: AsyncClient, actin
         files=_banner_files(full=_spec_png(GuildImageVariant.full, padding=128)),
     )
 
-    assert (await client.get(first["banner_url"], headers=a.headers)).status_code == 404
+    assert (
+        await client.get(first["banner"]["image_url"], headers=a.headers)
+    ).status_code == 404
 
 
 @pytest.mark.integration
@@ -419,7 +438,7 @@ async def test_a_banner_needs_a_session(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin)
     payload = await _set_banner(client, a.guild.id, a.headers)
 
-    assert (await client.get(payload["banner_url"])).status_code == 401
+    assert (await client.get(payload["banner"]["image_url"])).status_code == 401
 
 
 # --- how it reaches the two surfaces ------------------------------------------
@@ -434,7 +453,7 @@ async def test_the_guild_list_names_the_banner(client: AsyncClient, acting_user)
 
     assert response.status_code == 200
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
-    assert entry["banner_url"] is not None
+    assert entry["banner"]["image_url"] is not None
 
 
 @pytest.mark.integration
@@ -453,7 +472,7 @@ async def test_the_directory_names_the_card_rendition(
 
     assert response.status_code == 200
     card = next(g for g in response.json()["items"] if g["id"] == a.guild.id)
-    assert card["banner_card_url"] == await _card_url(session, a.guild.id)
+    assert card["banner"]["image_url"] == await _card_url(session, a.guild.id)
 
 
 @pytest.mark.integration
@@ -463,7 +482,7 @@ async def test_a_guild_without_a_banner_names_none(client: AsyncClient, acting_u
     response = await client.get("/api/v1/guilds/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
-    assert entry["banner_url"] is None
+    assert entry["banner"]["image_url"] is None
 
 
 @pytest.mark.integration
@@ -520,7 +539,7 @@ async def test_a_pam_grantee_reads_the_full_banner(
     await session.commit()
 
     response = await client.get(
-        payload["banner_url"], headers=get_auth_headers(operator)
+        payload["banner"]["image_url"], headers=get_auth_headers(operator)
     )
 
     assert response.status_code == 200
@@ -537,11 +556,11 @@ async def test_a_guild_can_choose_a_colour_instead(client: AsyncClient, acting_u
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "#3F6FB5"},
+        json={"banner": _banner(color="#3F6FB5")},
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_color"] == "#3f6fb5"
+    assert response.json()["banner"]["color"] == "#3f6fb5"
 
 
 @pytest.mark.integration
@@ -551,7 +570,7 @@ async def test_a_colour_that_is_not_one_is_refused(client: AsyncClient, acting_u
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "rebeccapurple"},
+        json={"banner": _banner(color="rebeccapurple")},
     )
 
     assert response.status_code == 400
@@ -559,41 +578,38 @@ async def test_a_colour_that_is_not_one_is_refused(client: AsyncClient, acting_u
 
 
 @pytest.mark.integration
-async def test_a_null_colour_is_a_reset_not_a_removal(client: AsyncClient, acting_user):
-    """A banner is never colourless, so there is nothing for null to clear."""
-    from app.models.platform.guild import DEFAULT_BANNER_COLOR
-
+async def test_a_null_banner_is_a_reset_not_a_removal(client: AsyncClient, acting_user):
+    """A banner is never colourless and never without a layout, so there is
+    nothing for null to clear — it puts the whole default back."""
     a = await acting_user(guild_role=GuildRole.admin)
     await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "#101010"},
+        json={"banner": _banner(color="#101010", text_align="left", fade="weak")},
     )
 
     response = await client.patch(
-        f"/api/v1/guilds/{a.guild.id}", headers=a.headers, json={"banner_color": None}
+        f"/api/v1/guilds/{a.guild.id}", headers=a.headers, json={"banner": None}
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_color"] == DEFAULT_BANNER_COLOR
+    assert {
+        key: value
+        for key, value in response.json()["banner"].items()
+        if key != "image_url"
+    } == DEFAULT_BANNER
 
 
 @pytest.mark.integration
 async def test_every_guild_starts_with_a_banner(client: AsyncClient, acting_user):
     """No guild is ever without one, so nothing downstream renders a guild
     that has none."""
-    from app.models.platform.guild import (
-        DEFAULT_BANNER_COLOR,
-        DEFAULT_BANNER_TEXT_COLOR,
-    )
-
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.get("/api/v1/guilds/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
-    assert entry["banner_color"] == DEFAULT_BANNER_COLOR
-    assert entry["banner_text_color"] == DEFAULT_BANNER_TEXT_COLOR
+    assert entry["banner"] == {"image_url": None, **DEFAULT_BANNER}
 
 
 @pytest.mark.integration
@@ -606,11 +622,11 @@ async def test_the_banner_text_colour_is_the_guilds_to_set(
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "#f5f0e8", "banner_text_color": "#000000"},
+        json={"banner": _banner(color="#f5f0e8", text_color="#000000")},
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_text_color"] == "#000000"
+    assert response.json()["banner"]["text_color"] == "#000000"
 
 
 @pytest.mark.integration
@@ -622,11 +638,11 @@ async def test_the_picker_may_send_an_alpha_byte(client: AsyncClient, acting_use
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "#2A9D8FFF"},
+        json={"banner": _banner(color="#2A9D8FFF")},
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_color"] == "#2a9d8f"
+    assert response.json()["banner"]["color"] == "#2a9d8f"
 
 
 @pytest.mark.integration
@@ -639,7 +655,7 @@ async def test_the_directory_carries_the_colour(
     await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "#2a9d8f"},
+        json={"banner": _banner(color="#2a9d8f")},
     )
     await _list_as_community(session, a.guild)
     stranger = await create_user(session, email="colourblind@example.com")
@@ -649,8 +665,8 @@ async def test_the_directory_carries_the_colour(
     )
 
     card = next(g for g in response.json()["items"] if g["id"] == a.guild.id)
-    assert card["banner_color"] == "#2a9d8f"
-    assert card["banner_card_url"] is None
+    assert card["banner"]["color"] == "#2a9d8f"
+    assert card["banner"]["image_url"] is None
 
 
 # --- the artwork entitlement --------------------------------------------------
@@ -705,11 +721,11 @@ async def test_the_colour_is_still_available_without_the_entitlement(
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_color": "#8d5524"},
+        json={"banner": _banner(color="#8d5524")},
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_color"] == "#8d5524"
+    assert response.json()["banner"]["color"] == "#8d5524"
 
 
 @pytest.mark.integration
@@ -751,7 +767,7 @@ async def test_a_guild_keeps_serving_artwork_it_already_had(
     session.add(administration)
     await session.commit()
 
-    response = await client.get(payload["banner_url"], headers=a.headers)
+    response = await client.get(payload["banner"]["image_url"], headers=a.headers)
 
     assert response.status_code == 200
 
@@ -782,14 +798,14 @@ async def test_the_icon_and_the_banner_do_not_disturb_each_other(
     payload = await _set_icon(client, a.guild.id, a.headers)
 
     assert payload["icon_url"] is not None
-    assert payload["banner_url"] is not None
+    assert payload["banner"]["image_url"] is not None
 
     cleared = await client.delete(
         f"/api/v1/guilds/{a.guild.id}/icon", headers=a.headers
     )
     assert cleared.status_code == 200
     assert cleared.json()["icon_url"] is None
-    assert cleared.json()["banner_url"] is not None
+    assert cleared.json()["banner"]["image_url"] is not None
 
 
 @pytest.mark.integration
@@ -1012,18 +1028,18 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
     refused = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_text_color": "#808080"},
+        json={"banner": _banner(text_color="#808080")},
     )
     accepted = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_text_color": "#000000"},
+        json={"banner": _banner(text_color="#000000")},
     )
 
     assert refused.status_code == 400
     assert refused.json()["detail"] == "BANNER_TEXT_COLOR_INVALID"
     assert accepted.status_code == 200
-    assert accepted.json()["banner_text_color"] == "#000000"
+    assert accepted.json()["banner"]["text_color"] == "#000000"
 
 
 # --- how the banner is laid out -----------------------------------------------
@@ -1033,15 +1049,13 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
 async def test_a_banner_starts_centred_and_dissolving(client: AsyncClient, acting_user):
     """Centred, as every banner already was, and fading into the page — the
     dissolve is the default, and the hard edge is what a guild opts into."""
-    from app.models.platform.guild import DEFAULT_BANNER_FADE, DEFAULT_BANNER_TEXT_ALIGN
-
     a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.get("/api/v1/guilds/", headers=a.headers)
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
-    assert entry["banner_text_align"] == DEFAULT_BANNER_TEXT_ALIGN
-    assert entry["banner_fade"] == DEFAULT_BANNER_FADE == "strong"
+    assert entry["banner"]["text_align"] == DEFAULT_BANNER["text_align"] == "center"
+    assert entry["banner"]["fade"] == DEFAULT_BANNER["fade"] == "strong"
 
 
 @pytest.mark.integration
@@ -1053,12 +1067,12 @@ async def test_an_admin_sets_the_alignment_and_the_fade(
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_text_align": "left", "banner_fade": "strong"},
+        json={"banner": _banner(text_align="left", fade="strong")},
     )
 
     assert response.status_code == 200
-    assert response.json()["banner_text_align"] == "left"
-    assert response.json()["banner_fade"] == "strong"
+    assert response.json()["banner"]["text_align"] == "left"
+    assert response.json()["banner"]["fade"] == "strong"
 
 
 @pytest.mark.integration
@@ -1072,12 +1086,12 @@ async def test_a_layout_outside_the_vocabulary_is_refused(
     align = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_text_align": "justify"},
+        json={"banner": _banner(text_align="justify")},
     )
     fade = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_fade": "extreme"},
+        json={"banner": _banner(fade="extreme")},
     )
 
     assert align.status_code == 422
@@ -1085,27 +1099,18 @@ async def test_a_layout_outside_the_vocabulary_is_refused(
 
 
 @pytest.mark.integration
-async def test_a_null_layout_is_a_reset(client: AsyncClient, acting_user):
-    """Same as the colours: a banner is never without a layout, so null puts
-    the default back rather than clearing anything."""
-    from app.models.platform.guild import DEFAULT_BANNER_FADE, DEFAULT_BANNER_TEXT_ALIGN
-
+async def test_half_a_banner_is_not_a_banner(client: AsyncClient, acting_user):
+    """The banner is replaced, not merged into, so a body naming two of the
+    four is refused rather than read as "leave the rest"."""
     a = await acting_user(guild_role=GuildRole.admin)
-    await client.patch(
-        f"/api/v1/guilds/{a.guild.id}",
-        headers=a.headers,
-        json={"banner_text_align": "left", "banner_fade": "weak"},
-    )
 
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=a.headers,
-        json={"banner_text_align": None, "banner_fade": None},
+        json={"banner": {"color": "#101010", "text_color": "#ffffff"}},
     )
 
-    assert response.status_code == 200
-    assert response.json()["banner_text_align"] == DEFAULT_BANNER_TEXT_ALIGN
-    assert response.json()["banner_fade"] == DEFAULT_BANNER_FADE
+    assert response.status_code == 422
 
 
 @pytest.mark.integration
@@ -1116,7 +1121,7 @@ async def test_a_member_cannot_lay_out_the_banner(client: AsyncClient, acting_us
     response = await client.patch(
         f"/api/v1/guilds/{a.guild.id}",
         headers=b.headers,
-        json={"banner_fade": "strong"},
+        json={"banner": _banner(fade="strong")},
     )
 
     assert response.status_code == 403
