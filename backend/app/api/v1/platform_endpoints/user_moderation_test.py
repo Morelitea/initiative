@@ -381,6 +381,24 @@ class TestTheAggregateRoutes:
         assert response.status_code == 200
         assert response.json()["items"] == []
 
+    async def test_recents_is_empty_once_suspended(
+        self, client, session, suspended_with_work
+    ):
+        """``/recents`` builds its own guild list rather than going through
+        ``member_guild_ids``, so it is the case that proves the gate is where
+        every aggregate meets it and not only on the tidy path."""
+        moderator, a = suspended_with_work
+
+        await client.post(
+            f"/api/v1/admin/users/{a.user.id}/suspension",
+            headers=get_auth_headers(moderator),
+            json={"suspended": True},
+        )
+
+        response = await client.get("/api/v1/recents/", headers=a.headers)
+        assert response.status_code == 200
+        assert response.json() == []
+
     async def test_and_it_all_comes_back(self, client, session, suspended_with_work):
         """The memberships were never dropped, so lifting the suspension is the
         whole restoration."""

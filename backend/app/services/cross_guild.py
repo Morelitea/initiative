@@ -92,18 +92,37 @@ async def gather_across_guilds(
     if satisfied_providers is None:
         ambient = auth_context.satisfied_providers()
         satisfied_providers = ambient if isinstance(ambient, str) else sorted(ambient)
-    # One shared-table read for every guild's role (own rows) AND lifecycle
-    # status, under the user-only context, before we start routing into schemas.
+    # One shared-table read for every guild's role (own rows), the guild's
+    # lifecycle status AND the caller's own, under the user-only context,
+    # before we start routing into schemas.
     await set_rls_context(session, user_id=user_id)
-    role_rows = await session.exec(
-        select(GuildMembership.guild_id, GuildMembership.role, Guild.status)
-        .join(Guild, Guild.id == GuildMembership.guild_id)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.guild_id.in_(tuple(guild_ids)),
+    role_rows = (
+        await session.exec(
+            select(
+                GuildMembership.guild_id,
+                GuildMembership.role,
+                Guild.status,
+                User.status,
+            )
+            .join(Guild, Guild.id == GuildMembership.guild_id)
+            .join(User, User.id == GuildMembership.user_id)
+            .where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.guild_id.in_(tuple(guild_ids)),
+            )
         )
-    )
-    roles: dict[int, tuple] = {gid: (role, status) for gid, role, status in role_rows}
+    ).all()
+
+    # The caller's own state, checked here rather than only in
+    # ``member_guild_ids``, because a caller may assemble its own guild list
+    # and reach this directly — ``/recents`` does. A suspended account reaches
+    # no guild, so there is nothing across them to gather.
+    if any(caller_status == UserStatus.suspended for *_, caller_status in role_rows):
+        return []
+
+    roles: dict[int, tuple] = {
+        gid: (role, status) for gid, role, status, _caller in role_rows
+    }
 
     results: list[T] = []
     try:
