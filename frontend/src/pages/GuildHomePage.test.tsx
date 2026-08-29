@@ -198,6 +198,38 @@ describe("GuildHomePage", () => {
     expect(banner?.style.marginBottom).toBe("-224px");
   });
 
+  it("centres the tool circles under a banner that centres its copy", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", banner_text_align: "center" }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    const rail = screen.getByRole("navigation", { name: /tool/i }).firstElementChild;
+    expect(rail?.className).toContain("justify-center");
+  });
+
+  it("keeps them against the edge the banner's copy sits on when it is left", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", banner_text_align: "left" }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    const rail = screen.getByRole("navigation", { name: /tool/i }).firstElementChild;
+    expect(rail?.className).not.toContain("justify-center");
+  });
+
   it("lists the whole guild's projects under the projects circle", async () => {
     stubInitiatives();
     stubTools({

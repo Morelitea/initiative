@@ -97,7 +97,7 @@ const sortGuilds = (guildList: GuildEntry[]): GuildEntry[] => {
 const DEFAULT_BANNER_COLOR = "#2563eb";
 const DEFAULT_BANNER_TEXT_COLOR = "#ffffff";
 const DEFAULT_BANNER_TEXT_ALIGN = BannerTextAlign.center;
-const DEFAULT_BANNER_FADE = BannerFade.none;
+const DEFAULT_BANNER_FADE = BannerFade.strong;
 
 /** Build a synthetic switcher entry for a guild reachable only via a live grant. */
 const grantEntry = (grant: AccessGrantRead): GuildEntry => ({

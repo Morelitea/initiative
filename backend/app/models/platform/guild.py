@@ -110,9 +110,9 @@ class BannerFade(str, Enum):
 
 
 DEFAULT_BANNER_TEXT_ALIGN = BannerTextAlign.center.value
-#: An existing guild's banner must look tomorrow the way it looks today, so the
-#: banner that fades is the one whose guild asks for it.
-DEFAULT_BANNER_FADE = BannerFade.none.value
+#: A banner reads better as the top of the page than as a strip laid on it, so
+#: the dissolve is the default and a hard edge is the thing a guild opts into.
+DEFAULT_BANNER_FADE = BannerFade.strong.value
 
 
 class Guild(SQLModel, table=True):

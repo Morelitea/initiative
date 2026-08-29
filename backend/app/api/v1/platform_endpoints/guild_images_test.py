@@ -1026,9 +1026,9 @@ async def test_banner_text_is_black_or_white_and_nothing_else(
 
 
 @pytest.mark.integration
-async def test_a_banner_starts_centred_and_unfaded(client: AsyncClient, acting_user):
-    """The layout an existing guild's banner already has, so nothing moves
-    under a guild that never asked for it."""
+async def test_a_banner_starts_centred_and_dissolving(client: AsyncClient, acting_user):
+    """Centred, as every banner already was, and fading into the page — the
+    dissolve is the default, and the hard edge is what a guild opts into."""
     from app.models.platform.guild import DEFAULT_BANNER_FADE, DEFAULT_BANNER_TEXT_ALIGN
 
     a = await acting_user(guild_role=GuildRole.admin)
@@ -1037,7 +1037,7 @@ async def test_a_banner_starts_centred_and_unfaded(client: AsyncClient, acting_u
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["banner_text_align"] == DEFAULT_BANNER_TEXT_ALIGN
-    assert entry["banner_fade"] == DEFAULT_BANNER_FADE
+    assert entry["banner_fade"] == DEFAULT_BANNER_FADE == "strong"
 
 
 @pytest.mark.integration

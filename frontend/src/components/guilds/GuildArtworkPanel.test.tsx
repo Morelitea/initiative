@@ -134,15 +134,17 @@ describe("GuildArtworkPanel", () => {
     );
 
     renderWithProviders(
-      <GuildArtworkPanel guild={buildGuild({ id: 1, role: "admin", name: "Ravenloft" })} />
+      <GuildArtworkPanel
+        guild={buildGuild({ id: 1, role: "admin", name: "Ravenloft", banner_fade: "weak" })}
+      />
     );
 
     await userEvent.click(await screen.findByRole("button", { name: "Left" }));
 
     await waitFor(() => expect(patched).toHaveLength(1));
-    // Both layout values ride together, so a PATCH never resets the one the
-    // admin did not touch.
-    expect(patched[0]).toMatchObject({ banner_text_align: "left", banner_fade: "none" });
+    // Both layout values ride together, so a PATCH carries the guild's own
+    // fade rather than resetting the half the admin did not touch.
+    expect(patched[0]).toMatchObject({ banner_text_align: "left", banner_fade: "weak" });
   });
 
   it("offers three fades, with the guild's own already pressed", async () => {

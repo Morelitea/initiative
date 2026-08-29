@@ -9,11 +9,16 @@ guild-images revision added:
   at an edge or is extended past it and dissolved into the page, with the
   page's own content riding over the tail.
 
-Both default to what every existing banner already looks like — centred copy,
-no fade — so this revision changes no guild's appearance until its admin says
-so. Both carry a CHECK for the reason the colour columns do: the values are
-read straight into a stylesheet, so the database is where the vocabulary is
-settled rather than only the schema that happens to be in front of it.
+``banner_text_align`` defaults to what every existing banner already is, so no
+guild's copy moves. ``banner_fade`` deliberately does not: it defaults to
+``strong``, because a banner reads better as the top of a page than as a strip
+laid on one, and a hard edge is the thing worth opting into rather than the
+thing worth defaulting to. Every existing guild's banner therefore starts
+dissolving into its page, and a guild that prefers the edge sets ``none``.
+
+Both carry a CHECK for the reason the colour columns do: the values are read
+straight into a stylesheet, so the database is where the vocabulary is settled
+rather than only the schema that happens to be in front of it.
 
 The enums are spelled out as literals here rather than read from
 ``BannerTextAlign``/``BannerFade``. A revision states what it writes: adding a
@@ -44,7 +49,7 @@ depends_on = None
 
 _DEFAULT_TEXT_ALIGN = "center"
 _TEXT_ALIGNS = "'center', 'left'"
-_DEFAULT_FADE = "none"
+_DEFAULT_FADE = "strong"
 _FADES = "'none', 'weak', 'strong'"
 
 _GUILD_ADMIN_COLUMNS = (

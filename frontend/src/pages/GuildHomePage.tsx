@@ -180,7 +180,11 @@ export function GuildHomePage() {
           />
         ) : (
           <>
-            <GuildToolRail tools={tools} selected={selected} />
+            <GuildToolRail
+              tools={tools}
+              selected={selected}
+              align={activeGuild?.banner_text_align}
+            />
 
             {isLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">

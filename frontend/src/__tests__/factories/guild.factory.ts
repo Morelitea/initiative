@@ -17,7 +17,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     banner_color: "#2563eb",
     banner_text_color: "#ffffff",
     banner_text_align: "center",
-    banner_fade: "none",
+    banner_fade: "strong",
     online_count: 0,
     role: "member",
     position: counter - 1,
