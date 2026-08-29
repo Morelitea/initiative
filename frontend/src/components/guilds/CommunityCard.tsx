@@ -1,10 +1,16 @@
 /**
  * One guild in the community directory.
  *
- * Everything on this card is what the guild published by opting in — its name,
- * description, icon, shelves, and how many people are already there. A guild
- * the caller is already in keeps its card (so a search still finds it) but
- * offers a way in rather than a way to join twice.
+ * Everything on this card is what the guild published by opting in — its
+ * banner, name, description, icon, shelves, and how many people are already
+ * there. A guild the caller is already in keeps its card (so a search still
+ * finds it) but offers a way in rather than a way to join twice.
+ *
+ * The two pictures arrive as URLs and are fetched per card, not carried in the
+ * directory payload: a page is up to sixty of these, and each one is then
+ * cached against a URL that changes only when the picture does. A guild that
+ * set a banner colour instead gets a band of it, and one that set neither gets
+ * the card as it was before banners existed.
  */
 
 import { useNavigate } from "@tanstack/react-router";
@@ -22,6 +28,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildCategoryLabel } from "@/lib/guildCategories";
 import { guildPath } from "@/lib/guildUrl";
+import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
   const { t } = useTranslation(["guilds", "common"]);
@@ -48,11 +55,22 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
     }
   };
 
+  const bannerUrl = guild.banner_card_url ? resolveHeaderlessApiUrl(guild.banner_card_url) : null;
+
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full flex-col overflow-hidden">
+      {bannerUrl ? (
+        <img src={bannerUrl} alt="" className="aspect-[4/1] w-full object-cover" loading="lazy" />
+      ) : guild.banner_color ? (
+        <div
+          className="aspect-[4/1] w-full"
+          style={{ backgroundColor: guild.banner_color }}
+          aria-hidden="true"
+        />
+      ) : null}
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start gap-3">
-          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={false} />
+          <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} />
           <div className="min-w-0 flex-1">
             <h3 className="truncate font-semibold text-base" title={guild.name}>
               {guild.name}

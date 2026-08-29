@@ -1291,8 +1291,8 @@ async def test_pdf_export_carries_guild_brand_header(
     client: AsyncClient, acting_user, session
 ):
     """Every PDF report shows the guild's name (and icon when set) in a
-    running header — decoded from the guild row and staged into the render."""
-    import base64
+    running header — read from the guild's stored icon and staged into the
+    render."""
     import io
     import struct
     import zlib
@@ -1314,11 +1314,25 @@ async def test_pdf_export_carries_guild_brand_header(
             + chunk(b"IEND", b"")
         )
 
+    import hashlib
+
+    from app.models.platform.guild_image import GuildImage, GuildImageVariant
+
     a = await _actor_with_tasks(acting_user, session, count=1)
     guild = await session.get(Guild, a.guild.id)
     guild.name = "Ravenloft Chronicle"
-    guild.icon_base64 = "data:image/png;base64," + base64.b64encode(_png()).decode()
     session.add(guild)
+    icon = _png()
+    session.add(
+        GuildImage(
+            guild_id=a.guild.id,
+            variant=GuildImageVariant.icon.value,
+            sha256=hashlib.sha256(icon).hexdigest(),
+            content_type="image/png",
+            byte_size=len(icon),
+            data=icon,
+        )
+    )
     await session.commit()
 
     resp = await client.get(

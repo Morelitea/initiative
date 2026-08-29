@@ -70,6 +70,11 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # entitlement), split off ``guilds`` so identity and administration
         # carry different grants. Shared, like the guild row it hangs off.
         "guild_administration",
+        # The pictures a guild is known by — its icon, and the two renditions
+        # of its banner. Identity, like the name and description they sit
+        # beside, and read by strangers browsing the directory, who hold no
+        # role that could reach a guild schema.
+        "guild_images",
         "guild_memberships",
         # Consumed pre-membership / pre-routing
         "guild_invites",  # looked up by token before the user is a member

@@ -74,6 +74,18 @@ class GuildMessages:
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.
     COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
+    # A guild icon or banner rendition that is not one. Each names the rule it
+    # broke, so the settings page can say what to do about it rather than
+    # "that didn't work".
+    IMAGE_EMPTY = "IMAGE_EMPTY"
+    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    IMAGE_INVALID = "IMAGE_INVALID"
+    IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
+    IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
+    IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
+    BANNER_COLOR_INVALID = "BANNER_COLOR_INVALID"
+    # Banner artwork is not part of what this guild has; the colour is.
+    BANNER_IMAGE_NOT_ENTITLED = "BANNER_IMAGE_NOT_ENTITLED"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
     # 'support' is synthesized for PAM grantees only; it is never a stored
     # guild-membership role, so it cannot be assigned via the role endpoints.

@@ -673,6 +673,15 @@ export interface BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost 
   mentioned_user_ids: number[];
 }
 
+export interface BodySetGuildBannerApiV1GuildsGuildIdBannerPut {
+  full: Blob;
+  card: Blob;
+}
+
+export interface BodySetGuildIconApiV1GuildsGuildIdIconPut {
+  icon: Blob;
+}
+
 export interface BodyUploadAttachmentApiV1GGuildIdAttachmentsPost {
   file: Blob;
 }
@@ -1322,11 +1331,13 @@ export interface CommunityGuildRead {
   id: number;
   name: string;
   description: string | null;
-  icon_base64: string | null;
+  icon_url: string | null;
   categories: GuildCategory[];
   member_count: number;
   online_count: number;
   already_member: boolean;
+  banner_card_url: string | null;
+  banner_color: string | null;
 }
 
 /**
@@ -2435,7 +2446,6 @@ export interface GuildAuthPolicyUpdate {
 export interface GuildCreate {
   name: string;
   description?: string | null;
-  icon_base64?: string | null;
   owner_user_id?: number | null;
 }
 
@@ -2455,6 +2465,19 @@ export interface GuildCreate {
 export interface GuildDeletionRequest {
   password?: string;
   confirmation_text: string;
+}
+
+/**
+ * What an operator has turned on for one guild, for its own admins.
+ *
+ * Deliberately its own read rather than fields on :class:`GuildRead`: these
+ * are the operator's decisions about a guild, they live on the separate
+ * ``guild_administration`` row, and only a guild admin has any use for them —
+ * a member's guild payload should not be carrying them at all.
+ */
+export interface GuildEntitlementsRead {
+  guild_id: number;
+  banner_image_enabled: boolean;
 }
 
 export interface GuildInviteAcceptRequest {
@@ -2519,7 +2542,6 @@ export interface GuildOrderUpdate {
 export interface GuildRead {
   name: string;
   description: string | null;
-  icon_base64: string | null;
   id: number;
   role: GuildRole;
   position: number;
@@ -2536,6 +2558,9 @@ export interface GuildRead {
   is_community: boolean;
   categories: GuildCategory[];
   has_adult_content: boolean | null;
+  banner_url: string | null;
+  banner_color: string | null;
+  icon_url: string | null;
 }
 
 export interface GuildStorageUsageRead {
@@ -2546,7 +2571,7 @@ export interface GuildStorageUsageRead {
 export interface GuildSummary {
   id: number;
   name: string;
-  icon_base64: string | null;
+  icon_url: string | null;
 }
 
 /**
@@ -2564,10 +2589,10 @@ export interface GuildTaskBreakdown {
 export interface GuildUpdate {
   name?: string | null;
   description?: string | null;
-  icon_base64?: string | null;
   retention_days?: number | null;
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
+  banner_color?: string | null;
   has_adult_content?: boolean | null;
 }
 
@@ -3287,6 +3312,7 @@ export interface PlatformGuildStorageRead {
   status: GuildStatus;
   status_changed_at: string | null;
   guild_auth_enabled: boolean;
+  banner_image_enabled: boolean;
 }
 
 /**
@@ -3303,6 +3329,7 @@ export interface PlatformGuildStorageUpdate {
   max_users?: number | null;
   status?: GuildStatus | null;
   guild_auth_enabled?: boolean | null;
+  banner_image_enabled?: boolean | null;
 }
 
 /**

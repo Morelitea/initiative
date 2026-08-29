@@ -471,5 +471,13 @@
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Confirmez que cette guilde ne contient aucun contenu pour adultes avant de l’inscrire.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "Une guilde marquée 18+ ne peut pas être inscrite à l’annuaire des communautés.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Cette guilde n’a de place que pour une personne : elle ne peut pas être inscrite à l’annuaire des communautés.",
-  "COMMUNITY_DIRECTORY_DISABLED": "Cette instance ne propose pas d'annuaire des communautés."
+  "COMMUNITY_DIRECTORY_DISABLED": "Cette instance ne propose pas d'annuaire des communautés.",
+  "IMAGE_EMPTY": "Cette image était vide.",
+  "IMAGE_TOO_LARGE": "Cette image est trop volumineuse.",
+  "IMAGE_INVALID": "Ce fichier n'est pas une image PNG, JPEG, WebP ou GIF.",
+  "IMAGE_WRONG_SIZE": "Cette image dépasse la taille autorisée à cet emplacement.",
+  "IMAGE_WRONG_RATIO": "Cette image n'a pas le bon format pour cet emplacement.",
+  "IMAGE_NOT_FOUND": "Cette image n'est plus disponible.",
+  "BANNER_COLOR_INVALID": "Choisis une couleur au format #rrggbb.",
+  "BANNER_IMAGE_NOT_ENTITLED": "Les images de bannière ne sont pas incluses dans la formule de cette guilde. Choisis plutôt une couleur de bannière."
 }
