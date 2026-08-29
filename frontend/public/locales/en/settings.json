@@ -77,7 +77,9 @@
       "notAnImage": "Please choose an image file.",
       "tooLarge": "That file is too large to work with. Try one under 12 MB.",
       "unreadable": "That image could not be read."
-    }
+    },
+    "usernameLabel": "Username",
+    "usernameHelp": "How other people see you. Ask a moderator if you need it changed."
   },
   "security": {
     "devicesTitle": "Logged in devices",

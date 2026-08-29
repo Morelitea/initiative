@@ -24,7 +24,8 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
     updated_at: null,
     author: {
       id: 1,
-      email: "author@example.com",
+      username: "comment-author",
+      discriminator: 1001,
       full_name: "Comment Author",
       avatar_url: null,
     },
@@ -43,7 +44,8 @@ export function buildRecentActivityEntry(
     created_at: "2026-01-15T00:00:00.000Z",
     author: {
       id: 1,
-      email: "author@example.com",
+      username: "comment-author",
+      discriminator: 1001,
       full_name: "Comment Author",
       avatar_url: null,
     },

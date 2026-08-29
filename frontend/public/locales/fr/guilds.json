@@ -406,7 +406,6 @@
     "title": "Comment les membres sont nommés",
     "description": "Si cette guilde affiche les vrais noms des personnes ou les noms d'utilisateur qu'elles ont choisis.",
     "toggleLabel": "Afficher les noms complets",
-    "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un.",
-    "listedLock": "Une guilde listée dans l'annuaire communautaire affiche toujours les noms d'utilisateur."
+    "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un."
   }
 }

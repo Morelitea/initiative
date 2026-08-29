@@ -50,7 +50,7 @@ from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.core.user_display import display_name
+from app.core.user_display import display_name, handle_of
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -183,7 +183,7 @@ async def websocket_collaborate(
             await establish_guild_access(session, user, guild_id)
         except GuildAccessError:
             logger.warning(
-                f"Collaboration: {user.email} has no access to guild {guild_id}"
+                f"Collaboration: {handle_of(user)} has no access to guild {guild_id}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
@@ -205,7 +205,7 @@ async def websocket_collaborate(
         level = permissions_service.compute_document_permission(document, user.id)
         if level is None:
             logger.warning(
-                f"Collaboration: User {user.email} has no read access to document {document_id}"
+                f"Collaboration: User {handle_of(user)} has no read access to document {document_id}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
@@ -274,7 +274,7 @@ async def websocket_collaborate(
         state = room.get_state()
         sync_message = bytes([MSG_SYNC_STEP2]) + state
         logger.info(
-            f"Collaboration: Sending initial sync to {user.email}, state size: {len(state)} bytes"
+            f"Collaboration: Sending initial sync to {handle_of(user)}, state size: {len(state)} bytes"
         )
         await websocket.send_bytes(sync_message)
 
@@ -313,12 +313,12 @@ async def websocket_collaborate(
                 # Client requesting sync with their state vector
                 # Use state vector to compute diff - only send updates client is missing
                 logger.info(
-                    f"Collaboration: Received SYNC_STEP1 from {user.email}, state vector size: {len(payload)}"
+                    f"Collaboration: Received SYNC_STEP1 from {handle_of(user)}, state vector size: {len(payload)}"
                 )
                 state = room.get_state_diff(payload) if payload else room.get_state()
                 sync_message = bytes([MSG_SYNC_STEP2]) + state
                 logger.info(
-                    f"Collaboration: Sending SYNC_STEP2 to {user.email}, diff size: {len(state)}"
+                    f"Collaboration: Sending SYNC_STEP2 to {handle_of(user)}, diff size: {len(state)}"
                 )
                 await websocket.send_bytes(sync_message)
 
@@ -326,13 +326,13 @@ async def websocket_collaborate(
                 # Yjs update from client
                 if not can_write:
                     logger.warning(
-                        f"Collaboration: Read-only user {user.email} tried to send update"
+                        f"Collaboration: Read-only user {handle_of(user)} tried to send update"
                     )
                     continue
 
                 try:
                     logger.info(
-                        f"Collaboration: Received MSG_UPDATE from {user.email}, payload size: {len(payload)}"
+                        f"Collaboration: Received MSG_UPDATE from {handle_of(user)}, payload size: {len(payload)}"
                     )
                     room.apply_update(payload, origin=user.id)
                     logger.info(
@@ -361,7 +361,7 @@ async def websocket_collaborate(
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients
                 logger.debug(
-                    f"Collaboration: Relaying awareness update from {user.email}, size: {len(payload)}"
+                    f"Collaboration: Relaying awareness update from {handle_of(user)}, size: {len(payload)}"
                 )
                 await room.broadcast_update(
                     bytes([MSG_AWARENESS_BINARY]) + payload,
@@ -370,11 +370,11 @@ async def websocket_collaborate(
 
     except WebSocketDisconnect:
         logger.info(
-            f"Collaboration: {user.email} disconnected from document {document_id}"
+            f"Collaboration: {handle_of(user)} disconnected from document {document_id}"
         )
     except Exception as e:
         logger.error(
-            f"Collaboration error for {user.email} on document {document_id}: {e}"
+            f"Collaboration error for {handle_of(user)} on document {document_id}: {e}"
         )
     finally:
         # Stop governing this socket (idempotent if the spine already closed it).
@@ -462,7 +462,7 @@ async def sync_document_content(
     level = permissions_service.compute_document_permission(document, user.id)
     if level not in ("write", "owner"):
         logger.warning(
-            f"Sync content: User {user.email} has no write access to document {document_id}"
+            f"Sync content: User {handle_of(user)} has no write access to document {document_id}"
         )
         return {"status": "error", "message": "No write access"}
 
@@ -482,7 +482,7 @@ async def sync_document_content(
         session.add(document)
         await session.commit()
         logger.info(
-            f"Sync content: Updated content for document {document_id} by {user.email}"
+            f"Sync content: Updated content for document {document_id} by {handle_of(user)}"
         )
         return {"status": "ok"}
     except Exception as e:

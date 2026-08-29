@@ -406,7 +406,6 @@
     "title": "Wie Mitglieder benannt werden",
     "description": "Ob diese Gilde die echten Namen der Leute zeigt oder die von ihnen gewählten Benutzernamen.",
     "toggleLabel": "Vollständige Namen zeigen",
-    "toggleHint": "Aus erscheinen Mitglieder mit ihrem Benutzernamen. An wird ihr vollständiger Name gezeigt, sofern hinterlegt.",
-    "listedLock": "Eine im Community-Verzeichnis gelistete Gilde zeigt immer Benutzernamen."
+    "toggleHint": "Aus erscheinen Mitglieder mit ihrem Benutzernamen. An wird ihr vollständiger Name gezeigt, sofern hinterlegt."
   }
 }

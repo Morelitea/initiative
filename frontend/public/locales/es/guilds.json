@@ -406,7 +406,6 @@
     "title": "Cómo se nombra a los miembros",
     "description": "Si este gremio muestra los nombres reales de las personas o los nombres de usuario que eligieron.",
     "toggleLabel": "Mostrar nombres completos",
-    "toggleHint": "Desactivado, los miembros aparecen por su nombre de usuario. Activado, se muestra su nombre completo si lo han indicado.",
-    "listedLock": "Un gremio listado en el directorio de la comunidad siempre muestra nombres de usuario."
+    "toggleHint": "Desactivado, los miembros aparecen por su nombre de usuario. Activado, se muestra su nombre completo si lo han indicado."
   }
 }

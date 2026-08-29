@@ -19,6 +19,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 import { taskRoute } from "@/lib/tools";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 interface ProjectActivitySidebarProps {
@@ -128,10 +129,10 @@ export const ProjectActivitySidebar = ({
             ) : (
               <ul className="space-y-3">
                 {entries.map((entry) => {
-                  const authorName =
-                    entry.author?.full_name?.trim() ||
-                    entry.author?.email ||
-                    `User #${entry.author?.id ?? "?"}`;
+                  const authorName = getUserDisplayName(
+                    entry.author,
+                    `User #${entry.author?.id ?? "?"}`
+                  );
                   return (
                     <li
                       key={entry.comment_id}

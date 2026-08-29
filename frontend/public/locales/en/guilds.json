@@ -406,7 +406,6 @@
     "title": "How members are named",
     "description": "Whether this guild shows people's real names, or the usernames they chose.",
     "toggleLabel": "Show full names",
-    "toggleHint": "Off, members appear by username. On, their full name is shown where they have entered one.",
-    "listedLock": "A guild listed in the community directory always shows usernames."
+    "toggleHint": "Off, members appear by username. On, their full name is shown where they have entered one."
   }
 }

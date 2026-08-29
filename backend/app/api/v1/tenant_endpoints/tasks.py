@@ -534,8 +534,11 @@ def _task_to_list_read(task: Task) -> TaskListRead:
     assignees = [
         TaskAssigneeSummary(
             id=assignee.id,
+            username=assignee.username,
+            discriminator=assignee.discriminator,
             full_name=assignee.full_name,
             avatar_url=assignee.avatar_url,
+            status=assignee.status,
         )
         for assignee in task.assignees
     ]

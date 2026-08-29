@@ -92,7 +92,7 @@ class GuildRead(GuildBase):
     # Whether this guild renders members' real names. Off — the default —
     # means it renders handles. A listed guild is always off and cannot be
     # switched on.
-    show_member_names: bool = False
+    show_member_names: bool = True
     # The 18+ declaration. ``None`` — unanswered — is the normal state for a
     # guild that has never been listed; listing requires an explicit ``False``.
     has_adult_content: Optional[bool] = None

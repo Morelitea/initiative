@@ -13,28 +13,25 @@ import { getErrorMessage } from "@/lib/errorMessage";
 /**
  * Whether this guild shows members' real names, or the handles they picked.
  *
- * Handles are the default. A guild listed in the community directory has no
- * choice — people who walk into a public space are known by a handle — so the
- * control explains itself and stays off there.
+ * Handles are the default. A guild listed in the community directory is not
+ * asked — people who walk into a public space are known by a handle — so the
+ * card is absent there rather than present and unusable.
  */
 export const GuildNameDisplayPanel = () => {
   const { activeGuild, refreshGuilds, updateGuildInState } = useGuilds();
   const { t } = useTranslation("guilds");
   const [saving, setSaving] = useState(false);
 
-  if (!activeGuild) return null;
+  if (!activeGuild || activeGuild.is_community) return null;
 
-  const listed = activeGuild.is_community;
-  const showNames = activeGuild.show_member_names && !listed;
+  const showNames = activeGuild.show_member_names;
 
   const handleToggle = async (next: boolean) => {
     setSaving(true);
     try {
       const result = (await updateGuildApiV1GuildsGuildIdPatch(activeGuild.id, {
         show_member_names: next,
-      } as Parameters<
-        typeof updateGuildApiV1GuildsGuildIdPatch
-      >[1])) as unknown as GuildRead;
+      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])) as unknown as GuildRead;
       updateGuildInState(result);
       await refreshGuilds();
     } catch (err) {
@@ -54,15 +51,13 @@ export const GuildNameDisplayPanel = () => {
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <Label htmlFor="show-member-names">{t("nameDisplay.toggleLabel")}</Label>
-            <p className="text-muted-foreground text-sm">
-              {listed ? t("nameDisplay.listedLock") : t("nameDisplay.toggleHint")}
-            </p>
+            <p className="text-muted-foreground text-sm">{t("nameDisplay.toggleHint")}</p>
           </div>
           <Switch
             id="show-member-names"
             checked={showNames}
             onCheckedChange={handleToggle}
-            disabled={saving || listed}
+            disabled={saving}
           />
         </div>
       </CardContent>

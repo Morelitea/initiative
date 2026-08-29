@@ -7,6 +7,7 @@ import type {
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinRequestQueue } from "@/components/initiatives/settings/InitiativeJoinRequestQueue";
+import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useGuilds } from "@/hooks/useGuilds";
 import {
   useAddInitiativeMember,
   useRemoveInitiativeMember,
@@ -29,7 +31,6 @@ import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
-import { UserHandle } from "@/components/UserHandle";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 interface InitiativeSettingsMembersTabProps {
@@ -244,6 +245,12 @@ export const InitiativeSettingsMembersTab = ({
     [managerRole, addMember, removeMember, initiativeId]
   );
 
+  const { activeGuild } = useGuilds();
+
+  // What this guild calls people, which decides whether a handle column adds
+  // anything to the member column beside it.
+  const showsNames = Boolean(activeGuild?.show_member_names);
+
   const memberColumns: AppColumnDef<DisplayMember>[] = useMemo(() => {
     const getRoleDisplayName = (member: DisplayMember): string => {
       if (member.role_display_name) {
@@ -256,20 +263,18 @@ export const InitiativeSettingsMembersTab = ({
     const adminMutationPending = addMember.isPending || removeMember.isPending;
 
     return [
+      // The handle leads: every guild has one for every member, and it is the
+      // identifier the rest of the app shows.
       {
-        id: "name",
-        accessorKey: "user.full_name",
-        header: t("settings.nameColumn"),
+        id: "handle",
+        accessorKey: "user.username",
+        header: t("settings.handleColumn"),
         cell: ({ row }) => {
           const member = row.original;
           return (
             <span className="flex items-center gap-2">
-              <span
-                className={
-                  member.isGuildAdmin ? "font-medium text-muted-foreground" : "font-medium"
-                }
-              >
-                {member.user.full_name?.trim() || "—"}
+              <span className={member.isGuildAdmin ? "text-muted-foreground" : undefined}>
+                <UserHandle user={member.user} />
               </span>
               {member.isGuildAdmin ? (
                 <Badge variant="secondary" className="font-normal">
@@ -280,16 +285,29 @@ export const InitiativeSettingsMembersTab = ({
           );
         },
       },
-      {
-        id: "email",
-        accessorKey: "user.username",
-        header: t("settings.handleColumn"),
-        cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            <UserHandle user={row.original.user} />
-          </span>
-        ),
-      },
+      // A guild that renders handles sends no names, so this column would be a
+      // full one of em-dashes.
+      ...(showsNames
+        ? [
+            {
+              id: "name",
+              accessorKey: "user.full_name",
+              header: t("settings.nameColumn"),
+              cell: ({ row }) => {
+                const member = row.original;
+                return (
+                  <span
+                    className={
+                      member.isGuildAdmin ? "font-medium text-muted-foreground" : "font-medium"
+                    }
+                  >
+                    {member.user.full_name?.trim() || "—"}
+                  </span>
+                );
+              },
+            } satisfies AppColumnDef<DisplayMember>,
+          ]
+        : []),
       {
         accessorKey: "role_name",
         header: t("settings.roleColumn"),
@@ -402,6 +420,7 @@ export const InitiativeSettingsMembersTab = ({
     roles,
     managerRole,
     adminRoleLabel,
+    showsNames,
     addMember.isPending,
     removeMember,
     updateMemberRole,

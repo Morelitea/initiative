@@ -50,6 +50,7 @@ import {
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 export interface AppMembersPanelProps {
@@ -77,8 +78,10 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
   }
 
   const nameFor = (userId: number) =>
-    usersQuery.data?.find((user) => user.id === userId)?.full_name ??
-    t("apps:members.unknownMember", { id: userId });
+    getUserDisplayName(
+      usersQuery.data?.find((user) => user.id === userId),
+      t("apps:members.unknownMember", { id: userId })
+    );
 
   return (
     <div className="space-y-4">
