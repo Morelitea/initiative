@@ -46,7 +46,7 @@ async def init_owner() -> None:
             email_hash=hash_email(settings.FIRST_OWNER_EMAIL),
             email_encrypted=encrypt_field(settings.FIRST_OWNER_EMAIL, SALT_EMAIL),
             full_name=settings.FIRST_OWNER_FULL_NAME,
-            username=usernames.first_name_of(settings.FIRST_OWNER_FULL_NAME)
+            username=usernames.from_full_name(settings.FIRST_OWNER_FULL_NAME)
             or usernames.random_name(),
             discriminator=usernames.random_discriminator(),
             hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),

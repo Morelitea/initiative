@@ -40,6 +40,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
 from app.services.platform import users as users_service
+from app.services.platform.guilds import adopt_guild_name_display
 from app.services.platform import guilds as guilds_service
 
 logger = logging.getLogger(__name__)
@@ -725,6 +726,7 @@ async def admin_get_initiative_members(
     ``public`` backup.
     """
     await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+    await adopt_guild_name_display(session, guild_id=guild_id)
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)

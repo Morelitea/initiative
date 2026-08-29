@@ -2,7 +2,16 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Boolean, SmallInteger, String, Integer
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    text,
+)
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -37,6 +46,16 @@ class UserStatus(str, Enum):
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
+    __table_args__ = (
+        # A handle is unique as a pair, and case-insensitively on the name
+        # part: one never differs from another by case alone.
+        Index(
+            "ix_users_handle",
+            text("lower(username)"),
+            "discriminator",
+            unique=True,
+        ),
+    )
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
     __allow_unmapped__ = True
 

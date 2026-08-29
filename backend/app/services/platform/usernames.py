@@ -121,3 +121,43 @@ async def claim_for_user(session: AsyncSession, *, user: User, name: str) -> Non
             continue
         return
     raise UsernameError("USERNAME_UNAVAILABLE")
+
+
+async def insert_with_handle(session: AsyncSession, *, user: User, name: str) -> None:
+    """Stage ``user`` with a free handle behind ``name``, redrawing on a clash.
+
+    ``allocate`` reads which numbers are taken and then picks one, so two
+    registrations for the same name can choose the same number in the gap
+    between the read and the insert. The unique index is the arbiter — this
+    catches its refusal in a savepoint and draws again, so a valid registration
+    is never turned away for losing a race it could not have seen.
+    """
+    validated = usernames.validate(name)
+    taken = await _taken(session, validated)
+    for _ in range(_CLAIM_ATTEMPTS):
+        candidate = usernames.random_discriminator()
+        if candidate in taken:
+            continue
+        user.username = validated
+        user.discriminator = candidate
+        try:
+            async with session.begin_nested():
+                session.add(user)
+                await session.flush()
+        except IntegrityError as exc:
+            if not _is_handle_conflict(exc):
+                raise
+            taken.add(candidate)
+            continue
+        return
+    raise UsernameError("USERNAME_UNAVAILABLE")
+
+
+def _is_handle_conflict(exc: IntegrityError) -> bool:
+    """Whether this violation is the handle index rather than another one.
+
+    Registration inserts an email too, and its uniqueness failure means
+    something completely different — redrawing a number would not help and
+    would swallow the real answer.
+    """
+    return "ix_users_handle" in str(getattr(exc, "orig", exc))

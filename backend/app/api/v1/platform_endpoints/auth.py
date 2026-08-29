@@ -243,23 +243,13 @@ async def register_user(
         # column default ``"UTC"`` applies.
         normalized_timezone = normalize_timezone(user_in.timezone)
 
-        # The handle: the name part as typed, the number drawn here. Registering
-        # is where an account picks one, so it counts as chosen and its owner
-        # never meets the pick screen.
-        try:
-            handle, discriminator = await username_service.allocate(
-                session, name=user_in.username
-            )
-        except UsernameError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
-            ) from exc
-
         user_kwargs: dict[str, Any] = dict(
             email_hash=hash_email(normalized_email),
             email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
-            username=handle,
-            discriminator=discriminator,
+            # Filled in by ``insert_with_handle`` below, which owns the insert
+            # so it can redraw the number if another registration took it.
+            username="",
+            discriminator=0,
             username_chosen=True,
             full_name=user_in.full_name,
             hashed_password=get_password_hash(user_in.password),
@@ -270,8 +260,17 @@ async def register_user(
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
         user = User(**user_kwargs)
-        session.add(user)
-        await session.flush()
+        # The handle: the name part as typed, the number drawn here. Registering
+        # is where an account picks one, so it counts as chosen and its owner
+        # never meets the pick screen.
+        try:
+            await username_service.insert_with_handle(
+                session, user=user, name=user_in.username
+            )
+        except UsernameError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
+            ) from exc
 
         if normalized_invite:
             try:

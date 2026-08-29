@@ -72,9 +72,14 @@ describe("hasDisplayName", () => {
 });
 
 describe("slugifyUsername", () => {
-  it("offers the first word of a typed name", () => {
-    expect(slugifyUsername("Jordan Drako")).toBe("jordan");
-    expect(slugifyUsername("Renée")).toBe("renee");
+  it("offers first initial and last name, as the server seeds", () => {
+    expect(slugifyUsername("Lee Janzen")).toBe("ljanzen");
+    expect(slugifyUsername("Ada Lovelace King")).toBe("aking");
+    expect(slugifyUsername("Élodie Martin")).toBe("emartin");
+  });
+
+  it("lets a single-word name stand on its own", () => {
+    expect(slugifyUsername("Jordan")).toBe("jordan");
     expect(slugifyUsername("  Jordan  ")).toBe("jordan");
   });
 

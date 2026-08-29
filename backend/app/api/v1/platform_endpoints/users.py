@@ -88,6 +88,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import usernames as username_service
+from app.services.platform.guilds import adopt_guild_name_display
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.services.platform import user_avatars as user_avatars_service
@@ -702,6 +703,7 @@ async def get_my_initiative_members(
     ``public`` backup.
     """
     await set_rls_context(session, guild_id=guild_id)
+    await adopt_guild_name_display(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

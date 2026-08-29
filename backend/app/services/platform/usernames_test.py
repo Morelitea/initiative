@@ -91,3 +91,52 @@ class TestClaim:
             )
         ).scalar_one()
         assert held == 2
+
+
+class TestInsertWithHandle:
+    async def test_stages_a_user_with_a_free_pair(self, session):
+        from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+        from app.models.platform.user import User
+
+        user = User(
+            email_hash=hash_email("insert-handle@example.com"),
+            email_encrypted=encrypt_field("insert-handle@example.com", SALT_EMAIL),
+            username="",
+            discriminator=0,
+            hashed_password="x",
+        )
+
+        await username_service.insert_with_handle(session, user=user, name="Racer")
+        await session.commit()
+
+        assert user.username == "racer"
+        assert user.id is not None
+
+    async def test_redraws_when_the_pair_is_gone(self, session, monkeypatch):
+        """``allocate`` reads which numbers are taken and then picks one, so a
+        concurrent registration can take the pair in between. The index refuses
+        it and the insert draws again rather than turning a valid registration
+        away."""
+        from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+        from app.models.platform.user import User
+
+        held = await create_user(session, username="racer", discriminator=4242)
+
+        # Every draw lands on the number already held, until the retry has
+        # marked it taken and moves on.
+        draws = iter([4242, 4242, 777])
+        monkeypatch.setattr(usernames, "random_discriminator", lambda: next(draws))
+
+        user = User(
+            email_hash=hash_email("racer-two@example.com"),
+            email_encrypted=encrypt_field("racer-two@example.com", SALT_EMAIL),
+            username="",
+            discriminator=0,
+            hashed_password="x",
+        )
+        await username_service.insert_with_handle(session, user=user, name="racer")
+        await session.commit()
+
+        assert user.username == "racer"
+        assert user.discriminator == 777
+        assert held.discriminator == 4242

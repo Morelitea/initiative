@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.role_context import set_guild_shows_member_names
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
@@ -1217,3 +1218,18 @@ async def remove_user_from_guild(
     # must not nudge billing).
     if result.rowcount:
         billing_ping.notify_membership_changed(guild_id)
+
+
+async def adopt_guild_name_display(session: AsyncSession, *, guild_id: int) -> None:
+    """Render this request the way ``guild_id`` renders its members.
+
+    The guild path sets this with the rest of the guild context. The two
+    endpoints that route into a guild by hand — the platform and self-service
+    initiative-member pickers — have no guild context to carry it, so they take
+    the setting here instead. Reading a guild's roster and showing names it
+    does not show, or hiding names it does, would both be wrong.
+    """
+    shows = (
+        await session.exec(select(Guild.show_member_names).where(Guild.id == guild_id))
+    ).one_or_none()
+    set_guild_shows_member_names(bool(shows))

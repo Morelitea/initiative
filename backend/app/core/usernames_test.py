@@ -67,10 +67,27 @@ class TestSlugify:
         name, so the seed has to refuse one."""
         assert usernames.slugify(seed) is None
 
-    def test_takes_the_first_name(self):
-        assert usernames.first_name_of("Jordan Drako") == "jordan"
-        assert usernames.first_name_of("jordan@example.com") is None
-        assert usernames.first_name_of(None) is None
+    @pytest.mark.parametrize(
+        ("full_name", "expected"),
+        [
+            # First initial, then last name.
+            ("Lee Janzen", "ljanzen"),
+            ("Jordan Janzen", "jjanzen"),
+            ("Ada Lovelace King", "aking"),
+            ("J. Janzen", "jjanzen"),
+            ("Élodie Martin", "emartin"),
+            # One word has no last name to join, so it stands on its own.
+            ("Jordan", "jordan"),
+            # An address is never the source of a handle.
+            ("jordan@example.com", None),
+            (None, None),
+            ("   ", None),
+            # Too little survives to be a handle.
+            ("A B", None),
+        ],
+    )
+    def test_builds_from_a_display_name(self, full_name, expected):
+        assert usernames.from_full_name(full_name) == expected
 
 
 class TestGenerated:

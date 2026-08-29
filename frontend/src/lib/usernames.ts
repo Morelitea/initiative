@@ -10,16 +10,21 @@ const MIN_LENGTH = 3;
 const MAX_LENGTH = 32;
 
 /**
- * The first word of a display name, reduced to the characters a handle may
- * contain. Returns "" when nothing usable survives — an empty name, one made
- * of punctuation, or an address, which is never the source of a handle.
+ * A handle offered from a display name: first initial, then last name —
+ * `Lee Janzen` becomes `ljanzen`, the same rule the server seeds with. A
+ * single-word name has no last name to join, so it stands on its own.
+ *
+ * Returns "" when nothing usable survives — an empty name, one made of
+ * punctuation, or an address, which is never the source of a handle.
  */
 export const slugifyUsername = (seed: string | null | undefined): string => {
   const text = (seed ?? "").trim();
   if (!text || text.includes("@")) return "";
 
-  const slug = text
-    .split(/\s+/)[0]
+  const tokens = text.split(/\s+/);
+  const source = tokens.length === 1 ? tokens[0] : `${tokens[0][0]}${tokens[tokens.length - 1]}`;
+
+  const slug = source
     .normalize("NFKD")
     // Drop combining marks so an accented name keeps its shape instead of
     // collapsing to nothing.
