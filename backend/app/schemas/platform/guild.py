@@ -7,7 +7,13 @@ from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
-from app.models.platform.guild import GuildCategory, GuildRole, GuildStatus
+from app.models.platform.guild import (
+    DEFAULT_BANNER_COLOR,
+    DEFAULT_BANNER_TEXT_COLOR,
+    GuildCategory,
+    GuildRole,
+    GuildStatus,
+)
 
 
 class GuildBase(SanitizedBaseModel):
@@ -89,9 +95,11 @@ class GuildRead(GuildBase):
     # none. A URL, never the bytes: the image is ~350 KB and this payload is a
     # list of every guild the caller is in.
     banner_url: Optional[str] = None
-    # The flat colour a guild may pick instead of banner artwork. Ignored when
-    # ``banner_url`` is set — a picture is a choice already made.
-    banner_color: Optional[str] = None
+    # The banner's two colours. ``banner_color`` fills it where there is no
+    # artwork; ``banner_text_color`` writes the guild's name and description
+    # over whichever it turns out to be. Never null — every guild has a banner.
+    banner_color: str = DEFAULT_BANNER_COLOR
+    banner_text_color: str = DEFAULT_BANNER_TEXT_COLOR
     # Where to fetch the guild's icon, or ``None`` when it has none. A URL, as
     # above: this payload lists every guild the caller is in, and the icon used
     # to be a data URI inlined into all of them.
@@ -152,10 +160,12 @@ class GuildUpdate(SanitizedBaseModel):
     # opt-in has no third state).
     is_community: Optional[bool] = None
     categories: Optional[List[GuildCategory]] = None
-    # The banner's flat-colour alternative, ``#rrggbb``. Omit-to-skip like the
-    # fields above; an explicit null clears it. The uploaded image is set
+    # The banner's two colours, ``#rrggbb``. Omit-to-skip like the fields
+    # above; an explicit null puts one back to its default rather than clearing
+    # it, since a banner is never colourless. The uploaded artwork is set
     # through its own endpoint, not here — it is bytes, not a field.
     banner_color: Optional[RawTextStr] = None
+    banner_text_color: Optional[RawTextStr] = None
     # The 18+ declaration, and the one field here where null is an ANSWER
     # rather than a skip — it puts the guild back to undeclared. Omitting the
     # field is how you leave it alone, so this is read from
@@ -339,8 +349,9 @@ class CommunityGuildRead(SanitizedBaseModel):
     # to sixty of these, so the bytes stay out of the payload and are fetched
     # (and then cached) per card.
     banner_card_url: Optional[str] = None
-    # Its flat-colour alternative, which needs no fetch at all.
-    banner_color: Optional[str] = None
+    # Its colours, which need no fetch at all.
+    banner_color: str = DEFAULT_BANNER_COLOR
+    banner_text_color: str = DEFAULT_BANNER_TEXT_COLOR
 
 
 class CommunityGuildPage(SanitizedBaseModel):

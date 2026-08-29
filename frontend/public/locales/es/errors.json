@@ -485,5 +485,5 @@
   "USER_AVATAR_TOO_LARGE": "Esa imagen es demasiado grande.",
   "USER_AVATAR_NOT_SQUARE": "Una foto de perfil tiene que ser cuadrada.",
   "USER_AVATAR_TOO_LARGE_DIMENSIONS": "Esa imagen supera el tamaño permitido para una foto de perfil.",
-  "USER_AVATAR_URL_NOT_EXTERNAL": "Esa dirección es de este servidor. Enlaza una imagen alojada en otro sitio o sube una."
-}
+  "USER_AVATAR_URL_NOT_EXTERNAL": "Esa dirección es de este servidor. Enlaza una imagen alojada en otro sitio o sube una.",
+  "BANNER_TEXT_COLOR_INVALID": "El texto del banner es blanco o negro."}

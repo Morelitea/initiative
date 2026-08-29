@@ -78,6 +78,7 @@ export function CommunitiesPage() {
   const hero = (
     <PageBanner
       imageUrl="/images/community-banner.webp"
+      haloOverImage
       title={t("guilds:community.heroTitle")}
       subtitle={t("guilds:community.heroSubtitle")}
     />

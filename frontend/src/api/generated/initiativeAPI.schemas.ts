@@ -1337,7 +1337,8 @@ export interface CommunityGuildRead {
   online_count: number;
   already_member: boolean;
   banner_card_url: string | null;
-  banner_color: string | null;
+  banner_color: string;
+  banner_text_color: string;
 }
 
 /**
@@ -2559,7 +2560,8 @@ export interface GuildRead {
   categories: GuildCategory[];
   has_adult_content: boolean | null;
   banner_url: string | null;
-  banner_color: string | null;
+  banner_color: string;
+  banner_text_color: string;
   icon_url: string | null;
 }
 
@@ -2593,6 +2595,7 @@ export interface GuildUpdate {
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
   banner_color?: string | null;
+  banner_text_color?: string | null;
   has_adult_content?: boolean | null;
 }
 

@@ -8,9 +8,9 @@
  *
  * The two pictures arrive as URLs and are fetched per card, not carried in the
  * directory payload: a page is up to sixty of these, and each one is then
- * cached against a URL that changes only when the picture does. A guild that
- * set a banner colour instead gets a band of it, and one that set neither gets
- * the card as it was before banners existed.
+ * cached against a URL that changes only when the picture does. Every card has
+ * a banner: the guild's artwork, or the colour it wears instead, which costs
+ * no fetch at all.
  */
 
 import { useNavigate } from "@tanstack/react-router";
@@ -61,13 +61,13 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
     <Card className="flex h-full flex-col overflow-hidden">
       {bannerUrl ? (
         <img src={bannerUrl} alt="" className="aspect-[4/1] w-full object-cover" loading="lazy" />
-      ) : guild.banner_color ? (
+      ) : (
         <div
           className="aspect-[4/1] w-full"
           style={{ backgroundColor: guild.banner_color }}
           aria-hidden="true"
         />
-      ) : null}
+      )}
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start gap-3">
           <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} />

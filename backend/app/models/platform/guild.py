@@ -65,6 +65,21 @@ class GuildCategory(str, Enum):
     other = "other"
 
 
+#: What a guild's banner is before anyone touches it: the app's own accent,
+#: and white on it. Hard-coded rather than read from the operator's branding —
+#: the accent differs between light and dark mode and a banner colour does not,
+#: so a guild's banner is its own value from the moment it exists.
+DEFAULT_BANNER_COLOR = "#2563eb"
+
+#: Banner text is one of exactly two colours, never a free choice. A banner's
+#: fill is the guild's to pick and its artwork can be anything, so the only way
+#: the words on it stay readable is to keep them at one end of the scale or the
+#: other. Anything in between is a contrast failure waiting for someone to pick
+#: it.
+BANNER_TEXT_COLORS: tuple[str, str] = ("#ffffff", "#000000")
+DEFAULT_BANNER_TEXT_COLOR = BANNER_TEXT_COLORS[0]
+
+
 class Guild(SQLModel, table=True):
     __tablename__ = "guilds"
     __allow_unmapped__ = True
@@ -86,14 +101,33 @@ class Guild(SQLModel, table=True):
     description: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    # The banner's flat-colour alternative: ``#rrggbb``, or NULL for a guild
-    # that uploaded artwork or wants no banner at all. Identity, like the name
-    # and description above — three bytes that ride in the payload those
-    # columns already travel in, so choosing one costs neither a request nor
-    # any storage. The pictures themselves are rows in ``guild_images``.
-    # A CHECK constrains the shape; see the guild-banners migration.
-    banner_color: Optional[str] = Field(
-        default=None, sa_column=Column(String(7), nullable=True)
+    # The banner. ``banner_color`` is what fills it where the guild has
+    # uploaded no artwork; ``banner_text_color`` is what its name and
+    # description are written in, over the fill or over the artwork.
+    #
+    # Neither is nullable: every guild has a banner from the moment it exists,
+    # so nothing downstream has a "guild with no banner" case to render. The
+    # text colour is stored rather than derived because artwork is not one
+    # colour — a picture light enough to need dark text is nobody's to guess,
+    # so the guild says. It is *defaulted* from the fill's best contrast, which
+    # is the answer whenever there is no artwork, and constrained to
+    # ``BANNER_TEXT_COLORS`` so saying it can never mean saying something
+    # unreadable.
+    #
+    # Identity, like the name and description above — six bytes that ride in
+    # the payload those columns already travel in. CHECKs constrain the shape;
+    # see the guild-images migration.
+    banner_color: str = Field(
+        default=DEFAULT_BANNER_COLOR,
+        sa_column=Column(
+            String(7), nullable=False, server_default=DEFAULT_BANNER_COLOR
+        ),
+    )
+    banner_text_color: str = Field(
+        default=DEFAULT_BANNER_TEXT_COLOR,
+        sa_column=Column(
+            String(7), nullable=False, server_default=DEFAULT_BANNER_TEXT_COLOR
+        ),
     )
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(

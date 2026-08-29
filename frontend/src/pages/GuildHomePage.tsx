@@ -136,32 +136,22 @@ export function GuildHomePage() {
     }
   }, [isLoading, totalCount, page, pageCount, setSearch]);
 
-  // A guild that has set a banner — a picture or a colour — gets the same
-  // header the community directory has, carrying its own name and description
-  // instead of ours. One that has set neither keeps the plain heading: a hero
-  // invented for it would say nothing.
+  // Every guild has a banner — the artwork it uploaded, or the colour it wears
+  // instead — so this is the guild's header rather than a decoration it might
+  // be without. A guild with no artwork gets a short band, not a hero.
   const bannerUrl = activeGuild?.banner_url
     ? resolveHeaderlessApiUrl(activeGuild.banner_url)
     : null;
-  const hasBanner = Boolean(bannerUrl || activeGuild?.banner_color);
 
   return (
     <div className="space-y-6">
-      {hasBanner ? (
-        <PageBanner
-          imageUrl={bannerUrl}
-          color={activeGuild?.banner_color}
-          title={activeGuild?.name ?? t("title")}
-          subtitle={activeGuild?.description ?? undefined}
-        />
-      ) : (
-        <div>
-          <h1 className="font-bold text-2xl tracking-tight md:text-3xl">
-            {activeGuild?.name ?? t("title")}
-          </h1>
-          <p className="text-muted-foreground">{t("subtitle")}</p>
-        </div>
-      )}
+      <PageBanner
+        imageUrl={bannerUrl}
+        color={activeGuild?.banner_color}
+        textColor={activeGuild?.banner_text_color}
+        title={activeGuild?.name ?? t("title")}
+        subtitle={activeGuild?.description ?? t("subtitle")}
+      />
 
       {hasNoInitiatives ? (
         <GuildHomeEmptyState

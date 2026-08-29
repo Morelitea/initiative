@@ -13,6 +13,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.platform.guild import (
+    BANNER_TEXT_COLORS,
+    DEFAULT_BANNER_COLOR,
+    DEFAULT_BANNER_TEXT_COLOR,
     Guild,
     GuildCategory,
     GuildInvite,
@@ -566,18 +569,34 @@ async def seed_guild_content(
 _HEX_DIGITS = frozenset("0123456789abcdef")
 
 
-def normalize_banner_color(value: str | None) -> str | None:
-    """``#rrggbb`` lowercased, or None. Anything else raises.
+def normalize_banner_text_color(value: str | None) -> str:
+    """One of :data:`BANNER_TEXT_COLORS`. Anything else raises.
 
-    Accepts the ``#rrggbb`` a colour input produces in any case, and an empty
-    string as "no colour" — the settings page clears the field rather than
-    sending null when someone removes it.
+    Banner text is not a free choice, here or in the UI that sets it: the fill
+    behind it is the guild's to pick and its artwork can be anything, so the
+    words stay readable only by sitting at one end of the scale or the other.
+    """
+    candidate = normalize_banner_color(value, fallback=DEFAULT_BANNER_TEXT_COLOR)
+    if candidate not in BANNER_TEXT_COLORS:
+        raise BannerColorError(GuildMessages.BANNER_TEXT_COLOR_INVALID)
+    return candidate
+
+
+def normalize_banner_color(value: str | None, *, fallback: str) -> str:
+    """``#rrggbb`` lowercased. Never None — a banner always has its colours.
+
+    ``None`` and an empty string both mean "back to the default", which is what
+    a reset sends. A trailing alpha byte is dropped rather than refused: the
+    shared colour picker can emit ``#rrggbbaa``, and a banner is a fill with
+    nothing behind it for alpha to mean anything against.
     """
     if value is None:
-        return None
+        return fallback
     candidate = value.strip().lower()
     if not candidate:
-        return None
+        return fallback
+    if len(candidate) == 9:
+        candidate = candidate[:7]
     if (
         len(candidate) != 7
         or candidate[0] != "#"
@@ -602,6 +621,8 @@ async def update_guild(
     has_adult_content_provided: bool = False,
     banner_color: str | None = None,
     banner_color_provided: bool = False,
+    banner_text_color: str | None = None,
+    banner_text_color_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
@@ -620,9 +641,16 @@ async def update_guild(
             guild.description = normalized_description
             updated = True
     if banner_color_provided:
-        normalized_color = normalize_banner_color(banner_color)
+        normalized_color = normalize_banner_color(
+            banner_color, fallback=DEFAULT_BANNER_COLOR
+        )
         if guild.banner_color != normalized_color:
             guild.banner_color = normalized_color
+            updated = True
+    if banner_text_color_provided:
+        normalized_text_color = normalize_banner_text_color(banner_text_color)
+        if guild.banner_text_color != normalized_text_color:
+            guild.banner_text_color = normalized_text_color
             updated = True
     # An explicit ``null`` is meaningless for a boolean opt-in (mirroring
     # ``guild_auth_enabled`` below), so null and omitted alike are a no-op.
