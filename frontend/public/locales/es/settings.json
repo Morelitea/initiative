@@ -70,7 +70,14 @@
     "saving": "Guardando…",
     "reset": "Restablecer",
     "updateSuccess": "Perfil actualizado",
-    "updateError": "No se pudo actualizar el perfil"
+    "updateError": "No se pudo actualizar el perfil",
+    "avatarUploadHelp": "Cualquier imagen. La recortamos en cuadrado y la redimensionamos por ti.",
+    "avatar": {
+      "failed": "No se ha podido guardar esa imagen.",
+      "notAnImage": "Elige un archivo de imagen.",
+      "tooLarge": "Ese archivo es demasiado grande. Prueba con uno de menos de 12 MB.",
+      "unreadable": "No se ha podido leer esa imagen."
+    }
   },
   "security": {
     "devicesTitle": "Dispositivos conectados",

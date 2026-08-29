@@ -93,8 +93,7 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
     contextParts.push(t("recentComments.inProject", { projectName: entry.project_name }));
   }
 
-  const authorAvatarSrc =
-    resolveUploadUrl(entry.author?.avatar_url) || entry.author?.avatar_base64 || undefined;
+  const authorAvatarSrc = resolveUploadUrl(entry.author?.avatar_url) || undefined;
 
   const body = (
     <div className="flex gap-3">

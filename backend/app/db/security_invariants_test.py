@@ -46,6 +46,7 @@ _RLS_SHARED_TABLES = {
     "federated_identity_secrets",
     "guild_administration",
     "guild_auth_policies",
+    "guild_images",
     "guild_invites",
     "guild_memberships",
     "guilds",
@@ -160,6 +161,45 @@ async def test_app_admin_grants_match_audited_matrix(engine):
 async def test_app_user_grants_match_audited_matrix(engine):
     live = await _table_grants_for(engine, "app_user")
     _assert_matrix("app_user", live, SHARED_TABLE_APP_USER_GRANTS)
+
+
+async def test_guild_image_bytes_are_unreadable_by_request_roles(engine):
+    """A request-path role may name a guild image but never read one.
+
+    The guild list carries an icon's and a banner's URL, which needs their
+    digests — a membership fact, granted column by column. The bytes are not in
+    that grant: they are served by one endpoint on the system engine, which is
+    where the rule about who may see a stranger's icon or card rendition lives.
+    A new column on ``guild_images`` is unreadable to the request path until a
+    migration says otherwise, which is the point.
+    """
+    request_roles = [
+        "app_guild_base",
+        f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        "app_user",
+    ]
+    readable = {"guild_id", "variant", "sha256"}
+    async with engine.connect() as conn:
+        for role in request_roles:
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT column_name, "
+                        "has_column_privilege(:role, 'public.guild_images', "
+                        "column_name, 'SELECT') AS can_read "
+                        "FROM information_schema.columns "
+                        "WHERE table_schema = 'public' "
+                        "AND table_name = 'guild_images'"
+                    ),
+                    {"role": role},
+                )
+            ).all()
+            assert rows, "guild_images must exist"
+            got = {column for column, can_read in rows if can_read}
+            assert got == readable, (
+                f"{role} may read {sorted(got)} of guild_images; expected "
+                f"exactly {sorted(readable)}"
+            )
 
 
 async def test_users_role_is_writable_only_by_the_system_engine(engine):

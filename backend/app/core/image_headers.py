@@ -11,6 +11,10 @@ every caller here renders its result in an ``<img>`` rather than offering it as
 a download, so the force-download escape hatch that makes an SVG attachment
 safe does not apply.
 
+Which of these formats a given upload may actually be is the caller's decision,
+not this module's — a guild image and an avatar allow different sets. This only
+answers what the bytes are.
+
 Returns ``None`` for anything it does not recognize or cannot parse, so callers
 treat "not a supported image" and "corrupt header" the same way.
 """
@@ -45,6 +49,8 @@ def read_image_header(data: bytes) -> ImageHeader | None:
         return _jpeg(data)
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return _webp(data)
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return _gif(data)
     return None
 
 
@@ -113,6 +119,13 @@ def _webp(data: bytes) -> ImageHeader | None:
         height = ((bits >> 14) & 0x3FFF) + 1
         return _build("image/webp", width, height)
     return None
+
+
+def _gif(data: bytes) -> ImageHeader | None:
+    # The logical screen descriptor follows the 6-byte signature, little-endian.
+    width = int.from_bytes(data[6:8], "little")
+    height = int.from_bytes(data[8:10], "little")
+    return _build("image/gif", width, height)
 
 
 def _build(content_type: str, width: int, height: int) -> ImageHeader | None:

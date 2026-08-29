@@ -49,6 +49,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
+import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 import { LogoIcon } from "../LogoIcon";
@@ -241,14 +242,18 @@ export const GuildAvatar = ({
   size = "md",
 }: {
   name: string;
+  /** ``GuildRead.icon_url`` — a path this server serves, not the bytes. */
   icon?: string | null;
   active: boolean;
   size?: "sm" | "md";
 }) => {
   const initials = useMemo(() => getInitials(name, "G"), [name]);
+  // Same-origin on web; on native it needs the API origin and a scoped token,
+  // which is what an <img> can carry.
+  const src = icon ? resolveHeaderlessApiUrl(icon) : null;
   return (
     <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
-      {icon ? <AvatarImage src={icon} alt={name} /> : null}
+      {src ? <AvatarImage src={src} alt={name} /> : null}
       <AvatarFallback
         className={cn(active && "bg-primary text-primary-foreground", size === "sm" && "text-xs")}
       >
@@ -325,7 +330,7 @@ const SortableGuildButton = ({
                 aria-hidden="true"
               />
             ) : null}
-            <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+            <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={12}>
@@ -369,7 +374,7 @@ const GrantGuildButton = ({
           )}
           aria-label={t("switchTo", { name: guild.name })}
         >
-          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+          <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
           <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
             <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
           </span>
@@ -440,7 +445,7 @@ const GuildRow = ({
         {...dragProps}
       >
         <span className="relative shrink-0">
-          <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
+          <GuildAvatar name={guild.name} icon={guild.icon_url} active={isActive} />
           {isGrant ? (
             <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
               <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
@@ -836,7 +841,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 <div className="pointer-events-none flex h-12 w-12 items-center justify-center rounded-2xl border-3 border-primary/60 bg-primary/20 opacity-80 shadow-lg">
                   <GuildAvatar
                     name={draggedGuild.name}
-                    icon={draggedGuild.icon_base64}
+                    icon={draggedGuild.icon_url}
                     active={draggedGuild.id === activeGuildId}
                   />
                 </div>

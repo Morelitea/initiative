@@ -241,6 +241,7 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     from app.models.platform.federated_identity import FederatedIdentity
     from app.models.platform.federated_identity_secret import FederatedIdentitySecret
     from app.models.platform.push_token import PushToken
+    from app.models.platform.user_avatar import UserAvatar
     from app.models.platform.user_token import UserToken
     from app.models.platform.user import UserRole
     from app.testing.factories import create_federated_identity
@@ -309,7 +310,10 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     # PII gone.
     assert anonymized.full_name is None
     assert anonymized.avatar_url is None
-    assert anonymized.avatar_base64 is None
+    # The picture is a row of its own, so the column going null is not enough.
+    assert (
+        await session.exec(select(UserAvatar).where(UserAvatar.user_id == original_id))
+    ).first() is None
     # No password: the husk can never authenticate again.
     assert anonymized.hashed_password is None
     # The SSO link and its stored refresh token are gone.

@@ -173,8 +173,7 @@ interface CollaboratorAvatarProps {
 function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
   const { t } = useTranslation("documents");
   const initials = getInitials(collaborator.name);
-  const avatarSrc =
-    resolveUploadUrl(collaborator.avatar_url) || collaborator.avatar_base64 || undefined;
+  const avatarSrc = resolveUploadUrl(collaborator.avatar_url) || undefined;
 
   return (
     <TooltipProvider>

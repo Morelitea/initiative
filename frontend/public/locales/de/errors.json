@@ -471,5 +471,19 @@
   "GUILD_COMMUNITY_CONTENT_NOT_DECLARED": "Bestätige, dass diese Gilde keine Inhalte für Erwachsene enthält, bevor du sie einträgst.",
   "GUILD_COMMUNITY_ADULT_CONTENT": "Eine als 18+ markierte Gilde kann nicht im Community-Verzeichnis eingetragen werden.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Diese Gilde hat nur für eine Person Platz und kann deshalb nicht im Community-Verzeichnis eingetragen werden.",
-  "COMMUNITY_DIRECTORY_DISABLED": "Diese Instanz betreibt kein Community-Verzeichnis."
+  "COMMUNITY_DIRECTORY_DISABLED": "Diese Instanz betreibt kein Community-Verzeichnis.",
+  "IMAGE_EMPTY": "Dieses Bild war leer.",
+  "IMAGE_TOO_LARGE": "Dieses Bild ist zu groß.",
+  "IMAGE_INVALID": "Diese Datei ist kein PNG-, JPEG-, WebP- oder GIF-Bild.",
+  "IMAGE_WRONG_SIZE": "Dieses Bild ist größer, als an dieser Stelle erlaubt ist.",
+  "IMAGE_WRONG_RATIO": "Dieses Bild hat für diese Stelle das falsche Format.",
+  "IMAGE_NOT_FOUND": "Dieses Bild ist nicht mehr verfügbar.",
+  "BANNER_COLOR_INVALID": "Wähle eine Farbe im Format #rrggbb.",
+  "BANNER_IMAGE_NOT_ENTITLED": "Bannerbilder sind im Tarif dieser Gilde nicht enthalten. Wähle stattdessen eine Bannerfarbe.",
+  "USER_AVATAR_NOT_FOUND": "Dieses Bild ist nicht mehr verfügbar.",
+  "USER_AVATAR_INVALID_IMAGE": "Diese Datei ist kein PNG-, JPEG- oder WebP-Bild.",
+  "USER_AVATAR_TOO_LARGE": "Dieses Bild ist zu groß.",
+  "USER_AVATAR_NOT_SQUARE": "Ein Profilbild muss quadratisch sein.",
+  "USER_AVATAR_TOO_LARGE_DIMENSIONS": "Dieses Bild ist größer, als ein Profilbild erlaubt.",
+  "USER_AVATAR_URL_NOT_EXTERNAL": "Diese Adresse gehört diesem Server. Verlinke ein anderswo gehostetes Bild oder lade eines hoch."
 }

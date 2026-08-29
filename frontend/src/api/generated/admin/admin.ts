@@ -520,6 +520,105 @@ export const useReactivateUserApiV1AdminUsersUserIdReactivatePost = <
   );
 };
 /**
+ * Take down a user's profile picture.
+ *
+ * People occasionally upload images that breach the terms of use, so removal
+ * cannot wait for the uploader to do it. Gated on ``content.moderate``, which
+ * is a platform capability — a guild admin is a tenancy role and has no part
+ * in this, so a guild's administrator cannot reach a member's profile image.
+ *
+ * Removal only. There is deliberately no path by which one account sets
+ * another account's picture.
+ *
+ * The bytes are destroyed rather than hidden. Runs on the system engine
+ * because the row policies scope every request-path write to the caller's own
+ * avatar, so nothing in the schema grants this — the capability check above
+ * is the whole authorization.
+ * @summary Remove User Avatar
+ */
+export const removeUserAvatarApiV1AdminUsersUserIdAvatarDelete = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/admin/users/${userId}/avatar`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["removeUserAvatarApiV1AdminUsersUserIdAvatarDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return removeUserAvatarApiV1AdminUsersUserIdAvatarDelete(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>
+>;
+
+export type RemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove User Avatar
+ */
+export const useRemoveUserAvatarApiV1AdminUsersUserIdAvatarDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeUserAvatarApiV1AdminUsersUserIdAvatarDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getRemoveUserAvatarApiV1AdminUsersUserIdAvatarDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Get the count of platform admins (``users.read``, role-scoped session).
  * @summary Get Platform Admin Count
  */

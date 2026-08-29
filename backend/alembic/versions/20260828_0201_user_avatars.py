@@ -35,7 +35,7 @@ from alembic import op
 from app.core.config import settings
 
 revision = "20260828_0201"
-down_revision = "20260828_0199"
+down_revision = "20260828_0200"
 branch_labels = None
 depends_on = None
 
@@ -81,18 +81,6 @@ def _decode(value: str) -> tuple[str, bytes] | None:
         return None
 
 
-def _dimensions(data: bytes) -> tuple[int, int]:
-    """Best-effort size for a legacy image, via the same header reader the
-    upload path uses. Zeros when it cannot be read: the column is NOT NULL and
-    a historical row that renders fine should not block the migration."""
-    from app.core.image_headers import read_image_header
-
-    header = read_image_header(data)
-    if header is None:
-        return 0, 0
-    return header.width, header.height
-
-
 def _backfill(conn) -> None:
     """Copy every existing avatar across, and prove that it happened.
 
@@ -119,7 +107,7 @@ def _copy_avatars(conn) -> None:
     insert = sa.text(
         "INSERT INTO public.user_avatars "
         "(user_id, sha256, content_type, byte_size, width, height, data, created_at) "
-        "VALUES (:user_id, :sha256, :content_type, :byte_size, :width, :height, "
+        "VALUES (:user_id, :sha256, :content_type, :byte_size, NULL, NULL, "
         ":data, now()) "
         "ON CONFLICT (user_id) DO NOTHING"
     )
@@ -145,7 +133,6 @@ def _copy_avatars(conn) -> None:
                 skipped.append(user_id)
                 continue
             mime, data = decoded
-            width, height = _dimensions(data)
             conn.execute(
                 insert,
                 {
@@ -153,8 +140,6 @@ def _copy_avatars(conn) -> None:
                     "sha256": hashlib.sha256(data).hexdigest(),
                     "content_type": mime,
                     "byte_size": len(data),
-                    "width": width,
-                    "height": height,
                     "data": data,
                 },
             )
@@ -180,8 +165,12 @@ def upgrade() -> None:
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("content_type", sa.String(length=64), nullable=False),
         sa.Column("byte_size", sa.Integer(), nullable=False),
-        sa.Column("width", sa.Integer(), nullable=False),
-        sa.Column("height", sa.Integer(), nullable=False),
+        # Nullable because a row carried over from the old column has no
+        # recorded size: reading one would mean parsing the image here, and a
+        # revision must state what it writes rather than call into app code
+        # that can change afterwards. Every row written since has both.
+        sa.Column("width", sa.Integer(), nullable=True),
+        sa.Column("height", sa.Integer(), nullable=True),
         sa.Column("data", sa.LargeBinary(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
@@ -230,9 +219,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.add_column(
-        "users", sa.Column("avatar_base64", sa.Text(), nullable=True)
-    )
+    op.add_column("users", sa.Column("avatar_base64", sa.Text(), nullable=True))
     conn = op.get_bind()
     # Same reason as the upgrade: users is FORCE RLS, so the restore would
     # silently match nothing.

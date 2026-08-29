@@ -89,6 +89,55 @@ describe("GuildHomePage", () => {
     queryClient.clear();
   });
 
+  it("heads the page with the guild's banner, carrying its own name and description", async () => {
+    stubInitiatives();
+    stubTools();
+
+    renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({
+          id: 1,
+          role: "admin",
+          name: "Ravenloft Chronicle",
+          description: "A long campaign in the mists",
+          banner_url: "/api/v1/guilds/1/image/abc",
+        }),
+      },
+    });
+
+    const heading = await screen.findByRole("heading", { name: "Ravenloft Chronicle" });
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByText("A long campaign in the mists")).toBeInTheDocument();
+  });
+
+  it("uses the banner colour when the guild set one instead of artwork", async () => {
+    stubInitiatives();
+    stubTools();
+
+    const { container } = renderPage(GuildHomePage, {
+      guilds: {
+        activeGuildId: 1,
+        activeGuild: buildGuild({ id: 1, role: "admin", banner_color: "#2a9d8f" }),
+      },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    expect(container.querySelector('[style*="rgb(42, 157, 143)"]')).not.toBeNull();
+  });
+
+  it("keeps the plain heading for a guild that has set no banner at all", async () => {
+    stubInitiatives();
+    stubTools();
+
+    const { container } = renderPage(GuildHomePage, {
+      guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+    });
+
+    await screen.findByRole("heading", { level: 1 });
+    expect(container.querySelector("img")).toBeNull();
+  });
+
   it("lists the whole guild's projects under the projects circle", async () => {
     stubInitiatives();
     stubTools({

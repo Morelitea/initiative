@@ -30,7 +30,6 @@ export function buildTaskCalendarEntries(
     .map((a) => ({
       name: a.full_name as string,
       avatarUrl: a.avatar_url,
-      avatarBase64: a.avatar_base64,
       userId: a.id,
     }));
 

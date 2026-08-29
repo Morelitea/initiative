@@ -70,7 +70,14 @@
     "saving": "Saving…",
     "reset": "Reset",
     "updateSuccess": "Profile updated",
-    "updateError": "Unable to update profile"
+    "updateError": "Unable to update profile",
+    "avatarUploadHelp": "Any image. It is cropped square and resized for you.",
+    "avatar": {
+      "failed": "That picture could not be saved.",
+      "notAnImage": "Please choose an image file.",
+      "tooLarge": "That file is too large to work with. Try one under 12 MB.",
+      "unreadable": "That image could not be read."
+    }
   },
   "security": {
     "devicesTitle": "Logged in devices",

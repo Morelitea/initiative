@@ -21,6 +21,7 @@ by ``app.services.platform.user_avatars`` for the moderation path, not here.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Optional
 
 from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String
@@ -67,8 +68,11 @@ class UserAvatar(SQLModel, table=True):
     sha256: str = Field(sa_column=Column(String(64), nullable=False))
     content_type: str = Field(sa_column=Column(String(64), nullable=False))
     byte_size: int = Field(sa_column=Column(Integer, nullable=False))
-    width: int = Field(sa_column=Column(Integer, nullable=False))
-    height: int = Field(sa_column=Column(Integer, nullable=False))
+    # Null only on a row carried over from the old base64 column, which had no
+    # size recorded and could not be measured from within a migration. Anything
+    # uploaded since has both.
+    width: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    height: Optional[int] = Field(default=None, sa_column=Column(Integer))
     data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

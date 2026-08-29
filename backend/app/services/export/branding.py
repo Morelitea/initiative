@@ -2,24 +2,29 @@
 
 Injected at the render choke points (inline export + worker replay), so every
 PDF report carries a running header without each adapter threading it. The
-icon lives on the guild row as a base64 data URI (``icon_base64``), decoded
-here to bytes and staged into the Typst compile root as an inline asset (it is
-not in guild storage, so the storage-backed asset path can't reach it).
+icon is a row in ``public.guild_images``, read here as bytes and staged into
+the Typst compile root as an inline asset (it is not in guild storage, so the
+storage-backed asset path can't reach it).
+
+The bytes come from a session of this module's own, on the system engine: the
+image tables grant the request path the digest and nothing else, and the
+routed session an export runs under is a request-path session. The guild is
+not in question by the time this runs — the export was authorized against it —
+so what this adds is the ability to read one guild's own icon, nothing wider.
 
 Branding never fails an export: a missing/unreadable guild or an
-undecodable/oversized/non-raster icon degrades to name-only or no header.
+oversized/non-raster icon degrades to name-only or no header.
 """
 
 from __future__ import annotations
 
-import base64
-import re
 from dataclasses import replace
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import Guild
+from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.services.export.contract import RenderRequest
 
 # Raster formats Typst renders reliably. SVG is deliberately excluded — a
@@ -32,8 +37,7 @@ _MIME_EXT = {
     "image/gif": "gif",
     "image/webp": "webp",
 }
-_DATA_URI_RE = re.compile(r"^data:(?P<mime>[\w/+.-]+);base64,(?P<b64>.+)$", re.DOTALL)
-# Icons are small; cap the decoded size so a pathological row can't bloat the
+# Icons are small; cap the size so a pathological row can't bloat the
 # compile input.
 _MAX_ICON_BYTES = 3 * 1024 * 1024
 
@@ -62,42 +66,60 @@ async def _load_brand(
     session: AsyncSession, guild_id: int
 ) -> tuple[dict | None, dict[str, bytes]]:
     try:
-        row = (
-            await session.exec(
-                select(Guild.name, Guild.icon_base64).where(Guild.id == guild_id)
-            )
+        name = (
+            await session.exec(select(Guild.name).where(Guild.id == guild_id))
         ).first()
     except Exception:
         # Never fail an export over branding (e.g. a routing role that can't
         # read the shared guild row).
         return None, {}
-    if row is None:
+    if name is None:
         return None, {}
-    name, icon_base64 = row
     brand: dict = {"name": name, "icon": None}
-    decoded = _decode_icon(icon_base64)
-    if decoded is None:
+    icon = await _load_icon(guild_id)
+    if icon is None:
         return brand, {}
-    filename, data = decoded
+    filename, data = icon
     brand["icon"] = filename
     return brand, {filename: data}
 
 
-def _decode_icon(icon_base64: str | None) -> tuple[str, bytes] | None:
-    """Decode a ``data:image/*;base64,…`` URI to ``(filename, bytes)``, or
-    ``None`` if absent/malformed/non-raster/oversized."""
-    if not icon_base64:
-        return None
-    match = _DATA_URI_RE.match(icon_base64.strip())
-    if match is None:
-        return None
-    ext = _MIME_EXT.get(match.group("mime").lower())
-    if ext is None:
-        return None
+async def _load_icon(guild_id: int) -> tuple[str, bytes] | None:
+    """``(filename, bytes)`` for the guild's icon, or ``None``.
+
+    On its own system-engine session, because the routed session an export runs
+    under is granted the icon's digest and not its bytes. Scoped to the one
+    guild the export is already for.
+    """
+    from app.db.session import AdminSessionLocal
+
     try:
-        data = base64.b64decode(match.group("b64"), validate=True)
-    except (ValueError, base64.binascii.Error):
+        async with AdminSessionLocal() as admin_session:
+            row = (
+                await admin_session.exec(
+                    select(GuildImage.content_type, GuildImage.data).where(
+                        GuildImage.guild_id == guild_id,
+                        GuildImage.variant == GuildImageVariant.icon.value,
+                    )
+                )
+            ).first()
+    except Exception:
         return None
-    if not data or len(data) > _MAX_ICON_BYTES:
+    if row is None:
+        return None
+    return icon_asset(*row)
+
+
+def icon_asset(
+    content_type: str | None, data: bytes | None
+) -> tuple[str, bytes] | None:
+    """``(filename, bytes)`` for a stored icon, or ``None`` if it is no use here.
+
+    Typst needs a filename with an extension it recognises, and the report is
+    better off with no header than with a vector it has to parse or a blob that
+    dwarfs the document.
+    """
+    ext = _MIME_EXT.get((content_type or "").lower())
+    if ext is None or not data or len(data) > _MAX_ICON_BYTES:
         return None
     return f"guild-icon.{ext}", data

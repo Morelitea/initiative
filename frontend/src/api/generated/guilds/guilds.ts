@@ -22,11 +22,14 @@ import type {
 
 import type {
   BillingPortalHandoffResponse,
+  BodySetGuildBannerApiV1GuildsGuildIdBannerPut,
+  BodySetGuildIconApiV1GuildsGuildIdIconPut,
   CommunityGuildPage,
   GuildAuthPolicyRead,
   GuildAuthPolicyUpdate,
   GuildCreate,
   GuildDeletionRequest,
+  GuildEntitlementsRead,
   GuildInviteAcceptRequest,
   GuildInviteCreate,
   GuildInviteRead,
@@ -1205,6 +1208,544 @@ export const useDeleteGuildApiV1GuildsGuildIdDelete = <
   TContext
 > => {
   return useMutation(getDeleteGuildApiV1GuildsGuildIdDeleteMutationOptions(options), queryClient);
+};
+/**
+ * What an operator has turned on for this guild, for its own admins.
+ *
+ * Its own read rather than fields on the guild payload: these are decisions
+ * made *about* a guild rather than by it, they live on the separate
+ * ``guild_administration`` row, and a member has no use for them. A guild
+ * admin does — it is how their settings page knows to offer the banner
+ * colour alone rather than an upload that would come back refused.
+ * @summary Read Guild Entitlements
+ */
+export const readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildEntitlementsRead>(
+    { url: `/api/v1/guilds/${guildId}/entitlements`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/guilds/${guildId}/entitlements`] as const;
+};
+
+export const getReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>
+  > = ({ signal }) =>
+    readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>
+>;
+export type ReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet<
+  TData = Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet<
+  TData = Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet<
+  TData = Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Guild Entitlements
+ */
+
+export function useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet<
+  TData = Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Replace the guild's icon. One square picture, resized by the client.
+ * @summary Set Guild Icon
+ */
+export const setGuildIconApiV1GuildsGuildIdIconPut = (
+  guildId: number,
+  bodySetGuildIconApiV1GuildsGuildIdIconPut: BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`icon`, bodySetGuildIconApiV1GuildsGuildIdIconPut.icon);
+
+  return apiMutator<GuildRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/icon`,
+      method: "PUT",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildIconApiV1GuildsGuildIdIconPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildIconApiV1GuildsGuildIdIconPut>>,
+    TError,
+    { guildId: number; data: BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildIconApiV1GuildsGuildIdIconPut>>,
+  TError,
+  { guildId: number; data: BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut> },
+  TContext
+> => {
+  const mutationKey = ["setGuildIconApiV1GuildsGuildIdIconPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildIconApiV1GuildsGuildIdIconPut>>,
+    { guildId: number; data: BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildIconApiV1GuildsGuildIdIconPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildIconApiV1GuildsGuildIdIconPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildIconApiV1GuildsGuildIdIconPut>>
+>;
+export type SetGuildIconApiV1GuildsGuildIdIconPutMutationBody =
+  BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut>;
+export type SetGuildIconApiV1GuildsGuildIdIconPutMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Icon
+ */
+export const useSetGuildIconApiV1GuildsGuildIdIconPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildIconApiV1GuildsGuildIdIconPut>>,
+      TError,
+      { guildId: number; data: BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildIconApiV1GuildsGuildIdIconPut>>,
+  TError,
+  { guildId: number; data: BodyType<BodySetGuildIconApiV1GuildsGuildIdIconPut> },
+  TContext
+> => {
+  return useMutation(getSetGuildIconApiV1GuildsGuildIdIconPutMutationOptions(options), queryClient);
+};
+/**
+ * Remove the guild's icon. It falls back to its lettered avatar.
+ * @summary Clear Guild Icon
+ */
+export const clearGuildIconApiV1GuildsGuildIdIconDelete = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildRead>(
+    { url: `/api/v1/guilds/${guildId}/icon`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearGuildIconApiV1GuildsGuildIdIconDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearGuildIconApiV1GuildsGuildIdIconDelete>>,
+    TError,
+    { guildId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearGuildIconApiV1GuildsGuildIdIconDelete>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  const mutationKey = ["clearGuildIconApiV1GuildsGuildIdIconDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearGuildIconApiV1GuildsGuildIdIconDelete>>,
+    { guildId: number }
+  > = (props) => {
+    const { guildId } = props ?? {};
+
+    return clearGuildIconApiV1GuildsGuildIdIconDelete(guildId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearGuildIconApiV1GuildsGuildIdIconDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearGuildIconApiV1GuildsGuildIdIconDelete>>
+>;
+
+export type ClearGuildIconApiV1GuildsGuildIdIconDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Guild Icon
+ */
+export const useClearGuildIconApiV1GuildsGuildIdIconDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearGuildIconApiV1GuildsGuildIdIconDelete>>,
+      TError,
+      { guildId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearGuildIconApiV1GuildsGuildIdIconDelete>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearGuildIconApiV1GuildsGuildIdIconDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Replace the guild's banner with the two renditions of one picture.
+ *
+ * The admin chooses a single image; the settings page resizes it to both
+ * renditions and sends them together, so a guild is never left showing a new
+ * card over an old front page.
+ * @summary Set Guild Banner
+ */
+export const setGuildBannerApiV1GuildsGuildIdBannerPut = (
+  guildId: number,
+  bodySetGuildBannerApiV1GuildsGuildIdBannerPut: BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`full`, bodySetGuildBannerApiV1GuildsGuildIdBannerPut.full);
+  formData.append(`card`, bodySetGuildBannerApiV1GuildsGuildIdBannerPut.card);
+
+  return apiMutator<GuildRead>(
+    {
+      url: `/api/v1/guilds/${guildId}/banner`,
+      method: "PUT",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetGuildBannerApiV1GuildsGuildIdBannerPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setGuildBannerApiV1GuildsGuildIdBannerPut>>,
+    TError,
+    { guildId: number; data: BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setGuildBannerApiV1GuildsGuildIdBannerPut>>,
+  TError,
+  { guildId: number; data: BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut> },
+  TContext
+> => {
+  const mutationKey = ["setGuildBannerApiV1GuildsGuildIdBannerPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setGuildBannerApiV1GuildsGuildIdBannerPut>>,
+    { guildId: number; data: BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setGuildBannerApiV1GuildsGuildIdBannerPut(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetGuildBannerApiV1GuildsGuildIdBannerPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setGuildBannerApiV1GuildsGuildIdBannerPut>>
+>;
+export type SetGuildBannerApiV1GuildsGuildIdBannerPutMutationBody =
+  BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut>;
+export type SetGuildBannerApiV1GuildsGuildIdBannerPutMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Guild Banner
+ */
+export const useSetGuildBannerApiV1GuildsGuildIdBannerPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setGuildBannerApiV1GuildsGuildIdBannerPut>>,
+      TError,
+      { guildId: number; data: BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setGuildBannerApiV1GuildsGuildIdBannerPut>>,
+  TError,
+  { guildId: number; data: BodyType<BodySetGuildBannerApiV1GuildsGuildIdBannerPut> },
+  TContext
+> => {
+  return useMutation(
+    getSetGuildBannerApiV1GuildsGuildIdBannerPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Remove the guild's banner. Both surfaces fall back to their plain form.
+ * @summary Clear Guild Banner
+ */
+export const clearGuildBannerApiV1GuildsGuildIdBannerDelete = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildRead>(
+    { url: `/api/v1/guilds/${guildId}/banner`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearGuildBannerApiV1GuildsGuildIdBannerDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearGuildBannerApiV1GuildsGuildIdBannerDelete>>,
+    TError,
+    { guildId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearGuildBannerApiV1GuildsGuildIdBannerDelete>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  const mutationKey = ["clearGuildBannerApiV1GuildsGuildIdBannerDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearGuildBannerApiV1GuildsGuildIdBannerDelete>>,
+    { guildId: number }
+  > = (props) => {
+    const { guildId } = props ?? {};
+
+    return clearGuildBannerApiV1GuildsGuildIdBannerDelete(guildId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearGuildBannerApiV1GuildsGuildIdBannerDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearGuildBannerApiV1GuildsGuildIdBannerDelete>>
+>;
+
+export type ClearGuildBannerApiV1GuildsGuildIdBannerDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Guild Banner
+ */
+export const useClearGuildBannerApiV1GuildsGuildIdBannerDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearGuildBannerApiV1GuildsGuildIdBannerDelete>>,
+      TError,
+      { guildId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearGuildBannerApiV1GuildsGuildIdBannerDelete>>,
+  TError,
+  { guildId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearGuildBannerApiV1GuildsGuildIdBannerDeleteMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Mint a billing-portal handoff for a guild admin. Guild admin only.

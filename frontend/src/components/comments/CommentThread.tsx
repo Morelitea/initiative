@@ -60,7 +60,7 @@ export const CommentThread = ({
     : `User #${comment.created_by}`;
   const avatarSrc = anonymizedAuthor
     ? undefined
-    : resolveUploadUrl(comment.author?.avatar_url) || comment.author?.avatar_base64 || undefined;
+    : resolveUploadUrl(comment.author?.avatar_url) || undefined;
 
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;

@@ -26,6 +26,7 @@ import type {
   ApiKeyCreateRequest,
   ApiKeyCreateResponse,
   ApiKeyListResponse,
+  BodyUploadMyAvatarApiV1UsersMeAvatarPut,
   DeletionEligibilityResponse,
   ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
   GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams,
@@ -42,7 +43,6 @@ import type {
   UserSelfUpdate,
   UserStatsResponse,
   UserSummaryListResponse,
-  UserUpdate,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1051,6 +1051,186 @@ export const useDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = <
   );
 };
 /**
+ * Replace the caller's profile picture.
+ *
+ * Multipart rather than a base64 field on ``PATCH /users/me``: sending the
+ * image inside JSON is the thing this endpoint exists to stop. The body is
+ * read under the cap so an oversized upload is refused rather than buffered
+ * whole, and the format and dimensions are read from the header — nothing
+ * here decodes the image.
+ *
+ * Runs on the request-path session, where the row policies allow the caller
+ * to write their own avatar and no other.
+ * @summary Upload My Avatar
+ */
+export const uploadMyAvatarApiV1UsersMeAvatarPut = (
+  bodyUploadMyAvatarApiV1UsersMeAvatarPut: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadMyAvatarApiV1UsersMeAvatarPut.file);
+
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/users/me/avatar`,
+      method: "PUT",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+    TError,
+    { data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+  TError,
+  { data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut> },
+  TContext
+> => {
+  const mutationKey = ["uploadMyAvatarApiV1UsersMeAvatarPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+    { data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadMyAvatarApiV1UsersMeAvatarPut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadMyAvatarApiV1UsersMeAvatarPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>
+>;
+export type UploadMyAvatarApiV1UsersMeAvatarPutMutationBody =
+  BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut>;
+export type UploadMyAvatarApiV1UsersMeAvatarPutMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Upload My Avatar
+ */
+export const useUploadMyAvatarApiV1UsersMeAvatarPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+      TError,
+      { data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadMyAvatarApiV1UsersMeAvatarPut>>,
+  TError,
+  { data: BodyType<BodyUploadMyAvatarApiV1UsersMeAvatarPut> },
+  TContext
+> => {
+  return useMutation(getUploadMyAvatarApiV1UsersMeAvatarPutMutationOptions(options), queryClient);
+};
+/**
+ * Remove the caller's profile picture.
+ * @summary Delete My Avatar
+ */
+export const deleteMyAvatarApiV1UsersMeAvatarDelete = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>({ url: `/api/v1/users/me/avatar`, method: "DELETE", signal }, options);
+};
+
+export const getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["deleteMyAvatarApiV1UsersMeAvatarDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
+    void
+  > = () => {
+    return deleteMyAvatarApiV1UsersMeAvatarDelete(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyAvatarApiV1UsersMeAvatarDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>
+>;
+
+export type DeleteMyAvatarApiV1UsersMeAvatarDeleteMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete My Avatar
+ */
+export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyAvatarApiV1UsersMeAvatarDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getDeleteMyAvatarApiV1UsersMeAvatarDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * @summary List Users
  */
 export const listUsersApiV1GGuildIdUsersGet = (
@@ -1630,189 +1810,6 @@ export function useExportUsersCsvApiV1GGuildIdUsersExportCsvGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * @summary Update User
- */
-export const updateUserApiV1GGuildIdUsersUserIdPatch = (
-  guildId: number,
-  userId: number,
-  userUpdate: BodyType<UserUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserRead>(
-    {
-      url: `/api/v1/g/${guildId}/users/${userId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: userUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateUserApiV1GGuildIdUsersUserIdPatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateUserApiV1GGuildIdUsersUserIdPatch>>,
-    TError,
-    { guildId: number; userId: number; data: BodyType<UserUpdate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateUserApiV1GGuildIdUsersUserIdPatch>>,
-  TError,
-  { guildId: number; userId: number; data: BodyType<UserUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateUserApiV1GGuildIdUsersUserIdPatch"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateUserApiV1GGuildIdUsersUserIdPatch>>,
-    { guildId: number; userId: number; data: BodyType<UserUpdate> }
-  > = (props) => {
-    const { guildId, userId, data } = props ?? {};
-
-    return updateUserApiV1GGuildIdUsersUserIdPatch(guildId, userId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateUserApiV1GGuildIdUsersUserIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateUserApiV1GGuildIdUsersUserIdPatch>>
->;
-export type UpdateUserApiV1GGuildIdUsersUserIdPatchMutationBody = BodyType<UserUpdate>;
-export type UpdateUserApiV1GGuildIdUsersUserIdPatchMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update User
- */
-export const useUpdateUserApiV1GGuildIdUsersUserIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateUserApiV1GGuildIdUsersUserIdPatch>>,
-      TError,
-      { guildId: number; userId: number; data: BodyType<UserUpdate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateUserApiV1GGuildIdUsersUserIdPatch>>,
-  TError,
-  { guildId: number; userId: number; data: BodyType<UserUpdate> },
-  TContext
-> => {
-  return useMutation(
-    getUpdateUserApiV1GGuildIdUsersUserIdPatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Remove a member from this guild.
- *
- * Ends their memberships and the access those carried. It does not move
- * ownership: content they own stays recorded as theirs and stops being
- * reachable by them, until an admin re-homes it through
- * ``POST /{user_id}/transfer-ownership``.
- * @summary Delete User
- */
-export const deleteUserApiV1GGuildIdUsersUserIdDelete = (
-  guildId: number,
-  userId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/g/${guildId}/users/${userId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-    TError,
-    { guildId: number; userId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-  TError,
-  { guildId: number; userId: number },
-  TContext
-> => {
-  const mutationKey = ["deleteUserApiV1GGuildIdUsersUserIdDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-    { guildId: number; userId: number }
-  > = (props) => {
-    const { guildId, userId } = props ?? {};
-
-    return deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>
->;
-
-export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Delete User
- */
-export const useDeleteUserApiV1GGuildIdUsersUserIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-      TError,
-      { guildId: number; userId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
-  TError,
-  { guildId: number; userId: number },
-  TContext
-> => {
-  return useMutation(
-    getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * @summary Approve User
  */
@@ -2449,6 +2446,97 @@ export const useTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost =
 > => {
   return useMutation(
     getTransferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Remove a member from this guild.
+ *
+ * Ends their memberships and the access those carried. It does not move
+ * ownership: content they own stays recorded as theirs and stops being
+ * reachable by them, until an admin re-homes it through
+ * ``POST /{user_id}/transfer-ownership``.
+ * @summary Delete User
+ */
+export const deleteUserApiV1GGuildIdUsersUserIdDelete = (
+  guildId: number,
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/users/${userId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+    TError,
+    { guildId: number; userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+  TError,
+  { guildId: number; userId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteUserApiV1GGuildIdUsersUserIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+    { guildId: number; userId: number }
+  > = (props) => {
+    const { guildId, userId } = props ?? {};
+
+    return deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>
+>;
+
+export type DeleteUserApiV1GGuildIdUsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete User
+ */
+export const useDeleteUserApiV1GGuildIdUsersUserIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+      TError,
+      { guildId: number; userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteUserApiV1GGuildIdUsersUserIdDelete>>,
+  TError,
+  { guildId: number; userId: number },
+  TContext
+> => {
+  return useMutation(
+    getDeleteUserApiV1GGuildIdUsersUserIdDeleteMutationOptions(options),
     queryClient
   );
 };

@@ -108,6 +108,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # Mirrored listing artwork: written by the refresh job; DELETE prunes bytes
     # no listing references any more.
     "marketplace_media": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Guild icons and banners: the whole table is the system engine's, because
+    # the one thing it has to answer — may this caller see this guild's icon or
+    # card rendition — depends on a listing the caller may hold no role to read.
+    # Serving reads; a guild admin replacing a picture inserts (after the
+    # endpoint has checked their role) and deletes the one it replaces.
+    "guild_images": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Profile pictures. The system engine reads them to serve the bytes before a
     # session exists, writes them on the backfill, and DELETEs on the moderation
     # and anonymization paths — both of which act on someone else's row and so
@@ -216,6 +222,13 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,
     "guilds": frozenset({"SELECT"}),
+    # No TABLE grant: the bytes are the system engine's, and the endpoint that
+    # serves them decides who may see which variant. The request path holds a
+    # column-scoped SELECT on (guild_id, variant, sha256) instead — enough to
+    # name a member's own guild images in their guild list, never enough to
+    # read one. Column grants live in pg_attribute, not relacl, so they are
+    # asserted separately (security_invariants_test).
+    "guild_images": None,
     # Read-only for every request-path role, this one included — no login role
     # writes a guild's caps or its sign-in entitlement. RLS narrows the rows to
     # the caller's own guilds (plus a live PAM grant).

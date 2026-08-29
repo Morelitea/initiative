@@ -70,7 +70,14 @@
     "saving": "Speichern…",
     "reset": "Zurücksetzen",
     "updateSuccess": "Profil aktualisiert",
-    "updateError": "Profil konnte nicht aktualisiert werden"
+    "updateError": "Profil konnte nicht aktualisiert werden",
+    "avatarUploadHelp": "Beliebiges Bild. Es wird für dich quadratisch zugeschnitten und verkleinert.",
+    "avatar": {
+      "failed": "Dieses Bild konnte nicht gespeichert werden.",
+      "notAnImage": "Bitte wähle eine Bilddatei aus.",
+      "tooLarge": "Diese Datei ist zu groß. Versuche es mit einer unter 12 MB.",
+      "unreadable": "Dieses Bild konnte nicht gelesen werden."
+    }
   },
   "security": {
     "devicesTitle": "Angemeldete Geräte",
