@@ -5,6 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, Column, DateTime, String, Integer, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.sql import text
+from sqlalchemy.orm import validates
 from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
@@ -262,6 +263,19 @@ class Guild(SQLModel, table=True):
         back_populates="guild",
         sa_relationship_kwargs={"uselist": False},
     )
+
+    @validates("is_community")
+    def _listing_a_guild_renders_handles(self, _key: str, listed: bool) -> bool:
+        """Listing a guild turns its real names off, in the same write.
+
+        ``ck_guilds_community_member_names`` says a listed guild renders
+        handles. Doing it here rather than at each caller means the one place
+        that sets ``is_community`` is the place it happens, and the constraint
+        has nothing left to catch.
+        """
+        if listed:
+            self.show_member_names = False
+        return listed
 
 
 class GuildRole(str, Enum):

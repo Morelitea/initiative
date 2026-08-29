@@ -21,11 +21,18 @@ from app.testing.factories import create_user, get_auth_headers
 
 async def _assume(session, tier: str, user_id: int) -> None:
     """Drop the connection to a real platform role with a request context, so
-    the policies decide rather than the superuser fixture."""
+    the policies decide rather than the superuser fixture.
+
+    Transaction-scoped, like ``set_rls_context``: this session is an
+    ``app_user`` one, which reaches Postgres through the pooler, where a
+    connection is only ever this caller's for the length of a transaction. So
+    the read that follows has to stay inside the one this opens — no commit
+    between the two.
+    """
     await session.exec(
         text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
+            "SELECT set_config('app.current_user_id', :uid, true), "
+            "set_config('role', :role, true)"
         ),
         params={"uid": str(user_id), "role": platform_role_name(tier)},
     )

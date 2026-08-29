@@ -188,7 +188,7 @@ class TestWhatAGuildPayloadSays:
         assert row["username"] == "member"
         assert row["discriminator"] == 77
 
-    async def test_a_guild_shows_no_names_by_default(self, client, guild_with_member):
+    async def test_a_guild_shows_names_by_default(self, client, guild_with_member):
         admin, member, guild = guild_with_member
 
         response = await client.get(
@@ -196,13 +196,13 @@ class TestWhatAGuildPayloadSays:
         )
 
         row = next(r for r in response.json() if r["id"] == member.id)
-        assert row["full_name"] is None
+        assert row["full_name"] == "Mem Ber"
 
-    async def test_a_guild_that_asked_shows_them(
+    async def test_a_guild_that_turned_them_off_sends_none(
         self, client, session, guild_with_member
     ):
         admin, member, guild = guild_with_member
-        guild.show_member_names = True
+        guild.show_member_names = False
         session.add(guild)
         await session.commit()
 
@@ -211,7 +211,26 @@ class TestWhatAGuildPayloadSays:
         )
 
         row = next(r for r in response.json() if r["id"] == member.id)
-        assert row["full_name"] == "Mem Ber"
+        assert row["full_name"] is None
+
+    async def test_a_listed_guild_shows_none_without_being_asked(
+        self, client, session, guild_with_member
+    ):
+        """Listing a guild turns its names off in the same write, so the
+        payload follows without an admin having to do it in two steps."""
+        admin, member, guild = guild_with_member
+        guild.is_community = True
+        guild.categories = ["other"]
+        guild.has_adult_content = False
+        session.add(guild)
+        await session.commit()
+
+        response = await client.get(
+            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+        )
+
+        row = next(r for r in response.json() if r["id"] == member.id)
+        assert row["full_name"] is None
 
 
 class TestFindingSomeone:
@@ -275,20 +294,20 @@ class TestFindingSomeone:
         assert [item["discriminator"] for item in items] == [12]
 
     async def test_a_name_is_searchable_where_it_is_showable(
-        self, client, session, searchable_guild
+        self, client, searchable_guild
     ):
         admin, guild = searchable_guild
-        guild.show_member_names = True
-        session.add(guild)
-        await session.commit()
 
         items = await self._search(client, admin, guild, "Three")
 
         assert [item["username"] for item in items] == ["morgan"]
 
-    async def test_and_not_where_it_is_not(self, client, searchable_guild):
+    async def test_and_not_where_it_is_not(self, client, session, searchable_guild):
         """A guild that does not show names does not match on them either."""
         admin, guild = searchable_guild
+        guild.show_member_names = False
+        session.add(guild)
+        await session.commit()
 
         items = await self._search(client, admin, guild, "Three")
 

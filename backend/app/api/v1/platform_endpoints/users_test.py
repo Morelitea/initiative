@@ -228,10 +228,8 @@ async def test_search_users_returns_slim_paginated_envelope(
     assert body["has_next"] is True
     assert body["has_prev"] is False
     assert len(body["items"]) == 2
-    # This guild renders handles, so it orders by them too.
     assert [item["username"] for item in body["items"]] == ["aaa-caller", "bbb-other"]
-    # Slim projection: no email, no platform role, no initiative_roles — and
-    # no name, because this guild does not show them.
+    # Slim projection: no email, no platform role, no initiative_roles.
     summary = body["items"][0]
     assert set(summary.keys()) == {
         "id",
@@ -241,7 +239,8 @@ async def test_search_users_returns_slim_paginated_envelope(
         "avatar_url",
         "status",
     }
-    assert summary["full_name"] is None
+    # This guild takes the default and shows names.
+    assert summary["full_name"] == "Aaa"
 
 
 @pytest.mark.integration
