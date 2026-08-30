@@ -76,11 +76,26 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
   component: GuildLayout,
 });
 
-function GuildLayout() {
+/** The guild subtree's waiting state — shown while the guild list is still
+ *  arriving, and while this tab is catching up to the URL's guild. */
+function GuildLoading() {
+  const { t } = useTranslation("common");
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <Loader2
+        role="status"
+        aria-label={t("loading")}
+        className="h-8 w-8 animate-spin text-muted-foreground"
+      />
+    </div>
+  );
+}
+
+export function GuildLayout() {
   const { t } = useTranslation("guilds");
   const params = useParams({ from: "/_serverRequired/_authenticated/g/$guildId" });
   const guildId = Number(params.guildId);
-  const { guilds, loading, syncGuildFromUrl } = useGuilds();
+  const { guilds, activeGuildId, loading, syncGuildFromUrl } = useGuilds();
   const location = useLocation();
 
   // Verify membership — must happen before syncing guild context
@@ -97,11 +112,7 @@ function GuildLayout() {
   }, [guildId, isMember, syncGuildFromUrl]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <GuildLoading />;
   }
 
   if (!guild) {
@@ -116,6 +127,16 @@ function GuildLayout() {
         />
       </div>
     );
+  }
+
+  // Everything below reads this tab's active guild for its query keys, and that
+  // value adopts the URL in the effect above — which runs a render AFTER the
+  // guild list arrives, so `beforeLoad` had nothing to adopt on a cold load.
+  // Holding the subtree until the two agree is what keeps a fresh tab opened
+  // straight onto another guild's URL from issuing a page of guild-scoped
+  // requests against the guild this tab started on and then repeating them.
+  if (activeGuildId !== guildId) {
+    return <GuildLoading />;
   }
 
   // A suspended guild only stays listed for its guild admins (members lose
