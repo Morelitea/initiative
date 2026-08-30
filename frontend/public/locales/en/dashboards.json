@@ -146,7 +146,13 @@
     "all_calendar": "All calendars",
     "all_counter_group": "All counter groups",
     "all_counter": "All counters",
-    "all_document": "All spreadsheets"
+    "all_document": "All spreadsheets",
+    "appEndpoint": "What it reads",
+    "appEndpointPlaceholder": "Choose a read…",
+    "appNotInstalled": "This app is not installed in this guild.",
+    "appParamPlaceholder": "Choose…",
+    "appParamNeedsSibling": "Choose the value above first.",
+    "appParamListHint": "Separate values with commas."
   },
   "picker": {
     "title": "Add a widget",

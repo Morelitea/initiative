@@ -20,6 +20,9 @@ import type {
   AppDataParam,
   AppDataResponse,
   AppEndpointRead,
+  AppParamOption,
+  AppParamOptionSource,
+  AppParamOptionsResponse,
   AppWidgetCatalogEntry,
   AppWidgetCatalogResponse,
   AppWidgetRead,
@@ -29,6 +32,9 @@ export type {
   AppDataParam,
   AppDataResponse,
   AppEndpointRead,
+  AppParamOption,
+  AppParamOptionSource,
+  AppParamOptionsResponse,
   AppWidgetCatalogEntry,
   AppWidgetCatalogResponse,
   AppWidgetRead,
@@ -65,6 +71,45 @@ export const getAppData = ({ guildId, appId, endpointId, dashboardId, params }: 
     )
     .then((r) => r.data);
 
+export interface AppParamOptionsRequest {
+  guildId: number;
+  appId: number;
+  endpointId: string;
+  /** Which of the endpoint's parameters to fill a menu for. */
+  param: string;
+  /** What the form has answered so far. Only the answers the source's own
+   *  `needs` names are forwarded — the rest never leaves this process. */
+  params?: Record<string, unknown>;
+}
+
+/**
+ * The values one parameter permits, from the read its app named for it.
+ *
+ * The one call here that carries no dashboard, and it cannot: a form is filled
+ * in before a widget is placed, so there is no dashboard whose gates could
+ * decide it. What decides it instead is that the caller does not name what gets
+ * called — the source is read out of the app's own declaration, and its own
+ * visibility is enforced on the caller's credentials.
+ */
+export const getAppParamOptions = ({
+  guildId,
+  appId,
+  endpointId,
+  param,
+  params,
+}: AppParamOptionsRequest) =>
+  apiClient
+    .get<AppParamOptionsResponse>(
+      `/g/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
+      {
+        params: {
+          param,
+          ...(params && Object.keys(params).length ? { params: JSON.stringify(params) } : {}),
+        },
+      }
+    )
+    .then((r) => r.data);
+
 /** Find the install backing a binding's `app_uid`, and the widget/endpoint it
  *  names. Returns `undefined` for an app that is not installed here, which is
  *  what an imported definition referencing an app this guild does not have
@@ -78,6 +123,20 @@ export const resolveAppBinding = (
   const entry = (catalog?.items ?? []).find((item) => item.app_uid === appUid);
   const source = (entry?.endpoints ?? []).find((candidate) => candidate.id === endpointId);
   return entry && source ? { entry, source } : undefined;
+};
+
+/** The install a namespaced widget type belongs to, and that widget's own entry.
+ *  `undefined` for a type this guild has no install for — an imported
+ *  definition naming an app nobody here has. */
+export const appWidgetEntry = (
+  catalog: AppWidgetCatalogResponse | undefined,
+  widgetType: string
+): { entry: AppWidgetCatalogEntry; widget: AppWidgetRead } | undefined => {
+  for (const entry of catalog?.items ?? []) {
+    const widget = (entry.widgets ?? []).find((candidate) => candidate.type === widgetType);
+    if (widget) return { entry, widget };
+  }
+  return undefined;
 };
 
 /** The module a namespaced widget type resolves to, from the pinned definition

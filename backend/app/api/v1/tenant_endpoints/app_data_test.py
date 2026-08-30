@@ -64,6 +64,11 @@ ORDERS_SUMMARY = f"app.{PUBLIC_ID}.orders-summary"
 REVENUE = f"app.{PUBLIC_ID}.revenue"
 MY_PRS = f"app.{PUBLIC_ID}.my-prs"
 REFUND = f"app.{PUBLIC_ID}.refund"
+#: The two reads that exist to fill a menu rather than a tile. Which shops
+#: there are is a fact about one install, so it cannot be written into a
+#: manifest — the manifest names these instead.
+LIST_SHOPS = f"app.{PUBLIC_ID}.list-shops"
+LIST_AISLES = f"app.{PUBLIC_ID}.list-aisles"
 BASE_URL = "http://127.0.0.1:9100"
 
 #: A widget module with the characters a plain-text sanitizer would mangle.
@@ -109,6 +114,38 @@ def _definition() -> dict:
                 "params": [
                     _field("range", "select", options=["7d", "30d"]),
                     _field("limit", "int"),
+                    # A menu the app fills, and a second that cannot be filled
+                    # until the first has been: an aisle belongs to a shop.
+                    _field(
+                        "shop",
+                        "string",
+                        options_from={"endpoint": LIST_SHOPS, "key": "names"},
+                    ),
+                    _field(
+                        "aisle",
+                        "string",
+                        options_from={
+                            "endpoint": LIST_AISLES,
+                            "key": "codes",
+                            "label_key": "names",
+                            "needs": {"shop": "shop"},
+                        },
+                    ),
+                    # Sourced from the guild-admin read, so a member asking for
+                    # its values is a case rather than a hypothetical.
+                    _field(
+                        "tier",
+                        "string",
+                        options_from={"endpoint": REVENUE, "key": "tiers"},
+                    ),
+                    # Several values rather than one, which is a fact about the
+                    # value and the only thing that says so.
+                    _field(
+                        "tags",
+                        "string",
+                        list=True,
+                        options_from={"endpoint": LIST_SHOPS, "key": "names"},
+                    ),
                 ],
                 "returns": [
                     {"key": "days", "type": "string", "list": True},
@@ -121,6 +158,25 @@ def _definition() -> dict:
                 "direction": "read",
                 "visibility": "guild_admin",
                 "cache_ttl_seconds": 0,
+                "returns": [{"key": "tiers", "type": "string", "list": True}],
+            },
+            {
+                "id": LIST_SHOPS,
+                "direction": "read",
+                "visibility": "member",
+                "cache_ttl_seconds": 300,
+                "returns": [{"key": "names", "type": "string", "list": True}],
+            },
+            {
+                "id": LIST_AISLES,
+                "direction": "read",
+                "visibility": "member",
+                "cache_ttl_seconds": 300,
+                "params": [_field("shop", "string")],
+                "returns": [
+                    {"key": "codes", "type": "string", "list": True},
+                    {"key": "names", "type": "string", "list": True},
+                ],
             },
             {
                 "id": MY_PRS,
@@ -851,3 +907,357 @@ class TestWidgetCatalog:
         response = await client.get(a.g("/apps/widget-catalog"), headers=a.headers)
         assert response.status_code == 200
         assert response.json()["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# Filling a menu
+# ---------------------------------------------------------------------------
+
+
+def _options_url(actor, app, endpoint_id: str, param: str, **query) -> str:
+    parts = [f"param={param}"]
+    for key, value in query.items():
+        parts.append(f"{key}={value}")
+    return actor.g(f"/apps/{app.id}/endpoints/{endpoint_id}/options?{'&'.join(parts)}")
+
+
+class TestParamOptions:
+    """The read that turns a declared ``options_from`` into a menu.
+
+    It is the one here with no dashboard on it, and the reason is the whole
+    point of it: a form is filled in *before* a widget is placed, so there is no
+    dashboard row whose gates could decide it. What stands in for that is that
+    the caller never names what gets called — the source is read out of the
+    app's own declaration — and that the source's own visibility is enforced on
+    the caller's own credentials.
+    """
+
+    async def test_a_member_gets_the_values_the_app_answers_with(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"names": "north"}, {"names": "south"}]
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["unavailable"] is None
+        assert [option["value"] for option in body["options"]] == ["north", "south"]
+        # The source the manifest named, never one the caller did.
+        assert json.loads(upstream.calls[0].content)["endpoint"] == LIST_SHOPS
+
+    async def test_no_dashboard_is_named_or_needed(
+        self, client, acting_user, session, upstream
+    ):
+        """The case the route exists for: a widget nobody has placed yet."""
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"names": "north"}]
+
+        url = _options_url(a, app, ORDERS_SUMMARY, "shop")
+        assert "dashboard" not in url
+        assert (await client.get(url, headers=a.headers)).status_code == 200
+
+    async def test_an_opaque_value_carries_what_a_person_reads(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"codes": "A1", "names": "Baking"}]
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":"north"}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["options"] == [{"value": "A1", "label": "Baking"}]
+
+    async def test_a_sibling_the_form_has_not_answered_calls_nothing(
+        self, client, acting_user, session, upstream
+    ):
+        """An aisle belongs to a shop, and no shop has been chosen.
+
+        Not an error, and not an empty menu either: the parameter stays typeable
+        and the caller asks again once the sibling has a value. Asking the
+        source anyway would offer every shop's aisles, which is not a menu
+        anybody can use.
+        """
+        a, app, _ = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "aisle"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {"options": [], "unavailable": "needs-sibling"}
+        assert upstream.count == 0
+
+    async def test_a_sibling_answered_is_what_the_source_is_told(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"codes": "A1"}]
+
+        await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":"north"}'),
+            headers=a.headers,
+        )
+        assert json.loads(upstream.calls[0].content)["params"] == {"shop": "north"}
+
+    async def test_only_what_the_source_asked_for_is_forwarded(
+        self, client, acting_user, session, upstream
+    ):
+        """The form holds more answers than the source needs, and the source is
+        told exactly the ones its ``needs`` names."""
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"codes": "A1"}]
+
+        await client.get(
+            _options_url(
+                a,
+                app,
+                ORDERS_SUMMARY,
+                "aisle",
+                params='{"shop":"north","range":"30d","limit":5}',
+            ),
+            headers=a.headers,
+        )
+        assert json.loads(upstream.calls[0].content)["params"] == {"shop": "north"}
+
+    async def test_a_parameter_naming_no_source_says_so(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "limit"), headers=a.headers
+        )
+        assert response.status_code == 200
+        assert response.json() == {"options": [], "unavailable": "no-source"}
+        assert upstream.count == 0
+
+    async def test_a_parameter_the_endpoint_does_not_declare_is_a_404(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "nonesuch"), headers=a.headers
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppDataMessages.PARAM_NOT_FOUND
+
+    async def test_a_source_that_will_not_answer_leaves_the_field_typeable(
+        self, client, acting_user, session, upstream
+    ):
+        """A vendor outage must not become a value nobody can enter.
+
+        The alternative — a disabled control — makes a configuration that would
+        have worked unreachable for as long as the app is down.
+        """
+        a, app, _ = await _workspace(session, acting_user)
+        # The same seam every other failure case uses: `_read_answer` is where
+        # the network is, and it is what turns an unreachable host into this.
+        upstream.error = app_data_service.AppDataError(
+            AppDataMessages.SERVICE_UNAVAILABLE, 502, "down"
+        )
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {"options": [], "unavailable": "unresolved"}
+
+    async def test_a_member_is_told_nothing_by_a_guild_admin_source(
+        self, client, acting_user, session, upstream
+    ):
+        """The source's own visibility decides, exactly as it does for a tile.
+
+        A member asking for the values of a parameter sourced from a guild-admin
+        read gets the same answer as one whose app is down — no options and no
+        indication of which of the two it was.
+        """
+        a, app, _ = await _workspace(session, acting_user)
+        member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
+
+        response = await client.get(
+            _options_url(member, app, ORDERS_SUMMARY, "tier"), headers=member.headers
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {"options": [], "unavailable": "unresolved"}
+        assert upstream.count == 0
+
+    async def test_a_guild_admin_reads_that_same_source(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"tiers": "gold"}]
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "tier"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        assert [o["value"] for o in response.json()["options"]] == ["gold"]
+
+    async def test_a_repeated_value_is_offered_once_in_the_order_given(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [
+            {"names": "south"},
+            {"names": "north"},
+            {"names": "south"},
+            {"names": None},
+        ]
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+        )
+        assert [o["value"] for o in response.json()["options"]] == ["south", "north"]
+
+    async def test_a_disabled_install_fills_no_menu(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+        await route_session_to_guild(session, a.guild.id)
+        app.enabled = False
+        session.add(app)
+        await session.commit()
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "shop"), headers=a.headers
+        )
+        assert response.status_code == 200
+        assert response.json()["unavailable"] == "unresolved"
+
+    async def test_a_write_cannot_be_configured_through_this(
+        self, client, acting_user, session, upstream
+    ):
+        """Reads only, the same rule the fetch path keeps: filling in a form
+        must not be a way to make an app act."""
+        a, app, _ = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _options_url(a, app, REFUND, "shop"), headers=a.headers
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == AppDataMessages.ENDPOINT_NOT_FOUND
+
+
+class TestListParams:
+    """A parameter declaring several values.
+
+    ``list`` exists so an app does not have to declare a string and document a
+    comma — a convention nothing on this side could validate or complete. That
+    only holds if an array is what actually travels, so these pin the shape
+    rather than the convention.
+    """
+
+    async def test_several_values_reach_the_app_as_several(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":["red","blue"]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 200, response.text
+        assert json.loads(upstream.calls[0].content)["params"] == {
+            "tags": ["red", "blue"]
+        }
+
+    async def test_one_value_for_a_list_parameter_is_still_an_array(
+        self, client, acting_user, session, upstream
+    ):
+        """Cardinality is the declaration's, not the caller's. A single value
+        sent bare would be a second encoding of the same thing."""
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":"red"}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == AppDataMessages.INVALID_PARAMS
+
+    async def test_an_array_for_a_single_parameter_is_refused(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"shop":["north"]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_an_empty_array_is_refused_rather_than_sent(
+        self, client, acting_user, session, upstream
+    ):
+        """ "None of them" is a parameter that is absent. An array with nothing
+        in it is a request nobody meant to make."""
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":[]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_every_entry_is_held_to_the_declared_type(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":["red",7]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_more_values_than_a_request_may_carry_are_refused(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+        many = json.dumps(
+            {
+                "tags": [
+                    str(index) for index in range(app_data_service.MAX_PARAM_VALUES + 1)
+                ]
+            }
+        )
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params=many), headers=a.headers
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_a_list_parameter_fills_its_menu_the_same_way(
+        self, client, acting_user, session, upstream
+    ):
+        """Where the values come from does not change with how many are wanted:
+        one source answers both."""
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"names": "north"}, {"names": "south"}]
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "tags"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        assert [o["value"] for o in response.json()["options"]] == ["north", "south"]
+
+    async def test_a_sibling_answered_with_nothing_is_unanswered(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":""}'),
+            headers=a.headers,
+        )
+        assert response.json()["unavailable"] == "needs-sibling"
+        assert upstream.count == 0

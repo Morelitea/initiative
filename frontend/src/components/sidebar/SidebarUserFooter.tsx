@@ -1,6 +1,12 @@
-import { SiGithub } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
-import { ChartColumn, Settings, ShieldCheck, SquareCheckBig, UserCog } from "lucide-react";
+import {
+  ChartColumn,
+  CircleQuestionMark,
+  Settings,
+  ShieldCheck,
+  SquareCheckBig,
+  UserCog,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ModeToggle } from "@/components/ModeToggle";
@@ -153,17 +159,17 @@ export const SidebarUserFooter = ({
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <a
-                  href="https://github.com/Morelitea/initiative"
+                  href="https://morelitea.github.io/initiative/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={t("viewOnGitHub")}
+                  aria-label={t("viewDocumentation")}
                 >
-                  <SiGithub className="h-4 w-4" />
+                  <CircleQuestionMark className="h-4 w-4" />
                 </a>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p>{t("viewOnGitHub")}</p>
+                <p>{t("viewDocumentation")}</p>
               </TooltipContent>
             </Tooltip>
           </div>
