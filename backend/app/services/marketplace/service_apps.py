@@ -393,10 +393,56 @@ def _field(
     # value or an array is not something a consumer can infer.
     if allow_list and field.get("list") is True:
         cleaned["list"] = True
+
+    # Where the permitted values come from, when only the app can know them.
+    # `options` is the other case: a set that is the same on every deployment.
+    if allow_list:
+        source = _options_from(field.get("options_from"), what=f"{what} {key!r}")
+        if source is not None:
+            cleaned["options_from"] = source
     # Keys the app writes back itself, rather than the admin typing them: a
     # vendor flow returns its result through the app's own write path.
     if allow_managed and field.get("managed") is True:
         cleaned["managed"] = True
+    return cleaned
+
+
+def _options_from(raw: Any, *, what: str) -> dict[str, Any] | None:
+    """Where a parameter's values come from, as a reference and nothing more.
+
+    A repository, a channel, a board, a project: values that differ per install,
+    change after it, and can only be enumerated by the app holding that
+    install's credential. None of them can be written into a manifest, which is
+    published once and is identical on every deployment — so a parameter names
+    the read endpoint that answers instead.
+
+    Shape only here. That the endpoint exists, reads rather than writes, and
+    returns the keys named is checked where every endpoint is known, the same
+    way a widget's binding is.
+    """
+    if raw is None:
+        return None
+
+    source = require_mapping(raw, f"{what} options_from")
+    named = source.get("endpoint")
+    if not isinstance(named, str) or not named:
+        fail(f"{what} options_from endpoint is required")
+    if len(named) > MAX_ENDPOINT_ID_LENGTH:
+        fail(f"{what} options_from endpoint {named[:40]!r}… is too long")
+    for character in named:
+        if character not in ENDPOINT_ID_CHARS:
+            fail(f"{what} options_from endpoint {named!r} contains {character!r}")
+
+    cleaned: dict[str, Any] = {
+        "endpoint": named,
+        "key": check_identifier(source.get("key"), what=f"{what} options_from key"),
+    }
+
+    label_key = source.get("label_key")
+    if label_key is not None:
+        cleaned["label_key"] = check_identifier(
+            label_key, what=f"{what} options_from label_key"
+        )
     return cleaned
 
 
@@ -1158,6 +1204,58 @@ def _check_features(features: list[str], cleaned: dict[str, Any]) -> None:
             )
 
 
+def _check_option_sources(
+    endpoints: list[dict[str, Any]], *, readable_ids: set[str]
+) -> None:
+    """Every ``options_from`` against the endpoint it names.
+
+    Three things have to hold, and each of them fails silently downstream:
+
+    * the endpoint is one this manifest declares — an id from another app is a
+      cross-app read with no consent story behind it;
+    * it *reads*, because filling in a form must not write anything;
+    * the keys it names are returns of that endpoint, and are lists. One value
+      cannot be a menu, and a caller asking for options would get a scalar it
+      has nowhere to put.
+    """
+    returns_by_id = {
+        endpoint["id"]: {value["key"]: value for value in endpoint.get("returns") or []}
+        for endpoint in endpoints
+    }
+
+    for endpoint in endpoints:
+        for param in endpoint.get("params") or []:
+            source = param.get("options_from")
+            if not source:
+                continue
+            what = (
+                f"service app: endpoint {endpoint['id']!r} parameter {param['key']!r}"
+            )
+            named = source["endpoint"]
+
+            if named not in returns_by_id:
+                fail(
+                    f"{what}: options_from names {named!r}, which is not declared here"
+                )
+            if named not in readable_ids:
+                fail(f"{what}: options_from names {named!r}, which does not read")
+
+            for field in ("key", "label_key"):
+                key = source.get(field)
+                if key is None:
+                    continue
+                value = returns_by_id[named].get(key)
+                if value is None:
+                    fail(
+                        f"{what}: options_from {field} {key!r} is not returned by {named!r}"
+                    )
+                if value.get("list") is not True:
+                    fail(
+                        f"{what}: options_from {field} {key!r} is a single value — "
+                        "options come from a list"
+                    )
+
+
 def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     """Validate and canonicalize a service app's definition."""
     body = require_mapping(definition, "service app definition")
@@ -1196,6 +1294,12 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         endpoint_ids.add(endpoint["id"])
         if endpoint["direction"] in WIDGET_BINDABLE_DIRECTIONS:
             readable_ids.add(endpoint["id"])
+
+    # A parameter naming where its values come from, checked once every endpoint
+    # is known. Nothing downstream refuses a bad one: a form asks this
+    # deployment to resolve it, no such return is found, and the form offers
+    # nothing — which is indistinguishable from a vendor being slow.
+    _check_option_sources(endpoints, readable_ids=readable_ids)
 
     widgets = [
         _widget(entry, readable_ids=readable_ids, connection_ids=connection_ids)
