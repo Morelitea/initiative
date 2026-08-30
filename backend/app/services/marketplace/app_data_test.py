@@ -39,29 +39,42 @@ SOURCE = {
         {"key": "detailed", "type": "bool", "label": {}},
         {"key": "callback", "type": "url", "label": {}},
     ],
+    "returns": [
+        {"key": "ids", "type": "int", "list": True},
+        {"key": "titles", "type": "string", "list": True},
+        {"key": "count", "type": "int"},
+        {"key": "unavailable", "type": "string"},
+    ],
 }
 
 
-async def _read(handler) -> list:
-    return await service._read_rows(
-        httpx.Request("POST", URL), transport=httpx.MockTransport(handler)
+async def _read(handler, endpoint=SOURCE) -> tuple[list, dict]:
+    return await service._read_answer(
+        httpx.Request("POST", URL),
+        endpoint=endpoint,
+        transport=httpx.MockTransport(handler),
     )
 
 
 # --- what an app may answer with --------------------------------------------
 
 
-def _answer(rows) -> dict:
+def _answer(result) -> dict:
     """What an app answers a call with: what it ran, whose credential ran it,
-    and the result. The rows are one level in."""
-    return {"endpoint": ORDERS, "actor": "member", "result": {"rows": rows}}
+    and the result. The declared returns are one level in."""
+    return {"endpoint": ORDERS, "actor": "member", "result": result}
 
 
 class TestUpstreamBounds:
-    async def test_rows_come_back_verbatim(self):
-        payload = [{"id": 1, "nested": {"deep": [1, 2]}}, {"id": 2}]
-        rows = await _read(lambda request: httpx.Response(200, json=_answer(payload)))
-        assert rows == payload
+    async def test_an_answer_is_read_through_the_endpoints_returns(self):
+        rows, values = await _read(
+            lambda request: httpx.Response(
+                200,
+                json=_answer({"ids": [1, 2], "titles": ["a", "b"], "count": 2}),
+            )
+        )
+        assert rows == [{"ids": 1, "titles": "a"}, {"ids": 2, "titles": "b"}]
+        assert values == {"count": 2}
 
     async def test_an_answer_without_a_result_is_the_app_being_unavailable(self):
         # From a dashboard's side "this app is not answering" is true whether
@@ -73,7 +86,11 @@ class TestUpstreamBounds:
     async def test_a_response_past_the_ceiling_is_abandoned(self):
         oversized = "x" * (service.MAX_RESPONSE_BYTES + 1024)
         with pytest.raises(service.AppDataError) as excinfo:
-            await _read(lambda request: httpx.Response(200, json=_answer([oversized])))
+            await _read(
+                lambda request: httpx.Response(
+                    200, json=_answer({"titles": [oversized]})
+                )
+            )
         assert excinfo.value.code == AppDataMessages.RESPONSE_TOO_LARGE
         assert excinfo.value.status_code == 502
 
@@ -97,7 +114,7 @@ class TestUpstreamBounds:
     @pytest.mark.parametrize("status", [400, 401, 404, 500, 503])
     async def test_an_error_status_is_not_passed_through_as_data(self, status):
         with pytest.raises(service.AppDataError) as excinfo:
-            await _read(lambda request: httpx.Response(status, json={"rows": []}))
+            await _read(lambda request: httpx.Response(status, json=_answer({})))
         assert excinfo.value.code == AppDataMessages.SERVICE_UNAVAILABLE
 
     async def test_a_body_that_is_not_json_is_refused(self):
@@ -112,7 +129,7 @@ class TestUpstreamBounds:
         assert excinfo.value.code == AppDataMessages.SERVICE_UNAVAILABLE
 
     @pytest.mark.parametrize(
-        "body", [{"data": []}, {"rows": {"a": 1}}, [1, 2, 3], "rows", 7]
+        "body", [{"data": []}, {"result": [1, 2]}, [1, 2, 3], "result", 7]
     )
     async def test_json_that_is_not_a_data_response_is_refused(self, body):
         with pytest.raises(service.AppDataError) as excinfo:
@@ -124,6 +141,126 @@ class TestUpstreamBounds:
         seconds is not going to render usefully."""
         assert service.REQUEST_TIMEOUT_SECONDS == 5.0
         assert service.MAX_RESPONSE_BYTES == 1024 * 1024
+
+
+# --- reading an answer through what was declared ------------------------------
+
+
+def _returns(*declared) -> dict:
+    return {"id": ORDERS, "direction": "read", "returns": list(declared)}
+
+
+class TestReadingAnAnswerThroughItsReturns:
+    """The manifest says what an endpoint hands back; that is how it is read.
+
+    A widget binds a return before the endpoint has ever run, so the declaration
+    and the projection are the same document — an app sends the keys it named,
+    and these pin what each kind of return becomes.
+    """
+
+    def test_lists_are_read_side_by_side(self):
+        """The third entry of each list describes the same third thing."""
+        rows, _ = service.project_returns(
+            {"ids": [1, 2, 3], "titles": ["a", "b", "c"]},
+            _returns(
+                {"key": "ids", "type": "int", "list": True},
+                {"key": "titles", "type": "string", "list": True},
+            ),
+        )
+        assert rows == [
+            {"ids": 1, "titles": "a"},
+            {"ids": 2, "titles": "b"},
+            {"ids": 3, "titles": "c"},
+        ]
+
+    def test_a_single_value_describes_the_answer_rather_than_an_item(self):
+        rows, values = service.project_returns(
+            {"ids": [1, 2], "total": 97},
+            _returns(
+                {"key": "ids", "type": "int", "list": True},
+                {"key": "total", "type": "int"},
+            ),
+        )
+        assert rows == [{"ids": 1}, {"ids": 2}]
+        assert values == {"total": 97}
+
+    def test_an_empty_set_still_carries_what_the_answer_says_about_itself(self):
+        """No rows and a total of nought are both true at once, and a tile
+        drawing the number needs the second one."""
+        rows, values = service.project_returns(
+            {"ids": [], "total": 0, "unavailable": "no account connected"},
+            _returns(
+                {"key": "ids", "type": "int", "list": True},
+                {"key": "total", "type": "int"},
+                {"key": "unavailable", "type": "string"},
+            ),
+        )
+        assert rows == []
+        assert values == {"total": 0, "unavailable": "no account connected"}
+
+    def test_a_key_the_endpoint_does_not_declare_is_left_out(self):
+        rows, values = service.project_returns(
+            {"ids": [1], "secrets": ["shh"], "note": "hello"},
+            _returns({"key": "ids", "type": "int", "list": True}),
+        )
+        assert rows == [{"ids": 1}]
+        assert values == {}
+
+    def test_a_declared_key_the_app_did_not_send_is_simply_absent(self):
+        rows, values = service.project_returns(
+            {"ids": [1]},
+            _returns(
+                {"key": "ids", "type": "int", "list": True},
+                {"key": "titles", "type": "string", "list": True},
+                {"key": "total", "type": "int"},
+            ),
+        )
+        assert rows == [{"ids": 1}]
+        assert values == {}
+
+    def test_columns_of_different_lengths_do_not_invent_entries(self):
+        """The longest list decides how many things were answered about; a
+        shorter one runs out rather than padding."""
+        rows, _ = service.project_returns(
+            {"ids": [1, 2, 3], "titles": ["a"]},
+            _returns(
+                {"key": "ids", "type": "int", "list": True},
+                {"key": "titles", "type": "string", "list": True},
+            ),
+        )
+        assert rows == [{"ids": 1, "titles": "a"}, {"ids": 2}, {"ids": 3}]
+
+    def test_a_declared_list_that_arrived_as_one_value_describes_no_set(self):
+        rows, values = service.project_returns(
+            {"ids": 7, "total": 1},
+            _returns(
+                {"key": "ids", "type": "int", "list": True},
+                {"key": "total", "type": "int"},
+            ),
+        )
+        assert rows == []
+        assert values == {"total": 1}
+
+    def test_an_endpoint_declaring_nothing_hands_a_widget_nothing(self):
+        rows, values = service.project_returns(
+            {"anything": [1, 2], "at": "all"}, {"id": ORDERS, "direction": "read"}
+        )
+        assert rows == []
+        assert values == {}
+
+    def test_values_are_carried_as_the_app_sent_them(self):
+        """Read by name, never interpreted: a nested value is data on its way to
+        a sandbox that is handed it as data."""
+        nested = {"deep": [1, {"deeper": True}]}
+        rows, values = service.project_returns(
+            {"blobs": [nested], "shape": nested},
+            _returns(
+                {"key": "blobs", "type": "string", "list": True},
+                {"key": "shape", "type": "string"},
+            ),
+        )
+        assert rows == [{"blobs": nested}]
+        assert values == {"shape": nested}
 
 
 # --- parameters --------------------------------------------------------------

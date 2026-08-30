@@ -259,6 +259,39 @@
             "maxLength": 120
           }
         },
+        "options_from": {
+          "type": "object",
+          "description": "Where this parameter's values come from when only the app can know them. Names a read endpoint in THIS manifest and which of its returns holds the values; a consumer building a form asks the deployment to resolve it rather than showing a text box. For everything a manifest cannot list because the answer differs per install and changes after it — a repository, a channel, a board, a project. `options` is the other case: a set that is the same on every deployment forever. Declaring values, not a control: what to draw is still the consumer's. Resolution is server-side, inherits the source endpoint's `requires` and `cache_ttl_seconds`, and a source that cannot be resolved leaves the parameter enterable rather than unusable.",
+          "properties": {
+            "endpoint": {
+              "$ref": "#/$defs/namespacedId",
+              "description": "A read endpoint this same manifest declares. Not another app's: reading across apps has no consent story, and an id from elsewhere is refused on publish."
+            },
+            "key": {
+              "$ref": "#/$defs/identifier",
+              "description": "Which of that endpoint's returns holds the values. Must be one it declares, and a list: a menu comes from a column of values, not from one."
+            },
+            "label_key": {
+              "$ref": "#/$defs/identifier",
+              "description": "Optional. A second return, parallel to `key`, holding what a person reads — a board's title beside its opaque id. Absent means the value is its own label."
+            },
+            "needs": {
+              "type": "object",
+              "description": "Optional. What to send that endpoint, written as one of ITS parameter names to one of THIS endpoint's. A repository's labels, a board's fields, a field's values — past the first source in a form, most of them answer differently depending on what has been chosen already, and a source that could not be told a sibling's answer could only ever offer the whole account's worth. Every named sibling must be a parameter this endpoint declares, and none of them this one. Until all of them have a value the source is not called and the parameter stays enterable, exactly as for a source that will not resolve.",
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/identifier"
+              },
+              "maxProperties": 12
+            }
+          },
+          "required": [
+            "endpoint",
+            "key"
+          ]
+        },
         "list": {
           "type": "boolean",
           "default": false,
@@ -327,7 +360,7 @@
             "interactive",
             "static"
           ],
-          "description": "'static' is one credential a guild admin supplies for the whole guild; 'interactive' is each member's own account, connected through the app's own vendor flow."
+          "description": "Who the credential belongs to. 'static' is one credential the whole guild uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'connect_path' is still one credential for the whole guild, run by an admin through the vendor's own flow rather than typed into a form."
         },
         "label": {
           "$ref": "#/$defs/localizedText"
@@ -341,7 +374,7 @@
         },
         "connect_path": {
           "$ref": "#/$defs/path",
-          "description": "Where the member is sent so the app can run the vendor's flow. Interactive connections only."
+          "description": "Where a person is sent so the app can run the vendor's flow. On an interactive connection that person is each member, authorizing their own account. On a static one it is a guild admin, and what the flow produces belongs to the whole guild — the vendor's own install page, where an organization is chosen and its permissions granted, rather than an admin retyping the organization's name into a text box. A static connection that declares one must also declare at least one 'managed' field, because the app writing back is the only way such a connection is ever satisfied."
         },
         "access_hint": {
           "$ref": "#/$defs/accessHint"
@@ -467,7 +500,7 @@
         },
         "sample_data": {
           "type": "object",
-          "description": "Rows keyed by declared read endpoint id, so a preview renders with no network call. Keys naming an undeclared endpoint are dropped."
+          "description": "What each endpoint would answer with, keyed by declared read endpoint id, so a preview renders with no network call. Written in the endpoint's own returns and read through them exactly as a live answer is. Keys naming an undeclared endpoint are dropped."
         },
         "requires": {
           "$ref": "#/$defs/requires"

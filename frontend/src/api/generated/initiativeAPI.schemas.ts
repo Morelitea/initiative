@@ -409,11 +409,16 @@ export interface AppDataParam {
   options?: string[] | null;
 }
 
+export type AppDataResponseRowsItem = { [key: string]: unknown };
+
+export type AppDataResponseValues = { [key: string]: unknown };
+
 /**
- * One data source's rows, as the app returned them.
+ * One data source's answer, in the two shapes its endpoint declared.
  */
 export interface AppDataResponse {
-  rows?: unknown[];
+  rows?: AppDataResponseRowsItem[];
+  values?: AppDataResponseValues;
   fetched_at: string;
   cached?: boolean;
 }

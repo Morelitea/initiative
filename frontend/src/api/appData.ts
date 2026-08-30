@@ -94,19 +94,40 @@ export const appWidgetSource = (
   return undefined;
 };
 
-/** Sample rows an app shipped for one of its widgets, in the shape a preview
- *  hands to the sandbox. Previews never call the network, so this is the only
- *  thing a marketplace listing's widget is ever drawn with. */
+/** One data source as a widget is handed it: the endpoint's `list` returns read
+ *  side by side, and its single-valued ones once. */
+export interface AppSample {
+  rows: Record<string, unknown>[];
+  values: Record<string, unknown>;
+}
+
+const EMPTY_SAMPLE: AppSample = { rows: [], values: {} };
+
+/** `sample_data` reaches us as an opaque object — the catalog has projected it
+ *  already, and this is where that becomes a type. */
+const asSample = (raw: unknown): AppSample => {
+  if (!raw || typeof raw !== "object") return EMPTY_SAMPLE;
+  const { rows, values } = raw as Partial<AppSample>;
+  return {
+    rows: Array.isArray(rows) ? rows : [],
+    values: values && typeof values === "object" ? values : {},
+  };
+};
+
+/** The sample an app shipped for one of its widgets, in the shape a preview
+ *  hands to the sandbox. The catalog has already read it through the endpoint's
+ *  returns, exactly as it reads a live answer, so a preview draws the widget a
+ *  guild would get. Previews never call the network, so this is the only thing
+ *  a marketplace listing's widget is ever drawn with. */
 export const appWidgetSample = (
   catalog: AppWidgetCatalogResponse | undefined,
   widgetType: string,
   endpointId: string | null | undefined
-): unknown[] => {
+): AppSample => {
   for (const entry of catalog?.items ?? []) {
     const widget = (entry.widgets ?? []).find((candidate) => candidate.type === widgetType);
     if (!widget) continue;
-    const rows = endpointId ? widget.sample_data?.[endpointId] : undefined;
-    return Array.isArray(rows) ? rows : [];
+    return asSample(endpointId ? widget.sample_data?.[endpointId] : undefined);
   }
-  return [];
+  return EMPTY_SAMPLE;
 };

@@ -105,12 +105,15 @@ export interface SheetRange {
 }
 
 /**
- * Rows from an installed app's data source.
+ * An installed app's data source, in the two shapes its manifest declared.
  *
- * The one source whose row shape this build does not describe, and deliberately
- * so. An app's rows are the app's — the proxy passes them through without
- * reading inside them, and the widget that draws them ships in the same
- * manifest, so the two agree without anything here mediating.
+ * The one source whose *keys* this build does not describe, and deliberately
+ * so: they are the endpoint's own `returns`, and the widget that draws them
+ * ships in the same manifest, so the two agree because they were published
+ * together. What the proxy does is read the answer through that declaration —
+ * the returns holding several become `rows`, read side by side; the ones
+ * holding a single value stay whole in `values`, so a total or a reason there
+ * is nothing survives an empty set.
  *
  * They are still *data*. The sandbox receives values, and the SceneSpec it has
  * to return has no `html` mark, no raw-string passthrough and no way to name a
@@ -118,7 +121,10 @@ export interface SheetRange {
  */
 export interface AppRows {
   source: "app";
-  rows: unknown[];
+  /** One entry per index across the endpoint's `list` returns. */
+  rows: Record<string, unknown>[];
+  /** The endpoint's single-valued returns, once. */
+  values: Record<string, unknown>;
 }
 
 /**

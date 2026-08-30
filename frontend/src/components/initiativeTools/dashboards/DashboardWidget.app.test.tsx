@@ -63,7 +63,12 @@ const CATALOG = {
           meta: { name: { en: "Summary" } },
           module_source: MODULE,
           endpoints: ["app.acme.shop.orders-summary"],
-          sample_data: { "app.acme.shop.orders-summary": [{ day: "mon", total: 4 }] },
+          sample_data: {
+            "app.acme.shop.orders-summary": {
+              rows: [{ days: "mon", totals: 4 }],
+              values: { total: 4 },
+            },
+          },
         },
       ],
       endpoints: [
@@ -108,7 +113,12 @@ describe("DashboardWidget with an app source", () => {
       if (catalogUrl(url)) return Promise.resolve({ data: CATALOG });
       if (dataUrl(url)) {
         return Promise.resolve({
-          data: { rows: [{ day: "mon", total: 9 }], fetched_at: "", cached: false },
+          data: {
+            rows: [{ days: "mon", totals: 9 }],
+            values: { total: 9 },
+            fetched_at: "",
+            cached: false,
+          },
         });
       }
       return Promise.resolve({ data: {} });
@@ -120,11 +130,12 @@ describe("DashboardWidget with an app source", () => {
     const call = renderWidget.mock.calls.at(-1)?.[0];
     // The seam: the module comes from the pinned definition, not the registry.
     expect(call.source).toBe(MODULE);
-    // Rows verbatim, plus the host's own count of them — nothing on this side
-    // reads inside an app's rows.
+    // Both halves verbatim, plus the host's own count of the rows — nothing on
+    // this side reads inside either.
     expect(call.data).toEqual({
       source: "app",
-      rows: [{ day: "mon", total: 9 }],
+      rows: [{ days: "mon", totals: 9 }],
+      values: { total: 9 },
       meta: { total: 1 },
     });
   });
@@ -132,7 +143,7 @@ describe("DashboardWidget with an app source", () => {
   it("asks the proxy for the dashboard the widget sits on", async () => {
     apiGet.mockImplementation((url: string) =>
       Promise.resolve({
-        data: catalogUrl(url) ? CATALOG : { rows: [], fetched_at: "", cached: false },
+        data: catalogUrl(url) ? CATALOG : { rows: [], values: {}, fetched_at: "", cached: false },
       })
     );
 
@@ -173,7 +184,11 @@ describe("DashboardWidget with an app source", () => {
     await waitFor(() => expect(renderWidget).toHaveBeenCalled());
     const call = renderWidget.mock.calls.at(-1)?.[0];
     expect(call.source).toBe(MODULE);
-    expect(call.data).toEqual({ source: "app", rows: [{ day: "mon", total: 4 }] });
+    expect(call.data).toEqual({
+      source: "app",
+      rows: [{ days: "mon", totals: 4 }],
+      values: { total: 4 },
+    });
     // The catalog is a declaration; the data plane is never touched.
     expect(apiGet.mock.calls.every(([url]) => catalogUrl(url))).toBe(true);
   });
