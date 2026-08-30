@@ -785,6 +785,8 @@ class AppDataMessages:
     ENDPOINT_NOT_FOUND = "APP_DATA_ENDPOINT_NOT_FOUND"
     #: The source is declared for guild admins and the caller is a member.
     ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
+    #: The source declares no such parameter, so there is nothing to fill in.
+    PARAM_NOT_FOUND = "APP_DATA_PARAM_NOT_FOUND"
     #: The install is turned off in this guild.
     APP_DISABLED = "APP_DATA_APP_DISABLED"
     #: No registration wires this app up on this deployment.
