@@ -151,7 +151,8 @@
     "appEndpointPlaceholder": "Elige una lectura…",
     "appNotInstalled": "Esta aplicación no está instalada en este gremio.",
     "appParamPlaceholder": "Elige…",
-    "appParamNeedsSibling": "Elige primero el valor de arriba."
+    "appParamNeedsSibling": "Elige primero el valor de arriba.",
+    "appParamListHint": "Separa los valores con comas."
   },
   "picker": {
     "title": "Añadir un widget",

@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MultiSelect } from "@/components/ui/multi-select";
 import {
   Select,
   SelectContent,
@@ -225,14 +226,52 @@ export function WidgetConfigDialog({
   const setBindingValue = (patch: Partial<WidgetBinding>) =>
     setBinding((current) => ({ ...current, ...patch }));
 
-  /** One of the app endpoint's own parameters. An emptied field is *removed*
-   *  rather than sent as "", because a parameter absent and a parameter
-   *  answered with nothing are different things to the app. */
+  /**
+   * One of the app endpoint's own parameters.
+   *
+   * An emptied field is *removed* rather than sent as `""`, because a parameter
+   * absent and a parameter answered with nothing are different things to the
+   * app — and an empty list is the same "nothing" as an empty string.
+   *
+   * Changing one clears whatever was chosen *from* it. A menu filled through
+   * `needs` was filled for the sibling's old value — an aisle belongs to the
+   * shop that was chosen when it was picked — so leaving it behind is how a
+   * binding ends up naming an aisle of a shop it no longer reads. Cleared to a
+   * fixpoint, because a dependent can itself have dependents.
+   */
   const setAppParam = (key: string, value: unknown) =>
     setBinding((current) => {
-      const next = { ...((current.params ?? {}) as Record<string, unknown>) };
-      if (value === undefined || value === null || value === "") delete next[key];
+      const params = (current.params ?? {}) as Record<string, unknown>;
+      const next = { ...params };
+      const emptied =
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0);
+
+      if (emptied) delete next[key];
       else next[key] = value;
+
+      // Only a real change invalidates anything. Re-picking the value that was
+      // already there must not throw away the choices made under it.
+      if (JSON.stringify(params[key] ?? null) !== JSON.stringify(next[key] ?? null)) {
+        const declared = appEndpoint?.params ?? [];
+        const stale = new Set([key]);
+        let spreading = true;
+        while (spreading) {
+          spreading = false;
+          for (const candidate of declared) {
+            if (stale.has(candidate.key)) continue;
+            const needs = Object.values(candidate.options_from?.needs ?? {});
+            if (needs.some((sibling) => stale.has(sibling))) {
+              stale.add(candidate.key);
+              delete next[candidate.key];
+              spreading = true;
+            }
+          }
+        }
+      }
+
       return { ...current, params: Object.keys(next).length ? next : undefined };
     });
 
@@ -241,7 +280,19 @@ export function WidgetConfigDialog({
   const setAppEndpoint = (endpointId: string) =>
     setBinding((current) => ({ ...current, endpoint_id: endpointId, params: undefined }));
 
+  /**
+   * An app binding without a read is one the server refuses.
+   *
+   * `endpoint_id` is required where a dashboard definition is normalized, so
+   * saving a freshly added app widget that has not been pointed at anything
+   * comes back a 422 — after the dialog has already closed, which is the worst
+   * place to find out. The control that fills it is right there, so the answer
+   * is to not offer the save rather than to explain the failure afterwards.
+   */
+  const incomplete = isApp && !binding.endpoint_id;
+
   const save = () => {
+    if (incomplete) return;
     onSave({
       title: title.trim() || undefined,
       binding,
@@ -413,7 +464,9 @@ export function WidgetConfigDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={save}>{t("common:save")}</Button>
+          <Button onClick={save} disabled={incomplete}>
+            {t("common:save")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -555,6 +608,65 @@ function ParamControl({
 }
 
 /**
+ * Several values, typed, where the app could not offer a menu for them.
+ *
+ * The comma lives here and only here. What goes onto the binding is an array —
+ * that is the whole point of a parameter declaring `list` — but a person typing
+ * a handful of values wants one field, and separating them by commas is what
+ * they will do whether or not anything asked them to.
+ *
+ * The text is held locally rather than derived from the array on every
+ * keystroke, because parsing and re-joining as you type eats the separator the
+ * moment it is typed: "red," becomes ["red"] becomes "red", and the comma has
+ * to be typed again.
+ */
+function AppParamListInput({
+  id,
+  values,
+  onChange,
+}: {
+  id: string;
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useTranslation("dashboards");
+  const [text, setText] = useState(values.join(", "));
+
+  // Follow the binding when something else changes it — a sibling being
+  // re-chosen clears this one, and the field has to show that.
+  useEffect(() => {
+    setText((current) =>
+      current
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .join(", ") === values.join(", ")
+        ? current
+        : values.join(", ")
+    );
+  }, [values]);
+
+  return (
+    <>
+      <Input
+        id={id}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value);
+          onChange(
+            event.target.value
+              .split(",")
+              .map((entry) => entry.trim())
+              .filter(Boolean)
+          );
+        }}
+      />
+      <p className="text-muted-foreground text-xs">{t("config.appParamListHint")}</p>
+    </>
+  );
+}
+
+/**
  * One parameter of an app's read endpoint.
  *
  * This is the control that was missing, and the reason every app parameter was
@@ -604,6 +716,7 @@ function AppParamControl({
   const value = values[param.key];
   const shown = value === undefined || value === null ? "" : String(value);
   const controlId = `app-param-${param.key}`;
+  const chosen = Array.isArray(value) ? value.map(String) : [];
 
   const offered = param.options_from
     ? (menu.data?.options ?? [])
@@ -615,6 +728,36 @@ function AppParamControl({
       {param.required ? <span className="text-destructive"> *</span> : null}
     </Label>
   );
+
+  // Several values rather than one. `list` is the only thing that says so, and
+  // an array is what travels — the alternative it exists to replace is an app
+  // declaring a string and documenting a comma, which nothing here could
+  // validate or complete.
+  if (param.list) {
+    return (
+      <div className="space-y-2">
+        {heading}
+        {offered.length ? (
+          <MultiSelect
+            id={controlId}
+            selectedValues={chosen}
+            options={offered.map((option) => ({
+              value: option.value,
+              label: option.label ?? option.value,
+            }))}
+            onChange={(next) => onChange(param.key, next)}
+            placeholder={t("dashboards:config.appParamPlaceholder")}
+          />
+        ) : (
+          <AppParamListInput
+            id={controlId}
+            values={chosen}
+            onChange={(next) => onChange(param.key, next)}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (offered.length) {
     return (

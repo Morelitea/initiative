@@ -151,7 +151,8 @@
     "appEndpointPlaceholder": "Choisir une lecture…",
     "appNotInstalled": "Cette application n'est pas installée dans cette guilde.",
     "appParamPlaceholder": "Choisir…",
-    "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus."
+    "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus.",
+    "appParamListHint": "Séparez les valeurs par des virgules."
   },
   "picker": {
     "title": "Ajouter un widget",

@@ -81,6 +81,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "MAX_INFLIGHT_PER_APP",
     "MAX_PARAMS_BYTES",
+    "MAX_PARAM_VALUES",
     "MAX_RESPONSE_BYTES",
     "MAX_CACHE_TTL_SECONDS",
     "REQUEST_TIMEOUT_SECONDS",
@@ -112,6 +113,9 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 MAX_RESPONSE_BYTES = 1024 * 1024
 #: The encoded ``params`` object a request may carry.
 MAX_PARAMS_BYTES = 2048
+#: How many values one ``list`` parameter may carry. Bounded for the same
+#: reason the object is: a request is a request, not a bulk upload.
+MAX_PARAM_VALUES = 64
 #: How many calls to one app this worker will hold open at once. Refused rather
 #: than queued: waiting behind a stalled app is the same outage with a longer
 #: fuse.
@@ -252,8 +256,33 @@ def project_returns(
 # --- parameters -------------------------------------------------------------
 
 
-def _coerce_param(field_spec: Mapping[str, Any], value: Any) -> str:
-    """One parameter, checked against its declared type and rendered for the
+def _coerce_param(field_spec: Mapping[str, Any], value: Any) -> str | list[str]:
+    """One parameter, checked against what its endpoint declared about it.
+
+    Cardinality first, then type. A parameter marked ``list`` takes an array and
+    nothing else, and each entry is held to the same type rules a single value
+    would be — so ``list`` is the whole of what says whether one value or
+    several are expected, which is the point of declaring it. The alternative it
+    replaced is an app declaring a string and documenting a comma, which is a
+    convention nothing on this side can validate.
+
+    An empty array is refused rather than forwarded. "None of them" is a
+    parameter that is absent; an array with nothing in it is a request nobody
+    meant to make.
+    """
+    if field_spec.get("list") is True:
+        if not isinstance(value, list) or not value:
+            raise AppDataError(AppDataMessages.INVALID_PARAMS, 400)
+        if len(value) > MAX_PARAM_VALUES:
+            raise AppDataError(AppDataMessages.INVALID_PARAMS, 400)
+        return [_coerce_scalar(field_spec, entry) for entry in value]
+    if isinstance(value, list):
+        raise AppDataError(AppDataMessages.INVALID_PARAMS, 400)
+    return _coerce_scalar(field_spec, value)
+
+
+def _coerce_scalar(field_spec: Mapping[str, Any], value: Any) -> str:
+    """One value, checked against its declared type and rendered for the
     wire. The types are the manifest's closed enum minus ``secret`` — a
     credential is supplied once and held in custody, never restated per call."""
     field_type = field_spec.get("type")
@@ -296,7 +325,7 @@ def _coerce_param(field_spec: Mapping[str, Any], value: Any) -> str:
 
 def validate_params(
     endpoint: Mapping[str, Any], raw: str | None
-) -> tuple[dict[str, str], str]:
+) -> tuple[dict[str, str | list[str]], str]:
     """Check a request's parameters against the ones the endpoint declares.
 
     Returns the values to send upstream and their canonical form for the cache
@@ -323,7 +352,7 @@ def validate_params(
         if isinstance(entry, dict) and isinstance(entry.get("key"), str)
     }
 
-    values: dict[str, str] = {}
+    values: dict[str, str | list[str]] = {}
     for key, value in supplied.items():
         field_spec = declared.get(key)
         if field_spec is None:
@@ -978,7 +1007,11 @@ async def resolve_param_options(
     asked: dict[str, Any] = {}
     for theirs, ours in (needs if isinstance(needs, dict) else {}).items():
         answer = supplied.get(ours)
-        if answer is None or not str(answer).strip():
+        # Absent, blank and empty-list are one state: the form has not answered
+        # it yet, so the source is not asked and the field stays enterable.
+        if answer is None or (isinstance(answer, (str, list)) and not answer):
+            return [], OPTIONS_NEEDS_SIBLING
+        if isinstance(answer, str) and not answer.strip():
             return [], OPTIONS_NEEDS_SIBLING
         asked[theirs] = answer
 

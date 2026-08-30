@@ -151,7 +151,8 @@
     "appEndpointPlaceholder": "Lesevorgang wählen…",
     "appNotInstalled": "Diese App ist in dieser Gilde nicht installiert.",
     "appParamPlaceholder": "Wählen…",
-    "appParamNeedsSibling": "Wähle zuerst den Wert darüber."
+    "appParamNeedsSibling": "Wähle zuerst den Wert darüber.",
+    "appParamListHint": "Werte durch Kommas trennen."
   },
   "picker": {
     "title": "Widget hinzufügen",

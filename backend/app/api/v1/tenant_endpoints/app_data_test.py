@@ -138,6 +138,14 @@ def _definition() -> dict:
                         "string",
                         options_from={"endpoint": REVENUE, "key": "tiers"},
                     ),
+                    # Several values rather than one, which is a fact about the
+                    # value and the only thing that says so.
+                    _field(
+                        "tags",
+                        "string",
+                        list=True,
+                        options_from={"endpoint": LIST_SHOPS, "key": "names"},
+                    ),
                 ],
                 "returns": [
                     {"key": "days", "type": "string", "list": True},
@@ -1133,3 +1141,123 @@ class TestParamOptions:
         )
         assert response.status_code == 404
         assert response.json()["detail"] == AppDataMessages.ENDPOINT_NOT_FOUND
+
+
+class TestListParams:
+    """A parameter declaring several values.
+
+    ``list`` exists so an app does not have to declare a string and document a
+    comma — a convention nothing on this side could validate or complete. That
+    only holds if an array is what actually travels, so these pin the shape
+    rather than the convention.
+    """
+
+    async def test_several_values_reach_the_app_as_several(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":["red","blue"]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 200, response.text
+        assert json.loads(upstream.calls[0].content)["params"] == {
+            "tags": ["red", "blue"]
+        }
+
+    async def test_one_value_for_a_list_parameter_is_still_an_array(
+        self, client, acting_user, session, upstream
+    ):
+        """Cardinality is the declaration's, not the caller's. A single value
+        sent bare would be a second encoding of the same thing."""
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":"red"}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == AppDataMessages.INVALID_PARAMS
+
+    async def test_an_array_for_a_single_parameter_is_refused(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"shop":["north"]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_an_empty_array_is_refused_rather_than_sent(
+        self, client, acting_user, session, upstream
+    ):
+        """ "None of them" is a parameter that is absent. An array with nothing
+        in it is a request nobody meant to make."""
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":[]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_every_entry_is_held_to_the_declared_type(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"tags":["red",7]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_more_values_than_a_request_may_carry_are_refused(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+        many = json.dumps(
+            {
+                "tags": [
+                    str(index) for index in range(app_data_service.MAX_PARAM_VALUES + 1)
+                ]
+            }
+        )
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params=many), headers=a.headers
+        )
+        assert response.status_code == 400
+        assert upstream.count == 0
+
+    async def test_a_list_parameter_fills_its_menu_the_same_way(
+        self, client, acting_user, session, upstream
+    ):
+        """Where the values come from does not change with how many are wanted:
+        one source answers both."""
+        a, app, _ = await _workspace(session, acting_user)
+        upstream.rows = [{"names": "north"}, {"names": "south"}]
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "tags"), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        assert [o["value"] for o in response.json()["options"]] == ["north", "south"]
+
+    async def test_a_sibling_answered_with_nothing_is_unanswered(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, _ = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _options_url(a, app, ORDERS_SUMMARY, "aisle", params='{"shop":""}'),
+            headers=a.headers,
+        )
+        assert response.json()["unavailable"] == "needs-sibling"
+        assert upstream.count == 0
