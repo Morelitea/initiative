@@ -88,8 +88,10 @@ __all__ = [
     "AppDataResult",
     "clear_app_data_cache",
     "fetch_app_source",
+    "find_param",
     "find_read_endpoint",
     "project_returns",
+    "resolve_param_options",
     "service_public_id",
     "validate_params",
 ]
@@ -820,3 +822,181 @@ async def fetch_app_source(
         return result
     finally:
         _pending.pop(key, None)
+
+
+# --- filling a menu ---------------------------------------------------------
+#
+# A parameter whose permitted values only the app can know — a repository, a
+# label, a board — declares ``options_from``: a read of the app's own that
+# answers which values there are, and which of its returns holds them. Without
+# something resolving that, a consumer has the declaration and no way to act on
+# it, so every such parameter is a text box somebody fills in from memory.
+#
+# **This is the one route that reaches an endpoint no dashboard has bound.** It
+# has to be: the whole point is filling in a form for a widget that is not
+# placed yet, so there is no dashboard whose gates could decide it. What stands
+# in for that is structural rather than a second permission check:
+#
+# * the source is never named by the caller. It is read out of the app's own
+#   pinned declaration, from the ``options_from`` of the parameter being filled
+#   in, so the reachable set is exactly the reads a publisher marked as menu
+#   sources — not every read the app offers;
+# * the parameters that source is called with are the ones its ``needs`` names,
+#   mapped from answers the same form already holds, so a caller cannot shape
+#   the upstream request;
+# * the source's own ``visibility`` is enforced by ``fetch_app_source`` exactly
+#   as it is for a placed tile, on the caller's own credentials. What comes back
+#   is what this caller may see, or nothing.
+
+#: The most values one menu hands back. A picker is a control somebody reads,
+#: and an app answering with thousands is answering a different question.
+MAX_PARAM_OPTIONS = 500
+
+#: Why there is no menu. **None of these are errors.** A parameter whose source
+#: will not resolve stays enterable — a vendor outage, a credential nobody has
+#: connected, a sibling not yet chosen must never turn into a value that cannot
+#: be typed, because that makes a valid configuration unreachable.
+#:
+#: The parameter declares no source at all: there was never a menu to offer.
+OPTIONS_NO_SOURCE = "no-source"
+#: The source needs a sibling this form has not answered yet — a repository's
+#: labels before a repository is chosen. Ask again once it has one.
+OPTIONS_NEEDS_SIBLING = "needs-sibling"
+#: The source was called and did not answer: the app is down, a credential is
+#: missing, or this caller may not read it.
+OPTIONS_UNRESOLVED = "unresolved"
+
+
+def find_param(endpoint: Mapping[str, Any], param_key: str) -> Optional[dict[str, Any]]:
+    """One declared parameter of an endpoint, or None."""
+    declared = endpoint.get("params")
+    for entry in declared if isinstance(declared, list) else []:
+        if isinstance(entry, dict) and entry.get("key") == param_key:
+            return entry
+    return None
+
+
+def _option_values(
+    rows: list[dict[str, Any]], key: str, label_key: Optional[str]
+) -> list[dict[str, str]]:
+    """The column a source names, as values a control can offer.
+
+    Read by name and nothing else, the same way a widget reads an answer. A row
+    missing the value contributes nothing; one whose value repeats is kept once,
+    in the order the app gave, because that order is the app's answer to "which
+    of these first".
+    """
+    options: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        raw = row.get(key)
+        if raw is None or isinstance(raw, (dict, list, bool)):
+            continue
+        value = str(raw)
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        option = {"value": value}
+        if label_key:
+            shown = row.get(label_key)
+            if shown is not None and not isinstance(shown, (dict, list)):
+                option["label"] = str(shown)
+        options.append(option)
+        if len(options) >= MAX_PARAM_OPTIONS:
+            break
+    return options
+
+
+def _supplied_siblings(endpoint: Mapping[str, Any], raw: str | None) -> dict[str, Any]:
+    """A part-filled form's answers, keyed by the parameters it declares.
+
+    Deliberately *not* ``validate_params``: that one is the fetch path and holds
+    a form to the whole contract, refusing a call that leaves a required
+    parameter out. A form being filled in is incomplete by definition — that is
+    what filling one in means — so the check here is only that a key is one the
+    endpoint declares. Anything else is dropped rather than forwarded, so what
+    reaches the source is a sibling's answer and never a caller's own key.
+    """
+    if raw is None or not raw.strip():
+        return {}
+    if len(raw.encode("utf-8")) > MAX_PARAMS_BYTES:
+        raise AppDataError(AppDataMessages.INVALID_PARAMS, 400)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AppDataError(AppDataMessages.INVALID_PARAMS, 400) from exc
+    if not isinstance(parsed, dict):
+        raise AppDataError(AppDataMessages.INVALID_PARAMS, 400)
+
+    declared = {
+        entry["key"]
+        for entry in (endpoint.get("params") or [])
+        if isinstance(entry, dict) and isinstance(entry.get("key"), str)
+    }
+    return {key: value for key, value in parsed.items() if key in declared}
+
+
+async def resolve_param_options(
+    session: AsyncSession,
+    *,
+    app: GuildApp,
+    endpoint_id: str,
+    param_key: str,
+    raw_params: str | None,
+    user_id: int,
+    is_guild_admin: bool,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> tuple[list[dict[str, str]], Optional[str]]:
+    """The values one parameter permits, from the read its app named.
+
+    Returns the options and, when there are none, why — never an exception for
+    a source that simply would not resolve. The caller draws a menu when there
+    is one and leaves the field typeable when there is not.
+    """
+    endpoint = find_read_endpoint(app.definition, endpoint_id)
+    if endpoint is None:
+        raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
+
+    param = find_param(endpoint, param_key)
+    if param is None:
+        raise AppDataError(AppDataMessages.PARAM_NOT_FOUND, 404)
+
+    source = param.get("options_from")
+    if not isinstance(source, dict):
+        return [], OPTIONS_NO_SOURCE
+
+    source_id = source.get("endpoint")
+    key = source.get("key")
+    if not isinstance(source_id, str) or not isinstance(key, str):
+        return [], OPTIONS_NO_SOURCE
+
+    # What the same form has answered so far, which is the only thing a sibling
+    # can be filled from.
+    supplied = _supplied_siblings(endpoint, raw_params)
+
+    needs = source.get("needs")
+    asked: dict[str, Any] = {}
+    for theirs, ours in (needs if isinstance(needs, dict) else {}).items():
+        answer = supplied.get(ours)
+        if answer is None or not str(answer).strip():
+            return [], OPTIONS_NEEDS_SIBLING
+        asked[theirs] = answer
+
+    try:
+        result = await fetch_app_source(
+            session,
+            app=app,
+            endpoint_id=source_id,
+            raw_params=json.dumps(asked) if asked else None,
+            user_id=user_id,
+            is_guild_admin=is_guild_admin,
+            transport=transport,
+        )
+    except AppDataError:
+        return [], OPTIONS_UNRESOLVED
+
+    label_key = source.get("label_key")
+    options = _option_values(
+        result.rows, key, label_key if isinstance(label_key, str) else None
+    )
+    return options, None if options else OPTIONS_UNRESOLVED

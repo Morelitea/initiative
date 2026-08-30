@@ -146,7 +146,12 @@
     "all_calendar": "Alle Kalender",
     "all_counter_group": "Alle Zählergruppen",
     "all_counter": "Alle Zähler",
-    "all_document": "Alle Tabellen"
+    "all_document": "Alle Tabellen",
+    "appEndpoint": "Was es liest",
+    "appEndpointPlaceholder": "Lesevorgang wählen…",
+    "appNotInstalled": "Diese App ist in dieser Gilde nicht installiert.",
+    "appParamPlaceholder": "Wählen…",
+    "appParamNeedsSibling": "Wähle zuerst den Wert darüber."
   },
   "picker": {
     "title": "Widget hinzufügen",

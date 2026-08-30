@@ -146,7 +146,12 @@
     "all_calendar": "Todos los calendarios",
     "all_counter_group": "Todos los grupos de contadores",
     "all_counter": "Todos los contadores",
-    "all_document": "Todas las hojas de cálculo"
+    "all_document": "Todas las hojas de cálculo",
+    "appEndpoint": "Qué lee",
+    "appEndpointPlaceholder": "Elige una lectura…",
+    "appNotInstalled": "Esta aplicación no está instalada en este gremio.",
+    "appParamPlaceholder": "Elige…",
+    "appParamNeedsSibling": "Elige primero el valor de arriba."
   },
   "picker": {
     "title": "Añadir un widget",
