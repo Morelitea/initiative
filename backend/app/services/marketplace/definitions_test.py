@@ -560,11 +560,32 @@ class TestWidgets:
                     "meta": {"name": {"en": "Sales summary"}},
                     "module_source": "export const render = () => ({});",
                     "endpoints": [READ_ID],
-                    "sample_data": {READ_ID: [{"n": 1}], "elsewhere": [{"n": 2}]},
+                    "sample_data": {
+                        READ_ID: {"n": [1]},
+                        "elsewhere": {"n": [2]},
+                    },
                 }
             ],
         )
-        assert definition["widgets"][0]["sample_data"] == {READ_ID: [{"n": 1}]}
+        assert definition["widgets"][0]["sample_data"] == {READ_ID: {"n": [1]}}
+
+    def test_a_sample_is_what_the_endpoint_would_answer(self):
+        """An endpoint answers with its declared returns, so a sample is written
+        in them too — the preview reads it the way the proxy reads a live one."""
+        with pytest.raises(ListingDefinitionError, match="sample_data for"):
+            _normalize(
+                features=["endpoints", "widgets"],
+                endpoints=[{"id": READ_ID, "direction": "read"}],
+                widgets=[
+                    {
+                        "id": "summary",
+                        "meta": {"name": {"en": "Sales summary"}},
+                        "module_source": "export const render = () => ({});",
+                        "endpoints": [READ_ID],
+                        "sample_data": {READ_ID: [{"n": 1}]},
+                    }
+                ],
+            )
 
     def test_sample_rows_are_size_capped(self):
         with pytest.raises(ListingDefinitionError, match="sample_data"):
@@ -578,7 +599,7 @@ class TestWidgets:
                         "module_source": "export const render = () => ({});",
                         "endpoints": [READ_ID],
                         "sample_data": {
-                            READ_ID: ["x" * service_apps.MAX_SAMPLE_DATA_BYTES]
+                            READ_ID: {"blob": "x" * service_apps.MAX_SAMPLE_DATA_BYTES}
                         },
                     }
                 ],

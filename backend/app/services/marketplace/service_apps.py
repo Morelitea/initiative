@@ -1073,18 +1073,26 @@ def _grid_int(raw: Any, *, low: int, high: Optional[int], what: str) -> Optional
 
 
 def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
-    """Rows that let a preview render with no network call at all.
+    """What each source would answer with, so a preview renders with no call.
 
     Keyed by the sources the widget declared; anything else is dropped, so a
-    sample cannot describe data the widget could never be handed. The rows
-    themselves are opaque — this build stores them for the browser to pass into
-    a render, and reads nothing out of them.
+    sample cannot describe data the widget could never be handed.
+
+    Each one is an endpoint's *result* — the same keys that endpoint declares it
+    returns — because a preview is read through those returns exactly as a live
+    answer is. Checked here rather than left opaque: a sample in any other shape
+    projects to nothing, and an empty preview at a listing is a long way from
+    the manifest that caused it.
     """
     if raw is None:
         return {}
     supplied = require_mapping(raw, f"{what} sample_data")
     allowed = set(sources)
-    sample = {key: value for key, value in supplied.items() if key in allowed}
+    sample = {
+        key: require_mapping(value, f"{what} sample_data for {key!r}")
+        for key, value in supplied.items()
+        if key in allowed
+    }
     check_json_size(sample, what=f"{what} sample_data", limit=MAX_SAMPLE_DATA_BYTES)
     return sample
 

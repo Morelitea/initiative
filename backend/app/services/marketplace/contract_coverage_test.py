@@ -146,7 +146,7 @@ def maximal_manifest() -> dict:
                 "endpoints": [READ_ENDPOINT],
                 # Keyed by the endpoints the widget declared; anything else is
                 # dropped, so this is the only key that survives.
-                "sample_data": {READ_ENDPOINT: {"count": 1}},
+                "sample_data": {READ_ENDPOINT: {"count": [1], "labels": ["one"]}},
                 "requires": {"any_of": ["vendor"]},
             }
         ],
