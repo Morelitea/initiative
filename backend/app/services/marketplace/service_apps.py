@@ -443,7 +443,34 @@ def _options_from(raw: Any, *, what: str) -> dict[str, Any] | None:
         cleaned["label_key"] = check_identifier(
             label_key, what=f"{what} options_from label_key"
         )
+
+    needs = source.get("needs")
+    if needs is not None:
+        cleaned["needs"] = _option_source_needs(needs, what=what)
     return cleaned
+
+
+def _option_source_needs(raw: Any, *, what: str) -> dict[str, str]:
+    """What to send that endpoint, in its parameter names and this one's.
+
+    Past the first source in a form, most of them answer differently depending
+    on what has been chosen already — a repository's labels, a board's fields, a
+    field's values — so a source names the sibling answers it needs.
+
+    Shape only here. That each side names a real parameter is checked where
+    every endpoint is known, the same way the endpoint itself is.
+    """
+    supplied = require_mapping(raw, f"{what} options_from needs")
+    if len(supplied) > MAX_PARAMS_PER_ENDPOINT:
+        fail(
+            f"{what} options_from names more than "
+            f"{MAX_PARAMS_PER_ENDPOINT} parameters to send"
+        )
+    needs: dict[str, str] = {}
+    for theirs, ours in supplied.items():
+        key = check_identifier(theirs, what=f"{what} options_from needs key")
+        needs[key] = check_identifier(ours, what=f"{what} options_from needs {key!r}")
+    return needs
 
 
 # --- connections ------------------------------------------------------------
@@ -1216,10 +1243,17 @@ def _check_option_sources(
     * it *reads*, because filling in a form must not write anything;
     * the keys it names are returns of that endpoint, and are lists. One value
       cannot be a menu, and a caller asking for options would get a scalar it
-      has nowhere to put.
+      has nowhere to put;
+    * every ``needs`` entry joins a parameter that endpoint takes to one this
+      endpoint declares — and never to this parameter itself, which would ask
+      for the answer being filled in.
     """
     returns_by_id = {
         endpoint["id"]: {value["key"]: value for value in endpoint.get("returns") or []}
+        for endpoint in endpoints
+    }
+    params_by_id = {
+        endpoint["id"]: {param["key"] for param in endpoint.get("params") or []}
         for endpoint in endpoints
     }
 
@@ -1253,6 +1287,23 @@ def _check_option_sources(
                     fail(
                         f"{what}: options_from {field} {key!r} is a single value — "
                         "options come from a list"
+                    )
+
+            for theirs, ours in (source.get("needs") or {}).items():
+                if theirs not in params_by_id.get(named, set()):
+                    fail(
+                        f"{what}: options_from needs {theirs!r}, "
+                        f"which {named!r} does not take"
+                    )
+                if ours == param["key"]:
+                    fail(
+                        f"{what}: options_from needs {ours!r}, "
+                        "which is the parameter being filled in"
+                    )
+                if ours not in params_by_id.get(endpoint["id"], set()):
+                    fail(
+                        f"{what}: options_from needs {ours!r}, "
+                        "which this endpoint does not declare"
                     )
 
 

@@ -1066,3 +1066,123 @@ class TestWhatAParameterTakes:
             endpoints=[{"id": READ_ID, "direction": "read"}],
         )
         assert "list" not in cleaned["connections"][0]["fields"][0]
+
+
+LOOKUP_ID = "app.tests.widget-co.boards"
+
+
+def _with_option_source(source: dict, *, siblings: list | None = None) -> dict:
+    """A read whose parameter draws its values from a second read."""
+    return _normalize(
+        features=["endpoints"],
+        endpoints=[
+            {
+                "id": LOOKUP_ID,
+                "direction": "read",
+                "returns": [
+                    {"key": "ids", "type": "string", "list": True},
+                    {"key": "names", "type": "string", "list": True},
+                    {"key": "total", "type": "int"},
+                ],
+                "params": [{"key": "owner", "type": "string", "label": _label()}],
+            },
+            {
+                "id": READ_ID,
+                "direction": "read",
+                "params": (siblings or [])
+                + [
+                    {
+                        "key": "board",
+                        "type": "string",
+                        "label": _label(),
+                        "options_from": source,
+                    }
+                ],
+            },
+        ],
+    )
+
+
+class TestWhereAParametersValuesComeFrom:
+    """Values a manifest cannot list because only the app can enumerate them.
+
+    A repository, a channel, a board: the set differs per install and changes
+    after it, so a parameter names the read that answers instead of carrying the
+    answers. Every part of that reference is checked here, where every endpoint
+    is known — a source that resolves to nothing fails silently at the far end,
+    in a form that draws an empty menu.
+    """
+
+    def test_a_source_survives_a_publish_whole(self):
+        cleaned = _with_option_source(
+            {
+                "endpoint": LOOKUP_ID,
+                "key": "ids",
+                "label_key": "names",
+                "needs": {"owner": "org"},
+            },
+            siblings=[{"key": "org", "type": "string", "label": _label()}],
+        )
+        board = cleaned["endpoints"][1]["params"][1]
+        assert board["options_from"] == {
+            "endpoint": LOOKUP_ID,
+            "key": "ids",
+            "label_key": "names",
+            "needs": {"owner": "org"},
+        }
+
+    def test_it_may_name_a_source_it_sends_nothing_to(self):
+        cleaned = _with_option_source({"endpoint": LOOKUP_ID, "key": "ids"})
+        assert "needs" not in cleaned["endpoints"][1]["params"][0]["options_from"]
+
+    def test_an_endpoint_from_another_app_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="not declared here"):
+            _with_option_source({"endpoint": "app.other.co.boards", "key": "ids"})
+
+    def test_a_write_cannot_fill_in_a_form(self):
+        with pytest.raises(ListingDefinitionError, match="does not read"):
+            _normalize(
+                features=["endpoints"],
+                endpoints=[
+                    {"id": LOOKUP_ID, "direction": "write"},
+                    {
+                        "id": READ_ID,
+                        "direction": "read",
+                        "params": [
+                            {
+                                "key": "board",
+                                "type": "string",
+                                "label": _label(),
+                                "options_from": {"endpoint": LOOKUP_ID, "key": "ids"},
+                            }
+                        ],
+                    },
+                ],
+            )
+
+    def test_a_key_the_source_does_not_return_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="is not returned by"):
+            _with_option_source({"endpoint": LOOKUP_ID, "key": "nope"})
+
+    def test_one_value_cannot_be_a_menu(self):
+        with pytest.raises(ListingDefinitionError, match="is a single value"):
+            _with_option_source({"endpoint": LOOKUP_ID, "key": "total"})
+
+    def test_it_can_only_send_a_parameter_the_source_takes(self):
+        with pytest.raises(ListingDefinitionError, match="does not take"):
+            _with_option_source(
+                {"endpoint": LOOKUP_ID, "key": "ids", "needs": {"nope": "org"}},
+                siblings=[{"key": "org", "type": "string", "label": _label()}],
+            )
+
+    def test_it_cannot_ask_for_the_answer_being_filled_in(self):
+        with pytest.raises(ListingDefinitionError, match="being filled in"):
+            _with_option_source(
+                {"endpoint": LOOKUP_ID, "key": "ids", "needs": {"owner": "board"}}
+            )
+
+    def test_a_sibling_this_endpoint_does_not_declare_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="does not declare"):
+            _with_option_source(
+                {"endpoint": LOOKUP_ID, "key": "ids", "needs": {"owner": "org"}}
+            )
