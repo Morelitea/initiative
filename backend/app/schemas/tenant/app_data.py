@@ -2,10 +2,11 @@
 
 Two payloads, and the difference between them is the point.
 
-:class:`AppDataResponse` is the app's own answer, passed through. Rows are
-opaque here — they are the app's data on its way to a sandboxed widget that will
-be handed them as values — so nothing in this build reads inside them and
-nothing describes their shape.
+:class:`AppDataResponse` is the app's own answer, read through the returns its
+endpoint declares: the ones holding several become rows, the ones holding a
+single value stay whole beside them. The projection is by name alone — nothing
+here interprets a value, and the manifest is the only thing that says what the
+names are.
 
 :class:`AppWidgetCatalogResponse` is what a dashboard needs before it can bind
 anything: which installed apps offer widgets, which sources each widget draws,
@@ -23,11 +24,16 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class AppDataResponse(SanitizedBaseModel):
-    """One data source's rows, as the app returned them."""
+    """One data source's answer, in the two shapes its endpoint declared."""
 
-    #: Verbatim. This build does not interpret, reshape, or validate the
-    #: contents — the widget sandbox receives them as data, never as markup.
-    rows: List[Any] = []
+    #: One entry per index across the endpoint's ``list`` returns, read side by
+    #: side. Values are carried as the app sent them — the widget sandbox
+    #: receives them as data, never as markup.
+    rows: List[Dict[str, Any]] = []
+    #: The endpoint's single-valued returns: what the answer says about itself
+    #: rather than about any one item in it, and still there when there are no
+    #: items at all.
+    values: Dict[str, Any] = {}
     #: When the *upstream* call happened. A cached body keeps the time it was
     #: actually obtained, so a viewer can tell how fresh the answer is rather
     #: than how recently they asked.
@@ -81,7 +87,9 @@ class AppWidgetRead(SanitizedBaseModel):
     module_source: RawTextStr
     #: Which of the app's read endpoints this widget draws.
     endpoints: List[str] = []
-    #: Rows for a preview that issues no request at all, keyed by endpoint id.
+    #: What a preview draws instead of calling anything, keyed by endpoint id
+    #: and projected through that endpoint's returns exactly as a live answer
+    #: is — so a listing's tile and an installed one are the same widget.
     sample_data: Dict[str, Any] = {}
 
 

@@ -288,7 +288,7 @@
         },
         "options": {
           "type": "array",
-          "description": "Required when type is 'select'. The values themselves — a consumer that shows a menu writes its own words for them.",
+          "description": "Required when type is 'select'. The values themselves \u2014 a consumer that shows a menu writes its own words for them.",
           "maxItems": "selectOptions",
           "minItems": 1,
           "items": {
@@ -296,10 +296,43 @@
             "maxLength": "labelLength"
           }
         },
+        "options_from": {
+          "type": "object",
+          "description": "Where this parameter's values come from when only the app can know them. Names a read endpoint in THIS manifest and which of its returns holds the values; a consumer building a form asks the deployment to resolve it rather than showing a text box. For everything a manifest cannot list because the answer differs per install and changes after it \u2014 a repository, a channel, a board, a project. `options` is the other case: a set that is the same on every deployment forever. Declaring values, not a control: what to draw is still the consumer's. Resolution is server-side, inherits the source endpoint's `requires` and `cache_ttl_seconds`, and a source that cannot be resolved leaves the parameter enterable rather than unusable.",
+          "properties": {
+            "endpoint": {
+              "ref": "namespacedId",
+              "description": "A read endpoint this same manifest declares. Not another app's: reading across apps has no consent story, and an id from elsewhere is refused on publish."
+            },
+            "key": {
+              "ref": "identifier",
+              "description": "Which of that endpoint's returns holds the values. Must be one it declares, and a list: a menu comes from a column of values, not from one."
+            },
+            "label_key": {
+              "ref": "identifier",
+              "description": "Optional. A second return, parallel to `key`, holding what a person reads \u2014 a board's title beside its opaque id. Absent means the value is its own label."
+            },
+            "needs": {
+              "type": "object",
+              "description": "Optional. What to send that endpoint, written as one of ITS parameter names to one of THIS endpoint's. A repository's labels, a board's fields, a field's values \u2014 past the first source in a form, most of them answer differently depending on what has been chosen already, and a source that could not be told a sibling's answer could only ever offer the whole account's worth. Every named sibling must be a parameter this endpoint declares, and none of them this one. Until all of them have a value the source is not called and the parameter stays enterable, exactly as for a source that will not resolve.",
+              "propertyNames": {
+                "ref": "identifier"
+              },
+              "additionalProperties": {
+                "ref": "identifier"
+              },
+              "maxProperties": "paramsPerEndpoint"
+            }
+          },
+          "required": [
+            "endpoint",
+            "key"
+          ]
+        },
         "list": {
           "type": "boolean",
           "default": false,
-          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, an app wanting several of something declares a string and documents a comma — which nothing downstream can validate or complete."
+          "description": "Several values rather than one. Cardinality is a fact about the value, so it is yours; what to draw for it is the consumer's. Without it, an app wanting several of something declares a string and documents a comma \u2014 which nothing downstream can validate or complete."
         }
       },
       "if": {
@@ -337,7 +370,7 @@
         },
         "list": {
           "type": "boolean",
-          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one — a form field, a tile's number — which is why it is a flag rather than a second set of types."
+          "description": "Several values rather than one. It matters to a consumer with somewhere to put exactly one \u2014 a form field, a tile's number \u2014 which is why it is a flag rather than a second set of types."
         }
       }
     },
@@ -355,7 +388,7 @@
         },
         "scope": {
           "enum": "connectionScope",
-          "description": "'static' is one credential a guild admin supplies for the whole guild; 'interactive' is each member's own account, connected through the app's own vendor flow."
+          "description": "Who the credential belongs to. 'static' is one credential the whole guild uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'connect_path' is still one credential for the whole guild, run by an admin through the vendor's own flow rather than typed into a form."
         },
         "label": {
           "ref": "localizedText"
@@ -369,7 +402,7 @@
         },
         "connect_path": {
           "ref": "path",
-          "description": "Where the member is sent so the app can run the vendor's flow. Interactive connections only."
+          "description": "Where a person is sent so the app can run the vendor's flow. On an interactive connection that person is each member, authorizing their own account. On a static one it is a guild admin, and what the flow produces belongs to the whole guild \u2014 the vendor's own install page, where an organization is chosen and its permissions granted, rather than an admin retyping the organization's name into a text box. A static connection that declares one must also declare at least one 'managed' field, because the app writing back is the only way such a connection is ever satisfied."
         },
         "access_hint": {
           "ref": "accessHint"
@@ -381,7 +414,7 @@
       "maxLength": "endpointIdLength",
       "patternFrom": "namespacedId",
       "patternForm": "plus",
-      "description": "Namespaced under the app's own service id — 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
+      "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
     },
     "endpoint": {
       "type": "object",
@@ -407,7 +440,7 @@
           "items": {
             "ref": "endpointReturn"
           },
-          "description": "What this hands back, by name and type — the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
+          "description": "What this hands back, by name and type \u2014 the response for a read or a write, the payload for an emission. Declared rather than discovered, because a consumer binds one of these before the endpoint has ever run and a bad binding has to be refusable when somebody arranges it."
         },
         "group": {
           "ref": "identifier",
@@ -415,11 +448,11 @@
         },
         "needs_subject": {
           "ref": "identifier",
-          "description": "What a caller must already have in hand for this to mean anything. Opaque here — the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
+          "description": "What a caller must already have in hand for this to mean anything. Opaque here \u2014 the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
         },
         "direction": {
           "enum": "direction",
-          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way — the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
+          "description": "'read' and 'write' are called by the deployment or by a delegate and answer in place; 'emit' travels the other way \u2014 the app posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
         },
         "params": {
           "type": "array",
@@ -446,7 +479,7 @@
         "cache_ttl_seconds": {
           "type": "integer",
           "default": 0,
-          "description": "Read only. How long a response may be reused. Clamped into 0..{cacheTtlSeconds} rather than refused, so a value outside that range is accepted and takes effect at the bound — which is why no range is asserted here."
+          "description": "Read only. How long a response may be reused. Clamped into 0..{cacheTtlSeconds} rather than refused, so a value outside that range is accepted and takes effect at the bound \u2014 which is why no range is asserted here."
         },
         "visibility": {
           "enum": "endpointVisibility",
@@ -454,7 +487,7 @@
         },
         "identity": {
           "ref": "endpointIdentity",
-          "description": "'write' and 'emit': what this touched, or what it is about. Read endpoints have none — they touched nothing, so there is no echo to suppress."
+          "description": "'write' and 'emit': what this touched, or what it is about. Read endpoints have none \u2014 they touched nothing, so there is no echo to suppress."
         }
       }
     },
@@ -488,7 +521,7 @@
         },
         "sample_data": {
           "type": "object",
-          "description": "Rows keyed by declared read endpoint id, so a preview renders with no network call. Keys naming an undeclared endpoint are dropped."
+          "description": "What each endpoint would answer with, keyed by declared read endpoint id, so a preview renders with no network call. Written in the endpoint's own returns and read through them exactly as a live answer is. Keys naming an undeclared endpoint are dropped."
         },
         "requires": {
           "ref": "requires"
@@ -527,7 +560,7 @@
         },
         "visibility": {
           "enum": "visibility",
-          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative — a rule the platform enforces, not this schema."
+          "description": "The floor an audience clears. 'initiative_manager' is only namable by a surface that also renders in an initiative \u2014 a rule the platform enforces, not this schema."
         },
         "capabilities": {
           "type": "array",
@@ -557,7 +590,7 @@
           "maxLength": "uidLength",
           "patternFrom": "uid",
           "patternForm": "plus",
-          "description": "This dashboard's own catalog id — publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
+          "description": "This dashboard's own catalog id \u2014 publisher-assigned, immutable, never reused. It becomes a listing of its own, so this is a real catalog identity and not the app's."
         },
         "public_id": {
           "type": "string",
@@ -565,7 +598,7 @@
           "maxLength": "publicIdLength",
           "patternFrom": "publicId",
           "patternForm": "plus",
-          "description": "'<publisher>.<slug>', and not the app's own — a bundled dashboard is a separate listing."
+          "description": "'<publisher>.<slug>', and not the app's own \u2014 a bundled dashboard is a separate listing."
         },
         "name": {
           "type": "string",
@@ -608,7 +641,7 @@
         },
         "type": {
           "ref": "identifier",
-          "description": "One of this manifest's own widget ids — bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
+          "description": "One of this manifest's own widget ids \u2014 bare, with no uid. The platform stamps the app's uid on when it publishes, so the two can never disagree."
         },
         "title": {
           "type": "string",
@@ -665,7 +698,7 @@
     },
     "endpointIdentity": {
       "type": "object",
-      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for an app there was no key — so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
+      "description": "Which of this endpoint's returns identify the thing it touched. A consumer keeps a change an automation made from firing that automation again, and for an app there was no key \u2014 so guessing would silently drop a fire somebody was waiting on, and a rate cap was the only guard. Declare the SAME kind and key on the write and on the emission about it, and the two produce the same address.",
       "required": [
         "kind",
         "key"
@@ -677,7 +710,7 @@
         },
         "key": {
           "type": "array",
-          "description": "Returns of this endpoint, in order, joined to form the address. Every one must be a single value rather than a list — half an address matches nothing, and one built from the parts that happened to be there matches the wrong thing.",
+          "description": "Returns of this endpoint, in order, joined to form the address. Every one must be a single value rather than a list \u2014 half an address matches nothing, and one built from the parts that happened to be there matches the wrong thing.",
           "minItems": 1,
           "maxItems": "identityKeyParts",
           "items": {

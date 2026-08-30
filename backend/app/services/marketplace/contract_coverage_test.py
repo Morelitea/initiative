@@ -83,7 +83,13 @@ def maximal_manifest() -> dict:
                         "type": "int",
                         "label": {"en": "Count"},
                         "list": True,
-                    }
+                    },
+                    {
+                        "key": "labels",
+                        "type": "string",
+                        "label": {"en": "Labels"},
+                        "list": True,
+                    },
                 ],
                 "group": "reports",
                 "needs_subject": "tasks",
@@ -95,7 +101,20 @@ def maximal_manifest() -> dict:
                         "required": False,
                         "options": ["a", "b"],
                         "list": True,
-                    }
+                        # Values only the app can enumerate, and the sibling
+                        # answer it has to be told to enumerate them.
+                        "options_from": {
+                            "endpoint": READ_ENDPOINT,
+                            "key": "count",
+                            "label_key": "labels",
+                            "needs": {"scope": "scope"},
+                        },
+                    },
+                    {
+                        "key": "scope",
+                        "type": "string",
+                        "label": {"en": "Scope"},
+                    },
                 ],
                 "actors": ["member", "installation"],
                 "requires": {"all_of": ["vendor"]},
@@ -127,7 +146,7 @@ def maximal_manifest() -> dict:
                 "endpoints": [READ_ENDPOINT],
                 # Keyed by the endpoints the widget declared; anything else is
                 # dropped, so this is the only key that survives.
-                "sample_data": {READ_ENDPOINT: {"count": 1}},
+                "sample_data": {READ_ENDPOINT: {"count": [1], "labels": ["one"]}},
                 "requires": {"any_of": ["vendor"]},
             }
         ],
