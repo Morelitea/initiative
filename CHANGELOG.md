@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Connecting an app can now end with "waiting on an owner".** Some services hand an organization's install to the people who own it, so a request from anybody else becomes an approval sitting with one of them. The page you land on after connecting used to have no way to say that, and picked the closest thing it had. It now says it plainly: nothing failed, nothing is set up yet, and connecting again is worth doing once an owner approves it.
 
+### Fixed
+
+- **Dashboards that come with an app now appear in the marketplace.** An app can ship dashboards of its own — arrangements of its widgets, published with it, so an operator adds one file and the boards come too. They were being published correctly and were installable, but the marketplace never listed them, so the only way to reach one was a link somebody already had. They now show up on the dashboards shelf in every guild that has the app installed, and stay off it everywhere else — where they would only draw tiles with nothing behind them. Installing an app you already have is enough; there is nothing to re-run.
+
 ## [0.64.1] - 2026-08-29
 
 ### Fixed

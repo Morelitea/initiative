@@ -4,9 +4,10 @@
  * A searchable card grid rather than a menu: listings are products with artwork,
  * an author, and a description, and picking one is a decision worth a page.
  *
- * The catalog is platform-level, so this asks it nothing about this guild. What
- * is already installed here comes from the guild's own dashboards list and is
- * matched up client-side.
+ * The shelf is guild-addressed: a dashboard an app ships with itself appears
+ * only where the app is installed, so the catalog is asked on this guild's
+ * behalf. What is already installed here is a second question, answered by the
+ * guild's own dashboards and apps lists and matched up client-side.
  */
 
 import { useSearch } from "@tanstack/react-router";

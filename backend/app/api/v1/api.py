@@ -32,6 +32,7 @@ from app.api.v1.tenant_endpoints import (
     exports,
     imports,
     initiatives,
+    marketplace as guild_marketplace,
     me_ai,
     me_trash,
     projects,
@@ -193,6 +194,13 @@ guild_router.include_router(
 # Aggregate view: events + task markers in one request (calendar surfaces).
 guild_router.include_router(
     calendar_entries.router, prefix="/calendar-entries", tags=["calendar-entries"]
+)
+# The marketplace shelf. Guild-addressed because what a guild is offered
+# depends on which apps it has: a dashboard bundled with an app appears only
+# where that app is installed. Reading one listing stays platform-addressed
+# (top-level /marketplace), as does everything that maintains the catalog.
+guild_router.include_router(
+    guild_marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
 guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]

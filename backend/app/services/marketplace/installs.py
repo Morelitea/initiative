@@ -26,7 +26,7 @@ from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 
-__all__ = ["ListingInstallError", "resolve_listing_install"]
+__all__ = ["ListingInstallError", "installed_app_uids", "resolve_listing_install"]
 
 
 class ListingInstallError(Exception):
@@ -98,17 +98,23 @@ async def resolve_listing_install(
     return listing, version
 
 
-async def _app_is_installed(session: AsyncSession, app_uid: str) -> bool:
-    """Whether the guild this session is routed to has that app, switched on.
+async def installed_app_uids(session: AsyncSession) -> set[str]:
+    """The listing uids of the apps the guild this session is routed to has,
+    switched on.
 
-    Reads the guild's own install row, so the schema boundary is what answers —
+    Reads the guild's own install rows, so the schema boundary is what answers —
     there is no guild id to pass and no chance of asking about the wrong one.
+
+    One helper for both readers of this: browse asks which bundled dashboards
+    to offer, and the install asks whether this particular one may be taken. A
+    guild holds a handful of apps, so the set is small enough that answering
+    both from one query is cheaper than keeping two ways to ask.
     """
-    return (
-        await session.exec(
-            select(GuildApp.id).where(
-                GuildApp.listing_uid == app_uid,
-                GuildApp.enabled.is_(True),
-            )
-        )
-    ).first() is not None
+    rows = await session.exec(
+        select(GuildApp.listing_uid).where(GuildApp.enabled.is_(True))
+    )
+    return set(rows)
+
+
+async def _app_is_installed(session: AsyncSession, app_uid: str) -> bool:
+    return app_uid in await installed_app_uids(session)

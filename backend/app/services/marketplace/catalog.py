@@ -54,6 +54,7 @@ __all__ = [
     "get_listing_by_uid",
     "listing_avatars",
     "get_listing_version",
+    "get_listing_versions",
     "resolve_installable_version",
     "listing_versions",
     "published_uids",
@@ -302,6 +303,27 @@ async def get_listing_version(
             )
         )
     ).first()
+
+
+async def get_listing_versions(
+    session: AsyncSession, version_ids: Sequence[Optional[int]]
+) -> dict[int, MarketplaceListingVersion]:
+    """The named versions, keyed by id.
+
+    What a page of listings needs: browse draws every card from its listing's
+    latest version, and asking for them one at a time is a round trip per card.
+    Ids that name nothing are simply absent from the result, so a listing with
+    no published version reads the same as it does one at a time.
+    """
+    wanted = {version_id for version_id in version_ids if version_id is not None}
+    if not wanted:
+        return {}
+    rows = await session.exec(
+        select(MarketplaceListingVersion).where(
+            MarketplaceListingVersion.id.in_(wanted)
+        )
+    )
+    return {version.id: version for version in rows if version.id is not None}
 
 
 async def resolve_installable_version(

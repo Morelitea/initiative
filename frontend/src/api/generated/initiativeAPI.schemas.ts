@@ -5270,20 +5270,6 @@ export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetPa
   guild_id: number;
 };
 
-export type ListMarketplaceListingsApiV1MarketplaceListingsGetParams = {
-  kind?: ListingKind | null;
-  q?: string | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  page_size?: number;
-};
-
 export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   /**
    * List only your own requests.
@@ -6048,6 +6034,20 @@ export type ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams = {
   tz?: string | null;
   include_events?: boolean;
   include_tasks?: boolean;
+};
+
+export type ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams = {
+  kind?: ListingKind | null;
+  q?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type GetTagApiV1GGuildIdTagsTagIdGetParams = {

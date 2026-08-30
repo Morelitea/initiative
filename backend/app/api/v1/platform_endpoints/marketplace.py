@@ -1,18 +1,23 @@
-"""Browsing the marketplace.
+"""Reading one listing, and the routes that maintain the catalog.
 
-Platform-addressed on purpose: the marketplace is one shared experience with
-globally unique identifiers, so these routes take no guild segment. The catalog
-holds catalog metadata only, which is why "which of these do I already have?" is
-answered by the guild-scoped tool endpoints and merged in the client.
+Platform-addressed: the marketplace is one shared experience with globally
+unique identifiers, so a listing is read by its own id and these routes take no
+guild segment. "Which of these do I already have?" is answered by the
+guild-scoped tool endpoints and merged in the client.
 
-Browsing is read-only. The catalog's only writer is the system engine (boot
+The *shelf* is guild-addressed and lives in ``tenant_endpoints/marketplace.py``
+— what a guild is offered depends on which apps it has installed — so browsing
+is not here. What is here is the page one card opens, plus the maintenance
+routes.
+
+Reading is read-only. The catalog's only writer is the system engine (boot
 seeding, the operator's own catalog directory, and the registry refresh);
 installing writes a guild's own schema through the tool's endpoints, never here.
 
 What this deployment *carries* is narrower than what its catalog holds. An app
 is realized by a service the operator runs, so a listing for one is offered only
-where that service is registered and switched on: browse leaves the rest out and
-these routes answer 404 for them, which is the same answer the install gives.
+where that service is registered and switched on: the shelf leaves the rest out
+and these routes answer 404 for them, which is the same answer the install gives.
 
 Two write routes and one public one live on this surface: the operator's rescan
 of their catalog directory, their "refresh now" for the signed registry — both
@@ -21,9 +26,9 @@ what publishing a listing is — and the mirrored artwork a registry's listings
 are served from.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -32,20 +37,14 @@ from app.api.v1.platform_endpoints.admin import ConfigManageDep
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages, MarketplaceRegistryMessages
 from app.db.session import get_admin_session
-from app.models.platform.marketplace import (
-    MarketplaceListing,
-    MarketplaceListingVersion,
-)
+from app.models.platform.marketplace import MarketplaceListing
 from app.models.platform.marketplace_registry import MarketplaceMedia
 from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
-    ListingKind,
     MarketplaceListingDetail,
-    MarketplaceListingPage,
-    MarketplaceListingSummary,
-    MarketplaceVersionRead,
     OperatorCatalogProblem,
     OperatorCatalogScanResult,
+    serialize_listing_summary,
 )
 from app.schemas.platform.marketplace_registry import (
     RegistryRefreshRead,
@@ -62,79 +61,9 @@ router = APIRouter()
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
-MAX_PAGE_SIZE = 100
-
 #: A mirrored image is addressed by the hex SHA-256 of its own bytes.
 _DIGEST_LENGTH = 64
 _HEX_DIGITS = frozenset("0123456789abcdef")
-
-
-def _version_read(
-    version: Optional[MarketplaceListingVersion],
-) -> Optional[MarketplaceVersionRead]:
-    if version is None:
-        return None
-    return MarketplaceVersionRead(
-        version=version.version,
-        release_notes=version.release_notes,
-        min_app_version=version.min_app_version,
-        published_at=version.published_at,
-        compatible=catalog_service.version_is_compatible(version.min_app_version),
-    )
-
-
-def _summary(
-    listing: MarketplaceListing,
-    latest: Optional[MarketplaceListingVersion],
-) -> MarketplaceListingSummary:
-    version = _version_read(latest)
-    return MarketplaceListingSummary(
-        uid=listing.uid,
-        public_id=listing.public_id,
-        kind=listing.kind,
-        source=listing.source,
-        name=listing.name,
-        publisher=listing.publisher,
-        # Attribution travels with the provenance that bounds it: a card, the
-        # detail page and the install dialog all answer "who wrote this?" from
-        # these two fields together, so neither is served without the other.
-        description=listing.description,
-        avatar_url=listing.avatar_url,
-        images=list(listing.images or []),
-        installs_count=listing.installs_count or 0,
-        available=listing.available,
-        latest_version=version,
-        # Everything that has to be true for the install button to do anything:
-        # still offered, has a version, and that version runs on this build.
-        installable=bool(listing.available and version and version.compatible),
-        updated_at=listing.updated_at,
-    )
-
-
-@router.get("/listings", response_model=MarketplaceListingPage)
-async def list_marketplace_listings(
-    session: UserSessionDep,
-    current_user: CurrentUser,
-    kind: Optional[ListingKind] = Query(default=None),  # type: ignore[valid-type]
-    q: Optional[str] = Query(default=None, max_length=200),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=24, ge=1, le=MAX_PAGE_SIZE),
-) -> MarketplaceListingPage:
-    """A page of listings, searchable by name, description, or publisher."""
-    listings, total = await catalog_service.list_listings(
-        session,
-        kind=kind,
-        query=q,
-        offset=(page - 1) * page_size,
-        limit=page_size,
-    )
-    items = []
-    for listing in listings:
-        latest = await catalog_service.get_listing_version(
-            session, listing.latest_version_id
-        )
-        items.append(_summary(listing, latest))
-    return MarketplaceListingPage(items=items, total=total)
 
 
 async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDetail:
@@ -144,7 +73,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     if not await registration_lookup.app_is_offered(
         latest.definition if latest else None
     ):
-        # The same answer browse gives by leaving it out. A catalog is
+        # The same answer the shelf gives by leaving it out. A catalog is
         # published to every deployment; running the service behind an app is
         # what makes this one carry it, so until an operator has wired that up
         # there is nothing here to read or install.
@@ -152,7 +81,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
             status_code=status.HTTP_404_NOT_FOUND,
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
-    summary = _summary(listing, latest)
+    summary = serialize_listing_summary(listing, latest)
     return MarketplaceListingDetail(
         **summary.model_dump(),
         long_description=listing.long_description,

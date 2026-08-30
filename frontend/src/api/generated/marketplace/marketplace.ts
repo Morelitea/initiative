@@ -22,7 +22,7 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
+  ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
   MarketplaceListingDetail,
   MarketplaceListingPage,
   OperatorCatalogScanResult,
@@ -49,166 +49,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
-
-/**
- * A page of listings, searchable by name, description, or publisher.
- * @summary List Marketplace Listings
- */
-export const listMarketplaceListingsApiV1MarketplaceListingsGet = (
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<MarketplaceListingPage>(
-    { url: `/api/v1/marketplace/listings`, method: "GET", params, signal },
-    options
-  );
-};
-
-export const getListMarketplaceListingsApiV1MarketplaceListingsGetQueryKey = (
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams
-) => {
-  return [`/api/v1/marketplace/listings`, ...(params ? [params] : [])] as const;
-};
-
-export const getListMarketplaceListingsApiV1MarketplaceListingsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListMarketplaceListingsApiV1MarketplaceListingsGetQueryKey(params);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>
-  > = ({ signal }) =>
-    listMarketplaceListingsApiV1MarketplaceListingsGet(params, requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListMarketplaceListingsApiV1MarketplaceListingsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>
->;
-export type ListMarketplaceListingsApiV1MarketplaceListingsGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListMarketplaceListingsApiV1MarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params: undefined | ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMarketplaceListingsApiV1MarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMarketplaceListingsApiV1MarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Marketplace Listings
- */
-
-export function useListMarketplaceListingsApiV1MarketplaceListingsGet<
-  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMarketplaceListingsApiV1MarketplaceListingsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMarketplaceListingsApiV1MarketplaceListingsGetQueryOptions(
-    params,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
 
 /**
  * The listing a code names.
@@ -873,3 +713,185 @@ export const useRefreshRegistryNowApiV1MarketplaceRegistryRefreshPost = <
     queryClient
   );
 };
+/**
+ * A page of listings this guild can install, searchable by name,
+ * description, or publisher.
+ *
+ * A guild with none of an app installed sees the same catalog as before —
+ * the apps themselves, and the dashboards that stand alone.
+ * @summary List Marketplace Listings
+ */
+export const listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet = (
+  guildId: number,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<MarketplaceListingPage>(
+    { url: `/api/v1/g/${guildId}/marketplace/listings`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey = (
+  guildId: number,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams
+) => {
+  return [`/api/v1/g/${guildId}/marketplace/listings`, ...(params ? [params] : [])] as const;
+};
+
+export const getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+  > = ({ signal }) =>
+    listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet(
+      guildId,
+      params,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+>;
+export type ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Marketplace Listings
+ */
+
+export function useListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet<
+  TData = Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

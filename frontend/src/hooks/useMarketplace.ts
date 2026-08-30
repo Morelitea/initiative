@@ -1,31 +1,34 @@
 /**
  * Reading the marketplace catalog.
  *
- * The catalog is platform-level: one shared surface, addressed by globally
- * unique ids, with no guild in the request or the response. So these queries are
- * keyed on what was asked for and nothing else, and two guilds browsing the same
- * deployment share one cache entry.
+ * A listing is platform-level — one shared surface, addressed by globally unique
+ * ids, with no guild in the response — so reading one is keyed on its id alone
+ * and every guild shares that cache entry.
  *
- * Whether a listing is *installed here* is a per-guild question the dashboards
- * endpoints answer; the surface merges the two client-side rather than asking
- * the catalog something it does not know.
+ * The shelf is not. What a guild is offered depends on which apps it has: a
+ * dashboard an app ships with itself appears only where the app is installed,
+ * so the browse query is guild-addressed and keyed per guild.
+ *
+ * Whether a listing is *installed here* is a separate per-guild question the
+ * dashboards and apps endpoints answer; the surface merges those in client-side.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
+  ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
   MarketplaceListingDetail,
   MarketplaceListingPage,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListMarketplaceListingsApiV1MarketplaceListingsGetQueryKey,
+  getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey,
   getReadMarketplaceListingApiV1MarketplaceListingsPublicIdGetQueryKey,
   getResolveMarketplaceListingApiV1MarketplaceListingsByUidUidGetQueryKey,
-  listMarketplaceListingsApiV1MarketplaceListingsGet,
+  listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet,
   readMarketplaceListingApiV1MarketplaceListingsPublicIdGet,
   resolveMarketplaceListingApiV1MarketplaceListingsByUidUidGet,
 } from "@/api/generated/marketplace/marketplace";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { QueryOpts } from "@/types/query";
 
 /** The catalog changes when a deployment is upgraded or a registry refresh
@@ -33,18 +36,23 @@ import type { QueryOpts } from "@/types/query";
 const CATALOG_STALE_MS = 5 * 60 * 1000;
 
 export const useMarketplaceListings = (
-  params?: ListMarketplaceListingsApiV1MarketplaceListingsGetParams,
+  params?: ListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetParams,
   options?: QueryOpts<MarketplaceListingPage>
-) =>
-  useQuery<MarketplaceListingPage>({
-    queryKey: getListMarketplaceListingsApiV1MarketplaceListingsGetQueryKey(params),
-    queryFn: () => listMarketplaceListingsApiV1MarketplaceListingsGet(params),
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<MarketplaceListingPage>({
+    queryKey: getListMarketplaceListingsApiV1GGuildIdMarketplaceListingsGetQueryKey(
+      guildId,
+      params
+    ),
+    queryFn: () => listMarketplaceListingsApiV1GGuildIdMarketplaceListingsGet(guildId, params),
     // Typing keeps the previous page on screen while the next one loads, so the
     // grid does not blank out on every keystroke.
     placeholderData: keepPreviousData,
     staleTime: CATALOG_STALE_MS,
     ...options,
   });
+};
 
 export const useMarketplaceListing = (
   publicId: string | null,
