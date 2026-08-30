@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A model your provider offers is no longer rejected as "not found".** Testing a connection to an OpenAI-compatible service — OpenRouter and the like — checked the model against a list that had been cut to the first fifty entries, and those services offer hundreds. So anything past the cut came back as a model that does not exist, even though it does and the connection worked. The picker was reading the same shortened list, which is why only the handful it showed ever passed. Both now see the whole catalogue, and when a list really is too long to fetch in full, a model missing from it is no longer treated as proof of anything. The same fix reaches Anthropic connections, whose model list arrived one short page at a time.
+
 - **Widgets that draw an app's data work again.** An app describes what each of its endpoints hands back — a name and a type for every value, and whether it holds several — and a widget is bound to those names before it ever runs. 
 
 - **Publishing an app no longer drops the link between one of its dropdowns and the field it depends on.** An app can say where a parameter's values come from — one of its own reads, so a repository field offers that account's repositories rather than a text box. Where such a list depends on an answer already given, like the labels in a particular repository, the app also says which earlier field supplies it. That last part was being discarded when the app was published, so a dependent list could only ever be fetched unfiltered. It is now carried through and checked on publish: both sides have to name parameters that really exist, and a source cannot ask for the value it is filling in.
