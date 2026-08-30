@@ -24,6 +24,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { type AppDataParam, type AppEndpointRead, appWidgetEntry } from "@/api/appData";
 import type { WidgetCatalog } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MultiSelect } from "@/components/ui/multi-select";
 import {
   Select,
   SelectContent,
@@ -43,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAppParamOptions, useAppWidgetCatalog } from "@/hooks/useAppData";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroup, useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
@@ -50,7 +53,8 @@ import { useProjects } from "@/hooks/useProjects";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { readConditions } from "@/lib/widgets/conditions";
-import { catalogEntry, type DefinitionWidget } from "@/lib/widgets/definition";
+import type { WidgetSource } from "@/lib/widgets/dataShapes";
+import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
 import {
   type EntityKind,
   type EntityParam,
@@ -61,6 +65,10 @@ import { localized } from "@/lib/widgets/widgetMeta";
 
 import { FilterBuilder } from "./FilterBuilder";
 import { WidgetTile } from "./WidgetTile";
+
+/** The only source an app widget binds. A namespaced type says which app and
+ *  which widget; `app` is what it draws through, always. */
+const APP_SOURCES: WidgetSource[] = ["app"];
 
 export interface WidgetConfigDialogProps {
   widget: DefinitionWidget | null;
@@ -102,10 +110,49 @@ export function WidgetConfigDialog({
     setOptions(widget.options ?? {});
   }, [widget, open]);
 
+  /**
+   * An installed app's widget is not in the built-in catalog, and looking for
+   * it there is what left this dialog with nothing to offer.
+   *
+   * The two catalogs answer different questions and are served separately: the
+   * built-in one is this build's own vocabulary — size floors, bindable
+   * sources, display options per primitive — while an app's widgets come from
+   * each install's pinned definition. A namespaced `app:<uid>:<widget>` type
+   * has never been in the first, so `catalogEntry` missed, `sources` fell back
+   * to `[]`, and the source list rendered empty for every app widget on the
+   * canvas.
+   *
+   * An app widget binds one source and it is always `app` — that is what the
+   * namespaced type means — so the list does not need looking up at all.
+   */
+  const isApp = isAppWidgetType(widget?.type ?? "");
+  const appCatalog = useAppWidgetCatalog(open && isApp);
+  const app = useMemo(
+    () => appWidgetEntry(appCatalog.data, widget?.type ?? ""),
+    [appCatalog.data, widget?.type]
+  );
+
   const entry = catalogEntry(catalog, widget?.type ?? "");
-  const sources = entry?.sources ?? [];
+  const sources = isApp ? APP_SOURCES : (entry?.sources ?? []);
   const source = binding.source;
   const descriptor = sourceDescriptor(source);
+
+  /**
+   * Which of the app's reads this widget may be pointed at.
+   *
+   * A widget names the endpoints it draws, and those are the ones offered. One
+   * that names none is offered every read the app has — a publisher who did not
+   * narrow it has not said it should be narrowed here.
+   */
+  const appEndpoints = useMemo((): AppEndpointRead[] => {
+    const all = app?.entry.endpoints ?? [];
+    const named = app?.widget.endpoints ?? [];
+    if (!named.length) return all;
+    return all.filter((candidate) => named.includes(candidate.id));
+  }, [app]);
+
+  const appEndpoint = appEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
+  const appParams = (binding.params ?? {}) as Record<string, unknown>;
 
   // Which lists this source's controls need. Each is enabled only while its own
   // control is on screen, so opening the dialog for a counter widget does not
@@ -164,10 +211,88 @@ export function WidgetConfigDialog({
     ]
   );
 
+  // A binding for an app widget names its install. Filled in from the type
+  // rather than typed: `app:<uid>:<widget>` already carries the uid, and a
+  // definition whose binding disagrees with its type is one the server refuses.
+  useEffect(() => {
+    if (!open || !app) return;
+    setBinding((current) =>
+      current.source === "app" && current.app_uid === app.entry.app_uid
+        ? current
+        : { ...current, source: "app", app_uid: app.entry.app_uid }
+    );
+  }, [open, app]);
+
   const setBindingValue = (patch: Partial<WidgetBinding>) =>
     setBinding((current) => ({ ...current, ...patch }));
 
+  /**
+   * One of the app endpoint's own parameters.
+   *
+   * An emptied field is *removed* rather than sent as `""`, because a parameter
+   * absent and a parameter answered with nothing are different things to the
+   * app — and an empty list is the same "nothing" as an empty string.
+   *
+   * Changing one clears whatever was chosen *from* it. A menu filled through
+   * `needs` was filled for the sibling's old value — an aisle belongs to the
+   * shop that was chosen when it was picked — so leaving it behind is how a
+   * binding ends up naming an aisle of a shop it no longer reads. Cleared to a
+   * fixpoint, because a dependent can itself have dependents.
+   */
+  const setAppParam = (key: string, value: unknown) =>
+    setBinding((current) => {
+      const params = (current.params ?? {}) as Record<string, unknown>;
+      const next = { ...params };
+      const emptied =
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0);
+
+      if (emptied) delete next[key];
+      else next[key] = value;
+
+      // Only a real change invalidates anything. Re-picking the value that was
+      // already there must not throw away the choices made under it.
+      if (JSON.stringify(params[key] ?? null) !== JSON.stringify(next[key] ?? null)) {
+        const declared = appEndpoint?.params ?? [];
+        const stale = new Set([key]);
+        let spreading = true;
+        while (spreading) {
+          spreading = false;
+          for (const candidate of declared) {
+            if (stale.has(candidate.key)) continue;
+            const needs = Object.values(candidate.options_from?.needs ?? {});
+            if (needs.some((sibling) => stale.has(sibling))) {
+              stale.add(candidate.key);
+              delete next[candidate.key];
+              spreading = true;
+            }
+          }
+        }
+      }
+
+      return { ...current, params: Object.keys(next).length ? next : undefined };
+    });
+
+  /** Pointing a widget at a different read drops the old one's answers: they
+   *  were that endpoint's parameters, and they are not this one's. */
+  const setAppEndpoint = (endpointId: string) =>
+    setBinding((current) => ({ ...current, endpoint_id: endpointId, params: undefined }));
+
+  /**
+   * An app binding without a read is one the server refuses.
+   *
+   * `endpoint_id` is required where a dashboard definition is normalized, so
+   * saving a freshly added app widget that has not been pointed at anything
+   * comes back a 422 — after the dialog has already closed, which is the worst
+   * place to find out. The control that fills it is right there, so the answer
+   * is to not offer the save rather than to explain the failure afterwards.
+   */
+  const incomplete = isApp && !binding.endpoint_id;
+
   const save = () => {
+    if (incomplete) return;
     onSave({
       title: title.trim() || undefined,
       binding,
@@ -202,7 +327,7 @@ export function WidgetConfigDialog({
 
             <section className="space-y-2">
               <h3 className="font-medium text-sm">{t("dashboards:config.sectionBinding")}</h3>
-              <Label>{t("dashboards:config.source")}</Label>
+              <Label htmlFor="widget-source">{t("dashboards:config.source")}</Label>
               <Select
                 value={source}
                 onValueChange={(next) =>
@@ -211,7 +336,7 @@ export function WidgetConfigDialog({
                   setBinding({ source: next as WidgetBinding["source"] })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="widget-source">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,7 +358,11 @@ export function WidgetConfigDialog({
               )}
             </section>
 
-            {(descriptor?.params ?? []).map((param) => (
+            {/* An app widget's own controls replace these. The registry's two
+                slots for it are `app_uid` and `endpoint_id`, and neither is a
+                thing to type: one comes from the widget's type, the other is a
+                choice among the reads the app declares. */}
+            {(isApp ? [] : (descriptor?.params ?? [])).map((param) => (
               <ParamControl
                 key={param.key as string}
                 param={param}
@@ -243,6 +372,48 @@ export function WidgetConfigDialog({
                 onChange={setBindingValue}
               />
             ))}
+
+            {isApp && (
+              <section className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="app-endpoint">{t("dashboards:config.appEndpoint")}</Label>
+                  <Select value={binding.endpoint_id ?? ""} onValueChange={setAppEndpoint}>
+                    <SelectTrigger id="app-endpoint">
+                      <SelectValue placeholder={t("dashboards:config.appEndpointPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {appEndpoints.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.id}>
+                          {candidate.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!appCatalog.isLoading && !app && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("dashboards:config.appNotInstalled")}
+                    </p>
+                  )}
+                </div>
+
+                {/* The endpoint's own parameters. Which values each permits is
+                    the app's to answer — a repository, a label, a board are all
+                    facts about one install — so a control that offers a menu
+                    gets it from the app rather than from anything written down
+                    here. */}
+                {(appEndpoint?.params ?? []).map((param) => (
+                  <AppParamControl
+                    key={param.key}
+                    param={param}
+                    appId={app?.entry.app_id}
+                    endpointId={appEndpoint?.id}
+                    values={appParams}
+                    open={open}
+                    onChange={setAppParam}
+                  />
+                ))}
+              </section>
+            )}
 
             {(entry?.options ?? []).length > 0 && (
               <section className="space-y-3">
@@ -293,7 +464,9 @@ export function WidgetConfigDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={save}>{t("common:save")}</Button>
+          <Button onClick={save} disabled={incomplete}>
+            {t("common:save")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -432,6 +605,205 @@ function ParamControl({
         </section>
       );
   }
+}
+
+/**
+ * Several values, typed, where the app could not offer a menu for them.
+ *
+ * The comma lives here and only here. What goes onto the binding is an array —
+ * that is the whole point of a parameter declaring `list` — but a person typing
+ * a handful of values wants one field, and separating them by commas is what
+ * they will do whether or not anything asked them to.
+ *
+ * The text is held locally rather than derived from the array on every
+ * keystroke, because parsing and re-joining as you type eats the separator the
+ * moment it is typed: "red," becomes ["red"] becomes "red", and the comma has
+ * to be typed again.
+ */
+function AppParamListInput({
+  id,
+  values,
+  onChange,
+}: {
+  id: string;
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useTranslation("dashboards");
+  const [text, setText] = useState(values.join(", "));
+
+  // Follow the binding when something else changes it — a sibling being
+  // re-chosen clears this one, and the field has to show that.
+  useEffect(() => {
+    setText((current) =>
+      current
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .join(", ") === values.join(", ")
+        ? current
+        : values.join(", ")
+    );
+  }, [values]);
+
+  return (
+    <>
+      <Input
+        id={id}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value);
+          onChange(
+            event.target.value
+              .split(",")
+              .map((entry) => entry.trim())
+              .filter(Boolean)
+          );
+        }}
+      />
+      <p className="text-muted-foreground text-xs">{t("config.appParamListHint")}</p>
+    </>
+  );
+}
+
+/**
+ * One parameter of an app's read endpoint.
+ *
+ * This is the control that was missing, and the reason every app parameter was
+ * a text box: a manifest can say `options_from` — "the permitted values are
+ * what this other read of mine answers" — and nothing on this side read it. A
+ * repository, a label, a board are each a fact about one install, known only to
+ * the app holding that install's credential, so they cannot be written into a
+ * published manifest and there is no list here to fall back on.
+ *
+ * **A menu that will not resolve leaves the field typeable.** That is the rule,
+ * and it is deliberate in both directions. A source can fail to answer for
+ * reasons that have nothing to do with the value being wrong — the app is down,
+ * nobody has connected a credential yet, a sibling has not been chosen — and a
+ * control disabled on any of those grounds has made a configuration that would
+ * have worked unreachable until somebody else fixes something. So the fallback
+ * is an input, never a dead select.
+ */
+function AppParamControl({
+  param,
+  appId,
+  endpointId,
+  values,
+  open,
+  onChange,
+}: {
+  param: AppDataParam;
+  appId: number | undefined;
+  endpointId: string | undefined;
+  values: Record<string, unknown>;
+  open: boolean;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const { t, i18n } = useTranslation(["dashboards", "common"]);
+
+  // Only the parameters that named a source ask for one, and only while the
+  // dialog is open. A sibling's answer is part of the question, so changing it
+  // re-asks rather than reusing a menu built for a different one.
+  const menu = useAppParamOptions({
+    appId,
+    endpointId,
+    param: param.key,
+    params: values,
+    enabled: open && Boolean(param.options_from),
+  });
+
+  const label = localized(param.label, i18n.language) ?? param.key;
+  const value = values[param.key];
+  const shown = value === undefined || value === null ? "" : String(value);
+  const controlId = `app-param-${param.key}`;
+  const chosen = Array.isArray(value) ? value.map(String) : [];
+
+  const offered = param.options_from
+    ? (menu.data?.options ?? [])
+    : (param.options ?? []).map((option) => ({ value: option, label: option }));
+
+  const heading = (
+    <Label htmlFor={controlId}>
+      {label}
+      {param.required ? <span className="text-destructive"> *</span> : null}
+    </Label>
+  );
+
+  // Several values rather than one. `list` is the only thing that says so, and
+  // an array is what travels — the alternative it exists to replace is an app
+  // declaring a string and documenting a comma, which nothing here could
+  // validate or complete.
+  if (param.list) {
+    return (
+      <div className="space-y-2">
+        {heading}
+        {offered.length ? (
+          <MultiSelect
+            id={controlId}
+            selectedValues={chosen}
+            options={offered.map((option) => ({
+              value: option.value,
+              label: option.label ?? option.value,
+            }))}
+            onChange={(next) => onChange(param.key, next)}
+            placeholder={t("dashboards:config.appParamPlaceholder")}
+          />
+        ) : (
+          <AppParamListInput
+            id={controlId}
+            values={chosen}
+            onChange={(next) => onChange(param.key, next)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (offered.length) {
+    return (
+      <div className="space-y-2">
+        {heading}
+        <Select value={shown} onValueChange={(next) => onChange(param.key, next)}>
+          <SelectTrigger id={controlId}>
+            <SelectValue placeholder={t("dashboards:config.appParamPlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {offered.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label ?? option.value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+
+  // No menu: either the parameter never named a source, or the source would not
+  // resolve. Both end in a field somebody can type into.
+  return (
+    <div className="space-y-2">
+      {heading}
+      <Input
+        id={controlId}
+        type={param.type === "int" || param.type === "number" ? "number" : "text"}
+        value={shown}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (param.type === "int" || param.type === "number") {
+            onChange(param.key, next === "" ? undefined : Number(next));
+            return;
+          }
+          onChange(param.key, next);
+        }}
+      />
+      {param.options_from && menu.data?.unavailable === "needs-sibling" && (
+        <p className="text-muted-foreground text-xs">
+          {t("dashboards:config.appParamNeedsSibling")}
+        </p>
+      )}
+    </div>
+  );
 }
 
 /**

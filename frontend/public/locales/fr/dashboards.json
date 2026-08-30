@@ -146,7 +146,13 @@
     "all_calendar": "Tous les calendriers",
     "all_counter_group": "Tous les groupes de compteurs",
     "all_counter": "Tous les compteurs",
-    "all_document": "Toutes les feuilles de calcul"
+    "all_document": "Toutes les feuilles de calcul",
+    "appEndpoint": "Ce qu'il lit",
+    "appEndpointPlaceholder": "Choisir une lecture…",
+    "appNotInstalled": "Cette application n'est pas installée dans cette guilde.",
+    "appParamPlaceholder": "Choisir…",
+    "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus.",
+    "appParamListHint": "Séparez les valeurs par des virgules."
   },
   "picker": {
     "title": "Ajouter un widget",

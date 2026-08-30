@@ -24,8 +24,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   type AppDataResponse,
+  type AppParamOptionsResponse,
   type AppWidgetCatalogResponse,
   getAppData,
+  getAppParamOptions,
   getAppWidgetCatalog,
 } from "@/api/appData";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -119,6 +121,77 @@ export const useAppData = ({
     // An app that is down should not be hammered from every open tile, and the
     // tile has something useful to draw meanwhile: React Query keeps serving the
     // last good rows for the stale window while the error is shown.
+    retry: false,
+  });
+};
+
+/** One parameter's menu, keyed by the answers it was resolved against — a
+ *  sibling changing is a different question, so it is a different entry. */
+export const appParamOptionsKey = (
+  guildId: number,
+  appId: number,
+  endpointId: string,
+  param: string,
+  params: Record<string, unknown> | undefined
+) =>
+  [
+    "app-param-options",
+    guildId,
+    appId,
+    endpointId,
+    param,
+    JSON.stringify(Object.entries(params ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))),
+  ] as const;
+
+export interface AppParamOptionsQuery {
+  appId: number | undefined;
+  endpointId: string | undefined;
+  param: string;
+  params?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+/**
+ * The values one of an app endpoint's parameters permits.
+ *
+ * Fetched while a form is open rather than with the canvas, because it is only
+ * a form that needs it — and only for the parameters that declared a source.
+ * The answer is cached briefly: a menu is re-read when somebody reopens the
+ * dialog, which is roughly how often the set behind it changes.
+ *
+ * It never throws a form into an unusable state. A source that will not
+ * resolve comes back as `unavailable` with no options, and the caller draws a
+ * text field — the same ending as an outright network failure here, which is
+ * why `retry` is off and an error is treated as "no menu" rather than surfaced.
+ */
+export const useAppParamOptions = ({
+  appId,
+  endpointId,
+  param,
+  params,
+  enabled = true,
+}: AppParamOptionsQuery) => {
+  const guildId = useActiveGuildId();
+  const ready =
+    enabled &&
+    Number.isFinite(guildId) &&
+    guildId > 0 &&
+    typeof appId === "number" &&
+    typeof endpointId === "string" &&
+    endpointId.length > 0;
+
+  return useQuery<AppParamOptionsResponse>({
+    queryKey: appParamOptionsKey(guildId, appId ?? 0, endpointId ?? "", param, params),
+    queryFn: () =>
+      getAppParamOptions({
+        guildId,
+        appId: appId as number,
+        endpointId: endpointId as string,
+        param,
+        params,
+      }),
+    enabled: ready,
+    staleTime: 60_000,
     retry: false,
   });
 };

@@ -398,6 +398,25 @@ export interface AppConfig {
 
 export type AppDataParamLabel = { [key: string]: string };
 
+export type AppParamOptionSourceNeeds = { [key: string]: string };
+
+/**
+ * Where a parameter's permitted values come from, when only the app knows.
+ *
+ * A repository, a label, a board: every one of them differs per install,
+ * changes after it, and can be enumerated only by the app holding that
+ * install's credential — so none can be written into a manifest, which is
+ * published once and identical on every deployment. The manifest names a read
+ * of the app's own instead, and this is that naming, carried through to
+ * whoever draws the control.
+ */
+export interface AppParamOptionSource {
+  endpoint: string;
+  key: string;
+  label_key?: string | null;
+  needs?: AppParamOptionSourceNeeds;
+}
+
 /**
  * One parameter an endpoint accepts, from its ``params``.
  */
@@ -407,6 +426,8 @@ export interface AppDataParam {
   label?: AppDataParamLabel;
   required?: boolean;
   options?: string[] | null;
+  options_from?: AppParamOptionSource | null;
+  list?: boolean;
 }
 
 export type AppDataResponseRowsItem = { [key: string]: unknown };
@@ -434,6 +455,28 @@ export interface AppEndpointRead {
   visibility?: string;
   cache_ttl_seconds?: number;
   params?: AppDataParam[];
+}
+
+/**
+ * One value a parameter permits.
+ */
+export interface AppParamOption {
+  value: string;
+  label?: string | null;
+}
+
+/**
+ * The menu for one parameter, or why there is not one.
+ *
+ * ``unavailable`` is never an error. A source that will not resolve — the app
+ * is down, a credential nobody has connected, a sibling not yet chosen — must
+ * leave the parameter **enterable**, because a control disabled on those
+ * grounds has made a valid configuration unreachable. A consumer draws a menu
+ * when there is one and a text field when there is not.
+ */
+export interface AppParamOptionsResponse {
+  options?: AppParamOption[];
+  unavailable?: string | null;
 }
 
 export type AppServiceRegistrationCreateDelegationJwks = { [key: string]: unknown } | null;
@@ -5997,6 +6040,17 @@ export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   dashboard_id: number;
   /**
    * The binding's parameters, as a JSON object.
+   */
+  params?: string | null;
+};
+
+export type ReadAppParamOptionsApiV1GGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams = {
+  /**
+   * Which of the endpoint's parameters to fill a menu for.
+   */
+  param: string;
+  /**
+   * What the form has answered so far, as a JSON object. Only the answers a source's `needs` names are ever forwarded.
    */
   params?: string | null;
 };

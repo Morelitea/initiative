@@ -42,6 +42,30 @@ class AppDataResponse(SanitizedBaseModel):
     cached: bool = False
 
 
+class AppParamOptionSource(SanitizedBaseModel):
+    """Where a parameter's permitted values come from, when only the app knows.
+
+    A repository, a label, a board: every one of them differs per install,
+    changes after it, and can be enumerated only by the app holding that
+    install's credential — so none can be written into a manifest, which is
+    published once and identical on every deployment. The manifest names a read
+    of the app's own instead, and this is that naming, carried through to
+    whoever draws the control.
+    """
+
+    #: A ``read`` endpoint the same app declares.
+    endpoint: str
+    #: Which of its returns holds the values. Always one of its ``list``
+    #: returns — a menu comes from a column, not from a single value.
+    key: str
+    #: A second return holding what a person reads, where the value is opaque.
+    label_key: Optional[str] = None
+    #: What to send that endpoint, as one of ITS parameter names to one of the
+    #: parameters this same form collects. A repository's labels are that
+    #: repository's, so the source has to be told which one was chosen.
+    needs: Dict[str, str] = {}
+
+
 class AppDataParam(SanitizedBaseModel):
     """One parameter an endpoint accepts, from its ``params``."""
 
@@ -50,6 +74,14 @@ class AppDataParam(SanitizedBaseModel):
     label: Dict[str, str] = {}
     required: bool = False
     options: Optional[List[str]] = None
+    #: Where to fill a menu from, for the values only the app can enumerate.
+    #: A control is still the consumer's to draw — this says what the values
+    #: are, not what to draw for them.
+    options_from: Optional[AppParamOptionSource] = None
+    #: Whether the parameter takes several values. A fact about the value
+    #: rather than about a control, and not inferable: whether to send one
+    #: value or an array is the app's to state.
+    list: bool = False
 
 
 class AppEndpointRead(SanitizedBaseModel):
@@ -106,3 +138,27 @@ class AppWidgetCatalogEntry(SanitizedBaseModel):
 
 class AppWidgetCatalogResponse(SanitizedBaseModel):
     items: List[AppWidgetCatalogEntry] = []
+
+
+class AppParamOption(SanitizedBaseModel):
+    """One value a parameter permits."""
+
+    value: str
+    #: What a person reads, when the value itself is opaque. Absent means the
+    #: value is its own label.
+    label: Optional[str] = None
+
+
+class AppParamOptionsResponse(SanitizedBaseModel):
+    """The menu for one parameter, or why there is not one.
+
+    ``unavailable`` is never an error. A source that will not resolve — the app
+    is down, a credential nobody has connected, a sibling not yet chosen — must
+    leave the parameter **enterable**, because a control disabled on those
+    grounds has made a valid configuration unreachable. A consumer draws a menu
+    when there is one and a text field when there is not.
+    """
+
+    options: List[AppParamOption] = []
+    #: ``no-source``, ``needs-sibling`` or ``unresolved``.
+    unavailable: Optional[str] = None

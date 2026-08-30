@@ -1,6 +1,6 @@
 """External data reaching a dashboard widget.
 
-Two reads, both guild-scoped, both under the caller's own session.
+Three reads, all guild-scoped, all under the caller's own session.
 
 ``/apps/widget-catalog`` is the palette: which installed apps contribute
 widgets, what each widget draws, and the module the browser will run in its
@@ -24,6 +24,12 @@ widget sits on, and that is what makes the gates run **before** anything else:
 
 Only after all of that does the service layer look at the response cache, which
 is why the cache is a cache of *responses* rather than of decisions.
+
+``/apps/{app_id}/endpoints/{endpoint_id}/options`` fills a menu. It is the one
+read here with no dashboard on it, because it exists to fill in a form for a
+widget nobody has placed yet — and what stands in for that gate is that the
+caller cannot name what gets called: the source comes from the app's own
+declaration, and its own visibility is enforced on the caller's credentials.
 """
 
 from typing import Annotated, Any, Optional
@@ -45,6 +51,8 @@ from app.models.tenant.guild_app import GuildApp
 from app.schemas.tenant.app_data import (
     AppDataResponse,
     AppEndpointRead,
+    AppParamOption,
+    AppParamOptionsResponse,
     AppWidgetCatalogEntry,
     AppWidgetCatalogResponse,
     AppWidgetRead,
@@ -265,4 +273,72 @@ async def read_app_data(
         values=result.values,
         fetched_at=result.fetched_at,
         cached=result.cached,
+    )
+
+
+@router.get(
+    "/{app_id}/endpoints/{endpoint_id}/options",
+    response_model=AppParamOptionsResponse,
+)
+async def read_app_param_options(
+    app_id: int,
+    endpoint_id: str,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    param: Annotated[
+        str,
+        Query(description="Which of the endpoint's parameters to fill a menu for."),
+    ],
+    params: Annotated[
+        Optional[str],
+        Query(
+            description=(
+                "What the form has answered so far, as a JSON object. Only the "
+                "answers a source's `needs` names are ever forwarded."
+            )
+        ),
+    ] = None,
+) -> AppParamOptionsResponse:
+    """The values one of an endpoint's parameters permits.
+
+    This is what turns a declared ``options_from`` into a menu, and it is the
+    one read here that carries no dashboard. It cannot: it exists to fill in a
+    form for a widget that has not been placed yet, so there is no dashboard
+    row whose gates could decide it.
+
+    What decides it instead is that the caller never names what is called. The
+    source is read out of the app's own pinned declaration — the
+    ``options_from`` of the parameter being filled in — so the reachable set is
+    exactly the reads a publisher marked as menu sources, and the arguments are
+    the ones that source's ``needs`` names, mapped from answers this same form
+    already holds. The source's own ``visibility`` is then enforced on the
+    caller's own credentials, exactly as it is for a placed tile.
+
+    A source that will not resolve is not an error: it comes back as
+    ``unavailable`` with no options, and the parameter stays typeable.
+    """
+    app = (await session.exec(select(GuildApp).where(GuildApp.id == app_id))).first()
+    if app is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AppDataMessages.ENDPOINT_NOT_FOUND,
+        )
+
+    try:
+        options, unavailable = await app_data_service.resolve_param_options(
+            session,
+            app=app,
+            endpoint_id=endpoint_id,
+            param_key=param,
+            raw_params=params,
+            user_id=current_user.id,
+            is_guild_admin=rls_service.is_guild_admin(guild_context.role),
+        )
+    except app_data_service.AppDataError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+
+    return AppParamOptionsResponse(
+        options=[AppParamOption(**option) for option in options],
+        unavailable=unavailable,
     )
