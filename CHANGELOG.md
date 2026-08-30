@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Dashboards that come with an app now appear in the marketplace.** An app can ship dashboards of its own — arrangements of its widgets, published with it, so an operator adds one file and the boards come too. They were being published correctly and were installable, but the marketplace never listed them, so the only way to reach one was a link somebody already had. They now show up on the dashboards shelf in every guild that has the app installed, and stay off it everywhere else — where they would only draw tiles with nothing behind them. Installing an app you already have is enough; there is nothing to re-run.
+- **Dashboards that come with an app now appear in the marketplace.** An app can ship dashboards of its own — arrangements of its widgets, published with it, so an operator adds one file and the boards come too. They were being published correctly and were installable, but the marketplace never listed them, so the only way to reach one was a link somebody already had. They now show up on the dashboards shelf in every guild that has the app installed, and stay off it everywhere else — where they would only draw tiles with nothing behind them. A guild that does not have the app gets the same answer on the listing's own page as on the shelf, rather than an install button that then refuses, and a board whose app has since been removed no longer offers an update it could not apply. Installing an app you already have is enough; there is nothing to re-run.
 
 ## [0.64.1] - 2026-08-29
 

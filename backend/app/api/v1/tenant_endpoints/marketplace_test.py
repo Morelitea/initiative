@@ -1,13 +1,15 @@
-"""The marketplace shelf, browsed from inside a guild.
+"""The marketplace, read from inside a guild.
 
 The catalog is platform data — no listing carries a guild — but *which* of it a
-guild is offered is a guild question, so the shelf is addressed like every other
-guild surface and answered on the guild-routed session.
+guild is offered is a guild question, so the shelf and a listing's page are
+addressed like every other guild surface and answered on the guild-routed
+session.
 
-The case that makes it one is the bundled dashboard: a dashboard an app ships
-with itself draws that app's widgets, so it belongs on the shelf only where the
-app is installed. Browse and install read the guild's installs the same way, so
-a card that appears can be taken and one that does not was never offered.
+The case that makes them one is the bundled dashboard: a dashboard an app ships
+with itself draws that app's widgets, so it belongs where the app is installed
+and nowhere else. All three surfaces read the guild's installs the same way, so
+a card that appears opens a page that offers it and an install that takes it —
+and one that does not appear is refused the same way at each step.
 """
 
 from typing import Any
@@ -306,6 +308,66 @@ class TestABundledDashboardFollowsItsApp:
             client, actor, kind="dashboard"
         )
 
+    async def test_its_page_answers_404_where_the_app_is_not_installed(
+        self, client, acting_user, published
+    ):
+        """The page says what the shelf said by leaving it out."""
+        actor = await acting_user(guild_role=GuildRole.admin)
+        for url in (
+            "/marketplace/listings/tests.tracker-overview",
+            f"/marketplace/listings/by-uid/{BUNDLED_UID}",
+        ):
+            response = await client.get(actor.g(url), headers=actor.headers)
+            assert response.status_code == 404, url
+            assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
+    async def test_its_page_opens_where_the_app_is_installed(
+        self, client, acting_user, session, published
+    ):
+        actor = await acting_user(guild_role=GuildRole.admin)
+        await create_guild_app(
+            session,
+            actor.guild,
+            actor.user,
+            definition={
+                "app_kind": "service",
+                "service": {"public_id": "tests.tracker"},
+            },
+            listing_uid=APP_UID,
+        )
+        response = await client.get(
+            actor.g("/marketplace/listings/tests.tracker-overview"),
+            headers=actor.headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["installable"] is True
+
+    async def test_removing_the_app_stops_an_update_being_offered(
+        self, client, acting_user, session, published
+    ):
+        """An installed board looks its listing up by uid to see if there is a
+        newer version. With the app gone there is nothing it could take, and
+        the lookup says so rather than offering an upgrade that is refused."""
+        actor = await acting_user(guild_role=GuildRole.admin)
+        app = await create_guild_app(
+            session,
+            actor.guild,
+            actor.user,
+            definition={
+                "app_kind": "service",
+                "service": {"public_id": "tests.tracker"},
+            },
+            listing_uid=APP_UID,
+        )
+        by_uid = actor.g(f"/marketplace/listings/by-uid/{BUNDLED_UID}")
+        assert (await client.get(by_uid, headers=actor.headers)).status_code == 200
+
+        app.enabled = False
+        session.add(app)
+        await session.commit()
+
+        assert (await client.get(by_uid, headers=actor.headers)).status_code == 404
+
     async def test_a_standalone_dashboard_is_offered_either_way(
         self, client, acting_user, session, published
     ):
@@ -345,15 +407,16 @@ class TestABundledDashboardFollowsItsApp:
 
 
 class TestAnAppNeedsItsServiceRegistered:
-    """The shelf half of the rule.
+    """What this deployment carries is narrower than what its catalog holds.
 
     A catalog reaches every deployment the same way, but an app is realized by
     a service the operator runs — so the registration is what says this one
-    offers it. Its listing page answers the same, which
-    ``platform_endpoints/marketplace_test.py`` covers.
+    offers it. Until there is one the shelf leaves the listing out and its page
+    answers 404, which is what a guild admin needs: no shelf full of apps that
+    would install into nothing.
 
-    An app that mounts one of this build's own tools is the other half: nothing
-    has to be wired up for it, so nothing gates it.
+    An app that mounts one of this build's own tools is the other half of the
+    rule: nothing has to be wired up for it, so nothing gates it.
     """
 
     SERVICE_UID = marketplace_uid("serviceapp")
@@ -417,6 +480,29 @@ class TestAnAppNeedsItsServiceRegistered:
         actor = await acting_user(guild_role=GuildRole.member)
         assert "tests.shop" in await _shelf(client, actor, kind="app")
 
+    async def test_its_page_answers_the_same_as_a_listing_that_is_not_there(
+        self, client, acting_user, service_app
+    ):
+        actor = await acting_user(guild_role=GuildRole.member)
+        for url in (
+            "/marketplace/listings/tests.shop",
+            f"/marketplace/listings/by-uid/{self.SERVICE_UID}",
+        ):
+            response = await client.get(actor.g(url), headers=actor.headers)
+            assert response.status_code == 404, url
+            assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
+    async def test_wiring_the_service_up_opens_its_page_too(
+        self, client, acting_user, session, service_app
+    ):
+        await create_app_service_registration(session, public_id="tests.shop")
+        actor = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings/tests.shop"), headers=actor.headers
+        )
+        assert response.status_code == 200
+        assert response.json()["installable"] is True
+
     async def test_an_app_that_mounts_a_built_in_tool_needs_no_registration(
         self, client, acting_user, session
     ):
@@ -430,3 +516,114 @@ class TestAnAppNeedsItsServiceRegistered:
         )
         actor = await acting_user(guild_role=GuildRole.member)
         assert "tests.guild-calendar" in await _shelf(client, actor, kind="app")
+
+
+class TestOneListingsPage:
+    async def test_the_page_carries_what_would_be_installed(
+        self, client, acting_user, listing
+    ):
+        actor = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings/tests.browse"), headers=actor.headers
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["long_description"] == "A longer page for the detail view."
+        assert body["definition"]["kind"] == "dashboard"
+        # One app, one current version. The shelf offers the latest and
+        # nothing else; which version an install is running, and upgrading
+        # it, belong to guild settings.
+        assert body["latest_version"]["version"] == "1.0.0"
+        assert "versions" not in body
+        assert body["installable"] is True
+
+    async def test_the_page_carries_the_publisher_and_its_source(
+        self, client, acting_user, listing
+    ):
+        # The page where the install decision is made reads the same two
+        # fields as the card does on the shelf, so they cannot disagree.
+        actor = await acting_user(guild_role=GuildRole.member)
+        body = (
+            await client.get(
+                actor.g("/marketplace/listings/tests.browse"), headers=actor.headers
+            )
+        ).json()
+        assert body["publisher"] == "Tests"
+        assert body["source"] == "builtin"
+
+    async def test_no_author_fields_are_served(self, client, acting_user, listing):
+        """One required name, not a person and a distributor kept apart."""
+        actor = await acting_user(guild_role=GuildRole.member)
+        body = (
+            await client.get(
+                actor.g("/marketplace/listings/tests.browse"), headers=actor.headers
+            )
+        ).json()
+        assert not [key for key in body if key.startswith("author")]
+
+    async def test_a_uid_resolves_to_its_listing(self, client, acting_user, listing):
+        """An installed dashboard stores the uid, not the public id, so this is
+        how it finds the listing it came from."""
+        actor = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings/by-uid/BRWSE000000001"),
+            headers=actor.headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["public_id"] == "tests.browse"
+        assert response.json()["latest_version"]["version"] == "1.0.0"
+
+    async def test_an_unknown_uid_is_a_404(self, client, acting_user, listing):
+        actor = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings/by-uid/NTHERE00000001"),
+            headers=actor.headers,
+        )
+        assert response.status_code == 404
+
+    async def test_the_uid_route_is_not_read_as_a_public_id(
+        self, client, acting_user, listing
+    ):
+        """`by-uid` is a literal segment, not a listing called 'by-uid'."""
+        actor = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings/by-uid"), headers=actor.headers
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
+    async def test_an_unknown_listing_is_a_404(self, client, acting_user):
+        actor = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            actor.g("/marketplace/listings/tests.nothing"), headers=actor.headers
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+
+    async def test_a_non_member_gets_nothing(self, client, acting_user, listing):
+        host = await acting_user(guild_role=GuildRole.admin)
+        outsider = await acting_user(guild_role=GuildRole.member)
+        response = await client.get(
+            host.g("/marketplace/listings/tests.browse"), headers=outsider.headers
+        )
+        assert response.status_code == 403
+
+    async def test_a_listing_needing_a_newer_app_says_so_rather_than_hiding(
+        self, client, acting_user, session
+    ):
+        await create_marketplace_listing(
+            session,
+            uid="TNEW0000000001",
+            public_id="tests.toonew",
+            min_app_version="999.0.0",
+        )
+        actor = await acting_user(guild_role=GuildRole.member)
+        body = (
+            await client.get(
+                actor.g("/marketplace/listings/tests.toonew"), headers=actor.headers
+            )
+        ).json()
+        # Legible rather than absent: "upgrade the app" is a better answer than
+        # a listing that silently isn't there.
+        assert body["installable"] is False
+        assert body["latest_version"]["compatible"] is False

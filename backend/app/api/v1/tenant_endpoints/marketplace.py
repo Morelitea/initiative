@@ -20,7 +20,7 @@ tool's endpoints.
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import (
     GuildContext,
@@ -28,14 +28,18 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.messages import MarketplaceMessages
+from app.models.platform.marketplace import MarketplaceListing
 from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
     ListingKind,
+    MarketplaceListingDetail,
     MarketplaceListingPage,
     serialize_listing_summary,
 )
 from app.services.marketplace import catalog as catalog_service
-from app.services.marketplace.installs import installed_app_uids
+from app.services.marketplace import registration_lookup
+from app.services.marketplace.installs import installed_app_uids, listing_is_offered
 
 router = APIRouter()
 
@@ -80,3 +84,75 @@ async def list_marketplace_listings(
         ],
         total=total,
     )
+
+
+async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDetail:
+    """A listing's page, or the answer the shelf gives by leaving it out.
+
+    Two things put a listing out of reach, and both read as *not found* here
+    because both are already true of the shelf: an app whose service this
+    deployment does not run, and a dashboard whose app this guild has not
+    installed.
+    """
+    latest = await catalog_service.get_listing_version(
+        session, listing.latest_version_id
+    )
+    offered = await registration_lookup.app_is_offered(
+        latest.definition if latest else None
+    ) and await listing_is_offered(session, listing)
+    if not offered:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    summary = serialize_listing_summary(listing, latest)
+    return MarketplaceListingDetail(
+        **summary.model_dump(),
+        long_description=listing.long_description,
+        # A preview of what installing would produce. The install path re-reads
+        # the catalog itself, so this is display data, not an input.
+        definition=dict(latest.definition) if latest else None,
+    )
+
+
+# Declared before ``/listings/{public_id}`` so the literal segment wins: uids and
+# public ids are different identifier spaces and a path has to pick one.
+@router.get("/listings/by-uid/{uid}", response_model=MarketplaceListingDetail)
+async def resolve_marketplace_listing(
+    uid: str,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> MarketplaceListingDetail:
+    """The listing a code names.
+
+    This is what an installed instance uses to find where it came from: the
+    instance stores the uid, and the catalog answers with the listing and the
+    version it currently publishes. A listing this guild can no longer take —
+    a bundled dashboard whose app it removed — answers 404, which is what
+    stops an update being offered that the install would refuse.
+    """
+    listing = await catalog_service.get_listing_by_uid(session, uid)
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    return await _detail(session, listing)
+
+
+@router.get("/listings/{public_id}", response_model=MarketplaceListingDetail)
+async def read_marketplace_listing(
+    public_id: str,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+) -> MarketplaceListingDetail:
+    """One listing, with what it would install and every version it has."""
+    listing = await catalog_service.get_listing(session, public_id)
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=MarketplaceMessages.LISTING_NOT_FOUND,
+        )
+    return await _detail(session, listing)
