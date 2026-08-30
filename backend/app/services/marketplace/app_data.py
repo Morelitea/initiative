@@ -31,9 +31,13 @@ are coalesced, so twenty viewers of a dashboard are one upstream request; and a
 per-worker in-flight cap per app means a service that stops answering ties up a
 fixed number of connections rather than the pool.
 
-The response is passed through as rows. Nothing here reads inside them: they are
-the app's data, on their way to a sandboxed widget that will be handed them as
-values.
+**The answer is read through the endpoint's own declaration.** A manifest says
+what an endpoint hands back — a key, a type, and whether it holds several — and
+that is the whole of what a widget may bind, so it is also how the answer is
+read here: the returns that hold several become rows, side by side, and the ones
+holding a single value stay whole beside them. Nothing interprets a value; the
+projection is by name alone, on its way to a sandboxed widget that is handed the
+result as data.
 """
 
 from __future__ import annotations
@@ -85,6 +89,7 @@ __all__ = [
     "clear_app_data_cache",
     "fetch_app_source",
     "find_read_endpoint",
+    "project_returns",
     "service_public_id",
     "validate_params",
 ]
@@ -132,7 +137,11 @@ class AppDataError(Exception):
 class AppDataResult:
     """One endpoint's answer, and when it was actually obtained upstream."""
 
-    rows: list[Any]
+    #: One entry per index across the endpoint's ``list`` returns.
+    rows: list[dict[str, Any]]
+    #: The endpoint's single-valued returns, once — what the answer says about
+    #: itself rather than about any one item in it.
+    values: dict[str, Any]
     fetched_at: datetime
     #: True when this body came from the response cache rather than the app.
     cached: bool = False
@@ -177,6 +186,65 @@ def find_read_endpoint(
         if endpoint.get("id") == endpoint_id and endpoint.get("direction") == "read":
             return endpoint
     return None
+
+
+# --- reading an answer through what was declared ----------------------------
+
+
+def _declared_returns(endpoint: Mapping[str, Any]) -> list[dict[str, Any]]:
+    declared = endpoint.get("returns")
+    if not isinstance(declared, list):
+        return []
+    return [
+        entry
+        for entry in declared
+        if isinstance(entry, dict) and isinstance(entry.get("key"), str)
+    ]
+
+
+def project_returns(
+    result: Mapping[str, Any], endpoint: Mapping[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """An endpoint's answer, read through the returns it declares.
+
+    An app answers with the keys its manifest named, and this is where they
+    become the two things a widget is handed. It is the same declaration the
+    binding was made against, so what a tile draws and what the publisher
+    described cannot come apart.
+
+    Returns marked ``list`` are read **side by side rather than joined**: the
+    third entry of each describes the same third thing, which is the shape a
+    read answering about a set already has. Those become the rows. A return
+    holding a single value describes the answer rather than any one item in it —
+    how many there are in all, or why there is nothing — so it stays whole in
+    ``values``, which is also where an answer with an empty set still has
+    somewhere to put it.
+
+    A key the endpoint does not declare is left out, and a declared key the app
+    did not send is simply absent: the manifest is the vocabulary, and a widget
+    binds against it before the endpoint has ever run.
+    """
+    columns: dict[str, list[Any]] = {}
+    values: dict[str, Any] = {}
+    for entry in _declared_returns(endpoint):
+        key = entry["key"]
+        if key not in result:
+            continue
+        supplied = result[key]
+        if entry.get("list") is True:
+            # A declared list that arrived as something else describes no set,
+            # so it contributes no column rather than a column of one.
+            if isinstance(supplied, list):
+                columns[key] = supplied
+        else:
+            values[key] = supplied
+
+    length = max((len(column) for column in columns.values()), default=0)
+    rows = [
+        {key: column[index] for key, column in columns.items() if index < len(column)}
+        for index in range(length)
+    ]
+    return rows, values
 
 
 # --- parameters -------------------------------------------------------------
@@ -484,7 +552,10 @@ def _cache_get(key: str) -> Optional[AppDataResult]:
         _cache.pop(key, None)
         return None
     return AppDataResult(
-        rows=entry.result.rows, fetched_at=entry.result.fetched_at, cached=True
+        rows=entry.result.rows,
+        values=entry.result.values,
+        fetched_at=entry.result.fetched_at,
+        cached=True,
     )
 
 
@@ -523,16 +594,22 @@ def _endpoints_url(registration: AppServiceRegistration) -> str:
     return f"{registration.base_url.rstrip('/')}{ENDPOINTS_PATH}"
 
 
-async def _read_rows(
-    request: httpx.Request, *, transport: httpx.AsyncBaseTransport | None
-) -> list[Any]:
-    """Send one bounded request and return the rows it answered with.
+async def _read_answer(
+    request: httpx.Request,
+    *,
+    endpoint: Mapping[str, Any],
+    transport: httpx.AsyncBaseTransport | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Send one bounded request and read what it answered with.
 
     Read as a stream against a byte ceiling, parsed as JSON only, and refused
-    unless the body is an object carrying a ``rows`` list. Everything else is
-    reported as the app being unavailable — a dashboard tile says "this app is
-    not answering", which is true whether the service is down or talking a shape
-    this build does not accept.
+    unless the body is an object carrying a ``result`` object. Everything else
+    is reported as the app being unavailable — a dashboard tile says "this app
+    is not answering", which is true whether the service is down or talking a
+    shape this build does not accept.
+
+    What the result is *made of* is the endpoint's own declaration; see
+    :func:`project_returns`.
     """
     timeout = httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=REQUEST_TIMEOUT_SECONDS)
     try:
@@ -573,17 +650,16 @@ async def _read_rows(
         ) from exc
 
     # The app answers with what it did — the endpoint it ran, whose credential
-    # ran it, and the result — so the rows are one level in. Reported as the app
-    # being unavailable rather than as a bad request: from a dashboard's side
-    # "this app is not answering" is true whether the service is down or talking
-    # a shape this build does not accept.
+    # ran it, and the result — so the returns are one level in. Reported as the
+    # app being unavailable rather than as a bad request: from a dashboard's
+    # side "this app is not answering" is true whether the service is down or
+    # talking a shape this build does not accept.
     result = body.get("result") if isinstance(body, dict) else None
-    rows = result.get("rows") if isinstance(result, dict) else None
-    if not isinstance(rows, list):
+    if not isinstance(result, dict):
         raise AppDataError(
-            AppDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without rows"
+            AppDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without a result"
         )
-    return rows
+    return project_returns(result, endpoint)
 
 
 async def _call_app(
@@ -651,8 +727,12 @@ async def _call_app(
                 AppDataMessages.SERVICE_UNAVAILABLE, 502, f"target refused: {exc}"
             ) from exc
 
-        rows = await _read_rows(request, transport=transport)
-        return AppDataResult(rows=rows, fetched_at=datetime.now(timezone.utc))
+        rows, values = await _read_answer(
+            request, endpoint=endpoint, transport=transport
+        )
+        return AppDataResult(
+            rows=rows, values=values, fetched_at=datetime.now(timezone.utc)
+        )
     finally:
         remaining = _inflight.get(public_id, 1) - 1
         if remaining > 0:

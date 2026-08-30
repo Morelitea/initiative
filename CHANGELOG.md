@@ -13,7 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Dashboards that come with an app now appear in the marketplace.** An app can ship dashboards of its own — arrangements of its widgets, published with it, so an operator adds one file and the boards come too. They were being published correctly and were installable, but the marketplace never listed them, so the only way to reach one was a link somebody already had. They now show up on the dashboards shelf in every guild that has the app installed, and stay off it everywhere else — where they would only draw tiles with nothing behind them. A guild that does not have the app gets the same answer on the listing's own page as on the shelf, rather than an install button that then refuses, and a board whose app has since been removed no longer offers an update it could not apply. Installing an app you already have is enough; there is nothing to re-run.
+- **Widgets that draw an app's data work again.** An app describes what each of its endpoints hands back — a name and a type for every value, and whether it holds several — and a widget is bound to those names before it ever runs. 
+
+- **Publishing an app no longer drops the link between one of its dropdowns and the field it depends on.** An app can say where a parameter's values come from — one of its own reads, so a repository field offers that account's repositories rather than a text box. Where such a list depends on an answer already given, like the labels in a particular repository, the app also says which earlier field supplies it. That last part was being discarded when the app was published, so a dependent list could only ever be fetched unfiltered. It is now carried through and checked on publish: both sides have to name parameters that really exist, and a source cannot ask for the value it is filling in.
+
+- **Dashboards that come with an app now appear in the marketplace.** An app can ship dashboards of its own — arrangements of its widgets, published with it, so an operator adds one file and the boards come too. 
 - **Opening a link straight into another guild no longer loads the guild you were last in first.** A fresh tab starts on the guild it remembers and takes the one in the address a moment later, and in that moment the page was already asking for its data — so a link to another guild's board or marketplace briefly filled in from the wrong one before correcting itself. The page now waits for the address to win.
 
 ## [0.64.1] - 2026-08-29
