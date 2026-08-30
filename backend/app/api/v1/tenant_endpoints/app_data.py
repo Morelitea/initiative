@@ -53,6 +53,27 @@ from app.services import rls as rls_service
 from app.services.marketplace import app_data as app_data_service
 from app.services.marketplace.service_apps import app_widget_type
 
+
+def _projected_sample(raw: Any, endpoints: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """A widget's own sample, read the way its live answer will be.
+
+    A publisher supplies what the endpoint would answer with, and this projects
+    it through that endpoint's returns exactly as the proxy does — so the tile
+    somebody chooses a widget by is the tile they get once it is bound. A sample
+    for an endpoint the definition does not read is dropped.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    projected: dict[str, Any] = {}
+    for endpoint_id, result in raw.items():
+        endpoint = endpoints.get(endpoint_id)
+        if endpoint is None or not isinstance(result, dict):
+            continue
+        rows, values = app_data_service.project_returns(result, endpoint)
+        projected[endpoint_id] = {"rows": rows, "values": values}
+    return projected
+
+
 router = APIRouter()
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
@@ -134,6 +155,13 @@ async def read_app_widget_catalog(
 
         # Reads only. A picker offering a write would offer a tile that makes
         # the app act every time somebody looks at a dashboard.
+        readable = {
+            endpoint["id"]: endpoint
+            for endpoint in definition.get("endpoints") or []
+            if isinstance(endpoint, dict)
+            and isinstance(endpoint.get("id"), str)
+            and endpoint.get("direction") == "read"
+        }
         endpoints = [
             AppEndpointRead(
                 id=endpoint["id"],
@@ -141,10 +169,7 @@ async def read_app_widget_catalog(
                 cache_ttl_seconds=endpoint.get("cache_ttl_seconds") or 0,
                 params=endpoint.get("params") or [],
             )
-            for endpoint in definition.get("endpoints") or []
-            if isinstance(endpoint, dict)
-            and isinstance(endpoint.get("id"), str)
-            and endpoint.get("direction") == "read"
+            for endpoint in readable.values()
         ]
         items.append(
             AppWidgetCatalogEntry(
@@ -159,7 +184,9 @@ async def read_app_widget_catalog(
                         meta=widget.get("meta") or {},
                         module_source=widget.get("module_source") or "",
                         endpoints=widget.get("endpoints") or [],
-                        sample_data=widget.get("sample_data") or {},
+                        sample_data=_projected_sample(
+                            widget.get("sample_data"), readable
+                        ),
                     )
                     for widget in widgets
                 ],
@@ -234,5 +261,8 @@ async def read_app_data(
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
 
     return AppDataResponse(
-        rows=result.rows, fetched_at=result.fetched_at, cached=result.cached
+        rows=result.rows,
+        values=result.values,
+        fetched_at=result.fetched_at,
+        cached=result.cached,
     )

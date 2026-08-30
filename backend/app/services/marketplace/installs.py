@@ -26,7 +26,12 @@ from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
 
-__all__ = ["ListingInstallError", "resolve_listing_install"]
+__all__ = [
+    "ListingInstallError",
+    "installed_app_uids",
+    "listing_is_offered",
+    "resolve_listing_install",
+]
 
 
 class ListingInstallError(Exception):
@@ -73,12 +78,7 @@ async def resolve_listing_install(
         raise ListingInstallError(MarketplaceMessages.LISTING_NOT_FOUND, not_found=True)
     if not listing.available:
         raise ListingInstallError(MarketplaceMessages.LISTING_UNAVAILABLE)
-    if listing.bundled_with_uid is not None and not await _app_is_installed(
-        session, listing.bundled_with_uid
-    ):
-        # Browse only offers this where the app is installed. Deciding it again
-        # here is the point at which it means anything: a uid read in one guild
-        # is otherwise just as installable in the next.
+    if not await listing_is_offered(session, listing):
         raise ListingInstallError(MarketplaceMessages.LISTING_NEEDS_APP)
     version = await catalog_service.resolve_installable_version(session, listing)
     if version is None:
@@ -98,17 +98,37 @@ async def resolve_listing_install(
     return listing, version
 
 
-async def _app_is_installed(session: AsyncSession, app_uid: str) -> bool:
-    """Whether the guild this session is routed to has that app, switched on.
+async def installed_app_uids(session: AsyncSession) -> set[str]:
+    """The listing uids of the apps the guild this session is routed to has,
+    switched on.
 
-    Reads the guild's own install row, so the schema boundary is what answers —
+    Reads the guild's own install rows, so the schema boundary is what answers —
     there is no guild id to pass and no chance of asking about the wrong one.
+
+    One helper for both readers of this: browse asks which bundled dashboards
+    to offer, and the install asks whether this particular one may be taken. A
+    guild holds a handful of apps, so the set is small enough that answering
+    both from one query is cheaper than keeping two ways to ask.
     """
-    return (
-        await session.exec(
-            select(GuildApp.id).where(
-                GuildApp.listing_uid == app_uid,
-                GuildApp.enabled.is_(True),
-            )
-        )
-    ).first() is not None
+    rows = await session.exec(
+        select(GuildApp.listing_uid).where(GuildApp.enabled.is_(True))
+    )
+    return set(rows)
+
+
+async def listing_is_offered(
+    session: AsyncSession, listing: MarketplaceListing
+) -> bool:
+    """Whether the guild this session is routed to may take this listing.
+
+    One rule today: a dashboard an app ships with itself draws that app's
+    widgets, so it is offered where the app is and nowhere else.
+
+    A listing's page asks this and answers 404 for it; the install asks it and
+    refuses. The shelf reaches the same answer a page at a time, by filtering on
+    the same set of installs. So a guild is told the same thing however it
+    arrives at a listing.
+    """
+    if listing.bundled_with_uid is None:
+        return True
+    return listing.bundled_with_uid in await installed_app_uids(session)

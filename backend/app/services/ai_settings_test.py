@@ -102,3 +102,102 @@ async def test_list_custom_models_rejects_private_when_not_allowed(monkeypatch):
     )
     assert models == []
     assert error == AIMessages.INVALID_BASE_URL
+
+
+def _openai_compatible_catalog(count: int) -> list[dict[str, str]]:
+    return [{"id": f"vendor/model-{i}"} for i in range(count)]
+
+
+def _custom_conn(model: str) -> ai_settings._ConnRow:
+    return ai_settings._ConnRow(
+        scope="guild",
+        id=1,
+        label="OpenRouter",
+        provider=AIProvider.custom.value,
+        base_url="https://openrouter.test/api/v1",
+        model=model,
+        api_key_encrypted=None,
+        enabled=True,
+        is_default=True,
+        allow_member_keys=False,
+    )
+
+
+def _stub_catalog(monkeypatch, catalog: list[dict[str, str]]) -> None:
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": catalog}
+
+    async def fake_request(method, url, **kwargs):
+        return _Resp()
+
+    monkeypatch.setattr(ai_settings, "request_public_target", fake_request)
+
+
+@pytest.mark.unit
+async def test_list_custom_models_returns_whole_catalog(monkeypatch):
+    # Gateways like OpenRouter list hundreds of models; a short cap would hide
+    # most of them from the selector and from the probe's membership check.
+    _stub_catalog(monkeypatch, _openai_compatible_catalog(400))
+    models, error = await ai_settings._list_custom_models(
+        "key", "https://openrouter.test/api/v1", allow_private=False
+    )
+    assert error is None
+    assert len(models) == 400
+    assert "vendor/model-399" in models
+
+
+@pytest.mark.unit
+async def test_probe_accepts_model_beyond_the_first_page(monkeypatch):
+    _stub_catalog(monkeypatch, _openai_compatible_catalog(400))
+    result = await ai_settings._probe(_custom_conn("vendor/model-114"), "key")
+    assert result.success is True
+
+
+@pytest.mark.unit
+async def test_probe_reports_a_model_the_catalog_does_not_have(monkeypatch):
+    _stub_catalog(monkeypatch, _openai_compatible_catalog(400))
+    result = await ai_settings._probe(_custom_conn("vendor/nope"), "key")
+    assert result.success is False
+    assert "not found" in result.message
+
+
+@pytest.mark.unit
+async def test_probe_does_not_reject_against_a_truncated_catalog(monkeypatch):
+    # At the cap the listing is known-incomplete, so absence proves nothing.
+    _stub_catalog(
+        monkeypatch, _openai_compatible_catalog(ai_settings._MODEL_LIST_CAP + 10)
+    )
+    result = await ai_settings._probe(_custom_conn("vendor/unlisted"), "key")
+    assert result.success is True
+
+
+@pytest.mark.unit
+async def test_list_anthropic_models_requests_a_full_page(monkeypatch):
+    captured: dict = {}
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": [{"id": "claude-haiku-4-5-20251001"}]}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def get(self, url, **kwargs):
+            captured["params"] = kwargs.get("params")
+            return _Resp()
+
+    monkeypatch.setattr(ai_settings.httpx, "AsyncClient", lambda **kw: _Client())
+    models, error = await ai_settings._list_anthropic_models("key")
+    assert error is None
+    assert models == ["claude-haiku-4-5-20251001"]
+    # Without an explicit limit the endpoint returns only its small first page.
+    assert captured["params"] == {"limit": ai_settings._MODEL_LIST_CAP}

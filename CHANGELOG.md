@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.64.2] - 2026-08-29
+
+### Added
+
+- **Connecting an app can now end with "waiting on an owner".** Some services hand an organization's install to the people who own it, so a request from anybody else becomes an approval sitting with one of them. The page you land on after connecting used to have no way to say that, and picked the closest thing it had. It now says it plainly: nothing failed, nothing is set up yet, and connecting again is worth doing once an owner approves it.
+
+### Fixed
+
+- **A model your provider offers is no longer rejected as "not found".** Testing a connection to an OpenAI-compatible service — OpenRouter and the like — checked the model against a list that had been cut to the first fifty entries, and those services offer hundreds. So anything past the cut came back as a model that does not exist, even though it does and the connection worked. The picker was reading the same shortened list, which is why only the handful it showed ever passed. Both now see the whole catalogue, and when a list really is too long to fetch in full, a model missing from it is no longer treated as proof of anything. The same fix reaches Anthropic connections, whose model list arrived one short page at a time.
+
+- **Widgets that draw an app's data work again.** An app describes what each of its endpoints hands back — a name and a type for every value, and whether it holds several — and a widget is bound to those names before it ever runs. 
+
+- **Publishing an app no longer drops the link between one of its dropdowns and the field it depends on.** An app can say where a parameter's values come from — one of its own reads, so a repository field offers that account's repositories rather than a text box. Where such a list depends on an answer already given, like the labels in a particular repository, the app also says which earlier field supplies it. That last part was being discarded when the app was published, so a dependent list could only ever be fetched unfiltered. It is now carried through and checked on publish: both sides have to name parameters that really exist, and a source cannot ask for the value it is filling in.
+
+- **Dashboards that come with an app now appear in the marketplace.** An app can ship dashboards of its own — arrangements of its widgets, published with it, so an operator adds one file and the boards come too. 
+- **Opening a link straight into another guild no longer loads the guild you were last in first.** A fresh tab starts on the guild it remembers and takes the one in the address a moment later, and in that moment the page was already asking for its data — so a link to another guild's board or marketplace briefly filled in from the wrong one before correcting itself. The page now waits for the address to win.
+
 ## [0.64.1] - 2026-08-29
 
 ### Fixed

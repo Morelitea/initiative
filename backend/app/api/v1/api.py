@@ -32,6 +32,7 @@ from app.api.v1.tenant_endpoints import (
     exports,
     imports,
     initiatives,
+    marketplace as guild_marketplace,
     me_ai,
     me_trash,
     projects,
@@ -82,9 +83,10 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
-# The marketplace catalog is platform-addressed: one shared surface, globally
-# unique ids, and no tenant data — so it takes no guild segment. Installing is
-# guild-scoped and lives on the tool routers.
+# What this deployment carries: the operator's catalog rescan, the signed
+# registry, and the mirrored listing artwork. A property of the deployment
+# rather than of any guild, so it takes no guild segment. Reading the
+# marketplace is guild-addressed (see /g/{guild_id}/marketplace below).
 api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
@@ -193,6 +195,13 @@ guild_router.include_router(
 # Aggregate view: events + task markers in one request (calendar surfaces).
 guild_router.include_router(
     calendar_entries.router, prefix="/calendar-entries", tags=["calendar-entries"]
+)
+# Reading the marketplace — the shelf and a listing's page. Guild-addressed
+# because what a guild is offered depends on which apps it has: a dashboard
+# bundled with an app appears only where that app is installed. Maintaining
+# the catalog stays platform-addressed (top-level /marketplace).
+guild_router.include_router(
+    guild_marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
 guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]

@@ -24,7 +24,7 @@ through two real sessions rather than by inspecting a key.
 answering in a shape we will not pass on — all of it comes back as a named code
 with a 4xx/502, never a server fault.
 
-The seam these tests stub is `_read_rows`: the single point where the decision
+The seam these tests stub is `_read_answer`: the single point where the decision
 ends and the network begins. Everything above it — gates, kill switches,
 parameters, credentials, the cache, the in-flight cap, the minted token — runs
 for real.
@@ -110,6 +110,11 @@ def _definition() -> dict:
                     _field("range", "select", options=["7d", "30d"]),
                     _field("limit", "int"),
                 ],
+                "returns": [
+                    {"key": "days", "type": "string", "list": True},
+                    {"key": "totals", "type": "int", "list": True},
+                    {"key": "total", "type": "int"},
+                ],
             },
             {
                 "id": REVENUE,
@@ -136,7 +141,12 @@ def _definition() -> dict:
                 # rewrite these into something that no longer parses.
                 "module_source": MODULE_SOURCE,
                 "endpoints": [ORDERS_SUMMARY],
-                "sample_data": {ORDERS_SUMMARY: [{"day": "mon", "total": 4}]},
+                # What the endpoint would answer with, in its own declared
+                # returns — the catalog reads it the way the proxy reads a live
+                # answer.
+                "sample_data": {
+                    ORDERS_SUMMARY: {"days": ["mon"], "totals": [4], "total": 4}
+                },
             }
         ],
     }
@@ -190,14 +200,15 @@ def upstream(monkeypatch):
     """Stand in for the app service, recording every call it receives.
 
     Returns a recorder whose ``calls`` holds the outgoing `httpx.Request`s — so a
-    test can assert on the minted token and the URL — and whose ``rows`` is what
-    the app answers with next.
+    test can assert on the minted token and the URL — and whose ``rows`` and
+    ``values`` are what the app answers with next.
     """
 
     class Recorder:
         def __init__(self) -> None:
             self.calls: list[httpx.Request] = []
             self.rows: list = [{"id": 1}]
+            self.values: dict = {}
             self.error: Exception | None = None
 
         @property
@@ -206,13 +217,13 @@ def upstream(monkeypatch):
 
     recorder = Recorder()
 
-    async def _fake_read_rows(request, *, transport=None):
+    async def _fake_read_answer(request, *, endpoint, transport=None):
         recorder.calls.append(request)
         if recorder.error is not None:
             raise recorder.error
-        return list(recorder.rows)
+        return list(recorder.rows), dict(recorder.values)
 
-    monkeypatch.setattr(app_data_service, "_read_rows", _fake_read_rows)
+    monkeypatch.setattr(app_data_service, "_read_answer", _fake_read_answer)
     return recorder
 
 
@@ -293,6 +304,23 @@ class TestGates:
         assert body["rows"] == [{"id": 1}]
         assert body["cached"] is False
         assert datetime.fromisoformat(body["fetched_at"]).tzinfo is not None
+
+    async def test_both_halves_of_an_answer_reach_the_viewer(
+        self, client, acting_user, session, upstream
+    ):
+        """An endpoint's ``list`` returns become rows and its single ones stay
+        whole, and the route carries both."""
+        a, app, dashboard = await _workspace(session, acting_user)
+        upstream.rows = [{"days": "mon", "totals": 4}]
+        upstream.values = {"total": 4}
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["rows"] == [{"days": "mon", "totals": 4}]
+        assert body["values"] == {"total": 4}
 
     async def test_a_guild_member_outside_the_initiative_reaches_nothing(
         self, client, acting_user, session, upstream
@@ -798,7 +826,14 @@ class TestWidgetCatalog:
         # Byte-for-byte: the module is JavaScript, and anything that rewrote a
         # ``<`` or an ``&`` on the way out would ship a module that cannot parse.
         assert widget["module_source"] == MODULE_SOURCE
-        assert widget["sample_data"] == {ORDERS_SUMMARY: [{"day": "mon", "total": 4}]}
+        # Projected through the endpoint's returns, so what a preview draws is
+        # what a bound tile draws.
+        assert widget["sample_data"] == {
+            ORDERS_SUMMARY: {
+                "rows": [{"days": "mon", "totals": 4}],
+                "values": {"total": 4},
+            }
+        }
 
         sources = {source["id"]: source for source in entry["endpoints"]}
         assert sources[REVENUE]["visibility"] == "guild_admin"

@@ -1,26 +1,30 @@
 import { useSearch } from "@tanstack/react-router";
-import { CircleCheck, CircleX, Clock, TriangleAlert } from "lucide-react";
+import { CircleCheck, CircleX, Clock, Hourglass, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { LogoIcon } from "@/components/LogoIcon";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
- * How a vendor flow ended, in the four ways it can.
+ * How a vendor flow ended, in the five ways it can.
  *
  * The same closed set every app returns, which is the point: an app knows a
  * connection handle and a guild id and has never been told what language the
- * member reads. It hands them back with one word, and the sentence is written
+ * person reads. It hands them back with one word, and the sentence is written
  * here — once, in every language this product speaks.
  *
  * They are told apart by whose move is next, because that is the only thing the
- * member needs from this page.
+ * reader needs from this page. `awaiting_approval` is the one where the answer
+ * is *somebody else's*: a vendor whose organization-wide install belongs to an
+ * owner turns a request from anybody else into an approval for one of them, so
+ * nothing failed and there is nothing to retry yet.
  */
 const OUTCOMES = {
   connected: { icon: CircleCheck, tone: "text-emerald-600 dark:text-emerald-400" },
   refused: { icon: CircleX, tone: "text-destructive" },
   expired: { icon: Clock, tone: "text-muted-foreground" },
   not_recorded: { icon: TriangleAlert, tone: "text-amber-600 dark:text-amber-400" },
+  awaiting_approval: { icon: Hourglass, tone: "text-sky-600 dark:text-sky-400" },
 } as const;
 
 type Outcome = keyof typeof OUTCOMES;

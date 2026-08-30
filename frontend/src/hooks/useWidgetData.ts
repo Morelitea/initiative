@@ -479,10 +479,12 @@ export function useWidgetData(
           };
         }
         const rows = appQuery.data?.rows ?? [];
+        const values = appQuery.data?.values ?? {};
         return {
-          // Verbatim. Nothing on this side reads inside an app's rows; the
-          // sandbox is handed them as values.
-          data: { source, rows, meta: { total: rows.length } },
+          // Already read through the endpoint's declared returns on the way
+          // here. Nothing on this side looks inside either half; the sandbox is
+          // handed them as values.
+          data: { source, rows, values, meta: { total: rows.length } },
           isLoading: appQuery.isLoading,
           isUnbound: false,
           isRestricted: false,

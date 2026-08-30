@@ -1,19 +1,29 @@
 """What the marketplace surface sees.
 
 Catalog metadata only. A listing carries no tenant data — no guild ever appears
-in these payloads — so they are safe to serve to any authenticated session, and
-"who installed this" is answered per-guild by the tool's own endpoints rather
-than by anything here.
+in these payloads — and "who installed this" is answered per-guild by the tool's
+own endpoints rather than by anything here.
+
+Which listings a guild is *offered* is a different question, decided by the
+guild-addressed shelf; these payloads describe a listing the same way wherever
+it is served from, which is what keeps a card and the page it opens in
+agreement.
 """
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.services.marketplace.definitions import LISTING_KINDS, LISTING_SOURCES
+
+if TYPE_CHECKING:
+    from app.models.platform.marketplace import (
+        MarketplaceListing,
+        MarketplaceListingVersion,
+    )
 
 # Derived from the validator's own set rather than restated, the way WidgetType
 # derives from the widget registry: a new kind reaches the API — and, through
@@ -90,6 +100,53 @@ class MarketplaceListingPage(SanitizedBaseModel):
 
     items: List[MarketplaceListingSummary]
     total: int
+
+
+def serialize_version(
+    version: Optional["MarketplaceListingVersion"],
+) -> Optional[MarketplaceVersionRead]:
+    # Local import avoids a schema -> service import cycle.
+    from app.services.marketplace.catalog import version_is_compatible
+
+    if version is None:
+        return None
+    return MarketplaceVersionRead(
+        version=version.version,
+        release_notes=version.release_notes,
+        min_app_version=version.min_app_version,
+        published_at=version.published_at,
+        compatible=version_is_compatible(version.min_app_version),
+    )
+
+
+def serialize_listing_summary(
+    listing: "MarketplaceListing",
+    latest: Optional["MarketplaceListingVersion"],
+) -> MarketplaceListingSummary:
+    """One browse card. Shared by every surface that lists or reads a listing,
+    so a card and the page it opens describe the same thing."""
+    version = serialize_version(latest)
+    return MarketplaceListingSummary(
+        uid=listing.uid,
+        public_id=listing.public_id,
+        kind=listing.kind,
+        source=listing.source,
+        name=listing.name,
+        publisher=listing.publisher,
+        # Attribution travels with the provenance that bounds it: a card, the
+        # detail page and the install dialog all answer "who wrote this?" from
+        # these two fields together, so neither is served without the other.
+        description=listing.description,
+        avatar_url=listing.avatar_url,
+        images=list(listing.images or []),
+        installs_count=listing.installs_count or 0,
+        available=listing.available,
+        latest_version=version,
+        # Everything that has to be true for the install button to do anything:
+        # still offered, has a version, and that version runs on this build.
+        installable=bool(listing.available and version and version.compatible),
+        updated_at=listing.updated_at,
+    )
 
 
 class OperatorCatalogProblem(SanitizedBaseModel):

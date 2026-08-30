@@ -897,6 +897,13 @@ def _sort_openai_models(models: list[str]) -> list[str]:
     return sorted(models, key=lambda m: (-get_priority(m), m))
 
 
+# Upper bound on a listed catalog, only so a provider response stays a sane
+# payload. An OpenAI-compatible gateway can offer hundreds of models, so this
+# has to sit well above any real catalog; when it does trim, the list is
+# incomplete and callers must not read absence from it as "no such model".
+_MODEL_LIST_CAP = 1000
+
+
 async def _list_openai_models(api_key: str | None) -> tuple[list[str], str | None]:
     if not api_key:
         return [], "API key required"
@@ -928,6 +935,7 @@ async def _list_anthropic_models(api_key: str | None) -> tuple[list[str], str | 
             resp = await client.get(
                 "https://api.anthropic.com/v1/models",
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+                params={"limit": _MODEL_LIST_CAP},
             )
         if resp.status_code == 401:
             return [], "Invalid API key"
@@ -982,7 +990,7 @@ async def _list_custom_models(
             return [], "Models endpoint not available"
         if resp.status_code != 200:
             return [], f"API error: {resp.status_code}"
-        return [m["id"] for m in resp.json().get("data", [])][:50], None
+        return [m["id"] for m in resp.json().get("data", [])][:_MODEL_LIST_CAP], None
     except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
         return [], AIMessages.INVALID_BASE_URL
     except httpx.ConnectError:
@@ -1034,7 +1042,8 @@ async def _probe(conn: _ConnRow, api_key: str | None) -> AIConnectionTestRespons
     )
     if error is not None:
         return AIConnectionTestResponse(success=False, message=error)
-    if conn.model and models and conn.model not in models:
+    listing_is_complete = len(models) < _MODEL_LIST_CAP
+    if conn.model and models and listing_is_complete and conn.model not in models:
         base = {m.split(":")[0] for m in models}
         if conn.model.split(":")[0] not in base:
             return AIConnectionTestResponse(
