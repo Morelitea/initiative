@@ -29,6 +29,43 @@ Initiative also gives you fine-grained control over **who can see and change you
 
 ---
 
+## Roadmap
+
+### Where we are
+
+Initiative is already a full-featured workspace for groups:
+
+* **Tasks & projects** with Kanban, Table, Calendar, and other views
+* **Collaborative documents** including rich text, spreadsheets, and whiteboards with real-time editing
+* **Calendars, bulletin boards, queues, counters, dashboards, and more**
+* A curated **marketplace** of ready-made apps and dashboards
+* **Notifications** and BYOK AI integration
+* **Self-hosting** with Docker and support for multiple guilds
+
+### What's next
+
+**🧩 More apps, more possibilities**
+We're continuing to build the marketplace and the ecosystem around it — more dashboards, more useful apps, and better ways for groups to build and share their own.
+
+**🌎 A more connected community**
+Initiative is becoming more than a place for private work. We're adding **public content, user profiles, and community features** that make it possible to discover what other people and groups are building.
+
+**✨ Polish everything**
+Accessibility, UX improvements, performance, testing, and the countless little things that make Initiative nicer to use.
+
+**🔌 Connect to the rest of your world**
+Better APIs, integrations, templates, and apps that securely connect Initiative to the tools your group already uses.
+
+### Where we're headed
+
+Initiative is an **open platform for small groups and communities** — not another enterprise PM suite.
+
+The core application stays **AGPL-licensed and open source**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services.
+
+**Build something useful. Share it. Find something someone else built. Make Initiative your own.**
+
+---
+
 ## Quick Start
 
 ### Docker Compose (Recommended)
@@ -181,56 +218,6 @@ The surface is curated and **default-deny** — only the following are exposed. 
 
 ---
 
-## How we build
-
-Initiative is developed in public. The issues, the pull requests, the design discussions, and the mistakes are all here in the open, and the roadmap moves in response to what people actually ask for.
-
-Two commitments shape the work:
-
-- **Nobody should need a course to use this.** If a feature can't be explained in a sentence to someone who has never used project management software, it isn't finished.
-- **People think differently, and the software should meet them there.** The same work can be read as a board, a table, a calendar, or a timeline. Keyboard navigation, screen-reader labels, light and dark themes, plain-language documentation, and full localization are part of building a feature, not a follow-up to it.
-
-Improvements to the [help site](docs/en/index.md) are as welcome as improvements to the code.
-
----
-
-## Roadmap
-
-### Where we are
-
-Initiative is already a full-featured workspace for groups:
-
-* **Tasks** across Kanban, Table, and Calendar views
-* **Documents** including rich text, spreadsheets, and whiteboards with real-time collaboration
-* **Calendars, queues, counters, and dashboards**
-* A curated **marketplace** of ready-made apps and dashboards
-* **Notifications** and BYOK AI integration
-* **Self-hosting** with Docker and support for multiple guilds
-
-### What's next
-
-**🧩 More apps, more possibilities**
-We're continuing to build the marketplace and the ecosystem around it — more dashboards, more useful apps, and better ways for groups to build and share their own.
-
-**🌎 A more connected community**
-Initiative is becoming more than a place for private work. We're adding **public content, user profiles, and community features** that make it possible to discover what other people and groups are building.
-
-**✨ Polish everything**
-Accessibility, UX improvements, performance, testing, and the countless little things that make Initiative nicer to use.
-
-**🔌 Connect to the rest of your world**
-Better APIs, integrations, templates, and apps that securely connect Initiative to the tools your group already uses.
-
-### Where we're headed
-
-Initiative is an **open platform for small groups and communities** — not another enterprise PM suite.
-
-The core application stays **AGPL-licensed and open source**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services.
-
-**Build something useful. Share it. Find something someone else built. Make Initiative your own.**
-
----
-
 ## Technology Stack
 
 | Layer | Technologies |
@@ -242,30 +229,13 @@ The core application stays **AGPL-licensed and open source**. Apps can be built 
 
 ---
 
-## Development
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, testing, code style, and how to submit pull requests.
-
-**Quick start**: Open the project in VS Code and run **Tasks: Run Task** > **`dev:setup`** from the Command Palette. This starts Postgres, runs migrations, seeds test data, and launches both servers. Login with `admin@example.com` / `changeme`.
-
----
-
-## Documentation
-
-- **[Help site](docs/en/index.md)** — guides for everyone using Initiative, plus the administrator handbook
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Development setup, testing, code style, submitting PRs
-- **[SECURITY.md](SECURITY.md)** — Security philosophy and vulnerability reporting
-- **[CHANGELOG.md](CHANGELOG.md)** — Release history
-- **[Docker Hub](https://hub.docker.com/r/morelitea/initiative)** — Published images
-- **API docs** — Available at `/api/v1/docs` when running (Swagger UI)
-
----
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details. PRs must target the `dev` branch.
 
 By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md).
+
+**Quick start**: Open the project in VS Code and run **Tasks: Run Task** > **`dev:setup`** from the Command Palette. This starts Postgres, runs migrations, seeds test data, and launches both servers. Login with `admin@example.com` / `changeme`.
 
 ## Security
 
