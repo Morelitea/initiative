@@ -58,9 +58,11 @@ Better APIs, integrations, templates, and apps that securely connect Initiative 
 
 ### Where we're headed
 
-Initiative is an **open platform for small groups and communities** — not another enterprise PM suite.
+Initiative is **bootstrapped by two people**, and we're building it for the long haul — not toward an acquisition, IPO, or enterprise sales machine.
 
 The core application stays **AGPL-licensed and open source**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services.
+
+We're also building **Initiative Cloud** for groups who don't want to manage their own infrastructure, with paid features like hosted apps, automations, and other conveniences that make Initiative easier to run.
 
 **Build something useful. Share it. Find something someone else built. Make Initiative your own.**
 
