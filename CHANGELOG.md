@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Open tabs no longer flicker when you switch community.** The recents bar lists tabs from every community you are in, but switching community threw its contents away and fetched them again, blanking the bar for a moment each time. It now stays put — there is nothing about it that a switch changes.
 
+- **Document text no longer shows through the editor's toolbars.** The formatting bar at the top and the actions bar at the bottom stay in place while a document scrolls, but their background was barely tinted glass, so headings and paragraphs slid visibly underneath them and the buttons became hard to read. Both bars are now solid.
+
 ## [0.64.3] - 2026-08-30
 
 - **Link to documentation for help not the github page.**
