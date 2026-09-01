@@ -13,6 +13,9 @@
  * into a link there.
  */
 
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { ENTITY_TRIGGER, TRIGGER_WORDS, typeForTrigger, USER_TRIGGER } from "@/lib/mentions";
+
 /** Minimal structural view of the mdast nodes these plugins touch. */
 interface MdastNode {
   type: string;
@@ -28,15 +31,19 @@ interface MdastNode {
 const IMAGE_TYPES = new Set(["image", "imageReference"]);
 const LINK_TYPES = new Set(["link", "linkReference"]);
 
-export type MentionType = "user" | "task" | "doc" | "project";
+export type MentionType = "user" | SearchEntityType;
 
 /** Trigger text preceding the link, longest first so `#doc` can't shadow a
- *  longer trigger that happens to share its prefix. */
+ *  longer trigger that happens to share its prefix.
+ *
+ * Derived from the same table the composer writes with, so a kind that can be
+ * mentioned can be read back. */
 const TRIGGERS: { trigger: string; type: MentionType }[] = [
-  { trigger: "#project", type: "project" },
-  { trigger: "#task", type: "task" },
-  { trigger: "#doc", type: "doc" },
-  { trigger: "@", type: "user" },
+  ...TRIGGER_WORDS.flatMap((word) => {
+    const type = typeForTrigger(word);
+    return type ? [{ trigger: `${ENTITY_TRIGGER}${word}`, type }] : [];
+  }),
+  { trigger: USER_TRIGGER, type: "user" as const },
 ];
 
 const ENTITY_ID = /^\d+$/;

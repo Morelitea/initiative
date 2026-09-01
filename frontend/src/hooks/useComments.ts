@@ -1,21 +1,17 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createCommentApiV1GGuildIdCommentsPost,
   deleteCommentApiV1GGuildIdCommentsCommentIdDelete,
   getListCommentsApiV1GGuildIdCommentsGetQueryKey,
   getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryKey,
-  getSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryKey,
   listCommentsApiV1GGuildIdCommentsGet,
   recentCommentsApiV1GGuildIdCommentsRecentGet,
-  searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet,
   updateCommentApiV1GGuildIdCommentsCommentIdPatch,
 } from "@/api/generated/comments/comments";
 import type {
   CommentRead,
   ListCommentsApiV1GGuildIdCommentsGetParams,
-  MentionEntityType,
-  MentionSuggestion,
   RecentActivityEntry,
   RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -48,38 +44,6 @@ export const useRecentComments = (
     queryKey: getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryKey(guildId, params),
     queryFn: () => recentCommentsApiV1GGuildIdCommentsRecentGet(guildId, params),
     staleTime: 30 * 1000,
-    ...options,
-  });
-};
-
-export const useMentionSuggestions = (
-  type: MentionEntityType,
-  initiativeId: number,
-  query: string,
-  options?: QueryOpts<MentionSuggestion[]>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<MentionSuggestion[]>({
-    queryKey: getSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryKey(guildId, {
-      entity_type: type,
-      initiative_id: initiativeId,
-      q: query,
-    }),
-    // The endpoint returns a paginated envelope; the pickers only need the
-    // first page's items.
-    queryFn: async () => {
-      const res = await searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet(guildId, {
-        entity_type: type,
-        initiative_id: initiativeId,
-        q: query,
-      });
-      return res.items ?? [];
-    },
-    staleTime: 30_000,
-    enabled: initiativeId > 0,
-    // Keep the prior page visible while the next keystroke's request is in
-    // flight so the dropdown doesn't flash empty on every character.
-    placeholderData: keepPreviousData,
     ...options,
   });
 };

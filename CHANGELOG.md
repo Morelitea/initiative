@@ -37,6 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **"Browse the marketplace" is out of the overflow menu.** Adding a ready-made dashboard is the same kind of answer as making one from scratch, but only one of the two was on the page — the other sat behind the "…" button, where someone who has never opened it never learns the shelf exists. It now sits next to the create button on the dashboards list, at every width, and beside "Create your first dashboard" in an initiative that has none yet.
 
+- **Every picker in the app now searches the way search does.** Mentions, wikilinks, queue links and the template pickers each had their own lookup, built before search existed: substring matching, no ranking, and a fixed list of three kinds of thing. They all ask the search index now, which means every one of them ranks its answers, matches before you finish a word, and forgives a misspelling. It also means they reach everything — a comment can now name a queue, a counter, a calendar event or a dashboard, not just a task, document or project.
+
+- **`#` in a comment offers everything in the initiative.** It used to need the kind up front — `#task:`, `#doc:`, `#project:` — and those were the only three. Typing `#` on its own now searches across every kind at once, and naming a kind still narrows it. Every mention already written keeps working.
+
+- **A misspelled name finds its person in every people picker.** Guild search learned this last release; the initiative roster and the pickers behind an @mention had their own copy of the matching rules and did not. There is one set of rules now, so they all behave the same.
+
+- **Archived work stays out of search results unless you ask for it.** It was mixed in with live work; a switch on the results page brings it back when you are looking for something you put away.
+
+
 - **Toasts stay up only as long as they take to read.** Every notification held the screen for a fixed five seconds after Chester finished typing it — a long wait for "Saved", and a short one for a paragraph of error text. The wait is now worked out from the message itself: a moment to notice it, plus reading time for what it says. Warnings and errors are held longer, a toast with a button on it gets time to press it, and there is a ceiling so nothing camps on the screen.
 
 - **The search page names the community it is searching, and every tab stays open.** The heading said only "Search"; it now says which community the results come from. Tabs with nothing behind them were greyed out, so you could not check an empty tab for yourself or return to one once a changed query filled it — every tab is now reachable and an empty one says nothing matched. Finding out which tabs to grey out cost two extra searches per query, which are gone with it.

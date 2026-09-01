@@ -13,6 +13,8 @@ export interface SearchPageSearch {
   q?: string;
   tab?: SearchCategory;
   page?: number;
+  /** Archived work is left out unless the reader asks for it. */
+  archived?: true;
 }
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId/search")({
@@ -24,6 +26,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
         ? search.tab
         : undefined,
     page: validatePage(search.page),
+    // Only ever present when on, so the default stays out of the URL.
+    archived: search.archived === true || search.archived === "true" ? true : undefined,
   }),
   component: lazyRouteComponent(() =>
     import("@/pages/SearchPage").then((m) => ({ default: m.SearchPage }))

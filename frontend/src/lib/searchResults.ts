@@ -23,14 +23,7 @@ import {
 
 import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  counterRoute,
-  eventRoute,
-  TOOL_ICONS,
-  TOOLS,
-  taskRoute,
-  toolDetailRoute,
-} from "@/lib/tools";
+import { counterRoute, eventRoute, TOOL_ICONS, taskRoute, toolDetailRoute } from "@/lib/tools";
 
 /** The fields routing reads. Hits and palette suggestions both carry them. */
 export type SearchTarget = Pick<

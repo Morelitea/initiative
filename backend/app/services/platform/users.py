@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 
 
-from sqlalchemy import ColumnElement, func, update
+from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -806,6 +806,45 @@ def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
             closest, func.word_similarity(term, func.coalesce(User.full_name, ""))
         )
     return closest
+
+
+def member_match(
+    term: str, *, shows_names: bool
+) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
+    """How a typed name selects members, and what to order the answer by.
+
+    One implementation for every surface that looks people up — the guild
+    roster, an initiative's, a project's, the picker behind an @mention. The
+    handle always; the real name alongside it where the guild shows names; a
+    whole ``foobar#1234`` pinning the one person who owns it; and a name typed
+    nearly right still finding them.
+
+    Returns the predicate, and the closeness to order by — ``None`` when a
+    whole handle was typed, which names one person and has nothing to rank.
+    """
+    name_part, number = usernames.parse_handle(term)
+    if number is not None:
+        return (
+            and_(
+                func.lower(User.username) == name_part.lower(),
+                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
+            ),
+            None,
+        )
+    matches = User.username.ilike(f"%{name_part}%")
+    if shows_names:
+        matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+    closest = name_closeness(name_part, shows_names=shows_names)
+    return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
+
+
+def member_order(
+    closest: ColumnElement[float] | None, *, shows_names: bool
+) -> tuple[ColumnElement, ...]:
+    """Nearest first while searching, alphabetical while reading a roster."""
+    if closest is not None:
+        return (closest.desc(),)
+    return (User.full_name.asc(),) if shows_names else ()
 
 
 def visible_to_other_people(status_column=None):

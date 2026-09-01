@@ -397,3 +397,105 @@ async def test_paging_does_not_repeat_or_drop_a_hit(
         seen.extend(h["entity_id"] for h in page["items"])
     assert len(seen) == 6
     assert len(set(seen)) == 6
+
+
+async def test_archived_work_is_kept_back_until_it_is_asked_for(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Archived work stays indexed and out of the way — a search that says so
+    reaches it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    live = await create_task(session, a.project, title="shelved cabinet")
+    filed = await create_task(
+        session, a.project, title="shelved cabinet too", is_archived=True
+    )
+
+    default = await _search(client, a, q="shelved")
+    assert [h["entity_id"] for h in default["items"]] == [live.id]
+    assert default["total"] == 1
+
+    asked = await _search(client, a, q="shelved", include_archived=True)
+    assert {h["entity_id"] for h in asked["items"]} == {live.id, filed.id}
+
+
+async def test_templates_are_found_by_name_and_pickable_on_their_own(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A template is ordinary content to a search and a category to a picker."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    real = await create_document(session, a.initiative, a.user, name="kickoff notes")
+    blank = await create_document(
+        session, a.initiative, a.user, name="kickoff notes template", is_template=True
+    )
+
+    both = await _search(client, a, q="kickoff")
+    assert {h["entity_id"] for h in both["items"]} == {real.id, blank.id}
+
+    assert [
+        h["entity_id"]
+        for h in (await _search(client, a, q="kickoff", template=True))["items"]
+    ] == [blank.id]
+    assert [
+        h["entity_id"]
+        for h in (await _search(client, a, q="kickoff", template=False))["items"]
+    ] == [real.id]
+
+
+async def test_suggest_narrows_to_one_initiative(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A picker inside an initiative offers that initiative — a mention has to
+    reach something the reader of the comment can open."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    here = await create_task(session, a.project, title="shared name")
+    b = await acting_user(
+        guild_role=GuildRole.admin, guild=a.guild, initiative=True, project=True
+    )
+    await create_task(session, b.project, title="shared name")
+
+    response = await client.get(
+        a.g("/search/suggest"),
+        headers=a.headers,
+        params={"q": "shared", "initiative_id": a.initiative.id},
+    )
+    assert response.status_code == 200, response.text
+    assert [r["entity_id"] for r in response.json()] == [here.id]
+
+
+async def test_suggest_leaves_archived_work_out(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A picker offers somewhere to put work, so it offers live work."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="retired lantern", is_archived=True)
+
+    response = await client.get(
+        a.g("/search/suggest"), headers=a.headers, params={"q": "lantern"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Templates are picked across the whole community, under the same gates as
+    everything else — a template the caller holds no grant on stays invisible."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    private_template = await create_document(
+        session, owner.initiative, owner.user, name="Private Template", is_template=True
+    )
+    other = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.get(
+        other.g("/search/suggest"),
+        headers=other.headers,
+        params={"q": "private", "types": ["document"], "template": True},
+    )
+    assert response.status_code == 200, response.text
+    assert private_template.id not in {r["entity_id"] for r in response.json()}

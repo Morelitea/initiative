@@ -23,6 +23,14 @@ router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
+_ARCHIVED_DESCRIPTION = (
+    "Include archived work. Left out by default, so a search answers with what "
+    "is in play."
+)
+_TEMPLATE_DESCRIPTION = (
+    "Omit for both. ``true`` returns only templates (a template picker), "
+    "``false`` only real content (a picker choosing where content goes)."
+)
 _TYPE_DESCRIPTION = (
     "Restrict to these entity types. Omit for the default scope "
     f"({', '.join(t.value for t in entity_types(default_scope_only=True))}); "
@@ -43,6 +51,8 @@ async def search_guild(
     initiative_id: Optional[int] = Query(
         default=None, description="Restrict to one initiative."
     ),
+    include_archived: bool = Query(default=False, description=_ARCHIVED_DESCRIPTION),
+    template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
     limit: int = Query(default=20, ge=1, le=search_service.MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
 ) -> SearchResults:
@@ -56,8 +66,12 @@ async def search_guild(
         query=q,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
-        types=types,
-        initiative_id=initiative_id,
+        filters=search_service.Filters(
+            types=types,
+            initiative_id=initiative_id,
+            include_archived=include_archived,
+            template=template,
+        ),
         limit=limit,
         offset=offset,
     )
@@ -72,6 +86,10 @@ async def suggest_guild(
     types: Optional[List[SearchEntityType]] = Query(
         default=None, description=_TYPE_DESCRIPTION
     ),
+    initiative_id: Optional[int] = Query(
+        default=None, description="Restrict to one initiative."
+    ),
+    template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
     limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
 ) -> List[SearchSuggestion]:
     """Titles for the command palette — a way to reach one thing quickly.
@@ -84,6 +102,10 @@ async def suggest_guild(
         query=q,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
-        types=types,
+        filters=search_service.Filters(
+            types=types,
+            initiative_id=initiative_id,
+            template=template,
+        ),
         limit=limit,
     )

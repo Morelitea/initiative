@@ -14,7 +14,16 @@ on the sharing decision without re-walking those joins.
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, SmallInteger, Text, text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    SmallInteger,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlmodel import Field, SQLModel
 
@@ -51,6 +60,16 @@ class SearchEntry(SQLModel, table=True):
     #: against ``resource_grants``. NULL for rows carrying no sharing gate.
     dac_tool: Optional[str] = Field(sa_column=Column(Text, nullable=True))
     dac_id: Optional[int] = Field(sa_column=Column(Integer, nullable=True))
+    #: Whether the source row is archived. Archived work stays indexed so it
+    #: can still be found on purpose, and is left out of the answers nobody
+    #: asked it for — pickers, and a search that did not opt in.
+    archived: bool = Field(
+        sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+    #: Whether the source row is a template rather than an instance of one.
+    template: bool = Field(
+        sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
     title: str = Field(sa_column=Column(Text, nullable=False))
     body: Optional[str] = Field(sa_column=Column(Text, nullable=True))
     #: When this row's *searchable text* last changed — not the source row's

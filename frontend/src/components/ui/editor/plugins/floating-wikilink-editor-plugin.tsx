@@ -15,6 +15,8 @@ import { ExternalLink, FileText, Link2Off, Plus, RefreshCw, Trash2 } from "lucid
 import { type Dispatch, type JSX, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import {
@@ -25,8 +27,7 @@ import {
 import { getSelectedNode } from "@/components/ui/editor/utils/get-selected-node";
 import { setFloatingElemPositionForLinkEditor } from "@/components/ui/editor/utils/set-floating-elem-position-for-link-editor";
 import { Input } from "@/components/ui/input";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
 
 interface FloatingWikilinkEditorProps {
   editor: LexicalEditor;
@@ -49,12 +50,9 @@ function FloatingWikilinkEditor({
   onCreateDocument,
   setWikilinkNode,
 }: FloatingWikilinkEditorProps): JSX.Element {
-  const guildId = useActiveGuildId();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<DocumentAutocomplete[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const documentTitle = wikilinkNode?.getDocumentTitle() ?? "";
@@ -140,53 +138,24 @@ function FloatingWikilinkEditor({
     }
   }, [isEditing, documentTitle]);
 
-  // Search for documents
-  useEffect(() => {
-    if (!isEditing || !searchQuery || initiativeId === null) {
-      setSearchResults([]);
-      return;
-    }
-
-    let cancelled = false;
-    const search = async () => {
-      setIsSearching(true);
-      try {
-        const results = await autocompleteDocuments(guildId, {
-          initiative_id: initiativeId,
-          q: searchQuery,
-          limit: 5,
-        });
-        if (!cancelled) {
-          setSearchResults(results);
-        }
-      } catch (error) {
-        console.error("Failed to search documents:", error);
-        if (!cancelled) {
-          setSearchResults([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsSearching(false);
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(search, 150);
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [searchQuery, isEditing, initiativeId, guildId]);
+  // The shared lookup, narrowed to this initiative's live documents.
+  const { data: searchResults = [], isFetching: isSearching } = useGuildSearchSuggest(searchQuery, {
+    types: [SearchEntityType.document],
+    initiative_id: initiativeId ?? undefined,
+    template: false,
+    limit: WIKILINK_SEARCH_LIMIT,
+    enabled: isEditing && Boolean(searchQuery) && initiativeId !== null,
+  });
 
   // Handle selecting a new document
   const handleSelectDocument = useCallback(
-    (doc: DocumentAutocomplete) => {
+    (doc: SearchSuggestion) => {
       if (!wikilinkNodeKey) return;
 
       editor.update(() => {
         const node = $getNodeByKey(wikilinkNodeKey);
         if ($isWikilinkNode(node)) {
-          const newWikilink = $createWikilinkNode(doc.name, doc.id);
+          const newWikilink = $createWikilinkNode(doc.title, doc.entity_id);
           node.replace(newWikilink);
           newWikilink.select();
         }
@@ -258,7 +227,7 @@ function FloatingWikilinkEditor({
   // Check if search query has an exact match in results
   const hasExactMatch = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    return searchResults.some((doc) => doc.name.toLowerCase() === normalizedQuery);
+    return searchResults.some((doc) => doc.title.toLowerCase() === normalizedQuery);
   }, [searchQuery, searchResults]);
 
   if (!wikilinkNode) {
@@ -297,13 +266,13 @@ function FloatingWikilinkEditor({
                 <CommandGroup>
                   {searchResults.map((doc) => (
                     <CommandItem
-                      key={doc.id}
-                      value={doc.name}
+                      key={doc.entity_id}
+                      value={doc.title}
                       onSelect={() => handleSelectDocument(doc)}
                       className="flex cursor-pointer items-center gap-2"
                     >
                       <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate">{doc.name}</span>
+                      <span className="truncate">{doc.title}</span>
                     </CommandItem>
                   ))}
                   {searchQuery.trim() && !hasExactMatch && onCreateDocument && (
@@ -463,6 +432,9 @@ export interface FloatingWikilinkEditorPluginProps {
   onNavigate?: (documentId: number) => void;
   onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void;
 }
+
+/** How many documents the inline wikilink editor offers. */
+const WIKILINK_SEARCH_LIMIT = 5;
 
 export function FloatingWikilinkEditorPlugin({
   anchorElem,

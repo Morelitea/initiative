@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -14,7 +15,8 @@ import {
 import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { useCreateDocument, useTemplateAutocomplete } from "@/hooks/useDocuments";
+import { useCreateDocument } from "@/hooks/useDocuments";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
 
 /** Sentinel for the "no template" option — the combobox needs a value. */
@@ -49,16 +51,18 @@ export function CreateWikilinkDocumentDialog({
   const [selectedTemplateLabel, setSelectedTemplateLabel] = useState<string | null>(null);
   const [templateSearch, setTemplateSearch] = useState("");
 
-  // Guild-wide server typeahead over templates — bounded, and gated to what
-  // this user can actually see by the same RLS/DAC rules as the document list.
-  const templateDocumentsQuery = useTemplateAutocomplete(templateSearch, {
+  // Templates are picked across the whole community — the shared lookup,
+  // asked for the blueprints rather than the work.
+  const templateDocumentsQuery = useGuildSearchSuggest(templateSearch, {
+    types: [SearchEntityType.document],
+    template: true,
     enabled: open && canCreate,
   });
 
   const templateItems = useMemo(() => {
     const templates = (templateDocumentsQuery.data ?? []).map((doc) => ({
-      value: String(doc.id),
-      label: doc.name,
+      value: String(doc.entity_id),
+      label: doc.title,
     }));
     // "Blank document" is the default choice, not a search result: offer it
     // only in the unsearched list, so a query matching no template leaves the

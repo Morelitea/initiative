@@ -13,7 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import String, cast, func, or_
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
@@ -32,7 +32,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
-from app.core import usernames
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip
@@ -219,6 +218,12 @@ async def search_users(
         ),
     ),
     user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description=(
+            "Restrict to members of one initiative — who a mention in it can reach."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -245,37 +250,17 @@ async def search_users(
     #: Set while searching by name, and then what the page is ordered by.
     closest = None
     if search and (term := search.strip()):
-        name_part, number = usernames.parse_handle(term)
-        if number is not None:
-            # The whole handle was typed: this member, not a family of them.
-            base = base.where(
-                func.lower(User.username) == name_part.lower(),
-                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
-            )
-        else:
-            matches = User.username.ilike(f"%{name_part}%")
-            if shows_names:
-                # A name is searchable exactly where it is showable.
-                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
-            # ...and a name typed nearly right still finds the person. Reading
-            # a roster is how you learn a colleague's spelling, so requiring it
-            # first is the wrong way round.
-            closest = users_service.name_closeness(name_part, shows_names=shows_names)
-            matches = or_(matches, closest >= users_service.MEMBER_MATCH_THRESHOLD)
-            base = base.where(matches)
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        base = base.where(matches)
     if user_id:
         base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    # Nearest first while searching; alphabetical when reading the roster.
-    if closest is not None:
-        order = (closest.desc(),)
-    elif shows_names:
-        order = (User.full_name.asc(),)
-    else:
-        order = ()
     data_stmt = base.order_by(
-        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+        *users_service.member_order(closest, shows_names=shows_names),
+        User.username.asc(),
+        User.discriminator.asc(),
+        User.id.asc(),
     )
 
     users, total_count, actual_page = await paginated_query(

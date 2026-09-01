@@ -5,6 +5,7 @@ import type apps from "../../public/locales/en/apps.json";
 import type auth from "../../public/locales/en/auth.json";
 import type calendars from "../../public/locales/en/calendars.json";
 import type command from "../../public/locales/en/command.json";
+import type comments from "../../public/locales/en/comments.json";
 import type common from "../../public/locales/en/common.json";
 import type counterGroups from "../../public/locales/en/counterGroups.json";
 import type dashboards from "../../public/locales/en/dashboards.json";
@@ -48,6 +49,7 @@ declare module "i18next" {
       marketplace: typeof marketplace;
       dashboards: typeof dashboards;
       dates: typeof dates;
+      comments: typeof comments;
       documents: typeof documents;
       errors: typeof errors;
       exports: typeof exports_;

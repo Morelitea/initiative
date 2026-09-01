@@ -1,10 +1,7 @@
-"""Endpoint tests for comments across every commentable surface, and for the
-mention search (``/comments/mentions/search``)."""
+"""Endpoint tests for comments across every commentable surface."""
 
 import pytest
-from httpx import AsyncClient
 from sqlalchemy import delete as sa_delete
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import CommentMessages
 from app.core.tools import Tool
@@ -15,11 +12,9 @@ from app.testing import (
     create_counter_group,
     create_dashboard,
     create_document,
-    create_initiative_member,
     create_project,
     create_queue,
     create_task,
-    create_user,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -301,88 +296,6 @@ class TestToolComments:
         assert by_type["queue"]["initiative_id"] == a.initiative.id
         assert by_type["task"]["entity_id"] == task.id
         assert by_type["task"]["project_id"] == a.project.id
-
-
-@pytest.mark.integration
-async def test_mention_search_users_paginated_with_avatars(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """User mention search returns the paginated envelope; each user item
-    carries an avatar so the picker can render a face."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    for name in ("Alice Ant", "Bob Bee", "Cara Cat"):
-        member = await create_user(session, full_name=name, avatar_base64="data:x")
-        await create_initiative_member(session, admin.initiative, member)
-
-    response = await client.get(
-        admin.g("/comments/mentions/search"),
-        headers=admin.headers,
-        params={
-            "entity_type": "user",
-            "initiative_id": admin.initiative.id,
-            "page_size": 2,
-        },
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    # Envelope shape mirrors the member search endpoints.
-    assert set(body.keys()) == {
-        "items",
-        "total_count",
-        "page",
-        "page_size",
-        "has_next",
-        "has_prev",
-    }
-    assert body["page_size"] == 2
-    assert len(body["items"]) == 2
-    assert body["total_count"] >= 3  # 3 added members (+ maybe the admin)
-    assert body["has_next"] is True
-    item = body["items"][0]
-    assert item["type"] == "user"
-    assert "avatar_url" in item
-
-
-@pytest.mark.integration
-async def test_mention_search_users_filters_by_name(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The `q` param filters user suggestions (case-insensitive)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    for name, handle in (("Alice Ant", "alice-ant"), ("Bob Bee", "bob-bee")):
-        member = await create_user(session, full_name=name, username=handle)
-        await create_initiative_member(session, admin.initiative, member)
-
-    response = await client.get(
-        admin.g("/comments/mentions/search"),
-        headers=admin.headers,
-        params={
-            "entity_type": "user",
-            "initiative_id": admin.initiative.id,
-            "q": "alice",
-        },
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    # This guild takes the default and shows names, so a suggestion is named
-    # by one, with the handle under it to tell two of the same name apart.
-    assert {item["display_text"] for item in body["items"]} == {"Alice Ant"}
-    assert body["items"][0]["subtitle"].startswith("alice-ant#")
-
-
-@pytest.mark.integration
-async def test_mention_search_unknown_initiative_404(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    response = await client.get(
-        admin.g("/comments/mentions/search"),
-        headers=admin.headers,
-        params={"entity_type": "user", "initiative_id": 999999},
-    )
-    assert response.status_code == 404
 
 
 async def test_a_trashed_resource_reads_back_for_its_deleted_event(

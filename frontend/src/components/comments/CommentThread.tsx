@@ -75,7 +75,7 @@ export const CommentThread = ({
   docTitles = new Map(),
   projectNames = new Map(),
 }: CommentThreadProps) => {
-  const { t } = useTranslation(["documents", "common"]);
+  const { t } = useTranslation(["comments", "common"]);
   const relativeCreatedAt = useRelativeTime(comment.created_at);
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState("");
@@ -131,9 +131,7 @@ export const CommentThread = ({
               <span className="font-medium text-foreground">{displayName}</span>
               <span className="whitespace-nowrap">
                 {relativeCreatedAt}
-                {isEdited && (
-                  <span className="ml-1 text-muted-foreground">{t("comments.edited")}</span>
-                )}
+                {isEdited && <span className="ml-1 text-muted-foreground">{t("edited")}</span>}
               </span>
               {!isEditing && (
                 <div className="ml-auto flex items-center gap-1">
@@ -145,7 +143,7 @@ export const CommentThread = ({
                     onClick={() => setIsReplying(!isReplying)}
                   >
                     <Reply className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">{t("comments.reply")}</span>
+                    <span className="sr-only sm:not-sr-only sm:ml-1">{t("reply")}</span>
                   </Button>
                   {canEdit && (
                     <Button
@@ -169,7 +167,7 @@ export const CommentThread = ({
                       onClick={() => onDelete(comment.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="sr-only">{t("comments.deleteComment")}</span>
+                      <span className="sr-only">{t("deleteComment")}</span>
                     </Button>
                   )}
                 </div>
@@ -181,7 +179,7 @@ export const CommentThread = ({
                   value={editContent}
                   onChange={setEditContent}
                   onSubmit={handleEditSubmit}
-                  placeholder={t("comments.editPlaceholder")}
+                  placeholder={t("editPlaceholder")}
                   submitLabel={t("common:save")}
                   isSubmitting={isSubmitting}
                   initiativeId={initiativeId}
@@ -213,8 +211,8 @@ export const CommentThread = ({
             value={replyContent}
             onChange={setReplyContent}
             onSubmit={handleReplySubmit}
-            placeholder={t("comments.replyPlaceholder")}
-            submitLabel={t("comments.reply")}
+            placeholder={t("replyPlaceholder")}
+            submitLabel={t("reply")}
             isSubmitting={isSubmitting}
             initiativeId={initiativeId}
             onCancel={() => {

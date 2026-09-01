@@ -70,7 +70,7 @@ export const CommentSection = ({
   canModerate = false,
   initiativeId,
 }: CommentSectionProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("comments");
   const { activeGuildReadOnly } = useGuilds();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +141,7 @@ export const CommentSection = ({
   const handleSubmit = (commentContent: string) => {
     const normalized = commentContent.trim();
     if (!normalized) {
-      setError(t("comments.contentRequired"));
+      setError(t("contentRequired"));
       return;
     }
     createComment.mutate(buildPayload(normalized));
@@ -177,7 +177,7 @@ export const CommentSection = ({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageSquarePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <h3>{title ?? t("comments.title")}</h3>
+            <h3>{title ?? t("title")}</h3>
           </div>
           <HoverCard>
             <HoverCardTrigger asChild>
@@ -186,27 +186,18 @@ export const CommentSection = ({
               </button>
             </HoverCardTrigger>
             <HoverCardContent side="left" align="start" className="w-56">
-              <p className="font-medium text-sm">{t("comments.mentionSyntax")}</p>
+              <p className="font-medium text-sm">{t("mentionSyntax")}</p>
               <ul className="mt-2 space-y-1.5 text-sm">
                 <li>
-                  <code className="rounded bg-muted px-1 text-xs">@</code>{" "}
-                  {t("comments.mentionUser")}
+                  <code className="rounded bg-muted px-1 text-xs">@</code> {t("mentionUser")}
                 </li>
                 <li>
-                  <code className="rounded bg-muted px-1 text-xs">#task:</code>{" "}
-                  {t("comments.mentionTask")}
+                  <code className="rounded bg-muted px-1 text-xs">#</code> {t("mentionAnything")}
                 </li>
-                <li>
-                  <code className="rounded bg-muted px-1 text-xs">#doc:</code>{" "}
-                  {t("comments.mentionDoc")}
-                </li>
-                <li>
-                  <code className="rounded bg-muted px-1 text-xs">#project:</code>{" "}
-                  {t("comments.mentionProject")}
-                </li>
+                <li className="text-muted-foreground">{t("mentionNarrow")}</li>
               </ul>
-              <p className="mt-3 font-medium text-sm">{t("comments.formattingSyntax")}</p>
-              <p className="mt-1 text-muted-foreground text-sm">{t("comments.markdownHint")}</p>
+              <p className="mt-3 font-medium text-sm">{t("formattingSyntax")}</p>
+              <p className="mt-1 text-muted-foreground text-sm">{t("markdownHint")}</p>
             </HoverCardContent>
           </HoverCard>
         </CardTitle>
@@ -214,7 +205,7 @@ export const CommentSection = ({
 
       <CardContent>
         {activeGuildReadOnly ? (
-          <p className="text-muted-foreground text-sm">{t("comments.readOnlyNote")}</p>
+          <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
         ) : (
           <CommentInput
             value={content}
@@ -229,7 +220,7 @@ export const CommentSection = ({
 
         <div className="mt-4 space-y-3">
           {isLoading ? (
-            <p className="text-muted-foreground text-sm">{t("comments.loading")}</p>
+            <p className="text-muted-foreground text-sm">{t("loading")}</p>
           ) : hasComments ? (
             commentTree.map((comment) => (
               <CommentThread
@@ -251,7 +242,7 @@ export const CommentSection = ({
               />
             ))
           ) : (
-            <p className="text-muted-foreground text-sm">{t("comments.empty")}</p>
+            <p className="text-muted-foreground text-sm">{t("empty")}</p>
           )}
           {deleteError && !deleteComment.variables && (
             <p className="text-destructive text-sm">{deleteError}</p>

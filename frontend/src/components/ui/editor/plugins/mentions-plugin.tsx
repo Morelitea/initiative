@@ -12,10 +12,10 @@ import { createPortal } from "react-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createMentionNode } from "@/components/ui/editor/nodes/mention-node";
-import { useMentionSuggestions } from "@/hooks/useComments";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useInitiativeMemberSearch } from "@/hooks/useUsers";
 import { getInitials } from "@/lib/initials";
-import { getAvatarSrc } from "@/lib/userDisplay";
+import { getAvatarSrc, getUserDisplayName } from "@/lib/userDisplay";
 
 const PUNCTUATION = "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;";
 const NAME = "\\b[A-Z][^\\s" + PUNCTUATION + "]";
@@ -132,31 +132,29 @@ export function MentionsPlugin({ initiativeId }: MentionsPluginProps): JSX.Eleme
   const [queryString, setQueryString] = useState<string | null>(null);
   const debouncedQuery = useDebouncedValue(queryString ?? "", 200);
 
-  // Server-side member typeahead scoped to the document's initiative — no more
-  // loading the whole embedded member list into the editor.
-  const { data: suggestions = [] } = useMentionSuggestions(
-    "user",
-    initiativeId ?? 0,
-    debouncedQuery,
-    { enabled: (initiativeId ?? 0) > 0 && queryString !== null }
-  );
+  // The initiative's roster — the same read every other people picker makes,
+  // so a name typed nearly right finds its person here too.
+  const { data } = useInitiativeMemberSearch(initiativeId, {
+    search: debouncedQuery,
+    pageSize: SUGGESTION_LIST_LENGTH_LIMIT,
+    enabled: (initiativeId ?? 0) > 0 && queryString !== null,
+  });
 
   const options = useMemo(
     () =>
-      suggestions.slice(0, SUGGESTION_LIST_LENGTH_LIMIT).map((suggestion) => {
-        const avatarSrc = getAvatarSrc(suggestion);
+      (data?.items ?? []).map((member) => {
+        const avatarSrc = getAvatarSrc(member);
+        const name = getUserDisplayName(member);
         return new MentionTypeaheadOption(
-          suggestion.display_text,
-          suggestion.id,
+          name,
+          member.id,
           <Avatar className="h-5 w-5 text-[10px]">
-            {avatarSrc ? <AvatarImage src={avatarSrc} alt={suggestion.display_text} /> : null}
-            <AvatarFallback userId={suggestion.id}>
-              {getInitials(suggestion.display_text)}
-            </AvatarFallback>
+            {avatarSrc ? <AvatarImage src={avatarSrc} alt={name} /> : null}
+            <AvatarFallback userId={member.id}>{getInitials(name)}</AvatarFallback>
           </Avatar>
         );
       }),
-    [suggestions]
+    [data]
   );
 
   const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch("/", {

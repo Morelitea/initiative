@@ -35,7 +35,7 @@ import {
   getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
   readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
 } from "@/api/generated/documents/documents";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
   readProjectApiV1GGuildIdProjectsProjectIdGet,
@@ -77,6 +77,20 @@ const REF_TYPES = new Set<string>([
 ]);
 
 export const isEntityRefType = (value: string): value is EntityRefType => REF_TYPES.has(value);
+
+/**
+ * The ref type addressing an entity of a given kind, or `null` for a kind that
+ * has no page of its own (a counter, a queue item, a tag).
+ *
+ * Derived from the kind's own name — the ref types ARE the kebab singulars —
+ * so a new tool is addressable here the day it is indexed. A calendar event is
+ * the one that answers to a shorter name.
+ */
+export const entityRefTypeFor = (type: SearchEntityType): EntityRefType | null => {
+  if (type === SearchEntityType.calendar_event) return "event";
+  const kebab = type.replaceAll("_", "-");
+  return isEntityRefType(kebab) ? kebab : null;
+};
 
 const STALE_TIME = 30_000;
 

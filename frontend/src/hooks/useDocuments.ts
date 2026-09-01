@@ -37,7 +37,6 @@ import type {
   DocumentListResponse,
   DocumentRead,
   DocumentSummary,
-  DocumentType,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
@@ -56,7 +55,6 @@ import {
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { toast } from "@/lib/chesterToast";
-import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import type { MutationOpts } from "@/types/mutation";
@@ -132,58 +130,6 @@ export const useInitiativeDocuments = (
       return response.items;
     },
     ...options,
-  });
-};
-
-/**
- * Name typeahead over an initiative's documents, for pickers.
- *
- * Returns a small page of slim ``{id, name}`` rows from the server rather
- * than the whole collection, so a picker's cost tracks what the user typed.
- * Pass ``enabled: false`` until the picker is open.
- */
-export const useDocumentAutocomplete = (
-  initiativeId: number,
-  query: string,
-  options?: QueryOpts<DocumentAutocomplete[]> & { limit?: number }
-) => {
-  const guildId = useActiveGuildId();
-  const { limit = 20, ...queryOptions } = options ?? {};
-  return useQuery<DocumentAutocomplete[]>({
-    queryKey: ["documents", "autocomplete", guildId, initiativeId, query, limit],
-    queryFn: () => autocompleteDocuments(guildId, { initiative_id: initiativeId, q: query, limit }),
-    placeholderData: keepPreviousData,
-    ...queryOptions,
-  });
-};
-
-/**
- * Guild-wide name typeahead over template documents, for the template pickers.
- *
- * Templates are picked across initiatives, so this deliberately isn't scoped to
- * one — but it's still a bounded, server-filtered page rather than a walk of
- * the guild's corpus. Pass ``enabled: false`` until the picker is open.
- */
-export const useTemplateAutocomplete = (
-  query: string,
-  options?: QueryOpts<DocumentAutocomplete[]> & {
-    limit?: number;
-    documentType?: DocumentType;
-  }
-) => {
-  const guildId = useActiveGuildId();
-  const { limit = 20, documentType, ...queryOptions } = options ?? {};
-  return useQuery<DocumentAutocomplete[]>({
-    queryKey: ["documents", "autocomplete", guildId, "templates", documentType, query, limit],
-    queryFn: () =>
-      autocompleteDocuments(guildId, {
-        q: query,
-        is_template: true,
-        ...(documentType ? { document_type: documentType } : {}),
-        limit,
-      }),
-    placeholderData: keepPreviousData,
-    ...queryOptions,
   });
 };
 
