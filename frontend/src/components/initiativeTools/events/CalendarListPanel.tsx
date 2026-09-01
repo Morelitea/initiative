@@ -36,17 +36,34 @@ interface CalendarListPanelProps {
   onCreate: () => void;
 }
 
-/** The calendar list panel behind a filter-bar dropdown: a "Calendars"
- * trigger opening the visibility panel, so the calendar grid keeps the full
- * page width. */
+/** The calendar list panel behind a toolbar dropdown: a "Calendars" trigger
+ * opening the visibility panel, so the calendar grid keeps the full page
+ * width. The trigger carries how many calendars are switched off, so a
+ * narrowed grid still says so with the panel shut. */
 export const CalendarPanelDropdown = (props: ComponentProps<typeof CalendarListPanel>) => {
   const { t } = useTranslation("calendars");
+  // Counted from the same predicates the rows render from, so the badge and
+  // the checkboxes can never disagree.
+  const hiddenCount =
+    props.calendars.filter(props.isCalendarHidden).length +
+    props.projectCalendars.filter(props.isProjectHidden).length;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant={hiddenCount > 0 ? "secondary" : "outline"} size="sm" className="h-9">
           <CalendarDays className="h-4 w-4" />
           {t("panel.calendars")}
+          {hiddenCount > 0 ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-[11px] text-primary-foreground tabular-nums"
+              >
+                {hiddenCount}
+              </span>
+              <span className="sr-only">{t("panel.hiddenCount", { count: hiddenCount })}</span>
+            </>
+          ) : null}
           <ChevronDown className="h-4 w-4 opacity-60" />
         </Button>
       </PopoverTrigger>
@@ -80,22 +97,9 @@ export const CalendarListPanel = ({
   return (
     <div className="space-y-4">
       <section className="space-y-1">
-        <div className="flex items-center justify-between">
-          <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-            {t("panel.calendars")}
-          </h2>
-          {canCreate && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={onCreate}
-              aria-label={t("createCalendar")}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+          {t("panel.calendars")}
+        </h2>
         {calendars.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("panel.noCalendars")}</p>
         ) : (
@@ -137,6 +141,20 @@ export const CalendarListPanel = ({
               );
             })}
           </ul>
+        )}
+        {/* Named rather than a bare "+" in the heading: adding a calendar is
+            what this panel is for on the app's own surface, and an icon in a
+            corner read as decoration. */}
+        {canCreate && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-full justify-start gap-2 px-1 font-normal text-muted-foreground hover:text-foreground"
+            onClick={onCreate}
+          >
+            <Plus className="h-4 w-4" />
+            {t("createCalendar")}
+          </Button>
         )}
       </section>
 

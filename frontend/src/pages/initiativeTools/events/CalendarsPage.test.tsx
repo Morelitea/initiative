@@ -341,6 +341,33 @@ describe("CalendarsView on the calendar app's own surface", () => {
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
   });
 
+  it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {
+    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+
+    renderGuildScope();
+
+    // The picker rides the toolbar row: this surface has no other filter, so
+    // there is no disclosure to open before reaching it.
+    expect(await screen.findByRole("button", { name: /calendars/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /filters/i })).toBeNull();
+    // Adding a calendar is offered on a populated surface too, not only from
+    // the empty state.
+    expect(screen.getByRole("button", { name: /new calendar/i })).toBeInTheDocument();
+  });
+
+  it("says how many calendars are switched off while the picker is shut", async () => {
+    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+
+    const user = userEvent.setup();
+    renderGuildScope();
+
+    await user.click(await screen.findByRole("button", { name: /calendars/i }));
+    await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
+    await user.keyboard("{Escape}");
+
+    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+  });
+
   it("offers to make the first one rather than showing an empty grid", async () => {
     stubGuildScope([]);
 
