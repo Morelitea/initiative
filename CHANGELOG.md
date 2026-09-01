@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the guild home's recent-comments feed shows what each comment drew.
+- **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the community home's recent-comments feed shows what each comment drew.
 
 - **The author hears about reactions, in a digest.** Reactions arrive in flurries, so they are collected the way task assignments are: the bell gets each one immediately, and email and push wait until the burst has settled and then arrive as one summary. It has its own switch under Settings › Notifications — wanting to hear about mentions no longer means hearing about every thumbs-up.
 
@@ -25,7 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **One emoji picker, everywhere.** The picker used for a project's icon and the new reaction picker are the same component, searchable and in your language, and it ships with the app rather than fetching its emoji list from an outside service — so it works on an install with no internet access.
 
-- **A guild admin's sidebar now lists the initiatives they are in, not every initiative in the guild.** An admin who runs a guild of thirty initiatives had all thirty in their sidebar whether or not they had anything to do with them. The sidebar is now their own workspace. Their authority over the guild is unchanged — they can still open any initiative in it — and Settings › Initiatives has a new "Project managers" column for staffing one, which is also how an admin brings an initiative into their own sidebar: tick yourself. Unticking someone leaves them in the initiative as an ordinary member. The collapsed "Guild admins" list at the bottom of an initiative's own members page is gone with it.
+- **A community admin's sidebar now lists the initiatives they are in, not every initiative in the community.** An admin who runs a community of thirty initiatives had all thirty in their sidebar whether or not they had anything to do with them. The sidebar is now their own workspace. Their authority over the community is unchanged — they can still open any initiative in it — and Settings › Initiatives has a new "Project managers" column for staffing one, which is also how an admin brings an initiative into their own sidebar: tick yourself. Unticking someone leaves them in the initiative as an ordinary member. The collapsed "Community admins" list at the bottom of an initiative's own members page is gone with it.
+
+- **Guilds are now communities.** The name was picked for gaming guilds, and the people using Initiative turned out to be running far more than that — clubs, teams, departments, whole organisations. Everything you see now says community: menus, settings, notifications, error messages, and the help site, in all four languages. Nothing about how it works has changed; only what it is called.
+
+- **Community pages have moved from `/g/` to `/c/`.** A page inside a community now lives at `/c/{id}/…` instead of `/g/{id}/…`, the per-community sign-in link is `/community/{id}/login`, and the platform tab is Settings › Admin › Communities. Old links do not forward — bookmarks, saved links and any per-community sign-in link you handed out need replacing with the new address.
 
 ## [0.64.3] - 2026-08-30
 
