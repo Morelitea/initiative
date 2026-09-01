@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Toasts stay up only as long as they take to read.** Every notification held the screen for a fixed five seconds after Chester finished typing it — a long wait for "Saved", and a short one for a paragraph of error text. The wait is now worked out from the message itself: a moment to notice it, plus reading time for what it says. Warnings and errors are held longer, a toast with a button on it gets time to press it, and there is a ceiling so nothing camps on the screen.
+
 - **The search page names the community it is searching, and every tab stays open.** The heading said only "Search"; it now says which community the results come from. Tabs with nothing behind them were greyed out, so you could not check an empty tab for yourself or return to one once a changed query filled it — every tab is now reachable and an empty one says nothing matched. Finding out which tabs to grey out cost two extra searches per query, which are gone with it.
 
 - **Search moved into the sidebar.** The search button sat in the tab strip above the page, where it read as one more tab. It is now a search field under the community name in the sidebar, labelled with the community it searches and showing the ⌘K / Ctrl+K shortcut. The recents strip is now only recents, and disappears when there are none.
