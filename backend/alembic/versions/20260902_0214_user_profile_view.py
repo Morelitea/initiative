@@ -67,6 +67,12 @@ def upgrade() -> None:
             END IF;
         END $$;
         """,
+        # Handing an object to a role means being able to become it, and then
+        # acting as it to set the object's own grants. A CREATEROLE role gets
+        # ADMIN on a role it creates but neither SET nor INHERIT, so
+        # ``app_provisioner`` is given both explicitly — migrations run as that
+        # role, not as a superuser. (Postgres 16+ syntax; this project runs 17.)
+        f'GRANT "{READER}" TO CURRENT_USER WITH INHERIT TRUE, SET TRUE',
         # The reader sees these columns of every row, and nothing else of any.
         f"GRANT USAGE ON SCHEMA public TO {READER}",
         f"GRANT SELECT ({columns}) ON TABLE public.users TO {READER}",
@@ -75,7 +81,12 @@ def upgrade() -> None:
         f"AS PERMISSIVE FOR SELECT TO {READER} USING (true)",
         f"CREATE OR REPLACE VIEW public.user_profiles AS "
         f"SELECT {columns} FROM public.users",
+        # Ownership can only be handed to a role that may create in the schema.
+        # Given for the assignment and taken straight back: the reader creates
+        # nothing, it only reads.
+        f"GRANT CREATE ON SCHEMA public TO {READER}",
         f"ALTER VIEW public.user_profiles OWNER TO {READER}",
+        f"REVOKE CREATE ON SCHEMA public FROM {READER}",
         # Default privileges in this schema cover views too, so the write verbs
         # they grant are taken back before the read is given.
         f'REVOKE ALL ON public.user_profiles FROM app_guild_base, "{base}", app_user',
