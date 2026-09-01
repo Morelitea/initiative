@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
 import { StatusMessage } from "@/components/StatusMessage";
+import { MemberResultRow } from "@/components/search/MemberResultRow";
 import { SearchResultRow } from "@/components/search/SearchResultRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +27,14 @@ import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildSearch } from "@/hooks/useSearch";
+import { useUserSearch } from "@/hooks/useUsers";
 import {
   categoryEntityTypes,
   DEFAULT_SEARCH_CATEGORY,
   isSearchCategory,
   SEARCH_CATEGORIES,
   type SearchCategory,
+  TOOL_ENTITY_TYPES,
 } from "@/lib/searchResults";
 
 /** A page of one category. */
@@ -98,21 +101,30 @@ export function SearchPage() {
   );
 
   const enabled = query.length > 0;
+  // `null` for members, who are not in the index: they are asked for from the
+  // roster instead, a tab further down.
+  const indexTypes = categoryEntityTypes(tab);
   const results = useGuildSearch(
     {
       q: query,
-      types: categoryEntityTypes(tab),
+      types: indexTypes ?? TOOL_ENTITY_TYPES,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     },
-    { enabled }
+    { enabled: enabled && indexTypes !== null }
   );
+  const members = useUserSearch({
+    search: query,
+    page,
+    pageSize: PAGE_SIZE,
+    enabled: enabled && indexTypes === null,
+  });
 
   // A page past the end of the answer — a link from before the content moved,
   // or a query that has since narrowed. Left alone it reads as "nothing
   // matched", which is the opposite of what happened, so it corrects itself
   // back onto the last page that has results.
-  const total = settledTotal(results);
+  const total = indexTypes === null ? settledMemberTotal(members) : settledTotal(results);
   const lastPage = total === undefined ? undefined : Math.max(1, Math.ceil(total / PAGE_SIZE));
   const outOfRange = lastPage !== undefined && page > lastPage;
   useEffect(() => {
@@ -167,7 +179,15 @@ export function SearchPage() {
 
           {SEARCH_CATEGORIES.map((category) => (
             <TabsContent key={category} value={category} className="space-y-1">
-              {results.isLoading || outOfRange ? (
+              {category === "member" ? (
+                <MemberResults
+                  members={members}
+                  query={query}
+                  page={page}
+                  outOfRange={outOfRange}
+                  onPageChange={setPage}
+                />
+              ) : results.isLoading || outOfRange ? (
                 <Loading />
               ) : items.length === 0 ? (
                 <NoResults query={query} />
@@ -181,7 +201,7 @@ export function SearchPage() {
                   {items.map((hit) => (
                     <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
                   ))}
-                  <Pager results={results.data} page={page} onPageChange={setPage} />
+                  <Pager page={page} hasNext={hasNextPage(results.data)} onPageChange={setPage} />
                 </>
               )}
             </TabsContent>
@@ -227,17 +247,15 @@ function NoResults({ query }: { query: string }) {
 }
 
 function Pager({
-  results,
   page,
+  hasNext,
   onPageChange,
 }: {
-  results?: SearchResults;
   page: number;
+  hasNext: boolean;
   onPageChange: (page: number) => void;
 }) {
   const { t } = useTranslation("common");
-  if (!results) return null;
-  const hasNext = results.offset + results.items.length < results.total;
   if (page === 1 && !hasNext) return null;
   return (
     <div className="flex justify-end gap-2 pt-2">
@@ -258,5 +276,51 @@ function Pager({
         {t("next")}
       </Button>
     </div>
+  );
+}
+
+/** Whether a page of index results has one after it. */
+function hasNextPage(results?: SearchResults): boolean {
+  if (!results) return false;
+  return results.offset + results.items.length < results.total;
+}
+
+/** The member roster's own total, once it belongs to this query. */
+function settledMemberTotal(members: ReturnType<typeof useUserSearch>): number | undefined {
+  if (members.isPlaceholderData || !members.isFetched) return undefined;
+  return members.data?.total_count;
+}
+
+/**
+ * The Members tab.
+ *
+ * A different question from the rest of the page — who is here, rather than
+ * what is here — so it asks the roster rather than the index, and shows people
+ * rather than results. Its own component so that difference is visible rather
+ * than buried in a branch.
+ */
+function MemberResults({
+  members,
+  query,
+  page,
+  outOfRange,
+  onPageChange,
+}: {
+  members: ReturnType<typeof useUserSearch>;
+  query: string;
+  page: number;
+  outOfRange: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  const items = members.data?.items ?? [];
+  if (members.isLoading || outOfRange) return <Loading />;
+  if (items.length === 0) return <NoResults query={query} />;
+  return (
+    <>
+      {items.map((member) => (
+        <MemberResultRow key={member.id} member={member} />
+      ))}
+      <Pager page={page} hasNext={Boolean(members.data?.has_next)} onPageChange={onPageChange} />
+    </>
   );
 }

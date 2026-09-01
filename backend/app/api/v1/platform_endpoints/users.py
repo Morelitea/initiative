@@ -236,6 +236,8 @@ async def search_users(
         )
     )
     shows_names = bool(guild_context.guild.show_member_names)
+    #: Set while searching by name, and then what the page is ordered by.
+    closest = None
     if search and (term := search.strip()):
         name_part, number = usernames.parse_handle(term)
         if number is not None:
@@ -249,12 +251,23 @@ async def search_users(
             if shows_names:
                 # A name is searchable exactly where it is showable.
                 matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+            # ...and a name typed nearly right still finds the person. Reading
+            # a roster is how you learn a colleague's spelling, so requiring it
+            # first is the wrong way round.
+            closest = users_service.name_closeness(name_part, shows_names=shows_names)
+            matches = or_(matches, closest >= users_service.MEMBER_MATCH_THRESHOLD)
             base = base.where(matches)
     if user_id:
         base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    order = (User.full_name.asc(),) if shows_names else ()
+    # Nearest first while searching; alphabetical when reading the roster.
+    if closest is not None:
+        order = (closest.desc(),)
+    elif shows_names:
+        order = (User.full_name.asc(),)
+    else:
+        order = ()
     data_stmt = base.order_by(
         *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
     )

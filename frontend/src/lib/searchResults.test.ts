@@ -17,6 +17,7 @@ import {
   COMMENT_ENTITY_TYPE,
   categoryEntityTypes,
   hitCategory,
+  INDEX_SEARCH_CATEGORIES,
   SEARCH_CATEGORIES,
   type SearchTarget,
   searchHitPath,
@@ -130,10 +131,23 @@ describe("categories", () => {
     expect(hitCategory(target({ entity_type: COMMENT_ENTITY_TYPE }))).toBe("comment");
   });
 
-  it("asks for one category at a time, and the three cover the index", () => {
-    const asked = SEARCH_CATEGORIES.flatMap(categoryEntityTypes);
+  it("asks for one category at a time, and between them they cover the index", () => {
+    const asked = INDEX_SEARCH_CATEGORIES.flatMap((c) => categoryEntityTypes(c) ?? []);
     expect(new Set(asked)).toEqual(new Set(Object.values(SearchEntityType)));
     expect(asked).toHaveLength(new Set(asked).size);
+  });
+
+  it("keeps members out of the index, because that is not where people live", () => {
+    // Identity is shared across communities; a community's own schema holds its
+    // content. So the Members tab asks the roster, and says so by having no
+    // entity types of its own.
+    expect(categoryEntityTypes("member")).toBeNull();
+    expect(INDEX_SEARCH_CATEGORIES).not.toContain("member");
+    expect(SEARCH_CATEGORIES).toContain("member");
+  });
+
+  it("puts members second, where people look for them", () => {
+    expect(SEARCH_CATEGORIES).toEqual(["tool", "member", "comment", "tag"]);
   });
 
   it("covers every tool, so a new one is searchable without an edit here", () => {

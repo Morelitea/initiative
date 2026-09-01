@@ -6,9 +6,10 @@ service falls back on when a query matches nothing, to offer the closest titles
 instead.
 
 It is a *trusted* extension, so the app's own least-privilege provisioning role
-can create it — nothing here needs a superuser. Where it genuinely cannot be
-installed the upgrade still goes through and the suggestion is simply never
-offered, which is the behaviour before this migration.
+can create it — nothing here needs a superuser. It is also what member search
+matches names with, so it is required rather than opportunistic: contrib ships
+with Postgres itself, including every managed offering and the official image,
+so requiring it is a far lower bar than an out-of-tree extension would be.
 
 Revision ID: 20260902_0211
 Revises: 20260902_0210
@@ -24,19 +25,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            CREATE EXTENSION IF NOT EXISTS pg_trgm;
-        EXCEPTION
-            WHEN insufficient_privilege OR feature_not_supported OR undefined_file THEN
-                RAISE NOTICE
-                    'pg_trgm unavailable; search will not suggest close matches';
-        END
-        $$;
-        """
-    )
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
 
 def downgrade() -> None:
