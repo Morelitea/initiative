@@ -266,6 +266,22 @@ connections, so if several checkouts test at once, give the local
 `docker-compose.yml` db service headroom (it is gitignored, so this is a local
 edit): `command: [postgres, -c, max_connections=300, -c, shared_buffers=256MB]`.
 
+`auto` is bounded by **memory as well as cores**: a worker imports the whole app
+and opens its own engines, ~500MB resident each, so `conftest.py`'s
+`pytest_xdist_auto_num_workers` budgets half of MemTotal at 900MB per worker and
+takes the lower of that and the core count (16 cores + 16GB RAM → 8 workers).
+Override with `PYTEST_XDIST_AUTO_NUM_WORKERS` on a host that knows better.
+
+The suite is also the cluster's heaviest **writer** — a TRUNCATE per test and a
+CREATE/DROP of a ~60-table schema per guild test — and what that fills is WAL,
+not table data (per-worker databases sit near 100MB; `pg_wal` was measured at
+2.5GB). Writing it grows the page cache, which is what makes a WSL2 VM balloon
+past its ceiling and die mid-run. The local `docker-compose.yml` db service
+therefore also runs with `fsync=off`, `full_page_writes=off`,
+`synchronous_commit=off`, `wal_level=minimal`, `max_wal_senders=0` and
+`max_wal_size=512MB` — safe for a cluster holding only the dev database and
+throwaway test databases, and not something to copy into any deployment.
+
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
 
