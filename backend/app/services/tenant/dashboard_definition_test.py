@@ -418,6 +418,69 @@ def test_declared_parameters_are_kept_as_the_scalars_they_are():
 
 
 @pytest.mark.unit
+def test_a_parameter_may_hold_several_values():
+    """An endpoint may declare a parameter takes several — several labels,
+    several assignees — and a binding that could hold only one of them could not
+    say what such a parameter is for.
+
+    This is the shape a widget's own form produces the moment an app declares
+    `list`, and storing it is what makes that form's Save mean anything: a
+    binding refused here fails the whole dashboard write, taking every unrelated
+    edit in the same request — a renamed tile, a moved one — down with it.
+    """
+    result = normalize_dashboard_definition(
+        _definition(
+            _app_widget(
+                binding={
+                    "source": "app",
+                    "app_uid": APP_UID,
+                    "endpoint_id": "app.acme.shop.orders",
+                    "params": {"labels": ["bug", "regression"], "state": "open"},
+                }
+            )
+        )
+    )
+    assert result["widgets"][0]["binding"]["params"] == {
+        "labels": ["bug", "regression"],
+        "state": "open",
+    }
+
+
+@pytest.mark.unit
+def test_values_inside_a_list_are_held_to_the_same_shapes():
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(
+            _definition(
+                _app_widget(
+                    binding={
+                        "source": "app",
+                        "app_uid": APP_UID,
+                        "endpoint_id": "app.acme.shop.orders",
+                        "params": {"labels": [{"nested": "object"}]},
+                    }
+                )
+            )
+        )
+
+
+@pytest.mark.unit
+def test_a_list_longer_than_a_definition_may_carry_is_refused():
+    with pytest.raises(DashboardDefinitionError):
+        normalize_dashboard_definition(
+            _definition(
+                _app_widget(
+                    binding={
+                        "source": "app",
+                        "app_uid": APP_UID,
+                        "endpoint_id": "app.acme.shop.orders",
+                        "params": {"labels": ["x"] * 65},
+                    }
+                )
+            )
+        )
+
+
+@pytest.mark.unit
 def test_an_app_widget_cannot_bind_another_apps_data():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(

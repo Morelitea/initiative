@@ -242,6 +242,9 @@ MAX_BUNDLED_DASHBOARDS = contract.cap("bundledDashboards")
 MAX_DASHBOARD_WIDGETS = contract.cap("dashboardWidgets")
 MAX_DASHBOARD_GRID_COLUMNS = contract.cap("dashboardGridColumns")
 MAX_DASHBOARD_BINDING_PARAMS = contract.cap("dashboardBindingParams")
+#: How many values one binding parameter may fix, where the endpoint declared
+#: it takes several.
+MAX_BINDING_PARAM_VALUES = 64
 #: One line under a bundled dashboard's name. Matches the catalog column it
 #: becomes, so a description that publishes here fits the row it derives.
 MAX_DESCRIPTION_LENGTH = contract.cap("descriptionLength")
@@ -1037,26 +1040,44 @@ def _bundled_dashboard_widget(
 
 
 def _bundled_binding_params(raw: Any, *, what: str) -> dict[str, Any]:
-    """Fixed parameter values for a tile's source. Scalars, kept as they are.
+    """Fixed parameter values for a tile's source, kept as they are.
 
     Deliberately not coerced: the source's ``params_schema`` declares the type,
     and turning a ``true`` into a ``1`` here would satisfy a check the fetch path
     is meant to make.
+
+    An array is one of the shapes, because an endpoint may declare a parameter
+    ``list`` and a bundled tile is entitled to fix several values for it — the
+    same shape a guild's own binding may hold, so a dashboard shipped with an
+    app and one built by hand can express the same things.
     """
     params = require_mapping(raw, f"{what} widget binding params")
     if len(params) > MAX_DASHBOARD_BINDING_PARAMS:
         fail(f"{what}: a binding carries at most {MAX_DASHBOARD_BINDING_PARAMS} params")
+
+    def scalar(value: Any, *, named: str) -> Any:
+        if isinstance(value, bool) or isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            return clean_text(
+                value,
+                what=f"{what} binding param {named}",
+                limit=MAX_PARAM_VALUE_LENGTH,
+            )
+        fail(f"{what}: binding param {named!r} must be a string, integer or boolean")
+
     cleaned: dict[str, Any] = {}
     for key, value in params.items():
         name = check_identifier(key, what=f"{what} binding param")
-        if isinstance(value, bool) or isinstance(value, int):
-            cleaned[name] = value
-        elif isinstance(value, str):
-            cleaned[name] = clean_text(
-                value, what=f"{what} binding param {name}", limit=MAX_PARAM_VALUE_LENGTH
-            )
+        if isinstance(value, list):
+            if len(value) > MAX_BINDING_PARAM_VALUES:
+                fail(
+                    f"{what}: binding param {name!r} carries more than "
+                    f"{MAX_BINDING_PARAM_VALUES} values"
+                )
+            cleaned[name] = [scalar(entry, named=name) for entry in value]
         else:
-            fail(f"{what}: binding param {name!r} must be a string, integer or boolean")
+            cleaned[name] = scalar(value, named=name)
     return cleaned
 
 
