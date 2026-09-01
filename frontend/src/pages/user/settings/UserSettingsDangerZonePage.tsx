@@ -1,11 +1,10 @@
 import { useRouter } from "@tanstack/react-router";
-import { AlertTriangle, Unplug } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteAccountDialog } from "@/components/user/DeleteAccountDialog";
 import { useServer } from "@/hooks/useServer";
 
@@ -14,6 +13,14 @@ interface UserSettingsDangerZonePageProps {
   logout: () => void;
 }
 
+/**
+ * The three ways out: disconnect this device, stop using the account, end it.
+ *
+ * One section per way out, in increasing order of consequence, so the two that
+ * cannot be confused with each other are not stacked inside a single card —
+ * deactivating is reversible and deleting is not, and the sections say which is
+ * which before the button does.
+ */
 export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZonePageProps) => {
   const { t } = useTranslation("settings");
   // ``null`` = closed; otherwise the selection the user clicked. Two
@@ -39,77 +46,40 @@ export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZ
   return (
     <div className="space-y-6">
       {isNativePlatform && (
-        <>
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-muted p-2">
-              <Unplug className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-semibold text-lg">{t("dangerZone.serverConnection")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("dangerZone.connectedTo", { hostname: getServerHostname() })}
-              </p>
-            </div>
-          </div>
-
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle>{t("dangerZone.disconnectTitle")}</CardTitle>
-              <CardDescription>{t("dangerZone.disconnectDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" onClick={handleDisconnectServer}>
-                {t("dangerZone.disconnectButton")}
-              </Button>
-            </CardContent>
-          </Card>
-        </>
+        <SettingsSection
+          title={t("dangerZone.serverConnection")}
+          description={t("dangerZone.connectedTo", { hostname: getServerHostname() })}
+        >
+          <p className="text-muted-foreground text-sm">{t("dangerZone.disconnectDescription")}</p>
+          <Button variant="outline" onClick={handleDisconnectServer}>
+            {t("dangerZone.disconnectButton")}
+          </Button>
+        </SettingsSection>
       )}
 
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-destructive/10 p-2">
-          <AlertTriangle className="h-6 w-6 text-destructive" />
-        </div>
-        <div>
-          <p className="font-semibold text-lg">{t("dangerZone.title")}</p>
-          <p className="text-muted-foreground text-sm">{t("dangerZone.subtitle")}</p>
-        </div>
-      </div>
+      <SettingsSection
+        title={t("dangerZone.deactivateTitle")}
+        description={t("dangerZone.deactivateDescription")}
+      >
+        <Button variant="outline" onClick={() => setPendingAction("deactivate")}>
+          {t("dangerZone.deactivateButton")}
+        </Button>
+      </SettingsSection>
 
-      <Card className="border-destructive/50 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-destructive">{t("dangerZone.deleteTitle")}</CardTitle>
-          <CardDescription>{t("dangerZone.deleteDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3 rounded-lg border border-muted p-4">
-            <div>
-              <h4 className="font-medium">{t("dangerZone.deactivateTitle")}</h4>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {t("dangerZone.deactivateDescription")}
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setPendingAction("deactivate")}>
-              {t("dangerZone.deactivateButton")}
-            </Button>
-          </div>
-
-          <div className="space-y-3 rounded-lg border border-destructive/50 bg-destructive/5 p-4">
-            <div>
-              <h4 className="font-medium text-destructive">
-                {t("dangerZone.permanentDeleteTitle")}
-              </h4>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {t("dangerZone.permanentDeleteDescriptionText")}{" "}
-                <strong>{t("dangerZone.cannotBeUndone")}</strong>
-              </p>
-            </div>
-            <Button variant="destructive" onClick={() => setPendingAction("soft_delete")}>
-              {t("dangerZone.deleteButton")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <SettingsSection
+        destructive
+        title={t("dangerZone.permanentDeleteTitle")}
+        description={
+          <>
+            {t("dangerZone.permanentDeleteDescriptionText")}{" "}
+            <strong>{t("dangerZone.cannotBeUndone")}</strong>
+          </>
+        }
+      >
+        <Button variant="destructive" onClick={() => setPendingAction("soft_delete")}>
+          {t("dangerZone.deleteButton")}
+        </Button>
+      </SettingsSection>
 
       <DeleteAccountDialog
         open={pendingAction !== null}

@@ -25,6 +25,30 @@ import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.sch
 
 export type DecorationKind = "banner" | "frame" | "badge";
 
+/**
+ * Where a frame's artwork holds the picture, in its own 128-unit viewBox.
+ *
+ * Every frame is drawn to this one aperture: a circle of radius 50 at the
+ * centre, which the picture fills exactly. A frame is then free to run outward
+ * as far as the canvas allows — the gold ring is thin, the vinyl record is
+ * thick — without either of them needing the code to know which it is.
+ *
+ * Sizing the artwork so radius 50 lands on the picture's edge makes it 128/50
+ * as wide as the picture; the overhang splits evenly across the two sides,
+ * which is what `FRAME_INSET` says in the units CSS wants.
+ */
+const FRAME_APERTURE = 50;
+const FRAME_VIEWBOX = 128;
+
+export const FRAME_INSET = `${(((1 - FRAME_VIEWBOX / 2 / FRAME_APERTURE) / 2) * 100).toFixed(2)}%`;
+
+/**
+ * The other way round: where the picture sits when the *artwork* is the thing
+ * being sized. Used by the swatches, which show a frame at a fixed size with a
+ * stand-in disc where a face would be.
+ */
+export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWBOX) / 2) * 100).toFixed(2)}%`;
+
 /** Every decoration this build ships, by the name its label is keyed under. */
 type DecorationName =
   | "aurora"

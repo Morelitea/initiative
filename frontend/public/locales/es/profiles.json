@@ -41,23 +41,9 @@
     "empty": "Aquí todavía no hay nada.",
     "badgeCount": "{{count}} de {{max}} puestas"
   },
-  "packs": {
-    "ttrpg": {
-      "name": "Mesa de juego",
-      "tagline": "Para quienes lo dejan en manos del dado. Es el mismo que lanza la app cuando terminas algo."
-    },
-    "music": {
-      "name": "Prueba de sonido",
-      "tagline": "Para bandas, coros y cualquiera que reserve el local y enchufe."
-    },
-    "science": {
-      "name": "Observatorio",
-      "tagline": "Para laboratorios, estaciones de campo y grupos de lectura con pizarra."
-    }
-  },
   "store": {
     "title": "Packs de decoración",
-    "description": "Coge un pack y sus piezas pasan a tu colección, listas para ponértelas. Devuélvelo y se van, junto con lo que llevaras puesto de él.",
+    "description": "Coge un pack y sus piezas pasan a tu colección, listas para ponértelas. Quítalo y se van, junto con lo que llevaras puesto de él.",
     "get": "Coger este pack",
     "installed": "En tu colección",
     "empty": "Esta versión no trae packs.",
@@ -69,14 +55,22 @@
     "save": "Guardar aspecto",
     "saved": "Aspecto guardado.",
     "failed": "No se pudo guardar el aspecto.",
-    "title": "Tu aspecto"
+    "title": "Tu aspecto",
+    "description": "Tu perfil tal como lo ven los demás. Elige abajo y cambia aquí primero."
   },
   "myPacks": {
     "title": "Tus packs",
-    "description": "Lo que has descargado y lo que te dio cada pack. Si devuelves uno, sus piezas se van, junto con lo que llevaras puesto de él.",
-    "empty": "Todavía no has descargado ningún pack. Elige uno arriba y sus piezas aparecerán aquí.",
-    "remove": "Devolver",
-    "removed": "Pack devuelto.",
-    "browse": "Explorar el mercado"
+    "description": "Lo que has descargado y lo que te dio cada pack. Si quitas uno, sus piezas se van, junto con lo que llevaras puesto de él.",
+    "empty": "Todavía no tienes packs. Los encontrarás en el mercado.",
+    "remove": "Quitar pack",
+    "removed": "Pack quitado.",
+    "browse": "Explorar el mercado",
+    "removing": "Quitando…",
+    "confirmTitle": "¿Quitar {{name}}?",
+    "confirmBody": "Sus piezas salen de tu colección y se te quita todo lo que lleves puesto de él. Puedes volver a cogerlo en el mercado.",
+    "filter": "Buscar entre {{count}} packs",
+    "filterLabel": "Buscar en tus packs",
+    "noMatch": "Ningún pack con ese nombre.",
+    "removeNamed": "Quitar {{name}}"
   }
 }

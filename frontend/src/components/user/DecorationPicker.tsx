@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { OwnedDecoration } from "@/api/generated/initiativeAPI.schemas";
+import { DecorationSwatch } from "@/components/user/DecorationSwatch";
 import { type Decoration, type DecorationKind, resolveDecoration } from "@/lib/profileDecorations";
 import { cn } from "@/lib/utils";
 
@@ -17,28 +18,6 @@ const wearable = (owned: OwnedDecoration[] | undefined, kind: DecorationKind): D
     .filter((item) => item.kind === kind)
     .map((item) => resolveDecoration(item.id, kind))
     .filter((decoration): decoration is Decoration => Boolean(decoration));
-
-/** One tile: the artwork, drawn the way its slot is worn. */
-const Swatch = ({ decoration }: { decoration: Decoration }) => {
-  if (decoration.kind === "banner") {
-    return (
-      <span
-        className="block h-10 w-full rounded-sm bg-center bg-cover"
-        style={{ backgroundImage: `url(${decoration.src})` }}
-      />
-    );
-  }
-  return (
-    <span className="flex h-10 items-center justify-center">
-      <img
-        src={decoration.src}
-        alt=""
-        aria-hidden="true"
-        className={decoration.kind === "frame" ? "size-10" : "size-7"}
-      />
-    </span>
-  );
-};
 
 interface TileProps {
   label: string;
@@ -127,8 +106,8 @@ export const SlotPicker = ({ kind, value, onChange, owned }: SlotPickerProps) =>
           selected={value === decoration.id}
           onToggle={() => onChange(value === decoration.id ? null : decoration.id)}
         >
-          <span className={kind === "banner" ? "block w-32" : "block w-12"}>
-            <Swatch decoration={decoration} />
+          <span className={kind === "banner" ? "block w-32" : "block"}>
+            <DecorationSwatch decoration={decoration} />
           </span>
         </Tile>
       ))}
@@ -182,9 +161,7 @@ export const BadgePicker = ({ value, onChange, owned, max }: BadgePickerProps) =
               disabled={!selected && value.length >= max}
               onToggle={() => toggle(decoration.id)}
             >
-              <span className="block w-10">
-                <Swatch decoration={decoration} />
-              </span>
+              <DecorationSwatch decoration={decoration} />
             </Tile>
           );
         })}

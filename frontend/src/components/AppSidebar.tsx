@@ -62,8 +62,6 @@ import { guildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 
 export const AppSidebar = () => {
   const { user, logout } = useAuth();
@@ -231,9 +229,6 @@ export const AppSidebar = () => {
 
   // Your own account, so your own name if you set one — and your handle, not
   // your address, when you have not.
-  const userDisplayName = getUserDisplayName(user);
-  const userInitials = useMemo(() => getInitialsForUser(user), [user]);
-  const avatarSrc = resolveUploadUrl(user?.avatar_url);
 
   // Fetch tags for the tag browser
   const tagsQuery = useTags({ enabled: guildTreeEnabled });
@@ -631,15 +626,11 @@ export const AppSidebar = () => {
         </div>
 
         <SidebarUserFooter
-          userId={user?.id ?? null}
-          userDisplayName={userDisplayName}
-          userInitials={userInitials}
-          avatarSrc={avatarSrc}
+          user={user}
           isGuildAdmin={isGuildAdmin}
           canManagePlatformConfig={showPlatformSettings}
           canAccessAdminDashboard={showAdminDashboard}
           activeGuildId={activeGuildId}
-          hasUser={Boolean(user)}
           currentVersion={currentVersion}
           latestVersion={latestVersion ?? null}
           hasUpdate={Boolean(hasUpdate)}

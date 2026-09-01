@@ -3,9 +3,10 @@
  *
  * This is the half of the store that answers "what do I have" — so what is
  * worth pinning is that it shows only downloaded packs, names their pieces,
- * and is the one place removal happens.
+ * is the one place removal happens, and stays usable once there are more packs
+ * than fit on a screen.
  */
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -50,7 +51,7 @@ describe("the packs you have", () => {
     answerWith([entry("PACKTABTP00001", true)]);
     renderWithProviders(<MyDecorationPacks />);
 
-    expect(await screen.findByRole("heading", { name: "Tabletop" })).toBeInTheDocument();
+    expect(await screen.findByText("Tabletop")).toBeInTheDocument();
     expect(screen.getByText("Dice tower")).toBeInTheDocument();
     expect(screen.getByText("Natural 20")).toBeInTheDocument();
     expect(screen.getByText("d20")).toBeInTheDocument();
@@ -63,23 +64,58 @@ describe("the packs you have", () => {
     ]);
     renderWithProviders(<MyDecorationPacks />);
 
-    await screen.findByRole("heading", { name: "Tabletop" });
-    expect(screen.queryByRole("heading", { name: "Soundcheck" })).not.toBeInTheDocument();
+    await screen.findByText("Tabletop");
+    expect(screen.queryByText("Soundcheck")).not.toBeInTheDocument();
   });
 
-  it("gives a pack back", async () => {
+  it("asks before removing a pack, and names it in the asking", async () => {
     answerWith([entry("PACKTABTP00001", true)]);
     renderWithProviders(<MyDecorationPacks />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Give back" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Tabletop" }));
 
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/Remove Tabletop\?/)).toBeInTheDocument();
+    expect(removeMutate).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Remove pack" }));
     expect(removeMutate).toHaveBeenCalledWith("PACKTABTP00001");
   });
 
-  it("points at the store when nothing has been downloaded", async () => {
+  it("keeps the pack when the asking is declined", async () => {
+    answerWith([entry("PACKTABTP00001", true)]);
+    renderWithProviders(<MyDecorationPacks />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Tabletop" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(removeMutate).not.toHaveBeenCalled();
+  });
+
+  it("offers a filter only once there are more packs than can be scanned", async () => {
+    answerWith([entry("PACKTABTP00001", true)]);
+    const { rerender } = renderWithProviders(<MyDecorationPacks />);
+
+    await screen.findByText("Tabletop");
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+
+    answerWith(
+      Array.from({ length: 12 }, (_, i) =>
+        entry(`PACK${String(i).padStart(10, "0")}`, true, { name: `Pack ${i}` })
+      )
+    );
+    rerender(<MyDecorationPacks />);
+
+    await userEvent.type(await screen.findByRole("searchbox"), "Pack 7");
+    expect(screen.getByText("Pack 7")).toBeInTheDocument();
+    expect(screen.queryByText("Pack 3")).not.toBeInTheDocument();
+  });
+
+  it("points at the marketplace when nothing has been downloaded", async () => {
     answerWith([entry("PACKTABTP00001", false)]);
     renderWithProviders(<MyDecorationPacks />);
 
-    expect(await screen.findByText(/not downloaded a pack yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/marketplace is where you get them/)).toBeInTheDocument();
   });
 });

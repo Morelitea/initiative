@@ -4,14 +4,14 @@
     "subtitle": "Administra tu perfil, preferencias de interfaz y notificaciones.",
     "tabs": {
       "profile": "Perfil",
+      "account": "Cuenta",
       "interface": "Interfaz",
       "notifications": "Notificaciones",
       "ai": "IA",
       "import": "Importar",
       "security": "Seguridad",
       "trash": "Papelera",
-      "danger": "Zona de peligro",
-      "decorations": "Decoración"
+      "danger": "Zona de peligro"
     },
     "loginRequired": "Necesitas iniciar sesión para administrar tu perfil.",
     "goToLogin": "Ir a inicio de sesión"
@@ -43,9 +43,8 @@
     }
   },
   "profile": {
-    "subtitle": "Mantén los datos de tu cuenta actualizados.",
-    "cardTitle": "Información personal",
-    "cardDescription": "Actualiza tu nombre, contraseña y avatar.",
+    "cardTitle": "Cómo apareces",
+    "cardDescription": "Tu foto, el nombre que usarán las comunidades que muestran nombres reales, y en qué andas.",
     "emailLabel": "Email",
     "emailHelp": "Las direcciones de email no se pueden cambiar.",
     "fullNameLabel": "Nombre completo",
@@ -84,7 +83,7 @@
     "statusLabel": "Estado",
     "statusPlaceholder": "¿En qué andas?",
     "statusEmojiPlaceholder": "Emoji",
-    "statusHelp": "Se muestra en tu perfil a todas las personas con las que compartes comunidad."
+    "statusHelp": "Aparece en tu perfil, que cualquiera puede abrir."
   },
   "security": {
     "devicesTitle": "Dispositivos conectados",
@@ -233,7 +232,9 @@
       "label": "Mantener pantalla activa",
       "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta. Esta preferencia se guarda solo en este dispositivo.",
       "unsupported": "Tu navegador no admite mantener la pantalla activa."
-    }
+    },
+    "completionTitle": "Cuando terminas una tarea",
+    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela."
   },
   "notifications": {
     "title": "Configuración de notificaciones",
@@ -286,18 +287,17 @@
       "hour_other": "{{count}} horas antes",
       "day_one": "{{count}} día antes",
       "day_other": "{{count}} días antes"
-    }
+    },
+    "scheduleTitle": "Recordatorio diario",
+    "scheduleDescription": "Cuándo sale el aviso de tareas vencidas, y con qué reloj.",
+    "channelsTitle": "De qué te enteras",
+    "channelsDescription": "Elige un canal para cada tipo de novedad. Las notificaciones de la campana llegan igualmente."
   },
   "dangerZone": {
     "serverConnection": "Conexión al servidor",
     "connectedTo": "Actualmente conectado a {{hostname}}.",
-    "disconnectTitle": "Desconectar del servidor",
     "disconnectDescription": "Cierra sesión y desconéctate de este servidor. Puedes conectarte a un servidor diferente después.",
     "disconnectButton": "Desconectar",
-    "title": "Zona de peligro",
-    "subtitle": "Acciones irreversibles y destructivas para tu cuenta.",
-    "deleteTitle": "Eliminar cuenta",
-    "deleteDescription": "Elimina permanentemente tu cuenta o desactívala temporalmente. Esta acción afecta tus proyectos, documentos y otro contenido.",
     "deactivateTitle": "Desactivar cuenta",
     "deactivateDescription": "Desactiva temporalmente tu cuenta. Tu nombre, email y contenido se mantienen intactos, pero serás eliminado de todas las comunidades a los que perteneces; volver a unirte requiere una nueva invitación. Un administrador puede reactivar tu cuenta más tarde.",
     "permanentDeleteTitle": "Eliminar cuenta permanentemente",
@@ -1131,5 +1131,11 @@
     "actions": {
       "user.avatar_removed": "Foto de perfil eliminada"
     }
+  },
+  "account": {
+    "identityTitle": "Acceso y zona horaria",
+    "identityDescription": "Cómo entras y con qué reloj funciona la app para ti.",
+    "passwordTitle": "Contraseña",
+    "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo."
   }
 }

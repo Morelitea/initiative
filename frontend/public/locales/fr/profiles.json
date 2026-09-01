@@ -41,23 +41,9 @@
     "empty": "Rien ici pour l'instant.",
     "badgeCount": "{{count}} sur {{max}} portés"
   },
-  "packs": {
-    "ttrpg": {
-      "name": "Table de jeu",
-      "tagline": "Pour celles et ceux qui s'en remettent au dé. C'est celui que l'app lance quand vous terminez quelque chose."
-    },
-    "music": {
-      "name": "Balance",
-      "tagline": "Pour les groupes, les chorales et tous ceux qui réservent la salle et se branchent."
-    },
-    "science": {
-      "name": "Observatoire",
-      "tagline": "Pour les labos, les stations de terrain et les groupes de lecture à tableau blanc."
-    }
-  },
   "store": {
     "title": "Packs de décoration",
-    "description": "Prenez un pack et ses pièces rejoignent votre collection, prêtes à porter. Rendez-le et elles repartent, avec ce que vous en portiez.",
+    "description": "Prenez un pack et ses pièces rejoignent votre collection, prêtes à porter. Retirez-le et elles repartent, avec ce que vous en portiez.",
     "get": "Prendre ce pack",
     "installed": "Dans votre collection",
     "empty": "Aucun pack dans cette version.",
@@ -69,14 +55,22 @@
     "save": "Enregistrer l'allure",
     "saved": "Allure enregistrée.",
     "failed": "L'allure n'a pas pu être enregistrée.",
-    "title": "Votre allure"
+    "title": "Votre allure",
+    "description": "Votre profil tel que les autres le voient. Choisissez ci-dessous et il change ici d'abord."
   },
   "myPacks": {
     "title": "Vos packs",
-    "description": "Ce que vous avez téléchargé, et ce que chaque pack vous a donné. Rendez-en un et ses pièces repartent, avec ce que vous en portiez.",
-    "empty": "Vous n'avez encore téléchargé aucun pack. Choisissez-en un ci-dessus et ses pièces arriveront ici.",
-    "remove": "Rendre",
-    "removed": "Pack rendu.",
-    "browse": "Parcourir la boutique"
+    "description": "Ce que vous avez téléchargé, et ce que chaque pack vous a donné. Retirez-en un et ses pièces repartent, avec ce que vous en portiez.",
+    "empty": "Aucun pack pour l'instant. C'est dans la boutique qu'on les trouve.",
+    "remove": "Retirer le pack",
+    "removed": "Pack retiré.",
+    "browse": "Parcourir la boutique",
+    "removing": "Retrait…",
+    "confirmTitle": "Retirer {{name}} ?",
+    "confirmBody": "Ses pièces quittent votre collection, et tout ce que vous en portez vous est retiré. Vous pourrez le reprendre depuis la boutique.",
+    "filter": "Rechercher parmi {{count}} packs",
+    "filterLabel": "Rechercher dans vos packs",
+    "noMatch": "Aucun pack de ce nom.",
+    "removeNamed": "Retirer {{name}}"
   }
 }
