@@ -12,13 +12,11 @@ from ``Tool``.
 
 from __future__ import annotations
 
-from sqlalchemy import and_, or_
+from sqlalchemy import func
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.tools import Tool
 from app.db.schema_provisioning import search_operator_available
 from app.models.tenant.search_entry import SearchEntry
-from app.services.permissions import dac_scope_clause
 
 
 def search_scope_clause(
@@ -29,30 +27,18 @@ def search_scope_clause(
 ) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``search_entries`` to rows this request may read.
 
-    One leg per :class:`Tool`, each deferring to :func:`dac_scope_clause` — the
-    same call the tool's own list endpoint makes, so search and the tool it
-    searches answer sharing identically rather than through two implementations.
-
-    Rows carrying no ``dac_tool`` (guild vocabulary such as tags) have no sharing
-    gate to apply; reaching this schema at all is the gate they answer to.
-    ``dac_scope_clause`` already returns ``true()`` when the request covers the
-    whole guild, so guild admin and PAM need no leg here.
+    Emits ``public.resource_access(...)`` — the same call the table's policies
+    make — so the query and the database answer sharing through one
+    implementation rather than two that have to agree. ``guild_id`` is accepted
+    for symmetry with the other scope helpers; the decision reads the request's
+    own context.
     """
-    return or_(
-        SearchEntry.dac_tool.is_(None),
-        *[
-            and_(
-                SearchEntry.dac_tool == tool.value,
-                dac_scope_clause(
-                    tool,
-                    SearchEntry.dac_id,
-                    user_id,
-                    guild_id=guild_id,
-                    access=access,
-                ),
-            )
-            for tool in Tool
-        ],
+    return func.resource_access(
+        SearchEntry.dac_tool,
+        SearchEntry.dac_id,
+        user_id,
+        SearchEntry.initiative_id,
+        access == "write",
     )
 
 
