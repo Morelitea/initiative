@@ -236,7 +236,13 @@ class TestWhatAGuildPayloadSays:
 class TestFindingSomeone:
     @pytest.fixture
     async def searchable_guild(self, session):
-        admin = await create_user(session)
+        # The searcher's own handle is pinned rather than generated. A
+        # generated one is two random words, and search matches a handle
+        # fuzzily — so roughly one run in six drew a word close enough to a
+        # term these tests search for (``copper-thrush`` for "Three") and
+        # returned the searcher as a near-match, which the assertions here
+        # read as the guild leaking a name it should not have matched.
+        admin = await create_user(session, username="pilot-beacon")
         guild = await create_guild(session, creator=admin)
         await create_guild_membership(
             session, user=admin, guild=guild, role=GuildRole.admin
