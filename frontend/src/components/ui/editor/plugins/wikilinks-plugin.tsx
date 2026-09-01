@@ -22,7 +22,6 @@ import { createPortal } from "react-dom";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
-import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildSearchSuggest } from "@/hooks/useSearch";
 import { linkableToolTypes } from "@/lib/references";
@@ -170,61 +169,6 @@ export function WikilinksPlugin({
   const [queryString, setQueryString] = useState<string | null>(null);
 
   const { options, isLoading } = useWikilinkSearch(queryString, initiativeId);
-
-  // Register click handler for wikilinks
-  useEffect(() => {
-    return editor.registerCommand(
-      CLICK_COMMAND,
-      (event: MouseEvent) => {
-        const target = event.target as HTMLElement;
-
-        // Check if clicked element is a wikilink
-        if (!target.hasAttribute("data-lexical-wikilink")) {
-          return false;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-
-        const documentIdAttr = target.getAttribute("data-document-id");
-
-        if (documentIdAttr) {
-          // Resolved wikilink - navigate
-          const documentId = parseInt(documentIdAttr, 10);
-          if (!Number.isNaN(documentId)) {
-            onNavigate?.(documentId);
-          }
-        } else {
-          // Unresolved wikilink - offer to create document
-          const title = target.textContent || "";
-          if (title && onCreateDocument) {
-            // Find the wikilink node to pass an update callback
-            editor.getEditorState().read(() => {
-              const node = $getNearestNodeFromDOMNode(target);
-              if ($isWikilinkNode(node)) {
-                const nodeKey = node.getKey();
-                onCreateDocument(title, (newDocumentId: number) => {
-                  editor.update(() => {
-                    const wikilinkNode = $getNodeByKey(nodeKey);
-                    if ($isWikilinkNode(wikilinkNode)) {
-                      const updatedWikilink = $createWikilinkNode(
-                        wikilinkNode.getDocumentTitle(),
-                        newDocumentId
-                      );
-                      wikilinkNode.replace(updatedWikilink);
-                    }
-                  });
-                });
-              }
-            });
-          }
-        }
-
-        return true;
-      },
-      COMMAND_PRIORITY_LOW
-    );
-  }, [editor, onNavigate, onCreateDocument]);
 
   const onSelectOption = useCallback(
     (

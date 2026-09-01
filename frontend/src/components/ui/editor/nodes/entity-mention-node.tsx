@@ -40,9 +40,6 @@ export type SerializedEntityMentionNode = Spread<
 const TYPE_ATTR = "data-lexical-entity-mention";
 const ID_ATTR = "data-entity-id";
 
-/** Reading a `[[Doc]]` written before references were one thing. */
-const LEGACY_WIKILINK_TYPE = "wikilink";
-
 function $convertEntityMentionElement(domNode: HTMLElement): DOMConversionOutput | null {
   const entityType = domNode.getAttribute(TYPE_ATTR);
   const entityId = Number(domNode.getAttribute(ID_ATTR));
@@ -187,5 +184,3 @@ export function $convertLegacyWikilink(serialized: {
     serialized.documentTitle ?? serialized.text ?? ""
   );
 }
-
-export { LEGACY_WIKILINK_TYPE };
