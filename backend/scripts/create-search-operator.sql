@@ -1,15 +1,23 @@
 -- Search match operator + GIN operator class (one-time, superuser).
 --
--- Fresh docker-compose installs never need this — their init script creates
--- these objects at first database init. Run this ONCE on existing deployments,
--- connected to the app database AS A SUPERUSER, BEFORE upgrading the app:
+-- Run this ONCE per database, connected to the app database AS A SUPERUSER.
+--
+-- This file ships inside the published image, so a deployment running from
+-- Docker Hub needs no checkout:
+--
+--   docker compose exec -T initiative \
+--       cat /app/scripts/create-search-operator.sql \
+--     | docker compose exec -T db \
+--       psql -v ON_ERROR_STOP=1 -U initiative -d initiative
+--
+-- From a source checkout:
 --
 --   docker exec -i initiative-db \
 --     psql -v ON_ERROR_STOP=1 -U initiative -d initiative \
 --          -f - < backend/scripts/create-search-operator.sql
 --
 -- Re-running is safe. After running it, restart the app: the guild search
--- index is rebuilt against this operator class on the next provisioning sweep.
+-- index is rebuilt on this operator class on the next provisioning sweep.
 --
 -- What it is
 -- -----------
@@ -21,8 +29,9 @@
 -- app_provisioner (NOSUPERUSER, NOBYPASSRLS). They are ordinary schema objects
 -- once created, so pg_dump carries them.
 --
--- Without them search still returns the same rows, reading more of the index
--- table to do it. The app says so at boot.
+-- Until it is run, search returns the same rows and reads more of the index
+-- table to do it. The app says so at boot. Nothing else depends on these
+-- objects, so there is no rush and no ordering requirement against upgrades.
 
 \set ON_ERROR_STOP on
 

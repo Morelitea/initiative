@@ -788,14 +788,16 @@ async def warn_if_search_operator_missing() -> None:
         "\n%s\n"
         "Guild search is running without its index.\n"
         "Results are unchanged; each search reads more of the index table,\n"
-        "which grows with the guild. Install the operator once, as a SUPERUSER:\n"
+        "which grows with the guild. Install the operator once, as a SUPERUSER.\n"
+        "The script ships inside this image, so no checkout is needed:\n"
         "\n"
-        "  docker exec -i initiative-db \\\n"
-        "    psql -v ON_ERROR_STOP=1 -U <user> -d <database> \\\n"
-        "         -f - < backend/scripts/create-search-operator.sql\n"
+        "  docker compose exec -T initiative \\\n"
+        "      cat /app/scripts/create-search-operator.sql \\\n"
+        "    | docker compose exec -T db \\\n"
+        "      psql -v ON_ERROR_STOP=1 -U <user> -d <database>\n"
         "\n"
         "Then restart: the index is rebuilt on the next provisioning sweep.\n"
-        "Fresh docker-compose installs get this at first database init.\n"
+        "Run once per database; re-running is safe.\n"
         "%s",
         "=" * 70,
         "=" * 70,
