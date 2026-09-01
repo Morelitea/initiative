@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
 
-- **People have a profile page now.** Open someone from the member list or from a search result and you get their picture, their handle, whether they have Initiative open right now, and when they joined. A profile is public and the same page whoever opens it — it belongs to the person rather than to any one community.
+- **People have a profile page now.** Open someone from the member list or from a search result and you get their picture, their handle, whether they have Initiative open right now, and when they joined. It lives at a link worth sharing — `/u/jordan1234`, your handle with its number run on the end — and it is public and the same page whoever opens it, because it belongs to the person rather than to any one community.
 
 - **Set a status.** An emoji, a line about what you are up to, or both, under Settings › Profile — using the same picker the rest of the app uses. It shows on your profile.
 

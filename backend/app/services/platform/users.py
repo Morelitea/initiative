@@ -808,7 +808,7 @@ def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
     return closest
 
 
-def visible_to_other_people():
+def visible_to_other_people(status_column=None):
     """Rows that may appear where a person is listed as someone to work with.
 
     A suspended account is not one: it vanishes from rosters, pickers, search,
@@ -818,6 +818,9 @@ def visible_to_other_people():
     account from nothing.
 
     A clause rather than a filtered query, so each surface keeps its own
-    joins and its own gates and only borrows the predicate.
+    joins and its own gates and only borrows the predicate. Pass
+    ``status_column`` to apply it somewhere other than ``users`` itself — the
+    ``user_profiles`` view carries the same column and the same rule.
     """
-    return User.status != UserStatus.suspended
+    column = User.status if status_column is None else status_column
+    return column != UserStatus.suspended

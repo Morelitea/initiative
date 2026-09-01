@@ -16,11 +16,11 @@ import { routeTree } from "@/routeTree.gen";
 import { buildUserProfile } from "./factories";
 import { renderPage } from "./helpers/render";
 
-const PROFILE_ROUTE_ID = "/_serverRequired/_authenticated/u/$userId";
+const PROFILE_ROUTE_ID = "/_serverRequired/_authenticated/u/$handle";
 
 const mocks = vi.hoisted(() => ({ profile: vi.fn() }));
 vi.mock("@/hooks/useUsers", () => ({
-  useUserProfile: (userId: number | null) => mocks.profile(userId),
+  useUserProfile: (handle: string | null) => mocks.profile(handle),
 }));
 
 const router = createRouter({ routeTree });
@@ -39,8 +39,8 @@ const profilePage = async () => {
 const renderProfile = async () => {
   const Page = await profilePage();
   return renderPage(Page, {
-    initialRoute: "/u/$userId",
-    routeParams: { userId: "7" },
+    initialRoute: "/u/$handle",
+    routeParams: { handle: "tinker0042" },
   });
 };
 
@@ -53,9 +53,19 @@ beforeEach(() => {
 });
 
 describe("a member's profile", () => {
-  it("is an address the shipped route tree serves", () => {
-    const matches = router.matchRoutes({ pathname: "/u/7", search: {} }, { preload: true });
+  it("is an address the shipped route tree serves, keyed by handle", () => {
+    const matches = router.matchRoutes(
+      { pathname: "/u/tinker0042", search: {} },
+      { preload: true }
+    );
     expect(String(matches.at(-1)?.routeId)).toBe(PROFILE_ROUTE_ID);
+  });
+
+  it("asks for the handle in the address, not an id", async () => {
+    await renderProfile();
+    await screen.findByRole("heading");
+
+    expect(mocks.profile).toHaveBeenCalledWith("tinker0042");
   });
 
   it("leads with the handle, and shows the line they wrote", async () => {

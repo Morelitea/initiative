@@ -97,6 +97,7 @@ from app.services.platform.guilds import adopt_guild_name_display
 from app.services.realtime import manager as realtime_manager
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.models.platform.user_profile_view import user_profiles
 from app.services.platform import user_avatars as user_avatars_service
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.platform import users as users_service
@@ -310,36 +311,51 @@ async def list_my_decorations(
     )
 
 
-@router.get("/{user_id}/profile", response_model=UserProfile)
+@router.get("/{handle}/profile", response_model=UserProfile)
 async def read_user_profile(
-    user_id: int,
-    session: AdminSessionDep,
+    handle: str,
+    session: UserSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserProfile:
-    """One person's profile.
+    """One person's profile, addressed by their handle.
+
+    ``jordan1234`` — the name and the number it is always written with, run
+    together. ``#`` never survives a URL, and the number's four digits are
+    fixed width, so the two come apart again exactly.
 
     A profile is public and has no guild in it: it carries the handle, the
     face, the status, the look and whether they are online, and it is the same
     page whoever opens it. That is why it is not reached through a guild — no
     part of the answer depends on one.
 
-    Read on the system engine, selecting the profile columns and nothing else.
-    ``public.users`` is own-row for a platform-tier session (a person's
-    address, their preferences and their memberships are theirs), so the row
-    cannot be read whole here; what is public about it is this narrow
-    projection, and the response shape carries exactly the columns named
-    below. A suspended account has no profile.
+    Read from ``public.user_profiles``, the view that *is* the public
+    projection: which columns are public is decided by the view and the column
+    grant behind it (migration 0214), not here. An ordinary platform-tier
+    session, RLS enforced. A suspended account has no profile.
     """
+    parsed = usernames.parse_url_handle(handle)
+    if parsed is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    name, discriminator = parsed
+    # Named one by one rather than as the whole view: a single-entity select
+    # comes back scalarized to its first column.
     stmt = select(
-        User.id,
-        User.username,
-        User.discriminator,
-        User.avatar_url,
-        User.status,
-        User.custom_status,
-        User.profile_decorations,
-        User.created_at,
-    ).where(User.id == user_id, users_service.visible_to_other_people())
+        user_profiles.c.id,
+        user_profiles.c.username,
+        user_profiles.c.discriminator,
+        user_profiles.c.avatar_url,
+        user_profiles.c.status,
+        user_profiles.c.custom_status,
+        user_profiles.c.profile_decorations,
+        user_profiles.c.created_at,
+    ).where(
+        func.lower(user_profiles.c.username) == name,
+        user_profiles.c.discriminator == discriminator,
+        users_service.visible_to_other_people(user_profiles.c.status),
+    )
     row = (await session.exec(stmt)).first()
     if row is None:
         raise HTTPException(

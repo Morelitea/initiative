@@ -42,7 +42,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -221,8 +221,8 @@ export const SettingsUsersPage = () => {
       // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (
         <Link
-          to="/u/$userId"
-          params={{ userId: String(row.original.id) }}
+          to="/u/$handle"
+          params={{ handle: getUrlHandle(row.original) }}
           className="text-sm hover:underline"
         >
           <UserHandle user={row.original} />

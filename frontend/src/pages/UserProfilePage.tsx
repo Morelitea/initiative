@@ -25,10 +25,9 @@ import { resolveDecoration } from "@/lib/profileDecorations";
  */
 export const UserProfilePage = () => {
   const { t } = useTranslation(["profiles", "common"]);
-  const { userId: userIdParam } = useParams({ strict: false }) as { userId: string };
-  const userId = Number(userIdParam);
+  const { handle } = useParams({ strict: false }) as { handle: string };
 
-  const { data: profile, isLoading } = useUserProfile(Number.isFinite(userId) ? userId : null);
+  const { data: profile, isLoading } = useUserProfile(handle);
 
   if (isLoading) {
     return (

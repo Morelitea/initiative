@@ -20,6 +20,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
+from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services.realtime import manager as realtime_manager
@@ -1170,7 +1171,8 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
     )
 
     response = await client.get(
-        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
     )
 
     assert response.status_code == 200
@@ -1201,7 +1203,8 @@ async def test_profile_never_carries_a_real_name(
     subject = await create_user(session, username="tinker", full_name="Tinker Bell")
 
     response = await client.get(
-        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
     )
 
     assert response.status_code == 200
@@ -1233,7 +1236,8 @@ async def test_profile_needs_no_guild_in_common(
     stranger = await create_user(session, username="stranger")
 
     response = await client.get(
-        f"/api/v1/users/{stranger.id}/profile", headers=get_auth_headers(caller)
+        f"/api/v1/users/{url_handle(stranger.username, stranger.discriminator)}/profile",
+        headers=get_auth_headers(caller),
     )
 
     assert response.status_code == 200
@@ -1250,7 +1254,8 @@ async def test_profile_hides_a_suspended_account(
     subject = await create_user(session, status=UserStatus.suspended)
 
     response = await client.get(
-        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
     )
 
     assert response.status_code == 404
@@ -1272,7 +1277,8 @@ async def test_profile_says_when_someone_is_online(
     await realtime_manager.connect(guild.id, [], socket, user_id=subject.id)  # type: ignore[arg-type]
     try:
         response = await client.get(
-            f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
         )
     finally:
         await realtime_manager.disconnect(socket)  # type: ignore[arg-type]
@@ -1281,14 +1287,15 @@ async def test_profile_says_when_someone_is_online(
     assert response.json()["online"] is True
 
     after = await client.get(
-        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
     )
     assert after.json()["online"] is False
 
 
 @pytest.mark.integration
 async def test_profile_requires_a_signed_in_reader(client: AsyncClient):
-    response = await client.get("/api/v1/users/1/profile")
+    response = await client.get("/api/v1/users/nobody0001/profile")
 
     assert response.status_code == 401
 
@@ -1483,3 +1490,57 @@ async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSe
         # The same badge twice is a duplicate, not a second badge.
         "badges": ["core.founder"],
     }
+
+
+@pytest.mark.integration
+async def test_profile_is_addressed_by_handle(
+    client: AsyncClient, session: AsyncSession
+):
+    """``jordan1234`` is the handle as one URL segment — the name and the four
+    digits it is always written with, run together, because ``#`` never
+    survives a URL."""
+    caller = await create_user(session)
+    subject = await create_user(session, username="jordan", discriminator=1234)
+
+    response = await client.get(
+        "/api/v1/users/jordan1234/profile", headers=get_auth_headers(caller)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == subject.id
+    assert response.json()["username"] == "jordan"
+    assert response.json()["discriminator"] == 1234
+
+
+@pytest.mark.integration
+async def test_profile_handle_comes_apart_at_a_fixed_width(
+    client: AsyncClient, session: AsyncSession
+):
+    """A name may itself end in digits. The number is always four wide, which
+    is what keeps ``user2`` + ``0007`` from reading as ``user`` + ``20007``."""
+    caller = await create_user(session)
+    subject = await create_user(session, username="user2", discriminator=7)
+
+    response = await client.get(
+        "/api/v1/users/user20007/profile", headers=get_auth_headers(caller)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "user2"
+    assert response.json()["discriminator"] == subject.discriminator
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("handle", ["jordan", "jordan12a4", "ab0001", "jordan1234x"])
+async def test_profile_404s_on_something_that_is_not_a_handle(
+    client: AsyncClient, session: AsyncSession, handle: str
+):
+    """No number, a number with a letter in it, too short a name, and a name
+    where the number should be."""
+    caller = await create_user(session)
+
+    response = await client.get(
+        f"/api/v1/users/{handle}/profile", headers=get_auth_headers(caller)
+    )
+
+    assert response.status_code == 404

@@ -289,6 +289,42 @@ def format_handle(name: str, discriminator: int) -> str:
     return f"{name}#{discriminator:04d}"
 
 
+#: Width of the number when it is written out. Always four digits, zero-padded,
+#: which is what lets it be read off the end of a URL handle.
+DISCRIMINATOR_DIGITS: Final = 4
+
+
+def url_handle(username: str, discriminator: int) -> str:
+    """``jordan`` + ``1234`` -> ``jordan1234`` — the handle as one URL segment.
+
+    ``#`` is not something to put in a path: it never reaches the server. The
+    number keeps its four digits and simply runs on from the name, which stays
+    reversible because the width is fixed.
+    """
+    return f"{username}{discriminator:0{DISCRIMINATOR_DIGITS}d}"
+
+
+def parse_url_handle(value: str) -> tuple[str, int] | None:
+    """``jordan1234`` -> ``("jordan", 1234)``, or ``None`` if it is not one.
+
+    The last four characters are the number and the rest is the name — a name
+    may itself end in digits (``user2`` + ``0007`` -> ``user20007``), and the
+    fixed width is what keeps that unambiguous.
+    """
+    candidate = value.strip().lower()
+    if len(candidate) < MIN_LENGTH + DISCRIMINATOR_DIGITS:
+        return None
+    name, digits = (
+        candidate[:-DISCRIMINATOR_DIGITS],
+        candidate[-DISCRIMINATOR_DIGITS:],
+    )
+    if not all(character in _DIGITS for character in digits):
+        return None
+    if len(name) > MAX_LENGTH or not all(character in _ALLOWED for character in name):
+        return None
+    return name, int(digits)
+
+
 def parse_handle(term: str) -> tuple[str, str | None]:
     """Split a search term into its name part and any number typed after ``#``.
 

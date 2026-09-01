@@ -46,7 +46,7 @@ import { Route as ServerRequiredAuthenticatedProfileSecurityRouteImport } from '
 import { Route as ServerRequiredAuthenticatedProfileTrashRouteImport } from './routes/_serverRequired/_authenticated/profile/trash'
 import { Route as ServerRequiredAuthenticatedSettingsAdminRouteImport } from './routes/_serverRequired/_authenticated/settings/admin'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformRouteImport } from './routes/_serverRequired/_authenticated/settings/platform'
-import { Route as ServerRequiredAuthenticatedUUserIdRouteImport } from './routes/_serverRequired/_authenticated/u.$userId'
+import { Route as ServerRequiredAuthenticatedUHandleRouteImport } from './routes/_serverRequired/_authenticated/u.$handle'
 import { Route as ServerRequiredCommunityGuildIdLoginRouteImport } from './routes/_serverRequired/community.$guildId.login'
 import { Route as ServerRequiredAuthenticatedCGuildIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/marketplace'
@@ -356,10 +356,10 @@ const ServerRequiredAuthenticatedSettingsPlatformRoute =
     path: '/platform',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsRoute,
   } as any)
-const ServerRequiredAuthenticatedUUserIdRoute =
-  ServerRequiredAuthenticatedUUserIdRouteImport.update({
-    id: '/u/$userId',
-    path: '/u/$userId',
+const ServerRequiredAuthenticatedUHandleRoute =
+  ServerRequiredAuthenticatedUHandleRouteImport.update({
+    id: '/u/$handle',
+    path: '/u/$handle',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredCommunityGuildIdLoginRoute =
@@ -1126,7 +1126,7 @@ export interface FileRoutesByFullPath {
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
-  '/u/$userId': typeof ServerRequiredAuthenticatedUUserIdRoute
+  '/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
   '/community/$guildId/login': typeof ServerRequiredCommunityGuildIdLoginRoute
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/c/$guildId/marketplace': typeof ServerRequiredAuthenticatedCGuildIdMarketplaceRoute
@@ -1254,7 +1254,7 @@ export interface FileRoutesByTo {
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
   '/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
-  '/u/$userId': typeof ServerRequiredAuthenticatedUUserIdRoute
+  '/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
   '/community/$guildId/login': typeof ServerRequiredCommunityGuildIdLoginRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/c/$guildId/marketplace': typeof ServerRequiredAuthenticatedCGuildIdMarketplaceRoute
@@ -1379,7 +1379,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/_serverRequired/_authenticated/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   '/_serverRequired/_authenticated/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
-  '/_serverRequired/_authenticated/u/$userId': typeof ServerRequiredAuthenticatedUUserIdRoute
+  '/_serverRequired/_authenticated/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
   '/_serverRequired/community/$guildId/login': typeof ServerRequiredCommunityGuildIdLoginRoute
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/marketplace': typeof ServerRequiredAuthenticatedCGuildIdMarketplaceRoute
@@ -1513,7 +1513,7 @@ export interface FileRouteTypes {
     | '/profile/trash'
     | '/settings/admin'
     | '/settings/platform'
-    | '/u/$userId'
+    | '/u/$handle'
     | '/community/$guildId/login'
     | '/profile/'
     | '/c/$guildId/marketplace'
@@ -1641,7 +1641,7 @@ export interface FileRouteTypes {
     | '/profile/notifications'
     | '/profile/security'
     | '/profile/trash'
-    | '/u/$userId'
+    | '/u/$handle'
     | '/community/$guildId/login'
     | '/profile'
     | '/c/$guildId/marketplace'
@@ -1765,7 +1765,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/profile/trash'
     | '/_serverRequired/_authenticated/settings/admin'
     | '/_serverRequired/_authenticated/settings/platform'
-    | '/_serverRequired/_authenticated/u/$userId'
+    | '/_serverRequired/_authenticated/u/$handle'
     | '/_serverRequired/community/$guildId/login'
     | '/_serverRequired/_authenticated/profile/'
     | '/_serverRequired/_authenticated/c/$guildId/marketplace'
@@ -2130,11 +2130,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsRoute
     }
-    '/_serverRequired/_authenticated/u/$userId': {
-      id: '/_serverRequired/_authenticated/u/$userId'
-      path: '/u/$userId'
-      fullPath: '/u/$userId'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedUUserIdRouteImport
+    '/_serverRequired/_authenticated/u/$handle': {
+      id: '/_serverRequired/_authenticated/u/$handle'
+      path: '/u/$handle'
+      fullPath: '/u/$handle'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedUHandleRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/community/$guildId/login': {
@@ -3303,7 +3303,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedUserStatsRoute: typeof ServerRequiredAuthenticatedUserStatsRoute
   ServerRequiredAuthenticatedIndexRoute: typeof ServerRequiredAuthenticatedIndexRoute
   ServerRequiredAuthenticatedCGuildIdRoute: typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
-  ServerRequiredAuthenticatedUUserIdRoute: typeof ServerRequiredAuthenticatedUUserIdRoute
+  ServerRequiredAuthenticatedUHandleRoute: typeof ServerRequiredAuthenticatedUHandleRoute
 }
 
 const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRouteChildren =
@@ -3338,8 +3338,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedIndexRoute,
     ServerRequiredAuthenticatedCGuildIdRoute:
       ServerRequiredAuthenticatedCGuildIdRouteWithChildren,
-    ServerRequiredAuthenticatedUUserIdRoute:
-      ServerRequiredAuthenticatedUUserIdRoute,
+    ServerRequiredAuthenticatedUHandleRoute:
+      ServerRequiredAuthenticatedUHandleRoute,
   }
 
 const ServerRequiredAuthenticatedRouteWithChildren =

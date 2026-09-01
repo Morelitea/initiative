@@ -425,45 +425,47 @@ export function useListMyDecorationsApiV1UsersMeDecorationsGet<
 }
 
 /**
- * One person's profile.
+ * One person's profile, addressed by their handle.
+ *
+ * ``jordan1234`` — the name and the number it is always written with, run
+ * together. ``#`` never survives a URL, and the number's four digits are
+ * fixed width, so the two come apart again exactly.
  *
  * A profile is public and has no guild in it: it carries the handle, the
  * face, the status, the look and whether they are online, and it is the same
  * page whoever opens it. That is why it is not reached through a guild — no
  * part of the answer depends on one.
  *
- * Read on the system engine, selecting the profile columns and nothing else.
- * ``public.users`` is own-row for a platform-tier session (a person's
- * address, their preferences and their memberships are theirs), so the row
- * cannot be read whole here; what is public about it is this narrow
- * projection, and the response shape carries exactly the columns named
- * below. A suspended account has no profile.
+ * Read from ``public.user_profiles``, the view that *is* the public
+ * projection: which columns are public is decided by the view and the column
+ * grant behind it (migration 0214), not here. An ordinary platform-tier
+ * session, RLS enforced. A suspended account has no profile.
  * @summary Read User Profile
  */
-export const readUserProfileApiV1UsersUserIdProfileGet = (
-  userId: number,
+export const readUserProfileApiV1UsersHandleProfileGet = (
+  handle: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserProfile>(
-    { url: `/api/v1/users/${userId}/profile`, method: "GET", signal },
+    { url: `/api/v1/users/${handle}/profile`, method: "GET", signal },
     options
   );
 };
 
-export const getReadUserProfileApiV1UsersUserIdProfileGetQueryKey = (userId: number) => {
-  return [`/api/v1/users/${userId}/profile`] as const;
+export const getReadUserProfileApiV1UsersHandleProfileGetQueryKey = (handle: string) => {
+  return [`/api/v1/users/${handle}/profile`] as const;
 };
 
-export const getReadUserProfileApiV1UsersUserIdProfileGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+export const getReadUserProfileApiV1UsersHandleProfileGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  userId: number,
+  handle: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
         TError,
         TData
       >
@@ -474,47 +476,47 @@ export const getReadUserProfileApiV1UsersUserIdProfileGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getReadUserProfileApiV1UsersUserIdProfileGetQueryKey(userId);
+    queryOptions?.queryKey ?? getReadUserProfileApiV1UsersHandleProfileGetQueryKey(handle);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>
-  > = ({ signal }) => readUserProfileApiV1UsersUserIdProfileGet(userId, requestOptions, signal);
+    Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+  > = ({ signal }) => readUserProfileApiV1UsersHandleProfileGet(handle, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: userId !== null && userId !== undefined,
+    enabled: handle !== null && handle !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+    Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadUserProfileApiV1UsersUserIdProfileGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>
+export type ReadUserProfileApiV1UsersHandleProfileGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
 >;
-export type ReadUserProfileApiV1UsersUserIdProfileGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadUserProfileApiV1UsersHandleProfileGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadUserProfileApiV1UsersUserIdProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  userId: number,
+  handle: string,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
           TError,
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
         >,
         "initialData"
       >;
@@ -522,24 +524,24 @@ export function useReadUserProfileApiV1UsersUserIdProfileGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUserProfileApiV1UsersUserIdProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  userId: number,
+  handle: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
           TError,
-          Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
         >,
         "initialData"
       >;
@@ -547,15 +549,15 @@ export function useReadUserProfileApiV1UsersUserIdProfileGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadUserProfileApiV1UsersUserIdProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  userId: number,
+  handle: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
         TError,
         TData
       >
@@ -568,15 +570,15 @@ export function useReadUserProfileApiV1UsersUserIdProfileGet<
  * @summary Read User Profile
  */
 
-export function useReadUserProfileApiV1UsersUserIdProfileGet<
-  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  userId: number,
+  handle: string,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readUserProfileApiV1UsersUserIdProfileGet>>,
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
         TError,
         TData
       >
@@ -585,7 +587,7 @@ export function useReadUserProfileApiV1UsersUserIdProfileGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadUserProfileApiV1UsersUserIdProfileGetQueryOptions(userId, options);
+  const queryOptions = getReadUserProfileApiV1UsersHandleProfileGetQueryOptions(handle, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

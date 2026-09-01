@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { UserHandle } from "@/components/UserHandle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarSrc, getInitialsForUser, hasDisplayName } from "@/lib/userDisplay";
+import { getAvatarSrc, getInitialsForUser, getUrlHandle, hasDisplayName } from "@/lib/userDisplay";
 
 /**
  * One member found.
@@ -16,8 +16,8 @@ import { getAvatarSrc, getInitialsForUser, hasDisplayName } from "@/lib/userDisp
 export function MemberResultRow({ member }: { member: UserSummary }) {
   return (
     <Link
-      to="/u/$userId"
-      params={{ userId: String(member.id) }}
+      to="/u/$handle"
+      params={{ handle: getUrlHandle(member) }}
       className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-accent"
     >
       <Avatar className="h-8 w-8 shrink-0">

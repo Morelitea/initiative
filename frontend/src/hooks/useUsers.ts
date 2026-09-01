@@ -20,7 +20,7 @@ import {
   listUsersApiV1GGuildIdUsersGet,
   updateUsersMeApiV1UsersMePatch,
   useListMyDecorationsApiV1UsersMeDecorationsGet,
-  useReadUserProfileApiV1UsersUserIdProfileGet,
+  useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
@@ -82,15 +82,16 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
 });
 
 /**
- * One person's profile.
+ * One person's profile, by their handle as it appears in a URL
+ * (``jordan1234`` — see ``getUrlHandle``).
  *
  * Public and community-independent: the same page whoever opens it, so there
  * is no guild in the call.
  */
-export const useUserProfile = (userId: number | null | undefined) =>
-  useReadUserProfileApiV1UsersUserIdProfileGet(userId as number, {
+export const useUserProfile = (handle: string | null | undefined) =>
+  useReadUserProfileApiV1UsersHandleProfileGet(handle as string, {
     query: {
-      enabled: userId != null,
+      enabled: Boolean(handle),
       // A profile changes without the reader doing anything — the subject
       // signs off, edits their status, changes what they are wearing — and
       // this page is outside the community tree, so no realtime socket is
