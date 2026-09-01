@@ -8,6 +8,7 @@ import {
   deleteMyAvatarApiV1UsersMeAvatarDelete,
   uploadMyAvatarApiV1UsersMeAvatarPut,
 } from "@/api/generated/users/users";
+import { EmojiPicker } from "@/components/EmojiPicker";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,9 @@ const uploadedAvatar = (user: UserRead): string | null =>
 
 const isLinked = (user: UserRead): boolean => Boolean(user.avatar_url) && !uploadedAvatar(user);
 
+/** Mirrors ``custom_status_text``'s column width on the server. */
+const STATUS_MAX_LENGTH = 100;
+
 interface UserSettingsProfilePageProps {
   user: UserRead;
   refreshUser: () => Promise<void>;
@@ -58,6 +62,10 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   // user can fix a wrong default during their first profile pass
   // without having to discover the notifications tab.
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
+  // What you're up to, in your own words — an emoji, a line, or both. Held as
+  // a draft like the rest of the form, so it saves with everything else.
+  const [statusEmoji, setStatusEmoji] = useState(user.custom_status_emoji ?? null);
+  const [statusText, setStatusText] = useState(user.custom_status_text ?? "");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,6 +73,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     setAvatarUrl(isLinked(user) ? (user.avatar_url ?? "") : "");
     setAvatarMode(isLinked(user) ? "url" : "upload");
     setTimezone(user.timezone ?? "UTC");
+    setStatusEmoji(user.custom_status_emoji ?? null);
+    setStatusText(user.custom_status_text ?? "");
   }, [user]);
 
   const avatarPreview = useMemo(() => {
@@ -194,6 +204,14 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               if (timezone !== (user.timezone ?? "UTC")) {
                 payload.timezone = timezone;
               }
+              if (statusEmoji !== (user.custom_status_emoji ?? null)) {
+                payload.custom_status_emoji = statusEmoji;
+              }
+              if (statusText !== (user.custom_status_text ?? "")) {
+                // An emptied field is the status taken off, which is `null`
+                // rather than an empty line.
+                payload.custom_status_text = statusText || null;
+              }
               updateProfile.mutate(payload as UserSelfUpdate);
             }}
           >
@@ -220,6 +238,28 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 onChange={(event) => setFullName(event.target.value)}
                 placeholder={t("profile.fullNamePlaceholder")}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status-text">{t("profile.statusLabel")}</Label>
+              <div className="flex gap-2">
+                <div className="w-32 shrink-0">
+                  <EmojiPicker
+                    id="status-emoji"
+                    value={statusEmoji}
+                    onChange={setStatusEmoji}
+                    placeholder={t("profile.statusEmojiPlaceholder")}
+                  />
+                </div>
+                <Input
+                  id="status-text"
+                  value={statusText}
+                  onChange={(event) => setStatusText(event.target.value)}
+                  placeholder={t("profile.statusPlaceholder")}
+                  maxLength={STATUS_MAX_LENGTH}
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">{t("profile.statusHelp")}</p>
             </div>
 
             {!user.has_federated_identity ? (

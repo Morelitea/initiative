@@ -76,6 +76,7 @@ export {
 export {
   buildUser,
   buildUserGuildMember,
+  buildUserProfile,
   buildUserPublic,
   buildUserSummary,
   resetCounter as resetUserCounter,

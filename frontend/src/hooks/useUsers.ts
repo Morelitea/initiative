@@ -19,6 +19,7 @@ import {
   getListUsersApiV1GGuildIdUsersGetQueryKey,
   listUsersApiV1GGuildIdUsersGet,
   updateUsersMeApiV1UsersMePatch,
+  useReadMemberProfileApiV1GGuildIdUsersUserIdProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
@@ -78,6 +79,24 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
   search: search?.trim() || undefined,
   user_id: userIds?.length ? userIds.slice(0, USER_ID_LOOKUP_MAX) : undefined,
 });
+
+/**
+ * One member's profile, as the rest of the guild sees them.
+ *
+ * Guild-scoped like the roster it is reached from: the shared guild is what
+ * makes the page exist for the reader, and it is also what decides whether a
+ * real name renders and what "online" is measured against.
+ */
+export const useUserProfile = (userId: number | null | undefined) => {
+  const guildId = useActiveGuildId();
+  return useReadMemberProfileApiV1GGuildIdUsersUserIdProfileGet(guildId, userId as number, {
+    query: {
+      enabled: guildId != null && userId != null,
+      // Presence moves on its own, so a profile left open goes stale fast.
+      staleTime: 30_000,
+    },
+  });
+};
 
 /**
  * Slim, server-side member typeahead for the active guild. Returns

@@ -79,7 +79,11 @@
       "unreadable": "That image could not be read."
     },
     "usernameLabel": "Username",
-    "usernameHelp": "How other people see you. Ask a moderator if you need it changed."
+    "usernameHelp": "How other people see you. Ask a moderator if you need it changed.",
+    "statusLabel": "Status",
+    "statusPlaceholder": "What are you up to?",
+    "statusEmojiPlaceholder": "Emoji",
+    "statusHelp": "Shown on your profile to everyone you share a community with."
   },
   "security": {
     "devicesTitle": "Logged in devices",

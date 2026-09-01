@@ -1,0 +1,26 @@
+{
+  "notFound": {
+    "title": "Hier ist kein Profil",
+    "description": "Entweder hat niemand dieses Profil, oder die Person ist nicht in dieser Community.",
+    "back": "Zurück zur Community"
+  },
+  "noStatus": "Gerade nichts gesetzt.",
+  "presence": {
+    "label": "Präsenz",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "joined": {
+    "label": "Dabei seit"
+  },
+  "decorations": {
+    "aurora": "Aurora",
+    "ember": "Glut",
+    "parchment": "Pergament",
+    "gold": "Vergoldet",
+    "arcane": "Arkan",
+    "founder": "Gründer:in",
+    "storyteller": "Erzähler:in",
+    "trailblazer": "Wegbereiter:in"
+  }
+}

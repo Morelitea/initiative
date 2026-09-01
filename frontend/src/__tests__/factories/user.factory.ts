@@ -1,5 +1,6 @@
 import type {
   UserGuildMember,
+  UserProfile,
   UserPublic,
   UserRead,
   UserRole,
@@ -129,6 +130,27 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
     email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     initiative_roles: [],
+    ...overrides,
+  };
+}
+
+/** A member's profile, as the rest of their guild sees them. Bare by default —
+ *  no status and nothing worn — so a test that asserts on a decoration has to
+ *  have put it there. */
+export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {
+  counter++;
+  return {
+    id: counter,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
+    full_name: `User ${counter}`,
+    avatar_url: null,
+    status: "active",
+    custom_status_emoji: null,
+    custom_status_text: null,
+    profile_decorations: { banner: null, frame: null, badges: [] },
+    online: false,
+    joined_at: "2026-01-15T00:00:00.000Z",
     ...overrides,
   };
 }

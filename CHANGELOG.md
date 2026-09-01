@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
 
+- **People have a profile page now.** Open someone from the member list or from a search result and you get their picture, their handle, whether they have Initiative open right now, and when they joined. A profile is public and the same page whoever opens it — it belongs to the person rather than to any one community.
+
+- **Set a status.** An emoji, a line about what you are up to, or both, under Settings › Profile — using the same picker the rest of the app uses. It shows on your profile.
+
+- **Dress your profile up.** A profile can wear a banner, a frame around the picture and a row of up to six badges, each picked from what you have: your library starts with the set that ships with Initiative, and marketplace packs will add to it. There is a picker per slot on Settings › Profile, so you can mix pieces from different packs freely. Decorations are chosen, never uploaded, so wearing one costs your community none of its storage.
+
 ### Changed
 
 - **"Browse the marketplace" is out of the overflow menu.** Adding a ready-made dashboard is the same kind of answer as making one from scratch, but only one of the two was on the page — the other sat behind the "…" button, where someone who has never opened it never learns the shelf exists. It now sits next to the create button on the dashboards list, at every width, and beside "Create your first dashboard" in an initiative that has none yet.

@@ -3677,6 +3677,48 @@ export interface PlatformRoleUpdate {
   role: UserRole;
 }
 
+/**
+ * How a profile is dressed: a banner, a frame, badges beside the name.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance and no user-supplied image is ever
+ * rendered as somebody's frame. An id this deployment's catalog doesn't know
+ * simply renders nothing, which is what lets a profile keep wearing something
+ * the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsInput {
+  banner?: string | null;
+  frame?: string | null;
+  /** @maxItems 6 */
+  badges?: string[];
+}
+
+/**
+ * How a profile is dressed: a banner, a frame, badges beside the name.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance and no user-supplied image is ever
+ * rendered as somebody's frame. An id this deployment's catalog doesn't know
+ * simply renders nothing, which is what lets a profile keep wearing something
+ * the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsOutput {
+  banner: string | null;
+  frame: string | null;
+  /** @maxItems 6 */
+  badges: string[];
+}
+
 export interface ProjectActivityEntry {
   comment_id: number;
   content: string;
@@ -4943,6 +4985,32 @@ export interface UserGuildMember {
   initiative_roles: UserInitiativeRole[];
 }
 
+/**
+ * A person, as the rest of their guild sees them.
+ *
+ * Everything on :class:`UserPublic` — the face and the handle a member is
+ * already rendered by everywhere else — plus what a profile adds: the line
+ * they wrote about themselves, how they have dressed the page, whether they
+ * have the app open, and when they joined this guild.
+ *
+ * Guild-scoped on purpose, because two of those answers are: a real name
+ * shows only where the guild shows names, and "here" means here rather than
+ * on the platform somewhere.
+ */
+export interface UserProfile {
+  id: number;
+  username: string;
+  discriminator: number;
+  full_name: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+  custom_status_emoji: string | null;
+  custom_status_text: string | null;
+  profile_decorations: ProfileDecorationsOutput;
+  online: boolean;
+  joined_at: string;
+}
+
 export interface UserRead {
   email: string;
   full_name: string | null;
@@ -4956,6 +5024,9 @@ export interface UserRead {
   created_at: string;
   updated_at: string;
   avatar_url: string | null;
+  custom_status_emoji: string | null;
+  custom_status_text: string | null;
+  profile_decorations: ProfileDecorationsOutput;
   week_starts_on: number;
   recent_tabs_limit: number;
   timezone: string;
@@ -5001,6 +5072,9 @@ export interface UserSelfUpdate {
   password?: string | null;
   current_password?: string | null;
   avatar_url?: string | null;
+  custom_status_emoji?: string | null;
+  custom_status_text?: string | null;
+  profile_decorations?: ProfileDecorationsInput | null;
   week_starts_on?: number | null;
   recent_tabs_limit?: number | null;
   timezone?: string | null;

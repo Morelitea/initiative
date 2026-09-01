@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Copy, Download, HandCoins, RefreshCcw, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -217,10 +218,18 @@ export const SettingsUsersPage = () => {
     {
       accessorKey: "username",
       header: t("users.handleColumn"),
+      // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (
-        <p className="text-sm">
+        <Link
+          to="/c/$guildId/u/$userId"
+          params={{
+            guildId: String(activeGuildId),
+            userId: String(row.original.id),
+          }}
+          className="text-sm hover:underline"
+        >
           <UserHandle user={row.original} />
-        </p>
+        </Link>
       ),
     },
     ...(showsNames
