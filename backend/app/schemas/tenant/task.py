@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -132,6 +132,7 @@ class TaskBase(SanitizedBaseModel):
 
 
 class TaskCreate(TaskBase):
+    title: TitleStr
     project_id: int
     assignee_ids: List[int] = Field(default_factory=list)
     task_status_id: Optional[int] = None
@@ -140,7 +141,7 @@ class TaskCreate(TaskBase):
 
 
 class TaskUpdate(SanitizedBaseModel):
-    title: Optional[str] = None
+    title: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
@@ -38,6 +38,7 @@ class DashboardBase(SanitizedBaseModel):
 
 
 class DashboardCreate(DashboardBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None
     # Install from the marketplace instead of authoring: name a catalog listing
@@ -76,7 +77,7 @@ class DashboardInstalledListings(SanitizedBaseModel):
 
 
 class DashboardUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)
     # Absent = unchanged. Sending either re-runs validation over the pair, so
     # config can never outlive the widgets it configures.

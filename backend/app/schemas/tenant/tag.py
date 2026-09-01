@@ -5,7 +5,7 @@ from typing import List, Optional
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.tools import TAG_TARGETS
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 
 
 class TagBase(SanitizedBaseModel):
@@ -21,11 +21,11 @@ class TagBase(SanitizedBaseModel):
 
 
 class TagCreate(TagBase):
-    pass
+    name: TitleStr = Field(..., min_length=1, max_length=100)
 
 
 class TagUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=100)
     color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
 
     @field_validator("name")

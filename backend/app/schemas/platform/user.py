@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, computed_field, model_validator
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.capabilities import Capability, capabilities_for
 from app.core.role_context import guild_shows_member_names
@@ -71,7 +71,7 @@ class UserCreate(SanitizedBaseModel):
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
-    full_name: Optional[str] = None
+    full_name: Optional[TitleStr] = None
     # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
@@ -252,7 +252,7 @@ class UserInitiativeRole(SanitizedBaseModel):
 
 
 class UserSelfUpdate(SanitizedBaseModel):
-    full_name: Optional[str] = None
+    full_name: Optional[TitleStr] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.
