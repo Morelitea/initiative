@@ -1271,3 +1271,61 @@ class TestReactionBellRollup:
         assert not _matches_withdrawn(
             known, reaction_id=98, reactor_id=7, emoji="\N{THUMBS UP SIGN}"
         )
+
+
+@pytest.mark.integration
+async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
+    session: AsyncSession,
+):
+    """Roster membership is answered off the detail, so it can only be answered
+    while the detail is complete. Past the cap, the absence of a reactor from
+    what the line still remembers is not proof they have left it."""
+    from app.models.platform.notification import NotificationType
+    from app.services.notifications import (
+        MAX_ROLLED_UP_REACTIONS,
+        withdraw_reaction_event,
+    )
+    from app.services.platform import user_notifications
+
+    author = await create_user(session, email="rollup-rolled-off@example.com")
+    bob = 2
+    # 25 gestures counted, only the newest 20 remembered: bob's first has
+    # rolled off the detail, his second is the newest entry.
+    kept = [
+        {"id": 100 + i, "emoji": "\N{PARTY POPPER}", "reactor_id": 10 + i}
+        for i in range(MAX_ROLLED_UP_REACTIONS - 1)
+    ] + [{"id": 999, "emoji": "\N{THUMBS UP SIGN}", "reactor_id": bob}]
+    roster = [bob] + [10 + i for i in range(24)]
+    line = await user_notifications.create_notification(
+        session,
+        user_id=author.id,
+        notification_type=NotificationType.comment_reaction,
+        data={
+            "guild_id": 1,
+            "target_type": "comment",
+            "target_id": 5,
+            "count": 25,
+            "reactor_count": len(roster),
+            "reactor_ids": roster,
+            "reactions": kept,
+        },
+    )
+    await session.flush()
+
+    await withdraw_reaction_event(
+        session,
+        author_id=author.id,
+        reaction_id=999,
+        reactor_id=bob,
+        emoji="\N{THUMBS UP SIGN}",
+        target_type="comment",
+        target_id=5,
+        guild_id=1,
+    )
+
+    assert line.data["count"] == 24
+    # Bob keeps his place: the gesture that proves he is still here rolled off
+    # the detail long ago, and the line must not read his absence from it as
+    # him leaving.
+    assert bob in line.data["reactor_ids"]
+    assert line.data["reactor_count"] == 25
