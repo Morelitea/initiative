@@ -6,8 +6,19 @@
   },
   "presence": {
     "label": "Présence",
+    "edit": "Comment vous apparaissez",
+    "change": "Présence : {{state}}. Changer comment vous apparaissez.",
+    "failed": "Impossible d'enregistrer.",
     "online": "En ligne",
-    "offline": "Hors ligne"
+    "idle": "Inactif",
+    "busy": "Occupé",
+    "offline": "Hors ligne",
+    "help": {
+      "online": "Affiché tant que vous avez Initiative ouvert.",
+      "idle": "Se met tout seul quand rien n'a bougé depuis un moment — ou choisissez-le pour dire que vous vous êtes éclipsé.",
+      "busy": "Vous êtes là et préférez ne pas être dérangé.",
+      "offline": "Personne ne vous voit présent, même avec un onglet ouvert."
+    }
   },
   "joined": {
     "label": "A rejoint"

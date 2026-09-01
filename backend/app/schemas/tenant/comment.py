@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field, computed_field, field_validator, model_v
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
+from app.models.platform.user import Presence
 from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
 from app.services.platform import presence
 
@@ -19,7 +20,7 @@ class CommentAuthor(GuildNameVisibility):
     names.
 
     It carries what a picture needs to be drawn the way it is drawn everywhere
-    else — the decorations and whether they are around — because a comment is
+    else — the decorations and how they are appearing — because a comment is
     one of the places a person appears at a size where both are legible.
     Neither is private: the same two are on the public profile.
     """
@@ -33,17 +34,18 @@ class CommentAuthor(GuildNameVisibility):
     avatar_url: Optional[str] = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 
-    @computed_field(return_type=bool)  # type: ignore[misc]
+    @computed_field(return_type=Presence)  # type: ignore[misc]
     @property
-    def online(self) -> bool:
-        """Whether they have Initiative open, at the moment this was serialized.
+    def presence(self) -> Presence:
+        """How they appear, at the moment this was serialized.
 
         Computed rather than stamped by each endpoint: a comment author is
-        built in nine places, and presence is not a column anything could
-        select. It is a process-local fact, so it is read where the shape is
-        made rather than passed down to it.
+        built in nine places, and what a reader is shown is not a column
+        anything could select — it is what the account picked narrowed by which
+        sockets are open. So it is read where the shape is made rather than
+        passed down to it.
         """
-        return presence.online.is_online(self.id)
+        return presence.online.presence_of(self.id)
 
 
 class CommentBase(SanitizedBaseModel):

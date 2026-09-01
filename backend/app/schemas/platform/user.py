@@ -21,7 +21,7 @@ from app.core.profile_decorations import (
     validate_decoration_id,
 )
 from app.core.role_context import guild_shows_member_names
-from app.models.platform.user import UserRole, UserStatus
+from app.models.platform.user import Presence, UserRole, UserStatus
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
@@ -342,7 +342,7 @@ class UserProfile(SanitizedBaseModel):
 
     A profile is public. It carries the handle — which is the name in this
     product, unique and never withheld — the face, the line they wrote, the
-    look they picked, whether they are online, and when they joined. It never
+    look they picked, how they appear right now, and when they joined. It never
     carries a real name: ``full_name`` is a guild's business (a guild decides
     whether it renders names at all), and this shape has no guild in it.
 
@@ -362,9 +362,10 @@ class UserProfile(SanitizedBaseModel):
     status: UserStatus = UserStatus.active
     custom_status: CustomStatus = Field(default_factory=CustomStatus)
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
-    #: Whether this person has Initiative open right now — the account, not a
-    #: guild. Set by the endpoint from ``realtime.manager.online``.
-    online: bool = False
+    #: How this person appears right now — the account, not a guild. What they
+    #: picked, narrowed by whether they have anything open; set by the endpoint
+    #: from the one roll that decides it.
+    presence: Presence = Presence.offline
     #: When the account was made.
     joined_at: datetime
 
@@ -386,6 +387,9 @@ class UserRead(UserBase):
     updated_at: datetime
     avatar_url: Optional[str] = None
     custom_status: CustomStatus = Field(default_factory=CustomStatus)
+    #: What this account picked, not what a reader would be shown: on your own
+    #: record this is the setting itself, and the control that writes it.
+    presence: Presence = Presence.online
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
@@ -468,6 +472,7 @@ class UserSelfUpdate(SanitizedBaseModel):
     avatar_url: Optional[str] = None
     # Sending ``null`` takes the status off; leaving it out leaves it alone.
     custom_status: Optional[CustomStatus] = None
+    presence: Optional[Presence] = None
     # The whole set at once rather than one key at a time: a profile wears a
     # look, and a partial write would have no way to say "take the frame off".
     profile_decorations: Optional[ProfileDecorations] = None

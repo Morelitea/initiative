@@ -6,8 +6,19 @@
   },
   "presence": {
     "label": "Presencia",
+    "edit": "Cómo apareces",
+    "change": "Presencia: {{state}}. Cambia cómo apareces.",
+    "failed": "No se pudo guardar.",
     "online": "En línea",
-    "offline": "Desconectado"
+    "idle": "Inactivo",
+    "busy": "Ocupado",
+    "offline": "Desconectado",
+    "help": {
+      "online": "Se muestra mientras tengas Initiative abierto.",
+      "idle": "Se pone solo cuando llevas un rato sin tocar nada, o elígelo para decir que te has apartado.",
+      "busy": "Estás por aquí y prefieres que no te interrumpan.",
+      "offline": "Nadie te ve presente, aunque tengas una pestaña abierta."
+    }
   },
   "joined": {
     "label": "Se unió"

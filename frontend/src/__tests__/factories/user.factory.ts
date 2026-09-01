@@ -150,7 +150,7 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
     status: "active",
     custom_status: { emoji: null, text: null },
     profile_decorations: { banner: null, frame: null, badges: [] },
-    online: false,
+    presence: "offline",
     joined_at: "2026-01-15T00:00:00.000Z",
     ...overrides,
   };

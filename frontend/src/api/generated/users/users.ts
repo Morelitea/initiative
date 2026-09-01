@@ -765,8 +765,8 @@ export const useRemoveDecorationPackApiV1UsersMeDecorationPacksUidDelete = <
  * fixed width, so the two come apart again exactly.
  *
  * A profile is public and has no guild in it: it carries the handle, the
- * face, the status, the look and whether they are online, and it is the same
- * page whoever opens it. That is why it is not reached through a guild — no
+ * face, the status, the look and how they appear, and it is the same page
+ * whoever opens it. That is why it is not reached through a guild — no
  * part of the answer depends on one.
  *
  * Read from ``public.user_profiles``, the view that *is* the public

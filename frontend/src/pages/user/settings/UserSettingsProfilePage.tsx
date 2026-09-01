@@ -25,10 +25,10 @@ interface UserSettingsProfilePageProps {
  * Your profile: the face other people see, and everything that makes it.
  *
  * The card at the top is that face, kept live against the pickers below it —
- * and it is the controls too. Your picture and your status are both set by
- * clicking them on the card, because that is where you are looking when you
- * decide to change them, and a form further down would be a second place to
- * keep in agreement with the first.
+ * and it is the controls too. Your picture, your status and the dot saying how
+ * you appear are all set by clicking them on the card, because that is where
+ * you are looking when you decide to change them, and a form further down
+ * would be a second place to keep in agreement with the first.
  *
  * Your packs sit under your look rather than over it: what you are wearing is
  * why you came, and what you own is where you go to change it.
@@ -76,6 +76,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
         user={user}
         decorations={{ banner, frame, badges }}
         status={user.custom_status}
+        presence={user.presence}
         joinedAt={user.created_at}
         onChanged={refreshUser}
       />

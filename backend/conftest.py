@@ -464,6 +464,23 @@ def _reset_app_registration_cache():
 
 
 @pytest.fixture(autouse=True)
+def _reset_presence_roll():
+    """Start and end every test with nobody online.
+
+    How a person appears is answered from a process-global roll fed by the
+    sockets this process holds (see ``app.services.platform.presence``). Test
+    databases RESTART IDENTITY per test, so user ids repeat — and a test that
+    leaves a socket registered would hand its user id to whoever gets that id
+    next, which reads as a stranger being online.
+    """
+    from app.services.platform import presence
+
+    presence.online = presence.OnlineRoll()
+    yield
+    presence.online = presence.OnlineRoll()
+
+
+@pytest.fixture(autouse=True)
 def _disable_hibp_check(monkeypatch):
     """Disable the HaveIBeenPwned breach lookup for all tests by default.
 

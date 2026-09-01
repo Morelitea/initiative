@@ -3,6 +3,7 @@ import { type ChangeEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  Presence,
   ProfileDecorationsOutput,
   UserSelfUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -33,7 +34,9 @@ const linked = (url: string | null | undefined): boolean => Boolean(url) && !upl
 interface ProfilePictureProps {
   user: DisplayableUser & AvatarSourceUser;
   decorations: ProfileDecorationsOutput;
-  online?: boolean;
+  presence?: Presence;
+  /** Leave the corner empty for a caller putting its own control there. */
+  hidePresence?: boolean;
   className?: string;
   /** Whether this is your own picture, and clicking it opens the editor. */
   editable?: boolean;
@@ -52,7 +55,8 @@ interface ProfilePictureProps {
 export const ProfilePicture = ({
   user,
   decorations,
-  online,
+  presence,
+  hidePresence,
   className,
   editable = false,
   onChanged,
@@ -113,7 +117,8 @@ export const ProfilePicture = ({
     <ProfileAvatar
       user={user}
       decorations={decorations}
-      online={online}
+      presence={presence}
+      hidePresence={hidePresence}
       ring
       className={className}
     />

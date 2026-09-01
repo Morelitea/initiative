@@ -1,5 +1,6 @@
-import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
+import type { Presence, ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { PresenceDot } from "@/components/user/PresenceDot";
 import { FRAME_INSET, FRAME_SIZE, resolveDecoration } from "@/lib/profileDecorations";
 import {
   type AvatarSourceUser,
@@ -13,8 +14,13 @@ import { cn } from "@/lib/utils";
 interface ProfileAvatarProps {
   user: (DisplayableUser & AvatarSourceUser) | null | undefined;
   decorations?: ProfileDecorationsOutput | null;
-  /** Show the "has the app open" dot. Left off where presence isn't known. */
-  online?: boolean;
+  /**
+   * How they are appearing. Left off where presence isn't known, and `offline`
+   * draws nothing: absence is what an empty corner already says.
+   */
+  presence?: Presence;
+  /** Suppress the dot so a caller can put its own control in that corner. */
+  hidePresence?: boolean;
   /**
    * Separate the picture from artwork behind it with a ring in the card's own
    * colour — for an avatar that overlaps a banner. Ignored when a frame is
@@ -32,13 +38,14 @@ interface ProfileAvatarProps {
  * The frame is artwork with a hole in it and the picture fills the hole. Every
  * frame is drawn to the same aperture, so one inset seats all of them and a
  * frame published later needs no code here. It carries no information, so it is
- * hidden from assistive technology; the presence dot is not, and says so in
- * words wherever it appears.
+ * hidden from assistive technology; the presence dot is not, and says which
+ * state it means in words rather than in colour alone.
  */
 export const ProfileAvatar = ({
   user,
   decorations,
-  online,
+  presence,
+  hidePresence,
   ring,
   className,
 }: ProfileAvatarProps) => {
@@ -65,8 +72,12 @@ export const ProfileAvatar = ({
           style={{ width: FRAME_SIZE, height: FRAME_SIZE, left: FRAME_INSET, top: FRAME_INSET }}
         />
       ) : null}
-      {online ? (
-        <span className="absolute right-0 bottom-0 block size-1/4 rounded-full bg-emerald-500 ring-2 ring-background" />
+      {presence && presence !== "offline" && !hidePresence ? (
+        <PresenceDot
+          presence={presence}
+          labelled
+          className="absolute right-0 bottom-0 size-1/4 ring-2 ring-background"
+        />
       ) : null}
     </div>
   );

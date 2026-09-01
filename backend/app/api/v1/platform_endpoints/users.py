@@ -53,7 +53,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import Presence, User, UserStatus
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.guild import (
@@ -417,8 +417,8 @@ async def read_user_profile(
     fixed width, so the two come apart again exactly.
 
     A profile is public and has no guild in it: it carries the handle, the
-    face, the status, the look and whether they are online, and it is the same
-    page whoever opens it. That is why it is not reached through a guild — no
+    face, the status, the look and how they appear, and it is the same page
+    whoever opens it. That is why it is not reached through a guild — no
     part of the answer depends on one.
 
     Read from ``public.user_profiles``, the view that *is* the public
@@ -463,7 +463,7 @@ async def read_user_profile(
         status=row.status,
         custom_status=row.custom_status or {},
         profile_decorations=row.profile_decorations or {},
-        online=presence.online.is_online(row.id),
+        presence=presence.online.presence_of(row.id),
         joined_at=row.created_at,
     )
 
@@ -897,6 +897,10 @@ async def update_users_me(
         # Already held to shape by ``CustomStatus``; ``None`` is the status
         # taken off, which is the empty object rather than a null column.
         current_user.custom_status = update_data["custom_status"] or {}
+    if "presence" in update_data:
+        # The column is the standing preference. The roll is told separately
+        # below, once the write is safely down.
+        current_user.presence = Presence(update_data["presence"])
     if "profile_decorations" in update_data:
         # The payload validated it into ``ProfileDecorations``, so what lands
         # in the column is a known set of keys holding catalog ids and nothing
@@ -929,6 +933,11 @@ async def update_users_me(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
+    if "presence" in update_data:
+        # A change made from an open tab takes effect for readers immediately,
+        # rather than at the next reconnect. Told after the commit, so nothing
+        # is shown on the strength of a write that did not land.
+        presence.online.chose(current_user.id, current_user.presence)
     # Platform path — no initiative_roles enrichment (see read_users_me).
     # The SPA replaces its auth state with this response, so carry the same
     # linked-identity signal /users/me serves.

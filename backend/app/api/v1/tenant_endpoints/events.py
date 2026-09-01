@@ -136,7 +136,13 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
     # non-member. (A member of no initiative joins nothing — correct: they have
     # no content to be notified about. The user is still present in the guild,
     # which the manager tracks separately from the rooms.)
-    await manager.connect(guild_id, initiative_ids, websocket, user_id=user.id)
+    await manager.connect(
+        guild_id,
+        initiative_ids,
+        websocket,
+        user_id=user.id,
+        chosen_presence=user.presence,
+    )
     logger.info(
         f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"
     )

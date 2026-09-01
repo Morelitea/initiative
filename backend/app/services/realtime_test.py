@@ -25,6 +25,7 @@ from app.api.deps import establish_guild_access
 from app.api.v1.tenant_endpoints.events import _accessible_initiative_ids
 from app.models.platform.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
 from app.models.platform.guild import GuildRole
+from app.models.platform.user import Presence
 from app.services import realtime
 from app.services.realtime import ConnectionManager, broadcast_event, manager
 from app.testing import (
@@ -120,6 +121,22 @@ async def test_presence_includes_a_member_of_no_initiative() -> None:
 
     await cm.disconnect(socket)
     assert cm.present_count(1) == 0
+
+
+@pytest.mark.unit
+async def test_the_guild_count_is_open_tabs_not_dots() -> None:
+    """How a person chooses to appear is about the person; this figure is about
+    the guild, so someone appearing offline still has it open."""
+    cm = ConnectionManager()
+    hidden, seen = FakeWebSocket(), FakeWebSocket()
+    await cm.connect(1, [5], hidden, user_id=7, chosen_presence=Presence.offline)
+    await cm.connect(1, [5], seen, user_id=8)
+
+    try:
+        assert cm.present_count(1) == 2
+    finally:
+        await cm.disconnect(hidden)
+        await cm.disconnect(seen)
 
 
 # ---------------------------------------------------------------------------

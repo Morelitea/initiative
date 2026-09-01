@@ -6,8 +6,19 @@
   },
   "presence": {
     "label": "Presence",
+    "edit": "How you appear",
+    "change": "Presence: {{state}}. Change how you appear.",
+    "failed": "That could not be saved.",
     "online": "Online",
-    "offline": "Offline"
+    "idle": "Idle",
+    "busy": "Busy",
+    "offline": "Offline",
+    "help": {
+      "online": "Shown while you have Initiative open.",
+      "idle": "Set on its own once nothing's been touched for a while — or pick it to say you've stepped away.",
+      "busy": "You're around, and would rather not be interrupted.",
+      "offline": "Nobody sees you as here, even with a tab open."
+    }
   },
   "joined": {
     "label": "Joined"

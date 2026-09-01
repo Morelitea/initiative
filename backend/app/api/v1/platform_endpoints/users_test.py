@@ -19,7 +19,7 @@ from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import Presence, User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
@@ -1196,7 +1196,7 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
         "frame": None,
         "badges": ["core.fan"],
     }
-    assert body["online"] is False
+    assert body["presence"] == "offline"
     assert body["joined_at"]
 
 
@@ -1227,7 +1227,7 @@ async def test_profile_never_carries_a_real_name(
         "status",
         "custom_status",
         "profile_decorations",
-        "online",
+        "presence",
         "joined_at",
     }
 
@@ -1273,8 +1273,8 @@ async def test_profile_hides_a_suspended_account(
 async def test_profile_says_when_someone_is_online(
     client: AsyncClient, session: AsyncSession
 ):
-    """Online is a fact about the person, not about a guild — a reader who
-    shares no guild with them still sees it."""
+    """How someone appears is a fact about the person, not about a guild — a
+    reader who shares no guild with them still sees it."""
     guild = await create_guild(session)
     caller = await create_user(session)
     subject = await create_user(session)
@@ -1291,13 +1291,13 @@ async def test_profile_says_when_someone_is_online(
         await realtime_manager.disconnect(socket)  # type: ignore[arg-type]
 
     assert response.status_code == 200
-    assert response.json()["online"] is True
+    assert response.json()["presence"] == "online"
 
     after = await client.get(
         f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
         headers=get_auth_headers(caller),
     )
-    assert after.json()["online"] is False
+    assert after.json()["presence"] == "offline"
 
 
 @pytest.mark.integration
@@ -1322,13 +1322,13 @@ async def test_profile_says_online_with_no_guild_open(
         await notification_stream.stream.disconnect(socket)
 
     assert response.status_code == 200
-    assert response.json()["online"] is True
+    assert response.json()["presence"] == "online"
 
     after = await client.get(
         f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
         headers=get_auth_headers(caller),
     )
-    assert after.json()["online"] is False
+    assert after.json()["presence"] == "offline"
 
 
 @pytest.mark.integration
@@ -1354,7 +1354,133 @@ async def test_profile_stays_online_while_any_socket_is_open(
     finally:
         await notification_stream.stream.disconnect(bell)
 
-    assert response.json()["online"] is True
+    assert response.json()["presence"] == "online"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("chosen", ["idle", "busy"])
+async def test_profile_shows_what_someone_picked(
+    client: AsyncClient, session: AsyncSession, chosen: str
+):
+    """Each is shown as itself, not flattened to online."""
+    caller = await create_user(session)
+    subject = await create_user(session)
+
+    socket = object()
+    await notification_stream.stream.connect(
+        subject.id, socket, chosen_presence=Presence(chosen)
+    )
+    try:
+        response = await client.get(
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await notification_stream.stream.disconnect(socket)
+
+    assert response.json()["presence"] == chosen
+
+
+@pytest.mark.integration
+async def test_profile_shows_offline_for_someone_who_picked_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """Appearing offline holds with a tab open — that is the whole point of it."""
+    caller = await create_user(session)
+    subject = await create_user(session)
+
+    socket = object()
+    await notification_stream.stream.connect(
+        subject.id, socket, chosen_presence=Presence.offline
+    )
+    try:
+        response = await client.get(
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await notification_stream.stream.disconnect(socket)
+
+    assert response.json()["presence"] == "offline"
+
+
+@pytest.mark.integration
+async def test_presence_change_reaches_readers_without_a_reconnect(
+    client: AsyncClient, session: AsyncSession
+):
+    """The socket carried the old choice; setting a new one is followed live."""
+    caller = await create_user(session)
+    subject = await create_user(session)
+    profile_url = (
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile"
+    )
+
+    socket = object()
+    await notification_stream.stream.connect(subject.id, socket)
+    try:
+        assert (await client.get(profile_url, headers=get_auth_headers(caller))).json()[
+            "presence"
+        ] == "online"
+
+        saved = await client.patch(
+            "/api/v1/users/me",
+            headers=get_auth_headers(subject),
+            json={"presence": "offline"},
+        )
+        assert saved.status_code == 200
+        assert saved.json()["presence"] == "offline"
+
+        assert (await client.get(profile_url, headers=get_auth_headers(caller))).json()[
+            "presence"
+        ] == "offline"
+    finally:
+        await notification_stream.stream.disconnect(socket)
+
+
+@pytest.mark.integration
+async def test_presence_outlives_the_socket_that_set_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """The choice is a column, so a new tab appears the way the last one did."""
+    caller = await create_user(session)
+    subject = await create_user(session)
+
+    saved = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(subject),
+        json={"presence": "busy"},
+    )
+    assert saved.status_code == 200
+
+    await session.refresh(subject)
+    socket = object()
+    await notification_stream.stream.connect(
+        subject.id, socket, chosen_presence=subject.presence
+    )
+    try:
+        response = await client.get(
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await notification_stream.stream.disconnect(socket)
+
+    assert response.json()["presence"] == "busy"
+
+
+@pytest.mark.integration
+async def test_presence_rejects_a_value_that_is_not_one(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"presence": "invisible"},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.integration
