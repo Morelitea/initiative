@@ -44,7 +44,42 @@ The text editor has the tools you'd expect:
 
 Everything **autosaves** as you type, so there's no "save" button to remember.
 
+A few keys do more than they look:
+
+- `@` mentions a person, and `#` links to anything in the initiative — see [Mentions & links](mentions-and-links.md).
+- `[[` links to another document, and offers to create one if the name is new.
+- `/` opens the insert menu — images, tables, embeds, and [badges](#badges).
+
 ![The document editor](../images/documents/editor.png)
+
+## Badges
+
+A link tells you something exists. A **badge** tells you what it's doing right now.
+
+Type `/` in a text document and pick one:
+
+| Badge | Shows |
+|---|---|
+| Task status | The column the task sits in, in that project's colour |
+| Task assignee | Who's holding it |
+| Task due date | When it's due — in red once that's passed, unless the work is finished |
+| Task priority | How urgent it was marked |
+| Counter value | The current number, against its target where it has one |
+| Event date | When it happens, dimmed once it has |
+
+Then choose which thing the badge is about, and the chip appears in your sentence:
+
+> Ship the release — **In progress** · **12 Sep**
+
+Move that task to Done and the chip turns green — here, and in every other document that mentions it, without anyone editing a word. Click a badge to open what it's about.
+
+Badges are for text documents. A whiteboard and a spreadsheet hold shapes and cells rather than sentences, so there's nowhere for a chip to sit.
+
+!!! note "What other people see"
+    A badge shows what *you* can see. If a document mentions a task in a project that hasn't been shared with you, the chip shows the name it had when it was written and nothing about its state.
+
+!!! tip "Exports show the words, not the chip"
+    A badge can't keep itself current inside a PDF or a Word file, so an export shows the name the thing had when the badge was written.
 
 ## Working in a spreadsheet
 
@@ -81,12 +116,9 @@ Documents are built for collaboration:
 
 Open a document's **Comments** to discuss it without changing the content. You can reply to build a thread, and edit or delete your own comments. The thread sits at the full width of the page, underneath the document — the same place it sits on every other kind of page.
 
-To pull someone (or something) into the conversation, **mention** it by typing `@`:
+To pull someone into the conversation, type `@` and pick them — they'll get a notification. To point at something rather than someone, type `#` and pick any project, task, document, queue, counter, calendar event or dashboard in the initiative.
 
-- `@name` — notify a person.
-- `@task`, `@doc`, `@project` — link directly to a task, document, or project.
-
-Mentioned people get a notification, so it's the right way to say "hey, take a look at this."
+See [Mentions & links](mentions-and-links.md).
 
 ### Reactions
 
@@ -128,4 +160,5 @@ Made a document layout you'll reuse — a meeting-notes format, a project brief?
 
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — control who sees each document.
 - [Tags](tags.md) — organize documents with labels.
+- [Mentions & links](mentions-and-links.md) — refer to people and other work.
 - [Your space](your-space.md) — find all the documents that are yours.

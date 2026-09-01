@@ -24,6 +24,7 @@ import { Route as ServerRequiredAuthenticatedCommunitiesRouteImport } from './ro
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
+import { Route as ServerRequiredAuthenticatedMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/marketplace'
 import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
 import { Route as ServerRequiredAuthenticatedMyDocumentsRouteImport } from './routes/_serverRequired/_authenticated/my-documents'
 import { Route as ServerRequiredAuthenticatedMyProjectsRouteImport } from './routes/_serverRequired/_authenticated/my-projects'
@@ -39,6 +40,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdRouteImport } from './route
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
 import { Route as ServerRequiredAuthenticatedProfileAiRouteImport } from './routes/_serverRequired/_authenticated/profile/ai'
 import { Route as ServerRequiredAuthenticatedProfileDangerRouteImport } from './routes/_serverRequired/_authenticated/profile/danger'
+import { Route as ServerRequiredAuthenticatedProfileDecorationsRouteImport } from './routes/_serverRequired/_authenticated/profile/decorations'
 import { Route as ServerRequiredAuthenticatedProfileImportRouteImport } from './routes/_serverRequired/_authenticated/profile/import'
 import { Route as ServerRequiredAuthenticatedProfileInterfaceRouteImport } from './routes/_serverRequired/_authenticated/profile/interface'
 import { Route as ServerRequiredAuthenticatedProfileNotificationsRouteImport } from './routes/_serverRequired/_authenticated/profile/notifications'
@@ -224,6 +226,12 @@ const ServerRequiredAuthenticatedInitiativesRoute =
     path: '/initiatives',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
+const ServerRequiredAuthenticatedMarketplaceRoute =
+  ServerRequiredAuthenticatedMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
 const ServerRequiredAuthenticatedMyCalendarRoute =
   ServerRequiredAuthenticatedMyCalendarRouteImport.update({
     id: '/my-calendar',
@@ -312,6 +320,12 @@ const ServerRequiredAuthenticatedProfileDangerRoute =
   ServerRequiredAuthenticatedProfileDangerRouteImport.update({
     id: '/danger',
     path: '/danger',
+    getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
+  } as any)
+const ServerRequiredAuthenticatedProfileDecorationsRoute =
+  ServerRequiredAuthenticatedProfileDecorationsRouteImport.update({
+    id: '/decorations',
+    path: '/decorations',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileImportRoute =
@@ -1105,6 +1119,7 @@ export interface FileRoutesByFullPath {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -1119,6 +1134,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
+  '/profile/decorations': typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -1237,6 +1253,7 @@ export interface FileRoutesByTo {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -1249,6 +1266,7 @@ export interface FileRoutesByTo {
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
+  '/profile/decorations': typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -1357,6 +1375,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/_serverRequired/_authenticated/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/_serverRequired/_authenticated/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/_serverRequired/_authenticated/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -1372,6 +1391,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/_serverRequired/_authenticated/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
+  '/_serverRequired/_authenticated/profile/decorations': typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   '/_serverRequired/_authenticated/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/_serverRequired/_authenticated/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/_serverRequired/_authenticated/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -1492,6 +1512,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/marketplace'
     | '/my-calendar'
     | '/my-documents'
     | '/my-projects'
@@ -1506,6 +1527,7 @@ export interface FileRouteTypes {
     | '/c/$guildId'
     | '/profile/ai'
     | '/profile/danger'
+    | '/profile/decorations'
     | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
@@ -1624,6 +1646,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/marketplace'
     | '/my-calendar'
     | '/my-documents'
     | '/my-projects'
@@ -1636,6 +1659,7 @@ export interface FileRouteTypes {
     | '/oidc/callback'
     | '/profile/ai'
     | '/profile/danger'
+    | '/profile/decorations'
     | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
@@ -1743,6 +1767,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
+    | '/_serverRequired/_authenticated/marketplace'
     | '/_serverRequired/_authenticated/my-calendar'
     | '/_serverRequired/_authenticated/my-documents'
     | '/_serverRequired/_authenticated/my-projects'
@@ -1758,6 +1783,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId'
     | '/_serverRequired/_authenticated/profile/ai'
     | '/_serverRequired/_authenticated/profile/danger'
+    | '/_serverRequired/_authenticated/profile/decorations'
     | '/_serverRequired/_authenticated/profile/import'
     | '/_serverRequired/_authenticated/profile/interface'
     | '/_serverRequired/_authenticated/profile/notifications'
@@ -1976,6 +2002,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedInitiativesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
+    '/_serverRequired/_authenticated/marketplace': {
+      id: '/_serverRequired/_authenticated/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMarketplaceRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
     '/_serverRequired/_authenticated/my-calendar': {
       id: '/_serverRequired/_authenticated/my-calendar'
       path: '/my-calendar'
@@ -2079,6 +2112,13 @@ declare module '@tanstack/react-router' {
       path: '/danger'
       fullPath: '/profile/danger'
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileDangerRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
+    }
+    '/_serverRequired/_authenticated/profile/decorations': {
+      id: '/_serverRequired/_authenticated/profile/decorations'
+      path: '/decorations'
+      fullPath: '/profile/decorations'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedProfileDecorationsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
     }
     '/_serverRequired/_authenticated/profile/import': {
@@ -2801,6 +2841,7 @@ declare module '@tanstack/react-router' {
 interface ServerRequiredAuthenticatedProfileRouteChildren {
   ServerRequiredAuthenticatedProfileAiRoute: typeof ServerRequiredAuthenticatedProfileAiRoute
   ServerRequiredAuthenticatedProfileDangerRoute: typeof ServerRequiredAuthenticatedProfileDangerRoute
+  ServerRequiredAuthenticatedProfileDecorationsRoute: typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   ServerRequiredAuthenticatedProfileImportRoute: typeof ServerRequiredAuthenticatedProfileImportRoute
   ServerRequiredAuthenticatedProfileInterfaceRoute: typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   ServerRequiredAuthenticatedProfileNotificationsRoute: typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -2815,6 +2856,8 @@ const ServerRequiredAuthenticatedProfileRouteChildren: ServerRequiredAuthenticat
       ServerRequiredAuthenticatedProfileAiRoute,
     ServerRequiredAuthenticatedProfileDangerRoute:
       ServerRequiredAuthenticatedProfileDangerRoute,
+    ServerRequiredAuthenticatedProfileDecorationsRoute:
+      ServerRequiredAuthenticatedProfileDecorationsRoute,
     ServerRequiredAuthenticatedProfileImportRoute:
       ServerRequiredAuthenticatedProfileImportRoute,
     ServerRequiredAuthenticatedProfileInterfaceRoute:
@@ -3292,6 +3335,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
+  ServerRequiredAuthenticatedMarketplaceRoute: typeof ServerRequiredAuthenticatedMarketplaceRoute
   ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
   ServerRequiredAuthenticatedMyDocumentsRoute: typeof ServerRequiredAuthenticatedMyDocumentsRoute
   ServerRequiredAuthenticatedMyProjectsRoute: typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -3316,6 +3360,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedDocumentsRoute,
     ServerRequiredAuthenticatedInitiativesRoute:
       ServerRequiredAuthenticatedInitiativesRoute,
+    ServerRequiredAuthenticatedMarketplaceRoute:
+      ServerRequiredAuthenticatedMarketplaceRoute,
     ServerRequiredAuthenticatedMyCalendarRoute:
       ServerRequiredAuthenticatedMyCalendarRoute,
     ServerRequiredAuthenticatedMyDocumentsRoute:

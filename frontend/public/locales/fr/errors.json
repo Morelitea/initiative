@@ -494,4 +494,8 @@
   "USER_AVATAR_NOT_SQUARE": "Une photo de profil doit être carrée.",
   "USER_AVATAR_TOO_LARGE_DIMENSIONS": "Cette image dépasse la taille autorisée pour une photo de profil.",
   "USER_AVATAR_URL_NOT_EXTERNAL": "Cette adresse est celle de ce serveur. Liez une image hébergée ailleurs ou téléversez-en une.",
-  "BANNER_TEXT_COLOR_INVALID": "Le texte de la bannière est noir ou blanc."}
+  "BANNER_TEXT_COLOR_INVALID": "Le texte de la bannière est noir ou blanc.",
+  "USER_DECORATION_NOT_OWNED": "Vous n'avez pas cette décoration.",
+  "USER_DECORATION_PACK_NOT_FOUND": "Ce pack de décoration n'existe pas.",
+  "USER_DECORATION_ALREADY_GRANTED": "Vous avez déjà cette décoration dans un autre pack."
+}

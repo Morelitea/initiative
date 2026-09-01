@@ -27,6 +27,8 @@ import type {
   ApiKeyCreateResponse,
   ApiKeyListResponse,
   BodyUploadMyAvatarApiV1UsersMeAvatarPut,
+  DecorationPack,
+  DecorationPackListResponse,
   DeletionEligibilityResponse,
   ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
   GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams,
@@ -424,6 +426,336 @@ export function useListMyDecorationsApiV1UsersMeDecorationsGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * The store: every profile pack this deployment offers, and which you have.
+ *
+ * The shelf is the marketplace catalog, so a pack that ships with the build
+ * and one published to it read the same here.
+ * @summary List Decoration Packs
+ */
+export const listDecorationPacksApiV1UsersMeDecorationPacksGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPackListResponse>(
+    { url: `/api/v1/users/me/decoration-packs`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey = () => {
+  return [`/api/v1/users/me/decoration-packs`] as const;
+};
+
+export const getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
+  > = ({ signal }) => listDecorationPacksApiV1UsersMeDecorationPacksGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDecorationPacksApiV1UsersMeDecorationPacksGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
+>;
+export type ListDecorationPacksApiV1UsersMeDecorationPacksGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Decoration Packs
+ */
+
+export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
+  TData = Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDecorationPacksApiV1UsersMeDecorationPacksGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Take a pack, putting its decorations in your library.
+ *
+ * The catalog is read on the request path; the grant is written on the system
+ * engine, because a grant is issued rather than self-served — the request path
+ * holds no write verb on ``public.user_decorations``. What makes it the
+ * caller's own is that the only account it ever names is theirs.
+ * @summary Install Decoration Pack
+ */
+export const installDecorationPackApiV1UsersMeDecorationPacksUidPost = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPack>(
+    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "POST", signal },
+    options
+  );
+};
+
+export const getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
+    TError,
+    { uid: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
+  TError,
+  { uid: string },
+  TContext
+> => {
+  const mutationKey = ["installDecorationPackApiV1UsersMeDecorationPacksUidPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
+    { uid: string }
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return installDecorationPackApiV1UsersMeDecorationPacksUidPost(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>
+>;
+
+export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Install Decoration Pack
+ */
+export const useInstallDecorationPackApiV1UsersMeDecorationPacksUidPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
+      TError,
+      { uid: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
+  TError,
+  { uid: string },
+  TContext
+> => {
+  return useMutation(
+    getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Give a pack back, taking its decorations out of your library.
+ *
+ * Anything from it that was being worn comes off in the same transaction —
+ * a profile must not be left wearing what the account no longer has, and
+ * two commits would leave a window where it was.
+ * @summary Remove Decoration Pack
+ */
+export const removeDecorationPackApiV1UsersMeDecorationPacksUidDelete = (
+  uid: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DecorationPack>(
+    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
+    TError,
+    { uid: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
+  TError,
+  { uid: string },
+  TContext
+> => {
+  const mutationKey = ["removeDecorationPackApiV1UsersMeDecorationPacksUidDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
+    { uid: string }
+  > = (props) => {
+    const { uid } = props ?? {};
+
+    return removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(uid, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>
+>;
+
+export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove Decoration Pack
+ */
+export const useRemoveDecorationPackApiV1UsersMeDecorationPacksUidDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
+      TError,
+      { uid: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
+  TError,
+  { uid: string },
+  TContext
+> => {
+  return useMutation(
+    getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * One person's profile, addressed by their handle.
  *

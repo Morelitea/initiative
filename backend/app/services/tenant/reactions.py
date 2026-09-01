@@ -278,6 +278,14 @@ async def toggle_reaction(
     )
     if removed is not None:
         await withdraw_digest_items(session, reaction_ids=[cast(int, removed)])
+        await _withdraw_reaction_notification(
+            session,
+            reaction_id=cast(int, removed),
+            reactor=user,
+            emoji=emoji,
+            ctx=ctx,
+            guild_id=guild_id,
+        )
         return (
             await summary_for(
                 session, target=target, target_id=ctx.target_id, viewer_id=user.id
@@ -360,6 +368,37 @@ async def _queue_reaction_notification(
         reaction=reaction,
         context_title=ctx.title,
         target_path=ctx.target_path,
+        guild_id=guild_id,
+    )
+
+
+async def _withdraw_reaction_notification(
+    session: AsyncSession,
+    *,
+    reaction_id: int,
+    reactor: User,
+    emoji: str,
+    ctx: TargetContext,
+    guild_id: int,
+) -> None:
+    """Un-say a reaction the author has not read yet.
+
+    The bell rolls reactions up per target, so taking one back means editing
+    that line rather than deleting a notification of its own — the notification
+    service owns that edit.
+    """
+    from app.services import notifications
+
+    if ctx.author_id is None or ctx.author_id == reactor.id:
+        return
+    await notifications.withdraw_reaction_event(
+        session,
+        author_id=ctx.author_id,
+        reaction_id=reaction_id,
+        reactor_id=cast(int, reactor.id),
+        emoji=emoji,
+        target_type=ctx.target.value,
+        target_id=ctx.target_id,
         guild_id=guild_id,
     )
 

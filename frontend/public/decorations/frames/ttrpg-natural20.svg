@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Natural 20</title>
+  <style>
+    /* Twenty facets, one ring: the light goes round the die the way it does
+       when you turn one over in your hand. */
+    .facet { fill: #6d4fc4; animation: turn 5s linear infinite }
+    .facet:nth-of-type(2n) { fill: #5a3fab }
+    @keyframes turn { 0%,100% { fill: #5a3fab } 8% { fill: #cbb6ff } 22% { fill: #5a3fab } }
+    @media (prefers-reduced-motion: reduce) { .facet { animation: none } }
+  </style>
+  <defs>
+    <!-- One facet, stamped twenty times around the middle. -->
+    <path id="f" d="M64 2 L74 5 L64 12 L54 5 Z"/>
+  </defs>
+  <g>
+    <use class="facet" href="#f" transform="rotate(0 64 64)"   style="animation-delay:0s"/>
+    <use class="facet" href="#f" transform="rotate(18 64 64)"  style="animation-delay:-.25s"/>
+    <use class="facet" href="#f" transform="rotate(36 64 64)"  style="animation-delay:-.5s"/>
+    <use class="facet" href="#f" transform="rotate(54 64 64)"  style="animation-delay:-.75s"/>
+    <use class="facet" href="#f" transform="rotate(72 64 64)"  style="animation-delay:-1s"/>
+    <use class="facet" href="#f" transform="rotate(90 64 64)"  style="animation-delay:-1.25s"/>
+    <use class="facet" href="#f" transform="rotate(108 64 64)" style="animation-delay:-1.5s"/>
+    <use class="facet" href="#f" transform="rotate(126 64 64)" style="animation-delay:-1.75s"/>
+    <use class="facet" href="#f" transform="rotate(144 64 64)" style="animation-delay:-2s"/>
+    <use class="facet" href="#f" transform="rotate(162 64 64)" style="animation-delay:-2.25s"/>
+    <use class="facet" href="#f" transform="rotate(180 64 64)" style="animation-delay:-2.5s"/>
+    <use class="facet" href="#f" transform="rotate(198 64 64)" style="animation-delay:-2.75s"/>
+    <use class="facet" href="#f" transform="rotate(216 64 64)" style="animation-delay:-3s"/>
+    <use class="facet" href="#f" transform="rotate(234 64 64)" style="animation-delay:-3.25s"/>
+    <use class="facet" href="#f" transform="rotate(252 64 64)" style="animation-delay:-3.5s"/>
+    <use class="facet" href="#f" transform="rotate(270 64 64)" style="animation-delay:-3.75s"/>
+    <use class="facet" href="#f" transform="rotate(288 64 64)" style="animation-delay:-4s"/>
+    <use class="facet" href="#f" transform="rotate(306 64 64)" style="animation-delay:-4.25s"/>
+    <use class="facet" href="#f" transform="rotate(324 64 64)" style="animation-delay:-4.5s"/>
+    <use class="facet" href="#f" transform="rotate(342 64 64)" style="animation-delay:-4.75s"/>
+  </g>
+  <!-- The seam where the facets meet, and the inner edge against the picture. -->
+  <circle cx="64" cy="64" r="59" fill="none" stroke="#2b1a54" stroke-width="1.5"/>
+  <circle cx="64" cy="64" r="52" fill="none" stroke="#1c1136" stroke-width="3"/>
+  <!-- The crit, marked once at the top the way a die's twenty is. -->
+  <g transform="translate(64 7)">
+    <path d="M-9 -5 h18 v10 h-18 z" fill="#1c1136"/>
+    <text x="0" y="3.4" text-anchor="middle" fill="#ffe9a3" font-size="8" font-weight="bold"
+          font-family="ui-monospace, monospace">20</text>
+  </g>
+</svg>

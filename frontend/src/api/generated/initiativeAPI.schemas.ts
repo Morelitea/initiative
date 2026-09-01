@@ -744,6 +744,63 @@ export interface BackupEstimate {
   max_upload_bytes?: number;
 }
 
+export type BadgeKind = (typeof BadgeKind)[keyof typeof BadgeKind];
+
+export const BadgeKind = {
+  "calendar_event:when": "calendar_event:when",
+  "counter:value": "counter:value",
+  "task:assignee": "task:assignee",
+  "task:due": "task:due",
+  "task:priority": "task:priority",
+  "task:status": "task:status",
+} as const;
+
+/**
+ * How a chip is coloured when nothing more specific applies.
+ *
+ * The server decides this rather than the client, because what counts as
+ * finished, late or urgent is a product rule and not a rendering detail. A
+ * chip with its own colour — a task status carries one — sends that instead.
+ */
+export type BadgeTone = (typeof BadgeTone)[keyof typeof BadgeTone];
+
+export const BadgeTone = {
+  neutral: "neutral",
+  muted: "muted",
+  good: "good",
+  warn: "warn",
+  danger: "danger",
+} as const;
+
+/**
+ * One chip's current reading.
+ *
+ * ``text`` is always set, so a client that understands nothing else can still
+ * render the chip. ``date`` and ``number`` are sent alongside it where the
+ * value is one of those, because a date and a number belong in the reader's
+ * own locale and only the client knows what that is.
+ */
+export interface BadgeState {
+  ref: string;
+  kind: BadgeKind;
+  text: string;
+  tone: BadgeTone;
+  color: string | null;
+  date: string | null;
+  number: string | null;
+}
+
+/**
+ * The chips that could be read.
+ *
+ * A ref that names nothing, or something this caller cannot see, is simply
+ * absent: the two are the same answer, and the chip falls back to the label
+ * the document already stored.
+ */
+export interface BadgeStateList {
+  items: BadgeState[];
+}
+
 /**
  * How far a banner dissolves into the page beneath it.
  *
@@ -1837,6 +1894,47 @@ export interface DashboardUpdate {
   description?: string | null;
   definition?: DashboardUpdateDefinition;
   config?: DashboardUpdateConfig;
+}
+
+/**
+ * One decoration an account may wear, and where it came from.
+ *
+ * ``source`` names the marketplace pack that granted it, and is ``None`` for
+ * the ones that ship with the app. The client renders a picker per slot from
+ * these, drawing each id with the artwork it has for it and skipping the ones
+ * it doesn't.
+ */
+export interface OwnedDecoration {
+  id: string;
+  kind: string;
+  name: string | null;
+  source: string | null;
+}
+
+/**
+ * One installable set of decorations, and whether this account has it.
+ *
+ * A marketplace listing, so the words are the listing's — its publisher named
+ * it, and nobody else can. ``uid`` is the identity: it means this pack on
+ * every deployment carrying the catalog, and it is what a granted row records.
+ */
+export interface DecorationPack {
+  uid: string;
+  public_id: string;
+  name: string;
+  publisher: string;
+  description: string;
+  avatar_url: string | null;
+  contents: OwnedDecoration[];
+  installed: boolean;
+}
+
+/**
+ * Every pack this build ships. Small and read all at once — the store is
+ * one page.
+ */
+export interface DecorationPackListResponse {
+  items: DecorationPack[];
 }
 
 /**
@@ -3195,6 +3293,7 @@ export const ListingKind = {
   app: "app",
   auto: "auto",
   dashboard: "dashboard",
+  profile_pack: "profile_pack",
 } as const;
 
 /**
@@ -3562,20 +3661,6 @@ export interface OwnedContentResponse {
   items: OwnedContentItem[];
   counts: OwnedContentResponseCounts;
   total: number;
-}
-
-/**
- * One decoration an account may wear, and where it came from.
- *
- * ``source`` names the marketplace pack that granted it, and is ``None`` for
- * the ones that ship with the app. The client renders a picker per slot from
- * these, drawing each id with the artwork it has for it and skipping the ones
- * it doesn't.
- */
-export interface OwnedDecoration {
-  id: string;
-  kind: string;
-  source: string | null;
 }
 
 /**
@@ -6354,6 +6439,14 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    * @minimum 1
    */
   limit?: number;
+};
+
+export type ReadBadgesApiV1GGuildIdDocumentBadgesGetParams = {
+  /**
+   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no badge are ignored. Available: calendar_event:when, counter:value, task:assignee, task:due, task:priority, task:status
+   * @maxItems 100
+   */
+  ref?: string[];
 };
 
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {

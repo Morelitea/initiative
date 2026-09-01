@@ -10,7 +10,8 @@
       "import": "Importer",
       "security": "Sécurité",
       "trash": "Corbeille",
-      "danger": "Zone de danger"
+      "danger": "Zone de danger",
+      "decorations": "Décorations"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
     "goToLogin": "Aller à la connexion"

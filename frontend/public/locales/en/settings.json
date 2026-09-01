@@ -10,7 +10,8 @@
       "import": "Import",
       "security": "Security",
       "trash": "Trash",
-      "danger": "Danger Zone"
+      "danger": "Danger Zone",
+      "decorations": "Decorations"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
     "goToLogin": "Go to login"

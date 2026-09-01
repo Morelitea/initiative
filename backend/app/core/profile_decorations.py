@@ -22,6 +22,33 @@ another one every time the app ships a new default.
 
 from __future__ import annotations
 
+#: What a decoration id may be made of. An explicit set rather than a pattern:
+#: the id is spliced into the path of a local asset by the client, so the
+#: characters it may contain are worth reading at a glance.
+_DECORATION_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
+
+#: How long one id may be.
+DECORATION_ID_MAX_LENGTH = 64
+
+
+def validate_decoration_id(value: str) -> str:
+    """Return ``value`` if it is shaped like a catalog id, else raise.
+
+    A catalog id is a flat, lowercase name — ``core.aurora`` — and this holds
+    it to that vocabulary. Lives here rather than beside the profile schema so
+    the marketplace validator, which admits a pack's ids at publish time, and
+    the write path, which admits them at wear time, ask the same question.
+    """
+    identifier = value.strip()
+    if not identifier:
+        raise ValueError("Decoration id is required")
+    if len(identifier) > DECORATION_ID_MAX_LENGTH:
+        raise ValueError("Decoration id is too long")
+    if not all(char in _DECORATION_ID_CHARS for char in identifier):
+        raise ValueError("Decoration id has characters that are not allowed")
+    return identifier
+
+
 #: The slots a profile has. One banner and one frame, because a profile has one
 #: of each; badges are a row, so there are several.
 BANNER = "banner"

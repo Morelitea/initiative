@@ -119,6 +119,8 @@
   "panel": {
     "calendars": "Calendars",
     "noCalendars": "No calendars yet",
+    "hiddenCount_one": "{{count}} calendar hidden",
+    "hiddenCount_other": "{{count}} calendars hidden",
     "projectTasks": "Project tasks",
     "calendarSettings": "Settings for {{name}}"
   },

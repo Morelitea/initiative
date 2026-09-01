@@ -313,6 +313,80 @@ async def test_mark_all_read_pokes_once(session, captured_stream) -> None:
     assert unread == []
 
 
+@pytest.mark.integration
+async def test_rolling_a_line_up_pokes_the_recipient(session, captured_stream) -> None:
+    """A rolled-up reaction rewrites the existing line rather than adding one,
+    so the rewrite is the only trace the second event leaves — and with no poll
+    behind the signal, an unsignalled rewrite is an invisible one."""
+    user = await create_user(session)
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.comment_reaction,
+        data={"target_id": 7, "count": 1},
+    )
+    await session.commit()
+    await _drain_tasks()
+
+    tab = FakeWebSocket()
+    await captured_stream.connect(user.id, tab)
+    await user_notifications.refresh_notification(
+        session, notification, data={"target_id": 7, "count": 2}
+    )
+    await session.commit()
+    await _drain_tasks()
+
+    assert [frame["action"] for frame in tab.sent] == ["updated"]
+
+
+@pytest.mark.integration
+async def test_a_withdrawal_pokes_without_claiming_to_be_news(
+    session, captured_stream
+) -> None:
+    user = await create_user(session)
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.comment_reaction,
+        data={"target_id": 7, "count": 2},
+    )
+    await session.commit()
+    await _drain_tasks()
+
+    tab = FakeWebSocket()
+    await captured_stream.connect(user.id, tab)
+    await user_notifications.refresh_notification(
+        session, notification, data={"target_id": 7, "count": 1}, bump=False
+    )
+    await session.commit()
+    await _drain_tasks()
+
+    assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
+
+
+@pytest.mark.integration
+async def test_deleting_a_line_pokes_the_recipient(session, captured_stream) -> None:
+    """The last reaction being taken back removes the line outright; a bell
+    still showing it is what this prevents."""
+    user = await create_user(session)
+    notification = await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.comment_reaction,
+        data={"target_id": 7, "count": 1},
+    )
+    await session.commit()
+    await _drain_tasks()
+
+    tab = FakeWebSocket()
+    await captured_stream.connect(user.id, tab)
+    await user_notifications.delete_notification(session, notification)
+    await session.commit()
+    await _drain_tasks()
+
+    assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
+
+
 @pytest.mark.unit
 async def test_queue_signal_ignores_a_missing_recipient() -> None:
     """Defensive: a caller with no user id queues nothing rather than erroring

@@ -2,6 +2,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { type RefObject, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
@@ -16,6 +17,7 @@ import { TreeViewPlugin } from "@/components/ui/editor/plugins/actions/tree-view
 import { CodeActionMenuPlugin } from "@/components/ui/editor/plugins/code-action-menu-plugin";
 import { ComponentPickerMenuPlugin } from "@/components/ui/editor/plugins/component-picker-menu-plugin";
 import { ContextMenuPlugin } from "@/components/ui/editor/plugins/context-menu-plugin";
+import { DocumentBadgesPlugin } from "@/components/ui/editor/plugins/document-badges-plugin";
 import { DragDropPastePlugin } from "@/components/ui/editor/plugins/drag-drop-paste-plugin";
 import { DraggableBlockPlugin } from "@/components/ui/editor/plugins/draggable-block-plugin";
 import { AutoEmbedPlugin } from "@/components/ui/editor/plugins/embeds/auto-embed-plugin";
@@ -29,6 +31,7 @@ import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/flo
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
+import { BadgePickerPlugins } from "@/components/ui/editor/plugins/picker/badge-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
 import { CheckListPickerPlugin } from "@/components/ui/editor/plugins/picker/check-list-picker-plugin";
 import { CodePickerPlugin } from "@/components/ui/editor/plugins/picker/code-picker-plugin";
@@ -99,6 +102,7 @@ export function Plugins({
   onWikilinkNavigate?: (documentId: number) => void;
   onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }) {
+  const { t } = useTranslation("documents");
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
@@ -208,6 +212,7 @@ export function Plugins({
         <TabIndentationPlugin />
 
         <MentionsPlugin initiativeId={initiativeId ?? undefined} />
+        {supportsEntityMentions && <DocumentBadgesPlugin />}
         {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}
         <WikilinksPlugin
           initiativeId={initiativeId}
@@ -240,6 +245,8 @@ export function Plugins({
             EmbedsPickerPlugin({ embed: "tweet" }),
             EmbedsPickerPlugin({ embed: "youtube-video" }),
             ImagePickerPlugin(),
+            // Live chips, offered where `#` is: prose only.
+            ...(supportsEntityMentions ? BadgePickerPlugins(t, initiativeId) : []),
             ColumnsLayoutPickerPlugin(),
             AlignmentPickerPlugin({ alignment: "left" }),
             AlignmentPickerPlugin({ alignment: "center" }),

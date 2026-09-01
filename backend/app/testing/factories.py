@@ -1156,6 +1156,40 @@ async def create_marketplace_listing(
     return listing
 
 
+async def create_profile_pack(
+    session: AsyncSession,
+    *,
+    uid: str = "TESTPACK000001",
+    public_id: str = "test.pack",
+    slug: str = "test",
+    commit: bool = True,
+    **overrides: Any,
+) -> MarketplaceListing:
+    """A profile-pack listing granting one decoration of each slot.
+
+    ``slug`` namespaces the decoration ids, the way a real pack's do, so two
+    packs in one test never collide. Goes through the real upsert, so the
+    definition is held to the same validator a published pack would be.
+    """
+    return await create_marketplace_listing(
+        session,
+        uid=uid,
+        public_id=public_id,
+        kind="profile_pack",
+        definition={
+            "schema_version": 1,
+            "kind": "profile_pack",
+            "decorations": [
+                {"id": f"{slug}.banner", "slot": "banner", "name": "A banner"},
+                {"id": f"{slug}.frame", "slot": "frame", "name": "A frame"},
+                {"id": f"{slug}.badge", "slot": "badge", "name": "A badge"},
+            ],
+        },
+        commit=commit,
+        **overrides,
+    )
+
+
 async def create_dashboard(
     session: AsyncSession,
     initiative: Initiative,

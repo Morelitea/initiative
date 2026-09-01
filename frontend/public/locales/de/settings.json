@@ -10,7 +10,8 @@
       "import": "Importieren",
       "security": "Sicherheit",
       "trash": "Papierkorb",
-      "danger": "Gefahrenzone"
+      "danger": "Gefahrenzone",
+      "decorations": "Dekoration"
     },
     "loginRequired": "Du musst angemeldet sein, um dein Profil zu verwalten.",
     "goToLogin": "Zur Anmeldung"

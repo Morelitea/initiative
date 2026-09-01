@@ -21,7 +21,16 @@
     "arcane": "Arkan",
     "founder": "Gründer:in",
     "storyteller": "Erzähler:in",
-    "trailblazer": "Wegbereiter:in"
+    "trailblazer": "Wegbereiter:in",
+    "dicetower": "Würfelturm",
+    "natural20": "Natürliche 20",
+    "d20": "W20",
+    "soundcheck": "Soundcheck",
+    "vinyl": "Vinyl",
+    "cassette": "Kassette",
+    "observatory": "Sternwarte",
+    "orbital": "Orbital",
+    "flask": "Kolben"
   },
   "decorationPicker": {
     "heading": "Profil-Dekorationen",
@@ -31,5 +40,43 @@
     "badge": "Abzeichen",
     "empty": "Hier ist noch nichts.",
     "badgeCount": "{{count}} von {{max}} getragen"
+  },
+  "packs": {
+    "ttrpg": {
+      "name": "Spieltisch",
+      "tagline": "Für alle, die den Würfel entscheiden lassen. Es ist derselbe, den die App wirft, wenn du etwas abschließt."
+    },
+    "music": {
+      "name": "Soundcheck",
+      "tagline": "Für Bands, Chöre und alle, die den Raum buchen und einstöpseln."
+    },
+    "science": {
+      "name": "Sternwarte",
+      "tagline": "Für Labore, Feldstationen und Lesekreise mit Whiteboard."
+    }
+  },
+  "store": {
+    "title": "Dekorationspacks",
+    "description": "Nimm ein Pack, und seine Teile landen in deiner Sammlung, bereit zum Anlegen. Gib es zurück, und sie verschwinden – samt allem, was du davon getragen hast.",
+    "get": "Pack nehmen",
+    "installed": "In deiner Sammlung",
+    "empty": "In dieser Version gibt es keine Packs.",
+    "failed": "Dieses Pack konnte nicht geändert werden.",
+    "got": "Pack heruntergeladen.",
+    "manage": "Deine Packs"
+  },
+  "look": {
+    "save": "Aussehen speichern",
+    "saved": "Aussehen gespeichert.",
+    "failed": "Das Aussehen konnte nicht gespeichert werden.",
+    "title": "Dein Aussehen"
+  },
+  "myPacks": {
+    "title": "Deine Packs",
+    "description": "Was du heruntergeladen hast und was jedes Pack dir gebracht hat. Gibst du eines zurück, verschwinden seine Teile – samt allem, was du davon getragen hast.",
+    "empty": "Du hast noch kein Pack heruntergeladen. Wähl oben eines aus, dann landen seine Teile hier.",
+    "remove": "Zurückgeben",
+    "removed": "Pack zurückgegeben.",
+    "browse": "Marktplatz durchsuchen"
   }
 }

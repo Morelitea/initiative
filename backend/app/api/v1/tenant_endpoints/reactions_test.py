@@ -578,6 +578,239 @@ class TestReactionNotifications:
         ).all()
         assert bell == []
 
+    async def test_a_flurry_rolls_into_one_bell_line(
+        self, client, session, acting_user
+    ):
+        """The point of the change: reactions digest on the bell too, so a
+        second one on the same comment edits the line the first one wrote."""
+        from app.models.platform.notification import Notification, NotificationType
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        c = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        for reactor in (b, c):
+            await _grant(
+                session,
+                Tool.project,
+                a.project,
+                reactor.user,
+                ResourceAccessLevel.write,
+            )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        for reactor, emoji in ((b, THUMBS), (c, PARTY), (c, THUMBS)):
+            reacted = await client.put(
+                a.g(f"/reactions/comment/{comment_id}"),
+                headers=reactor.headers,
+                json={"emoji": emoji},
+            )
+            assert reacted.status_code == 200, reacted.text
+
+        bell = (
+            await session.exec(
+                select(Notification).where(
+                    Notification.user_id == a.user.id,
+                    Notification.type == NotificationType.comment_reaction,
+                )
+            )
+        ).all()
+        assert len(bell) == 1
+        data = bell[0].data
+        assert data["count"] == 3
+        # Two people, three gestures — the sentence counts people.
+        assert data["reactor_count"] == 2
+        assert set(data["reactor_ids"]) == {b.user.id, c.user.id}
+        assert [entry["emoji"] for entry in data["reactions"]] == [
+            THUMBS,
+            PARTY,
+            THUMBS,
+        ]
+        # The top-level fields keep naming the most recent one, so a client
+        # that predates the rollup still renders a true sentence.
+        assert data["emoji"] == THUMBS
+        assert data["reactor_id"] == c.user.id
+
+    async def test_a_read_line_does_not_absorb_the_next_reaction(
+        self, client, session, acting_user
+    ):
+        """Unread is the whole rollup window — once seen, the next reaction is
+        news again."""
+        from app.models.platform.notification import Notification, NotificationType
+        from app.services.platform import user_notifications
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(
+            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
+        )
+        await user_notifications.mark_all_notifications_read(session, user_id=a.user.id)
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": PARTY},
+        )
+
+        bell = (
+            await session.exec(
+                select(Notification).where(
+                    Notification.user_id == a.user.id,
+                    Notification.type == NotificationType.comment_reaction,
+                )
+            )
+        ).all()
+        assert len(bell) == 2
+
+    async def test_taking_a_reaction_back_unsays_the_bell_line(
+        self, client, session, acting_user
+    ):
+        """Un-reacting leaves no trace where the author has not looked yet —
+        the same rule the queued digest line follows."""
+        from app.models.platform.notification import Notification, NotificationType
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(
+            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        for emoji in (THUMBS, PARTY):
+            await client.put(
+                a.g(f"/reactions/comment/{comment_id}"),
+                headers=b.headers,
+                json={"emoji": emoji},
+            )
+
+        async def _bell():
+            return (
+                await session.exec(
+                    select(Notification).where(
+                        Notification.user_id == a.user.id,
+                        Notification.type == NotificationType.comment_reaction,
+                    )
+                )
+            ).all()
+
+        [line] = await _bell()
+        assert line.data["count"] == 2
+
+        # Take the party popper back: the line keeps the other one and says so.
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": PARTY},
+        )
+        session.expunge_all()
+        [line] = await _bell()
+        assert line.data["count"] == 1
+        assert [entry["emoji"] for entry in line.data["reactions"]] == [THUMBS]
+
+        # Take the last one back and the line has nothing left to say.
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
+        )
+        session.expunge_all()
+        assert await _bell() == []
+
+    async def test_a_pre_rollup_line_can_still_be_un_said(
+        self, client, session, acting_user
+    ):
+        """A line written before reactions rolled up carries no reaction id, so
+        it has to be matched on who reacted and with what — otherwise the first
+        un-react after the upgrade leaves it standing forever."""
+        from app.models.platform.notification import Notification, NotificationType
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(
+            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
+        )
+
+        async def _bell():
+            return (
+                await session.exec(
+                    select(Notification).where(
+                        Notification.user_id == a.user.id,
+                        Notification.type == NotificationType.comment_reaction,
+                    )
+                )
+            ).all()
+
+        # Rewrite the line into the shape this feature replaced.
+        [line] = await _bell()
+        line.data = {
+            key: value
+            for key, value in line.data.items()
+            if key not in {"count", "reactions", "reactor_count", "reactor_ids"}
+        }
+        session.add(line)
+        await session.commit()
+
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
+        )
+        session.expunge_all()
+        assert await _bell() == []
+
     async def test_taking_a_reaction_back_withdraws_the_queued_line(
         self, client, session, acting_user
     ):

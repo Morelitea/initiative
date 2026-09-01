@@ -38,9 +38,9 @@ The calendar shows your events by **day, week, month, year, or as a list**, and 
 
 Some things belong to everyone rather than to one effort: holidays, a monthly meetup, game nights. Those go in the **Community calendar** app, which a community admin adds from the [marketplace](apps-and-marketplace.md). It appears in the sidebar's Apps section and opens on every calendar the community shares, overlaid in one view.
 
-It arrives with one calendar, and **any member can add more** — one for holidays, one per person, one for each thing your group keeps track of. Whoever makes a calendar owns it and decides its sharing, which starts as *everyone in the community can read it*. So a calendar of your own is one you post to and everyone else follows.
+It arrives with one calendar, and **any member can add more** with **New Calendar** — one for holidays, one per person, one for each thing your group keeps track of. Whoever makes a calendar owns it and decides its sharing, which starts as *everyone in the community can read it*. So a calendar of your own is one you post to and everyone else follows.
 
-Use the **Calendars** dropdown to hide the ones you're not interested in; that's yours alone, and it doesn't change what anyone else sees.
+Use the **Calendars** dropdown to hide the ones you're not interested in; that's yours alone, and it doesn't change what anyone else sees. It carries a count of how many you've switched off, and each calendar in it links to its own settings.
 
 Community calendars hold the community's own events and nothing else — no tasks, no project work. Removing the app sends all of its calendars to the trash together, where they can be recovered.
 

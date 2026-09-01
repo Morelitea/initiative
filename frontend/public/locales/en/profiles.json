@@ -21,7 +21,16 @@
     "arcane": "Arcane",
     "founder": "Founder",
     "storyteller": "Storyteller",
-    "trailblazer": "Trailblazer"
+    "trailblazer": "Trailblazer",
+    "dicetower": "Dice tower",
+    "natural20": "Natural 20",
+    "d20": "d20",
+    "soundcheck": "Soundcheck",
+    "vinyl": "Vinyl",
+    "cassette": "Cassette",
+    "observatory": "Observatory",
+    "orbital": "Orbital",
+    "flask": "Flask"
   },
   "decorationPicker": {
     "heading": "Profile decorations",
@@ -31,5 +40,43 @@
     "badge": "Badges",
     "empty": "Nothing here yet.",
     "badgeCount": "{{count}} of {{max}} worn"
+  },
+  "packs": {
+    "ttrpg": {
+      "name": "Tabletop",
+      "tagline": "For the table that rolls for it. The die is the one this app throws when you finish something."
+    },
+    "music": {
+      "name": "Soundcheck",
+      "tagline": "For bands, choirs and anyone who books the room and plugs in."
+    },
+    "science": {
+      "name": "Observatory",
+      "tagline": "For labs, field stations and reading groups with a whiteboard."
+    }
+  },
+  "store": {
+    "title": "Decoration packs",
+    "description": "Take a pack and its pieces land in your collection, ready to put on. Give it back and they go, along with anything from it you were wearing.",
+    "get": "Get this pack",
+    "installed": "In your collection",
+    "empty": "No packs in this build.",
+    "failed": "That pack could not be changed.",
+    "got": "Pack downloaded.",
+    "manage": "Your packs"
+  },
+  "look": {
+    "save": "Save look",
+    "saved": "Look saved.",
+    "failed": "That look could not be saved.",
+    "title": "Your look"
+  },
+  "myPacks": {
+    "title": "Your packs",
+    "description": "What you have downloaded, and what each one gave you. Give a pack back and its pieces go, along with anything from it you were wearing.",
+    "empty": "You have not downloaded a pack yet. Pick one above and its pieces land here.",
+    "remove": "Give back",
+    "removed": "Pack given back.",
+    "browse": "Browse the marketplace"
   }
 }

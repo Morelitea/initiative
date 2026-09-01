@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Orbital</title>
+  <style>
+    .shell { transform-origin: 64px 64px }
+    .a { animation: spin 7s linear infinite }
+    .b { animation: spin 11s linear infinite reverse }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .shell { animation: none } }
+  </style>
+  <!-- The shell itself: a ring of ticks, like a dial. -->
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#123055" stroke-width="4"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#2f6ea8" stroke-width="4"
+          stroke-dasharray="1 7" stroke-linecap="butt"/>
+  <circle cx="64" cy="64" r="53" fill="none" stroke="#050914" stroke-width="3"/>
+  <!-- Two electrons on inclined orbits. -->
+  <g class="shell a">
+    <circle cx="64" cy="64" r="60" fill="none" stroke="#2f6ea8" stroke-width="1" opacity=".55"/>
+    <circle cx="124" cy="64" r="4" fill="#7fd4ff"/>
+    <circle cx="124" cy="64" r="1.5" fill="#eaf8ff"/>
+  </g>
+  <g class="shell b">
+    <circle cx="4" cy="64" r="3" fill="#a8e9ff"/>
+  </g>
+</svg>
