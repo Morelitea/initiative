@@ -2,8 +2,9 @@
 
 Builds the route-backed server from the real app (no DB/network needed) and
 asserts the RouteMap curation holds: tools cover only projects/tasks/initiatives
-(+ adding a comment), and the *write* surface is exactly the safe allow-list —
-no destructive, bulk, AI-generation, or property/tag mutations leak through.
+(+ reading and adding comments), and the *write* surface is exactly the safe
+allow-list — no destructive, bulk, AI-generation, or property/tag mutations leak
+through.
 """
 
 import json
@@ -68,6 +69,24 @@ async def test_mcp_tools_are_curated():
     # its tag, but they name who asked to be let in and quote their note — a
     # manager's queue, not a working surface. Carved out explicitly.
     assert not [n for n in names if "join_request" in n]
+
+
+@pytest.mark.unit
+async def test_comment_reads_are_exposed():
+    """The two reads that pair with the comment write, and only those.
+
+    ``comments`` is deliberately not a READ_TAG: the router's other two GETs
+    (the guild-wide ``recent`` activity feed and the @-mention picker's search)
+    are matched by no RouteMap and fall through the default-deny catch-all.
+    """
+    names = {
+        _operation(t.name.lower()) for t in await build_mcp_server(app).list_tools()
+    }
+
+    assert "list_comments" in names
+    assert "read_comment" in names
+    assert "recent_comments" not in names
+    assert "search_mentionables" not in names
 
 
 @pytest.mark.unit
