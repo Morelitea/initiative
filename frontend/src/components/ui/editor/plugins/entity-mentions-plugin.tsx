@@ -87,7 +87,18 @@ export function EntityMentionsPlugin({
     enabled: active !== null && (initiativeId ?? 0) > 0,
   });
 
-  const options = useMemo(() => (data ?? []).map((s) => new EntityOption(s)), [data]);
+  // The previous answer stays on screen while the next is in flight, so the
+  // menu does not blink shut between keystrokes. Typing `:` narrows the kinds
+  // faster than the answer can arrive, though, so what is on screen is held to
+  // the kinds asked for now — pressing Enter can only ever insert one of them.
+  const wanted = active?.types;
+  const options = useMemo(
+    () =>
+      (data ?? [])
+        .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
+        .map((suggestion) => new EntityOption(suggestion)),
+    [data, wanted]
+  );
 
   const onSelectOption = useCallback(
     (option: EntityOption, nodeToReplace: TextNode | null, closeMenu: () => void) => {

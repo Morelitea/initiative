@@ -35,6 +35,23 @@ export function MatrixNode({ node }: { node: Node }) {
   // reads as a few anchors rather than a wall of repeated text.
   const headerHeight = node.xLabels?.length ? 12 : 0;
 
+  // An axis label is identified by where it sits, not by what it says: a
+  // heatmap of two weeks has two "Mon" columns, and keying on the text would
+  // make them the same element. Carrying the coordinate is what `cells` below
+  // already does — these read from the data the same way.
+  const xLabels = useMemo(
+    () =>
+      (node.xLabels ?? [])
+        .slice(0, columns)
+        .map((label, column) => ({ label, column }))
+        .filter(({ label }) => Boolean(label)),
+    [node.xLabels, columns]
+  );
+  const yLabels = useMemo(
+    () => (node.yLabels ?? []).slice(0, rows).map((label, row) => ({ label, row })),
+    [node.yLabels, rows]
+  );
+
   return (
     <div className="h-full w-full overflow-auto p-1">
       <svg
@@ -43,22 +60,20 @@ export function MatrixNode({ node }: { node: Node }) {
         role="img"
         aria-label="Activity heatmap"
       >
-        {node.xLabels?.slice(0, columns).map((label, column) =>
-          label ? (
-            <text
-              key={`${label}-${column}`}
-              x={labelWidth + column * (CELL + GAP)}
-              y={headerHeight - 3}
-              className="fill-muted-foreground"
-              fontSize={9}
-            >
-              {label}
-            </text>
-          ) : null
-        )}
-        {node.yLabels?.slice(0, rows).map((label, row) => (
+        {xLabels.map(({ label, column }) => (
           <text
-            key={label}
+            key={`x-${column}`}
+            x={labelWidth + column * (CELL + GAP)}
+            y={headerHeight - 3}
+            className="fill-muted-foreground"
+            fontSize={9}
+          >
+            {label}
+          </text>
+        ))}
+        {yLabels.map(({ label, row }) => (
+          <text
+            key={`y-${row}`}
             x={0}
             y={headerHeight + row * (CELL + GAP) + CELL - 2}
             className="fill-muted-foreground"

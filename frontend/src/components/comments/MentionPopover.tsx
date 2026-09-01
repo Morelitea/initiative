@@ -109,10 +109,17 @@ export const MentionPopover = ({
     enabled: !active.user && inInitiative,
   });
 
+  // The previous answer stays on screen while the next is in flight. Typing `:`
+  // narrows the kinds faster than the answer can arrive, so what is on screen
+  // is held to the kinds asked for now rather than the ones asked for a
+  // keystroke ago.
+  const wanted = active.types;
   const rows: Row[] = useMemo(() => {
     if (active.user) return (members.data?.items ?? []).map(memberRow);
-    return (suggestions.data ?? []).map(suggestionRow);
-  }, [active.user, members.data, suggestions.data]);
+    return (suggestions.data ?? [])
+      .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
+      .map(suggestionRow);
+  }, [active.user, wanted, members.data, suggestions.data]);
 
   const isLoading = inInitiative && (active.user ? members.isLoading : suggestions.isLoading);
 
