@@ -1,6 +1,9 @@
 {
   "contentRequired": "Content is required.",
   "contextPrefix": "{{type}}: {{name}}",
+  "createKindPrompt": "What kind of thing is it?",
+  "createNamed": "Create \"{{name}}\"",
+  "createNothingAllowed": "You cannot add anything to this initiative.",
   "deleteComment": "Delete",
   "editPlaceholder": "Edit your comment...",
   "edited": "(edited)",

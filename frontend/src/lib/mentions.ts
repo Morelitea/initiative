@@ -58,6 +58,9 @@ export const entityMentionSyntax = (type: SearchEntityType, label: string, id: n
 export const userMentionSyntax = (label: string, id: number): string =>
   `${USER_TRIGGER}[${label}](${id})`;
 
+/** Opens the picker over the tools, and can make one that is not there. */
+export const LINK_TRIGGER_OPEN = "[[";
+
 /** What the composer is being asked for right now. */
 export type MentionQuery = {
   /** `null` while typing after a bare `#` — every type is offered. */
@@ -70,12 +73,19 @@ export type MentionQuery = {
 };
 
 /** A mention being typed: people, or things. */
-export type ActiveMention = MentionQuery & { user: boolean };
+export type ActiveMention = MentionQuery & {
+  user: boolean;
+  /** Typed with `[[`, which offers to make what it cannot find. */
+  canCreate: boolean;
+};
 
 //: `@word`, or `#word`, or `#type:word` — anchored to the end of what has been
 //: typed, and only at a word boundary so an email address is not a mention.
 const USER_PATTERN = /(^|[\s([{])@([^\s@#]*)$/;
 const ENTITY_PATTERN = /(^|[\s([{])#([\w-]*)(?::([^\s#]*))?$/;
+//: `[[name` — open brackets, then whatever is being named. Closing them is
+//: not required: the picker commits, the way it does for `@` and `#`.
+const LINK_PATTERN = /\[\[([^\]\n]*)$/;
 
 /**
  * The mention being typed at the end of `text`, or `null`.
@@ -87,18 +97,41 @@ const ENTITY_PATTERN = /(^|[\s([{])#([\w-]*)(?::([^\s#]*))?$/;
 export const activeMention = (text: string): ActiveMention | null => {
   const user = USER_PATTERN.exec(text);
   if (user) {
-    return { user: true, types: null, query: user[2], length: user[2].length + 1 };
+    return {
+      user: true,
+      canCreate: false,
+      types: null,
+      query: user[2],
+      length: user[2].length + 1,
+    };
   }
+
+  // `[[` before `#`: the two cannot overlap, but the link trigger is the more
+  // specific of them and reads its own brackets.
+  const link = LINK_PATTERN.exec(text);
+  if (link) {
+    return {
+      user: false,
+      canCreate: true,
+      // The caller narrows to the tools this initiative has; a reference to
+      // anything else is what `#` is for.
+      types: null,
+      query: link[1],
+      length: link[1].length + LINK_TRIGGER_OPEN.length,
+    };
+  }
+
   const entity = ENTITY_PATTERN.exec(text);
   if (!entity) return null;
   const [, , word, narrowed] = entity;
   if (narrowed === undefined) {
-    return { user: false, types: null, query: word, length: word.length + 1 };
+    return { user: false, canCreate: false, types: null, query: word, length: word.length + 1 };
   }
   const type = typeForTrigger(word);
   if (!type) return null;
   return {
     user: false,
+    canCreate: false,
     types: [type],
     query: narrowed,
     length: word.length + narrowed.length + 2,

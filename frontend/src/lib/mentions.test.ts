@@ -87,3 +87,39 @@ describe("where # is offered", () => {
     expect(supportsEntityMentions(undefined)).toBe(false);
   });
 });
+
+describe("[[ ]] in a comment", () => {
+  it("opens the picker and can make what it does not find", () => {
+    const active = activeMention("see [[Road");
+    expect(active?.canCreate).toBe(true);
+    expect(active?.query).toBe("Road");
+    expect(active?.user).toBe(false);
+  });
+
+  it("offers as soon as the brackets are typed", () => {
+    expect(activeMention("see [[")?.query).toBe("");
+  });
+
+  it("covers both brackets, so replacing it leaves none behind", () => {
+    const text = "see [[Road";
+    const active = activeMention(text);
+    expect(text.slice(0, text.length - (active?.length ?? 0))).toBe("see ");
+  });
+
+  it("takes a name with spaces in it, which is what a title usually is", () => {
+    expect(activeMention("see [[Q1 roadmap")?.query).toBe("Q1 roadmap");
+  });
+
+  it("is finished once the brackets are closed", () => {
+    expect(activeMention("see [[Roadmap]]")).toBeNull();
+  });
+
+  it("does not fire on a single bracket", () => {
+    expect(activeMention("an [array")).toBeNull();
+  });
+
+  it("leaves # and @ alone, which cannot create", () => {
+    expect(activeMention("see #task:ven")?.canCreate).toBe(false);
+    expect(activeMention("hi @al")?.canCreate).toBe(false);
+  });
+});
