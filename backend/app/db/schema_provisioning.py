@@ -682,8 +682,9 @@ async def search_operator_ready() -> bool:
 
 
 #: Rows per reindex transaction. Bounded so a large table is walked rather than
-#: rebuilt in one long-running statement.
-SEARCH_REINDEX_BATCH = 2000
+#: rebuilt in one long-running statement, and kept small because each batch
+#: holds row locks on the source table until it commits.
+SEARCH_REINDEX_BATCH = 500
 
 
 async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> int:

@@ -482,6 +482,11 @@ def reindex_statement(table: str, source: SearchSource) -> str:
         f" FROM {table} {row}"
         f" WHERE {row}.id > :cursor{live}"
         f" ORDER BY {row}.id LIMIT :batch"
+        # Locks each row for the duration of the write, so the values written
+        # are the row's current ones: a concurrent write to the same row
+        # finishes first and this sees its result, rather than replacing it
+        # with what the batch read a moment earlier.
+        " FOR UPDATE"
     )
 
 

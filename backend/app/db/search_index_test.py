@@ -241,3 +241,52 @@ async def test_a_guild_level_tag_is_visible_to_any_member(session, acting_user):
         guild_role="member",
     )
     assert [r.title for r in rows] == ["urgent"]
+
+
+@pytest.mark.unit
+def test_each_source_gates_on_a_column_that_points_at_its_tool():
+    """The declared sharing identity has to name the resource that governs the
+    row — a task by its project, a calendar event by its calendar.
+
+    Only ``task`` was exercised end to end; this covers every source
+    structurally, so a new one naming the wrong column (``queue_id`` where
+    ``calendar_id`` was meant) fails here rather than gating search against a
+    resource that has nothing to do with the row.
+    """
+    for table, source in sorted(SEARCH_SOURCES.items()):
+        if source.dac_tool is None:
+            assert source.dac_id is None, (
+                f"{table} declares dac_id without a dac_tool to test it against"
+            )
+            continue
+        tool_table = source.dac_tool.plural
+        if source.dac_id is None:
+            # The row IS the shared resource.
+            assert table == tool_table, (
+                f"{table} gates on its own id but is not {tool_table}"
+            )
+            continue
+        column = SQLModel.metadata.tables[table].columns[source.dac_id]
+        targets = {fk.column.table.name for fk in column.foreign_keys}
+        assert tool_table in targets, (
+            f"{table}.{source.dac_id} does not reference {tool_table}; "
+            f"search would gate it against the wrong resource"
+        )
+
+
+async def test_moving_a_task_regates_it(session, acting_user):
+    """The sharing identity is stored, so a row changing parents has to be
+    rewritten or it would keep answering to the old one."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    other = await create_project(session, a.initiative, a.user, name="elsewhere")
+    assert other.id is not None
+    task = await create_task(session, a.project, title="moving")
+    assert (await _entries(session, a.guild.id, "task", task.id))[0].dac_id == (
+        a.project.id
+    )
+
+    task.project_id = other.id
+    session.add(task)
+    await session.commit()
+
+    assert (await _entries(session, a.guild.id, "task", task.id))[0].dac_id == other.id

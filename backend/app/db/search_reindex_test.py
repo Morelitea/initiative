@@ -134,3 +134,40 @@ async def test_the_marker_records_the_generation(session, acting_user):
         )
     ).one()[0]
     assert marker == search_generation()
+
+
+@pytest.mark.unit
+def test_every_reindex_statement_locks_the_rows_it_rewrites():
+    """The sweep reads a row's text and replaces that row's entries.
+
+    Without the lock those are two moments: a write landing between them is
+    replaced by what the batch read beforehand, and the index keeps the older
+    text until the row is next touched. Locking makes the write the row's
+    current state by definition.
+    """
+    from app.db.search_index import reindex_plan
+
+    for entity_type, statement in reindex_plan():
+        assert statement.rstrip().endswith("FOR UPDATE"), (
+            f"the {entity_type} reindex statement does not lock its rows"
+        )
+
+
+async def test_a_write_during_the_sweep_wins(session, acting_user):
+    """A trigger write is always newer than what a sweep batch read, so the
+    sweep must not put the older text back."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="original")
+    await _wipe(a.guild.id)
+
+    # The ordinary path: a write lands, then the sweep runs over it.
+    task.title = "edited"
+    session.add(task)
+    await session.commit()
+
+    await reindex_guild_search(db_session.provisioning_engine, f"guild_{a.guild.id}")
+
+    rows = [
+        r for r in await _entries(session, a.guild.id, "task") if r.entity_id == task.id
+    ]
+    assert [r.title for r in rows] == ["edited"]
