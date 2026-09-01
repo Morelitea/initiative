@@ -179,6 +179,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
         from app.db.search_index import (
             SEARCH_FUNCTION_SQL,
+            WRITE_FUNCTION_SQL,
             render_guild_search_ddl,
         )
 
@@ -197,6 +198,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         digest.update(CAPTURE_FUNCTION_SQL.encode())
         digest.update(search_ddl.encode())
         digest.update(SEARCH_FUNCTION_SQL.encode())
+        digest.update(WRITE_FUNCTION_SQL.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -296,12 +298,16 @@ async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     on the next boot rather than needing a migration per edit), then the
     per-table triggers, both idempotent.
     """
-    from app.db.search_index import SEARCH_FUNCTION_SQL
+    from app.db.search_index import SEARCH_FUNCTION_SQL, WRITE_FUNCTION_SQL
 
     ddl = (await get_provisioning_bundle()).search_ddl
     raw = await conn.get_raw_connection()
+    # The write function first: the trigger function calls it.
     await raw.driver_connection.execute(
-        "SET check_function_bodies = false;\n" + SEARCH_FUNCTION_SQL
+        "SET check_function_bodies = false;\n"
+        + WRITE_FUNCTION_SQL
+        + "\n"
+        + SEARCH_FUNCTION_SQL
     )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
@@ -675,6 +681,99 @@ async def search_operator_ready() -> bool:
     return _search_operator_ready
 
 
+#: Rows per reindex transaction. Bounded so a large table is walked rather than
+#: rebuilt in one long-running statement, and kept small because each batch
+#: holds row locks on the source table until it commits.
+SEARCH_REINDEX_BATCH = 500
+
+
+async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> int:
+    """Rebuild one guild's search entries when its generation marker is stale.
+
+    The marker is a comment on the guild's ``search_entries``, the same shape
+    as the provisioning stamp on the schema. Adding a source or changing an
+    extraction moves :func:`search_generation`, and this walks each source table
+    in batches, writing through the same function the refresh trigger uses.
+
+    Returns the number of entities rewritten; zero when already current.
+    """
+    from app.db.search_index import reindex_plan, search_generation
+
+    generation = search_generation()
+    async with engine.connect() as conn:
+        current = await conn.scalar(
+            text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
+            {"t": f'"{schema}".search_entries'},
+        )
+    if current == generation and not force:
+        return 0
+
+    written = 0
+    for _entity_type, statement in reindex_plan():
+        cursor = 0
+        while True:
+            async with engine.begin() as conn:
+                # System routing: no user id (so the auth gate reads as a system
+                # session), guild-admin role for the write.
+                await conn.exec_driver_sql(
+                    f"SELECT set_config('search_path', '\"{schema}\", public', true),"
+                    " set_config('app.current_guild_role', 'admin', true),"
+                    " set_config('app.current_user_id', '', true)"
+                )
+                rows = (
+                    await conn.execute(
+                        text(statement),
+                        {
+                            "schema": schema,
+                            "cursor": cursor,
+                            "batch": SEARCH_REINDEX_BATCH,
+                        },
+                    )
+                ).all()
+            if not rows:
+                break
+            cursor = max(r.id for r in rows)
+            written += len(rows)
+
+    async with engine.begin() as conn:
+        await conn.exec_driver_sql(
+            f"COMMENT ON TABLE \"{schema}\".search_entries IS '{generation}'"
+        )
+    return written
+
+
+async def backfill_guild_search() -> int:
+    """Reindex every guild whose search generation is stale.
+
+    Runs after schema provisioning, on its own connections: a guild's content is
+    walked in bounded transactions, so a large install fills in progressively
+    instead of holding one transaction open across the whole sweep.
+    """
+    from sqlalchemy import text as _text
+
+    async with db_session.provisioning_engine.connect() as conn:
+        schemas = [
+            r[0]
+            for r in (
+                await conn.execute(
+                    _text(
+                        "SELECT nspname FROM pg_namespace "
+                        "WHERE nspname LIKE 'guild\\_%' ORDER BY nspname"
+                    )
+                )
+            ).all()
+        ]
+    total = 0
+    for schema in schemas:
+        try:
+            total += await reindex_guild_search(db_session.provisioning_engine, schema)
+        except Exception:
+            logger.exception("search reindex failed for %s", schema)
+    if total:
+        logger.info("search reindex wrote %d entries", total)
+    return total
+
+
 async def warn_if_search_operator_missing() -> None:
     """Say so, loudly, when the search operator is absent.
 
@@ -689,14 +788,16 @@ async def warn_if_search_operator_missing() -> None:
         "\n%s\n"
         "Guild search is running without its index.\n"
         "Results are unchanged; each search reads more of the index table,\n"
-        "which grows with the guild. Install the operator once, as a SUPERUSER:\n"
+        "which grows with the guild. Install the operator once, as a SUPERUSER.\n"
+        "The script ships inside this image, so no checkout is needed:\n"
         "\n"
-        "  docker exec -i initiative-db \\\n"
-        "    psql -v ON_ERROR_STOP=1 -U <user> -d <database> \\\n"
-        "         -f - < backend/scripts/create-search-operator.sql\n"
+        "  docker compose exec -T initiative \\\n"
+        "      cat /app/scripts/create-search-operator.sql \\\n"
+        "    | docker compose exec -T db \\\n"
+        "      psql -v ON_ERROR_STOP=1 -U <user> -d <database>\n"
         "\n"
         "Then restart: the index is rebuilt on the next provisioning sweep.\n"
-        "Fresh docker-compose installs get this at first database init.\n"
+        "Run once per database; re-running is safe.\n"
         "%s",
         "=" * 70,
         "=" * 70,

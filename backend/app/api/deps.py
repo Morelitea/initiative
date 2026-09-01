@@ -35,7 +35,12 @@ from app.core.security import (
     verify_auto_delegation_token,
     verify_upload_token,
 )
-from app.db.session import SYSTEM_SATISFIED, get_session, set_rls_context
+from app.db.session import (
+    SYSTEM_SATISFIED,
+    get_session,
+    set_override_initiatives,
+    set_rls_context,
+)
 from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
@@ -831,6 +836,8 @@ async def _apply_guild_session_context(
         session, user_id=current_user.id
     )
     set_override_sharing_initiatives(frozenset(override_ids))
+    # And in the database, where the policies read the same override.
+    await set_override_initiatives(session, tuple(override_ids))
     return session
 
 

@@ -66,6 +66,18 @@ def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
 
 
+def _resource_access(table: str, write: bool) -> str:
+    """The sharing decision for a row that stores which resource governs it.
+
+    ``dac_tool``/``dac_id`` name that resource — often a parent — so the check
+    needs no join. A NULL ``dac_tool`` means the row answers to no sharing.
+    """
+    return (
+        f"public.resource_access({table}.dac_tool, {table}.dac_id, {_UID}, "
+        f"{table}.initiative_id, {'true' if write else 'false'})"
+    )
+
+
 def direct() -> InitiativePath:
     """The table has its own ``initiative_id`` column."""
     return InitiativePath(
@@ -296,6 +308,7 @@ def search_entries_path() -> InitiativePath:
             f"(CASE WHEN {t}.initiative_id IS NULL "
             f"THEN true "
             f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+            f" AND {_resource_access(t, w)}"
         ),
         initiative_expr=lambda r: f"{r}.initiative_id",
     )

@@ -200,11 +200,11 @@ async def _ensure_test_database() -> None:
 async def _install_search_operator() -> None:
     """Install the search match operator + operator class in the test database.
 
-    Infrastructure installs these once as a superuser (compose init script, or
-    ``scripts/create-search-operator.sql``); the suite is that infrastructure for
-    its own database, the same way it sources its own superuser. Without them the
-    index falls back to the stock operator — a different plan than production
-    runs, so the tests would not be exercising what ships.
+    Infrastructure installs these once per database as a superuser
+    (``scripts/create-search-operator.sql``); the suite is that infrastructure
+    for its own database, the same way it sources its own superuser. Without
+    them the index falls back to the stock operator — a different plan than
+    production runs, so the tests would not be exercising what ships.
     """
     sql = (Path(__file__).parent / "scripts" / "create-search-operator.sql").read_text()
     # psql meta-commands and the trailing verification SELECT are for humans.
