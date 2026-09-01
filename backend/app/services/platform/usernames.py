@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import secrets
 
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import usernames
@@ -24,10 +25,15 @@ _DRAW_ATTEMPTS = 8
 
 
 async def _taken(session: AsyncSession, name: str) -> set[int]:
+    """The numbers already behind ``name``.
+
+    Selected through ``sqlmodel.select``, so the one column comes back as the
+    numbers themselves — what the draws below check themselves against.
+    """
     result = await session.exec(
         select(User.discriminator).where(func.lower(User.username) == name)
     )
-    return {row for row in result.all()}
+    return set(result.all())
 
 
 async def allocate(session: AsyncSession, *, name: str) -> tuple[str, int]:
