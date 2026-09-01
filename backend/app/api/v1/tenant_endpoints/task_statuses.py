@@ -16,21 +16,31 @@ from app.api.v1.tenant_endpoints.tasks import (
     _get_project_with_access,
     _ensure_can_manage,
 )
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.models.platform.user import User
 from app.schemas.tenant.task_status import (
+    InitiativeTaskStatusRead,
     TaskStatusCreate,
     TaskStatusDeleteRequest,
     TaskStatusReorderRequest,
     TaskStatusRead,
     TaskStatusUpdate,
 )
-from app.core.messages import TaskStatusMessages
+from app.core.messages import InitiativeMessages, TaskStatusMessages
+from app.services import rls as rls_service
+from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
 
 router = APIRouter(
     prefix="/projects/{project_id}/task-statuses", tags=["task-statuses"]
+)
+# Status columns belong to a project, but a caller working at initiative level
+# (a board filter, an automation choosing a target column) wants the set across
+# the whole initiative rather than one delegated request per project.
+initiative_router = APIRouter(
+    prefix="/initiatives/{initiative_id}/task-statuses", tags=["task-statuses"]
 )
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -309,3 +319,57 @@ async def delete_task_status(
     _resequence(remaining)
     _ensure_default(remaining)
     await session.commit()
+
+
+async def _require_initiative_reader(
+    session: RLSSessionDep,
+    initiative_id: int,
+    current_user: User,
+    guild_context: GuildContext,
+) -> None:
+    """Resolve the initiative in this guild and confirm the caller is in it."""
+    stmt = select(Initiative.id).where(
+        Initiative.id == initiative_id,
+        Initiative.guild_id == guild_context.guild_id,
+    )
+    if (await session.exec(stmt)).first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
+        )
+    # A guild admin reads every initiative in their guild, and a PAM grantee
+    # reads the guild for the life of the grant; neither holds a membership row.
+    if rls_service.is_guild_admin(guild_context.role) or guild_context.is_pam:
+        return
+    membership = await initiatives_service.get_initiative_membership(
+        session,
+        initiative_id=initiative_id,
+        user_id=current_user.id,
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.NOT_A_MEMBER,
+        )
+
+
+@initiative_router.get("/", response_model=List[InitiativeTaskStatusRead])
+async def list_initiative_task_statuses(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[InitiativeTaskStatusRead]:
+    """The distinct status columns across the initiative's readable projects.
+
+    One entry per ``(name, category)``, carrying how many of the caller's
+    readable projects define it and how many such projects there are.
+    """
+    await _require_initiative_reader(
+        session, initiative_id, current_user, guild_context
+    )
+    return await task_statuses_service.list_initiative_statuses(
+        session,
+        initiative_id=initiative_id,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
+from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
+from app.models.tenant.project import Project
 from app.models.tenant.task import TaskStatus, TaskStatusCategory
+from app.schemas.tenant.task_status import InitiativeTaskStatusRead
+from app.services import permissions as permissions_service
 
 CATEGORY_DEFAULTS: dict[TaskStatusCategory, tuple[str, str]] = {
     TaskStatusCategory.backlog: ("#94A3B8", "circle-dashed"),
@@ -135,3 +141,83 @@ async def clone_statuses(
         await session.flush()
         mapping[source_status.id] = clone.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     return mapping
+
+
+@dataclass
+class _StatusGroup:
+    """One ``(name, category)`` column being collected across projects."""
+
+    color: str
+    icon: str
+    project_ids: set[int] = field(default_factory=set)
+
+
+async def list_initiative_statuses(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    user_id: int,
+    guild_id: int,
+) -> list[InitiativeTaskStatusRead]:
+    """The distinct status columns across an initiative's readable projects.
+
+    Visibility is the project listing's own rule — ``dac_scope_clause`` narrows
+    the scan to the projects this request may read — so both the columns and
+    the counts describe the caller's view of the initiative. The scan is
+    confined to one initiative, so it also passes ``initiative_id`` and picks up
+    the "Full access" override a guild-wide listing has to leave out. Archived
+    projects and templates stay out, matching the default project list.
+    """
+    project_conditions = [
+        Project.initiative_id == initiative_id,
+        Project.is_archived.is_(False),
+        Project.is_template.is_(False),
+        permissions_service.dac_scope_clause(
+            Tool.project,
+            Project.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+        ),
+    ]
+
+    total_stmt = select(func.count()).select_from(Project).where(*project_conditions)
+    projects_total = int((await session.exec(total_stmt)).one())
+    if not projects_total:
+        return []
+
+    rows_stmt = (
+        select(
+            TaskStatus.name,
+            TaskStatus.category,
+            TaskStatus.color,
+            TaskStatus.icon,
+            TaskStatus.project_id,
+        )
+        .join(Project, Project.id == TaskStatus.project_id)
+        .where(*project_conditions)
+        .order_by(TaskStatus.position.asc(), TaskStatus.name.asc(), TaskStatus.id.asc())
+    )
+    rows = (await session.exec(rows_stmt)).all()
+
+    # Board order: the scan is ordered by position, so a column first seen at
+    # position 1 is grouped — and emitted — before one first seen at position 2.
+    grouped: dict[tuple[str, TaskStatusCategory], _StatusGroup] = {}
+    for name, category, color, icon, project_id in rows:
+        group = grouped.get((name, category))
+        if group is None:
+            group = _StatusGroup(color=color, icon=icon)
+            grouped[(name, category)] = group
+        group.project_ids.add(project_id)
+
+    return [
+        InitiativeTaskStatusRead(
+            name=name,
+            category=category,
+            color=group.color,
+            icon=group.icon,
+            project_count=len(group.project_ids),
+            projects_total=projects_total,
+        )
+        for (name, category), group in grouped.items()
+    ]
