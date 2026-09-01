@@ -3,6 +3,7 @@
   "subtitle": "Fertige Dashboards, die du einer Initiative hinzufügen kannst.",
   "searchPlaceholder": "Marktplatz durchsuchen…",
   "backToMarketplace": "Zurück zum Marktplatz",
+  "browse": "Marktplatz durchsuchen",
   "card": {
     "installed": "Installiert",
     "version": "v{{version}}",

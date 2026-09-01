@@ -3,6 +3,7 @@
   "subtitle": "Des tableaux de bord prêts à l'emploi, à ajouter à une initiative.",
   "searchPlaceholder": "Rechercher dans le catalogue…",
   "backToMarketplace": "Retour au catalogue",
+  "browse": "Parcourir le catalogue",
   "card": {
     "installed": "Installé",
     "version": "v{{version}}",
