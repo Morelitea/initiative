@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional, cast
 
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import String, bindparam, delete as sa_delete, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -42,6 +42,10 @@ MAX_NAMED_REACTORS = 8
 #: A ceiling per person per target, so one account cannot turn a comment into
 #: an unbounded list of chips.
 MAX_REACTIONS_PER_USER = 20
+
+
+#: Bind parameter for the toggle lock key — bound, never interpolated.
+_TOGGLE_KEY = bindparam("toggle_key", type_=String)
 
 
 class ReactionError(Exception):
@@ -235,18 +239,32 @@ async def toggle_reaction(
         access="write",
     )
 
+    # A toggle is one decision made of three statements — is it there, take it
+    # back or put it in, and does that leave the ceiling intact — so it is
+    # serialized per (person, target) before any of them run. Without this a
+    # double tap (which a reaction button invites) can have both requests read
+    # "not there yet" and race, and two concurrent adds can each count
+    # themselves under the cap.
+    #
+    # Transaction-scoped, so it releases on commit with no unlock to forget.
+    # The key names the person AND the target, so two people reacting to the
+    # same comment never wait on each other — only a request racing itself
+    # does, which is the only case with anything to serialize.
+    await session.exec(
+        select(
+            func.pg_advisory_xact_lock(func.hashtextextended(_TOGGLE_KEY, 0))
+        ).params(toggle_key=f"reaction:{target.value}:{ctx.target_id}:{user.id}")
+    )
+
     mine = (
         Reaction.target_type == target.value,
         Reaction.target_id == ctx.target_id,
         Reaction.created_by == user.id,
     )
 
-    # Decided by the statements themselves rather than by a read the next
-    # statement then trusts. A reaction button invites the double tap, and two
-    # requests that both read "not there yet" would otherwise race into a
-    # duplicate-key 500. The DELETE reports whether there was one to take back,
-    # and the INSERT yields nothing when someone else got there first — so the
-    # two orderings converge on a state instead of one of them erroring.
+    # The DELETE reports whether there was one to take back, so the branch
+    # comes from the statement rather than from a read the next statement then
+    # trusts.
     removed = (
         (
             await session.exec(
@@ -267,6 +285,15 @@ async def toggle_reaction(
             False,
         )
 
+    held = (
+        await session.exec(select(func.count()).select_from(Reaction).where(*mine))
+    ).one()
+    if held >= MAX_REACTIONS_PER_USER:
+        raise ReactionValidationError(ReactionMessages.TOO_MANY)
+
+    # ``ON CONFLICT DO NOTHING`` cannot fire while the lock above is held. It
+    # stays as the fail-safe: were that lock ever lost, a duplicate degrades to
+    # "someone else already added this one" rather than to a 500.
     inserted = (
         (
             await session.exec(
@@ -290,14 +317,6 @@ async def toggle_reaction(
     added = inserted is not None
 
     if added:
-        # Counted AFTER the insert, so the ceiling holds under concurrency: the
-        # row is already in this transaction, and raising rolls it back with
-        # everything else the request did.
-        held = (
-            await session.exec(select(func.count()).select_from(Reaction).where(*mine))
-        ).one()
-        if held > MAX_REACTIONS_PER_USER:
-            raise ReactionValidationError(ReactionMessages.TOO_MANY)
         reaction = (
             await session.exec(select(Reaction).where(Reaction.id == inserted))
         ).one()
