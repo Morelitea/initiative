@@ -26,9 +26,8 @@ def validate_emoji(value: str) -> str:
     """Return ``value`` if it is a plausible single emoji, else raise.
 
     Deliberately a shape check rather than a lookup against an emoji table: the
-    column stores whatever the client rendered, and a codepoint-category rule
-    keeps out the thing that actually matters — text (a nickname, a URL, markup)
-    smuggled in where a UI will render it as a label.
+    column stores whatever the client rendered, so a codepoint-category rule is
+    what distinguishes a plausible emoji sequence from ordinary text.
     """
     emoji = value.strip()
     if not emoji:

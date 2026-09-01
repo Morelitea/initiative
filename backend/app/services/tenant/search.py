@@ -227,8 +227,14 @@ async def _close_titles(
     try:
         # A savepoint, so giving up leaves the request's transaction usable.
         async with session.begin_nested():
+            # ``set_config`` rather than ``SET LOCAL``: the latter takes no
+            # bind parameter, so the value would have to be built into the
+            # statement. Third argument true makes it transaction-local, which
+            # is what ``SET LOCAL`` meant here.
             await session.exec(
-                text(f"SET LOCAL statement_timeout = '{FUZZY_TIMEOUT_MS}ms'")
+                text(
+                    "SELECT set_config('statement_timeout', :timeout, true)"
+                ).bindparams(timeout=f"{FUZZY_TIMEOUT_MS}ms")
             )
             rows = (await session.exec(statement)).all()
     except SQLAlchemyError:

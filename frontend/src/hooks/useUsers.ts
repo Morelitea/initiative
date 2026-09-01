@@ -91,8 +91,13 @@ export const useUserProfile = (userId: number | null | undefined) =>
   useReadUserProfileApiV1UsersUserIdProfileGet(userId as number, {
     query: {
       enabled: userId != null,
-      // Presence moves on its own, so a profile left open goes stale fast.
+      // A profile changes without the reader doing anything — the subject
+      // signs off, edits their status, changes what they are wearing — and
+      // this page is outside the community tree, so no realtime socket is
+      // going to tell it. Nor does the app refetch on focus. So it asks again
+      // on a timer, which pauses while the tab is in the background.
       staleTime: 30_000,
+      refetchInterval: 60_000,
     },
   });
 
