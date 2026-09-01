@@ -55,6 +55,9 @@ const emojibasePlugin = () => ({
         res: { setHeader: (k: string, v: string) => void; end: (body?: unknown) => void },
         next: () => void
       ) => {
+        // Two gates on the only path here that reads a URL: the pattern
+        // admits no dots or slashes in the locale, and the locale must then be
+        // one this app ships. Anything else falls through to the SPA.
         const match = req.url?.match(
           /^\/emojibase\/([a-z-]+)\/(data|messages)\.json$/
         );

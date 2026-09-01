@@ -27,8 +27,8 @@ thing it is on, which for a comment is that comment's own multi-parent gate.
 The registry edit bumps the provisioning stamp, so new guilds render the same
 policies from it and existing ones pick them up on the next boot backfill.
 
-Revision ID: 20260902_0209
-Revises: 20260901_0208
+Revision ID: 20260902_0210
+Revises: 20260901_0209
 Create Date: 2026-09-02
 """
 
@@ -38,8 +38,8 @@ from alembic import op
 from app.core.config import settings
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260902_0209"
-down_revision = "20260901_0208"
+revision = "20260902_0210"
+down_revision = "20260901_0209"
 branch_labels = None
 depends_on = None
 

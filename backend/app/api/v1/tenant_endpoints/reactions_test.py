@@ -216,6 +216,110 @@ class TestReactionToggle:
         assert [g["emoji"] for g in entry["reactions"]] == [THUMBS]
         assert entry["reactions"][0]["reacted"] is True
 
+    async def test_a_duplicate_add_converges_instead_of_erroring(
+        self, client, session, acting_user
+    ):
+        """A reaction button invites the double tap, and two requests can both
+        find the reaction missing. The row already being there must read as the
+        state converging, not as a duplicate-key crash."""
+        from app.core.reactions import ReactionTarget
+        from app.models.tenant.comment import Comment
+        from app.models.tenant.reaction import Reaction
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        # Stand in for the request that got there first: the row exists, but
+        # this call's own DELETE has already reported nothing to take back.
+        await route_session_to_guild(session, a.guild.id)
+        comment = (
+            await session.exec(select(Comment).where(Comment.id == comment_id))
+        ).one()
+        session.add(
+            Reaction(
+                guild_id=comment.guild_id,
+                target_type=ReactionTarget.comment.value,
+                target_id=comment_id,
+                emoji=THUMBS,
+                created_by=a.user.id,
+            )
+        )
+        await session.commit()
+
+        again = await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=a.headers,
+            json={"emoji": THUMBS},
+        )
+        # Toggling one that is already there takes it back — no 500, and no
+        # second row.
+        assert again.status_code == 200, again.text
+        assert again.json()["groups"] == []
+
+        await route_session_to_guild(session, a.guild.id)
+        rows = (
+            await session.exec(select(Reaction).where(Reaction.target_id == comment_id))
+        ).all()
+        assert rows == []
+
+    async def test_the_ceiling_survives_a_row_that_slipped_in(
+        self, client, session, acting_user
+    ):
+        """The cap is counted after the insert rather than before, so a row
+        that landed concurrently is still counted — and going over rolls the
+        whole request back rather than leaving the extra behind."""
+        from app.core.reactions import ReactionTarget
+        from app.models.tenant.comment import Comment
+        from app.models.tenant.reaction import Reaction
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        await route_session_to_guild(session, a.guild.id)
+        comment = (
+            await session.exec(select(Comment).where(Comment.id == comment_id))
+        ).one()
+        # Fill the allowance behind the request's back. Keycap digits and the
+        # regional indicators are the two cheap runs of distinct valid emoji.
+        filler = [f"{n}\ufe0f\u20e3" for n in range(10)] + [
+            chr(0x1F1E6 + n) for n in range(MAX_REACTIONS_PER_USER - 10)
+        ]
+        for emoji in filler:
+            session.add(
+                Reaction(
+                    guild_id=comment.guild_id,
+                    target_type=ReactionTarget.comment.value,
+                    target_id=comment_id,
+                    emoji=emoji,
+                    created_by=a.user.id,
+                )
+            )
+        await session.commit()
+
+        refused = await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=a.headers,
+            json={"emoji": PARTY},
+        )
+        assert refused.status_code == 400
+        assert refused.json()["detail"] == ReactionMessages.TOO_MANY
+
+        await route_session_to_guild(session, a.guild.id)
+        held = (
+            await session.exec(select(Reaction).where(Reaction.target_id == comment_id))
+        ).all()
+        assert len(held) == MAX_REACTIONS_PER_USER, (
+            "the refused row was not rolled back"
+        )
+
     async def test_rejects_text_in_the_emoji_field(self, client, session, acting_user):
         a = await acting_user(
             guild_role=GuildRole.member, initiative=True, project=True

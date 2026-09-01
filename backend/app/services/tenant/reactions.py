@@ -17,9 +17,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Awaitable, Callable, Optional, cast
 
-from sqlalchemy import delete as sa_delete
+from sqlalchemy import delete as sa_delete, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -233,42 +235,72 @@ async def toggle_reaction(
         access="write",
     )
 
-    existing = (
-        await session.exec(
-            select(Reaction).where(
-                Reaction.target_type == target.value,
-                Reaction.target_id == ctx.target_id,
-                Reaction.created_by == user.id,
-                Reaction.emoji == emoji,
-            )
-        )
-    ).one_or_none()
+    mine = (
+        Reaction.target_type == target.value,
+        Reaction.target_id == ctx.target_id,
+        Reaction.created_by == user.id,
+    )
 
-    added = existing is None
-    if existing is not None:
-        await withdraw_digest_items(session, reaction_ids=[cast(int, existing.id)])
-        await session.delete(existing)
-        await session.flush()
-    else:
-        mine = (
+    # Decided by the statements themselves rather than by a read the next
+    # statement then trusts. A reaction button invites the double tap, and two
+    # requests that both read "not there yet" would otherwise race into a
+    # duplicate-key 500. The DELETE reports whether there was one to take back,
+    # and the INSERT yields nothing when someone else got there first — so the
+    # two orderings converge on a state instead of one of them erroring.
+    removed = (
+        (
             await session.exec(
-                select(Reaction).where(
-                    Reaction.target_type == target.value,
-                    Reaction.target_id == ctx.target_id,
-                    Reaction.created_by == user.id,
-                )
+                sa_delete(Reaction)
+                .where(*mine, Reaction.emoji == emoji)
+                .returning(Reaction.id)
             )
-        ).all()
-        if len(mine) >= MAX_REACTIONS_PER_USER:
-            raise ReactionValidationError(ReactionMessages.TOO_MANY)
-        reaction = Reaction(
-            target_type=target.value,
-            target_id=ctx.target_id,
-            emoji=emoji,
-            created_by=cast(int, user.id),
         )
-        session.add(reaction)
-        await session.flush()
+        .scalars()
+        .first()
+    )
+    if removed is not None:
+        await withdraw_digest_items(session, reaction_ids=[cast(int, removed)])
+        return (
+            await summary_for(
+                session, target=target, target_id=ctx.target_id, viewer_id=user.id
+            ),
+            False,
+        )
+
+    inserted = (
+        (
+            await session.exec(
+                pg_insert(Reaction)
+                .values(
+                    target_type=target.value,
+                    target_id=ctx.target_id,
+                    emoji=emoji,
+                    created_by=cast(int, user.id),
+                    # Spelled out: this is a Core insert, so the model's
+                    # default_factory never runs for it.
+                    created_at=datetime.now(timezone.utc),
+                )
+                .on_conflict_do_nothing(constraint="uq_reactions_target_user_emoji")
+                .returning(Reaction.id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    added = inserted is not None
+
+    if added:
+        # Counted AFTER the insert, so the ceiling holds under concurrency: the
+        # row is already in this transaction, and raising rolls it back with
+        # everything else the request did.
+        held = (
+            await session.exec(select(func.count()).select_from(Reaction).where(*mine))
+        ).one()
+        if held > MAX_REACTIONS_PER_USER:
+            raise ReactionValidationError(ReactionMessages.TOO_MANY)
+        reaction = (
+            await session.exec(select(Reaction).where(Reaction.id == inserted))
+        ).one()
         await _queue_reaction_notification(
             session, reaction=reaction, reactor=user, ctx=ctx, guild_id=guild_id
         )
