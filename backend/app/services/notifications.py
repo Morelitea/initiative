@@ -2089,9 +2089,16 @@ async def withdraw_reaction_event(
         await user_notifications.delete_notification(session, existing)
         return
     # The reactor leaves the roster only once the line remembers nothing else
-    # of theirs — a second emoji of theirs still counts them as present.
+    # of theirs — a second emoji of theirs still counts them as present. That
+    # question can only be answered off the detail, so it is only asked when
+    # the detail is complete: past the cap an older gesture of theirs may have
+    # rolled off, and dropping them on its absence would undercount a crowd
+    # they are still part of.
     roster = _rolled_up_reactor_ids(previous)
-    if all(entry.get("reactor_id") != reactor_id for entry in remaining):
+    line_remembers_every_gesture = len(entries) == _rolled_up_count(previous)
+    if line_remembers_every_gesture and all(
+        entry.get("reactor_id") != reactor_id for entry in remaining
+    ):
         roster = [rostered for rostered in roster if rostered != reactor_id]
     await user_notifications.refresh_notification(
         session,
