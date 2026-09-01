@@ -84,6 +84,17 @@ class CommentCreate(CommentBase):
         return {field: getattr(self, field) for field in COMMENT_TARGET_FIELDS}
 
 
+class ToolCommentSettings(SanitizedBaseModel):
+    """The comment switch on one tool entity — the body and the reply of the
+    generic ``PUT /tools/{tool}/{tool_id}/comments`` route."""
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    comments_disabled: bool
+
+
 class CommentUpdate(CommentBase):
     """Schema for updating a comment. Only content can be changed."""
 

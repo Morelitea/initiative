@@ -469,3 +469,133 @@ async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_
     recent = await client.get(a.g("/comments/recent"), headers=a.headers)
     assert recent.status_code == 200
     assert not any(e["entity_type"] == "queue" for e in recent.json())
+
+
+def _detail_path(tool: Tool, entity_id: int) -> str:
+    """The tool's own detail route — kebab plural, the one spelling every tool
+    endpoint is registered under."""
+    return f"/{tool.plural.replace('_', '-')}/{entity_id}"
+
+
+@pytest.mark.integration
+class TestToolCommentSwitch:
+    """``comments_disabled`` — the advanced setting that takes a tool entity's
+    thread off its page. Set through the generic
+    ``PUT /tools/{tool}/{tool_id}/comments`` route, reported on the entity's own
+    read, and honored by every comment surface."""
+
+    @pytest.mark.parametrize("tool", list(Tool))
+    async def test_switch_hides_the_thread_and_comes_back(
+        self, client, session, acting_user, tool
+    ):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        entity = await _tool_entity(session, tool, a.initiative, a.user)
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Before", _param(tool): entity.id},
+        )
+        assert posted.status_code == 201, posted.text
+
+        detail = await client.get(a.g(_detail_path(tool, entity.id)), headers=a.headers)
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["comments_disabled"] is False
+
+        off = await client.put(
+            a.g(f"/tools/{tool.value}/{entity.id}/comments"),
+            headers=a.headers,
+            json={"comments_disabled": True},
+        )
+        assert off.status_code == 200, off.text
+        assert off.json() == {"comments_disabled": True}
+
+        detail = await client.get(a.g(_detail_path(tool, entity.id)), headers=a.headers)
+        assert detail.json()["comments_disabled"] is True
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
+        )
+        assert listed.status_code == 403
+        assert listed.json()["detail"] == CommentMessages.COMMENTS_DISABLED
+
+        blocked = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "After", _param(tool): entity.id},
+        )
+        assert blocked.status_code == 403
+        assert blocked.json()["detail"] == CommentMessages.COMMENTS_DISABLED
+
+        recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+        assert recent.status_code == 200
+        assert not any(
+            e["entity_type"] == tool.value and e["entity_id"] == entity.id
+            for e in recent.json()
+        )
+
+        # Nothing was deleted: turning it back on restores the thread whole.
+        on = await client.put(
+            a.g(f"/tools/{tool.value}/{entity.id}/comments"),
+            headers=a.headers,
+            json={"comments_disabled": False},
+        )
+        assert on.status_code == 200
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
+        )
+        assert listed.status_code == 200
+        assert [c["content"] for c in listed.json()] == ["Before"]
+
+    async def test_a_project_switch_leaves_task_threads_alone(
+        self, client, session, acting_user
+    ):
+        """Tasks are their own flow: a project with comments off still has task
+        threads."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        project = await _tool_entity(session, Tool.project, a.initiative, a.user)
+        task = await create_task(session, project)
+
+        off = await client.put(
+            a.g(f"/tools/{Tool.project.value}/{project.id}/comments"),
+            headers=a.headers,
+            json={"comments_disabled": True},
+        )
+        assert off.status_code == 200, off.text
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Still talking", "task_id": task.id},
+        )
+        assert posted.status_code == 201, posted.text
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
+        )
+        assert listed.status_code == 200
+        assert [c["content"] for c in listed.json()] == ["Still talking"]
+
+        recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+        assert any(e["entity_type"] == "task" for e in recent.json())
+
+    @pytest.mark.parametrize("tool", list(Tool))
+    async def test_read_access_cannot_flip_the_switch(
+        self, client, session, acting_user, tool
+    ):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        entity = await _tool_entity(session, tool, a.initiative, a.user)
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(session, tool, entity, b.user, ResourceAccessLevel.read)
+
+        denied = await client.put(
+            a.g(f"/tools/{tool.value}/{entity.id}/comments"),
+            headers=b.headers,
+            json={"comments_disabled": True},
+        )
+        assert denied.status_code == 403, denied.text

@@ -5,7 +5,11 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, Date, DateTime, String, Text
 from sqlmodel import Field, Relationship
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    CommentsToggleMixin,
+    CreatedByMixin,
+    SoftDeleteMixin,
+)
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
@@ -20,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Project(CreatedByMixin, SoftDeleteMixin, table=True):
+class Project(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "projects"
 
     id: Optional[int] = Field(default=None, primary_key=True)

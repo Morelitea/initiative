@@ -2,7 +2,8 @@
 
 One route serves every tool, so a new ``Tool`` member gets the surface with no
 per-tool endpoint: loading + authorization go through the unified
-resource-access registry and tag assignment through the tag-link registry.
+resource-access registry, tag assignment through the tag-link registry, and the
+comment switch through the column every tool carries.
 Only the content-level extras (tasks, queue items) keep hand-written tag
 routes — they are sub-resources of a tool, not tools themselves.
 """
@@ -23,6 +24,7 @@ from app.api.deps import (
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.tag import Tag
+from app.schemas.tenant.comment import ToolCommentSettings
 from app.schemas.tenant.tag import TagSetRequest, TagSummary
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import tags as tags_service
@@ -91,3 +93,43 @@ async def set_tool_tags(
         for tag_id in tag_ids
         if (tag := tags_by_id.get(tag_id)) is not None
     ]
+
+
+@router.put("/{tool}/{tool_id}/comments", response_model=ToolCommentSettings)
+async def set_tool_comment_settings(
+    tool: Tool,
+    tool_id: int,
+    settings_in: ToolCommentSettings,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ToolCommentSettings:
+    """Turn the comment thread on any tool entity on or off. Requires write
+    access, the same level that posting to the thread takes.
+
+    Turning it off keeps the comments that are already there — nothing is
+    deleted; the thread stops being readable or writable until it is turned
+    back on. A task's thread is its own and is never affected by its project's
+    switch.
+    """
+    row = await resource_access.load_authorized(
+        session,
+        tool,
+        tool_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    row.comments_disabled = settings_in.comments_disabled
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    await session.commit()
+
+    room = _STREAM_ROOMS.get(tool)
+    if room is not None:
+        channel, event_type = room
+        await stream_authority.emit(
+            guild_context.guild_id, channel, row.id, event_type, {"id": row.id}
+        )
+
+    return ToolCommentSettings(comments_disabled=row.comments_disabled)

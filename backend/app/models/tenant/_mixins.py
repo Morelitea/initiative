@@ -115,6 +115,29 @@ class CreatedByMixin(SQLModel):
     )
 
 
+class CommentsToggleMixin(SQLModel):
+    """Mixin that adds the per-entity comment switch to a tool's content table.
+
+    Every tool is commentable, so every tool can turn its thread off:
+    ``comments_disabled`` is the one column behind that, carrying the same name
+    and the same default (off — comments on) on all six. ``tools_test.py``
+    fails CI if a ``Tool`` member's model or read schema lacks it.
+
+    The switch belongs to the tool entity, not to its children: a project with
+    comments off still has task threads, because a task is its own flow rather
+    than a tool surface.
+
+    Declared without ``sa_column`` so each table builds its own Column — one
+    Column instance cannot be shared across mapped tables.
+    """
+
+    comments_disabled: bool = Field(
+        default=False,
+        nullable=False,
+        sa_column_kwargs={"server_default": "false"},
+    )
+
+
 def created_by_models() -> list[type[CreatedByMixin]]:
     """Every mapped model carrying :class:`CreatedByMixin`, by table name.
 

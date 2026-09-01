@@ -5,6 +5,11 @@ commentable — one nullable FK per tool on ``comments``, drift-tested against
 the enum — plus the task, the one content-level extra (it anchors to its
 project for access). Reading a thread takes read access on the parent, posting
 takes write access, exactly as it always has for tasks and documents.
+
+Every tool entity also carries its own switch, ``comments_disabled``: while it
+is set, that entity's thread is neither readable nor postable and the UI shows
+none of it. Tasks have no switch — a task's thread belongs to the task, not to
+the project's tool surface.
 """
 
 from __future__ import annotations
@@ -275,9 +280,12 @@ async def _ensure_parent_access(
 
     A task inherits from its project; a tool entity answers for itself. The
     sharing decision is the same one the parent's own endpoints make: the
-    tool's master switch first, then DAC — where a request that reaches the
-    whole guild (guild admin, or a live PAM grant at the right level) needs no
-    grant row.
+    tool's master switch first, then its own comment switch, then DAC — where a
+    request that reaches the whole guild (guild admin, or a live PAM grant at
+    the right level) needs no grant row.
+
+    The comment switch is checked for tool entities only: a task's thread
+    belongs to the task, so a project with comments off still has task threads.
     """
     if ctx.task is not None:
         anchor_tool, anchor_model, anchor_row = Tool.project, Project, ctx.project
@@ -290,6 +298,8 @@ async def _ensure_parent_access(
             and not getattr(initiative, target.tool.view_permission)
         ):
             raise CommentPermissionError(target.feature_disabled)
+        if getattr(ctx.resource, "comments_disabled", False):
+            raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
         anchor_tool, anchor_model, anchor_row = target.tool, target.model, ctx.resource
 
     guild_id = anchor_row.guild_id
