@@ -1,9 +1,8 @@
 """build the search index against the search operator class
 
 The guild search index is matched with ``public.@@@``. That operator and its
-GIN operator class are installed once, as a superuser, by
-``scripts/create-search-operator.sql`` (or by the compose init script on a fresh
-install).
+GIN operator class are installed once per database, as a superuser, by
+``scripts/create-search-operator.sql``.
 
 Deployments that have not run it yet still upgrade cleanly: the index is built
 on the stock operator class instead, search returns the same rows, and the boot

@@ -795,7 +795,7 @@ async def warn_if_search_operator_missing() -> None:
         "         -f - < backend/scripts/create-search-operator.sql\n"
         "\n"
         "Then restart: the index is rebuilt on the next provisioning sweep.\n"
-        "Fresh docker-compose installs get this at first database init.\n"
+        "Run once per database; re-running is safe.\n"
         "%s",
         "=" * 70,
         "=" * 70,
