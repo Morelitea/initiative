@@ -108,7 +108,9 @@
     "deleteConfirmDescription": "It will be sent to the trash. You can restore it from Settings → Trash before the retention period ends.",
     "deleted": "\"{{name}}\" deleted",
     "notFound": "Not found",
-    "loadError": "This item could not be loaded."
+    "loadError": "This item could not be loaded.",
+    "permissionRequired": "Permission required",
+    "permissionRequiredDescription": "You don't have access to this section of these settings."
   },
   "toolbar": {
     "filters": "Filters",

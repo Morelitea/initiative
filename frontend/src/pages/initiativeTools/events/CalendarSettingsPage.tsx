@@ -2,7 +2,7 @@ import { useParams } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CalendarColorCard } from "@/components/initiativeTools/events/CalendarColorCard";
-import { ToolSettingsPage } from "@/components/tools/settings/ToolSettingsPage";
+import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useCalendar,
   useDeleteCalendar,
@@ -25,7 +25,7 @@ export function CalendarSettingsPage() {
   const calendar = calendarQuery.data;
 
   return (
-    <ToolSettingsPage
+    <ToolSettingsLayout
       tool={Tool.calendar}
       entity={calendar}
       isLoading={isValidId && calendarQuery.isLoading}

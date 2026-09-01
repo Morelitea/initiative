@@ -108,7 +108,9 @@
     "deleteConfirmDescription": "Se enviará a la papelera. Puedes restaurarlo desde Configuración → Papelera antes de que finalice el período de retención.",
     "deleted": "«{{name}}» eliminado",
     "notFound": "No encontrado",
-    "loadError": "No se pudo cargar este elemento."
+    "loadError": "No se pudo cargar este elemento.",
+    "permissionRequired": "Permiso requerido",
+    "permissionRequiredDescription": "No tienes acceso a esta sección de esta configuración."
   },
   "toolbar": {
     "filters": "Filtros",

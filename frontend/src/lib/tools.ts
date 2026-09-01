@@ -172,6 +172,35 @@ export const toolSettingsRoute = (tool: Tool, initiativeId: number | null, id: n
   `${toolDetailRoute(tool, initiativeId, id)}/settings`;
 
 /**
+ * The sections every tool's settings page is divided into, in tab-bar order.
+ * Each is a route of its own, so a section can be linked to and bookmarked and
+ * the back button steps through the ones you visited.
+ *
+ * Details is served at `/settings` itself rather than at a `/settings/details`
+ * alias — it is what the page opens on. A tool with a section of its own
+ * (a project's task statuses) adds a route beside these; it does not need an
+ * entry here.
+ */
+export const TOOL_SETTINGS_SECTIONS = ["details", "access", "advanced"] as const;
+
+export type ToolSettingsSection = (typeof TOOL_SETTINGS_SECTIONS)[number];
+
+/** The section a tool's settings open on, addressed as `/settings` itself. */
+export const TOOL_SETTINGS_DEFAULT_SECTION: ToolSettingsSection = "details";
+
+/** Guild-relative route for one section of a tool's settings, e.g.
+ *  "/i/12/counter-groups/3/settings/access". */
+export const toolSettingsSectionRoute = (
+  tool: Tool,
+  initiativeId: number | null,
+  id: number,
+  section: string
+): string => {
+  const base = toolSettingsRoute(tool, initiativeId, id);
+  return section === TOOL_SETTINGS_DEFAULT_SECTION ? base : `${base}/${section}`;
+};
+
+/**
  * Where a tool's entities are browsed ACROSS initiatives: the guild home,
  * showing that tool. The only "list" a guild-level entity can go back to, and
  * where a tool page lands when it has no initiative to return to.

@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A new install's first community is now called "Primary Community".** It was still called "Primary Guild" — the one place the old word survived the rename. Existing communities are untouched; this only changes what a fresh install starts with.
 
+- **Every tab in a project, document, queue, counter group, calendar, or dashboard's settings now has an address of its own.** Sharing, the advanced options, a project's filter presets and its task statuses were pieces of on-page state: you could send someone to the settings, but never to the part you meant, and the back button stepped out of the whole page rather than back to the tab you came from. Each is now a place — `…/settings/access`, `…/settings/task-statuses` — so it can be linked to, bookmarked, and returned to. The bar still looks and behaves like tabs. Old links carrying a `?tab=` selector land on the section they named, and a tab you may not open refuses a typed address rather than only being hidden from the bar.
+
 ### Fixed
 
 - **A task description with a code block no longer stretches its board card out of the column.** Code fences, tables, images and unbroken strings were rendered at whatever width they wanted, so one task with a snippet in its description pushed its card past the edge of the column and left the whole board scrolling sideways. Code now wraps, wide tables and images stay inside the card, and a long title breaks rather than pushing. The same containment applies everywhere a description is rendered, so the task detail page and the hover preview get it too — and code blocks and inline code now read as code, on a tinted, rounded background.

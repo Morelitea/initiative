@@ -1,7 +1,7 @@
 import { useParams } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { ToolSettingsPage } from "@/components/tools/settings/ToolSettingsPage";
+import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import { useDeleteQueue, useQueue, useSetQueueGrants, useUpdateQueue } from "@/hooks/useQueues";
 
 export const QueueSettingsPage = () => {
@@ -15,7 +15,7 @@ export const QueueSettingsPage = () => {
   const remove = useDeleteQueue();
 
   return (
-    <ToolSettingsPage
+    <ToolSettingsLayout
       tool={Tool.queue}
       entity={queueQuery.data}
       isLoading={isValidId && queueQuery.isLoading}
