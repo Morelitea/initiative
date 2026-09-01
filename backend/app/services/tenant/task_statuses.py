@@ -163,15 +163,21 @@ async def list_initiative_statuses(
 
     Visibility is the project listing's own rule — ``dac_scope_clause`` narrows
     the scan to the projects this request may read — so both the columns and
-    the counts describe the caller's view of the initiative. Archived projects
-    and templates stay out, matching the default project list.
+    the counts describe the caller's view of the initiative. The scan is
+    confined to one initiative, so it also passes ``initiative_id`` and picks up
+    the "Full access" override a guild-wide listing has to leave out. Archived
+    projects and templates stay out, matching the default project list.
     """
     project_conditions = [
         Project.initiative_id == initiative_id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
         permissions_service.dac_scope_clause(
-            Tool.project, Project.id, user_id, guild_id=guild_id
+            Tool.project,
+            Project.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
         ),
     ]
 

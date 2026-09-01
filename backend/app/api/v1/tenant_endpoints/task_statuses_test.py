@@ -9,9 +9,13 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sqlmodel import select
+
 from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
+from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -356,6 +360,56 @@ async def test_initiative_statuses_cover_the_guild_for_an_admin(
     assert response.status_code == 200
     body = response.json()
     assert [entry["name"] for entry in body] == ["Unshared"]
+    assert body[0]["projects_total"] == 1
+
+
+async def _grant_full_access(session: AsyncSession, initiative, user) -> None:
+    """Turn on "Full access" for the role ``user`` holds in ``initiative``."""
+    await route_session_to_guild(session, initiative.guild_id)
+    membership = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id == user.id,
+            )
+        )
+    ).one()
+    role = await session.get(InitiativeRoleModel, membership.role_id)
+    assert role is not None
+    role.override_share_restrictions = True
+    session.add(role)
+    await session.commit()
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_cover_the_initiative_on_full_access(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    await create_task_status(
+        session, owner.project, name="Unshared", category=TaskStatusCategory.todo
+    )
+    manager = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="project_manager",
+    )
+    await _grant_full_access(session, owner.initiative, manager.user)
+
+    response = await client.get(
+        manager.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
+        headers=manager.headers,
+    )
+
+    # Full access reaches every project in the initiative, so the column shows
+    # up here exactly as it would when opening that project directly.
+    assert response.status_code == 200
+    body = response.json()
+    assert [entry["name"] for entry in body] == ["Unshared"]
+    assert body[0]["project_count"] == 1
     assert body[0]["projects_total"] == 1
 
 

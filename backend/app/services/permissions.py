@@ -209,6 +209,7 @@ def dac_scope_clause(
     user_id: int,
     *,
     guild_id: int | None,
+    initiative_id: int | None = None,
     access: str = "read",
 ) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
@@ -223,11 +224,14 @@ def dac_scope_clause(
     a listing wants the default ``read``, and a grant covers only the level it
     was issued at.
 
-    The initiative "Full access" override is deliberately not folded in: it is
-    per-initiative, so it cannot collapse to one guild-wide answer, and no
-    listing path applies it today.
+    ``initiative_id`` folds in the initiative "Full access" override, which
+    answers for one initiative at a time. A guild-wide listing leaves it None —
+    there is no single answer to fold in — so pass it only from a statement
+    already confined to that one initiative, which is the case in which the
+    override and the statement agree on scope. Omitting it matches the
+    per-row check (:func:`compute_permission`) for every other leg.
     """
-    if request_bypasses_dac(guild_id, access=access):
+    if request_bypasses_dac(guild_id, initiative_id=initiative_id, access=access):
         return true()
     return id_col.in_(_granted_resource_ids(tool, user_id))
 
