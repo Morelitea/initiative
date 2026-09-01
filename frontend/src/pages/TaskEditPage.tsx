@@ -619,6 +619,18 @@ export const TaskEditPage = () => {
   // otherwise read straight from task.task_status_id so the first render has
   // a value (the useEffect lag previously left the badge blank).
   const effectiveStatusId = statusId ?? task?.task_status_id ?? null;
+
+  // A task keeps the status it was given even after the project drops that
+  // column, and the select can only name a status the list contains. Carry the
+  // task's own snapshot into the options in that case, so the editor still
+  // says what status the task is in rather than falling back to a placeholder.
+  // Not a hook: this sits below the loading guards above, which return early.
+  const statusOptions =
+    task?.task_status &&
+    task.task_status.id === effectiveStatusId &&
+    !taskStatuses.some((item) => item.id === effectiveStatusId)
+      ? [...taskStatuses, task.task_status]
+      : taskStatuses;
   // Prefer the project's status list (authoritative; reflects renames/colors)
   // but fall back to the task's own embedded ``task_status`` snapshot so the
   // badge + select trigger render correctly during the window between
@@ -790,7 +802,7 @@ export const TaskEditPage = () => {
                 disabled={isReadOnly}
                 value={formValue}
                 onChange={handleFormChange}
-                statuses={taskStatuses}
+                statuses={statusOptions}
                 projectId={projectId ?? null}
                 initiativeId={project?.initiative_id ?? null}
                 currentUserId={currentUser?.id}

@@ -26,7 +26,14 @@ const TASK_ID = 2726;
 const TASK_ROUTE = "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId";
 
 /** The project the task actually belongs to, which a move can change. */
-const renderTaskPage = ({ taskProjectId = PROJECT_ID }: { taskProjectId?: number } = {}) => {
+const renderTaskPage = ({
+  taskProjectId = PROJECT_ID,
+  /** What the project reports; a column the task uses can be missing from it. */
+  statuses,
+}: {
+  taskProjectId?: number;
+  statuses?: unknown[];
+} = {}) => {
   const task = buildTask({ id: TASK_ID, project_id: taskProjectId, title: "Wire the doorbell" });
   const project = buildProject({
     id: taskProjectId,
@@ -42,6 +49,9 @@ const renderTaskPage = ({ taskProjectId = PROJECT_ID }: { taskProjectId?: number
     guildHttp.get("/projects/", () => HttpResponse.json([project])),
     guildHttp.get("/projects/writable", () => HttpResponse.json([project])),
     guildHttp.get("/projects/:projectId", () => HttpResponse.json(project)),
+    ...(statuses
+      ? [guildHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
+      : []),
     guildHttp.delete("/tasks/:taskId", () => {
       deleted();
       return new HttpResponse(null, { status: 204 });
@@ -107,6 +117,18 @@ describe("TaskEditPage", () => {
     // and duplicate opens no dialog — so the trigger has to carry the state.
     const trigger = await screen.findByRole("button", { name: /more actions/i });
     await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
+  });
+
+  it("still names a status the project has since dropped", async () => {
+    // The heading badge used to fall back to the task's own status snapshot.
+    // With the badge gone, the select is the only place the status is stated,
+    // so it has to resolve a column the project no longer lists.
+    renderTaskPage({ statuses: [] });
+
+    // Radix echoes the trigger's value into a hidden native select, so the
+    // name legitimately appears more than once; the placeholder is the tell.
+    expect(await screen.findAllByText("To Do")).not.toHaveLength(0);
+    expect(screen.queryByText(/select status/i)).not.toBeInTheDocument();
   });
 
   it("opens the move dialog from the actions menu", async () => {
