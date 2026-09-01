@@ -7,6 +7,7 @@ import {
   Copy,
   FolderInput,
   Loader2,
+  MoreHorizontal,
   Save,
   SearchX,
   ShieldAlert,
@@ -43,6 +44,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -796,7 +804,10 @@ export const TaskEditPage = () => {
                 recurrenceReferenceDate={dueDate || startDate || task?.due_date || task?.start_date}
               />
 
-              <div className="flex flex-wrap gap-3">
+              {/* Save and cancel are the only actions that earn a button here;
+                  everything else a task supports lives behind the overflow
+                  menu so the row stays readable at any width. */}
+              <div className="flex flex-wrap items-center gap-3">
                 <Button
                   type="submit"
                   disabled={updateTask.isPending || isReadOnly || datesInverted}
@@ -817,67 +828,67 @@ export const TaskEditPage = () => {
                   {t("common:cancel")}
                 </Button>
                 {!isReadOnly ? (
-                  <>
-                    <MoveTaskDialog
-                      trigger={
-                        <Button type="button" variant="secondary" disabled={moveTask.isPending}>
-                          <FolderInput className="h-4 w-4" />
-                          {t("edit.moveToProject")}
-                        </Button>
-                      }
-                      open={isMoveDialogOpen}
-                      onOpenChange={setIsMoveDialogOpen}
-                      projects={writableProjects}
-                      currentProjectId={task?.project_id ?? null}
-                      isLoading={writableProjectsQuery.isLoading}
-                      hasError={Boolean(writableProjectsQuery.isError)}
-                      isSaving={moveTask.isPending}
-                      onConfirm={handleMoveTask}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        duplicateTask.mutate(parsedTaskId);
-                      }}
-                      disabled={duplicateTask.isPending}
-                    >
-                      <Copy className="h-4 w-4" />
-                      {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() =>
-                        toggleArchive.mutate({
-                          taskId: parsedTaskId,
-                          data: { is_archived: !task?.is_archived } as never,
-                        })
-                      }
-                      disabled={toggleArchive.isPending}
-                    >
-                      {task?.is_archived ? (
-                        <>
-                          <ArchiveRestore className="h-4 w-4" />
-                          {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="h-4 w-4" />
-                          {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => setShowDeleteConfirm(true)}
-                      disabled={deleteTask.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
-                    </Button>
-                  </>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="ml-auto"
+                        aria-label={t("common:toolbar.moreActions")}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        disabled={moveTask.isPending}
+                        onSelect={() => setIsMoveDialogOpen(true)}
+                      >
+                        <FolderInput className="h-4 w-4" />
+                        {t("edit.moveToProject")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={duplicateTask.isPending}
+                        onSelect={() => {
+                          duplicateTask.mutate(parsedTaskId);
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                        {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={toggleArchive.isPending}
+                        onSelect={() =>
+                          toggleArchive.mutate({
+                            taskId: parsedTaskId,
+                            data: { is_archived: !task?.is_archived } as never,
+                          })
+                        }
+                      >
+                        {task?.is_archived ? (
+                          <>
+                            <ArchiveRestore className="h-4 w-4" />
+                            {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="h-4 w-4" />
+                            {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={deleteTask.isPending}
+                        onSelect={() => setShowDeleteConfirm(true)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : null}
               </div>
             </form>
@@ -908,6 +919,17 @@ export const TaskEditPage = () => {
         onCommentUpdated={handleCommentUpdated}
         canModerate={canModerateComments}
         initiativeId={projectQuery.data?.initiative_id ?? 0}
+      />
+
+      <MoveTaskDialog
+        open={isMoveDialogOpen}
+        onOpenChange={setIsMoveDialogOpen}
+        projects={writableProjects}
+        currentProjectId={task?.project_id ?? null}
+        isLoading={writableProjectsQuery.isLoading}
+        hasError={Boolean(writableProjectsQuery.isError)}
+        isSaving={moveTask.isPending}
+        onConfirm={handleMoveTask}
       />
 
       <ConfirmDialog

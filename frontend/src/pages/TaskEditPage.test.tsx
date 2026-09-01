@@ -1,12 +1,13 @@
 /**
- * Where deleting a task leaves you.
+ * The task editor's action row: what it offers, and where deleting leaves you.
  *
  * Deleting from a task's page used to drop you at the initiative's projects
  * list — one step further out than you asked to go, and away from the sibling
  * tasks you were most likely working through. It now returns to the project
  * the task belonged to.
  */
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
@@ -61,12 +62,43 @@ const renderTaskPage = ({ taskProjectId = PROJECT_ID }: { taskProjectId?: number
 };
 
 describe("TaskEditPage", () => {
+  const openActionsMenu = async () =>
+    userEvent.click(await screen.findByRole("button", { name: /more actions/i }));
+
   const deleteTheTask = async () => {
-    fireEvent.click(await screen.findByRole("button", { name: /delete task/i }));
+    await openActionsMenu();
+    await userEvent.click(await screen.findByRole("menuitem", { name: /delete task/i }));
     // The confirm dialog repeats the label; the last match is its button.
     const confirms = await screen.findAllByRole("button", { name: /delete/i });
-    fireEvent.click(confirms[confirms.length - 1]);
+    await userEvent.click(confirms[confirms.length - 1]);
   };
+
+  it("keeps only save and cancel in the row, with the rest behind one menu", async () => {
+    renderTaskPage();
+
+    // Save and cancel are the row; the other four actions used to sit beside
+    // them as buttons and now only exist inside the overflow menu.
+    expect(await screen.findByRole("button", { name: /save task/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
+    for (const name of [/move to project/i, /duplicate task/i, /archive/i, /delete task/i]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+
+    await openActionsMenu();
+
+    for (const name of [/move to project/i, /duplicate task/i, /archive/i, /delete task/i]) {
+      expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("opens the move dialog from the actions menu", async () => {
+    renderTaskPage();
+
+    await openActionsMenu();
+    await userEvent.click(await screen.findByRole("menuitem", { name: /move to project/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
 
   it("returns to the task's project after deleting it", async () => {
     const { router, deleted } = renderTaskPage();
