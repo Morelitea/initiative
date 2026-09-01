@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
@@ -50,6 +50,7 @@ class QueueItemBase(SanitizedBaseModel):
 
 
 class QueueItemCreate(QueueItemBase):
+    label: TitleStr = Field(..., min_length=1, max_length=255)
     user_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
@@ -57,7 +58,7 @@ class QueueItemCreate(QueueItemBase):
 
 
 class QueueItemUpdate(SanitizedBaseModel):
-    label: Optional[str] = None
+    label: Optional[TitleStr] = None
     position: Optional[float] = None
     user_id: Optional[int] = None
     color: Optional[str] = None
@@ -114,6 +115,7 @@ class QueueBase(SanitizedBaseModel):
 
 
 class QueueCreate(QueueBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
@@ -125,7 +127,7 @@ class QueueCreate(QueueBase):
 
 
 class QueueUpdate(SanitizedBaseModel):
-    name: Optional[str] = None
+    name: Optional[TitleStr] = None
     description: Optional[str] = None
 
 

@@ -5,7 +5,7 @@ from typing import List, Literal, Optional
 
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
-from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.email_masking import mask_email
 from app.models.platform.guild import (
@@ -63,6 +63,7 @@ class GuildBase(SanitizedBaseModel):
 
 
 class GuildCreate(GuildBase):
+    name: TitleStr
     #: Make another account the guild's admin instead of the caller.
     #:
     #: Honoured only for a caller holding ``guilds.manage``; anyone else
@@ -200,7 +201,7 @@ class GuildInviteStatus(SanitizedBaseModel):
 
 
 class GuildUpdate(SanitizedBaseModel):
-    name: Optional[str] = None
+    name: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     # Trash retention period in days. None means "never auto-purge".
     # Sentinel "unset" semantics: explicitly omit the field to leave the
