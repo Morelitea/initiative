@@ -16,6 +16,7 @@ path that gives a long document several.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 from sqlalchemy import MetaData
@@ -174,11 +175,11 @@ def entity_types(*, default_scope_only: bool = False) -> tuple[str, ...]:
     )
 
 
-def _text_expr(columns: tuple[str, ...]) -> str:
+def _text_expr(columns: tuple[str, ...], row: str = ROW) -> str:
     """Row expression concatenating columns into one text value."""
     if not columns:
         return ""
-    parts = [f"coalesce({ROW}.{c}, '')" for c in columns]
+    parts = [f"coalesce({row}.{c}, '')" for c in columns]
     return " || ' ' || ".join(parts) if len(parts) > 1 else parts[0]
 
 
@@ -203,70 +204,43 @@ def _when_clause(table: str, source: SearchSource) -> str:
     return " OR ".join(f"OLD.{c} IS DISTINCT FROM NEW.{c}" for c in present)
 
 
-SEARCH_FUNCTION_SQL = """
-CREATE OR REPLACE FUNCTION {fn}() RETURNS trigger
-    LANGUAGE plpgsql AS $search$
+WRITE_FUNCTION = "public.search_entry_write"
+
+#: Splits one entity's text into chunks and replaces its rows. Shared by the
+#: refresh trigger and the reindex sweep so both produce identical entries.
+WRITE_FUNCTION_SQL = """
+CREATE OR REPLACE FUNCTION {write_fn}(
+    p_schema      text,
+    p_entity_type text,
+    p_entity_id   integer,
+    p_initiative  integer,
+    p_dac_tool    text,
+    p_dac_id      integer,
+    p_title       text,
+    p_body        text
+) RETURNS void
+    LANGUAGE plpgsql AS $write$
 DECLARE
-    v_row        record;
-    v_entity     integer;
-    v_initiative integer;
-    v_dac_id     integer;
-    v_title      text;
-    v_body       text;
-    v_chunk      text;
-    v_ix         smallint := 0;
-    v_pos        integer := 1;
-    v_len        integer;
-    v_cut        integer;
-    v_space      integer;
-    c_chunk      constant integer := {chunk};
-    c_max        constant integer := {maxchunks};
+    v_title text := coalesce(p_title, '');
+    v_body  text := coalesce(p_body, '');
+    v_chunk text;
+    v_ix    smallint := 0;
+    v_pos   integer := 1;
+    v_len   integer;
+    v_cut   integer;
+    v_space integer;
+    c_chunk constant integer := {chunk};
+    c_max   constant integer := {maxchunks};
 BEGIN
-    IF TG_OP = 'DELETE' THEN
-        v_row := OLD;
-    ELSE
-        v_row := NEW;
-    END IF;
-
-    EXECUTE 'SELECT ' || TG_ARGV[2] INTO v_entity USING v_row;
-    IF v_entity IS NULL THEN
-        RETURN NULL;
-    END IF;
-
-    -- Every path starts by clearing this entity's chunks: a re-index rewrites
-    -- them below, and a delete or a soft delete leaves them cleared. Written
-    -- into the schema the CHANGED ROW lives in, named from TG_TABLE_SCHEMA
-    -- rather than resolved through the caller's search_path.
     EXECUTE format(
         'DELETE FROM %I.search_entries WHERE entity_type = $1 AND entity_id = $2',
-        TG_TABLE_SCHEMA
-    ) USING TG_ARGV[1], v_entity;
+        p_schema
+    ) USING p_entity_type, p_entity_id;
 
-    IF TG_OP = 'DELETE' THEN
-        RETURN NULL;
-    END IF;
-
-    -- Trash is browsed through the trash surface, not found by searching.
-    IF to_jsonb(v_row) ? 'deleted_at'
-       AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL THEN
-        RETURN NULL;
-    END IF;
-
-    EXECUTE 'SELECT ' || TG_ARGV[0] INTO v_initiative USING v_row;
-    EXECUTE 'SELECT ' || TG_ARGV[3] INTO v_title USING v_row;
-    IF TG_ARGV[4] <> '' THEN
-        EXECUTE 'SELECT ' || TG_ARGV[4] INTO v_body USING v_row;
-    END IF;
-    IF TG_ARGV[6] <> '' THEN
-        EXECUTE 'SELECT ' || TG_ARGV[6] INTO v_dac_id USING v_row;
-    END IF;
-
-    v_title := coalesce(v_title, '');
-    v_body := coalesce(v_body, '');
     v_len := length(v_body);
 
-    -- One row per chunk, and always at least one so a titled row with no body
-    -- is still findable. Short text takes this loop exactly once.
+    -- One row per chunk, and always at least one so a titled entity with no
+    -- body is still findable. Short text takes this loop exactly once.
     LOOP
         IF v_pos > v_len THEN
             v_chunk := '';
@@ -293,19 +267,70 @@ BEGIN
             ') VALUES ($1, $2, $3, $4, nullif($5, ''''), $6, $7, nullif($8, ''''), now(),'
             '  setweight(to_tsvector(''simple'', $7), ''A'') ||'
             '  setweight(to_tsvector(''simple'', $8), ''B''))',
-            TG_TABLE_SCHEMA
-        ) USING TG_ARGV[1], v_entity, v_ix, v_initiative,
-                TG_ARGV[5], v_dac_id, v_title, v_chunk;
+            p_schema
+        ) USING p_entity_type, p_entity_id, v_ix, p_initiative,
+                p_dac_tool, p_dac_id, v_title, v_chunk;
 
         v_ix := v_ix + 1;
         v_pos := v_pos + v_cut;
         EXIT WHEN v_pos > v_len OR v_ix >= c_max;
     END LOOP;
+END
+$write$;
+""".format(write_fn=WRITE_FUNCTION, chunk=CHUNK_CHARS, maxchunks=MAX_CHUNKS)
 
+
+SEARCH_FUNCTION_SQL = """
+CREATE OR REPLACE FUNCTION {fn}() RETURNS trigger
+    LANGUAGE plpgsql AS $search$
+DECLARE
+    v_row        record;
+    v_entity     integer;
+    v_initiative integer;
+    v_dac_id     integer;
+    v_title      text;
+    v_body       text;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_row := OLD;
+    ELSE
+        v_row := NEW;
+    END IF;
+
+    EXECUTE 'SELECT ' || TG_ARGV[2] INTO v_entity USING v_row;
+    IF v_entity IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    -- A delete, or a soft delete, leaves the entity with no rows: trash is
+    -- browsed through the trash surface, not found by searching.
+    IF TG_OP = 'DELETE'
+       OR (to_jsonb(v_row) ? 'deleted_at'
+           AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL) THEN
+        EXECUTE format(
+            'DELETE FROM %I.search_entries WHERE entity_type = $1 AND entity_id = $2',
+            TG_TABLE_SCHEMA
+        ) USING TG_ARGV[1], v_entity;
+        RETURN NULL;
+    END IF;
+
+    EXECUTE 'SELECT ' || TG_ARGV[0] INTO v_initiative USING v_row;
+    EXECUTE 'SELECT ' || TG_ARGV[3] INTO v_title USING v_row;
+    IF TG_ARGV[4] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[4] INTO v_body USING v_row;
+    END IF;
+    IF TG_ARGV[6] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[6] INTO v_dac_id USING v_row;
+    END IF;
+
+    PERFORM {write_fn}(
+        TG_TABLE_SCHEMA, TG_ARGV[1], v_entity, v_initiative,
+        nullif(TG_ARGV[5], ''), v_dac_id, v_title, v_body
+    );
     RETURN NULL;
 END
 $search$;
-""".format(fn=SEARCH_FUNCTION, chunk=CHUNK_CHARS, maxchunks=MAX_CHUNKS)
+""".format(fn=SEARCH_FUNCTION, write_fn=WRITE_FUNCTION)
 
 
 def _call_args(table: str, source: SearchSource) -> list[str]:
@@ -414,3 +439,60 @@ def render_guild_search_ddl(opclass: str | None = None) -> str:
     ]
     blocks.append(_index_block(opclass))
     return _HEADER + "\n\n" + "\n\n".join(blocks) + "\n"
+
+
+def search_generation() -> str:
+    """Digest of WHAT is indexed and HOW, for deciding when to reindex.
+
+    Covers the per-source declarations and the chunking rules, so adding a
+    source or changing an extraction re-sweeps. Deliberately excludes the index
+    definition: swapping the operator class rebuilds the index, which does not
+    change a single stored row.
+    """
+    digest = hashlib.sha256()
+    for table, source in sorted(SEARCH_SOURCES.items()):
+        digest.update(_trigger_block(table, source).encode())
+    digest.update(WRITE_FUNCTION_SQL.encode())
+    return f"search:{digest.hexdigest()[:16]}"
+
+
+def reindex_statement(table: str, source: SearchSource) -> str:
+    """One batch of a source table's rows, re-written through the same function
+    the trigger uses.
+
+    ``:schema`` names the guild schema, ``:cursor`` is the last id of the
+    previous batch and ``:batch`` its size — so a large table is walked in
+    bounded transactions rather than one.
+    """
+    row = "t"
+    columns = SQLModel.metadata.tables[table].columns
+    dac_tool = f"'{source.dac_tool.value}'" if source.dac_tool else "NULL"
+    dac_id = (
+        f"{row}.{source.dac_id or 'id'}::integer"
+        if source.dac_tool
+        else "NULL::integer"
+    )
+    body = _text_expr(source.body, row) or "''"
+    live = " AND t.deleted_at IS NULL" if "deleted_at" in columns else ""
+    return (
+        f"SELECT {row}.id AS id, {WRITE_FUNCTION}("  # noqa: S608 — registry-rendered
+        f":schema, '{source.entity_type}', {row}.id,"
+        f" ({initiative_locator(table)(row)})::integer,"
+        f" {dac_tool}, {dac_id}, {row}.{source.title}, {body})"
+        f" FROM {table} {row}"
+        f" WHERE {row}.id > :cursor{live}"
+        f" ORDER BY {row}.id LIMIT :batch"
+        # Locks each row for the duration of the write, so the values written
+        # are the row's current ones: a concurrent write to the same row
+        # finishes first and this sees its result, rather than replacing it
+        # with what the batch read a moment earlier.
+        " FOR UPDATE"
+    )
+
+
+def reindex_plan() -> list[tuple[str, str]]:
+    """``(entity_type, statement)`` for every indexed source, in a stable order."""
+    return [
+        (source.entity_type, reindex_statement(table, source))
+        for table, source in sorted(SEARCH_SOURCES.items())
+    ]

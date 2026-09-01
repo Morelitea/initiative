@@ -81,6 +81,7 @@ async def lifespan(app: FastAPI):
         verify_effective_shared_grants,
         verify_engine_identities,
         warn_if_privileged_database_url,
+        backfill_guild_search,
         warn_if_search_operator_missing,
     )
 
@@ -104,6 +105,7 @@ async def lifespan(app: FastAPI):
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
     await warn_if_search_operator_missing()
+    await backfill_guild_search()
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).
