@@ -469,11 +469,23 @@ async def annotate_comment_counts(
         object.__setattr__(document, "comment_count", counts.get(document.id, 0))
 
 
-def extract_wikilink_document_ids(content: dict[str, Any] | None) -> set[int]:
-    """Extract all target document IDs from WikilinkNodes in the content.
+#: Node types that point at another document, and the field holding its id.
+#:
+#: ``wikilink`` is what ``[[ ]]`` wrote before references were one thing;
+#: ``entity-mention`` is what both triggers write now. Both count, which is
+#: what stops "what links here" under-reporting the moment anyone uses ``#``.
+_LINK_NODES: dict[str, str] = {
+    "wikilink": "documentId",
+    "entity-mention": "entityId",
+}
 
-    Recursively walks the Lexical state tree looking for nodes with
-    type="wikilink" and a valid documentId.
+
+def extract_linked_document_ids(content: dict[str, Any] | None) -> set[int]:
+    """Every document this content points at.
+
+    Walks the Lexical state for reference nodes naming a document. A reference
+    to something else — a task, a queue — is not a document link and is left
+    out; a badge is a reading rather than a link and never counts.
     """
     if not isinstance(content, dict):
         return set()
@@ -483,22 +495,22 @@ def extract_wikilink_document_ids(content: dict[str, Any] | None) -> set[int]:
     def walk(node: Any) -> None:
         if not isinstance(node, dict):
             return
-        # Check if this is a wikilink node
-        if node.get("type") == "wikilink":
-            doc_id = node.get("documentId")
-            if isinstance(doc_id, int) and doc_id > 0:
+        field = _LINK_NODES.get(node.get("type"))
+        if field is not None:
+            # A reference names its kind; a legacy wikilink is a document by
+            # construction and carries none.
+            kind = node.get("entityType", "document")
+            doc_id = node.get(field)
+            if kind == "document" and isinstance(doc_id, int) and doc_id > 0:
                 document_ids.add(doc_id)
-        # Recursively process children
         children = node.get("children")
         if isinstance(children, list):
             for child in children:
                 walk(child)
 
-    # Start from root
     root = content.get("root")
     if isinstance(root, dict):
         walk(root)
-
     return document_ids
 
 
@@ -541,7 +553,7 @@ async def sync_document_links(
     guild_id: int | None = None,
     fix_content: bool = False,
 ) -> dict[str, Any] | None:
-    """Sync the document_links table based on WikilinkNodes in the content.
+    """Sync the document_links table from the references in the content.
 
     This extracts all wikilink document IDs from the content and updates
     the document_links table to reflect the current state:
@@ -557,7 +569,7 @@ async def sync_document_links(
         return None
 
     # Extract current wikilink targets
-    current_target_ids = extract_wikilink_document_ids(content)
+    current_target_ids = extract_linked_document_ids(content)
 
     # Validate which target documents actually exist
     # This prevents FK violations when wikilinks point to deleted documents

@@ -31,6 +31,9 @@ class BadgeAspect(str, Enum):
     value = "value"
     #: When something happens, and whether it has.
     when = "when"
+    #: What a thing is called right now — what a link to it renders as, so a
+    #: rename reaches every place that points at it.
+    title = "title"
 
 
 class BadgeTone(str, Enum):
@@ -55,11 +58,11 @@ class BadgeTone(str, Enum):
 #: How the three parts of a reference are joined: ``task:12:status``.
 REF_SEPARATOR = ":"
 
-#: Every badge there is: a thing, and the changing fact about it.
+#: The facts a badge can be about, beyond the title every referenceable thing
+#: has. One entry is one reader in ``app.services.tenant.document_badges``.
 #:
-#: Declared here rather than beside the readers so the API, the generated
-#: client and the editor's insert menu all derive from one list.
-#: ``document_badges_test`` asserts every pair has a reader.
+#: ``title`` is not listed: every kind that can be referred to has one, and the
+#: set of those kinds is derived rather than restated.
 BADGE_KINDS: tuple[tuple[SearchEntityType, BadgeAspect], ...] = (
     (SearchEntityType.calendar_event, BadgeAspect.when),
     (SearchEntityType.counter, BadgeAspect.value),
@@ -75,8 +78,11 @@ def kind_value(entity_type: SearchEntityType, aspect: BadgeAspect) -> str:
     return f"{entity_type.value}{REF_SEPARATOR}{aspect.value}"
 
 
-#: The pairs as a closed set the generated client can read, so an editor cannot
-#: offer a badge this server does not know how to answer.
+#: The pairs an editor can insert, as a closed set the generated client reads.
+#:
+#: Only the aspect badges: a title is how a reference RENDERS, not something
+#: chosen from a menu, and which kinds have one is derived from the reference
+#: surface rather than restated here.
 BadgeKind = Enum(
     "BadgeKind",
     {

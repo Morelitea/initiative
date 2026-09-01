@@ -18,13 +18,17 @@ from app.models.platform.guild import GuildRole
 from sqlmodel import select
 
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
-from app.services.tenant.document_badges import _ACCESS, _ID_COLUMNS, BADGE_SOURCES
+from app.db.reference_targets import NOT_REFERENCEABLE, referenceable_types
+from app.services.tenant.document_badges import BADGE_SOURCES
 from app.testing import (
     Actor,
     create_calendar,
     create_calendar_event,
     create_counter,
+    create_comment,
     create_counter_group,
+    create_queue,
+    create_queue_item,
     create_task,
     create_task_status,
     create_user,
@@ -325,11 +329,21 @@ async def test_a_chip_stops_at_the_sharing_gate_not_just_the_initiative(
     assert await _badges(client, b, f"task:{task.id}:status") == {}
 
 
-def test_every_badgeable_thing_declares_how_it_is_gated():
-    """A badge reads live state, so every kind must say which resource governs
-    it. A kind with no entry here would be answered ungated."""
-    assert set(_ACCESS) == {entity_type for entity_type, _aspect in BADGE_KINDS}
-    assert set(_ACCESS) == set(_ID_COLUMNS)
+def test_every_badgeable_thing_can_be_gated():
+    """A badge reads live state, so its kind must resolve to a gate. Those are
+    derived from the search registry, so this is what proves the derivation
+    covers everything a badge can be about."""
+    referenceable = set(referenceable_types())
+    assert {entity_type for entity_type, _aspect in BADGE_KINDS} <= referenceable
+
+
+def test_the_reference_surface_is_everything_indexed_but_a_comment():
+    """Referenceable is derived, not listed. A tool added to the search
+    registry becomes linkable, resolvable and gated with no edit here."""
+    from app.db.search_index import SEARCH_SOURCES
+
+    indexed = {source.entity_type for source in SEARCH_SOURCES.values()}
+    assert set(referenceable_types()) == indexed - NOT_REFERENCEABLE
 
 
 @pytest.mark.parametrize("aspect", ["status", "assignee", "due", "priority"])
@@ -381,3 +395,73 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
     )
     assert f"counter:{counter.id}:value" not in body
     assert f"calendar_event:{event.id}:when" in body
+
+
+async def test_a_reference_reads_the_current_name(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The point of the whole thing: rename it, and what points at it says the
+    new name without being touched."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Old name")
+    ref = f"task:{task.id}:title"
+
+    assert (await _badges(client, a, ref))[ref]["text"] == "Old name"
+
+    task.title = "New name"
+    session.add(task)
+    await session.commit()
+
+    assert (await _badges(client, a, ref))[ref]["text"] == "New name"
+
+
+async def test_every_kind_answers_with_whatever_it_calls_its_name(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A queue item has a label, a task a title, a project a name. The column is
+    derived from the search registry, so none of them is written down twice."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="A task")
+    queue = await create_queue(session, a.initiative, a.user)
+    item = await create_queue_item(session, queue, label="An item")
+
+    body = await _badges(
+        client,
+        a,
+        f"task:{task.id}:title",
+        f"project:{a.project.id}:title",
+        f"queue:{queue.id}:title",
+        f"queue_item:{item.id}:title",
+    )
+    assert body[f"task:{task.id}:title"]["text"] == "A task"
+    assert body[f"project:{a.project.id}:title"]["text"] == a.project.name
+    assert body[f"queue:{queue.id}:title"]["text"] == queue.name
+    assert body[f"queue_item:{item.id}:title"]["text"] == "An item"
+
+
+async def test_a_title_stops_at_the_same_gate_a_badge_does(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A name is content. Reading one is gated exactly as reading a status is."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(session, a.project, title="restricted")
+
+    assert await _badges(client, b, f"task:{task.id}:title") == {}
+
+
+async def test_a_comment_is_not_something_you_point_at(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Comments are indexed but not referenceable — the thing a remark is on is
+    what a reader wants, and a comment has no name to render."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Ship it")
+    comment = await create_comment(session, a.user, task=task)
+
+    assert await _badges(client, a, f"comment:{comment.id}:title") == {}

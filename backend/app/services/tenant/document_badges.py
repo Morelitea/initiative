@@ -19,27 +19,22 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import Select, func
 from sqlmodel import select
 
 from app.core.document_badges import (
     BadgeAspect,
-    BadgeKind,
     BadgeTone,
     REF_SEPARATOR,
-    kind_value,
 )
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.db import reference_targets
 from app.core.user_display import display_name
 from app.models.platform.user import User
-from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.project import Project
+from app.models.tenant.counter import Counter
 from app.models.tenant.task import (
     Task,
     TaskAssignee,
@@ -263,9 +258,20 @@ def parse_ref(ref: str) -> Optional[tuple[SearchEntityType, int, BadgeAspect]]:
         pair = (SearchEntityType(kind), BadgeAspect(aspect))
     except ValueError:
         return None
-    if pair not in BADGE_SOURCES:
+    if not _is_readable(*pair):
         return None
     return pair[0], int(raw_id), pair[1]
+
+
+def _is_readable(entity_type: SearchEntityType, aspect: BadgeAspect) -> bool:
+    """Whether this pair is something to read.
+
+    Two ways to be: an aspect with a reader of its own, or the title that every
+    referenceable kind has.
+    """
+    if aspect is BadgeAspect.title:
+        return entity_type in reference_targets.referenceable_types()
+    return (entity_type, aspect) in BADGE_SOURCES
 
 
 def format_ref(kind: SearchEntityType, entity_id: int, aspect: BadgeAspect) -> str:
@@ -273,50 +279,21 @@ def format_ref(kind: SearchEntityType, entity_id: int, aspect: BadgeAspect) -> s
     return REF_SEPARATOR.join((kind.value, str(entity_id), aspect.value))
 
 
-#: How each badgeable thing answers the sharing gate: the resource that governs
-#: it, and the initiative that resource sits in.
-#:
-#: ``public.resource_access`` is the same function the tables' own RLS policies
-#: call, so a badge is allowed exactly what opening the thing is allowed. One
-#: entry per kind rather than per aspect — sharing is a property of the thing,
-#: not of the fact being read about it.
-_ACCESS: dict[SearchEntityType, Callable[[int], Select]] = {
-    SearchEntityType.task: lambda user_id: (
-        select(Task.id)
-        .join(Project, Project.id == Task.project_id)
-        .where(
-            func.resource_access(
-                Tool.project.value, Project.id, user_id, Project.initiative_id, False
-            )
-        )
-    ),
-    SearchEntityType.counter: lambda user_id: (
-        select(Counter.id)
-        .join(CounterGroup, CounterGroup.id == Counter.counter_group_id)
-        .where(
-            func.resource_access(
-                Tool.counter_group.value,
-                CounterGroup.id,
-                user_id,
-                CounterGroup.initiative_id,
-                False,
-            )
-        )
-    ),
-    SearchEntityType.calendar_event: lambda user_id: (
-        select(CalendarEvent.id)
-        .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
-        .where(
-            func.resource_access(
-                Tool.calendar.value,
-                Calendar.id,
-                user_id,
-                Calendar.initiative_id,
-                False,
-            )
-        )
-    ),
-}
+async def _titles(
+    session: AsyncSession, entity_type: SearchEntityType, ids: list[int]
+) -> dict[int, BadgeValue]:
+    """What these things are called right now.
+
+    The column is whichever one the kind calls its name — derived, so a queue
+    item answers with its label and a task with its title without either being
+    written down here.
+    """
+    table = reference_targets.id_column(entity_type).table
+    title = reference_targets.title_column(entity_type)
+    rows = (
+        await session.exec(select(table.c["id"], title).where(table.c["id"].in_(ids)))
+    ).all()
+    return {entity_id: BadgeValue(text=name or "") for entity_id, name in rows}
 
 
 async def _visible(
@@ -326,27 +303,21 @@ async def _visible(
 
     Being routed into the guild and being in the initiative is not the whole
     answer — a tool is shared per resource, and that is the gate this applies.
+    The gate itself is derived: see :mod:`app.db.reference_targets`.
 
-    Done here rather than inside each reader on purpose: a badge added later
-    cannot forget it, because a reader is never handed an id that did not come
-    back from this. ``document_badges_test`` walks every declared badge and
-    proves each one stops here.
+    Done here rather than inside each reader on purpose: a reader is never
+    handed an id that did not come back from this, so a badge added later
+    cannot forget it.
     """
     seen: dict[SearchEntityType, set[int]] = {}
     for entity_type, ids in wanted.items():
-        statement = _ACCESS[entity_type](user_id).where(
-            _ID_COLUMNS[entity_type].in_(ids)
+        statement = reference_targets.visible_ids(entity_type, user_id).where(
+            reference_targets.id_column(entity_type).in_(ids)
         )
-        seen[entity_type] = set((await session.exec(statement)).all())
+        # A Core-column select yields rows, not scalars.
+        rows = (await session.exec(statement)).all()
+        seen[entity_type] = {row[0] for row in rows}
     return seen
-
-
-#: The id each gate selects, for narrowing it to what was asked about.
-_ID_COLUMNS: dict[SearchEntityType, Any] = {
-    SearchEntityType.task: Task.id,
-    SearchEntityType.counter: Counter.id,
-    SearchEntityType.calendar_event: CalendarEvent.id,
-}
 
 
 async def read_badges(
@@ -376,7 +347,12 @@ async def read_badges(
     read: dict[tuple[SearchEntityType, BadgeAspect], dict[int, BadgeValue]] = {}
     for pair, ids in wanted.items():
         allowed = [i for i in ids if i in visible.get(pair[0], ())]
-        read[pair] = await BADGE_SOURCES[pair](session, allowed) if allowed else {}
+        if not allowed:
+            read[pair] = {}
+        elif pair[1] is BadgeAspect.title:
+            read[pair] = await _titles(session, pair[0], allowed)
+        else:
+            read[pair] = await BADGE_SOURCES[pair](session, allowed)
 
     states: list[BadgeState] = []
     for ref, pair, entity_id in parsed:
@@ -386,7 +362,6 @@ async def read_badges(
         states.append(
             BadgeState(
                 ref=ref,
-                kind=BadgeKind(kind_value(*pair)),
                 text=value.text,
                 tone=value.tone,
                 color=value.color,

@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.core.document_badges import BadgeKind, BadgeTone
+from app.core.document_badges import BadgeTone
 
 
 class BadgeState(BaseModel):
@@ -25,9 +25,6 @@ class BadgeState(BaseModel):
     #: The ``kind:id:aspect`` this answers, echoed back so a client can match
     #: it to the chip that asked without relying on order.
     ref: str
-    #: Which badge this is — ``task:status``. Saves a client parsing ``ref``,
-    #: and is the set the editor's insert menu is built from.
-    kind: BadgeKind
     text: str
     tone: BadgeTone
     #: A colour the thing carries itself — a task status has one. Overrides the
