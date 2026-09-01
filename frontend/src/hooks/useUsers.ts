@@ -19,7 +19,8 @@ import {
   getListUsersApiV1GGuildIdUsersGetQueryKey,
   listUsersApiV1GGuildIdUsersGet,
   updateUsersMeApiV1UsersMePatch,
-  useReadMemberProfileApiV1GGuildIdUsersUserIdProfileGet,
+  useListMyDecorationsApiV1UsersMeDecorationsGet,
+  useReadUserProfileApiV1UsersUserIdProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
@@ -81,22 +82,29 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
 });
 
 /**
- * One member's profile, as the rest of the guild sees them.
+ * One person's profile.
  *
- * Guild-scoped like the roster it is reached from: the shared guild is what
- * makes the page exist for the reader, and it is also what decides whether a
- * real name renders and what "online" is measured against.
+ * Public and community-independent: the same page whoever opens it, so there
+ * is no guild in the call.
  */
-export const useUserProfile = (userId: number | null | undefined) => {
-  const guildId = useActiveGuildId();
-  return useReadMemberProfileApiV1GGuildIdUsersUserIdProfileGet(guildId, userId as number, {
+export const useUserProfile = (userId: number | null | undefined) =>
+  useReadUserProfileApiV1UsersUserIdProfileGet(userId as number, {
     query: {
-      enabled: guildId != null && userId != null,
+      enabled: userId != null,
       // Presence moves on its own, so a profile left open goes stale fast.
       staleTime: 30_000,
     },
   });
-};
+
+/**
+ * What the signed-in account may dress its profile in — what ships with the
+ * app plus whatever it has acquired. Drives the pickers on Settings > Profile;
+ * a library changes only when a pack is installed, so it is held a good while.
+ */
+export const useMyDecorations = () =>
+  useListMyDecorationsApiV1UsersMeDecorationsGet({
+    query: { staleTime: 5 * 60_000 },
+  });
 
 /**
  * Slim, server-side member typeahead for the active guild. Returns

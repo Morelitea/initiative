@@ -1,4 +1,5 @@
 import type {
+  OwnedDecoration,
   UserGuildMember,
   UserProfile,
   UserPublic,
@@ -109,6 +110,8 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
+    custom_status: { emoji: null, text: null },
+    profile_decorations: { banner: null, frame: null, badges: [] },
     week_starts_on: 0,
     timezone: "America/New_York",
     ...overrides,
@@ -143,14 +146,17 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
     id: counter,
     username: `user-${counter}`,
     discriminator: 1000 + counter,
-    full_name: `User ${counter}`,
     avatar_url: null,
     status: "active",
-    custom_status_emoji: null,
-    custom_status_text: null,
+    custom_status: { emoji: null, text: null },
     profile_decorations: { banner: null, frame: null, badges: [] },
     online: false,
     joined_at: "2026-01-15T00:00:00.000Z",
     ...overrides,
   };
+}
+
+/** One decoration in somebody's library. Shipped (no pack) by default. */
+export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
+  return { id: "core.aurora", kind: "banner", source: null, ...overrides };
 }

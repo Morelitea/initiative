@@ -14,6 +14,7 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.core.capabilities import Capability, capabilities_for
 from app.core.emoji import validate_emoji
+from app.core.profile_decorations import BADGE, BANNER, FRAME
 from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
@@ -171,6 +172,47 @@ class UserSummaryListResponse(SanitizedBaseModel):
     has_prev: bool
 
 
+#: How long the line beside the emoji may run.
+STATUS_TEXT_MAX_LENGTH = 100
+
+
+class CustomStatus(SanitizedBaseModel):
+    """What a person is up to, in their own words.
+
+    One object, stored in one column, because it is one thing a person sets
+    and one thing every surface that names them renders: splitting it in two
+    would mean two reads and two writes for a single line of text.
+
+    Not to be confused with ``UserStatus`` (``users.status``), which is the
+    account's standing — suspended, deactivated — and is not the person's to
+    write.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", json_schema_serialization_defaults_required=True
+    )
+
+    emoji: Optional[str] = None
+    text: Optional[str] = Field(default=None, max_length=STATUS_TEXT_MAX_LENGTH)
+
+    @field_validator("emoji")
+    @classmethod
+    def _check_emoji(cls, value: Optional[str]) -> Optional[str]:
+        """Hold the status emoji to the same shape a reaction's is held to.
+
+        An empty string means "take it off", which is how a picker sends a
+        cleared selection.
+        """
+        if value is None or not value.strip():
+            return None
+        return validate_emoji(value)
+
+    @field_validator("text")
+    @classmethod
+    def _blank_is_none(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else (value.strip() or None)
+
+
 #: What a decoration id may be made of. An explicit set rather than a pattern:
 #: the id is spliced into the path of a local asset by the client, so the
 #: characters it may contain are worth reading at a glance.
@@ -236,18 +278,59 @@ class ProfileDecorations(SanitizedBaseModel):
                 seen.append(identifier)
         return seen
 
+    def worn(self) -> List[tuple[str, str]]:
+        """``(id, slot)`` for everything this profile is wearing.
 
-class UserProfile(GuildNameVisibility):
-    """A person, as the rest of their guild sees them.
+        The one place a slot is paired with its id, so the check against a
+        person's library and the shape they wrote it in cannot disagree about
+        which is which.
+        """
+        pairs: List[tuple[str, str]] = []
+        if self.banner:
+            pairs.append((self.banner, BANNER))
+        if self.frame:
+            pairs.append((self.frame, FRAME))
+        pairs.extend((badge, BADGE) for badge in self.badges)
+        return pairs
 
-    Everything on :class:`UserPublic` — the face and the handle a member is
-    already rendered by everywhere else — plus what a profile adds: the line
-    they wrote about themselves, how they have dressed the page, whether they
-    have the app open, and when they joined this guild.
 
-    Guild-scoped on purpose, because two of those answers are: a real name
-    shows only where the guild shows names, and "here" means here rather than
-    on the platform somewhere.
+class OwnedDecoration(SanitizedBaseModel):
+    """One decoration an account may wear, and where it came from.
+
+    ``source`` names the marketplace pack that granted it, and is ``None`` for
+    the ones that ship with the app. The client renders a picker per slot from
+    these, drawing each id with the artwork it has for it and skipping the ones
+    it doesn't.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: str
+    kind: str
+    source: Optional[str] = None
+
+
+class OwnedDecorationsResponse(SanitizedBaseModel):
+    """A person's whole library, in one read — it is small and it is all
+    needed at once, because the profile form renders every slot together."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[OwnedDecoration]
+
+
+class UserProfile(SanitizedBaseModel):
+    """A person, as anyone can see them.
+
+    A profile is public. It carries the handle — which is the name in this
+    product, unique and never withheld — the face, the line they wrote, the
+    look they picked, whether they are online, and when they joined. It never
+    carries a real name: ``full_name`` is a guild's business (a guild decides
+    whether it renders names at all), and this shape has no guild in it.
+
+    Nothing here is private to a guild, so nothing here is reached through
+    one. What it does not carry is the whole point of it being its own shape:
+    no address, no roles, no memberships, no preferences.
     """
 
     model_config = ConfigDict(
@@ -257,16 +340,14 @@ class UserProfile(GuildNameVisibility):
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
-    custom_status_emoji: Optional[str] = None
-    custom_status_text: Optional[str] = None
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
-    #: Whether this member has the guild open right now. Set by the endpoint
-    #: from the realtime connections this process holds.
+    #: Whether this person has Initiative open right now — the account, not a
+    #: guild. Set by the endpoint from ``realtime.manager.online``.
     online: bool = False
-    #: When they joined *this* guild, which is not when they made the account.
+    #: When the account was made.
     joined_at: datetime
 
 
@@ -286,8 +367,7 @@ class UserRead(UserBase):
     created_at: datetime
     updated_at: datetime
     avatar_url: Optional[str] = None
-    custom_status_emoji: Optional[str] = None
-    custom_status_text: Optional[str] = None
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
@@ -368,9 +448,8 @@ class UserSelfUpdate(SanitizedBaseModel):
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
     avatar_url: Optional[str] = None
-    # Sending ``null`` clears the field; leaving it out leaves it alone.
-    custom_status_emoji: Optional[str] = None
-    custom_status_text: Optional[str] = Field(default=None, max_length=100)
+    # Sending ``null`` takes the status off; leaving it out leaves it alone.
+    custom_status: Optional[CustomStatus] = None
     # The whole set at once rather than one key at a time: a profile wears a
     # look, and a partial write would have no way to say "take the frame off".
     profile_decorations: Optional[ProfileDecorations] = None
@@ -400,25 +479,6 @@ class UserSelfUpdate(SanitizedBaseModel):
     task_completion_audio_feedback: Optional[bool] = None
     task_completion_haptic_feedback: Optional[bool] = None
     locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
-
-    @field_validator("custom_status_emoji")
-    @classmethod
-    def _check_status_emoji(cls, value: Optional[str]) -> Optional[str]:
-        """Hold the status emoji to the same shape a reaction's is held to.
-
-        An empty string means "take it off", which is how a picker sends a
-        cleared selection.
-        """
-        if value is None or not value.strip():
-            return None
-        return validate_emoji(value)
-
-    @field_validator("custom_status_text")
-    @classmethod
-    def _blank_text_is_none(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        return value.strip() or None
 
 
 class AccountDeletionRequest(SanitizedBaseModel):

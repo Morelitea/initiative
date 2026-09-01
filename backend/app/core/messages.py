@@ -439,6 +439,9 @@ class UserMessages:
     # A read payload's ``avatar_url`` is a path this API serves; writing one
     # back would store it as though it were an external picture URL.
     AVATAR_URL_NOT_EXTERNAL = "USER_AVATAR_URL_NOT_EXTERNAL"
+    #: A decoration this account's library does not answer for — one it does
+    #: not have, or one it has for a different slot.
+    DECORATION_NOT_OWNED = "USER_DECORATION_NOT_OWNED"
 
 
 class ImportMessages:

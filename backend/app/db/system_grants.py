@@ -119,6 +119,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # and anonymization paths — both of which act on someone else's row and so
     # cannot run under the own-row request-path policies.
     "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # A person's decoration library. Grants are issued, never self-served: a
+    # pack install writes the rows and an uninstall removes them, both on the
+    # system engine. The request path only reads its own (SELECT), so every
+    # write verb lives here.
+    "user_decorations": frozenset({"SELECT", "INSERT", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -225,6 +230,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # avatar, and the row policies narrow writes to the caller's own. The bare
     # login role reads because the serve endpoint answers before routing.
     "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # A library belongs to a signed-in account, and the bare pre-routing login
+    # role serves nobody in particular.
+    "user_decorations": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

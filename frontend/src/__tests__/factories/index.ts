@@ -74,6 +74,7 @@ export {
   resetCounter as resetTaskCounter,
 } from "./task.factory";
 export {
+  buildOwnedDecoration,
   buildUser,
   buildUserGuildMember,
   buildUserProfile,

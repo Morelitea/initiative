@@ -7,20 +7,17 @@ import { UserHandle } from "@/components/UserHandle";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileBadges } from "@/components/user/ProfileBadges";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useUserProfile } from "@/hooks/useUsers";
 import { formatDate } from "@/lib/formatDate";
-import { guildPath } from "@/lib/guildUrl";
 import { resolveDecoration } from "@/lib/profileDecorations";
-import { hasDisplayName } from "@/lib/userDisplay";
 
 /**
- * A member's profile, as the rest of their guild sees it.
+ * A person's profile.
  *
- * Guild-scoped, like the roster it is reached from — which is what decides
- * both of the things a profile can't answer on its own: whether a real name
- * renders at all, and what "online" is measured against. Somebody the reader
- * shares no guild with has no page here rather than an empty one.
+ * Public, and the same page whoever opens it: the handle is the name in this
+ * product, so nothing here depends on a community deciding whether it renders
+ * real names, and "online" is a fact about the person rather than about a
+ * place they happen to share with the reader.
  *
  * Read-only for everyone, including its owner: what is on it is written on
  * Settings → Profile, so there is one place a person edits themselves rather
@@ -28,7 +25,6 @@ import { hasDisplayName } from "@/lib/userDisplay";
  */
 export const UserProfilePage = () => {
   const { t } = useTranslation(["profiles", "common"]);
-  const guildId = useActiveGuildId();
   const { userId: userIdParam } = useParams({ strict: false }) as { userId: string };
   const userId = Number(userIdParam);
 
@@ -48,15 +44,14 @@ export const UserProfilePage = () => {
         icon={<UserX />}
         title={t("notFound.title")}
         description={t("notFound.description")}
-        backTo={guildId ? guildPath(guildId, "/") : "/"}
+        backTo="/"
         backLabel={t("notFound.back")}
       />
     );
   }
 
   const banner = resolveDecoration(profile.profile_decorations.banner, "banner");
-  const status = profile.custom_status_text ?? "";
-  const statusEmoji = profile.custom_status_emoji ?? "";
+  const { emoji: statusEmoji, text: statusText } = profile.custom_status;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -76,26 +71,24 @@ export const UserProfilePage = () => {
               online={profile.online}
               className="size-24 rounded-full ring-4 ring-card sm:size-28"
             />
-            <div className="min-w-0 flex-1 space-y-1 pb-1">
-              {hasDisplayName(profile) && profile.full_name ? (
-                <h1 className="truncate font-semibold text-2xl">{profile.full_name}</h1>
-              ) : null}
-              <UserHandle
-                user={profile}
-                className={profile.full_name ? "text-muted-foreground" : "font-semibold text-2xl"}
-              />
+            <div className="min-w-0 flex-1 pb-1">
+              {/* The handle is the name here, so it is the heading rather than
+                  a subtitle under one. */}
+              <h1>
+                <UserHandle user={profile} className="font-semibold text-2xl" />
+              </h1>
             </div>
             <ProfileBadges decorations={profile.profile_decorations} />
           </div>
 
-          {statusEmoji || status ? (
+          {statusEmoji || statusText ? (
             <p className="flex items-start gap-2 text-base">
               {statusEmoji ? (
                 <span className="text-xl leading-tight" aria-hidden="true">
                   {statusEmoji}
                 </span>
               ) : null}
-              <span className="min-w-0 break-words">{status}</span>
+              <span className="min-w-0 break-words">{statusText}</span>
             </p>
           ) : (
             <p className="text-muted-foreground text-sm">{t("noStatus")}</p>

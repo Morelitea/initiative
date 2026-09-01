@@ -19,6 +19,8 @@ from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
+from app.core.profile_decorations import SHIPPED_DECORATIONS
+from app.models.platform.user_decoration import UserDecoration
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services.realtime import manager as realtime_manager
 
@@ -1154,127 +1156,123 @@ async def test_initiative_members_excludes_anonymized(
 
 
 @pytest.mark.integration
-async def test_member_profile_carries_the_basics(
-    client: AsyncClient, session: AsyncSession
-):
-    """A member's profile: their face, their handle, the line they wrote, the
-    look they picked, and when they joined this guild."""
-    guild = await create_guild(session)
+async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSession):
+    """A profile: the handle, the face, the line they wrote, the look they
+    picked, and when they joined."""
     caller = await create_user(session)
-    member = await create_user(
+    subject = await create_user(
         session,
         username="tinker",
         full_name="Tinker Bell",
         avatar_url="https://example.com/tinker.png",
-        custom_status_emoji="\N{GAME DIE}",
-        custom_status_text="rolling for initiative",
+        custom_status={"emoji": "\N{GAME DIE}", "text": "rolling for initiative"},
         profile_decorations={"banner": "core.aurora", "badges": ["core.founder"]},
     )
-    for user in (caller, member):
-        await create_guild_membership(session, user=user, guild=guild)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
-        headers=get_auth_headers(caller),
+        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["id"] == member.id
+    assert body["id"] == subject.id
     assert body["username"] == "tinker"
-    assert body["full_name"] == "Tinker Bell"
     assert body["avatar_url"] == "https://example.com/tinker.png"
-    assert body["custom_status_emoji"] == "\N{GAME DIE}"
-    assert body["custom_status_text"] == "rolling for initiative"
+    assert body["custom_status"] == {
+        "emoji": "\N{GAME DIE}",
+        "text": "rolling for initiative",
+    }
     assert body["profile_decorations"] == {
         "banner": "core.aurora",
         "frame": None,
         "badges": ["core.founder"],
     }
-    # Nobody holds a socket in this test, so nobody is here.
     assert body["online"] is False
     assert body["joined_at"]
 
 
 @pytest.mark.integration
-async def test_member_profile_withholds_the_name_a_guild_does_not_show(
+async def test_profile_never_carries_a_real_name(
     client: AsyncClient, session: AsyncSession
 ):
-    """A real name renders only where the guild shows names — the handle is
-    what identifies someone everywhere else."""
-    guild = await create_guild(session, show_member_names=False)
+    """The handle is the name here. A profile is the same page for everyone,
+    so it carries nothing a guild decides the visibility of."""
     caller = await create_user(session)
-    member = await create_user(session, username="tinker", full_name="Tinker Bell")
-    for user in (caller, member):
-        await create_guild_membership(session, user=user, guild=guild)
+    subject = await create_user(session, username="tinker", full_name="Tinker Bell")
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
-        headers=get_auth_headers(caller),
+        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["full_name"] is None
+    assert "full_name" not in body
     assert body["username"] == "tinker"
+    # Nor anything else the account keeps to itself.
+    assert set(body.keys()) == {
+        "id",
+        "username",
+        "discriminator",
+        "avatar_url",
+        "status",
+        "custom_status",
+        "profile_decorations",
+        "online",
+        "joined_at",
+    }
 
 
 @pytest.mark.integration
-async def test_member_profile_404s_for_someone_outside_the_guild(
+async def test_profile_needs_no_guild_in_common(
     client: AsyncClient, session: AsyncSession
 ):
-    """A profile exists to the caller only through a shared guild."""
+    """Profiles are public: sharing a guild is not what makes one readable."""
     guild = await create_guild(session)
     caller = await create_user(session)
     await create_guild_membership(session, user=caller, guild=guild)
-    stranger = await create_user(session)
+    stranger = await create_user(session, username="stranger")
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/users/{stranger.id}/profile",
-        headers=get_auth_headers(caller),
+        f"/api/v1/users/{stranger.id}/profile", headers=get_auth_headers(caller)
     )
 
-    assert response.status_code == 404
-    assert response.json()["detail"] == "USER_NOT_IN_GUILD"
+    assert response.status_code == 200
+    assert response.json()["username"] == "stranger"
 
 
 @pytest.mark.integration
-async def test_member_profile_hides_a_suspended_account(
+async def test_profile_hides_a_suspended_account(
     client: AsyncClient, session: AsyncSession
 ):
-    """A suspended account vanishes from the roster, and from the page the
-    roster leads to."""
-    guild = await create_guild(session)
+    """A suspended account vanishes from rosters, and from the page they lead
+    to."""
     caller = await create_user(session)
-    member = await create_user(session, status=UserStatus.suspended)
-    for user in (caller, member):
-        await create_guild_membership(session, user=user, guild=guild)
+    subject = await create_user(session, status=UserStatus.suspended)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
-        headers=get_auth_headers(caller),
+        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
     )
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "USER_NOT_FOUND"
 
 
 @pytest.mark.integration
-async def test_member_profile_reports_a_member_who_is_here(
+async def test_profile_says_when_someone_is_online(
     client: AsyncClient, session: AsyncSession
 ):
-    """``online`` reads the realtime connections for *this* guild."""
+    """Online is a fact about the person, not about a guild — a reader who
+    shares no guild with them still sees it."""
     guild = await create_guild(session)
     caller = await create_user(session)
-    member = await create_user(session)
-    for user in (caller, member):
-        await create_guild_membership(session, user=user, guild=guild)
+    subject = await create_user(session)
+    await create_guild_membership(session, user=subject, guild=guild)
 
     socket = object()
-    await realtime_manager.connect(guild.id, [], socket, user_id=member.id)  # type: ignore[arg-type]
+    await realtime_manager.connect(guild.id, [], socket, user_id=subject.id)  # type: ignore[arg-type]
     try:
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/{member.id}/profile",
-            headers=get_auth_headers(caller),
+            f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
         )
     finally:
         await realtime_manager.disconnect(socket)  # type: ignore[arg-type]
@@ -1282,84 +1280,62 @@ async def test_member_profile_reports_a_member_who_is_here(
     assert response.status_code == 200
     assert response.json()["online"] is True
 
-
-@pytest.mark.integration
-async def test_member_profile_requires_membership(
-    client: AsyncClient, session: AsyncSession
-):
-    """The guild context is re-validated per request, like every other
-    guild-scoped read."""
-    guild = await create_guild(session)
-    member = await create_user(session)
-    await create_guild_membership(session, user=member, guild=guild)
-    outsider = await create_user(session)
-
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
-        headers=get_auth_headers(outsider),
+    after = await client.get(
+        f"/api/v1/users/{subject.id}/profile", headers=get_auth_headers(caller)
     )
-
-    assert response.status_code == 403
+    assert after.json()["online"] is False
 
 
 @pytest.mark.integration
-async def test_custom_status_and_decorations_round_trip(
+async def test_profile_requires_a_signed_in_reader(client: AsyncClient):
+    response = await client.get("/api/v1/users/1/profile")
+
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_custom_status_round_trips_as_one_object(
     client: AsyncClient, session: AsyncSession
 ):
-    """A person writes their own status and picks their own look."""
+    """One column, one write: the emoji and the line are set together."""
     user = await create_user(session)
     headers = get_auth_headers(user)
 
     response = await client.patch(
         "/api/v1/users/me",
         headers=headers,
-        json={
-            "custom_status_emoji": "\N{ROCKET}",
-            "custom_status_text": "shipping",
-            "profile_decorations": {
-                "banner": "core.aurora",
-                "frame": "core.gold",
-                "badges": ["core.founder", "core.founder"],
-            },
-        },
+        json={"custom_status": {"emoji": "\N{ROCKET}", "text": "  shipping  "}},
     )
 
     assert response.status_code == 200
-    body = response.json()
-    assert body["custom_status_emoji"] == "\N{ROCKET}"
-    assert body["custom_status_text"] == "shipping"
-    # The same badge twice is a duplicate, not a second badge.
-    assert body["profile_decorations"] == {
-        "banner": "core.aurora",
-        "frame": "core.gold",
-        "badges": ["core.founder"],
+    assert response.json()["custom_status"] == {
+        "emoji": "\N{ROCKET}",
+        "text": "shipping",
     }
 
     cleared = await client.patch(
-        "/api/v1/users/me",
-        headers=headers,
-        json={"custom_status_emoji": None, "custom_status_text": None},
+        "/api/v1/users/me", headers=headers, json={"custom_status": None}
     )
 
     assert cleared.status_code == 200
-    assert cleared.json()["custom_status_emoji"] is None
-    assert cleared.json()["custom_status_text"] is None
+    assert cleared.json()["custom_status"] == {"emoji": None, "text": None}
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "payload",
     [
-        {"custom_status_emoji": "not an emoji"},
+        {"custom_status": {"emoji": "not an emoji"}},
+        {"custom_status": {"mood": "chipper"}},
         {"profile_decorations": {"banner": "../../etc/passwd"}},
         {"profile_decorations": {"hat": "core.aurora"}},
         {"profile_decorations": {"badges": ["a", "b", "c", "d", "e", "f", "g"]}},
     ],
 )
-async def test_profile_writes_reject_what_is_not_a_status_or_a_catalog_id(
+async def test_profile_writes_reject_a_shape_that_is_not_the_shape(
     client: AsyncClient, session: AsyncSession, payload: dict
 ):
-    """Text where an emoji goes, a path where an id goes, a key nothing wears,
+    """Text where an emoji goes, a key nothing wears, a path where an id goes,
     and more badges than a profile has room for."""
     user = await create_user(session)
 
@@ -1368,3 +1344,142 @@ async def test_profile_writes_reject_what_is_not_a_status_or_a_catalog_id(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_library_lists_what_ships_with_the_app(
+    client: AsyncClient, session: AsyncSession
+):
+    """A fresh account has the shipped set and nothing else, and none of it
+    names a pack — nobody granted it."""
+    user = await create_user(session)
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert {item["id"] for item in items} == set(SHIPPED_DECORATIONS)
+    assert all(item["source"] is None for item in items)
+    assert {item["kind"] for item in items} == {"banner", "frame", "badge"}
+
+
+@pytest.mark.integration
+async def test_library_carries_what_a_pack_granted(
+    client: AsyncClient, session: AsyncSession
+):
+    """An acquired decoration joins the shipped set and says where it came
+    from, so a picker can group by pack."""
+    user = await create_user(session)
+    session.add(
+        UserDecoration(
+            user_id=user.id,
+            decoration_id="pack.midnight",
+            kind="banner",
+            source="studio.midnight-pack",
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    granted = next(item for item in items if item["id"] == "pack.midnight")
+    assert granted == {
+        "id": "pack.midnight",
+        "kind": "banner",
+        "source": "studio.midnight-pack",
+    }
+    assert len(items) == len(SHIPPED_DECORATIONS) + 1
+
+
+@pytest.mark.integration
+async def test_library_is_the_readers_own(client: AsyncClient, session: AsyncSession):
+    """Somebody else's acquisitions are not in your library."""
+    user = await create_user(session)
+    other = await create_user(session)
+    session.add(
+        UserDecoration(user_id=other.id, decoration_id="pack.midnight", kind="banner")
+    )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    assert "pack.midnight" not in {item["id"] for item in response.json()["items"]}
+
+
+@pytest.mark.integration
+async def test_wearing_a_decoration_requires_having_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """You wear what you have."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"profile_decorations": {"banner": "pack.midnight"}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_DECORATION_NOT_OWNED"
+
+
+@pytest.mark.integration
+async def test_a_decoration_goes_in_the_slot_it_is_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """Having a frame is not having a banner."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"profile_decorations": {"banner": "core.gold"}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_DECORATION_NOT_OWNED"
+
+
+@pytest.mark.integration
+async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSession):
+    """The acquired half of the library is wearable on the same terms as the
+    shipped half."""
+    user = await create_user(session)
+    session.add(
+        UserDecoration(
+            user_id=user.id,
+            decoration_id="pack.midnight",
+            kind="banner",
+            source="studio.midnight-pack",
+        )
+    )
+    await session.commit()
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={
+            "profile_decorations": {
+                "banner": "pack.midnight",
+                "frame": "core.gold",
+                "badges": ["core.founder", "core.founder"],
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["profile_decorations"] == {
+        "banner": "pack.midnight",
+        "frame": "core.gold",
+        # The same badge twice is a duplicate, not a second badge.
+        "badges": ["core.founder"],
+    }

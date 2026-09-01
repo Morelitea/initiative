@@ -22,5 +22,14 @@
     "founder": "Gründer:in",
     "storyteller": "Erzähler:in",
     "trailblazer": "Wegbereiter:in"
+  },
+  "decorationPicker": {
+    "heading": "Profil-Dekorationen",
+    "help": "Wähle aus dem, was du hast. Packs aus dem Marktplatz bringen mehr.",
+    "banner": "Banner",
+    "frame": "Rahmen",
+    "badge": "Abzeichen",
+    "empty": "Hier ist noch nichts.",
+    "badgeCount": "{{count}} von {{max}} getragen"
   }
 }

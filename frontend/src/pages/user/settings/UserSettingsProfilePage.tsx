@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useUpdateCurrentUser } from "@/hooks/useUsers";
+import { BadgePicker, SlotPicker } from "@/components/user/DecorationPicker";
+import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { ImageRenditionError, renderAvatar } from "@/lib/imageRenditions";
@@ -35,8 +36,11 @@ const uploadedAvatar = (user: UserRead): string | null =>
 
 const isLinked = (user: UserRead): boolean => Boolean(user.avatar_url) && !uploadedAvatar(user);
 
-/** Mirrors ``custom_status_text``'s column width on the server. */
+/** Mirrors ``STATUS_TEXT_MAX_LENGTH`` on the server. */
 const STATUS_MAX_LENGTH = 100;
+
+/** Mirrors ``MAX_PROFILE_BADGES`` on the server. */
+const MAX_BADGES = 6;
 
 interface UserSettingsProfilePageProps {
   user: UserRead;
@@ -47,7 +51,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   // Pull in ``auth`` and ``errors`` so the password-policy hint and the
   // server's ``PASSWORD_BREACHED`` code map without lazy-loading those
   // namespaces mid-submit.
-  const { t } = useTranslation(["settings", "auth", "errors"]);
+  const { t } = useTranslation(["settings", "auth", "errors", "profiles"]);
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -64,8 +68,14 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   // What you're up to, in your own words — an emoji, a line, or both. Held as
   // a draft like the rest of the form, so it saves with everything else.
-  const [statusEmoji, setStatusEmoji] = useState(user.custom_status_emoji ?? null);
-  const [statusText, setStatusText] = useState(user.custom_status_text ?? "");
+  const [statusEmoji, setStatusEmoji] = useState(user.custom_status.emoji ?? null);
+  const [statusText, setStatusText] = useState(user.custom_status.text ?? "");
+  // The look, as a draft. Held whole rather than a field at a time, because
+  // that is how it is written: one object naming every slot.
+  const [banner, setBanner] = useState(user.profile_decorations.banner ?? null);
+  const [frame, setFrame] = useState(user.profile_decorations.frame ?? null);
+  const [badges, setBadges] = useState<string[]>(user.profile_decorations.badges ?? []);
+  const { data: library } = useMyDecorations();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,8 +83,11 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     setAvatarUrl(isLinked(user) ? (user.avatar_url ?? "") : "");
     setAvatarMode(isLinked(user) ? "url" : "upload");
     setTimezone(user.timezone ?? "UTC");
-    setStatusEmoji(user.custom_status_emoji ?? null);
-    setStatusText(user.custom_status_text ?? "");
+    setStatusEmoji(user.custom_status.emoji ?? null);
+    setStatusText(user.custom_status.text ?? "");
+    setBanner(user.profile_decorations.banner ?? null);
+    setFrame(user.profile_decorations.frame ?? null);
+    setBadges(user.profile_decorations.badges ?? []);
   }, [user]);
 
   const avatarPreview = useMemo(() => {
@@ -204,13 +217,20 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               if (timezone !== (user.timezone ?? "UTC")) {
                 payload.timezone = timezone;
               }
-              if (statusEmoji !== (user.custom_status_emoji ?? null)) {
-                payload.custom_status_emoji = statusEmoji;
+              if (
+                statusEmoji !== (user.custom_status.emoji ?? null) ||
+                statusText !== (user.custom_status.text ?? "")
+              ) {
+                // One column, so the emoji and the line go together — and an
+                // emptied field is the status taken off, not an empty line.
+                payload.custom_status = { emoji: statusEmoji, text: statusText || null };
               }
-              if (statusText !== (user.custom_status_text ?? "")) {
-                // An emptied field is the status taken off, which is `null`
-                // rather than an empty line.
-                payload.custom_status_text = statusText || null;
+              if (
+                banner !== (user.profile_decorations.banner ?? null) ||
+                frame !== (user.profile_decorations.frame ?? null) ||
+                badges.join() !== (user.profile_decorations.badges ?? []).join()
+              ) {
+                payload.profile_decorations = { banner, frame, badges };
               }
               updateProfile.mutate(payload as UserSelfUpdate);
             }}
@@ -260,6 +280,43 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 />
               </div>
               <p className="text-muted-foreground text-xs">{t("profile.statusHelp")}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label>{t("profiles:decorationPicker.heading")}</Label>
+                <p className="text-muted-foreground text-xs">
+                  {t("profiles:decorationPicker.help")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs">
+                  {t("profiles:decorationPicker.banner")}
+                </Label>
+                <SlotPicker
+                  kind="banner"
+                  value={banner}
+                  onChange={setBanner}
+                  owned={library?.items}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs">
+                  {t("profiles:decorationPicker.frame")}
+                </Label>
+                <SlotPicker kind="frame" value={frame} onChange={setFrame} owned={library?.items} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs">
+                  {t("profiles:decorationPicker.badge")}
+                </Label>
+                <BadgePicker
+                  value={badges}
+                  onChange={setBadges}
+                  owned={library?.items}
+                  max={MAX_BADGES}
+                />
+              </div>
             </div>
 
             {!user.has_federated_identity ? (

@@ -1706,6 +1706,38 @@ export interface CounterUpdate {
   position?: number | string | null;
 }
 
+/**
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
+ */
+export interface CustomStatusInput {
+  emoji?: string | null;
+  text?: string | null;
+}
+
+/**
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
+ */
+export interface CustomStatusOutput {
+  emoji: string | null;
+  text: string | null;
+}
+
 export type DashboardCreateDefinition = { [key: string]: unknown };
 
 export type DashboardCreateConfig = { [key: string]: unknown };
@@ -3576,6 +3608,28 @@ export interface OwnedContentResponse {
 }
 
 /**
+ * One decoration an account may wear, and where it came from.
+ *
+ * ``source`` names the marketplace pack that granted it, and is ``None`` for
+ * the ones that ship with the app. The client renders a picker per slot from
+ * these, drawing each id with the artwork it has for it and skipping the ones
+ * it doesn't.
+ */
+export interface OwnedDecoration {
+  id: string;
+  kind: string;
+  source: string | null;
+}
+
+/**
+ * A person's whole library, in one read — it is small and it is all
+ * needed at once, because the profile form renders every slot together.
+ */
+export interface OwnedDecorationsResponse {
+  items: OwnedDecoration[];
+}
+
+/**
  * Who should end up owning it. Must be an active admin of this guild.
  */
 export interface OwnershipTransferRequest {
@@ -3682,10 +3736,9 @@ export interface PlatformRoleUpdate {
  *
  * Every value is an **id naming a catalog entry**, never an image. The client
  * resolves an id to artwork it already ships, so a decorated profile takes up
- * none of a guild's upload allowance and no user-supplied image is ever
- * rendered as somebody's frame. An id this deployment's catalog doesn't know
- * simply renders nothing, which is what lets a profile keep wearing something
- * the store stopped offering.
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
  *
  * ``extra="forbid"``: the set of things a profile can wear is this list, and
  * a client sending a key that isn't here is told so rather than having it
@@ -3703,10 +3756,9 @@ export interface ProfileDecorationsInput {
  *
  * Every value is an **id naming a catalog entry**, never an image. The client
  * resolves an id to artwork it already ships, so a decorated profile takes up
- * none of a guild's upload allowance and no user-supplied image is ever
- * rendered as somebody's frame. An id this deployment's catalog doesn't know
- * simply renders nothing, which is what lets a profile keep wearing something
- * the store stopped offering.
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
  *
  * ``extra="forbid"``: the set of things a profile can wear is this list, and
  * a client sending a key that isn't here is told so rather than having it
@@ -4986,26 +5038,25 @@ export interface UserGuildMember {
 }
 
 /**
- * A person, as the rest of their guild sees them.
+ * A person, as anyone can see them.
  *
- * Everything on :class:`UserPublic` — the face and the handle a member is
- * already rendered by everywhere else — plus what a profile adds: the line
- * they wrote about themselves, how they have dressed the page, whether they
- * have the app open, and when they joined this guild.
+ * A profile is public. It carries the handle — which is the name in this
+ * product, unique and never withheld — the face, the line they wrote, the
+ * look they picked, whether they are online, and when they joined. It never
+ * carries a real name: ``full_name`` is a guild's business (a guild decides
+ * whether it renders names at all), and this shape has no guild in it.
  *
- * Guild-scoped on purpose, because two of those answers are: a real name
- * shows only where the guild shows names, and "here" means here rather than
- * on the platform somewhere.
+ * Nothing here is private to a guild, so nothing here is reached through
+ * one. What it does not carry is the whole point of it being its own shape:
+ * no address, no roles, no memberships, no preferences.
  */
 export interface UserProfile {
   id: number;
   username: string;
   discriminator: number;
-  full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
-  custom_status_emoji: string | null;
-  custom_status_text: string | null;
+  custom_status: CustomStatusOutput;
   profile_decorations: ProfileDecorationsOutput;
   online: boolean;
   joined_at: string;
@@ -5024,8 +5075,7 @@ export interface UserRead {
   created_at: string;
   updated_at: string;
   avatar_url: string | null;
-  custom_status_emoji: string | null;
-  custom_status_text: string | null;
+  custom_status: CustomStatusOutput;
   profile_decorations: ProfileDecorationsOutput;
   week_starts_on: number;
   recent_tabs_limit: number;
@@ -5072,8 +5122,7 @@ export interface UserSelfUpdate {
   password?: string | null;
   current_password?: string | null;
   avatar_url?: string | null;
-  custom_status_emoji?: string | null;
-  custom_status_text?: string | null;
+  custom_status?: CustomStatusInput | null;
   profile_decorations?: ProfileDecorationsInput | null;
   week_starts_on?: number | null;
   recent_tabs_limit?: number | null;

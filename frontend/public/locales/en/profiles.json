@@ -22,5 +22,14 @@
     "founder": "Founder",
     "storyteller": "Storyteller",
     "trailblazer": "Trailblazer"
+  },
+  "decorationPicker": {
+    "heading": "Profile decorations",
+    "help": "Pick from what you have. Packs from the marketplace add more.",
+    "banner": "Banner",
+    "frame": "Frame",
+    "badge": "Badges",
+    "empty": "Nothing here yet.",
+    "badgeCount": "{{count}} of {{max}} worn"
   }
 }

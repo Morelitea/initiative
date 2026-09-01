@@ -56,6 +56,8 @@ from app.models.platform.user import User, UserStatus
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.user import (
+    OwnedDecorationsResponse,
+    ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
     UserProfile,
@@ -96,6 +98,7 @@ from app.services.realtime import manager as realtime_manager
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.services.platform import user_avatars as user_avatars_service
+from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import csv_export
@@ -288,52 +291,71 @@ async def search_users(
     )
 
 
-@guild_router.get("/{user_id}/profile", response_model=UserProfile)
-async def read_member_profile(
-    user_id: int,
-    session: RLSSessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> UserProfile:
-    """One member's profile, as the rest of their guild sees it.
+@router.get("/me/decorations", response_model=OwnedDecorationsResponse)
+async def list_my_decorations(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> OwnedDecorationsResponse:
+    """Everything the caller may dress their profile in.
 
-    Guild-scoped, like the roster it is reached from: the membership join is
-    what says a profile exists to the caller, so someone the caller shares no
-    guild with is a 404 rather than a page. It is also what makes the answer
-    correct — a real name renders only where the guild shows names, and
-    "online" means "has this guild open".
-
-    Nothing here is a guild's to write. The account row is the person's own
-    (``users`` UPDATE is own-row on the request path); this reads it.
+    What ships with the app plus what this account acquired, which is what the
+    pickers on Settings > Profile offer and exactly what the write path
+    accepts. Own-row: ``public.user_decorations`` is readable only by the
+    account whose library it is.
     """
-    stmt = (
-        select(User, GuildMembership.joined_at)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(
-            User.id == user_id,
-            GuildMembership.guild_id == guild_context.guild_id,
-            users_service.visible_to_other_people(),
+    return OwnedDecorationsResponse(
+        items=await profile_decorations_service.owned_decorations(
+            session, current_user.id
         )
     )
+
+
+@router.get("/{user_id}/profile", response_model=UserProfile)
+async def read_user_profile(
+    user_id: int,
+    session: AdminSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserProfile:
+    """One person's profile.
+
+    A profile is public and has no guild in it: it carries the handle, the
+    face, the status, the look and whether they are online, and it is the same
+    page whoever opens it. That is why it is not reached through a guild — no
+    part of the answer depends on one.
+
+    Read on the system engine, selecting the profile columns and nothing else.
+    ``public.users`` is own-row for a platform-tier session (a person's
+    address, their preferences and their memberships are theirs), so the row
+    cannot be read whole here; what is public about it is this narrow
+    projection, and the response shape carries exactly the columns named
+    below. A suspended account has no profile.
+    """
+    stmt = select(
+        User.id,
+        User.username,
+        User.discriminator,
+        User.avatar_url,
+        User.status,
+        User.custom_status,
+        User.profile_decorations,
+        User.created_at,
+    ).where(User.id == user_id, users_service.visible_to_other_people())
     row = (await session.exec(stmt)).first()
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=UserMessages.NOT_IN_GUILD,
+            detail=AuthMessages.USER_NOT_FOUND,
         )
-    user, joined_at = row
     return UserProfile(
-        id=user.id,
-        username=user.username,
-        discriminator=user.discriminator,
-        full_name=user.full_name,
-        avatar_url=user.avatar_url,
-        status=user.status,
-        custom_status_emoji=user.custom_status_emoji,
-        custom_status_text=user.custom_status_text,
-        profile_decorations=user.profile_decorations or {},
-        online=realtime_manager.is_present(guild_context.guild_id, user.id),
-        joined_at=joined_at,
+        id=row.id,
+        username=row.username,
+        discriminator=row.discriminator,
+        avatar_url=row.avatar_url,
+        status=row.status,
+        custom_status=row.custom_status or {},
+        profile_decorations=row.profile_decorations or {},
+        online=realtime_manager.online.is_online(row.id),
+        joined_at=row.created_at,
     )
 
 
@@ -683,17 +705,29 @@ async def update_users_me(
         )
     if "locale" in update_data:
         current_user.locale = update_data["locale"]
-    for field in ("custom_status_emoji", "custom_status_text"):
-        if field in update_data:
-            # Already held to shape by ``UserSelfUpdate``; ``None`` means the
-            # person took it off.
-            setattr(current_user, field, update_data[field])
+    if "custom_status" in update_data:
+        # Already held to shape by ``CustomStatus``; ``None`` is the status
+        # taken off, which is the empty object rather than a null column.
+        current_user.custom_status = update_data["custom_status"] or {}
     if "profile_decorations" in update_data:
         # The payload validated it into ``ProfileDecorations``, so what lands
         # in the column is a known set of keys holding catalog ids and nothing
         # else. ``None`` is the bare profile.
-        decorations = update_data["profile_decorations"]
-        current_user.profile_decorations = decorations or {}
+        decorations = user_in.profile_decorations or ProfileDecorations()
+        worn = decorations.worn()
+        if worn:
+            # You wear what you have. The library is the authority for both
+            # halves of that — whether the account has the decoration at all,
+            # and whether it has it for the slot it is being put in.
+            owned = await profile_decorations_service.owned_kinds(
+                session, current_user.id
+            )
+            if profile_decorations_service.unwearable(worn, owned):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=UserMessages.DECORATION_NOT_OWNED,
+                )
+        current_user.profile_decorations = decorations.model_dump()
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)

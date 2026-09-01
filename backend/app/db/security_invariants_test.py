@@ -60,6 +60,7 @@ _RLS_SHARED_TABLES = {
     "storage_backfill_state",
     "user_api_keys",
     "user_avatars",
+    "user_decorations",
     "user_view_preferences",
     "users",
 }

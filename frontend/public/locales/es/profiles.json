@@ -22,5 +22,14 @@
     "founder": "Fundador",
     "storyteller": "Narrador",
     "trailblazer": "Pionero"
+  },
+  "decorationPicker": {
+    "heading": "Decoraciones del perfil",
+    "help": "Elige entre lo que tienes. Los packs del mercado añaden más.",
+    "banner": "Cabecera",
+    "frame": "Marco",
+    "badge": "Insignias",
+    "empty": "Aquí todavía no hay nada.",
+    "badgeCount": "{{count}} de {{max}} puestas"
   }
 }

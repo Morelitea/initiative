@@ -1,10 +1,12 @@
 """Give an account a public face: a custom status, and a look to wear.
 
-Three columns on ``public.users``:
+Two JSONB columns on ``public.users``:
 
-* ``custom_status_emoji`` / ``custom_status_text`` — what the person is up to,
-  in their own words. Distinct from ``users.status``, which is the account's
-  standing and is not theirs to write.
+* ``custom_status`` — ``{"emoji": ..., "text": ...}``: what the person is up
+  to, in their own words. One column rather than two, because it is one thing
+  a person sets and one thing every surface that names them renders. Distinct
+  from ``users.status``, which is the account's standing and is not theirs to
+  write. Shape lives in ``app.schemas.platform.user.CustomStatus``.
 * ``profile_decorations`` — a banner, a frame and badges, each held as an
   **id naming a catalog entry** rather than an image. The client resolves an id
   to artwork it already ships, so a decorated profile takes up none of a
@@ -17,8 +19,8 @@ column list computed from the catalog at that revision, so a column added later
 is not in it. The new ones are named explicitly below — the own-row policies
 from 0202 still decide *whose* row they reach.
 
-Nothing to carry in: every row starts with no status and an empty look, from
-the server defaults.
+Nothing to carry in: every row starts with an empty status and an empty look,
+from the server defaults.
 
 Revision ID: 20260902_0212
 Revises: 20260902_0211
@@ -36,13 +38,16 @@ down_revision = "20260902_0211"
 branch_labels = None
 depends_on = None
 
-_COLUMNS = ("custom_status_emoji", "custom_status_text", "profile_decorations")
+_COLUMNS = ("custom_status", "profile_decorations")
 
 
-#: The request-path floors. ``app_user`` is the bare login role;
-#: ``app_guild_base`` is what every ``guild_<id>`` role inherits its
-#: shared-table access from; ``platform_base`` is the platform-tier floor.
 def _request_floors() -> tuple[str, ...]:
+    """The request-path floors.
+
+    ``app_user`` is the bare login role; ``app_guild_base`` is what every
+    ``guild_<id>`` role inherits its shared-table access from; ``platform_base``
+    is the platform-tier floor.
+    """
     return (
         "app_user",
         "app_guild_base",
@@ -51,23 +56,16 @@ def _request_floors() -> tuple[str, ...]:
 
 
 def upgrade() -> None:
-    op.add_column(
-        "users",
-        sa.Column("custom_status_emoji", sa.String(length=64), nullable=True),
-    )
-    op.add_column(
-        "users",
-        sa.Column("custom_status_text", sa.String(length=100), nullable=True),
-    )
-    op.add_column(
-        "users",
-        sa.Column(
-            "profile_decorations",
-            postgresql.JSONB(astext_type=sa.Text()),
-            nullable=False,
-            server_default=sa.text("'{}'::jsonb"),
-        ),
-    )
+    for column in _COLUMNS:
+        op.add_column(
+            "users",
+            sa.Column(
+                column,
+                postgresql.JSONB(astext_type=sa.Text()),
+                nullable=False,
+                server_default=sa.text("'{}'::jsonb"),
+            ),
+        )
     columns = ", ".join(_COLUMNS)
     for role in _request_floors():
         op.execute(f'GRANT UPDATE ({columns}) ON TABLE public.users TO "{role}"')

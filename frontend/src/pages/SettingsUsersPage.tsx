@@ -221,11 +221,8 @@ export const SettingsUsersPage = () => {
       // The handle is what identifies someone, so it is also what opens them.
       cell: ({ row }) => (
         <Link
-          to="/c/$guildId/u/$userId"
-          params={{
-            guildId: String(activeGuildId),
-            userId: String(row.original.id),
-          }}
+          to="/u/$userId"
+          params={{ userId: String(row.original.id) }}
           className="text-sm hover:underline"
         >
           <UserHandle user={row.original} />
