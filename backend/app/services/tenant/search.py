@@ -250,7 +250,6 @@ async def search(
     guild_id: int,
     types: Optional[Sequence[SearchEntityType]] = None,
     initiative_id: Optional[int] = None,
-    close_matches: bool = True,
     limit: int = 20,
     offset: int = 0,
 ) -> SearchResults:
@@ -289,7 +288,7 @@ async def search(
             .offset(offset)
         )
     ).all()
-    if not rows and offset == 0 and close_matches:
+    if not rows and offset == 0:
         # Nothing matched what was typed. Offer what is closest to it rather
         # than an empty page — flagged, so the reader is told which they got.
         close = await _close_titles(

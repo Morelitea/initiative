@@ -258,8 +258,8 @@ async def test_what_the_reader_asked_for_exactly_is_left_exact(
     """A quoted phrase and an exclusion are deliberate, so neither is widened
     into a prefix.
 
-    Asked without the close-match fallback, so what is measured is the parsing
-    and not the suggestion that would otherwise answer for it.
+    Both fall through to the close-match answer, which is itself the proof: a
+    widened query would have matched exactly and never got there.
     """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="Barricade the Throne")
@@ -268,10 +268,10 @@ async def test_what_the_reader_asked_for_exactly_is_left_exact(
         response = await client.get(
             a.g("/search/"),
             headers=a.headers,
-            params={"q": query, "close_matches": "false"},
+            params={"q": query},
         )
         assert response.status_code == 200, response.text
-        assert response.json()["total"] == 0, f"{query} was widened"
+        assert response.json()["fuzzy"] is True, f"{query} was widened"
 
 
 async def test_a_typo_is_offered_the_closest_titles(
@@ -304,26 +304,6 @@ async def test_a_search_that_works_is_never_flagged_as_close(
     )
     assert response.status_code == 200, response.text
     assert response.json()["fuzzy"] is False
-
-
-async def test_a_caller_that_only_asks_whether_anything_is_here_pays_less(
-    client, session, acting_user: ActingUser
-) -> None:
-    """The tab strip asks each slice whether it holds anything. Offering it a
-    suggestion would make it read as holding something, and would run the
-    close-match scan once per tab."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    await create_task(session, a.project, title="Barricade the Throne")
-
-    response = await client.get(
-        a.g("/search/"),
-        headers=a.headers,
-        params={"q": "thrne", "close_matches": "false"},
-    )
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["items"] == []
-    assert body["fuzzy"] is False
 
 
 async def test_nothing_close_stays_nothing(
