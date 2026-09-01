@@ -493,4 +493,7 @@
   "USER_AVATAR_NOT_SQUARE": "A profile picture has to be square.",
   "USER_AVATAR_TOO_LARGE_DIMENSIONS": "That picture is bigger than a profile picture allows.",
   "USER_AVATAR_URL_NOT_EXTERNAL": "That address is this server's own. Link a picture hosted elsewhere, or upload one.",
-  "BANNER_TEXT_COLOR_INVALID": "Banner text is black or white."}
+  "BANNER_TEXT_COLOR_INVALID": "Banner text is black or white.",
+  "USER_DECORATION_NOT_OWNED": "You do not have that decoration.",
+  "USER_DECORATION_PACK_NOT_FOUND": "No such decoration pack."
+}

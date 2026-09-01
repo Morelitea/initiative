@@ -1840,6 +1840,40 @@ export interface DashboardUpdate {
 }
 
 /**
+ * One decoration an account may wear, and where it came from.
+ *
+ * ``source`` names the marketplace pack that granted it, and is ``None`` for
+ * the ones that ship with the app. The client renders a picker per slot from
+ * these, drawing each id with the artwork it has for it and skipping the ones
+ * it doesn't.
+ */
+export interface OwnedDecoration {
+  id: string;
+  kind: string;
+  source: string | null;
+}
+
+/**
+ * One installable set of decorations, and whether this account has it.
+ *
+ * What it is called is the client's: the words live in its ``profiles``
+ * translations, keyed by this id, in every language the app speaks.
+ */
+export interface DecorationPack {
+  id: string;
+  contents: OwnedDecoration[];
+  installed: boolean;
+}
+
+/**
+ * Every pack this build ships. Small and read all at once — the store is
+ * one page.
+ */
+export interface DecorationPackListResponse {
+  items: DecorationPack[];
+}
+
+/**
  * Response indicating whether user can be deleted and any blockers
  */
 export interface DeletionEligibilityResponse {
@@ -3605,20 +3639,6 @@ export interface OwnedContentResponse {
   items: OwnedContentItem[];
   counts: OwnedContentResponseCounts;
   total: number;
-}
-
-/**
- * One decoration an account may wear, and where it came from.
- *
- * ``source`` names the marketplace pack that granted it, and is ``None`` for
- * the ones that ship with the app. The client renders a picker per slot from
- * these, drawing each id with the artwork it has for it and skipping the ones
- * it doesn't.
- */
-export interface OwnedDecoration {
-  id: string;
-  kind: string;
-  source: string | null;
 }
 
 /**

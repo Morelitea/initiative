@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     shape-rendering="crispEdges" role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Observatory</title>
+  <style>
+    .twinkle { animation: blink 3.5s steps(1, end) infinite }
+    .t2 { animation-delay: -.7s } .t3 { animation-delay: -1.4s }
+    .t4 { animation-delay: -2.1s } .t5 { animation-delay: -2.8s }
+    @keyframes blink { 0%,70% { opacity: 1 } 71%,100% { opacity: .15 } }
+    /* Three electrons, three orbits, three speeds — the shell diagram every
+       lab notebook has in the margin. */
+    .orbit { transform-origin: 130px 19px }
+    .o1 { animation: spin 4s linear infinite }
+    .o2 { animation: spin 6.5s linear infinite reverse }
+    .o3 { animation: spin 9s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    .pulse { animation: pulse 2.6s ease-in-out infinite }
+    @keyframes pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) {
+      .twinkle, .orbit, .pulse { animation: none }
+    }
+  </style>
+
+  <rect width="160" height="40" fill="#050914"/>
+  <rect width="160" height="40" fill="#0a1024"/>
+  <rect x="0" y="0" width="62" height="40" fill="#060a18" opacity=".9"/>
+
+  <!-- Sky. -->
+  <g fill="#cfe3ff">
+    <rect class="twinkle"    x="18"  y="7"  width="1" height="1"/>
+    <rect class="twinkle t2" x="44"  y="4"  width="1" height="1"/>
+    <rect class="twinkle t3" x="72"  y="11" width="1" height="1"/>
+    <rect class="twinkle t4" x="96"  y="5"  width="1" height="1"/>
+    <rect class="twinkle t5" x="152" y="9"  width="1" height="1"/>
+    <rect x="8" y="15" width="1" height="1" opacity=".5"/>
+    <rect x="58" y="20" width="1" height="1" opacity=".4"/>
+    <rect x="88" y="30" width="1" height="1" opacity=".45"/>
+  </g>
+
+  <!-- Ridge, and the dome on it. -->
+  <path d="M0 34h22l6-3h14l7 3h20l9-4h18l8 4h56v6H0z" fill="#0d1730"/>
+  <g fill="#1b2a4d">
+    <path d="M28 31h12v1h1v2h1v1H26v-1h1v-2h1z"/>
+    <rect x="26" y="35" width="16" height="2"/>
+  </g>
+  <path d="M33 27h2v5h-2z" fill="#3d5c99"/>
+
+  <!-- The atom, out where there is room for it. -->
+  <g>
+    <g class="orbit o1">
+      <ellipse cx="130" cy="19" rx="20" ry="7" fill="none" stroke="#2f6ea8" stroke-width="1"/>
+      <rect x="149" y="18" width="2" height="2" fill="#7fd4ff"/>
+    </g>
+    <g class="orbit o2" transform="rotate(60 130 19)">
+      <ellipse cx="130" cy="19" rx="20" ry="7" fill="none" stroke="#2f6ea8" stroke-width="1"/>
+      <rect x="109" y="18" width="2" height="2" fill="#7fd4ff"/>
+    </g>
+    <g class="orbit o3" transform="rotate(120 130 19)">
+      <ellipse cx="130" cy="19" rx="20" ry="7" fill="none" stroke="#2f6ea8" stroke-width="1"/>
+      <rect x="149" y="18" width="2" height="2" fill="#a8e9ff"/>
+    </g>
+    <g class="pulse">
+      <rect x="128" y="17" width="4" height="4" fill="#7fd4ff"/>
+      <rect x="129" y="18" width="2" height="2" fill="#eaf8ff"/>
+    </g>
+  </g>
+</svg>

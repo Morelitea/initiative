@@ -68,10 +68,20 @@ describe("a slot that holds one thing", () => {
     render(<SlotPicker kind="banner" value="core.aurora" onChange={onChange} owned={banners} />);
 
     const chosen = screen.getByRole("radio", { name: "decorations.aurora" });
-    expect(chosen).toHaveAttribute("aria-checked", "true");
+    expect(chosen).toBeChecked();
     await userEvent.click(chosen);
 
     expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("groups a slot's tiles so they read as alternatives", () => {
+    // Real radios sharing a name: the browser gives the group one tab stop and
+    // arrow keys move within it, which is what a slot holding one thing means.
+    render(<SlotPicker kind="banner" value={null} onChange={vi.fn()} owned={banners} />);
+
+    for (const tile of screen.getAllByRole("radio")) {
+      expect(tile).toHaveAttribute("name", "decoration-banner");
+    }
   });
 
   it("says so when the library has nothing for the slot", () => {
@@ -98,6 +108,15 @@ describe("the badge row", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "decorations.founder" }));
 
     expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("marks a tile past the cap as unavailable rather than just inert", async () => {
+    // Disabled says "not now" to a screen reader; an unresponsive tile says
+    // nothing at all.
+    render(<BadgePicker value={["core.storyteller"]} onChange={vi.fn()} owned={badges} max={1} />);
+
+    expect(screen.getByRole("checkbox", { name: "decorations.founder" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "decorations.storyteller" })).toBeEnabled();
   });
 
   it("stops at the cap rather than dropping what is already worn", async () => {

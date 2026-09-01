@@ -21,7 +21,16 @@
     "arcane": "Arcane",
     "founder": "Fondateur",
     "storyteller": "Conteur",
-    "trailblazer": "Pionnier"
+    "trailblazer": "Pionnier",
+    "dicetower": "Tour à dés",
+    "natural20": "Vingt naturel",
+    "d20": "d20",
+    "soundcheck": "Balance",
+    "vinyl": "Vinyle",
+    "cassette": "Cassette",
+    "observatory": "Observatoire",
+    "orbital": "Orbitale",
+    "flask": "Fiole"
   },
   "decorationPicker": {
     "heading": "Décorations du profil",
@@ -31,5 +40,33 @@
     "badge": "Badges",
     "empty": "Rien ici pour l'instant.",
     "badgeCount": "{{count}} sur {{max}} portés"
+  },
+  "packs": {
+    "ttrpg": {
+      "name": "Table de jeu",
+      "tagline": "Pour celles et ceux qui s'en remettent au dé. C'est celui que l'app lance quand vous terminez quelque chose."
+    },
+    "music": {
+      "name": "Balance",
+      "tagline": "Pour les groupes, les chorales et tous ceux qui réservent la salle et se branchent."
+    },
+    "science": {
+      "name": "Observatoire",
+      "tagline": "Pour les labos, les stations de terrain et les groupes de lecture à tableau blanc."
+    }
+  },
+  "store": {
+    "title": "Packs de décoration",
+    "description": "Prenez un pack et ses pièces rejoignent votre collection, prêtes à porter. Rendez-le et elles repartent, avec ce que vous en portiez.",
+    "get": "Prendre ce pack",
+    "installed": "Dans votre collection",
+    "remove": "Rendre",
+    "empty": "Aucun pack dans cette version.",
+    "failed": "Ce pack n'a pas pu être modifié."
+  },
+  "look": {
+    "save": "Enregistrer l'allure",
+    "saved": "Allure enregistrée.",
+    "failed": "L'allure n'a pas pu être enregistrée."
   }
 }

@@ -21,7 +21,16 @@
     "arcane": "Arcano",
     "founder": "Fundador",
     "storyteller": "Narrador",
-    "trailblazer": "Pionero"
+    "trailblazer": "Pionero",
+    "dicetower": "Torre de dados",
+    "natural20": "Veinte natural",
+    "d20": "d20",
+    "soundcheck": "Prueba de sonido",
+    "vinyl": "Vinilo",
+    "cassette": "Casete",
+    "observatory": "Observatorio",
+    "orbital": "Orbital",
+    "flask": "Matraz"
   },
   "decorationPicker": {
     "heading": "Decoraciones del perfil",
@@ -31,5 +40,33 @@
     "badge": "Insignias",
     "empty": "Aquí todavía no hay nada.",
     "badgeCount": "{{count}} de {{max}} puestas"
+  },
+  "packs": {
+    "ttrpg": {
+      "name": "Mesa de juego",
+      "tagline": "Para quienes lo dejan en manos del dado. Es el mismo que lanza la app cuando terminas algo."
+    },
+    "music": {
+      "name": "Prueba de sonido",
+      "tagline": "Para bandas, coros y cualquiera que reserve el local y enchufe."
+    },
+    "science": {
+      "name": "Observatorio",
+      "tagline": "Para laboratorios, estaciones de campo y grupos de lectura con pizarra."
+    }
+  },
+  "store": {
+    "title": "Packs de decoración",
+    "description": "Coge un pack y sus piezas pasan a tu colección, listas para ponértelas. Devuélvelo y se van, junto con lo que llevaras puesto de él.",
+    "get": "Coger este pack",
+    "installed": "En tu colección",
+    "remove": "Devolver",
+    "empty": "Esta versión no trae packs.",
+    "failed": "No se pudo cambiar ese pack."
+  },
+  "look": {
+    "save": "Guardar aspecto",
+    "saved": "Aspecto guardado.",
+    "failed": "No se pudo guardar el aspecto."
   }
 }

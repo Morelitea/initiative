@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Decoration packs, for the thing your community is about.** Settings › Profile › Decorations is a store of themed sets you can take and give back. Three to start: **Tabletop**, whose badge is the twenty-sided die this app already throws when you finish a task; **Soundcheck**, for bands and anyone who books the room and plugs in; and **Observatory**, for labs, field stations and reading groups with a whiteboard. Banners and frames move — dice land on a natural 20, a meter jumps, a record turns, electrons go round — while badges hold still, because a badge is a mark of belonging and a row of them has to stay readable. Take a pack and its pieces land in your collection; give it back and they go, along with anything from it you were wearing. Mix pieces from different packs however you like.
+
 - **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the community home's recent-comments feed shows what each comment drew.
 
 - **The author hears about reactions, in a digest.** Reactions arrive in flurries, so they are collected the way task assignments are: the bell gets each one immediately, and email and push wait until the burst has settled and then arrive as one summary. It has its own switch under Settings › Notifications — wanting to hear about mentions no longer means hearing about every thumbs-up.

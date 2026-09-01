@@ -8,6 +8,7 @@ import { matchActiveTab } from "@/lib/tabs";
 
 const userSettingsTabs = [
   { value: "profile", labelKey: "layout.tabs.profile", path: "/profile" },
+  { value: "decorations", labelKey: "layout.tabs.decorations", path: "/profile/decorations" },
   { value: "interface", labelKey: "layout.tabs.interface", path: "/profile/interface" },
   { value: "notifications", labelKey: "layout.tabs.notifications", path: "/profile/notifications" },
   { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },

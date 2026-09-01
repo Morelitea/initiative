@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
 import type {
@@ -16,9 +16,14 @@ import {
   approveUserApiV1GGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
   exportUsersCsvApiV1GGuildIdUsersExportCsvGet,
+  getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
+  getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
   getListUsersApiV1GGuildIdUsersGetQueryKey,
+  installDecorationPackApiV1UsersMeDecorationPacksPackIdPost,
   listUsersApiV1GGuildIdUsersGet,
+  removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete,
   updateUsersMeApiV1UsersMePatch,
+  useListDecorationPacksApiV1UsersMeDecorationPacksGet,
   useListMyDecorationsApiV1UsersMeDecorationsGet,
   useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
@@ -101,6 +106,55 @@ export const useUserProfile = (handle: string | null | undefined) =>
       refetchInterval: 60_000,
     },
   });
+
+/**
+ * The decoration store: every pack this build ships, and which you have.
+ *
+ * The catalog is fixed per build and the answer changes only when you take or
+ * give back a pack, so it is held until a mutation says otherwise.
+ */
+export const useDecorationPacks = () =>
+  useListDecorationPacksApiV1UsersMeDecorationPacksGet({
+    query: { staleTime: 5 * 60_000 },
+  });
+
+/** Taking a pack, and giving one back. Both change what the pickers may offer
+ *  and what the profile is wearing, so both refresh all three. */
+const useDecorationPackMutation = (
+  run: (packId: string) => Promise<unknown>,
+  options?: MutationOpts<unknown, string>
+) => {
+  const queryClient = useQueryClient();
+  return useApiMutation<unknown, string>(
+    {
+      mutationFn: run,
+      invalidate: () => {
+        void queryClient.invalidateQueries({
+          queryKey: getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey(),
+        });
+        // Giving a pack back can take pieces off the profile server-side, so
+        // the account the form reads from has changed too.
+        void invalidateCurrentUser();
+      },
+    },
+    options
+  );
+};
+
+export const useInstallDecorationPack = (options?: MutationOpts<unknown, string>) =>
+  useDecorationPackMutation(
+    (packId) => installDecorationPackApiV1UsersMeDecorationPacksPackIdPost(packId),
+    options
+  );
+
+export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>) =>
+  useDecorationPackMutation(
+    (packId) => removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete(packId),
+    options
+  );
 
 /**
  * What the signed-in account may dress its profile in — what ships with the
