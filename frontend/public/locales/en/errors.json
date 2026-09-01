@@ -496,5 +496,6 @@
   "USER_AVATAR_URL_NOT_EXTERNAL": "That address is this server's own. Link a picture hosted elsewhere, or upload one.",
   "BANNER_TEXT_COLOR_INVALID": "Banner text is black or white.",
   "USER_DECORATION_NOT_OWNED": "You do not have that decoration.",
-  "USER_DECORATION_PACK_NOT_FOUND": "No such decoration pack."
+  "USER_DECORATION_PACK_NOT_FOUND": "No such decoration pack.",
+  "USER_DECORATION_ALREADY_GRANTED": "You already have that decoration from another pack."
 }

@@ -202,7 +202,7 @@ async def installed_pack_ids(session: AsyncSession, user_id: int) -> set[str]:
     return {source for source in sources if source}
 
 
-async def install_pack(session: AsyncSession, *, user_id: int, pack: Pack) -> None:
+async def install_pack(session: AsyncSession, *, user_id: int, pack: Pack) -> list[str]:
     """Put a pack's decorations in this account's library.
 
     One statement, and it is the insert: reading first and then inserting what
@@ -211,24 +211,42 @@ async def install_pack(session: AsyncSession, *, user_id: int, pack: Pack) -> No
     primary key settle it instead, so a double click is idempotent rather than
     a race.
 
+    Returns the ids this library already holds **from a different pack**. A
+    decoration id names one thing — the profile stores the bare id and artwork
+    is resolved from it — so two packs claiming the same id claim the same
+    thing, and a row can only be attributed to one of them. The caller reports
+    that rather than the insert quietly doing nothing while the install says it
+    worked.
+
     Runs on the system engine — the request path reads its library and never
     writes it.
     """
-    rows = [
-        {
-            "user_id": user_id,
-            "decoration_id": decoration_id,
-            "kind": kind,
-            "source": pack.uid,
-            "acquired_at": datetime.now(timezone.utc),
-        }
-        for decoration_id, kind in pack.decorations.items()
-    ]
+    now = datetime.now(timezone.utc)
     await session.exec(
         pg_insert(UserDecoration)
-        .values(rows)
+        .values(
+            [
+                {
+                    "user_id": user_id,
+                    "decoration_id": decoration_id,
+                    "kind": kind,
+                    "source": pack.uid,
+                    "acquired_at": now,
+                }
+                for decoration_id, kind in pack.decorations.items()
+            ]
+        )
         .on_conflict_do_nothing(index_elements=["user_id", "decoration_id"])
     )
+    held = (
+        await session.exec(
+            select(UserDecoration.decoration_id, UserDecoration.source).where(
+                UserDecoration.user_id == user_id,
+                UserDecoration.decoration_id.in_(list(pack.decorations)),
+            )
+        )
+    ).all()
+    return sorted(decoration_id for decoration_id, source in held if source != pack.uid)
 
 
 async def remove_pack(
@@ -262,13 +280,28 @@ async def remove_pack(
     ).first()
     worn = ProfileDecorations.model_validate(worn_raw or {})
 
+    # What this pack gave *this* library, which is not the same as what its
+    # current version grants: a pack that has published since may no longer
+    # list something the account was given and is still wearing. The rows are
+    # the record of what was granted, so they decide both what is deleted and
+    # what comes off.
+    granted = set(
+        (
+            await session.exec(
+                select(UserDecoration.decoration_id).where(
+                    UserDecoration.user_id == user_id,
+                    UserDecoration.source == pack.uid,
+                )
+            )
+        ).all()
+    )
     await session.exec(
         delete(UserDecoration).where(
             UserDecoration.user_id == user_id,
             UserDecoration.source == pack.uid,
         )
     )
-    stripped = undress(worn, pack)
+    stripped = undress(worn, granted)
     if stripped != worn:
         await session.exec(
             update(User)
@@ -281,16 +314,16 @@ async def remove_pack(
     return stripped
 
 
-def undress(worn: ProfileDecorations, gone: Pack) -> ProfileDecorations:
-    """The same look with anything from ``gone`` taken off.
+def undress(worn: ProfileDecorations, gone: set[str]) -> ProfileDecorations:
+    """The same look with anything in ``gone`` taken off.
 
-    Removing a pack has to take its pieces off the profile as well as out of
-    the library, or the profile would go on wearing something the account no
-    longer has — which the write path would then refuse to save on the next
-    unrelated edit.
+    Takes ids rather than a pack. What has to come off is what the account no
+    longer holds, and the granted rows are the record of that; a pack's current
+    definition is a different question, and answers this one wrongly for
+    anybody who installed an earlier version of it.
     """
     return ProfileDecorations(
-        banner=None if worn.banner in gone.decorations else worn.banner,
-        frame=None if worn.frame in gone.decorations else worn.frame,
-        badges=[badge for badge in worn.badges if badge not in gone.decorations],
+        banner=None if worn.banner in gone else worn.banner,
+        frame=None if worn.frame in gone else worn.frame,
+        badges=[badge for badge in worn.badges if badge not in gone],
     )

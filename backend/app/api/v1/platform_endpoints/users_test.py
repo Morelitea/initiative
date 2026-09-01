@@ -1813,8 +1813,20 @@ async def test_installing_a_pack_survives_two_requests_at_once(session: AsyncSes
     listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
     pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
 
-    await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
-    await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
+    assert (
+        await profile_decorations_service.install_pack(
+            session, user_id=user.id, pack=pack
+        )
+        == []
+    )
+    # The second install finds every row already there and attributed to this
+    # same pack, which is not a conflict.
+    assert (
+        await profile_decorations_service.install_pack(
+            session, user_id=user.id, pack=pack
+        )
+        == []
+    )
     await session.commit()
 
     held = (
@@ -1908,3 +1920,83 @@ async def test_giving_a_pack_back_reads_what_is_worn_now(session: AsyncSession):
     assert fresh.profile_decorations["banner"] == "mu.banner"
     assert fresh.profile_decorations["frame"] is None
     assert fresh.profile_decorations["badges"] == ["mu.badge"]
+
+
+@pytest.mark.integration
+async def test_giving_back_an_older_pack_undresses_what_it_gave(session: AsyncSession):
+    """A pack that has published since is not the record of what you were given.
+
+    Install grants what the version of the day lists. If the pack later drops
+    a decoration, the account still holds and may still be wearing it — so
+    giving the pack back has to take off what *its rows* gave, not what its
+    current definition happens to list.
+    """
+    user = await create_user(session)
+    user_id = user.id
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
+    await profile_decorations_service.install_pack(session, user_id=user_id, pack=pack)
+    user.profile_decorations = {"banner": "tt.banner", "frame": None, "badges": []}
+    session.add(user)
+    await session.commit()
+
+    # The pack publishes again without the banner it had granted.
+    thinner = profile_decorations_service.Pack(
+        listing=pack.listing, decorations={"tt.frame": "frame", "tt.badge": "badge"}
+    )
+    await profile_decorations_service.remove_pack(
+        session, user_id=user_id, pack=thinner
+    )
+    await session.commit()
+
+    fresh = (await session.exec(select(User).where(User.id == user_id))).one()
+    held = (
+        await session.exec(
+            select(UserDecoration).where(UserDecoration.user_id == user_id)
+        )
+    ).all()
+    assert held == []
+    # The banner came off even though the pack no longer lists it.
+    assert fresh.profile_decorations["banner"] is None
+
+
+@pytest.mark.integration
+async def test_a_pack_claiming_another_packs_decoration_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    """A decoration id names one thing, so a row can only be attributed to one
+    pack. The second install says so rather than half-succeeding."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+    first = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    # A second pack claiming an id the first already grants.
+    squatter = await create_marketplace_listing(
+        session,
+        uid="PACKSQAT000001",
+        public_id="test.squatter",
+        kind="profile_pack",
+        definition={
+            "schema_version": 1,
+            "kind": "profile_pack",
+            "decorations": [
+                {"id": "tt.badge", "slot": "badge", "name": "Also a badge"}
+            ],
+        },
+    )
+    await client.post(f"/api/v1/users/me/decoration-packs/{first.uid}", headers=headers)
+
+    response = await client.post(
+        f"/api/v1/users/me/decoration-packs/{squatter.uid}", headers=headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "USER_DECORATION_ALREADY_GRANTED"
+
+    # And the first pack's grant is untouched, still attributed to it.
+    library = await client.get("/api/v1/users/me/decorations", headers=headers)
+    owned = {item["id"]: item for item in library.json()["items"]}
+    assert owned["tt.badge"]["source"] == first.uid
+
+    listed = await client.get("/api/v1/users/me/decoration-packs", headers=headers)
+    installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
+    assert installed == {first.uid}

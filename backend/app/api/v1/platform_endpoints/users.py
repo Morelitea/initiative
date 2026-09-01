@@ -359,9 +359,18 @@ async def install_decoration_pack(
     caller's own is that the only account it ever names is theirs.
     """
     pack = await _pack_or_404(session, uid)
-    await profile_decorations_service.install_pack(
+    conflicting = await profile_decorations_service.install_pack(
         admin_session, user_id=current_user.id, pack=pack
     )
+    if conflicting:
+        # Another pack already gave this library one of these ids. A decoration
+        # id names one thing, so the row belongs to whoever granted it first
+        # and this install would have been a partial one reported as whole.
+        await admin_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.DECORATION_ALREADY_GRANTED,
+        )
     await admin_session.commit()
     return _pack_entry(pack, installed=True)
 
@@ -808,6 +817,14 @@ async def update_users_me(
         decorations = user_in.profile_decorations or ProfileDecorations()
         worn = decorations.worn()
         if worn:
+            # The same row lock giving a pack back takes, and taken before the
+            # library is read: the check and the write then sit in one
+            # serialized window, so the two orderings are the only ones —
+            # either this look is saved and the pack is given back after
+            # (undressing it), or the pack goes first and this is refused.
+            await session.exec(
+                select(User.id).where(User.id == current_user.id).with_for_update()
+            )
             # You wear what you have. The library is the authority for both
             # halves of that — whether the account has the decoration at all,
             # and whether it has it for the slot it is being put in.
