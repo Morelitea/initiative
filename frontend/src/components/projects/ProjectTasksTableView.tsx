@@ -195,7 +195,7 @@ const ProjectTasksTableViewComponent = ({
   onTaskSelectionChange,
   onExitSelection,
 }: ProjectTasksListViewProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "comments"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
   const gp = useGuildPath();
 
@@ -662,7 +662,7 @@ export const ProjectTasksTableView = memo(
 );
 
 const DragHandleCell = () => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "comments"]);
   const sortable = useSortableRowContext();
   if (!sortable) {
     return null;
@@ -690,7 +690,7 @@ type TaskCellProps = {
 };
 
 const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
-  const { t } = useTranslation(["projects", "dates"]);
+  const { t } = useTranslation(["projects", "dates", "comments"]);
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;

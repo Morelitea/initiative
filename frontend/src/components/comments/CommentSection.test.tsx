@@ -107,7 +107,7 @@ describe("CommentSection", () => {
 
     // The suggestion lookup is an initiative search, so it stays off and the
     // popover reports an empty list rather than failing.
-    expect(await screen.findByText(/no users found/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no one by that name/i)).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("@al");
   });
 });

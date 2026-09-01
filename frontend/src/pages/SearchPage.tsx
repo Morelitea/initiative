@@ -23,6 +23,7 @@ import { MemberResultRow } from "@/components/search/MemberResultRow";
 import { SearchResultRow } from "@/components/search/SearchResultRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -44,11 +45,17 @@ export function SearchPage() {
   const { t } = useTranslation(["search", "common"]);
   const navigate = useNavigate();
   const { activeGuild } = useGuilds();
-  const search = useSearch({ strict: false }) as { q?: string; tab?: string; page?: number };
+  const search = useSearch({ strict: false }) as {
+    q?: string;
+    tab?: string;
+    page?: number;
+    archived?: true;
+  };
 
   const query = (search.q ?? "").trim();
   const tab: SearchCategory = isSearchCategory(search.tab) ? search.tab : DEFAULT_SEARCH_CATEGORY;
   const page = search.page && search.page >= 1 ? search.page : 1;
+  const includeArchived = search.archived === true;
 
   // The URL is the query's home — a result page has to be linkable. The input
   // is local so typing stays responsive, and the two are reconciled through the
@@ -89,6 +96,19 @@ export function SearchPage() {
     });
   };
 
+  // Archived work is out of the way by default; asking for it is a different
+  // question, so it resets the page rather than paging into a longer answer.
+  const setIncludeArchived = (next: boolean) => {
+    void navigate({
+      to: ".",
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        archived: next ? (true as const) : undefined,
+        page: undefined,
+      }),
+    });
+  };
+
   const setPage = useCallback(
     (next: number, replace = false) => {
       void navigate({
@@ -110,6 +130,7 @@ export function SearchPage() {
       types: indexTypes ?? TOOL_ENTITY_TYPES,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
+      ...(includeArchived ? { include_archived: true } : {}),
     },
     { enabled: enabled && indexTypes !== null }
   );
@@ -165,17 +186,31 @@ export function SearchPage() {
         />
       ) : (
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsBar>
-            {SEARCH_CATEGORIES.map((category) => (
-              // Every tab stays open, including one holding nothing: closing
-              // it off leaves the reader unable to confirm that for themselves,
-              // and unable to get back once a changed query fills it. An empty
-              // tab says so.
-              <TabsTrigger key={category} value={category}>
-                {t(`search:tabs.${category}`)}
-              </TabsTrigger>
-            ))}
-          </TabsBar>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <TabsBar>
+              {SEARCH_CATEGORIES.map((category) => (
+                // Every tab stays open, including one holding nothing: closing
+                // it off leaves the reader unable to confirm that for themselves,
+                // and unable to get back once a changed query fills it. An empty
+                // tab says so.
+                <TabsTrigger key={category} value={category}>
+                  {t(`search:tabs.${category}`)}
+                </TabsTrigger>
+              ))}
+            </TabsBar>
+            {tab !== "member" && (
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="search-include-archived"
+                  checked={includeArchived}
+                  onCheckedChange={setIncludeArchived}
+                />
+                <label htmlFor="search-include-archived" className="text-muted-foreground text-sm">
+                  {t("search:includeArchived")}
+                </label>
+              </div>
+            )}
+          </div>
 
           {SEARCH_CATEGORIES.map((category) => (
             <TabsContent key={category} value={category} className="space-y-1">

@@ -32,5 +32,6 @@
     "comment": "Comentario"
   },
   "switchHint": "Tab para cambiar",
-  "closeMatches": "Nada coincide exactamente con «{{query}}». Esto es lo más parecido."
+  "closeMatches": "Nada coincide exactamente con «{{query}}». Esto es lo más parecido.",
+  "includeArchived": "Incluir archivados"
 }

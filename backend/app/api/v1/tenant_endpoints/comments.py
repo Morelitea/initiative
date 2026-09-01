@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import String, and_, cast, func, or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -15,11 +15,10 @@ from app.api.deps import (
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document
-from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import User
 from app.services.permissions import (
     dac_scope_clause,
 )
@@ -28,17 +27,11 @@ from app.schemas.tenant.comment import (
     CommentCreate,
     CommentRead,
     CommentUpdate,
-    MentionEntityType,
-    MentionSuggestion,
-    MentionSuggestionListResponse,
     RecentActivityEntry,
 )
-from app.db.query import page_has_next, paginated_query
 from app.services.tenant import comments as comments_service
 from app.services.tenant import reactions as reactions_service
 from app.services.realtime import broadcast_event
-from app.core import usernames
-from app.core.user_display import display_name, handle_of
 
 router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -415,172 +408,4 @@ async def delete_comment(
     await session.commit()
     await _broadcast_comment(
         session, guild_context.guild_id, deleted_comment, "deleted"
-    )
-
-
-@router.get("/mentions/search", response_model=MentionSuggestionListResponse)
-async def search_mentionables(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    entity_type: MentionEntityType = Query(...),
-    initiative_id: int = Query(..., gt=0),
-    q: str = Query(default="", max_length=100),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=10, ge=0, le=100),
-) -> MentionSuggestionListResponse:
-    """Search for mentionable entities within an initiative.
-
-    Paginated, same envelope as the member search endpoints. ``user``
-    suggestions carry an avatar so the picker renders a face.
-    """
-    guild_id = guild_context.guild_id
-    query = q.strip().lower()
-
-    # Verify initiative belongs to guild
-    init_stmt = select(Initiative).where(
-        Initiative.id == initiative_id,
-        Initiative.guild_id == guild_id,
-    )
-    init_result = await session.exec(init_stmt)
-    initiative = init_result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Initiative not found",
-        )
-
-    items: List[MentionSuggestion] = []
-    total_count = 0
-    actual_page = page
-
-    if entity_type == MentionEntityType.user:
-        shows_names = bool(guild_context.guild.show_member_names)
-        base = (
-            select(User)
-            .join(InitiativeMember, InitiativeMember.user_id == User.id)
-            .where(
-                InitiativeMember.initiative_id == initiative_id,
-                User.status == UserStatus.active,
-            )
-        )
-        if query and (term := query.strip()):
-            # The same rule as every other people search (the guild roster, the
-            # initiative roster, the assignee picker): the handle always, the
-            # name alongside it where the guild shows names, and a whole
-            # ``foobar#1234`` narrowed to the one person who owns it.
-            name_part, number = usernames.parse_handle(term)
-            if number is not None:
-                base = base.where(
-                    func.lower(User.username) == name_part.lower(),
-                    func.lpad(cast(User.discriminator, String), 4, "0").like(
-                        f"{number}%"
-                    ),
-                )
-            else:
-                matches = User.username.ilike(f"%{name_part}%")
-                if shows_names:
-                    matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
-                base = base.where(matches)
-        count_stmt = select(func.count()).select_from(base.subquery())
-        order = (User.full_name,) if shows_names else ()
-        data_stmt = base.order_by(*order, User.username, User.discriminator, User.id)
-        rows, total_count, actual_page = await paginated_query(
-            session, data_stmt, count_stmt, page=page, page_size=page_size
-        )
-        for user in rows:
-            display = display_name(user)
-            items.append(
-                MentionSuggestion(
-                    type=MentionEntityType.user,
-                    id=user.id,
-                    display_text=display,
-                    # The handle under the name, which is what tells two
-                    # people with the same name apart. Nothing to add when the
-                    # line above is already the handle.
-                    subtitle=(
-                        handle_of(user) if shows_names and user.full_name else None
-                    ),
-                    avatar_url=user.avatar_url,
-                )
-            )
-
-    elif entity_type == MentionEntityType.task:
-        base = (
-            select(Task, Project.name)
-            .join(Project, Project.id == Task.project_id)
-            .where(
-                Project.initiative_id == initiative_id,
-                Task.is_archived.is_(False),
-            )
-        )
-        if query:
-            base = base.where(Task.title.ilike(f"%{query}%"))
-        count_stmt = select(func.count()).select_from(base.subquery())
-        data_stmt = base.order_by(Task.updated_at.desc())
-        rows, total_count, actual_page = await paginated_query(
-            session, data_stmt, count_stmt, page=page, page_size=page_size
-        )
-        for task, project_name in rows:
-            items.append(
-                MentionSuggestion(
-                    type=MentionEntityType.task,
-                    id=task.id,
-                    display_text=task.title,
-                    subtitle=project_name,
-                )
-            )
-
-    elif entity_type == MentionEntityType.doc:
-        base = select(Document).where(
-            Document.initiative_id == initiative_id,
-            Document.is_template.is_(False),
-        )
-        if query:
-            base = base.where(Document.name.ilike(f"%{query}%"))
-        count_stmt = select(func.count()).select_from(base.subquery())
-        data_stmt = base.order_by(Document.updated_at.desc())
-        rows, total_count, actual_page = await paginated_query(
-            session, data_stmt, count_stmt, page=page, page_size=page_size
-        )
-        for doc in rows:
-            items.append(
-                MentionSuggestion(
-                    type=MentionEntityType.doc,
-                    id=doc.id,
-                    display_text=doc.name,
-                    subtitle=None,
-                )
-            )
-
-    elif entity_type == MentionEntityType.project:
-        base = select(Project).where(
-            Project.initiative_id == initiative_id,
-            Project.is_archived.is_(False),
-            Project.is_template.is_(False),
-        )
-        if query:
-            base = base.where(Project.name.ilike(f"%{query}%"))
-        count_stmt = select(func.count()).select_from(base.subquery())
-        data_stmt = base.order_by(Project.updated_at.desc())
-        rows, total_count, actual_page = await paginated_query(
-            session, data_stmt, count_stmt, page=page, page_size=page_size
-        )
-        for project in rows:
-            items.append(
-                MentionSuggestion(
-                    type=MentionEntityType.project,
-                    id=project.id,
-                    display_text=project.name,
-                    subtitle=project.description[:50] if project.description else None,
-                )
-            )
-
-    return MentionSuggestionListResponse(
-        items=items,
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
     )

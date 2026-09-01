@@ -22,6 +22,7 @@ import { AutoEmbedPlugin } from "@/components/ui/editor/plugins/embeds/auto-embe
 import { TwitterPlugin } from "@/components/ui/editor/plugins/embeds/twitter-plugin";
 import { YouTubePlugin } from "@/components/ui/editor/plugins/embeds/youtube-plugin";
 import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-plugin";
+import { EntityMentionsPlugin } from "@/components/ui/editor/plugins/entity-mentions-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
@@ -82,6 +83,7 @@ export function Plugins({
   collaborative = false,
   cursorsContainerRef,
   initiativeId = null,
+  supportsEntityMentions = false,
   onWikilinkNavigate,
   onWikilinkCreate,
 }: {
@@ -90,6 +92,10 @@ export function Plugins({
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
+  /** Whether this is a standard document — prose with a caret. `#` is offered
+   *  only here: a whiteboard and a spreadsheet are not written into, and a file
+   *  or a linked page has no body of its own to write in. */
+  supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
   onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }) {
@@ -202,6 +208,7 @@ export function Plugins({
         <TabIndentationPlugin />
 
         <MentionsPlugin initiativeId={initiativeId ?? undefined} />
+        {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}
         <WikilinksPlugin
           initiativeId={initiativeId}
           onNavigate={onWikilinkNavigate}

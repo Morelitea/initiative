@@ -69,17 +69,6 @@ class DocumentCopyRequest(SanitizedBaseModel):
     name: Optional[str] = None
 
 
-class DocumentAutocomplete(SanitizedBaseModel):
-    """Lightweight document info for autocomplete/wikilinks."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    updated_at: datetime
-    document_type: DocumentType
-
-
 class DocumentBacklink(SanitizedBaseModel):
     """Document that links to another document."""
 

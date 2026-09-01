@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
@@ -24,6 +24,7 @@ class CalendarBase(SanitizedBaseModel):
 
 
 class CalendarCreate(CalendarBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     #: Which initiative the calendar belongs to, or ``None`` for a guild
     #: calendar — one that belongs to the guild itself, the way the calendar
     #: app's own does. Guild scope answers to no initiative's roles or feature
@@ -41,7 +42,7 @@ class CalendarCreate(CalendarBase):
 
 
 class CalendarUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
     # Absent = unchanged; a null is rejected (a calendar always has a color).
     color: Optional[str] = Field(default=None, min_length=1, max_length=32)

@@ -92,6 +92,7 @@
   "AUTH_PROVIDER_IN_USE": "L'exigence de connexion d'une communauté utilise ce fournisseur ; modifiez d'abord cette exigence",
   "SMTP_NOT_CONFIGURED": "Les paramètres SMTP sont incomplets.",
   "INVALID_OR_EXPIRED_TOKEN": "Jeton invalide ou expiré",
+  "RESERVED_SIGIL_IN_NAME": "Les noms et les titres ne peuvent pas contenir # ni @.",
   "PROJECT_NOT_FOUND": "Projet introuvable",
   "PROJECT_INITIATIVE_NOT_FOUND": "Initiative introuvable",
   "PROJECT_IS_ARCHIVED": "Le projet est archivé",

@@ -19,10 +19,10 @@ import { FileText, Plus } from "lucide-react";
 import { type JSX, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
 
 // Regex to match [[ followed by any characters (for partial wikilinks)
 const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
@@ -104,55 +104,27 @@ function useWikilinkSearch(
   queryString: string | null,
   initiativeId: number | null
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
-  const guildId = useActiveGuildId();
-  const [results, setResults] = useState<DocumentAutocomplete[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (queryString === null || queryString.length === 0 || initiativeId === null) {
-      setResults([]);
-      return;
-    }
-
-    let cancelled = false;
-    const fetchDocuments = async () => {
-      setIsLoading(true);
-      try {
-        const docs = await autocompleteDocuments(guildId, {
-          initiative_id: initiativeId,
-          q: queryString,
-          limit: SUGGESTION_LIST_LENGTH_LIMIT,
-        });
-        if (!cancelled) {
-          setResults(docs);
-        }
-      } catch (error) {
-        console.error("Failed to fetch documents for wikilink autocomplete:", error);
-        if (!cancelled) {
-          setResults([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    // Debounce the API call
-    const timeoutId = setTimeout(fetchDocuments, 150);
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [queryString, initiativeId, guildId]);
+  // The shared lookup, narrowed to this initiative's live documents. A
+  // wikilink points at a document to read, not at a blueprint.
+  const { data, isFetching } = useGuildSearchSuggest(queryString ?? "", {
+    types: [SearchEntityType.document],
+    initiative_id: initiativeId ?? undefined,
+    template: false,
+    limit: SUGGESTION_LIST_LENGTH_LIMIT,
+    enabled: Boolean(queryString) && initiativeId !== null,
+  });
+  const results = useMemo(() => data ?? [], [data]);
+  const isLoading = isFetching;
 
   const options = useMemo(() => {
-    const docOptions = results.map((doc) => new WikilinkTypeaheadOption(doc.name, doc.id, false));
+    const docOptions = results.map(
+      (doc) => new WikilinkTypeaheadOption(doc.title, doc.entity_id, false)
+    );
 
     // Add "Create new document" option if query doesn't exactly match any result
     if (queryString && queryString.trim().length > 0) {
       const normalizedQuery = queryString.trim().toLowerCase();
-      const exactMatch = results.some((doc) => doc.name.toLowerCase() === normalizedQuery);
+      const exactMatch = results.some((doc) => doc.title.toLowerCase() === normalizedQuery);
       if (!exactMatch) {
         docOptions.push(new WikilinkTypeaheadOption(queryString.trim(), null, true));
       }

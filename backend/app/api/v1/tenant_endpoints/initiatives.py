@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import String, cast, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
@@ -33,7 +33,6 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.task import Task, TaskAssignee
-from app.core import usernames
 from app.models.platform.user import User
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
@@ -1292,27 +1291,19 @@ async def search_initiative_members(
         )
     )
     shows_names = bool(guild_context.guild.show_member_names)
+    closest = None
     if search and (term := search.strip()):
-        # Matches what this guild renders. A substring filter over a field the
-        # guild does not show would be that field, read one query at a time.
-        name_part, number = usernames.parse_handle(term)
-        if number is not None:
-            base = base.where(
-                func.lower(User.username) == name_part.lower(),
-                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
-            )
-        else:
-            matches = User.username.ilike(f"%{name_part}%")
-            if shows_names:
-                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
-            base = base.where(matches)
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        base = base.where(matches)
     if user_id:
         base = base.where(User.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    order = (User.full_name.asc(),) if shows_names else ()
     data_stmt = base.order_by(
-        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+        *users_service.member_order(closest, shows_names=shows_names),
+        User.username.asc(),
+        User.discriminator.asc(),
+        User.id.asc(),
     )
 
     users, total_count, actual_page = await paginated_query(

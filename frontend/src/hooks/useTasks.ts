@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   ArchiveDoneResponse,
@@ -7,7 +7,6 @@ import type {
   ListTasksApiV1GGuildIdTasksGetParams,
   SubtaskRead,
   SubtaskReorderItem,
-  TaskAutocomplete,
   TaskListRead,
   TaskListResponse,
   TaskRead,
@@ -47,7 +46,6 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
-import { autocompleteTasks } from "@/lib/taskUtils";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -90,35 +88,6 @@ export const usePrefetchTasks = () => {
       staleTime: 30_000,
     });
   };
-};
-
-/**
- * Title typeahead over tasks, for the queue/link pickers.
- *
- * Returns the slim ``TaskAutocomplete`` (id + title) from the dedicated
- * autocomplete endpoint — no eager-load chains or annotation query. It fetches
- * a bounded, server-filtered page rather than walking the guild's tasks, so a
- * picker's cost tracks what the user typed. Pass ``initiativeId`` to scope to
- * one initiative, or omit it to search the whole guild. Pass ``enabled: false``
- * until the picker is open.
- */
-export const useTaskAutocomplete = (
-  query: string,
-  options?: QueryOpts<TaskAutocomplete[]> & { limit?: number; initiativeId?: number }
-) => {
-  const guildId = useActiveGuildId();
-  const { limit = 20, initiativeId, ...queryOptions } = options ?? {};
-  return useQuery<TaskAutocomplete[]>({
-    queryKey: ["tasks", "autocomplete", guildId, initiativeId ?? null, query, limit],
-    queryFn: () =>
-      autocompleteTasks(guildId, {
-        q: query,
-        limit,
-        ...(initiativeId != null ? { initiative_id: initiativeId } : {}),
-      }),
-    placeholderData: keepPreviousData,
-    ...queryOptions,
-  });
 };
 
 export const useSubtasks = (taskId: number, options?: QueryOpts<SubtaskRead[]>) => {

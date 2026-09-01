@@ -12,6 +12,7 @@ from ``Tool``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Optional, Sequence
 
 from sqlalchemy import Select, false, func, select, text
@@ -134,24 +135,53 @@ def _tsquery(query: str):
     return func.websearch_to_tsquery("simple", head).op("&&")(tail)
 
 
+@dataclass(frozen=True)
+class Filters:
+    """What a caller narrows to, beyond the words themselves.
+
+    Every field only ever removes rows, so narrowing can never reach content
+    the gates would not have allowed.
+
+    ``template`` is three-valued on purpose: unset means both, so a results
+    page still finds a template by name; a picker choosing where content goes
+    asks for ``False``; a template picker asks for ``True``.
+    """
+
+    types: Optional[Sequence[SearchEntityType]] = None
+    initiative_id: Optional[int] = None
+    #: Archived work is indexed and left out unless it is asked for.
+    include_archived: bool = False
+    template: Optional[bool] = None
+
+    @property
+    def entity_types(self) -> tuple[SearchEntityType, ...]:
+        """The types to search — the default scope when none were named."""
+        return (
+            tuple(self.types) if self.types else entity_types(default_scope_only=True)
+        )
+
+    def clause(self) -> ColumnElement[bool]:
+        """This narrowing as a predicate."""
+        clause: ColumnElement[bool] = SearchEntry.entity_type.in_(self.entity_types)
+        if self.initiative_id is not None:
+            clause = clause & (SearchEntry.initiative_id == self.initiative_id)
+        if not self.include_archived:
+            clause = clause & SearchEntry.archived.is_(False)
+        if self.template is not None:
+            clause = clause & SearchEntry.template.is_(self.template)
+        return clause
+
+
 def _scoped(
-    query: str,
-    *,
-    user_id: int,
-    guild_id: int,
-    types: Optional[Sequence[SearchEntityType]],
-    initiative_id: Optional[int],
+    query: str, *, user_id: int, guild_id: int, filters: Filters
 ) -> tuple[ColumnElement[bool], object]:
     """The predicate every search shares, and the parsed query it uses."""
     parsed = _tsquery(query)
-    wanted = tuple(types) if types else entity_types(default_scope_only=True)
     clause = (
         search_match_clause(parsed)
-        & SearchEntry.entity_type.in_(wanted)
+        & filters.clause()
         & search_scope_clause(user_id, guild_id=guild_id)
     )
-    if initiative_id is not None:
-        clause = clause & (SearchEntry.initiative_id == initiative_id)
     return clause, parsed
 
 
@@ -185,13 +215,7 @@ def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
 
 
 async def _close_titles(
-    session: AsyncSession,
-    *,
-    query: str,
-    user_id: int,
-    guild_id: int,
-    types: Optional[Sequence[SearchEntityType]],
-    initiative_id: Optional[int],
+    session: AsyncSession, *, query: str, user_id: int, guild_id: int, filters: Filters
 ) -> list[SearchHit]:
     """Entities whose TITLE is close to what was typed, for when nothing matched.
 
@@ -200,16 +224,13 @@ async def _close_titles(
     search that worked: a reader is shown these as close matches, not told they
     are what was asked for.
     """
-    wanted = tuple(types) if types else entity_types(default_scope_only=True)
     closeness = func.word_similarity(query, SearchEntry.title)
     clause = (
         (closeness >= FUZZY_THRESHOLD)
         & (SearchEntry.chunk_ix == 0)
-        & SearchEntry.entity_type.in_(wanted)
+        & filters.clause()
         & search_scope_clause(user_id, guild_id=guild_id)
     )
-    if initiative_id is not None:
-        clause = clause & (SearchEntry.initiative_id == initiative_id)
 
     statement = (
         select(
@@ -241,8 +262,8 @@ async def _close_titles(
         # Gave up. The reader gets the empty page they already had.
         return []
     finally:
-        # ``SET LOCAL`` outlives the savepoint when it commits, so it is put
-        # back rather than left on the rest of the request.
+        # A transaction-local setting outlives the savepoint when it commits,
+        # so it is put back rather than left on the rest of the request.
         await session.exec(text("SET LOCAL statement_timeout = DEFAULT"))
     return [SearchHit.model_validate(row, from_attributes=True) for row in rows]
 
@@ -253,8 +274,7 @@ async def search(
     query: str,
     user_id: int,
     guild_id: int,
-    types: Optional[Sequence[SearchEntityType]] = None,
-    initiative_id: Optional[int] = None,
+    filters: Filters = Filters(),
     limit: int = 20,
     offset: int = 0,
 ) -> SearchResults:
@@ -268,13 +288,7 @@ async def search(
     if not query.strip():
         return SearchResults(items=[], total=0, limit=limit, offset=offset)
 
-    clause, parsed = _scoped(
-        query,
-        user_id=user_id,
-        guild_id=guild_id,
-        types=types,
-        initiative_id=initiative_id,
-    )
+    clause, parsed = _scoped(query, user_id=user_id, guild_id=guild_id, filters=filters)
     best = _best_chunk(clause, parsed)
     total = await session.scalar(select(func.count()).select_from(best)) or 0
     rows = (
@@ -297,12 +311,7 @@ async def search(
         # Nothing matched what was typed. Offer what is closest to it rather
         # than an empty page — flagged, so the reader is told which they got.
         close = await _close_titles(
-            session,
-            query=query,
-            user_id=user_id,
-            guild_id=guild_id,
-            types=types,
-            initiative_id=initiative_id,
+            session, query=query, user_id=user_id, guild_id=guild_id, filters=filters
         )
         if close:
             return SearchResults(
@@ -327,7 +336,7 @@ async def suggest(
     query: str,
     user_id: int,
     guild_id: int,
-    types: Optional[Sequence[SearchEntityType]] = None,
+    filters: Filters = Filters(),
     limit: int = SUGGEST_LIMIT,
 ) -> list[SearchSuggestion]:
     """Titles to jump to. No snippets and no body ranking — this answers "take
@@ -345,11 +354,10 @@ async def suggest(
     title_match = func.to_tsvector("simple", SearchEntry.title).op(
         "@@", is_comparison=True
     )(parsed)
-    wanted = tuple(types) if types else entity_types(default_scope_only=True)
     clause = (
         search_match_clause(parsed)
         & title_match
-        & SearchEntry.entity_type.in_(wanted)
+        & filters.clause()
         & search_scope_clause(user_id, guild_id=guild_id)
     )
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)

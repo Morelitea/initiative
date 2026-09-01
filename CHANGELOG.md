@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Decoration packs, for the thing your community is about.** Settings › Profile › Decorations is a store of themed sets you can take and give back. Three to start: **Tabletop**, whose badge is the twenty-sided die this app already throws when you finish a task; **Soundcheck**, for bands and anyone who books the room and plugs in; and **Observatory**, for labs, field stations and reading groups with a whiteboard. Banners and frames move — dice land on a natural 20, a meter jumps, a record turns, electrons go round — while badges hold still, because a badge is a mark of belonging and a row of them has to stay readable. Take a pack and its pieces land in your collection; give it back and they go, along with anything from it you were wearing. Mix pieces from different packs however you like.
 
+- **Name a thing inside a document with `#`.** Typing `#` in a document opens the same picker a comment has, over everything in the initiative — a project, a task, a queue, a counter, a calendar event, a dashboard. Pick one and its name sits in the text as a link that opens it. Naming a kind first (`#task:`) narrows the list, `@` still names a person, and both work as you type. Standard documents only: a whiteboard and a spreadsheet hold shapes and cells rather than prose.
+
 - **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the community home's recent-comments feed shows what each comment drew.
 
 - **The author hears about reactions, in a digest.** Reactions arrive in flurries, so they are collected the way task assignments are: the bell gets each one immediately, and email and push wait until the burst has settled and then arrive as one summary. It has its own switch under Settings › Notifications — wanting to hear about mentions no longer means hearing about every thumbs-up.
@@ -27,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Set a status.** An emoji, a line about what you are up to, or both, under Settings › Profile — using the same picker the rest of the app uses. It shows on your profile.
 
-- **Dress your profile up.** A profile can wear a banner, a frame around the picture and a row of up to six badges, each picked from what you have: your library starts with the set that ships with Initiative, and marketplace packs will add to it. There is a picker per slot on Settings › Profile, so you can mix pieces from different packs freely. Decorations are chosen, never uploaded, so wearing one costs your community none of its storage.
+- **Dress your profile up.** A profile can wear a banner, a frame around the picture and a row of up to six badges, each picked from what you have: your library starts with the set that ships with Initiative, and decoration packs add to it. There is a picker per slot, so you can mix pieces from different packs freely. Decorations are chosen, never uploaded, so wearing one costs your community none of its storage.
 
 ### Changed
 
@@ -38,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A task's editor ends in two buttons, not six.** Save, cancel, move to project, duplicate, archive and delete all sat in one row at the foot of the task editor, so the action you almost always want looked exactly like the ones you almost never do — and delete sat two buttons from save. Save and cancel keep their place; move, duplicate, archive and delete moved behind a single "…" menu at the end of the row, with delete set apart below a divider.
 
 - **"Browse the marketplace" is out of the overflow menu.** Adding a ready-made dashboard is the same kind of answer as making one from scratch, but only one of the two was on the page — the other sat behind the "…" button, where someone who has never opened it never learns the shelf exists. It now sits next to the create button on the dashboards list, at every width, and beside "Create your first dashboard" in an initiative that has none yet.
+
+- **Every picker in the app now searches the way search does.** Mentions, wikilinks, queue links and the template pickers each had their own lookup, built before search existed: substring matching, no ranking, and a fixed list of three kinds of thing. They all ask the search index now, which means every one of them ranks its answers, matches before you finish a word, and forgives a misspelling. It also means they reach everything — a comment can now name a queue, a counter, a calendar event or a dashboard, not just a task, document or project.
+
+- **`#` in a comment offers everything in the initiative.** It used to need the kind up front — `#task:`, `#doc:`, `#project:` — and those were the only three. Typing `#` on its own now searches across every kind at once, and naming a kind still narrows it. Every mention already written keeps working.
+
+- **A misspelled name finds its person in every people picker.** Guild search learned this last release; the initiative roster and the pickers behind an @mention had their own copy of the matching rules and did not. There is one set of rules now, so they all behave the same.
+
+- **Archived work stays out of search results unless you ask for it.** It was mixed in with live work; a switch on the results page brings it back when you are looking for something you put away.
+
 
 - **Toasts stay up only as long as they take to read.** Every notification held the screen for a fixed five seconds after Chester finished typing it — a long wait for "Saved", and a short one for a paragraph of error text. The wait is now worked out from the message itself: a moment to notice it, plus reading time for what it says. Warnings and errors are held longer, a toast with a button on it gets time to press it, and there is a ceiling so nothing camps on the screen.
 
@@ -60,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A new install's first community is now called "Primary Community".** It was still called "Primary Guild" — the one place the old word survived the rename. Existing communities are untouched; this only changes what a fresh install starts with.
 
 - **Every tab in a project, document, queue, counter group, calendar, or dashboard's settings now has an address of its own.** Sharing, the advanced options, a project's filter presets and its task statuses were pieces of on-page state: you could send someone to the settings, but never to the part you meant, and the back button stepped out of the whole page rather than back to the tab you came from. Each is now a place — `…/settings/access`, `…/settings/task-statuses` — so it can be linked to, bookmarked, and returned to. The bar still looks and behaves like tabs. Old links carrying a `?tab=` selector land on the section they named, and a tab you may not open refuses a typed address rather than only being hidden from the bar.
+
+- **Names and titles no longer accept `#` or `@`.** Both characters already say something in Initiative: `@` opens a mention, `#` points at a task, document or project inside a comment, and a handle is written `name#1234` — so a name holding one read as the syntax rather than as itself, and searching for it split the term at the `#`. Task and event titles, project, queue, counter, calendar, dashboard, tag, initiative and community names, and the real name on your profile now turn both down and say why. Document names are the exception, since a document is usually named after the file it came from. Anything saved before this keeps the name it has.
 
 ### Fixed
 

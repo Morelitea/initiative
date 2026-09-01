@@ -92,6 +92,7 @@
   "AUTH_PROVIDER_IN_USE": "El requisito de inicio de sesión de una comunidad usa este proveedor; cambia primero ese requisito",
   "SMTP_NOT_CONFIGURED": "La configuración SMTP está incompleta.",
   "INVALID_OR_EXPIRED_TOKEN": "Token no válido o expirado",
+  "RESERVED_SIGIL_IN_NAME": "Los nombres y títulos no pueden contener # ni @.",
   "PROJECT_NOT_FOUND": "Proyecto no encontrado",
   "PROJECT_INITIATIVE_NOT_FOUND": "Iniciativa no encontrada",
   "PROJECT_IS_ARCHIVED": "El proyecto está archivado",

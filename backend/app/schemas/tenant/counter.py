@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 
@@ -60,11 +60,11 @@ class CounterBase(SanitizedBaseModel):
 
 
 class CounterCreate(CounterBase):
-    pass
+    name: TitleStr = Field(..., min_length=1, max_length=255)
 
 
 class CounterUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     color: Optional[str] = None
     # ``min``/``max`` are nullable columns — an explicit null clears the bound.
     # The remaining fields back NOT NULL columns, so a null is meaningless; the
@@ -136,6 +136,7 @@ class CounterGroupBase(SanitizedBaseModel):
 
 
 class CounterGroupCreate(CounterGroupBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
@@ -147,12 +148,12 @@ class CounterGroupCreate(CounterGroupBase):
 
 
 class CounterGroupUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
 
 
 class CounterGroupDuplicateRequest(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
 
 
 class CounterGroupSummary(CounterGroupBase):
