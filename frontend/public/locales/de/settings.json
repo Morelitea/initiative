@@ -55,10 +55,6 @@
     "newPasswordLabel": "Neues Passwort",
     "confirmPasswordLabel": "Passwort bestätigen",
     "passwordPlaceholder": "••••••••",
-    "timezoneLabel": "Zeitzone",
-    "timezonePlaceholder": "Zeitzone auswählen",
-    "timezoneEmpty": "Keine Zeitzone gefunden.",
-    "timezoneHelp": "Wird für Fälligkeitsdaten, tägliche Erinnerungen und die Berechnung wiederkehrender Aufgaben verwendet. Bei deiner Registrierung aus deinem Browser erkannt; ändere sie hier, falls sie falsch ist.",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Hochladen",
     "avatarUrlTab": "URL",
@@ -234,7 +230,11 @@
       "unsupported": "Dein Browser unterstützt das Aktivhalten des Bildschirms nicht."
     },
     "completionTitle": "Wenn du eine Aufgabe abschließt",
-    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst."
+    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst.",
+    "timezone": "Zeitzone",
+    "timezoneDescription": "Die Uhr, nach der Fälligkeiten, Erinnerungen und Wiederholungen berechnet werden. Bei der Registrierung aus deinem Browser übernommen.",
+    "timezonePlaceholder": "Zeitzone auswählen",
+    "timezoneEmpty": "Keine Zeitzone gefunden."
   },
   "notifications": {
     "title": "Benachrichtigungseinstellungen",
@@ -1133,8 +1133,8 @@
     }
   },
   "account": {
-    "identityTitle": "Anmeldung und Zeitzone",
-    "identityDescription": "Womit du dich anmeldest – und nach welcher Uhr die App für dich läuft.",
+    "identityTitle": "Deine Anmeldung",
+    "identityDescription": "Deine Adresse und dein Handle. Beides lässt sich hier nicht ändern.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet."
   }

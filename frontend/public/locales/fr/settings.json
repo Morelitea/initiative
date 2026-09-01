@@ -55,10 +55,6 @@
     "newPasswordLabel": "Nouveau mot de passe",
     "confirmPasswordLabel": "Confirmer le mot de passe",
     "passwordPlaceholder": "••••••••",
-    "timezoneLabel": "Fuseau horaire",
-    "timezonePlaceholder": "Sélectionner un fuseau horaire",
-    "timezoneEmpty": "Aucun fuseau horaire trouvé.",
-    "timezoneHelp": "Utilisé pour les échéances, les rappels quotidiens et les calculs de tâches récurrentes. Détecté depuis votre navigateur lors de l'inscription ; modifiez-le ici s'il est incorrect.",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Télécharger",
     "avatarUrlTab": "URL",
@@ -234,7 +230,11 @@
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
     },
     "completionTitle": "Quand vous terminez une tâche",
-    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder."
+    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder.",
+    "timezone": "Fuseau horaire",
+    "timezoneDescription": "L'horloge sur laquelle sont calculés les échéances, les rappels et les répétitions. Reprise de votre navigateur à l'inscription.",
+    "timezonePlaceholder": "Sélectionner un fuseau horaire",
+    "timezoneEmpty": "Aucun fuseau horaire trouvé."
   },
   "notifications": {
     "title": "Paramètres de notifications",
@@ -1133,8 +1133,8 @@
     }
   },
   "account": {
-    "identityTitle": "Connexion et fuseau",
-    "identityDescription": "Comment vous entrez, et l'horloge sur laquelle l'app tourne pour vous.",
+    "identityTitle": "Comment vous vous connectez",
+    "identityDescription": "Votre adresse et votre pseudo. Ni l'un ni l'autre ne se change ici.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil."
   }

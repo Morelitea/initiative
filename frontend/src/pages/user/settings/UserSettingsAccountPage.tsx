@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
@@ -8,12 +8,10 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { getUserHandle } from "@/lib/userDisplay";
 
 interface UserSettingsAccountPageProps {
@@ -22,11 +20,12 @@ interface UserSettingsAccountPageProps {
 }
 
 /**
- * The account: how you sign in and what clock you are on.
+ * The account: how you get in.
  *
  * Separate from Settings › Profile, which is the face other people see. The
  * split is along who the setting is for — nothing on this page is visible to
- * anyone else, and nothing on the profile page changes how you get in.
+ * anyone else, and nothing on the profile page changes how you sign in. How
+ * dates read to you is Settings › Interface, with the rest of that question.
  */
 export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccountPageProps) => {
   // Pull in ``auth`` and ``errors`` so the password-policy hint and the
@@ -36,14 +35,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  // The same field is also editable on Settings → Notifications (the
-  // overdue-reminder time uses it).
-  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTimezone(user.timezone ?? "UTC");
-  }, [user]);
 
   const updateAccount = useUpdateCurrentUser({
     onSuccess: async (_data, variables) => {
@@ -99,9 +91,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
             payload.current_password = currentPassword;
           }
         }
-        if (timezone !== (user.timezone ?? "UTC")) {
-          payload.timezone = timezone;
-        }
         updateAccount.mutate(payload as UserSelfUpdate);
       }}
     >
@@ -123,18 +112,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           <Input value={getUserHandle(user)} disabled readOnly />
           <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
         </div>
-
-        <div className="space-y-2">
-          <Label>{t("profile.timezoneLabel")}</Label>
-          <SearchableCombobox
-            items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-            value={timezone}
-            onValueChange={setTimezone}
-            placeholder={t("profile.timezonePlaceholder")}
-            emptyMessage={t("profile.timezoneEmpty")}
-          />
-          <p className="text-muted-foreground text-xs">{t("profile.timezoneHelp")}</p>
-        </div>
       </SettingsSection>
 
       <SettingsSection
@@ -153,7 +130,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 setPassword("");
                 setCurrentPassword("");
                 setConfirmPassword("");
-                setTimezone(user.timezone ?? "UTC");
                 setError(null);
               }}
             >

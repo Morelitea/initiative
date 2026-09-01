@@ -55,10 +55,6 @@
     "newPasswordLabel": "Nueva contraseña",
     "confirmPasswordLabel": "Confirmar contraseña",
     "passwordPlaceholder": "••••••••",
-    "timezoneLabel": "Zona horaria",
-    "timezonePlaceholder": "Selecciona una zona horaria",
-    "timezoneEmpty": "No se encontró ninguna zona horaria.",
-    "timezoneHelp": "Se usa para las fechas de vencimiento, los recordatorios diarios y los cálculos de tareas recurrentes. Se detectó desde tu navegador al registrarte; cámbiala aquí si es incorrecta.",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Subir",
     "avatarUrlTab": "URL",
@@ -234,7 +230,11 @@
       "unsupported": "Tu navegador no admite mantener la pantalla activa."
     },
     "completionTitle": "Cuando terminas una tarea",
-    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela."
+    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela.",
+    "timezone": "Zona horaria",
+    "timezoneDescription": "El reloj con el que se calculan vencimientos, recordatorios y repeticiones. Se tomó de tu navegador al registrarte.",
+    "timezonePlaceholder": "Selecciona una zona horaria",
+    "timezoneEmpty": "No se encontró ninguna zona horaria."
   },
   "notifications": {
     "title": "Configuración de notificaciones",
@@ -1133,8 +1133,8 @@
     }
   },
   "account": {
-    "identityTitle": "Acceso y zona horaria",
-    "identityDescription": "Cómo entras y con qué reloj funciona la app para ti.",
+    "identityTitle": "Cómo inicias sesión",
+    "identityDescription": "Tu dirección y tu identificador. Ninguno se cambia aquí.",
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo."
   }
