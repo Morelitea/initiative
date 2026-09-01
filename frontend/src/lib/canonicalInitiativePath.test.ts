@@ -10,27 +10,27 @@ import { canonicalInitiativePath } from "@/lib/guildUrl";
 
 describe("canonicalInitiativePath", () => {
   it("replaces an initiative the entity doesn't belong to", () => {
-    expect(canonicalInitiativePath("/g/1/i/9/projects/7", 5)).toBe("/g/1/i/5/projects/7");
-    expect(canonicalInitiativePath("/g/1/i/9/projects/7/tasks/22", 5)).toBe(
-      "/g/1/i/5/projects/7/tasks/22"
+    expect(canonicalInitiativePath("/c/1/i/9/projects/7", 5)).toBe("/c/1/i/5/projects/7");
+    expect(canonicalInitiativePath("/c/1/i/9/projects/7/tasks/22", 5)).toBe(
+      "/c/1/i/5/projects/7/tasks/22"
     );
   });
 
   // An app's calendar belongs to no initiative; its address says so.
   it("drops the segment for a guild-level entity", () => {
-    expect(canonicalInitiativePath("/g/1/i/9/calendars/2", null)).toBe("/g/1/calendars/2");
-    expect(canonicalInitiativePath("/g/1/i/9/calendars/2/events/8", null)).toBe(
-      "/g/1/calendars/2/events/8"
+    expect(canonicalInitiativePath("/c/1/i/9/calendars/2", null)).toBe("/c/1/calendars/2");
+    expect(canonicalInitiativePath("/c/1/i/9/calendars/2/events/8", null)).toBe(
+      "/c/1/calendars/2/events/8"
     );
   });
 
   it("inserts the segment when the entity does belong to one", () => {
-    expect(canonicalInitiativePath("/g/1/calendars/2", 5)).toBe("/g/1/i/5/calendars/2");
+    expect(canonicalInitiativePath("/c/1/calendars/2", 5)).toBe("/c/1/i/5/calendars/2");
   });
 
   it("leaves an already-correct path untouched", () => {
-    expect(canonicalInitiativePath("/g/1/i/5/projects/7", 5)).toBe("/g/1/i/5/projects/7");
-    expect(canonicalInitiativePath("/g/1/calendars/2", null)).toBe("/g/1/calendars/2");
+    expect(canonicalInitiativePath("/c/1/i/5/projects/7", 5)).toBe("/c/1/i/5/projects/7");
+    expect(canonicalInitiativePath("/c/1/calendars/2", null)).toBe("/c/1/calendars/2");
   });
 
   // Nothing outside a guild has an initiative to canonicalize.
@@ -40,7 +40,7 @@ describe("canonicalInitiativePath", () => {
   });
 
   it("handles the guild root", () => {
-    expect(canonicalInitiativePath("/g/1", 5)).toBe("/g/1/i/5");
-    expect(canonicalInitiativePath("/g/1/i/5", null)).toBe("/g/1");
+    expect(canonicalInitiativePath("/c/1", 5)).toBe("/c/1/i/5");
+    expect(canonicalInitiativePath("/c/1/i/5", null)).toBe("/c/1");
   });
 });

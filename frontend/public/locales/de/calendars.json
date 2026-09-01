@@ -123,7 +123,7 @@
     "calendarSettings": "Einstellungen für {{name}}"
   },
   "guildScope": {
-    "title": "Gildenkalender",
+    "title": "Community-Kalender",
     "empty": "Noch keine Kalender.",
     "emptyHint": "Lege einen an — für Feiertage, ein regelmäßiges Treffen oder einfach für dich."
   }

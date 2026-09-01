@@ -81,19 +81,19 @@ describe("RecentTabsBar", () => {
 
     expect(screen.getByRole("link", { name: /ProjectX/ })).toHaveAttribute(
       "href",
-      "/g/1/i/5/projects/11"
+      "/c/1/i/5/projects/11"
     );
     expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute(
       "href",
-      "/g/1/i/5/documents/22"
+      "/c/1/i/5/documents/22"
     );
     expect(screen.getByRole("link", { name: /QueueZ/ })).toHaveAttribute(
       "href",
-      "/g/1/i/5/queues/33"
+      "/c/1/i/5/queues/33"
     );
     expect(screen.getByRole("link", { name: /GroupW/ })).toHaveAttribute(
       "href",
-      "/g/1/i/5/counter-groups/44"
+      "/c/1/i/5/counter-groups/44"
     );
   });
 
@@ -118,7 +118,7 @@ describe("RecentTabsBar", () => {
 
     expect(screen.getByRole("link", { name: /AppCal/ })).toHaveAttribute(
       "href",
-      "/g/1/calendars/12"
+      "/c/1/calendars/12"
     );
   });
 

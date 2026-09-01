@@ -2,8 +2,8 @@
   "page": {
     "title": "My Stats",
     "subtitle": "Track your productivity and task completion metrics",
-    "guildFilterPlaceholder": "Select guild",
-    "allGuilds": "All Guilds",
+    "guildFilterPlaceholder": "Select community",
+    "allGuilds": "All Communities",
     "loading": "Loading stats\u2026",
     "error": "Failed to load stats. Please try again later."
   },
@@ -34,9 +34,9 @@
     "completed": "Completed"
   },
   "guildBreakdown": {
-    "title": "Tasks by Guild",
-    "description": "Completed tasks breakdown by guild",
-    "noData": "No guild data available"
+    "title": "Tasks by Community",
+    "description": "Completed tasks breakdown by community",
+    "noData": "No community data available"
   },
   "heatmap": {
     "title": "Activity Heatmap",

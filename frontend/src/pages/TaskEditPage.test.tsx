@@ -22,7 +22,7 @@ const INITIATIVE_ID = 5;
 const PROJECT_ID = 7;
 const TASK_ID = 2726;
 
-const TASK_ROUTE = "/g/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId";
+const TASK_ROUTE = "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId";
 
 /** The project the task actually belongs to, which a move can change. */
 const renderTaskPage = ({ taskProjectId = PROJECT_ID }: { taskProjectId?: number } = {}) => {
@@ -76,7 +76,7 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(deleted).toHaveBeenCalled());
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/g/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
+        `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
       )
     );
   });
@@ -92,7 +92,7 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(deleted).toHaveBeenCalled());
     await waitFor(() =>
       expect(router.state.location.pathname).toBe(
-        `/g/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${MOVED_TO}`
+        `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${MOVED_TO}`
       )
     );
   });

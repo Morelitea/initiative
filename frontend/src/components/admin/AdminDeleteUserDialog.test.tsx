@@ -13,10 +13,10 @@ const targetUser = buildUser({ id: 42, email: "sole-admin@example.com", status: 
 
 const eligibilityWithGuildBlocker = {
   can_delete: false,
-  blockers: ["Sole admin of guild Lone Guild"],
+  blockers: ["Sole admin of community Lone Community"],
   warnings: [],
   owned_projects: [],
-  guild_blockers: [{ guild_id: 77, guild_name: "Lone Guild", other_members: [] }],
+  guild_blockers: [{ guild_id: 77, guild_name: "Lone Community", other_members: [] }],
   initiative_blockers: [],
 };
 
@@ -29,7 +29,7 @@ const eligibilityClear = {
   initiative_blockers: [],
 };
 
-describe("AdminDeleteUserDialog guild blocker resolution", () => {
+describe("AdminDeleteUserDialog community blocker resolution", () => {
   const deleteGuildSpy = vi.fn();
 
   beforeEach(() => {
@@ -58,7 +58,7 @@ describe("AdminDeleteUserDialog guild blocker resolution", () => {
   // other's scope stack and fight over focus forever on close — stack
   // overflow in jsdom, a frozen tab in the browser, and the request never
   // sent. Pinned to one copy via the pnpm-workspace.yaml override.
-  it("deletes the blocking guild from the confirm dialog and advances", async () => {
+  it("deletes the blocking community from the confirm dialog and advances", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <AdminDeleteUserDialog
@@ -72,12 +72,12 @@ describe("AdminDeleteUserDialog guild blocker resolution", () => {
 
     // Step 1 → Next runs the eligibility check and lands on resolve-blockers.
     await user.click(await screen.findByRole("button", { name: /next/i }));
-    expect(await screen.findByText(/Lone Guild/)).toBeInTheDocument();
+    expect(await screen.findByText(/Lone Community/)).toBeInTheDocument();
 
     // Open the confirm dialog and confirm the guild deletion.
-    await user.click(screen.getByRole("button", { name: /delete guild/i }));
+    await user.click(screen.getByRole("button", { name: /delete community/i }));
     const confirmDialog = await screen.findByRole("alertdialog");
-    await user.click(within(confirmDialog).getByRole("button", { name: /delete guild/i }));
+    await user.click(within(confirmDialog).getByRole("button", { name: /delete community/i }));
 
     // The DELETE must be sent, scoped to the blocked user.
     await waitFor(() => expect(deleteGuildSpy).toHaveBeenCalledWith("42"));

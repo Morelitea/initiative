@@ -6,18 +6,18 @@ icon: lucide/map
 
 Let's walk through the screen so everything feels familiar. Don't worry about remembering it all — you'll learn it naturally as you go. Here's the lay of the land.
 
-![The Initiative screen, with the guild rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)
+![The Initiative screen, with the community rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)
 
-## The guild rail (far-left edge)
+## The community rail (far-left edge)
 
 Down the **far-left edge of the screen** is a narrow vertical strip of icons:
 
-- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every guild: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
-- **Below the logo** is one icon for **each guild** you belong to. The highlighted icon is the guild you're in now; click another to switch. Opening a guild shows that guild's **dashboard** and fills the sidebar with its contents. (More on guilds in [Your first guild](your-first-guild.md).)
+- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every community: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
+- **Below the logo** is one icon for **each community** you belong to. The highlighted icon is the community you're in now; click another to switch. Opening a community shows that community's **dashboard** and fills the sidebar with its contents. (More on communities in [Your first community](your-first-community.md).)
 
 ## The sidebar (next to it)
 
-When you're in a guild, the sidebar maps out that guild. You'll usually find:
+When you're in a community, the sidebar maps out that community. You'll usually find:
 
 - **Initiatives** — the heart of the workspace. Each one expands to show its projects and documents, and clicking an initiative's **title** opens that initiative's own **dashboard**. This is where most of your work lives.
 - **Tags** and **Favorites** — quick ways to find things you've labeled or starred.
@@ -53,4 +53,4 @@ Search is often quicker than clicking through the sidebar — it's worth getting
 
 ## Next
 
-You know your way around. Let's get you into your group — [join or create your first guild](your-first-guild.md).
+You know your way around. Let's get you into your group — [join or create your first community](your-first-community.md).

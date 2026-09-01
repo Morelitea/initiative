@@ -10,7 +10,7 @@ The fastest way to get anywhere in Initiative isn't clicking — it's searching.
 
 Press ++cmd+k++ (Mac) or ++ctrl+k++ (Windows and Linux) anywhere to open **search**. On a phone, a **three-finger tap** opens it too.
 
-Start typing and Initiative looks across your current guild for:
+Start typing and Initiative looks across your current community for:
 
 - **Projects, tasks, and documents** by name.
 - **Queues** and **counter groups**.

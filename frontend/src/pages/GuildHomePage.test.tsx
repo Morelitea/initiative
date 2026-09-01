@@ -65,7 +65,7 @@ function stubInitiatives(overrides: Record<string, boolean> = {}) {
   );
 }
 
-/** What the guild offers to join. Empty by default, as in the shared handlers. */
+/** What the community offers to join. Empty by default, as in the shared handlers. */
 function stubDirectory(entries: unknown[]) {
   server.use(guildHttp.get("/initiatives/directory", () => HttpResponse.json(entries)));
 }
@@ -91,7 +91,7 @@ describe("GuildHomePage", () => {
     queryClient.clear();
   });
 
-  it("heads the page with the guild's banner, carrying its own name and description", async () => {
+  it("heads the page with the community's banner, carrying its own name and description", async () => {
     stubInitiatives();
     stubTools();
 
@@ -113,7 +113,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByText("A long campaign in the mists")).toBeInTheDocument();
   });
 
-  it("uses the banner colour when the guild set one instead of artwork", async () => {
+  it("uses the banner colour when the community set one instead of artwork", async () => {
     stubInitiatives();
     stubTools();
 
@@ -132,7 +132,7 @@ describe("GuildHomePage", () => {
     expect(container.querySelector('[style*="rgb(42, 157, 143)"]')).not.toBeNull();
   });
 
-  it("heads a guild with no artwork with its colour, not a plain title", async () => {
+  it("heads a community with no artwork with its colour, not a plain title", async () => {
     stubInitiatives();
     stubTools();
 
@@ -146,7 +146,7 @@ describe("GuildHomePage", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
-  it("says how big the guild is and how many are in it right now", async () => {
+  it("says how big the community is and how many are in it right now", async () => {
     stubInitiatives();
     stubTools();
 
@@ -179,7 +179,7 @@ describe("GuildHomePage", () => {
     expect(screen.queryByText(/online/)).not.toBeInTheDocument();
   });
 
-  it("carries the guild's own banner layout through to the banner", async () => {
+  it("carries the community's own banner layout through to the banner", async () => {
     stubInitiatives();
     stubTools();
 
@@ -242,7 +242,7 @@ describe("GuildHomePage", () => {
     expect(rail?.className).not.toContain("justify-center");
   });
 
-  it("lists the whole guild's projects under the projects circle", async () => {
+  it("lists the whole community's projects under the projects circle", async () => {
     stubInitiatives();
     stubTools({
       projects: [
@@ -265,7 +265,7 @@ describe("GuildHomePage", () => {
 
     renderHome();
 
-    const rail = await screen.findByRole("navigation", { name: "Guild tools" });
+    const rail = await screen.findByRole("navigation", { name: "Community tools" });
     // The rail waits on the initiative list — until it lands only the core
     // tools show, so assert on the settled state.
     expect(await within(rail).findByRole("link", { name: "Queues" })).toBeInTheDocument();
@@ -360,7 +360,7 @@ describe("GuildHomePage", () => {
     expect(asked[0].searchParams.get("sort_dir")).toBe("desc");
   });
 
-  it("searches the whole guild rather than the page in hand", async () => {
+  it("searches the whole community rather than the page in hand", async () => {
     stubInitiatives();
     const asked: string[] = [];
     server.use(
@@ -505,7 +505,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByPlaceholderText("Search by name…")).toHaveValue("");
   });
 
-  it("says so when the selected tool has nothing in the guild", async () => {
+  it("says so when the selected tool has nothing in the community", async () => {
     stubInitiatives();
     stubTools({ documents: [] });
 
@@ -514,7 +514,7 @@ describe("GuildHomePage", () => {
     expect(await screen.findByText("Nothing here yet")).toBeInTheDocument();
   });
 
-  it("shows the guild's latest comments under the table", async () => {
+  it("shows the community's latest comments under the table", async () => {
     stubInitiatives();
     stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
     server.use(
@@ -540,7 +540,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByText("on Fuel check in Lunar Lander")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ready for the review/ })).toHaveAttribute(
       "href",
-      "/g/1/i/5/projects/1/tasks/4"
+      "/c/1/i/5/projects/1/tasks/4"
     );
   });
 
@@ -567,11 +567,11 @@ describe("GuildHomePage", () => {
     expect(await screen.findByText("on Combat Order")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Order looks wrong/ })).toHaveAttribute(
       "href",
-      "/g/1/i/5/queues/8"
+      "/c/1/i/5/queues/8"
     );
   });
 
-  it("addresses a guild-level calendar's comment at the guild route", async () => {
+  it("addresses a community-level calendar's comment at the community route", async () => {
     stubInitiatives({ calendars_enabled: true });
     stubTools();
     server.use(
@@ -594,7 +594,7 @@ describe("GuildHomePage", () => {
     expect(await screen.findByText("on Club Nights")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Moving this to Thursday/ })).toHaveAttribute(
       "href",
-      "/g/1/calendars/3"
+      "/c/1/calendars/3"
     );
   });
 
@@ -615,7 +615,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByText("Still here")).toBeInTheDocument();
   });
 
-  it("says so when the guild has no comments yet", async () => {
+  it("says so when the community has no comments yet", async () => {
     stubInitiatives();
     stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
 
@@ -624,7 +624,7 @@ describe("GuildHomePage", () => {
     expect(await screen.findByText("No comments yet")).toBeInTheDocument();
   });
 
-  it("lists the guild's initiatives under the table, grouped by where you stand", async () => {
+  it("lists the community's initiatives under the table, grouped by where you stand", async () => {
     stubInitiatives();
     stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
     stubDirectory([
@@ -657,7 +657,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
   });
 
-  it("offers a guild admin the create dialog from the section header", async () => {
+  it("offers a community admin the create dialog from the section header", async () => {
     stubInitiatives();
     stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
     stubDirectory([buildInitiativeDirectoryEntry({ id: 9, name: "Nebula", join_policy: "open" })]);
@@ -691,7 +691,7 @@ describe("GuildHomePage", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("Create initiative");
   });
 
-  it("re-reads the guild once the reader joins, so the card flips to joined", async () => {
+  it("re-reads the community once the reader joins, so the card flips to joined", async () => {
     stubInitiatives();
     stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
 
@@ -725,11 +725,11 @@ describe("GuildHomePage", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Join" }));
 
     // Once you're in, the card's title leads there and the Join is spent.
-    expect(await screen.findByRole("link", { name: "Nebula" })).toHaveAttribute("href", "/g/1/i/9");
+    expect(await screen.findByRole("link", { name: "Nebula" })).toHaveAttribute("href", "/c/1/i/9");
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
-  it("re-reads the guild once the reader knocks, so the card flips to requested", async () => {
+  it("re-reads the community once the reader knocks, so the card flips to requested", async () => {
     stubInitiatives();
     stubTools({ projects: [buildProject({ id: 1, name: "Lunar Lander" })] });
 
@@ -780,7 +780,7 @@ describe("GuildHomePage", () => {
     expect(await screen.findByText(/You haven’t joined any initiatives yet/)).toBeInTheDocument();
     // The directory is the way in, so it takes the page over from the rail.
     expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Guild tools" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Community tools" })).not.toBeInTheDocument();
   });
 
   it("does not call a failed lookup an empty membership", async () => {
@@ -792,7 +792,7 @@ describe("GuildHomePage", () => {
 
     // A request that never answered is not proof the reader is in nothing —
     // saying so would be a confident lie about their own access.
-    expect(await screen.findByRole("navigation", { name: "Guild tools" })).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Community tools" })).toBeInTheDocument();
     expect(screen.queryByText(/You haven’t joined any initiatives yet/)).not.toBeInTheDocument();
   });
 
@@ -809,12 +809,12 @@ describe("GuildHomePage", () => {
     // page says the list failed rather than inventing an empty guild.
     expect(await screen.findByText(/You haven’t joined any initiatives yet/)).toBeInTheDocument();
     expect(
-      await screen.findByText(/couldn't load what this guild has on offer/i)
+      await screen.findByText(/couldn't load what this community has on offer/i)
     ).toBeInTheDocument();
     expect(screen.queryByText("Nothing to join yet")).not.toBeInTheDocument();
   });
 
-  it("stays honest when the guild has nothing on offer either", async () => {
+  it("stays honest when the community has nothing on offer either", async () => {
     server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
     stubTools();
     stubDirectory([]);
@@ -827,7 +827,7 @@ describe("GuildHomePage", () => {
     expect(screen.queryByRole("button", { name: /Create initiative/i })).not.toBeInTheDocument();
   });
 
-  it("offers an admin of an empty guild the first initiative", async () => {
+  it("offers an admin of an empty community the first initiative", async () => {
     server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
     stubTools();
     stubDirectory([]);

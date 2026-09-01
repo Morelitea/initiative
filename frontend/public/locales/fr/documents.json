@@ -1,14 +1,14 @@
 {
   "myDocuments": {
     "title": "Mes documents",
-    "subtitle": "Documents dont vous êtes propriétaire dans tous vos groupes.",
+    "subtitle": "Documents dont vous êtes propriétaire dans tous vos communautés.",
     "empty": "Vous n'avez encore créé aucun document.",
     "loadError": "Impossible de charger vos documents.",
     "searchPlaceholder": "Rechercher des documents...",
-    "filterByGuild": "Filtrer par groupe",
-    "allGuilds": "Tous les groupes",
-    "noGuilds": "Aucun groupe trouvé",
-    "noGuild": "Aucun groupe",
+    "filterByGuild": "Filtrer par communauté",
+    "allGuilds": "Tous les communautés",
+    "noGuilds": "Aucune communauté trouvée",
+    "noGuild": "Aucune communauté",
     "filters": "Filtres",
     "showFilters": "Afficher les filtres",
     "hideFilters": "Masquer les filtres",
@@ -59,7 +59,7 @@
     "tags": "Étiquettes",
     "owner": "Propriétaire",
     "type": "Type",
-    "guild": "Groupe",
+    "guild": "Communauté",
     "initiative": "Initiative"
   },
   "type": {
@@ -176,7 +176,7 @@
     "duplicateDocument": "Dupliquer le document",
     "copyToInitiative": "Copier dans une initiative",
     "dangerTitle": "Zone de danger",
-    "dangerDescription": "Les documents supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention de la guilde.",
+    "dangerDescription": "Les documents supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention de la communauté.",
     "duplicateDialogTitle": "Dupliquer le document",
     "duplicateDialogDescription": "Créer une copie dans la même initiative.",
     "duplicateTitleLabel": "Titre",
@@ -254,7 +254,7 @@
   },
   "createWizard": {
     "title": "Ajouter un document",
-    "selectGuild": "Sélectionnez un groupe",
+    "selectGuild": "Sélectionnez une communauté",
     "selectInitiative": "Sélectionnez une initiative",
     "lastUsed": "Dernier utilisé",
     "back": "Retour",

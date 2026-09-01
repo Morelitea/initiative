@@ -94,7 +94,7 @@ describe("the community directory's way in", () => {
           <GuildSidebar />
         </SidebarProvider>
       ),
-      { initialRoute: "/g/$guildId", routeParams: { guildId: "1" }, guilds: { guilds } }
+      { initialRoute: "/c/$guildId", routeParams: { guildId: "1" }, guilds: { guilds } }
     );
 
     const link = await screen.findByRole("link", { name: "Join a community" });

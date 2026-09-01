@@ -96,7 +96,7 @@ Every comment has a row of **reactions** underneath it and a small button to add
 - Click a reaction someone has already added to add yours to it; click it again to take yours back.
 - Hovering a reaction shows who added it.
 
-Anyone who can reply to a thread can react to it, and the guild home's recent-comments feed shows what each comment drew. The comment's author is notified about reactions — as a periodic summary rather than one message each, and only if they've left that switch on under [Notifications](notifications.md).
+Anyone who can reply to a thread can react to it, and the community home's recent-comments feed shows what each comment drew. The comment's author is notified about reactions — as a periodic summary rather than one message each, and only if they've left that switch on under [Notifications](notifications.md).
 
 !!! tip "Turning comments off"
     Every tool — documents, projects, queues, counters, calendars, and dashboards — has a

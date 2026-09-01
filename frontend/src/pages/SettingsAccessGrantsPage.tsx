@@ -161,7 +161,7 @@ const BreakGlassSection = () => {
       setLevel("read");
       setDuration("60");
       // A break-glass grant is live immediately. The guild switcher and the
-      // /g/{id} route guard read from the GuildProvider's context list (not
+      // /c/{id} route guard read from the GuildProvider's context list (not
       // React Query), so refresh it here — otherwise the newly-reachable guild
       // doesn't appear until a manual reload.
       void refreshGuilds();

@@ -296,7 +296,7 @@ export const useMyAI = (options?: QueryOpts<MyAIConnectionRow[]>) => {
 // ── Member view + preferences (guild-scoped) ──────────────────────────────────
 //
 // These take an explicit `guildId` rather than reading the tab's active guild:
-// the personal "My AI keys" view lives outside the `/g/{id}` route tree and
+// the personal "My AI keys" view lives outside the `/c/{id}` route tree and
 // manages whichever guild the user picks, which need not be the active one.
 
 export const useMemberAI = (guildId: number, options?: QueryOpts<MemberAIView>) => {

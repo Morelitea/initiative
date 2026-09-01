@@ -1,20 +1,20 @@
 {
-  "title": "Guild",
-  "subtitle": "Everything in this guild, one tool at a time.",
-  "toolRail": "Guild tools",
+  "title": "Community",
+  "subtitle": "Everything in this community, one tool at a time.",
+  "toolRail": "Community tools",
   "loading": "Loading…",
   "loadError": "Failed to load this tool. Please try again later.",
-  "guildWide": "Guild-wide",
+  "guildWide": "Community-wide",
   "searchPlaceholder": "Search by name…",
   "empty": {
     "title": "Nothing here yet",
-    "description": "Nothing of this kind exists in the guild yet, or none of it is shared with you."
+    "description": "Nothing of this kind exists in the community yet, or none of it is shared with you."
   },
   "emptyState": {
     "title": "You haven’t joined any initiatives yet",
-    "description": "Initiatives hold everything in a guild — projects, documents, and the rest. Join one to see its work.",
+    "description": "Initiatives hold everything in a community — projects, documents, and the rest. Join one to see its work.",
     "nothingListedTitle": "Nothing to join yet",
-    "nothingListedDescription": "No initiative in this guild is open to join right now. A guild admin or project manager can add you to one."
+    "nothingListedDescription": "No initiative in this community is open to join right now. A community admin or project manager can add you to one."
   },
   "directory": {
     "title": "Initiatives",
@@ -35,11 +35,11 @@
     "pendingRequests_one": "{{count}} waiting to join",
     "pendingRequests_other": "{{count}} waiting to join",
     "policy": {
-      "open": "Open to all guild members",
+      "open": "Open to all community members",
       "request": "Joins by request",
       "private": "Invite only"
     },
-    "loadError": "We couldn't load what this guild has on offer. Please try again later."
+    "loadError": "We couldn't load what this community has on offer. Please try again later."
   },
   "columns": {
     "name": "Name",
@@ -73,7 +73,7 @@
   },
   "recentComments": {
     "title": "Recent comments",
-    "description": "The latest comments across the guild",
+    "description": "The latest comments across the community",
     "noComments": "No comments yet",
     "loadError": "Failed to load recent comments. Please try again later.",
     "unknownAuthor": "Unknown",

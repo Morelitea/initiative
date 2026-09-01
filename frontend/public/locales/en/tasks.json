@@ -23,9 +23,9 @@
     "priorityLabel": "Priority",
     "allPriorities": "All priorities",
     "noPriorities": "No priorities available",
-    "filterByGuild": "Filter by guild",
-    "allGuilds": "All guilds",
-    "noGuilds": "No guilds available",
+    "filterByGuild": "Filter by community",
+    "allGuilds": "All communities",
+    "noGuilds": "No communities available",
     "filterPlaceholder": "Filter tasks..."
   },
   "columns": {
@@ -35,7 +35,7 @@
     "startDate": "Start Date",
     "dueDate": "Due Date",
     "dateWindow": "Date window",
-    "guild": "Guild",
+    "guild": "Community",
     "projectPath": "Project Path",
     "priority": "Priority",
     "tags": "Tags",
@@ -46,7 +46,7 @@
     "markInProgress": "Mark task as in progress"
   },
   "errors": {
-    "guildContext": "Unable to determine guild context for this task.",
+    "guildContext": "Unable to determine community context for this task.",
     "statusUpdate": "Unable to update task status.",
     "statusNoMatch": "Unable to update task status. No matching status found."
   },
@@ -141,26 +141,26 @@
     "title": "My Tasks",
     "subtitle": "Everything assigned to you across all projects.",
     "addTask": "Add Task",
-    "noGuild": "No Guild",
+    "noGuild": "No Community",
     "loadError": "Unable to load your tasks.",
     "groupByDate": "Date",
-    "groupByGuild": "Guild"
+    "groupByGuild": "Community"
   },
   "myCalendar": {
     "title": "My Calendar",
-    "subtitle": "Tasks and events across all your guilds.",
+    "subtitle": "Tasks and events across all your communities.",
     "loadError": "Unable to load calendar data.",
     "typeEvents": "Events",
     "typeTasks": "Tasks"
   },
   "createdTasks": {
     "title": "Tasks I Created",
-    "subtitle": "Tasks you've created across all your guilds.",
+    "subtitle": "Tasks you've created across all your communities.",
     "addTask": "Add Task",
     "empty": "You haven't created any tasks yet.",
     "loadError": "Unable to load your created tasks.",
     "groupByDate": "Date",
-    "groupByGuild": "Guild"
+    "groupByGuild": "Community"
   },
   "tagTasks": {
     "loadError": "Unable to load tasks."
@@ -207,7 +207,7 @@
   },
   "move": {
     "title": "Move task to another project",
-    "description": "Select a destination project within the current guild. You can only move tasks to projects where you have permission to create new work.",
+    "description": "Select a destination project within the current community. You can only move tasks to projects where you have permission to create new work.",
     "loadError": "Unable to load writable projects.",
     "loading": "Loading available projects…",
     "noProjects": "You don’t have any other writable projects available yet.",
@@ -239,10 +239,10 @@
     "title": "Add Task",
     "description": "Select a project to create a new task.",
     "lastUsed": "Last used",
-    "selectGuild": "Select a guild",
+    "selectGuild": "Select a community",
     "selectInitiative": "Select an initiative",
     "selectProject": "Select a project",
-    "noInitiatives": "No initiatives found in this guild.",
+    "noInitiatives": "No initiatives found in this community.",
     "noProjects": "No projects found in this initiative.",
     "loading": "Loading…",
     "back": "Back",

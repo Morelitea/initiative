@@ -206,7 +206,7 @@ export function CommandCenter() {
     if (isGuildAdmin) {
       items.push({
         label: t("pages.guildSettings"),
-        path: "/settings/guild",
+        path: getGuildPath("/settings"),
         icon: Settings,
       });
     }

@@ -44,14 +44,14 @@ nav = [
     "en/getting-started/create-account.md",
     "en/getting-started/signing-in.md",
     "en/getting-started/a-quick-tour.md",
-    "en/getting-started/your-first-guild.md",
+    "en/getting-started/your-first-community.md",
   ] },
   { "How Initiative is organized" = [
     "en/concepts/index.md",
   ] },
   { "Using Initiative" = [
     "en/guides/index.md",
-    "en/guides/guilds.md",
+    "en/guides/communities.md",
     "en/guides/initiatives.md",
     "en/guides/projects-and-tasks.md",
     "en/guides/task-views.md",

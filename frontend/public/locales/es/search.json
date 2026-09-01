@@ -3,7 +3,7 @@
   "placeholder": "Buscar en {{guildName}}",
   "seeAll": "Ver todo",
   "prompt": {
-    "title": "Buscar en este gremio",
+    "title": "Buscar en esta comunidad",
     "description": "Encuentra cualquier cosa por su nombre o por lo que contiene."
   },
   "empty": {

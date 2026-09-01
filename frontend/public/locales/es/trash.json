@@ -1,7 +1,7 @@
 {
   "title": "Papelera",
-  "description": "Los elementos aquí se eliminarán permanentemente después del período de retención del gremio. Puedes restaurarlos en cualquier momento antes de eso.",
-  "scopeGuild": "Todo en el gremio",
+  "description": "Los elementos aquí se eliminarán permanentemente después del período de retención de la comunidad. Puedes restaurarlos en cualquier momento antes de eso.",
+  "scopeGuild": "Todo en la comunidad",
   "scopeMine": "Solo lo mío",
   "empty": "La papelera está vacía.",
   "columnType": "Tipo",

@@ -80,14 +80,14 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/g/$guildId/settings/users", params: { guildId: String(guild.id) } });
+    router.navigate({ to: "/c/$guildId/settings/users", params: { guildId: String(guild.id) } });
   };
 
   const handleViewInitiatives = async () => {
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/g/$guildId/i", params: { guildId: String(guild.id) } });
+    router.navigate({ to: "/c/$guildId/i", params: { guildId: String(guild.id) } });
   };
 
   const handleGuildSettings = async () => {
@@ -95,7 +95,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/g/$guildId/settings", params: { guildId: String(guild.id) } });
+    router.navigate({ to: "/c/$guildId/settings", params: { guildId: String(guild.id) } });
   };
 
   const handleCreateInitiative = async () => {
@@ -104,7 +104,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
       await switchGuild(guild.id);
     }
     router.navigate({
-      to: "/g/$guildId/i",
+      to: "/c/$guildId/i",
       params: { guildId: String(guild.id) },
       search: { create: "true" },
     });

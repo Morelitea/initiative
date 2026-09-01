@@ -130,7 +130,7 @@ export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, num
 /**
  * Self-issue a break-glass grant (requires data.bypass). Unlike a request, this
  * is created AND approved in one step, so it's live immediately — the holder can
- * then enter the guild via its ``/g/{guild_id}`` path until it expires.
+ * then enter the guild via its ``/c/{guild_id}`` path until it expires.
  */
 export const useBreakGlass = (options?: MutationOpts<AccessGrantRead, BreakGlassCreate>) => {
   const invalidate = useInvalidateAccessGrants();

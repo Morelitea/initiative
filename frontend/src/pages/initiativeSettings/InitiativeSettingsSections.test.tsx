@@ -46,7 +46,7 @@ const renderSection = (
 ) =>
   renderPage(Section, {
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: `/g/$guildId/i/$initiativeId/settings/${path}`,
+    initialRoute: `/c/$guildId/i/$initiativeId/settings/${path}`,
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 

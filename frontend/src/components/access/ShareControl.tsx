@@ -25,8 +25,8 @@ import {
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
-import { cn } from "@/lib/utils";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 

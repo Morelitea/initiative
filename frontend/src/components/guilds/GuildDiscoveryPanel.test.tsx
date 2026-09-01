@@ -55,9 +55,9 @@ const renderPanel = (guild: GuildRead) =>
 const adminGuild = (overrides: Partial<GuildRead> = {}) =>
   buildGuild({ id: 7, role: "admin", ...overrides });
 
-const listingToggle = () => screen.getByLabelText("List this guild");
+const listingToggle = () => screen.getByLabelText("List this community");
 const dialog = () => screen.getByRole("dialog");
-const certify = () => within(dialog()).getByLabelText("This guild contains no adult content");
+const certify = () => within(dialog()).getByLabelText("This community contains no adult content");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -70,7 +70,7 @@ describe("GuildDiscoveryPanel", () => {
     config.communityDirectory = false;
     renderPanel(adminGuild());
 
-    expect(screen.queryByLabelText("List this guild")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("List this community")).not.toBeInTheDocument();
   });
 
   it("is absent for a member", () => {
@@ -79,7 +79,7 @@ describe("GuildDiscoveryPanel", () => {
     expect(screen.queryByText("Community directory")).not.toBeInTheDocument();
   });
 
-  it("offers the opt-in to a guild admin", () => {
+  it("offers the opt-in to a community admin", () => {
     renderPanel(adminGuild());
 
     expect(screen.getByText("Community directory")).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe("GuildDiscoveryPanel", () => {
 
       await userEvent.click(certify());
 
-      expect(within(dialog()).getByRole("button", { name: "List this guild" })).toBeDisabled();
+      expect(within(dialog()).getByRole("button", { name: "List this community" })).toBeDisabled();
     });
 
     it("will not confirm without the certification", async () => {
@@ -114,7 +114,7 @@ describe("GuildDiscoveryPanel", () => {
 
       await userEvent.click(within(dialog()).getByRole("button", { name: "Gaming" }));
 
-      expect(within(dialog()).getByRole("button", { name: "List this guild" })).toBeDisabled();
+      expect(within(dialog()).getByRole("button", { name: "List this community" })).toBeDisabled();
     });
 
     it("spells out what the certification covers", async () => {
@@ -137,7 +137,7 @@ describe("GuildDiscoveryPanel", () => {
       await userEvent.click(within(dialog()).getByRole("button", { name: "Gaming" }));
       await userEvent.click(within(dialog()).getByRole("button", { name: "Tabletop RPG" }));
       await userEvent.click(certify());
-      await userEvent.click(within(dialog()).getByRole("button", { name: "List this guild" }));
+      await userEvent.click(within(dialog()).getByRole("button", { name: "List this community" }));
 
       await waitFor(() => {
         expect(patchGuild).toHaveBeenCalledWith(7, {
@@ -164,20 +164,20 @@ describe("GuildDiscoveryPanel", () => {
 
   /** A listing is a front door; the prompt is about the room behind it. */
   describe("the auto-join prompt", () => {
-    it("is absent while the guild is not listed", () => {
+    it("is absent while the community is not listed", () => {
       renderPanel(adminGuild());
 
       expect(
-        screen.queryByText("New members will arrive to an empty guild")
+        screen.queryByText("New members will arrive to an empty community")
       ).not.toBeInTheDocument();
     });
 
-    it("warns a listed guild that has nothing to land people in", async () => {
+    it("warns a listed community that has nothing to land people in", async () => {
       // The default handler's initiative carries no auto-join.
       renderPanel(adminGuild({ is_community: true, categories: ["art"] }));
 
       expect(
-        await screen.findByText("New members will arrive to an empty guild")
+        await screen.findByText("New members will arrive to an empty community")
       ).toBeInTheDocument();
     });
 
@@ -194,7 +194,7 @@ describe("GuildDiscoveryPanel", () => {
 
       await waitFor(() =>
         expect(
-          screen.queryByText("New members will arrive to an empty guild")
+          screen.queryByText("New members will arrive to an empty community")
         ).not.toBeInTheDocument()
       );
     });
@@ -211,7 +211,7 @@ describe("GuildDiscoveryPanel", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("edits the shelves of an already-listed guild in place", async () => {
+  it("edits the shelves of an already-listed community in place", async () => {
     renderPanel(adminGuild({ is_community: true, categories: ["art"] }));
 
     await userEvent.click(screen.getByRole("button", { name: "Gaming" }));
@@ -222,7 +222,7 @@ describe("GuildDiscoveryPanel", () => {
   });
 
   describe("the carve-outs", () => {
-    it("does not offer the toggle to a guild with room for one", async () => {
+    it("does not offer the toggle to a community with room for one", async () => {
       renderPanel(adminGuild({ max_users: 1 }));
 
       expect(listingToggle()).toBeDisabled();
@@ -239,19 +239,19 @@ describe("GuildDiscoveryPanel", () => {
   /** The 18+ question belongs to the directory, so the panel never puts it to a
    *  guild outside one — the certification in the dialog is where it is asked. */
   describe("the 18+ question", () => {
-    it("is not put to a guild that keeps to itself", () => {
+    it("is not put to a community that keeps to itself", () => {
       renderPanel(adminGuild());
 
       expect(screen.queryByText(/adult content \(18\+\)/)).not.toBeInTheDocument();
     });
 
-    it("is not put to a listed guild either", () => {
+    it("is not put to a listed community either", () => {
       renderPanel(adminGuild({ is_community: true, categories: ["art"] }));
 
       expect(screen.queryByText(/adult content \(18\+\)/)).not.toBeInTheDocument();
     });
 
-    it("still offers the listing to a guild that had declared itself 18+", async () => {
+    it("still offers the listing to a community that had declared itself 18+", async () => {
       renderPanel(adminGuild({ has_adult_content: true }));
 
       expect(listingToggle()).toBeEnabled();
@@ -260,7 +260,7 @@ describe("GuildDiscoveryPanel", () => {
       await screen.findByRole("dialog");
       await userEvent.click(within(dialog()).getByRole("button", { name: "Gaming" }));
       await userEvent.click(certify());
-      await userEvent.click(within(dialog()).getByRole("button", { name: "List this guild" }));
+      await userEvent.click(within(dialog()).getByRole("button", { name: "List this community" }));
 
       // The certification answers the question afresh, whatever it said before.
       await waitFor(() => {
@@ -280,6 +280,6 @@ describe("GuildDiscoveryPanel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Gaming" }));
 
-    expect(await screen.findByText("Unable to update guild.")).toBeInTheDocument();
+    expect(await screen.findByText("Unable to update community.")).toBeInTheDocument();
   });
 });

@@ -5,7 +5,7 @@
   "error": "Something went wrong with that app.",
   "manage": {
     "title": "Apps",
-    "description": "Apps add something the whole guild shares. Only guild admins can add or remove them.",
+    "description": "Apps add something the whole community shares. Only community admins can add or remove them.",
     "empty": "No apps installed yet.",
     "browse": "Browse apps",
     "installed": "Added {{date}}",
@@ -15,7 +15,7 @@
     "rename": "Rename",
     "remove": "Remove",
     "removeTitle": "Remove {{name}}?",
-    "removeBody": "What it created moves to the trash, where it can still be restored. Every credential it held — the guild's and each member's — is deleted, and the app is told to stop using them.",
+    "removeBody": "What it created moves to the trash, where it can still be restored. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.",
     "removed": "{{name}} removed.",
     "saved": "Saved.",
     "needsConfig": "Needs setup",
@@ -34,22 +34,22 @@
   },
   "install": {
     "title": "Add {{name}}",
-    "description": "This adds something for the whole guild. You can rename it now or later.",
+    "description": "This adds something for the whole community. You can rename it now or later.",
     "name": "Name",
-    "action": "Add to guild",
+    "action": "Add to community",
     "done": "{{name}} added.",
-    "adminOnly": "Ask a guild admin to add this app.",
+    "adminOnly": "Ask a community admin to add this app.",
     "unknownState": "Could not check whether this app is already added."
   },
   "page": {
     "notFound": "App not found",
-    "notFoundDescription": "It may have been removed or turned off. Guild admins can check under guild settings.",
+    "notFoundDescription": "It may have been removed or turned off. Community admins can check under community settings.",
     "noSurface": "{{name}} has nothing to show here",
     "noSurfaceDescription": "This app does not have a page of its own."
   },
   "connections": {
     "none": "This app asks for nothing to be set up.",
-    "guildScope": "Guild credential",
+    "guildScope": "Community credential",
     "personalScope": "Your account",
     "set": "Set",
     "notSet": "Not set",
@@ -61,8 +61,8 @@
     "saved": "Saved.",
     "clear": "Clear",
     "cleared": "Credential cleared.",
-    "memberSet": "A guild admin has set this up.",
-    "memberNotSet": "A guild admin still has to set this up.",
+    "memberSet": "A community admin has set this up.",
+    "memberNotSet": "A community admin still has to set this up.",
     "guildFlowExplainer": "This one is granted at the vendor rather than typed. Connecting opens their install page, where you choose the account and what this app may see.",
     "personalExplainer": "This one signs you in as yourself, so each member connects their own account. Nobody else sees yours.",
     "connect": "Connect",
@@ -72,7 +72,7 @@
     "connectOpened": "Finish connecting in the tab that just opened.",
     "connectUnavailable": "This app isn't set up on this server yet, so there's nowhere to sign in.",
     "connectedAs": "Connected as {{account}}",
-    "blocked": "A guild admin has stopped you connecting this.",
+    "blocked": "A community admin has stopped you connecting this.",
     "status": {
       "pending": "Waiting to finish",
       "connected": "Connected",
@@ -99,7 +99,7 @@
     "unblocked": "Block lifted.",
     "revokeAll": "Revoke everyone",
     "revokeAllTitle": "Revoke every member's connection?",
-    "revokeAllBody": "Every member's stored credential is deleted and the app is told to stop using it. The app stays installed and keeps its guild settings. Members can connect again afterwards.",
+    "revokeAllBody": "Every member's stored credential is deleted and the app is told to stop using it. The app stays installed and keeps its community settings. Members can connect again afterwards.",
     "revokedAll": "Every connection revoked."
   },
   "showMore": "{{count}} more",
@@ -135,8 +135,8 @@
   "settings": {
     "description": "Set up how this app connects.",
     "open": "{{name}} settings",
-    "adminTitle": "Guild settings",
-    "adminDescription": "What the guild owns for this app. Only guild admins see this."
+    "adminTitle": "Community settings",
+    "adminDescription": "What the community owns for this app. Only community admins see this."
   },
   "embed": {
     "connecting": "Connecting…",
@@ -154,7 +154,7 @@
     "description": "This app offers a page inside initiatives. Choose which ones it appears in.",
     "all": "Every initiative",
     "some": "Only the initiatives I choose",
-    "none": "No initiatives chosen, so this app appears only guild-wide."
+    "none": "No initiatives chosen, so this app appears only community-wide."
   },
   "connected": {
     "connected": {

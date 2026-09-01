@@ -5,7 +5,7 @@
   "error": "Mit dieser App ist etwas schiefgelaufen.",
   "manage": {
     "title": "Apps",
-    "description": "Apps ergänzen etwas, das die ganze Gilde teilt. Nur Gildenadmins können sie hinzufügen oder entfernen.",
+    "description": "Apps ergänzen etwas, das die ganze Community teilt. Nur Community-Admins können sie hinzufügen oder entfernen.",
     "empty": "Noch keine Apps installiert.",
     "browse": "Apps durchsuchen",
     "installed": "Hinzugefügt am {{date}}",
@@ -15,7 +15,7 @@
     "rename": "Umbenennen",
     "remove": "Entfernen",
     "removeTitle": "{{name}} entfernen?",
-    "removeBody": "Was sie erstellt hat, wandert in den Papierkorb und kann von dort wiederhergestellt werden. Alle hinterlegten Zugangsdaten — die der Gilde und die jedes Mitglieds — werden gelöscht, und die App wird aufgefordert, sie nicht mehr zu nutzen.",
+    "removeBody": "Was sie erstellt hat, wandert in den Papierkorb und kann von dort wiederhergestellt werden. Alle hinterlegten Zugangsdaten — die der Community und die jedes Mitglieds — werden gelöscht, und die App wird aufgefordert, sie nicht mehr zu nutzen.",
     "removed": "{{name}} entfernt.",
     "saved": "Gespeichert.",
     "needsConfig": "Einrichtung nötig",
@@ -34,22 +34,22 @@
   },
   "install": {
     "title": "{{name}} hinzufügen",
-    "description": "Das ergänzt etwas für die ganze Gilde. Umbenennen kannst du es jetzt oder später.",
+    "description": "Das ergänzt etwas für die ganze Community. Umbenennen kannst du es jetzt oder später.",
     "name": "Name",
-    "action": "Zur Gilde hinzufügen",
+    "action": "Zur Community hinzufügen",
     "done": "{{name}} hinzugefügt.",
-    "adminOnly": "Bitte eine Guild-Administratorin oder einen Guild-Administrator, diese App hinzuzufügen.",
+    "adminOnly": "Bitte eine Community-Administratorin oder einen Community-Administrator, diese App hinzuzufügen.",
     "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde."
   },
   "page": {
     "notFound": "App nicht gefunden",
-    "notFoundDescription": "Sie wurde vielleicht entfernt oder abgeschaltet. Gildenadmins können in den Gildeneinstellungen nachsehen.",
+    "notFoundDescription": "Sie wurde vielleicht entfernt oder abgeschaltet. Community-Admins können in den Community-Einstellungen nachsehen.",
     "noSurface": "{{name}} hat hier nichts anzuzeigen",
     "noSurfaceDescription": "Diese App hat keine eigene Seite."
   },
   "connections": {
     "none": "Diese App verlangt keine Einrichtung.",
-    "guildScope": "Zugangsdaten der Gilde",
+    "guildScope": "Zugangsdaten der Community",
     "personalScope": "Dein Konto",
     "set": "Hinterlegt",
     "notSet": "Nicht hinterlegt",
@@ -61,8 +61,8 @@
     "saved": "Gespeichert.",
     "clear": "Löschen",
     "cleared": "Zugangsdaten gelöscht.",
-    "memberSet": "Eine Gildenadministration hat das eingerichtet.",
-    "memberNotSet": "Eine Gildenadministration muss das noch einrichten.",
+    "memberSet": "Eine Community-Administration hat das eingerichtet.",
+    "memberNotSet": "Eine Community-Administration muss das noch einrichten.",
     "guildFlowExplainer": "Diese wird beim Anbieter erteilt statt eingetippt. Beim Verbinden öffnet sich dessen Installationsseite, wo du das Konto wählst und was diese App sehen darf.",
     "personalExplainer": "Hier meldest du dich als du selbst an, deshalb verbindet jedes Mitglied sein eigenes Konto. Deins sieht sonst niemand.",
     "connect": "Verbinden",
@@ -72,7 +72,7 @@
     "connectOpened": "Schließe die Verbindung im soeben geöffneten Tab ab.",
     "connectUnavailable": "Diese App ist auf diesem Server noch nicht eingerichtet, es gibt also keine Anmeldung.",
     "connectedAs": "Verbunden als {{account}}",
-    "blocked": "Eine Gildenadministration hat dir diese Verbindung untersagt.",
+    "blocked": "Eine Community-Administration hat dir diese Verbindung untersagt.",
     "status": {
       "pending": "Wartet auf Abschluss",
       "connected": "Verbunden",
@@ -99,7 +99,7 @@
     "unblocked": "Sperre aufgehoben.",
     "revokeAll": "Allen entziehen",
     "revokeAllTitle": "Verbindungen aller Mitglieder entziehen?",
-    "revokeAllBody": "Die hinterlegten Zugangsdaten jedes Mitglieds werden gelöscht und die App wird aufgefordert, sie nicht mehr zu nutzen. Die App bleibt installiert und behält ihre Gildeneinstellungen. Mitglieder können sich danach neu verbinden.",
+    "revokeAllBody": "Die hinterlegten Zugangsdaten jedes Mitglieds werden gelöscht und die App wird aufgefordert, sie nicht mehr zu nutzen. Die App bleibt installiert und behält ihre Community-Einstellungen. Mitglieder können sich danach neu verbinden.",
     "revokedAll": "Alle Verbindungen entzogen."
   },
   "showMore": "{{count}} weitere",
@@ -135,8 +135,8 @@
   "settings": {
     "description": "Lege fest, wie sich diese App verbindet.",
     "open": "Einstellungen für {{name}}",
-    "adminTitle": "Gildeneinstellungen",
-    "adminDescription": "Was der Gilde für diese App gehört. Nur Gildenadmins sehen das."
+    "adminTitle": "Community-Einstellungen",
+    "adminDescription": "Was der Community für diese App gehört. Nur Community-Admins sehen das."
   },
   "embed": {
     "connecting": "Verbinden…",
@@ -154,7 +154,7 @@
     "description": "Diese App bietet eine Seite innerhalb von Initiativen. Wähle aus, in welchen sie erscheint.",
     "all": "Alle Initiativen",
     "some": "Nur ausgewählte Initiativen",
-    "none": "Keine Initiative ausgewählt – diese App erscheint nur gildenweit."
+    "none": "Keine Initiative ausgewählt – diese App erscheint nur Community-weit."
   },
   "connected": {
     "connected": {

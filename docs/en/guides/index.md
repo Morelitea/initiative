@@ -10,11 +10,11 @@ If you're not sure how the pieces fit together yet, start with [How Initiative i
 
 <div class="grid cards" markdown>
 
--   :material-home-city-outline: __Guilds__
+-   :material-home-city-outline: __Communities__
 
     Switch between workspaces, invite people, and manage your group.
 
-    [:octicons-arrow-right-24: Guilds](guilds.md)
+    [:octicons-arrow-right-24: Communities](communities.md)
 
 -   :material-folder-multiple-outline: __Initiatives__
 

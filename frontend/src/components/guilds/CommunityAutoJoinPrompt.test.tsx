@@ -25,10 +25,10 @@ vi.mock("@/lib/chesterToast", () => ({
 
 import { CommunityAutoJoinPrompt } from "./CommunityAutoJoinPrompt";
 
-const PROMPT_TITLE = "New members will arrive to an empty guild";
+const PROMPT_TITLE = "New members will arrive to an empty community";
 const ACTION = "Set as the landing initiative";
 
-/** The guild's initiatives, plus a record of what each PATCH sent where. */
+/** The community's initiatives, plus a record of what each PATCH sent where. */
 function stubInitiatives(initiatives: InitiativeRead[]) {
   const patches: { id: string; body: unknown }[] = [];
   server.use(
@@ -101,7 +101,7 @@ describe("CommunityAutoJoinPrompt", () => {
     expect(await screen.findByRole("button", { name: ACTION })).toBeDisabled();
   });
 
-  it("says nothing once the guild has somewhere to land people", async () => {
+  it("says nothing once the community has somewhere to land people", async () => {
     stubInitiatives([
       buildInitiative({ id: 8, name: "Apollo" }),
       buildInitiative({ id: 9, name: "Welcome", join_policy: "open", auto_join: true }),
@@ -133,7 +133,7 @@ describe("CommunityAutoJoinPrompt", () => {
     expect(screen.queryByRole("radio", { name: "Retired" })).not.toBeInTheDocument();
   });
 
-  it("still explains itself to a guild with no initiative to offer", async () => {
+  it("still explains itself to a community with no initiative to offer", async () => {
     stubInitiatives([]);
 
     renderPrompt();

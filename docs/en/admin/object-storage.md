@@ -19,12 +19,12 @@ Nothing object-store-related runs unless you opt in with `STORAGE_BACKEND=s3`. I
 
 ## How files are organized
 
-Both backends namespace files **per guild**, mirroring the database's per-guild isolation:
+Both backends namespace files **per community**, mirroring the database's per-community isolation:
 
 - **Local:** `UPLOADS_DIR/guild_<id>/<file>`.
 - **Object storage:** objects under a `guild_<id>/` key prefix.
 
-In both cases the download URL stays the same (`/uploads/{guild_id}/{filename}`), and **every download is authorized on each request** — files are streamed back through the app only after the same guild-membership and access checks as everything else. Storage location never bypasses access control. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+In both cases the download URL stays the same (`/uploads/{guild_id}/{filename}`), and **every download is authorized on each request** — files are streamed back through the app only after the same community-membership and access checks as everything else. Storage location never bypasses access control. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Connecting an S3-compatible store
 
@@ -72,9 +72,9 @@ With the fallback on, a read that misses in S3 falls back to local disk, so noth
 
 **3. Finish.** Once everything serves from S3 and a final backfill reports `failed=0`, set `S3_LOCAL_FALLBACK=false` and retire the local uploads volume.
 
-## Per-guild storage limits
+## Per-community storage limits
 
-Separately from *where* files are stored, the [owner](platform-roles.md) can cap **how much** each guild may store, from **Settings → Platform → Guilds**. Lowering a limit below a guild's current usage blocks *new* uploads but never deletes existing files.
+Separately from *where* files are stored, the [owner](platform-roles.md) can cap **how much** each community may store, from **Settings → Platform → Communities**. Lowering a limit below a community's current usage blocks *new* uploads but never deletes existing files.
 
 ## Related
 

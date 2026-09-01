@@ -7,7 +7,7 @@ icon: lucide/settings
 Your settings are split into two places, depending on whether they affect **you** or affect a **whole group**.
 
 - **User settings** — your personal account and preferences. Open them from your name/avatar at the bottom of the sidebar.
-- **Guild settings** — settings for a whole workspace, available to guild administrators. Covered under [Working with guilds](../guides/guilds.md).
+- **Community settings** — settings for a whole workspace, available to community administrators. Covered under [Working with communities](../guides/communities.md).
 - **Platform settings** — server-wide configuration, for the server's owner. Covered in the [administrator guide](../admin/index.md).
 
 This section is about **your** settings.

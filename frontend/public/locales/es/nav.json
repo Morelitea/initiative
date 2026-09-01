@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Seleccionar un gremio",
-  "guildSettings": "Configuración del gremio",
+  "selectGuild": "Seleccionar una comunidad",
+  "guildSettings": "Configuración de la comunidad",
   "initiatives": "Iniciativas",
   "tags": "Etiquetas",
   "favorites": "Favoritos",
@@ -63,10 +63,10 @@
   "navigate": {
     "signInRequired": "Por favor, inicia sesión de nuevo para seguir este enlace.",
     "missingDestination": "Este enlace no tiene detalles de destino.",
-    "invalidGuildId": "ID de gremio no válido en el enlace.",
-    "noAccess": "No tienes acceso a este gremio.",
-    "switchError": "No se pudo cambiar de gremio para este enlace.",
-    "redirecting": "Redirigiéndote al gremio correcto…",
+    "invalidGuildId": "ID de comunidad no válido en el enlace.",
+    "noAccess": "No tienes acceso a esta comunidad.",
+    "switchError": "No se pudo cambiar de comunidad para este enlace.",
+    "redirecting": "Redirigiéndote a la comunidad correcta…",
     "finalizing": "Finalizando redirección…",
     "goHome": "Volver al inicio"
   },

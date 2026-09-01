@@ -4,7 +4,7 @@ icon: lucide/package-plus
 
 # Publishing your own listings
 
-Initiative's marketplace ships with a set of ready-made dashboards and apps. It's also **yours to add to**: point Initiative at a directory, drop a listing file in it, and that listing appears in your marketplace beside the built-in ones — ready for anyone in your guilds to install.
+Initiative's marketplace ships with a set of ready-made dashboards and apps. It's also **yours to add to**: point Initiative at a directory, drop a listing file in it, and that listing appears in your marketplace beside the built-in ones — ready for anyone in your communities to install.
 
 Nothing about this needs a fork, a code change, or a new build of Initiative. If you've designed a dashboard your group keeps rebuilding by hand, or someone has published a listing file you'd like to run, this is how it gets in.
 
@@ -127,15 +127,15 @@ A file at `./marketplace-art/acme-standup.svg` is then reachable at `/marketplac
 
 Edit the file and bump `version`:
 
-- **A version is immutable once published.** Re-publishing the same version string with different content is refused — bump it instead. This is what lets a guild pin a version and trust it stays what they installed.
+- **A version is immutable once published.** Re-publishing the same version string with different content is refused — bump it instead. This is what lets a community pin a version and trust it stays what they installed.
 - **The listing's name, blurbs and artwork are editable in place**, with no version bump. Fixing a typo in a description doesn't need a release.
-- **Nothing is pushed into a guild.** An installed dashboard keeps running the version it pinned; guilds see an *update available* badge with your release notes and choose when to take it.
+- **Nothing is pushed into a community.** An installed dashboard keeps running the version it pinned; communities see an *update available* badge with your release notes and choose when to take it.
 
 ## Removing a listing
 
 Delete the file. On the next scan the listing is **withdrawn**: it disappears from browse and can't be installed again.
 
-Withdrawn isn't deleted. Guilds that already installed it keep what they installed, working exactly as before, along with the record of where it came from — removing a listing from your catalog never reaches into a guild and takes something away. Put the file back and the listing is published again.
+Withdrawn isn't deleted. Communities that already installed it keep what they installed, working exactly as before, along with the record of where it came from — removing a listing from your catalog never reaches into a community and takes something away. Put the file back and the listing is published again.
 
 A file that's *present but broken* is not a removal: it still claims its listing, so a manifest you're in the middle of editing leaves the existing listing alone rather than pulling it while you work.
 
@@ -173,7 +173,7 @@ Work down this list — the scan result above answers most of it directly.
 | One file missing, the rest fine | That file was skipped. Its name and the reason are in the scan result and the server log. |
 | "reserved" in the reason | The `public_id` starts with `core.` — publish under your own prefix. |
 | "already published by the builtin catalog" | The `uid` or `public_id` belongs to another listing. Pick a new uid. |
-| A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, or a guild already has it. |
+| A listing appears but can't be installed | Its `min_app_version` is newer than this Initiative, or a community already has it. |
 | An app listing never appears on the Apps shelf | An app is served by a program you run, and this server offers one only where that app service is registered and switched on. Register it (or switch it back on) and the listing appears. Dashboards need nothing of the sort. |
 | Artwork is a broken image | The file isn't under the static `marketplace/` directory, or the path in the manifest doesn't match its name. |
 

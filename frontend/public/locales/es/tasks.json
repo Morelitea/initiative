@@ -23,9 +23,9 @@
     "priorityLabel": "Prioridad",
     "allPriorities": "Todas las prioridades",
     "noPriorities": "No hay prioridades disponibles",
-    "filterByGuild": "Filtrar por gremio",
-    "allGuilds": "Todos los gremios",
-    "noGuilds": "No hay gremios disponibles",
+    "filterByGuild": "Filtrar por comunidad",
+    "allGuilds": "Todas las comunidades",
+    "noGuilds": "No hay comunidades disponibles",
     "filterPlaceholder": "Filtrar tareas..."
   },
   "columns": {
@@ -35,7 +35,7 @@
     "startDate": "Fecha de inicio",
     "dueDate": "Fecha de vencimiento",
     "dateWindow": "Rango de fechas",
-    "guild": "Gremio",
+    "guild": "Comunidad",
     "projectPath": "Ruta del proyecto",
     "priority": "Prioridad",
     "tags": "Etiquetas",
@@ -46,7 +46,7 @@
     "markInProgress": "Marcar tarea como en progreso"
   },
   "errors": {
-    "guildContext": "No se pudo determinar el contexto del gremio para esta tarea.",
+    "guildContext": "No se pudo determinar el contexto de la comunidad para esta tarea.",
     "statusUpdate": "No se pudo actualizar el estado de la tarea.",
     "statusNoMatch": "No se pudo actualizar el estado de la tarea. No se encontró un estado coincidente."
   },
@@ -141,26 +141,26 @@
     "title": "Mis tareas",
     "subtitle": "Todo lo asignado a ti en todos los proyectos.",
     "addTask": "Agregar tarea",
-    "noGuild": "Sin gremio",
+    "noGuild": "Sin comunidad",
     "loadError": "No se pudieron cargar tus tareas.",
     "groupByDate": "Fecha",
-    "groupByGuild": "Gremio"
+    "groupByGuild": "Comunidad"
   },
   "myCalendar": {
     "title": "Mi calendario",
-    "subtitle": "Tareas y eventos en todos tus gremios.",
+    "subtitle": "Tareas y eventos en todos tus comunidades.",
     "loadError": "No se pudieron cargar los datos del calendario.",
     "typeEvents": "Eventos",
     "typeTasks": "Tareas"
   },
   "createdTasks": {
     "title": "Tareas que creé",
-    "subtitle": "Tareas que has creado en todos tus gremios.",
+    "subtitle": "Tareas que has creado en todos tus comunidades.",
     "addTask": "Agregar tarea",
     "empty": "Aún no has creado ninguna tarea.",
     "loadError": "No se pudieron cargar tus tareas creadas.",
     "groupByDate": "Fecha",
-    "groupByGuild": "Gremio"
+    "groupByGuild": "Comunidad"
   },
   "tagTasks": {
     "loadError": "No se pudieron cargar las tareas."
@@ -207,7 +207,7 @@
   },
   "move": {
     "title": "Mover tarea a otro proyecto",
-    "description": "Selecciona un proyecto de destino dentro del gremio actual. Solo puedes mover tareas a proyectos donde tengas permiso para crear nuevo trabajo.",
+    "description": "Selecciona un proyecto de destino dentro de la comunidad actual. Solo puedes mover tareas a proyectos donde tengas permiso para crear nuevo trabajo.",
     "loadError": "No se pudieron cargar los proyectos con acceso de escritura.",
     "loading": "Cargando proyectos disponibles…",
     "noProjects": "Aún no tienes otros proyectos con acceso de escritura disponibles.",
@@ -239,10 +239,10 @@
     "title": "Agregar tarea",
     "description": "Selecciona un proyecto para crear una nueva tarea.",
     "lastUsed": "Último usado",
-    "selectGuild": "Selecciona un gremio",
+    "selectGuild": "Selecciona una comunidad",
     "selectInitiative": "Selecciona una iniciativa",
     "selectProject": "Selecciona un proyecto",
-    "noInitiatives": "No se encontraron iniciativas en este gremio.",
+    "noInitiatives": "No se encontraron iniciativas en esta comunidad.",
     "noProjects": "No se encontraron proyectos en esta iniciativa.",
     "loading": "Cargando…",
     "back": "Atrás",

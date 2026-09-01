@@ -34,15 +34,15 @@ These are all personal — they change nothing for anyone else.
 
 ## Trash
 
-The **Trash** tab shows things *you* recently deleted, so you can restore them within the retention window. (Guild-wide trash is separate and lives in [Guild settings](../guides/guilds.md#trash-and-retention).)
+The **Trash** tab shows things *you* recently deleted, so you can restore them within the retention window. (Community-wide trash is separate and lives in [Community settings](../guides/communities.md#trash-and-retention).)
 
 ## Closing your account
 
-The **Danger Zone** tab handles leaving Initiative. There are two paths, and Initiative walks you through either with a short wizard that checks for anything that needs sorting first (like projects you own, or guilds where you're the last admin).
+The **Danger Zone** tab handles leaving Initiative. There are two paths, and Initiative walks you through either with a short wizard that checks for anything that needs sorting first (like projects you own, or communities where you're the last admin).
 
 ### Deactivate
 
-**Deactivate** temporarily switches your account off. You can't sign in, and you're removed from your guilds (rejoining later needs a fresh invite), but your name, email, and content are kept. An administrator can reactivate you later. Good for "I'm stepping away for a while."
+**Deactivate** temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining later needs a fresh invite), but your name, email, and content are kept. An administrator can reactivate you later. Good for "I'm stepping away for a while."
 
 ### Delete
 

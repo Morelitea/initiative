@@ -21,7 +21,7 @@ That's it. The tag is attached, and it's now available to use on other things to
 ## Finding things by tag
 
 - In **Table** views, **filter** by tag to narrow a busy list down to just what's labeled.
-- The **Tags** area in the sidebar lists every tag in the guild.
+- The **Tags** area in the sidebar lists every tag in the community.
 - Open a tag's **detail page** to see everything carrying it, split into **Tasks**, **Projects**, and **Documents**.
 
 ![Everything sharing a tag](../images/tags/tag-detail.png)

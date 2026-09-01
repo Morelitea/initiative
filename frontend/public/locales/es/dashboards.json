@@ -149,7 +149,7 @@
     "all_document": "Todas las hojas de cálculo",
     "appEndpoint": "Qué lee",
     "appEndpointPlaceholder": "Elige una lectura…",
-    "appNotInstalled": "Esta aplicación no está instalada en este gremio.",
+    "appNotInstalled": "Esta aplicación no está instalada en esta comunidad.",
     "appParamPlaceholder": "Elige…",
     "appParamNeedsSibling": "Elige primero el valor de arriba.",
     "appParamListHint": "Separa los valores con comas."

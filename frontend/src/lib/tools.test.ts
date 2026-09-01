@@ -53,9 +53,9 @@ import trash from "../../public/locales/en/trash.json";
 // Route files (keys only — nothing is loaded). The guild tree holds each
 // tool's tab, detail, and settings routes, nested under their initiative.
 const guildRouteFiles = Object.keys(
-  import.meta.glob("../routes/_serverRequired/_authenticated/g/$guildId/**/*.tsx")
+  import.meta.glob("../routes/_serverRequired/_authenticated/c/$guildId/**/*.tsx")
 );
-const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/g/$guildId/i/$initiativeId";
+const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId";
 // Locale namespace files across every shipped language.
 const localeFiles = Object.keys(import.meta.glob("../../public/locales/*/*.json"));
 const locales = [...new Set(localeFiles.map((f) => f.split("/").at(-2)))];

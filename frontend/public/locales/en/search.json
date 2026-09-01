@@ -3,7 +3,7 @@
   "placeholder": "Search {{guildName}}",
   "seeAll": "See all",
   "prompt": {
-    "title": "Search this guild",
+    "title": "Search this community",
     "description": "Find anything by its name, or by what is written inside it."
   },
   "empty": {

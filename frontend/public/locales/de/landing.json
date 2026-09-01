@@ -9,9 +9,9 @@
     "titleLine1": "WÜRFELT FÜR",
     "titleLine2": "INITIATIVE",
     "titleAria": "Würfelt für Initiative",
-    "subtitle": "Eine auf Gilden ausgerichtete Projektmanagement-App für Gaming-Gruppen. Erstelle deine eigene Gilde, lade deine Gruppe ein und meistere gemeinsam Quests.",
+    "subtitle": "Eine auf Communitys ausgerichtete Projektmanagement-App für Gaming-Gruppen. Erstelle deine eigene Community, lade deine Gruppe ein und meistere gemeinsam Quests.",
     "ctaStart": "Starte dein Abenteuer",
-    "ctaSignIn": "Bei deiner Gilde anmelden",
+    "ctaSignIn": "Bei deiner Community anmelden",
     "scroll": "Scrollen",
     "loading": "Wird geladen..."
   },
@@ -31,7 +31,7 @@
   "features": {
     "sectionLabel": "Arsenal",
     "title": "Alles, was deine Party braucht",
-    "description": "Jede Gilde erhält einen privaten Arbeitsbereich mit Projekten, Aufgaben und Dokumenten. Ob du eine Kampagne leitest, Raid-Abende organisierst oder eine Gaming-Community verwaltest – halte alles an einem Ort.",
+    "description": "Jede Community erhält einen privaten Arbeitsbereich mit Projekten, Aufgaben und Dokumenten. Ob du eine Kampagne leitest, Raid-Abende organisierst oder eine Gaming-Community verwaltest – halte alles an einem Ort.",
     "campaignTitle": "Kampagnenverwaltung",
     "campaignDescription": "Organisiere deine Pen-&-Paper-Kampagnen mit Leichtigkeit. Verfolge Handlungsstränge, NSCs und Plot-Hooks über mehrere Sitzungen hinweg.",
     "partyTitle": "Party-Koordination",
@@ -43,7 +43,7 @@
     "sessionTitle": "Sitzungsnotizen",
     "sessionDescription": "Kollaborative Dokumente für Sitzungs-Rückblicke, Handouts für Spieler und gemeinsames Party-Wissen.",
     "eventTitle": "Terminplanung",
-    "eventDescription": "Koordiniere Spieleabende, Raid-Termine und Gildenevents. Alle bleiben auf dem gleichen Stand."
+    "eventDescription": "Koordiniere Spieleabende, Raid-Termine und Community-Events. Alle bleiben auf dem gleichen Stand."
   },
   "gallery": {
     "sectionLabel": "In Aktion sehen",
@@ -51,21 +51,21 @@
     "projectAlt": "Projektmanagement-Ansicht",
     "projectCaption": "Organisiere Projekte mit Boards, Listen und benutzerdefinierten Ansichten",
     "documentAlt": "Dokument-Zusammenarbeit",
-    "documentCaption": "Arbeite gemeinsam mit deiner gesamten Gilde an Dokumenten"
+    "documentCaption": "Arbeite gemeinsam mit deiner gesamten Community an Dokumenten"
   },
   "useCases": {
     "sectionLabel": "Deine Quest wartet",
-    "title": "Deine Gilde, dein Stil",
-    "description": "Erstelle eine private Gilde für deine Gruppe. Lade Mitglieder ein, organisiere sie in Initiativen und verwaltet Projekte gemeinsam. Alle bleiben synchron und deine Daten gehören dir.",
+    "title": "Deine Community, dein Stil",
+    "description": "Erstelle eine private Community für deine Gruppe. Lade Mitglieder ein, organisiere sie in Initiativen und verwaltet Projekte gemeinsam. Alle bleiben synchron und deine Daten gehören dir.",
     "ttrpgName": "Pen-&-Paper Gruppen",
     "ttrpgDesc": "Verwalte Kampagnen, verfolge Quests und teile Sitzungsnotizen mit deiner Abenteurergruppe.",
-    "mmoName": "MMO-Gilden",
-    "mmoDesc": "Koordiniere Raid-Termine, Beuteverteilung und Gildenevents.",
+    "mmoName": "MMO-Communitys",
+    "mmoDesc": "Koordiniere Raid-Termine, Beuteverteilung und Community-Events.",
     "esportsName": "E-Sport Teams",
     "esportsDesc": "Verfolge Trainingspläne, Turniervorbereitung und Teamziele.",
     "communityName": "Gaming-Communities",
     "communityDesc": "Organisiere Events, verwalte Projekte und halte deine Community bei Laune.",
-    "cta": "Erstelle deine Gilde"
+    "cta": "Erstelle deine Community"
   },
   "cta": {
     "title": "Bereit zum <1>Level-up</1>?",

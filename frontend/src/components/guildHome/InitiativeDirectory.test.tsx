@@ -103,7 +103,7 @@ describe("InitiativeDirectory", () => {
     ]);
 
     // The title is the way in — there is no second button saying the same.
-    expect(await screen.findByRole("link", { name: "Apollo" })).toHaveAttribute("href", "/g/1/i/7");
+    expect(await screen.findByRole("link", { name: "Apollo" })).toHaveAttribute("href", "/c/1/i/7");
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
@@ -153,7 +153,7 @@ describe("InitiativeDirectory", () => {
     expect(await screen.findByRole("heading", { name: "Your initiatives" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Open to join" })).not.toBeInTheDocument();
     expect(screen.getByText("Admin")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Hidden" })).toHaveAttribute("href", "/g/1/i/11");
+    expect(screen.getByRole("link", { name: "Hidden" })).toHaveAttribute("href", "/c/1/i/11");
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
@@ -368,7 +368,7 @@ describe("InitiativeDirectory", () => {
     // And it leads to the queue itself, which is a route of its own.
     expect(screen.getByRole("link", { name: "3 waiting to join" })).toHaveAttribute(
       "href",
-      "/g/1/i/7/settings/members"
+      "/c/1/i/7/settings/members"
     );
   });
 

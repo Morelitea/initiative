@@ -1,14 +1,14 @@
 {
   "myDocuments": {
     "title": "Mis documentos",
-    "subtitle": "Documentos que posees en todos tus gremios.",
+    "subtitle": "Documentos que posees en todos tus comunidades.",
     "empty": "Aún no has creado ningún documento.",
     "loadError": "No se pudieron cargar tus documentos.",
     "searchPlaceholder": "Buscar documentos...",
-    "filterByGuild": "Filtrar por gremio",
-    "allGuilds": "Todos los gremios",
-    "noGuilds": "No se encontraron gremios",
-    "noGuild": "Sin gremio",
+    "filterByGuild": "Filtrar por comunidad",
+    "allGuilds": "Todas las comunidades",
+    "noGuilds": "No se encontraron comunidades",
+    "noGuild": "Sin comunidad",
     "filters": "Filtros",
     "showFilters": "Mostrar filtros",
     "hideFilters": "Ocultar filtros",
@@ -59,7 +59,7 @@
     "tags": "Etiquetas",
     "owner": "Propietario",
     "type": "Tipo",
-    "guild": "Gremio",
+    "guild": "Comunidad",
     "initiative": "Iniciativa"
   },
   "type": {
@@ -176,7 +176,7 @@
     "duplicateDocument": "Duplicar documento",
     "copyToInitiative": "Copiar a iniciativa",
     "dangerTitle": "Zona de peligro",
-    "dangerDescription": "Los documentos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención del gremio.",
+    "dangerDescription": "Los documentos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención de la comunidad.",
     "duplicateDialogTitle": "Duplicar documento",
     "duplicateDialogDescription": "Crear una copia dentro de la misma iniciativa.",
     "duplicateTitleLabel": "Título",
@@ -254,7 +254,7 @@
   },
   "createWizard": {
     "title": "Agregar documento",
-    "selectGuild": "Selecciona un gremio",
+    "selectGuild": "Selecciona una comunidad",
     "selectInitiative": "Selecciona una iniciativa",
     "lastUsed": "Último usado",
     "back": "Atrás",

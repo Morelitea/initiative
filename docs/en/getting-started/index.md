@@ -40,7 +40,7 @@ No prior experience with project management software is assumed, and none is nee
 
     Accept an invite or create your first workspace.
 
-    [:octicons-arrow-right-24: Your first guild](your-first-guild.md)
+    [:octicons-arrow-right-24: Your first community](your-first-community.md)
 
 </div>
 

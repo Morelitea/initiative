@@ -136,7 +136,7 @@ export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(t
 
 // ---------------------------------------------------------------------------
 // Routes — a tool entity's URL names the whole chain it belongs to:
-// /g/{guild}/i/{initiative}/{tool}/{id}. There is no guild-wide tool list; the
+// /c/{guild}/i/{initiative}/{tool}/{id}. There is no guild-wide tool list; the
 // guild home (`/?tool=`) is the cross-initiative browse surface, so a tool's
 // "list" is always one initiative's tab. Every builder here returns a
 // GUILD-relative path — callers prepend the guild prefix with `useGuildPath`.

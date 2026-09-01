@@ -66,7 +66,7 @@ function stubEverything(permissions: Record<string, boolean> = {}) {
 const renderAt = (tool?: Tool) =>
   renderPage(() => <InitiativeDetailPage tool={tool} />, {
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
-    initialRoute: "/g/$guildId/i/$initiativeId",
+    initialRoute: "/c/$guildId/i/$initiativeId",
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
@@ -107,6 +107,6 @@ describe("InitiativeDetailPage", () => {
     renderAt(Tool.document);
 
     const projectsTab = await screen.findByRole("tab", { name: "Projects" });
-    expect(projectsTab).toHaveAttribute("href", `/g/1/i/${INITIATIVE_ID}/projects`);
+    expect(projectsTab).toHaveAttribute("href", `/c/1/i/${INITIATIVE_ID}/projects`);
   });
 });

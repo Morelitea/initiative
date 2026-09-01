@@ -10,7 +10,7 @@ If something about Initiative's security doesn't look right, telling someone is 
 
 If you come across data you don't believe you should have access to — another group's content, a project that wasn't shared with you — please report it. It might be a misconfiguration, or it might be a genuine bug worth fixing.
 
-- **On a server your group runs:** tell your **guild or platform administrator** first. They can check whether it's a settings issue.
+- **On a server your group runs:** tell your **community or platform administrator** first. They can check whether it's a settings issue.
 - **If it looks like a real flaw in Initiative itself:** follow the responsible-disclosure steps below.
 
 Either way, please **don't poke further** than needed to confirm it, and **don't share** what you saw.

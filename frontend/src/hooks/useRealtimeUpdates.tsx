@@ -80,7 +80,7 @@ const handleCommentEvent = (data?: Record<string, unknown>) => {
 
 export const useRealtimeUpdates = () => {
   const { token, user, logout } = useAuth();
-  // Key the socket off THIS tab's URL guild (the /g/{guildId} route param), so
+  // Key the socket off THIS tab's URL guild (the /c/{guildId} route param), so
   // each tab streams its own guild. On personal routes (/, /me/*) there's no
   // param → null → no socket. The backend authorizes the socket from the same
   // path segment, so the URL is the single source of truth.
@@ -105,7 +105,7 @@ export const useRealtimeUpdates = () => {
       authFailureCountRef.current = 0;
       return;
     }
-    // routeGuildId is non-null past the guard; capture for the /g/{guildId}
+    // routeGuildId is non-null past the guard; capture for the /c/{guildId}
     // websocket path used in the connect() closure below.
     const guildId = routeGuildId;
 

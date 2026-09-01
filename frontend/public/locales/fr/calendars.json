@@ -123,7 +123,7 @@
     "calendarSettings": "Paramètres de {{name}}"
   },
   "guildScope": {
-    "title": "Calendrier du groupe",
+    "title": "Calendrier de la communauté",
     "empty": "Aucun calendrier pour l'instant.",
     "emptyHint": "Créez-en un pour les jours fériés, pour une rencontre régulière ou simplement pour vous."
   }

@@ -1,20 +1,20 @@
 {
-  "title": "Gilde",
-  "subtitle": "Alles in dieser Gilde, ein Werkzeug nach dem anderen.",
-  "toolRail": "Gildenwerkzeuge",
+  "title": "Community",
+  "subtitle": "Alles in dieser Community, ein Werkzeug nach dem anderen.",
+  "toolRail": "Community-Werkzeuge",
   "loading": "Wird geladen…",
   "loadError": "Dieses Werkzeug konnte nicht geladen werden. Bitte versuche es später erneut.",
-  "guildWide": "Gildenweit",
+  "guildWide": "Community-weit",
   "searchPlaceholder": "Nach Namen suchen…",
   "empty": {
     "title": "Noch nichts vorhanden",
-    "description": "In der Gilde gibt es noch nichts dieser Art, oder nichts davon ist für dich freigegeben."
+    "description": "In der Community gibt es noch nichts dieser Art, oder nichts davon ist für dich freigegeben."
   },
   "emptyState": {
     "title": "Du bist noch keiner Initiative beigetreten",
-    "description": "Initiativen enthalten alles in einer Gilde — Projekte, Dokumente und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
+    "description": "Initiativen enthalten alles in einer Community — Projekte, Dokumente und den Rest. Tritt einer bei, um ihre Arbeit zu sehen.",
     "nothingListedTitle": "Noch nichts zum Beitreten",
-    "nothingListedDescription": "Derzeit ist keine Initiative dieser Gilde zum Beitreten offen. Ein Gildenadmin oder Projektmanager kann dich hinzufügen."
+    "nothingListedDescription": "Derzeit ist keine Initiative dieser Community zum Beitreten offen. Ein Community-Admin oder Projektmanager kann dich hinzufügen."
   },
   "directory": {
     "title": "Initiativen",
@@ -35,11 +35,11 @@
     "pendingRequests_one": "{{count}} wartet auf Beitritt",
     "pendingRequests_other": "{{count}} warten auf Beitritt",
     "policy": {
-      "open": "Offen für alle Gildenmitglieder",
+      "open": "Offen für alle Community-Mitglieder",
       "request": "Beitritt auf Anfrage",
       "private": "Nur auf Einladung"
     },
-    "loadError": "Das Angebot dieser Gilde konnte nicht geladen werden. Bitte versuche es später erneut."
+    "loadError": "Das Angebot dieser Community konnte nicht geladen werden. Bitte versuche es später erneut."
   },
   "columns": {
     "name": "Name",
@@ -73,7 +73,7 @@
   },
   "recentComments": {
     "title": "Neueste Kommentare",
-    "description": "Die neuesten Kommentare in der gesamten Gilde",
+    "description": "Die neuesten Kommentare in der gesamten Community",
     "noComments": "Noch keine Kommentare",
     "loadError": "Neueste Kommentare konnten nicht geladen werden. Bitte später erneut versuchen.",
     "unknownAuthor": "Unbekannt",

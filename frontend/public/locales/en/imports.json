@@ -13,7 +13,7 @@
     "start": "Start import",
     "pick": {
       "prompt": "Choose a backup file",
-      "hint": "A .zip exported from Initiative's guild or initiative backup.",
+      "hint": "A .zip exported from Initiative's community or initiative backup.",
       "notZip": "This file isn't a valid Initiative backup.",
       "readFailed": "Couldn't read this backup file. It may be corrupted.",
       "tooLarge": "This file is larger than the {{limit}} upload limit.",
@@ -42,7 +42,7 @@
     },
     "progress": {
       "title": "Importing…",
-      "note": "This can take a while. You can close this dialog — you'll get a notification, and the report stays available in guild settings."
+      "note": "This can take a while. You can close this dialog — you'll get a notification, and the report stays available in community settings."
     },
     "report": {
       "title": "Import finished",
@@ -108,7 +108,7 @@
   },
   "dataTab": {
     "importTitle": "Import a backup",
-    "importDescription": "Restore an initiative or guild backup zip. Each backed-up initiative is created as a new initiative — nothing existing is changed.",
+    "importDescription": "Restore an initiative or community backup zip. Each backed-up initiative is created as a new initiative — nothing existing is changed.",
     "open": "Import…"
   }
 }

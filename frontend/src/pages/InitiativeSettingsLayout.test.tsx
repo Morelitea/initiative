@@ -42,7 +42,7 @@ const renderLayout = ({
 } = {}) =>
   renderPage(InitiativeSettingsLayout, {
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: `/g/$guildId/i/$initiativeId/settings${path}`,
+    initialRoute: `/c/$guildId/i/$initiativeId/settings${path}`,
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
     ...(user ? { auth: { user } } : {}),
   });
@@ -67,7 +67,7 @@ describe("InitiativeSettingsLayout", () => {
     await userEvent.click(await screen.findByRole("tab", { name: "Members" }));
 
     // The section is an address, not a piece of component state.
-    expect(router.state.location.pathname).toBe("/g/1/i/7/settings/members");
+    expect(router.state.location.pathname).toBe("/c/1/i/7/settings/members");
   });
 
   it("lights the tab the address names", async () => {

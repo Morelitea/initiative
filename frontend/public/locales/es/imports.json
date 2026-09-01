@@ -13,7 +13,7 @@
     "start": "Iniciar importación",
     "pick": {
       "prompt": "Elige un archivo de copia de seguridad",
-      "hint": "Un .zip exportado desde una copia de seguridad de gremio o iniciativa de Initiative.",
+      "hint": "Un .zip exportado desde una copia de seguridad de comunidad o iniciativa de Initiative.",
       "notZip": "Este archivo no es una copia de seguridad válida de Initiative.",
       "readFailed": "No se pudo leer este archivo de copia de seguridad. Puede estar dañado.",
       "tooLarge": "Este archivo supera el límite de subida de {{limit}}.",
@@ -42,7 +42,7 @@
     },
     "progress": {
       "title": "Importando…",
-      "note": "Esto puede tardar un poco. Puedes cerrar este diálogo: recibirás una notificación y el informe permanece disponible en la configuración del gremio."
+      "note": "Esto puede tardar un poco. Puedes cerrar este diálogo: recibirás una notificación y el informe permanece disponible en la configuración de la comunidad."
     },
     "report": {
       "title": "Importación finalizada",
@@ -108,7 +108,7 @@
   },
   "dataTab": {
     "importTitle": "Importar una copia de seguridad",
-    "importDescription": "Restaura un zip de copia de seguridad de iniciativa o gremio. Cada iniciativa respaldada se crea como una nueva iniciativa; nada existente se modifica.",
+    "importDescription": "Restaura un zip de copia de seguridad de iniciativa o comunidad. Cada iniciativa respaldada se crea como una nueva iniciativa; nada existente se modifica.",
     "open": "Importar…"
   }
 }

@@ -153,19 +153,19 @@ describe("ShareControl", () => {
  * roles — the roles this control grants to belong to an initiative. So the
  * guild view is a narrower control, not the same one relabelled.
  */
-describe("ShareControl in its guild view", () => {
+describe("ShareControl in its community view", () => {
   const guildProps = { initiativeId: null, onChange: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("names the guild rather than an initiative", () => {
+  it("names the community rather than an initiative", () => {
     const grants: ResourceGrantSchema[] = [{ all_initiative_members: true, level: "read" }];
 
     renderWithProviders(<ShareControl {...guildProps} grants={grants} />);
 
-    expect(screen.getByText("Everyone in the guild")).toBeInTheDocument();
+    expect(screen.getByText("Everyone in the community")).toBeInTheDocument();
     expect(screen.queryByText("All initiative members")).toBeNull();
   });
 
@@ -180,13 +180,13 @@ describe("ShareControl in its guild view", () => {
     expect(screen.getByText("Only people you add can access this.")).toBeInTheDocument();
   });
 
-  it("still shares with everyone, which is how a guild calendar arrives", async () => {
+  it("still shares with everyone, which is how a community calendar arrives", async () => {
     const onChange = vi.fn();
     renderWithProviders(<ShareControl initiativeId={null} grants={[]} onChange={onChange} />);
 
     await userEvent.click(screen.getByText("Restricted"));
     await userEvent.click(
-      within(document.body).getAllByText("Everyone in the guild").at(-1) as HTMLElement
+      within(document.body).getAllByText("Everyone in the community").at(-1) as HTMLElement
     );
 
     expect(onChange).toHaveBeenCalledWith([{ all_initiative_members: true, level: "read" }]);

@@ -116,10 +116,10 @@ You can **export a project** (as a portable file) to keep an offline copy or mov
 ## Archiving and deleting
 
 - **Archive** hides a finished project without losing anything; unarchive to bring it back.
-- **Delete** sends it to the guild **Trash**, where an admin can restore it until the retention period passes.
+- **Delete** sends it to the community **Trash**, where an admin can restore it until the retention period passes.
 
 ## Related
 
 - [Task views](task-views.md) — Table, Kanban, and Calendar.
 - [Tags](tags.md) — labeling and filtering.
-- [Your space](your-space.md) — see all your tasks across every project and guild.
+- [Your space](your-space.md) — see all your tasks across every project and community.
