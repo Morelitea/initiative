@@ -111,6 +111,7 @@ import { uploadAttachment } from "@/lib/attachmentUtils";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { supportsEntityMentions } from "@/lib/mentions";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
@@ -1395,6 +1396,7 @@ export const DocumentDetailPage = () => {
                   isSynced={collaboration.isSynced}
                   // Wikilinks support
                   initiativeId={document.initiative_id}
+                  supportsEntityMentions={supportsEntityMentions(document.document_type)}
                   onWikilinkNavigate={handleWikilinkNavigate}
                   onWikilinkCreate={handleWikilinkCreate}
                 />

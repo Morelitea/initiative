@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Name a thing inside a document with `#`.** Typing `#` in a document opens the same picker a comment has, over everything in the initiative — a project, a task, a queue, a counter, a calendar event, a dashboard. Pick one and its name sits in the text as a link that opens it. Naming a kind first (`#task:`) narrows the list, `@` still names a person, and both work as you type. Standard documents only: a whiteboard and a spreadsheet hold shapes and cells rather than prose.
+
 - **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the community home's recent-comments feed shows what each comment drew.
 
 - **The author hears about reactions, in a digest.** Reactions arrive in flurries, so they are collected the way task assignments are: the bell gets each one immediately, and email and push wait until the burst has settled and then arrive as one summary. It has its own switch under Settings › Notifications — wanting to hear about mentions no longer means hearing about every thumbs-up.
