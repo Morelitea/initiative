@@ -96,7 +96,14 @@ export default defineConfig({
     // the app happens to be on when the picker first opens.
     __EMOJIBASE_URL__: JSON.stringify(EMOJI_BASE_PATH),
   },
-  plugins: [tanstackRouter(), react(), tailwindcss(), emojibasePlugin()],
+  plugins: [
+    // A route's tests sit beside it and export no Route of their own, so the
+    // generator skips them rather than treating each as a missing route.
+    tanstackRouter({ routeFileIgnorePattern: "\\.test\\.[jt]sx?$" }),
+    react(),
+    tailwindcss(),
+    emojibasePlugin(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

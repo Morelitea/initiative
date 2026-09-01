@@ -139,8 +139,8 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
     guild = await _persist_new_guild(
         session,
         Guild(
-            name="Primary Guild",
-            description="Default guild",
+            name="Primary Community",
+            description="Default community",
             created_at=now,
             updated_at=now,
         ),
