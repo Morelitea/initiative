@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A task's editor ends in two buttons, not six.** Save, cancel, move to project, duplicate, archive and delete all sat in one row at the foot of the task editor, so the action you almost always want looked exactly like the ones you almost never do — and delete sat two buttons from save. Save and cancel keep their place; move, duplicate, archive and delete moved behind a single "…" menu at the end of the row, with delete set apart below a divider.
+
 - **"Browse the marketplace" is out of the overflow menu.** Adding a ready-made dashboard is the same kind of answer as making one from scratch, but only one of the two was on the page — the other sat behind the "…" button, where someone who has never opened it never learns the shelf exists. It now sits next to the create button on the dashboards list, at every width, and beside "Create your first dashboard" in an initiative that has none yet.
 
 - **Toasts stay up only as long as they take to read.** Every notification held the screen for a fixed five seconds after Chester finished typing it — a long wait for "Saved", and a short one for a paragraph of error text. The wait is now worked out from the message itself: a moment to notice it, plus reading time for what it says. Warnings and errors are held longer, a toast with a button on it gets time to press it, and there is a ceiling so nothing camps on the screen.
