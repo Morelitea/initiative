@@ -13,6 +13,11 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
  * community someone is in that never listed itself is nobody else's business,
  * and never reaches here to be filtered out. Nothing shows where there are
  * none, rather than an empty heading.
+ *
+ * Where each one goes depends on the reader: a member goes in, and anyone else
+ * goes to its card in the directory, where there is something they can do. The
+ * community's own pages need membership, so sending a stranger to one would be
+ * a link that only ever answers "no".
  */
 export const ProfileCommunities = ({ handle }: { handle: string }) => {
   const { t } = useTranslation("profiles");
@@ -24,13 +29,9 @@ export const ProfileCommunities = ({ handle }: { handle: string }) => {
     <section className="space-y-3">
       <h2 className="font-medium text-muted-foreground text-sm">{t("guilds.title")}</h2>
       <ul className="flex flex-wrap gap-2">
-        {communities.map((guild) => (
-          <li key={guild.id}>
-            <Link
-              to="/c/$guildId"
-              params={{ guildId: String(guild.id) }}
-              className="flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 transition-colors hover:bg-accent"
-            >
+        {communities.map((guild) => {
+          const chip = (
+            <>
               <Avatar className="size-7">
                 {guild.icon_url ? (
                   <AvatarImage src={resolveUploadUrl(guild.icon_url) ?? undefined} alt="" />
@@ -38,9 +39,24 @@ export const ProfileCommunities = ({ handle }: { handle: string }) => {
                 <AvatarFallback className="text-xs">{getInitials(guild.name)}</AvatarFallback>
               </Avatar>
               <span className="font-medium text-sm">{guild.name}</span>
-            </Link>
-          </li>
-        ))}
+            </>
+          );
+          const className =
+            "flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 transition-colors hover:bg-accent";
+          return (
+            <li key={guild.id}>
+              {guild.already_member ? (
+                <Link to="/c/$guildId" params={{ guildId: String(guild.id) }} className={className}>
+                  {chip}
+                </Link>
+              ) : (
+                <Link to="/communities" search={{ q: guild.name }} className={className}>
+                  {chip}
+                </Link>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

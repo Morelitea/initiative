@@ -63,6 +63,16 @@ export const ProfilePicture = ({
   const [url, setUrl] = useState(linked(user.avatar_url) ? (user.avatar_url ?? "") : "");
   const [busy, setBusy] = useState(false);
 
+  // Follow the saved picture when it changes. Without this the field keeps the
+  // URL it was mounted with, so uploading a picture and then saving the URL tab
+  // would write the old link back over the upload.
+  const [synced, setSynced] = useState(user.avatar_url ?? null);
+  if (synced !== (user.avatar_url ?? null)) {
+    setSynced(user.avatar_url ?? null);
+    setUrl(linked(user.avatar_url) ? (user.avatar_url ?? "") : "");
+    setMode(linked(user.avatar_url) ? "url" : "upload");
+  }
+
   const saveLink = useUpdateCurrentUser({
     onSuccess: async () => {
       setOpen(false);
