@@ -475,12 +475,13 @@ async def test_guild_schema_matches_guild_template(engine):
                 return sorted(
                     re.sub(r"\bON \w+\.", "ON ", x.d)  # strip table schema
                     for x in r
-                    # Change-capture triggers are rendered from the registry at
-                    # provisioning time, not owned by Alembic — the same
-                    # treatment RLS policies get here, and for the same reason:
-                    # comparing them would assert the template carries a frozen
-                    # snapshot of whatever the registry said.
-                    if not x.n.startswith("capture_")
+                    # Change-capture and search-index triggers are rendered
+                    # from their registries at provisioning time, not owned by
+                    # Alembic — the same treatment RLS policies get here, and
+                    # for the same reason: comparing them would assert the
+                    # template carries a frozen snapshot of whatever the
+                    # registry said.
+                    if not x.n.startswith(("capture_", "search_"))
                 )
 
             drift = []

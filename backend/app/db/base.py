@@ -46,6 +46,7 @@ from app.models.tenant.calendar_event import (
     CalendarEventDocument,
 )
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.counter import (
@@ -140,6 +141,7 @@ __all__ = [
     "CalendarEventTag",
     "CalendarEventDocument",
     "EventOutbox",
+    "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
     "DashboardTag",

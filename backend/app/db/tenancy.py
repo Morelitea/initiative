@@ -267,6 +267,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # carries ``actor_user_id``) or has none to record.
         "event_outbox",
         "event_reminder_dispatches",
+        "search_entries",
         "task_assignment_digest_items",
         "webhook_deliveries",
     }

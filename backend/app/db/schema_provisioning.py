@@ -156,6 +156,7 @@ class ProvisioningBundle:
     schema_ddl: str
     rls_ddl: str
     capture_ddl: str
+    search_ddl: str
     stamp: str
 
 
@@ -176,15 +177,22 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
             render_guild_capture_ddl,
         )
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
+        from app.db.search_index import (
+            SEARCH_FUNCTION_SQL,
+            render_guild_search_ddl,
+        )
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
         rls_ddl = render_guild_rls_ddl()
         capture_ddl = render_guild_capture_ddl()
+        search_ddl = render_guild_search_ddl()
         digest = hashlib.sha256()
         digest.update(schema_ddl.encode())
         digest.update(rls_ddl.encode())
         digest.update(capture_ddl.encode())
         digest.update(CAPTURE_FUNCTION_SQL.encode())
+        digest.update(search_ddl.encode())
+        digest.update(SEARCH_FUNCTION_SQL.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -199,6 +207,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
             schema_ddl=schema_ddl,
             rls_ddl=rls_ddl,
             capture_ddl=capture_ddl,
+            search_ddl=search_ddl,
             stamp=f"provisioned:{digest.hexdigest()[:16]}",
         )
         return _bundle
@@ -275,6 +284,26 @@ async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
     )
 
 
+async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
+    """Install the search-index refresh triggers on ``schema``'s indexed tables.
+
+    Same shape as :func:`apply_guild_capture`: re-assert the shared function
+    from the registry (so a change to what is indexed reaches existing installs
+    on the next boot rather than needing a migration per edit), then the
+    per-table triggers, both idempotent.
+    """
+    from app.db.search_index import SEARCH_FUNCTION_SQL
+
+    ddl = (await get_provisioning_bundle()).search_ddl
+    raw = await conn.get_raw_connection()
+    await raw.driver_connection.execute(
+        "SET check_function_bodies = false;\n" + SEARCH_FUNCTION_SQL
+    )
+    await raw.driver_connection.execute(
+        f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
+    )
+
+
 async def apply_template_rls() -> None:
     """Re-assert the registry-rendered RLS on ``guild_template``.
 
@@ -288,6 +317,7 @@ async def apply_template_rls() -> None:
     async with db_session.provisioning_engine.begin() as conn:
         await apply_guild_rls(conn, TEMPLATE_SCHEMA)
         await apply_guild_capture(conn, TEMPLATE_SCHEMA)
+        await apply_guild_search(conn, TEMPLATE_SCHEMA)
 
 
 def _grant_statements(
@@ -398,6 +428,7 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     await _exec_batch(conn, _grant_statements(schema, role, ro_role, support_role))
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     await apply_guild_capture(conn, schema)  # change-capture triggers
+    await apply_guild_search(conn, schema)  # search-index refresh triggers
     # Stamp the artifacts' version so the boot back-fill can skip this guild
     # until they change (constant hex literal, safe to inline).
     stamp = (await get_provisioning_bundle()).stamp
