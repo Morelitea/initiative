@@ -3064,6 +3064,24 @@ export interface InitiativeRoleUpdate {
   permissions?: Partial<Record<PermissionKey, boolean>> | null;
 }
 
+/**
+ * A status column as it appears across one initiative's projects.
+ *
+ * Entries are aggregated by ``(name, category)``, so the same column
+ * configured in several projects collapses to a single row; ``color`` and
+ * ``icon`` come from the first project that defines it. ``project_count`` is
+ * how many of the projects the caller can read carry the column, out of
+ * ``projects_total``.
+ */
+export interface InitiativeTaskStatusRead {
+  name: string;
+  category: TaskStatusCategory;
+  color: string;
+  icon: string;
+  project_count: number;
+  projects_total: number;
+}
+
 export interface InitiativeUpdate {
   queues_enabled?: boolean | null;
   counter_groups_enabled?: boolean | null;

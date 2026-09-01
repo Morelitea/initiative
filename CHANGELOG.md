@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
+
 ### Changed
 - **Link to documentation for help not the github page".**
 

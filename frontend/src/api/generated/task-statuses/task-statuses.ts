@@ -22,6 +22,7 @@ import type {
 
 import type {
   HTTPValidationError,
+  InitiativeTaskStatusRead,
   TaskStatusCreate,
   TaskStatusDeleteRequest,
   TaskStatusRead,
@@ -692,3 +693,256 @@ export const useReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReo
     queryClient
   );
 };
+/**
+ * The distinct status columns across the initiative's readable projects.
+ *
+ * One entry per ``(name, category)``, carrying how many of the caller's
+ * readable projects define it and how many such projects there are.
+ * @summary List Initiative Task Statuses
+ */
+export const listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet = (
+  guildId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeTaskStatusRead[]>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/task-statuses/`,
+      method: "GET",
+      signal,
+    },
+    options
+  );
+};
+
+export const getListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGetQueryKey =
+  (guildId: number, initiativeId: number) => {
+    return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/task-statuses/`] as const;
+  };
+
+export const getListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+      >
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    guildId: number,
+    initiativeId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGetQueryKey(
+        guildId,
+        initiativeId
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+        >
+      >
+    > = ({ signal }) =>
+      listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet(
+        guildId,
+        initiativeId,
+        requestOptions,
+        signal
+      );
+
+    return {
+      queryKey,
+      queryFn,
+      enabled:
+        guildId !== null &&
+        guildId !== undefined &&
+        initiativeId !== null &&
+        initiativeId !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type ListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+      >
+    >
+  >;
+export type ListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Initiative Task Statuses
+ */
+
+export function useListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof listInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getListInitiativeTaskStatusesApiV1GGuildIdInitiativesInitiativeIdTaskStatusesGetQueryOptions(
+      guildId,
+      initiativeId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
