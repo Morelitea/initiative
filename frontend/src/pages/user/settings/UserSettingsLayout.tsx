@@ -35,7 +35,7 @@ export const UserSettingsLayout = () => {
   const { user } = useAuth();
   const location = useLocation();
   const router = useRouter();
-  const { data: aiConnections } = useMyAI();
+  const { data: aiConnections, isError: aiUnknown } = useMyAI();
 
   if (!user) {
     return (
@@ -48,7 +48,11 @@ export const UserSettingsLayout = () => {
     );
   }
 
-  const showAI = hasAnythingToConfigure(aiConnections);
+  // Hidden only when the answer came back and there was nothing in it. A
+  // request that failed is not an answer, and taking a tab away over one would
+  // lose someone their settings until they reloaded; the page itself says so
+  // when it cannot load.
+  const showAI = aiUnknown || hasAnythingToConfigure(aiConnections);
   const tabs = userSettingsTabs
     .filter((tab) => tab.value !== "ai" || showAI)
     .map((tab) => ({

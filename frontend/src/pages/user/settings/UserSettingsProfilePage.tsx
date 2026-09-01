@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { type ChangeEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
@@ -70,18 +70,30 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const [frame, setFrame] = useState(user.profile_decorations.frame ?? null);
   const [badges, setBadges] = useState<string[]>(user.profile_decorations.badges ?? []);
 
-  useEffect(() => {
+  // Each half of this page follows the saved values it mirrors, and only those.
+  // Both halves used to re-sync on any change to `user`, which meant saving one
+  // of them threw away whatever was picked and not yet saved in the other.
+  const savedSelf = JSON.stringify([user.full_name, user.avatar_url, user.custom_status]);
+  const [syncedSelf, setSyncedSelf] = useState(savedSelf);
+  if (syncedSelf !== savedSelf) {
+    setSyncedSelf(savedSelf);
     setFullName(user.full_name ?? "");
     setAvatarUrl(isLinked(user) ? (user.avatar_url ?? "") : "");
     setAvatarMode(isLinked(user) ? "url" : "upload");
     setStatusEmoji(user.custom_status.emoji ?? null);
     setStatusText(user.custom_status.text ?? "");
-    // Removing a pack takes its pieces off server-side, so the saved look can
-    // change without this form touching it.
+  }
+
+  // Removing a pack takes its pieces off server-side, so the look has to follow
+  // when it changes underneath the form — but, again, only then.
+  const savedLook = JSON.stringify(user.profile_decorations);
+  const [syncedLook, setSyncedLook] = useState(savedLook);
+  if (syncedLook !== savedLook) {
+    setSyncedLook(savedLook);
     setBanner(user.profile_decorations.banner ?? null);
     setFrame(user.profile_decorations.frame ?? null);
     setBadges(user.profile_decorations.badges ?? []);
-  }, [user]);
+  }
 
   const avatarPreview = useMemo(() => {
     if (avatarMode === "url") {

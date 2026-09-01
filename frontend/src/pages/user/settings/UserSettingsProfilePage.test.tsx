@@ -10,11 +10,18 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildOwnedDecoration, buildUser } from "@/__tests__/factories";
-import { renderPage } from "@/__tests__/helpers/render";
+import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { UserSettingsProfilePage } from "./UserSettingsProfilePage";
 
 const mocks = vi.hoisted(() => ({ library: vi.fn(), update: vi.fn(), packs: vi.fn() }));
+
+// The only router this page needs is the link out to the marketplace, and a
+// real one would cost the test its `rerender`.
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
+}));
 
 vi.mock("@/hooks/useUsers", () => ({
   useMyDecorations: () => mocks.library(),
@@ -45,8 +52,10 @@ beforeEach(() => {
   });
 });
 
-const render = () =>
-  renderPage(() => <UserSettingsProfilePage user={user} refreshUser={() => Promise.resolve()} />);
+const render = (current: UserRead = user) =>
+  renderWithProviders(
+    <UserSettingsProfilePage user={current} refreshUser={() => Promise.resolve()} />
+  );
 
 describe("the profile preview", () => {
   it("shows the whole profile, not just the picture", async () => {
@@ -64,5 +73,41 @@ describe("the profile preview", () => {
     await userEvent.click(await screen.findByRole("checkbox", { name: "Storyteller" }));
 
     expect(screen.getByRole("img", { name: "Storyteller" })).toBeInTheDocument();
+  });
+});
+
+describe("the two halves of the page", () => {
+  it("keeps an unsaved pick when the account is refreshed for another reason", async () => {
+    const { rerender } = render();
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Storyteller" }));
+    expect(screen.getByRole("img", { name: "Storyteller" })).toBeInTheDocument();
+
+    // Saving the name above refetches the account. The look below it is
+    // untouched on the server, so the pick has to survive.
+    rerender(
+      <UserSettingsProfilePage
+        user={{ ...user, full_name: "Jordan Renamed" }}
+        refreshUser={() => Promise.resolve()}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: "Storyteller" })).toBeInTheDocument();
+  });
+
+  it("drops a decoration the server has taken away", async () => {
+    const { rerender } = render();
+
+    await screen.findByRole("img", { name: "Founder" });
+
+    // Removing a pack strips its pieces server-side; the draft follows.
+    rerender(
+      <UserSettingsProfilePage
+        user={{ ...user, profile_decorations: { banner: null, frame: null, badges: [] } }}
+        refreshUser={() => Promise.resolve()}
+      />
+    );
+
+    expect(screen.queryByRole("img", { name: "Founder" })).not.toBeInTheDocument();
   });
 });

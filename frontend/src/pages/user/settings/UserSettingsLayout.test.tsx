@@ -32,7 +32,7 @@ const connection = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const answerWith = (data: unknown[]) => mocks.ai.mockReturnValue({ data });
+const answerWith = (data: unknown[]) => mocks.ai.mockReturnValue({ data, isError: false });
 
 beforeEach(() => vi.clearAllMocks());
 
