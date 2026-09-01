@@ -49,6 +49,7 @@ export function buildQueueSummary(overrides: Partial<QueueSummary> = {}): QueueS
     my_permission_level: "owner",
     tags: [],
     grants: [],
+    comments_disabled: false,
     ...overrides,
   };
 }
@@ -71,6 +72,7 @@ export function buildQueue(overrides: Partial<QueueRead> = {}): QueueRead {
     items: [],
     current_item: null,
     grants: [],
+    comments_disabled: false,
     ...overrides,
   };
 }

@@ -139,6 +139,46 @@ class TestPublishing:
             "endpoint_id": OPEN_ITEMS,
         }
 
+    async def test_a_bundled_tile_may_fix_several_values_for_one_parameter(
+        self, session
+    ):
+        """The same shape a guild's own binding may hold.
+
+        An endpoint declaring a parameter takes several is entitled to have
+        several fixed by the dashboard its app ships, or the arrangement a
+        publisher bundles could express less than one somebody assembles by
+        hand — for no reason a reader of either could see.
+        """
+        entry = _dashboard()
+        entry["widgets"][0]["binding"] = {
+            "endpoint_id": OPEN_ITEMS,
+            "params": {"labels": ["bug", "regression"], "state": "open"},
+        }
+        await service.upsert_listing(session, _app_manifest([entry]), source="operator")
+        await session.commit()
+
+        dashboard = await _by_uid(session, DASH_UID)
+        version = await service.get_listing_version(
+            session, dashboard.latest_version_id
+        )
+        assert version.definition["widgets"][0]["binding"]["params"] == {
+            "labels": ["bug", "regression"],
+            "state": "open",
+        }
+
+    async def test_a_bundled_tile_cannot_fix_a_value_of_no_declarable_shape(
+        self, session
+    ):
+        entry = _dashboard()
+        entry["widgets"][0]["binding"] = {
+            "endpoint_id": OPEN_ITEMS,
+            "params": {"labels": [{"nested": "object"}]},
+        }
+        with pytest.raises(CatalogError):
+            await service.upsert_listing(
+                session, _app_manifest([entry]), source="operator"
+            )
+
     async def test_it_carries_no_artwork_of_its_own(self, session):
         """A dashboard previews by rendering its widgets against their sample
         data, which cannot go stale against the app the way a picture would."""

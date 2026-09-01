@@ -2,6 +2,9 @@
  * One tool entity's comment thread, ready to drop at the bottom of that
  * entity's page: it reads the thread for `<entity>_id` and hands it to the
  * shared CommentSection.
+ *
+ * `disabled` is the entity's own `comments_disabled` setting: the panel then
+ * renders nothing and never asks for the thread.
  */
 
 import { useMemo } from "react";
@@ -19,6 +22,8 @@ interface ToolCommentsPanelProps {
   initiativeId: number;
   canModerate?: boolean;
   title?: string;
+  /** The entity's `comments_disabled` setting — its thread is off. */
+  disabled?: boolean;
 }
 
 export const ToolCommentsPanel = ({
@@ -27,6 +32,7 @@ export const ToolCommentsPanel = ({
   initiativeId,
   canModerate = false,
   title,
+  disabled = false,
 }: ToolCommentsPanelProps) => {
   const { t } = useTranslation("documents");
 
@@ -36,7 +42,11 @@ export const ToolCommentsPanel = ({
     return next;
   }, [entityType, entityId]);
 
-  const commentsQuery = useComments(params, { enabled: Number.isFinite(entityId) });
+  const commentsQuery = useComments(params, {
+    enabled: Number.isFinite(entityId) && !disabled,
+  });
+
+  if (disabled) return null;
 
   return (
     <div className="space-y-2">

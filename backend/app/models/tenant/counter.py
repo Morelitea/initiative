@@ -7,7 +7,11 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    CommentsToggleMixin,
+    CreatedByMixin,
+    SoftDeleteMixin,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
@@ -27,7 +31,7 @@ class CounterPermissionLevel(str, Enum):
     read = "read"
 
 
-class CounterGroup(CreatedByMixin, SoftDeleteMixin, table=True):
+class CounterGroup(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped container for a set of related counters."""
 
     __tablename__ = "counter_groups"

@@ -226,6 +226,7 @@ export const ProjectDetailPage = () => {
           entityId={project.id}
           initiativeId={project.initiative_id}
           canModerate={hasWritePermission}
+          disabled={project.comments_disabled}
         />
       </div>
     </PullToRefresh>

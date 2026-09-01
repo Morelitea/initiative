@@ -88,6 +88,12 @@ To pull someone (or something) into the conversation, **mention** it by typing `
 
 Mentioned people get a notification, so it's the right way to say "hey, take a look at this."
 
+!!! tip "Turning comments off"
+    Every tool — documents, projects, queues, counters, calendars, and dashboards — has a
+    **Disable comments** switch under **Settings → Advanced**. Turning it off takes the thread
+    off that item's page; nothing is deleted, and it all comes back if you turn it on again.
+    Tasks are unaffected: a task keeps its own comments whatever its project is set to.
+
 ## File documents and version history
 
 For uploaded files, Initiative keeps a **version history**. When a file is updated, you can **upload a new version** while the older ones stay available, each marked with its date. That way you can always get back to an earlier copy.

@@ -361,6 +361,7 @@ export function CounterGroupDetailPage() {
         entityId={group.id}
         initiativeId={group.initiative_id ?? 0}
         canModerate={!!canWrite}
+        disabled={group.comments_disabled}
       />
 
       {canWrite && (

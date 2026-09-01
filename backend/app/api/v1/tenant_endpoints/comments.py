@@ -161,8 +161,11 @@ async def recent_comments(
     for tool, target in comments_service.TOOL_COMMENT_TARGETS.items():
         model = target.model
         fk = getattr(Comment, target.column)
+        # The entity's own comment switch gates its thread, so it gates the
+        # feed too.
         parent_ids = select(model.id).where(
-            dac_scope_clause(tool, model.id, user_id, guild_id=guild_id)
+            dac_scope_clause(tool, model.id, user_id, guild_id=guild_id),
+            model.comments_disabled.is_(False),
         )
         if target.feature_disabled is not None:
             # The tool's master switch gates the thread, so it gates the feed

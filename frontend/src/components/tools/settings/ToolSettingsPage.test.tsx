@@ -40,6 +40,7 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   my_permission_level: "owner",
   tags: [],
   grants: [],
+  comments_disabled: false,
   ...overrides,
 });
 
@@ -89,5 +90,44 @@ describe("ToolSettingsPage tags", () => {
       expect(screen.getByTestId("selected-tags")).toHaveTextContent("Existing tag")
     );
     expect(screen.getByTestId("selected-tags")).not.toHaveTextContent("Added tag");
+  });
+});
+
+describe("ToolSettingsPage comments switch", () => {
+  const openAdvanced = async () =>
+    userEvent.click(await screen.findByRole("tab", { name: "Advanced" }));
+
+  it("turns comments off and keeps the new state", async () => {
+    resetFactories();
+    server.use(
+      guildHttp.put("/tools/:tool/:toolId/comments", () =>
+        HttpResponse.json({ comments_disabled: true })
+      )
+    );
+    renderSettings(buildEntity());
+    await openAdvanced();
+
+    const toggle = await screen.findByRole("switch", { name: "Disable comments" });
+    expect(toggle).not.toBeChecked();
+
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
+  it("puts the switch back when the write fails", async () => {
+    resetFactories();
+    server.use(
+      guildHttp.put("/tools/:tool/:toolId/comments", () =>
+        HttpResponse.json({ detail: "NOPE" }, { status: 500 })
+      )
+    );
+    renderSettings(buildEntity());
+    await openAdvanced();
+
+    const toggle = await screen.findByRole("switch", { name: "Disable comments" });
+    await userEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).not.toBeChecked());
   });
 });

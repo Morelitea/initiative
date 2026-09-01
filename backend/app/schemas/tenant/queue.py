@@ -144,6 +144,10 @@ class QueueSummary(QueueBase):
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
+    # Advanced setting: when true this entity's comment thread is off — the
+    # UI renders none and the API refuses to read or post one. Tasks are
+    # unaffected; their thread belongs to the task, not to the tool.
+    comments_disabled: bool = False
     tags: List[TagSummary] = Field(default_factory=list)
     # The full sharing state — every resource_grants row for this queue. Exposed on
     # the summary (not just the detail read) so list views can manage sharing in
@@ -243,6 +247,7 @@ def serialize_queue_summary(
         created_at=queue.created_at,
         updated_at=queue.updated_at,
         my_permission_level=my_permission_level,
+        comments_disabled=queue.comments_disabled,
         tags=tag_summaries(getattr(queue, "tag_links", None)),
         grants=serialize_grants(queue),
     )

@@ -16,6 +16,8 @@ interface DocumentSidePanelProps {
   summaryContent: ReactNode;
   commentsContent: ReactNode;
   showSummaryTab?: boolean;
+  /** False when the document's comments are turned off in its settings. */
+  showCommentsTab?: boolean;
 }
 
 export const DocumentSidePanel = ({
@@ -24,12 +26,13 @@ export const DocumentSidePanel = ({
   summaryContent,
   commentsContent,
   showSummaryTab = true,
+  showCommentsTab = true,
 }: DocumentSidePanelProps) => {
   const { t } = useTranslation("documents");
   const [activeTab, setActiveTab] = useState<PanelTab>(() => {
     const saved = getItem(TAB_STORAGE_KEY);
     if (saved === "summary" && showSummaryTab) return "summary";
-    return "comments";
+    return showCommentsTab ? "comments" : "summary";
   });
 
   // Persist tab selection
@@ -37,12 +40,14 @@ export const DocumentSidePanel = ({
     setItem(TAB_STORAGE_KEY, activeTab);
   }, [activeTab]);
 
-  // If summary tab is hidden but was selected, switch to comments
+  // A hidden tab can't stay selected — fall through to the one still there.
   useEffect(() => {
     if (!showSummaryTab && activeTab === "summary") {
       setActiveTab("comments");
+    } else if (!showCommentsTab && activeTab === "comments") {
+      setActiveTab("summary");
     }
-  }, [showSummaryTab, activeTab]);
+  }, [showSummaryTab, showCommentsTab, activeTab]);
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -62,7 +67,7 @@ export const DocumentSidePanel = ({
           onValueChange={(value) => setActiveTab(value as PanelTab)}
           className="flex flex-1 flex-col overflow-hidden"
         >
-          {showSummaryTab && (
+          {showSummaryTab && showCommentsTab && (
             <div className="px-3 pt-3">
               <TabsBar>
                 <TabsTrigger value="comments">{t("sidePanel.commentsTab")}</TabsTrigger>
@@ -72,13 +77,15 @@ export const DocumentSidePanel = ({
           )}
 
           <div className="flex-1 overflow-y-auto">
-            <TabsContent
-              value="comments"
-              forceMount
-              className="m-0 h-full p-4 data-[state=inactive]:hidden"
-            >
-              {commentsContent}
-            </TabsContent>
+            {showCommentsTab && (
+              <TabsContent
+                value="comments"
+                forceMount
+                className="m-0 h-full p-4 data-[state=inactive]:hidden"
+              >
+                {commentsContent}
+              </TabsContent>
+            )}
             {showSummaryTab && (
               <TabsContent
                 value="summary"

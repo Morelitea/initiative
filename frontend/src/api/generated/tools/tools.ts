@@ -17,6 +17,7 @@ import type {
   TagSetRequest,
   TagSummary,
   Tool,
+  ToolCommentSettings,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -123,6 +124,115 @@ export const useSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPut = <
 > => {
   return useMutation(
     getSetToolTagsApiV1GGuildIdToolsToolToolIdTagsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Turn the comment thread on any tool entity on or off. Requires write
+ * access, the same level that posting to the thread takes.
+ *
+ * Turning it off keeps the comments that are already there — nothing is
+ * deleted; the thread stops being readable or writable until it is turned
+ * back on. A task's thread is its own and is never affected by its project's
+ * switch.
+ * @summary Set Tool Comment Settings
+ */
+export const setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut = (
+  guildId: number,
+  tool: Tool,
+  toolId: number,
+  toolCommentSettings: BodyType<ToolCommentSettings>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ToolCommentSettings>(
+    {
+      url: `/api/v1/g/${guildId}/tools/${tool}/${toolId}/comments`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: toolCommentSettings,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+    TError,
+    { guildId: number; tool: Tool; toolId: number; data: BodyType<ToolCommentSettings> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+  TError,
+  { guildId: number; tool: Tool; toolId: number; data: BodyType<ToolCommentSettings> },
+  TContext
+> => {
+  const mutationKey = ["setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+    { guildId: number; tool: Tool; toolId: number; data: BodyType<ToolCommentSettings> }
+  > = (props) => {
+    const { guildId, tool, toolId, data } = props ?? {};
+
+    return setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut(
+      guildId,
+      tool,
+      toolId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>
+  >;
+export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationBody =
+  BodyType<ToolCommentSettings>;
+export type SetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Tool Comment Settings
+ */
+export const useSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+      TError,
+      { guildId: number; tool: Tool; toolId: number; data: BodyType<ToolCommentSettings> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut>>,
+  TError,
+  { guildId: number; tool: Tool; toolId: number; data: BodyType<ToolCommentSettings> },
+  TContext
+> => {
+  return useMutation(
+    getSetToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPutMutationOptions(options),
     queryClient
   );
 };
