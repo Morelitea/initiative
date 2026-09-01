@@ -120,7 +120,7 @@ export function Plugins({
           {({ blockType }) => (
             <>
               {/* Desktop toolbar - all options inline */}
-              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted/20 p-1 lg:flex">
+              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex">
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -162,7 +162,7 @@ export function Plugins({
               </div>
 
               {/* Compact toolbar - overflow menu */}
-              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted/20 p-1 lg:hidden">
+              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden">
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -265,7 +265,7 @@ export function Plugins({
       </div>
       {showToolbar && (
         <ActionsPlugin>
-          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted/20 p-1">
+          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted p-1">
             <div className="flex flex-1 justify-start"></div>
             <div>
               <CounterCharacterPlugin charset="UTF-16" />
