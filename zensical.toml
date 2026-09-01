@@ -61,7 +61,7 @@ nav = [
     "en/guides/tags.md",
     "en/guides/your-space.md",
     "en/guides/search-and-shortcuts.md",
-    "en/guides/mentions-links-and-badges.md",
+    "en/guides/mentions-and-links.md",
     "en/guides/notifications.md",
   ] },
   { "Sharing & access" = [

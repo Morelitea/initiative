@@ -49,7 +49,7 @@ The same is true of people's names — you don't have to read the roster to lear
 
 The same search is behind every picker in the app: mentioning something with `#`, linking documents with `[[`, attaching a document to a project, choosing what a badge is about. They all rank their answers and match as you type, for the same reason and in the same way.
 
-See [Mentions, links & badges](mentions-links-and-badges.md).
+See [Mentions & links](mentions-and-links.md).
 
 ## The recent-items tab bar
 

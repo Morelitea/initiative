@@ -2,16 +2,15 @@
 icon: lucide/at-sign
 ---
 
-# Mentions, links & badges
+# Mentions & links
 
-Work refers to other work. A document explains a project, a comment asks about a task, a plan points at the queue it feeds. Initiative gives you three ways to write those references down, and the difference between them is how much they keep up.
+Work refers to other work. A document explains a project, a comment asks about a task, a plan points at the queue it feeds. Initiative gives you three ways to write those references down.
 
-| You type | You get | Keeps up? |
-|---|---|---|
-| `@` | A person, notified | — |
-| `#` | A link to a thing, by name | Follows renames |
-| `[[ ]]` | A link to another document | Follows renames |
-| `/` → a badge | A chip showing what that thing is *doing* | Yes, on its own |
+| You type | You get |
+|---|---|
+| `@` | A person, notified |
+| `#` | A link to a thing, by name |
+| `[[ ]]` | A link to another document |
 
 ## Mentioning a person
 
@@ -46,40 +45,18 @@ If nothing matches what you've typed, you'll be offered the chance to **create**
 
 Every document shows its **backlinks** — the other documents that point at it — so you can see what refers to a page without keeping track yourself.
 
-## Badges: a chip that keeps itself current
-
-A link tells you something exists. A **badge** tells you what it's doing right now.
-
-In a text document, type `/` and pick a badge:
-
-| Badge | Shows |
-|---|---|
-| Task status | The column the task sits in, in that project's colour |
-| Task assignee | Who's holding it |
-| Task due date | When it's due — in red once that's passed, unless the work is finished |
-| Task priority | How urgent it was marked |
-| Counter value | The current number, against its target where it has one |
-| Event date | When it happens, dimmed once it has |
-
-Choose which thing the badge is about, and the chip appears in your sentence:
-
-> Ship the release — **In progress** · **12 Sep**
-
-Move that task to Done and the chip turns green — in this document and every other one that mentions it, without anyone editing a word. Click a badge to open what it's about.
-
-Badges are for text documents. A whiteboard and a spreadsheet hold shapes and cells rather than sentences, so there's nowhere for a chip to sit.
-
-!!! note "What other people see"
-    A badge shows what *you* can see. If a document mentions a task in a project that hasn't been shared with you, the chip shows the name it had when it was written and nothing about its state.
-
 ## Where each one works
 
 - `@` mentions work in **comments**, which every tool has, and in text documents.
 - `#` links work in comments and in text documents.
-- `[[ ]]` links and badges are for **text documents**.
+- `[[ ]]` links are for **text documents**.
+
+Inside a text document you can go further than a link: a **badge** shows what a
+thing is currently doing, and keeps itself current. See
+[Documents](documents.md#badges).
 
 ## Related
 
-- [Documents](documents.md)
+- [Documents](documents.md) — including badges, which are a document feature
 - [Search & shortcuts](search-and-shortcuts.md)
 - [Notifications](notifications.md)
