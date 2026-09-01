@@ -27,6 +27,8 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -68,6 +70,10 @@
   --accent: oklch(0.968 0.007 247.896);
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Finished, and worth noticing. Stated beside --destructive so the three
+     status colours are chosen together and move together. */
+  --success: oklch(0.596 0.145 163.225);
+  --warning: oklch(0.646 0.163 75.834);
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: var(--accent-light-color, 0.208 0.042 265.755);
@@ -102,6 +108,8 @@
   --accent: oklch(0.279 0.041 260.031);
   --accent-foreground: oklch(0.984 0.003 247.858);
   --destructive: oklch(0.704 0.191 22.216);
+  --success: oklch(0.765 0.148 163.223);
+  --warning: oklch(0.828 0.152 84.429);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(var(--accent-dark-color, 0.929 0.013 255.508));

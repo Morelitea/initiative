@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Badges: a chip in a document that keeps itself current.** Type `/` in a document and pick a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip shows what that thing is doing right now — a task moved to Done turns green in every document that mentions it, without anyone editing them. Click one to open what it is about. A chip for something you cannot see falls back to the name it had when it was written, and claims nothing about its state.
+
 - **Name a thing inside a document with `#`.** Typing `#` in a document opens the same picker a comment has, over everything in the initiative — a project, a task, a queue, a counter, a calendar event, a dashboard. Pick one and its name sits in the text as a link that opens it. Naming a kind first (`#task:`) narrows the list, `@` still names a person, and both work as you type. Standard documents only: a whiteboard and a spreadsheet hold shapes and cells rather than prose.
 
 - **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the community home's recent-comments feed shows what each comment drew.
