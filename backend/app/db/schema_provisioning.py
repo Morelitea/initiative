@@ -179,6 +179,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         )
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
         from app.db.search_index import (
+            DEPENDENT_FUNCTION_SQL,
             SEARCH_FUNCTION_SQL,
             WRITE_FUNCTION_SQL,
             render_guild_search_ddl,
@@ -200,6 +201,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         digest.update(search_ddl.encode())
         digest.update(SEARCH_FUNCTION_SQL.encode())
         digest.update(WRITE_FUNCTION_SQL.encode())
+        digest.update(DEPENDENT_FUNCTION_SQL.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -299,16 +301,22 @@ async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     on the next boot rather than needing a migration per edit), then the
     per-table triggers, both idempotent.
     """
-    from app.db.search_index import SEARCH_FUNCTION_SQL, WRITE_FUNCTION_SQL
+    from app.db.search_index import (
+        DEPENDENT_FUNCTION_SQL,
+        SEARCH_FUNCTION_SQL,
+        WRITE_FUNCTION_SQL,
+    )
 
     ddl = (await get_provisioning_bundle()).search_ddl
     raw = await conn.get_raw_connection()
-    # The write function first: the trigger function calls it.
+    # The write function first: both trigger functions call it.
     await raw.driver_connection.execute(
         "SET check_function_bodies = false;\n"
         + WRITE_FUNCTION_SQL
         + "\n"
         + SEARCH_FUNCTION_SQL
+        + "\n"
+        + DEPENDENT_FUNCTION_SQL
     )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'

@@ -30,5 +30,6 @@
     "tag": "Tag",
     "comment": "Comment"
   },
-  "switchHint": "Tab to switch"
+  "switchHint": "Tab to switch",
+  "closeMatches": "Nothing matches “{{query}}” exactly. These are the closest."
 }

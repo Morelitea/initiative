@@ -43,6 +43,26 @@ COMMENT_PREVIEW_CHARS = 140
 
 
 @dataclass(frozen=True)
+class SearchDependency:
+    """A column on ANOTHER table that a source's stored gate is derived from.
+
+    Almost every source names its parent in a column of its own, so its own
+    trigger fires when that parent changes. A comment does not: it names a task,
+    and the tool governing it is the task's PROJECT — so a task moving between
+    projects moves the comment without touching the comment's row. Declared here,
+    it gets a trigger on the table that moved, rewriting the entries that
+    followed it.
+    """
+
+    #: The table whose column moves rows between gates.
+    table: str
+    #: The column on it that does the moving.
+    column: str
+    #: How the dependent source's rows tie back to it.
+    local_column: str
+
+
+@dataclass(frozen=True)
 class SearchSource:
     """How one table's rows become search entries."""
 
@@ -73,6 +93,8 @@ class SearchSource:
     #: Whether this source is searched when the caller names no types. False
     #: puts the source behind an explicit opt-in and out of the default index.
     in_default_scope: bool = True
+    #: Columns on other tables that move these rows between gates.
+    depends_on: tuple[SearchDependency, ...] = ()
 
     @property
     def trigger_name(self) -> str:
@@ -193,9 +215,9 @@ def _body_expr(source: "SearchSource", row: str = ROW) -> str:
 
 #: table -> how its rows are indexed.
 #:
-#: ``comments`` is deliberately absent for now: it resolves its tool per row and
-#: is the highest-volume source, so it arrives with the toggle and the partial
-#: index that keep it off the default scope.
+#: ``comments`` resolves its tool per row — see :func:`_comment_dac` — and is the
+#: only source outside the default scope: it is the highest-volume table in an
+#: active community, and the tab that shows it names the type.
 SEARCH_SOURCES: dict[str, SearchSource] = {
     "projects": SearchSource(
         SearchEntityType.project,
@@ -271,6 +293,11 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         body=("content",),
         dac_sql=_comment_dac,
         in_default_scope=False,
+        # A comment on a task is governed by the task's project, and a task can
+        # move between projects. Nothing about the comment changes when it does,
+        # so the entry is rewritten from the table that moved. Every other
+        # parent names its own initiative and cannot move between them.
+        depends_on=(SearchDependency("tasks", "project_id", "task_id"),),
     ),
 }
 
@@ -489,6 +516,79 @@ def _dac_exprs(source: SearchSource) -> tuple[str, str]:
     return f"'{source.dac_tool.value}'::text", dac_id
 
 
+DEPENDENT_FUNCTION = "public.refresh_search_dependents"
+
+#: Rewrites the entries of rows that moved because a column on ANOTHER table
+#: changed. The statement is rendered per dependency and passed whole, so a row
+#: rewritten here goes through the same expressions as one rewritten by its own
+#: trigger or by the sweep.
+DEPENDENT_FUNCTION_SQL = """
+CREATE OR REPLACE FUNCTION {fn}() RETURNS trigger
+    LANGUAGE plpgsql AS $dep$
+BEGIN
+    EXECUTE TG_ARGV[0] USING TG_TABLE_SCHEMA, NEW.id;
+    RETURN NULL;
+END
+$dep$;
+""".format(fn=DEPENDENT_FUNCTION)
+
+
+def _live_clause(table: str, row: str) -> str:
+    """Restricts to rows that have an entry at all — trash is browsed through
+    the trash surface, not found by searching."""
+    columns = SQLModel.metadata.tables[table].columns
+    return f" AND {row}.deleted_at IS NULL" if "deleted_at" in columns else ""
+
+
+def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
+    """The ``search_entry_write`` call for one row of a source, as SQL.
+
+    The sweep and the dependency triggers both go through this, so a row
+    rewritten by either is written identically.
+    """
+    dac_tool_expr, dac_id_expr = _dac_exprs(source)
+    dac_tool = dac_tool_expr.replace(ROW, row) if dac_tool_expr else "NULL::text"
+    dac_id = (
+        f"({dac_id_expr.replace(ROW, row)})::integer"
+        if dac_id_expr
+        else "NULL::integer"
+    )
+    body = _body_expr(source, row) or "''"
+    return (
+        f"{WRITE_FUNCTION}({schema}, '{source.entity_type.value}', {row}.id,"
+        f" ({initiative_locator(table)(row)})::integer,"
+        f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body})"
+    )
+
+
+def _dependency_block(
+    table: str, source: SearchSource, dependency: SearchDependency
+) -> str:
+    """DDL for the trigger that rewrites entries when a row moves under them.
+
+    ``$1`` is the guild schema and ``$2`` the id of the row that moved. The
+    dependent table is named unqualified, as every other rendered expression is:
+    the trigger runs with its own schema first on the search path.
+    """
+    row = "t"
+    statement = (
+        f"SELECT {_write_call(table, source, row, '$1')}"  # noqa: S608 — rendered
+        f" FROM {table} {row}"
+        f" WHERE {row}.{dependency.local_column} = $2{_live_clause(table, row)}"
+    )
+    name = f"{source.trigger_name}_from_{dependency.table}"
+    return "\n".join(
+        [
+            f"DROP TRIGGER IF EXISTS {name} ON {dependency.table};",
+            f"CREATE TRIGGER {name}",
+            f"  AFTER UPDATE ON {dependency.table}",
+            f"  FOR EACH ROW WHEN (OLD.{dependency.column} "
+            f"IS DISTINCT FROM NEW.{dependency.column})",
+            f"  EXECUTE FUNCTION {DEPENDENT_FUNCTION}({_quoted(statement)});",
+        ]
+    )
+
+
 def _call_args(table: str, source: SearchSource) -> list[str]:
     """The seven trigger arguments, shared by both triggers on a table."""
     locator = initiative_locator(table)
@@ -611,6 +711,11 @@ def render_guild_search_ddl(opclass: str | None = None) -> str:
         _trigger_block(table, source)
         for table, source in sorted(SEARCH_SOURCES.items())
     ]
+    blocks.extend(
+        _dependency_block(table, source, dependency)
+        for table, source in sorted(SEARCH_SOURCES.items())
+        for dependency in source.depends_on
+    )
     blocks.append(_entity_type_check_block())
     blocks.append(_index_block(opclass))
     return _HEADER + "\n\n" + "\n\n".join(blocks) + "\n"
@@ -640,23 +745,11 @@ def reindex_statement(table: str, source: SearchSource) -> str:
     bounded transactions rather than one.
     """
     row = "t"
-    columns = SQLModel.metadata.tables[table].columns
-    dac_tool_expr, dac_id_expr = _dac_exprs(source)
-    dac_tool = dac_tool_expr.replace(ROW, row) if dac_tool_expr else "NULL::text"
-    dac_id = (
-        f"({dac_id_expr.replace(ROW, row)})::integer"
-        if dac_id_expr
-        else "NULL::integer"
-    )
-    body = _body_expr(source, row) or "''"
-    live = " AND t.deleted_at IS NULL" if "deleted_at" in columns else ""
     return (
-        f"SELECT {row}.id AS id, {WRITE_FUNCTION}("  # noqa: S608 — registry-rendered
-        f":schema, '{source.entity_type.value}', {row}.id,"
-        f" ({initiative_locator(table)(row)})::integer,"
-        f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body})"
+        f"SELECT {row}.id AS id,"  # noqa: S608 — registry-rendered
+        f" {_write_call(table, source, row, ':schema')}"
         f" FROM {table} {row}"
-        f" WHERE {row}.id > :cursor{live}"
+        f" WHERE {row}.id > :cursor{_live_clause(table, row)}"
         f" ORDER BY {row}.id LIMIT :batch"
         # Locks each row for the duration of the write, so the values written
         # are the row's current ones: a concurrent write to the same row

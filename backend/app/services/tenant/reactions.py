@@ -420,6 +420,6 @@ async def purge_comment_reactions(
     """The purge hook for comments — called from ``hard_purge_entity``."""
     await purge_reactions_for(
         target=ReactionTarget.comment,
-        target_ids=[cast(int, c.id) for c in comments if c.id is not None],
+        target_ids=[c.id for c in comments if c.id is not None],
         session=session,
     )

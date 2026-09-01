@@ -30,5 +30,6 @@
     "tag": "Etiqueta",
     "comment": "Comentario"
   },
-  "switchHint": "Tab para cambiar"
+  "switchHint": "Tab para cambiar",
+  "closeMatches": "Nada coincide exactamente con «{{query}}». Esto es lo más parecido."
 }

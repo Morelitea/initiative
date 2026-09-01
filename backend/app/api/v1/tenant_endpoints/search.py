@@ -43,6 +43,14 @@ async def search_guild(
     initiative_id: Optional[int] = Query(
         default=None, description="Restrict to one initiative."
     ),
+    close_matches: bool = Query(
+        default=True,
+        description=(
+            "When nothing matches exactly, answer with the closest titles "
+            "instead of an empty page. Turn it off where the question is only "
+            "whether anything is here, which should not pay for a suggestion."
+        ),
+    ),
     limit: int = Query(default=20, ge=1, le=search_service.MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
 ) -> SearchResults:
@@ -58,6 +66,7 @@ async def search_guild(
         guild_id=guild_context.guild_id,
         types=types,
         initiative_id=initiative_id,
+        close_matches=close_matches,
         limit=limit,
         offset=offset,
     )

@@ -168,6 +168,25 @@ async def test_a_comment_on_a_document_is_shared_as_that_document(session, actin
     assert rows[0].dac_id == document.id
 
 
+async def test_moving_a_task_moves_the_comments_on_it(session, acting_user):
+    """A comment's gate is derived from its task's project, and a task can
+    move. The comment row does not change when it does, so nothing would
+    rewrite its entry — leaving searchable text answering to the project it
+    used to be under."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    elsewhere = await create_project(session, a.initiative, a.user, name="Elsewhere")
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task, content="ordered timber")
+
+    task.project_id = elsewhere.id  # ty: ignore[invalid-assignment] — persisted
+    session.add(task)
+    await session.commit()
+
+    rows = await _entries(session, a.guild.id, "comment", comment.id)
+    assert rows, "the comment lost its entry when its task moved"
+    assert rows[0].dac_id == elsewhere.id
+
+
 async def test_a_long_comment_is_shown_by_its_opening(session, acting_user):
     """Storing the whole of one would put an essay where a name goes."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)

@@ -226,6 +226,23 @@ describe("the guild search page", () => {
     expect(screen.queryByText(/No results for/)).not.toBeInTheDocument();
   });
 
+  it("says so when it is showing close matches rather than what was asked", async () => {
+    // Whole-word matching cannot answer a misspelling. Offering the closest
+    // titles is better than an empty page, as long as the reader is told which
+    // of the two they got.
+    mocks.search.mockImplementation((params: SearchParams) => ({
+      data: buildSearchResults(params.types?.includes("tag") ? [] : [project()], {
+        fuzzy: !params.types?.includes("tag"),
+      }),
+      isLoading: false,
+      isFetched: true,
+    }));
+    await renderSearch({ q: "riversde" });
+
+    expect(await screen.findByText(/Nothing matches/)).toHaveTextContent("riversde");
+    expect(screen.getByRole("link", { name: /Riverside kickoff/ })).toBeInTheDocument();
+  });
+
   it("draws no conclusion from a total that belongs to the query before it", async () => {
     // Arriving on page 3 of a fresh query while the previous query's results
     // are still on screen. That query's total belongs to the query that is
@@ -258,8 +275,8 @@ describe("the command palette", () => {
     expect(screen.getByRole("tab", { name: "Comments" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Tags" })).toBeInTheDocument();
 
-    // Tab reaches the dialog, not the strip, so the hands stay on the query.
-    fireEvent.keyDown(document, { key: "Tab" });
+    // Tab from the input moves between slices, so the hands stay on the query.
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
     await waitFor(() =>
       expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute("aria-selected", "true")
     );
@@ -267,6 +284,12 @@ describe("the command palette", () => {
       expect.any(String),
       expect.objectContaining({ types: ["comment"] })
     );
+
+    // Shift+Tab is left alone, so focus can still walk out of the input and
+    // reach the strip, the results and the close button by keyboard.
+    const before = screen.getByRole("tab", { selected: true }).textContent;
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab", shiftKey: true });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(before ?? "");
   });
 
   it("answers from the index once there is a query, and offers the whole page", async () => {

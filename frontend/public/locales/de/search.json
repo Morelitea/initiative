@@ -30,5 +30,6 @@
     "tag": "Tag",
     "comment": "Kommentar"
   },
-  "switchHint": "Tab zum Wechseln"
+  "switchHint": "Tab zum Wechseln",
+  "closeMatches": "Nichts passt genau zu „{{query}}“. Das hier kommt am nächsten."
 }

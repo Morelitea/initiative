@@ -149,7 +149,13 @@ async def test_it_can_be_narrowed_by_type_and_initiative(
 async def test_an_empty_query_is_not_an_error(client, acting_user: ActingUser) -> None:
     a = await acting_user(guild_role=GuildRole.admin)
     body = await _search(client, a, q="   ")
-    assert body == {"items": [], "total": 0, "limit": 20, "offset": 0}
+    assert body == {
+        "items": [],
+        "total": 0,
+        "limit": 20,
+        "offset": 0,
+        "fuzzy": False,
+    }
 
 
 async def test_suggest_returns_titles_to_jump_to(
@@ -228,6 +234,111 @@ async def test_an_unknown_type_is_refused_rather_than_ignored(
         a.g("/search/"), headers=a.headers, params={"q": "x", "types": ["invoice"]}
     )
     assert response.status_code == 422, response.text
+
+
+async def test_the_last_word_matches_as_a_prefix(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A results page searches as its reader types, so the word being typed is
+    usually half-finished. Whole-word matching alone reads as nothing found."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="Barricade the Throne")
+
+    for query in ("thro", "barricade thro"):
+        response = await client.get(
+            a.g("/search/"), headers=a.headers, params={"q": query}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == 1, f"{query} found nothing"
+
+
+async def test_what_the_reader_asked_for_exactly_is_left_exact(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A quoted phrase and an exclusion are deliberate, so neither is widened
+    into a prefix.
+
+    Asked without the close-match fallback, so what is measured is the parsing
+    and not the suggestion that would otherwise answer for it.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="Barricade the Throne")
+
+    for query in ('"barricade thro"', "barricade -throne"):
+        response = await client.get(
+            a.g("/search/"),
+            headers=a.headers,
+            params={"q": query, "close_matches": "false"},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == 0, f"{query} was widened"
+
+
+async def test_a_typo_is_offered_the_closest_titles(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Whole-word matching cannot answer a misspelling, so a search that finds
+    nothing offers what is closest — flagged, so the reader is told which of
+    the two they are reading."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="Barricade the Throne")
+
+    response = await client.get(
+        a.g("/search/"), headers=a.headers, params={"q": "thrne"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["fuzzy"] is True
+    assert body["items"][0]["title"] == "Barricade the Throne"
+
+
+async def test_a_search_that_works_is_never_flagged_as_close(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The suggestion never blends into a search that worked."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="Barricade the Throne")
+
+    response = await client.get(
+        a.g("/search/"), headers=a.headers, params={"q": "throne"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["fuzzy"] is False
+
+
+async def test_a_caller_that_only_asks_whether_anything_is_here_pays_less(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The tab strip asks each slice whether it holds anything. Offering it a
+    suggestion would make it read as holding something, and would run the
+    close-match scan once per tab."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="Barricade the Throne")
+
+    response = await client.get(
+        a.g("/search/"),
+        headers=a.headers,
+        params={"q": "thrne", "close_matches": "false"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["items"] == []
+    assert body["fuzzy"] is False
+
+
+async def test_nothing_close_stays_nothing(
+    client, session, acting_user: ActingUser
+) -> None:
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="Barricade the Throne")
+
+    response = await client.get(
+        a.g("/search/"), headers=a.headers, params={"q": "zzzzqqq"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["items"] == []
+    assert body["fuzzy"] is False
 
 
 async def test_a_non_member_cannot_search_the_guild(

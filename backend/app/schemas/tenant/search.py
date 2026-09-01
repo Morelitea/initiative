@@ -35,6 +35,9 @@ class SearchResults(BaseModel):
     total: int
     limit: int
     offset: int
+    #: True when nothing matched what was typed and these are the closest
+    #: titles instead — so a reader is told which of the two they are reading.
+    fuzzy: bool = False
 
 
 class SearchSuggestion(BaseModel):

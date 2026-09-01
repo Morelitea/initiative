@@ -99,18 +99,22 @@ export function CommandCenter() {
     }
   }, [open]);
 
-  // Tab moves between the slices while there is something to search for. It
-  // reaches the dialog rather than the tab strip, so the hands stay on the
-  // query the whole time.
+  // Tab moves between the slices while there is something to search for, so the
+  // hands stay on the query.
+  //
+  // Only forward, and only from the input: Shift+Tab is left alone, so focus
+  // can still walk the dialog and reach the strip, the close button and
+  // everything else by keyboard.
   useEffect(() => {
     if (!open || !isSearching) return;
     const handleTab = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || event.shiftKey) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.hasAttribute("cmdk-input")) return;
       event.preventDefault();
       setScope((current) => {
-        const step = event.shiftKey ? -1 : 1;
-        const next = SEARCH_CATEGORIES.indexOf(current) + step;
-        return SEARCH_CATEGORIES[(next + SEARCH_CATEGORIES.length) % SEARCH_CATEGORIES.length];
+        const next = SEARCH_CATEGORIES.indexOf(current) + 1;
+        return SEARCH_CATEGORIES[next % SEARCH_CATEGORIES.length];
       });
     };
     document.addEventListener("keydown", handleTab);

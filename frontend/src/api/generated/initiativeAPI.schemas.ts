@@ -4297,6 +4297,7 @@ export interface SearchResults {
   total: number;
   limit: number;
   offset: number;
+  fuzzy?: boolean;
 }
 
 /**
@@ -6295,6 +6296,10 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
    * Restrict to one initiative.
    */
   initiative_id?: number | null;
+  /**
+   * When nothing matches exactly, answer with the closest titles instead of an empty page. Turn it off where the question is only whether anything is here, which should not pay for a suggestion.
+   */
+  close_matches?: boolean;
   /**
    * @minimum 1
    * @maximum 100
