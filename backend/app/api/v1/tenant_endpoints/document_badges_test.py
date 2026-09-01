@@ -18,7 +18,7 @@ from app.models.platform.guild import GuildRole
 from sqlmodel import select
 
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
-from app.services.tenant.document_badges import BADGE_SOURCES
+from app.services.tenant.document_badges import _ACCESS, _ID_COLUMNS, BADGE_SOURCES
 from app.testing import (
     Actor,
     create_calendar,
@@ -302,3 +302,80 @@ def test_the_pairs_the_api_declares_are_the_pairs_that_exist():
     assert {kind.value for kind in BadgeKind} == {
         kind_value(entity_type, aspect) for entity_type, aspect in BADGE_KINDS
     }
+
+
+async def test_a_chip_stops_at_the_sharing_gate_not_just_the_initiative(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Being in the initiative is not being given the project.
+
+    A badge is live state, so it answers under every gate the thing itself
+    answers under — the same reading the search index takes.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(session, a.project, title="restricted renewal")
+
+    assert (await _badges(client, a, f"task:{task.id}:status")) != {}
+    assert await _badges(client, b, f"task:{task.id}:status") == {}
+
+
+def test_every_badgeable_thing_declares_how_it_is_gated():
+    """A badge reads live state, so every kind must say which resource governs
+    it. A kind with no entry here would be answered ungated."""
+    assert set(_ACCESS) == {entity_type for entity_type, _aspect in BADGE_KINDS}
+    assert set(_ACCESS) == set(_ID_COLUMNS)
+
+
+@pytest.mark.parametrize("aspect", ["status", "assignee", "due", "priority"])
+async def test_no_task_badge_answers_without_the_project(
+    client, session, acting_user: ActingUser, aspect: str
+) -> None:
+    """Walked per aspect: the gate is applied once for the thing, so adding a
+    fifth fact about a task cannot open a hole."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    task = await create_task(session, a.project, title="restricted")
+
+    assert await _badges(client, b, f"task:{task.id}:{aspect}") == {}
+
+
+async def test_a_chip_follows_the_thing_own_sharing_either_way(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The gate is the resource's own sharing, not a rule badges invented.
+
+    A counter group is the creator's until they share it, so a fellow member
+    reads nothing. A calendar is shared with the initiative when it is made, so
+    the same member reads its events. Both are the same check.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group)
+    calendar = await create_calendar(session, a.initiative, a.user)
+    event = await create_calendar_event(session, calendar, a.user)
+
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    body = await _badges(
+        client,
+        b,
+        f"counter:{counter.id}:value",
+        f"calendar_event:{event.id}:when",
+    )
+    assert f"counter:{counter.id}:value" not in body
+    assert f"calendar_event:{event.id}:when" in body

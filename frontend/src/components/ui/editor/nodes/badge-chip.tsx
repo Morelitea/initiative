@@ -24,13 +24,16 @@ interface BadgeChipProps {
  * document with thirty of these still makes a single call.
  */
 export function BadgeChip({ badgeKind, entityId, fallback }: BadgeChipProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation("documents");
   const navigate = useNavigate();
   const guildId = useActiveGuildId();
   const state = useBadgeState(badgeRef(badgeKind, entityId));
 
-  const display = badgeDisplay(fallback, state, (iso) =>
-    new Date(iso).toLocaleDateString(i18n.language, { month: "short", day: "numeric" })
+  const display = badgeDisplay(
+    fallback,
+    state,
+    (iso) => new Date(iso).toLocaleDateString(i18n.language, { month: "short", day: "numeric" }),
+    t("badges.none")
   );
 
   const refType = entityRefTypeFor(badgeEntityType(badgeKind));

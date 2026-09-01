@@ -23,6 +23,10 @@ const SEPARATOR = ":";
 /** Every badge that can be inserted, in menu order. */
 export const BADGE_KINDS: BadgeKind[] = Object.values(BadgeKind);
 
+/** Whether a stored string still names a badge this build offers. */
+export const isBadgeKind = (value: string): value is BadgeKind =>
+  (BADGE_KINDS as string[]).includes(value);
+
 /** The thing a badge is about. */
 export const badgeEntityType = (kind: BadgeKind): SearchEntityType =>
   kind.split(SEPARATOR)[0] as SearchEntityType;
@@ -70,16 +74,24 @@ export interface BadgeDisplay {
 export const badgeDisplay = (
   fallback: string,
   state: BadgeState | undefined,
-  formatDate: (iso: string) => string
+  formatDate: (iso: string) => string,
+  emptyLabel: string
 ): BadgeDisplay => {
+  // Nothing came back: the thing is gone, or out of this reader's reach. The
+  // label the document stored is all there is to show.
   if (!state) {
     return { text: fallback, className: BADGE_TONE_CLASSES[BadgeTone.muted] };
   }
+  // An answered chip with nothing in it — an unassigned task, a date not set —
+  // says so. Falling back to the stored label here would put the task's title
+  // where its assignee goes.
+  if (!state.text && !state.date && state.number == null) {
+    return { text: emptyLabel, className: BADGE_TONE_CLASSES[state.tone] };
+  }
   // A date and a number belong in the reader's locale, which only the browser
   // knows; the server's `text` is what stands in until it is formatted.
-  const text = state.date ? formatDate(state.date) : state.text || fallback;
   return {
-    text,
+    text: state.date ? formatDate(state.date) : state.text,
     className: BADGE_TONE_CLASSES[state.tone],
     color: state.color ?? undefined,
   };

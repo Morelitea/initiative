@@ -32,7 +32,7 @@ _REF_DESCRIPTION = (
 @router.get("/", response_model=BadgeStateList)
 async def read_badges(
     session: RLSSessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     _guild_context: GuildContextDep,
     ref: List[str] = Query(
         default=[], max_length=badges_service.MAX_REFS, description=_REF_DESCRIPTION
@@ -44,4 +44,10 @@ async def read_badges(
     see, is absent from the answer — the two are the same reply, and the chip
     falls back to the words the document stored beside it.
     """
-    return BadgeStateList(items=await badges_service.read_badges(session, refs=ref))
+    return BadgeStateList(
+        items=await badges_service.read_badges(
+            session,
+            user_id=current_user.id,
+            refs=ref,
+        )
+    )

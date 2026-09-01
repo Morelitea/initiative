@@ -6,6 +6,7 @@
   "badges": {
     "counterValue": "Zählerstand",
     "eventWhen": "Termindatum",
+    "none": "Keine",
     "searchPlaceholder": "Suche etwas zum Anzeigen",
     "taskAssignee": "Zuständige Person",
     "taskDue": "Fälligkeitsdatum",

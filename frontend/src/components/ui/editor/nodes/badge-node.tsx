@@ -15,6 +15,8 @@
 
 import {
   DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
   type DOMExportOutput,
   type LexicalNode,
   type NodeKey,
@@ -24,8 +26,8 @@ import {
 import type { JSX } from "react";
 
 import type { BadgeKind } from "@/api/generated/initiativeAPI.schemas";
-import { BadgeChip } from "@/components/ui/editor/nodes/BadgeChip";
-import { badgeRef } from "@/lib/badges";
+import { BadgeChip } from "@/components/ui/editor/nodes/badge-chip";
+import { badgeRef, isBadgeKind } from "@/lib/badges";
 
 export type SerializedBadgeNode = Spread<
   {
@@ -40,6 +42,17 @@ export type SerializedBadgeNode = Spread<
 
 const BADGE_ATTR = "data-lexical-badge";
 const ENTITY_ATTR = "data-entity-id";
+
+function $convertBadgeElement(domNode: HTMLElement): DOMConversionOutput | null {
+  const badgeKind = domNode.getAttribute(BADGE_ATTR);
+  const entityId = Number(domNode.getAttribute(ENTITY_ATTR));
+  // A pair this build does not know, or an id that is not one, is left as the
+  // text it was rendering — better a stale word than a chip pointing nowhere.
+  if (!badgeKind || !isBadgeKind(badgeKind) || !Number.isFinite(entityId)) return null;
+  return {
+    node: $createBadgeNode(badgeKind, entityId, domNode.textContent ?? ""),
+  };
+}
 
 export class BadgeNode extends DecoratorNode<JSX.Element> {
   __badgeKind: BadgeKind;
@@ -105,6 +118,18 @@ export class BadgeNode extends DecoratorNode<JSX.Element> {
     element.setAttribute(ENTITY_ATTR, String(this.__entityId));
     element.textContent = this.__text;
     return { element };
+  }
+
+  /** Reads back what `exportDOM` wrote, so a badge survives being copied and
+   *  pasted as a live chip rather than arriving as the words it happened to
+   *  show. */
+  static importDOM(): DOMConversionMap | null {
+    return {
+      span: (domNode: HTMLElement) => {
+        if (!domNode.hasAttribute(BADGE_ATTR)) return null;
+        return { conversion: $convertBadgeElement, priority: 1 };
+      },
+    };
   }
 
   /** Inline: a badge sits in a sentence, not between paragraphs. */

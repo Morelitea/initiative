@@ -6,6 +6,7 @@
   "badges": {
     "counterValue": "Counter value",
     "eventWhen": "Event date",
+    "none": "None",
     "searchPlaceholder": "Search for something to show",
     "taskAssignee": "Task assignee",
     "taskDue": "Task due date",

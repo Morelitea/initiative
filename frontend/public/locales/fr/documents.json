@@ -6,6 +6,7 @@
   "badges": {
     "counterValue": "Valeur du compteur",
     "eventWhen": "Date de l'événement",
+    "none": "Aucun",
     "searchPlaceholder": "Cherchez quelque chose à afficher",
     "taskAssignee": "Personne assignée",
     "taskDue": "Date d'échéance",

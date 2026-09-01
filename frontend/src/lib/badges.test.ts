@@ -8,6 +8,7 @@ import {
   badgeDisplay,
   badgeEntityType,
   badgeRef,
+  isBadgeKind,
 } from "@/lib/badges";
 
 const iso = (date: string) => new Date(date).toISOString();
@@ -45,9 +46,20 @@ describe("what a badge is about", () => {
   });
 });
 
+describe("reading a pair back", () => {
+  it("recognises one this build offers", () => {
+    expect(isBadgeKind("task:status")).toBe(true);
+  });
+
+  it("refuses one it does not, so a paste cannot make a chip pointing nowhere", () => {
+    expect(isBadgeKind("project:openTasks")).toBe(false);
+    expect(isBadgeKind("")).toBe(false);
+  });
+});
+
 describe("what a chip shows", () => {
   it("falls back to the stored label when the thing cannot be read", () => {
-    const display = badgeDisplay("Ship the release", undefined, formatDate);
+    const display = badgeDisplay("Ship the release", undefined, formatDate, "None");
     expect(display.text).toBe("Ship the release");
     expect(display.className).toBe(BADGE_TONE_CLASSES[BadgeTone.muted]);
   });
@@ -56,7 +68,8 @@ describe("what a chip shows", () => {
     const display = badgeDisplay(
       "Ship the release",
       { ref: "task:1:status", kind: BadgeKind["task:status"], text: "Done", tone: BadgeTone.good },
-      formatDate
+      formatDate,
+      "None"
     );
     expect(display.text).toBe("Done");
     expect(display.className).toBe(BADGE_TONE_CLASSES[BadgeTone.good]);
@@ -72,7 +85,8 @@ describe("what a chip shows", () => {
         tone: BadgeTone.neutral,
         color: "#FF00AA",
       },
-      formatDate
+      formatDate,
+      "None"
     );
     expect(display.color).toBe("#FF00AA");
   });
@@ -87,8 +101,27 @@ describe("what a chip shows", () => {
         tone: BadgeTone.neutral,
         date: iso("2026-09-12T10:00:00Z"),
       },
-      formatDate
+      formatDate,
+      "None"
     );
     expect(display.text).toBe("formatted");
+  });
+});
+
+describe("a chip that was answered with nothing", () => {
+  it("says so rather than showing the label beside it", () => {
+    // An unassigned task must not render its own title where the person goes.
+    const display = badgeDisplay(
+      "Ship the release",
+      {
+        ref: "task:1:assignee",
+        kind: BadgeKind["task:assignee"],
+        text: "",
+        tone: BadgeTone.muted,
+      },
+      formatDate,
+      "None"
+    );
+    expect(display.text).toBe("None");
   });
 });
