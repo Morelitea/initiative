@@ -18,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Search now reaches everything in a community, and reads inside it.** Search was a fuzzy match over the names already loaded in the browser, so it found only what the page had fetched, and only by title. There is now a community-wide index behind ⌘K and a results page of its own: projects, tasks, documents, queues and their items, counter groups and counters, calendars and events, dashboards, and tags — matched on names, on descriptions, and on the text inside a document, including the labels on a whiteboard, the cells of a spreadsheet, and where a linked page points. Results are ranked, show the line that matched, and go straight to the thing they found; they open on Tools, with Tags a tab away, so one kind cannot crowd out the rest. Every tool's own filter box reads the same index, so page four of a community's projects is now reachable from the search box, and nothing is ever returned that you could not already open.
 
 - **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
-
 ### Changed
 
 - **Toasts stay up only as long as they take to read.** Every notification held the screen for a fixed five seconds after Chester finished typing it — a long wait for "Saved", and a short one for a paragraph of error text. The wait is now worked out from the message itself: a moment to notice it, plus reading time for what it says. Warnings and errors are held longer, a toast with a button on it gets time to press it, and there is a ceiling so nothing camps on the screen.
@@ -42,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A new install's first community is now called "Primary Community".** It was still called "Primary Guild" — the one place the old word survived the rename. Existing communities are untouched; this only changes what a fresh install starts with.
 
 ### Fixed
+
+- **A task description with a code block no longer stretches its board card out of the column.** Code fences, tables, images and unbroken strings were rendered at whatever width they wanted, so one task with a snippet in its description pushed its card past the edge of the column and left the whole board scrolling sideways. Code now wraps, wide tables and images stay inside the card, and a long title breaks rather than pushing. The same containment applies everywhere a description is rendered, so the task detail page and the hover preview get it too — and code blocks and inline code now read as code, on a tinted, rounded background.
 
 - **Renaming a spreadsheet sheet keeps what you type.** The tab's rename box re-selected the whole name after every keystroke, so each new character wiped out the one before it and the sheet ended up named after the last letter typed. The name is now selected once when the box opens, as intended, and typing behaves normally from there.
 
