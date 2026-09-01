@@ -34,8 +34,8 @@ const autoJoinSwitch = () => screen.queryByLabelText(AUTO_JOIN_LABEL);
 function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [number, string]) {
   const patches: unknown[] = [];
   server.use(
-    guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides })])
+    guildHttp.get("/initiatives/:id", () =>
+      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides }))
     ),
     guildHttp.patch("/initiatives/:id", async ({ request }) => {
       const body = await request.json();

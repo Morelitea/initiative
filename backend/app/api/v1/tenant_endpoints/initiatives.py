@@ -40,6 +40,7 @@ from app.schemas.tenant.initiative import (
     InitiativeDirectoryEntry,
     InitiativeJoinRequestCreate,
     InitiativeJoinRequestRead,
+    InitiativeListScope,
     InitiativeMemberAdd,
     InitiativeMemberUpdate,
     InitiativeRead,
@@ -70,6 +71,12 @@ GuildAdminContext = Annotated[
 ]
 
 router = APIRouter()
+
+
+def _reaches_whole_guild(guild_context: GuildContext) -> bool:
+    """Whether this request reads every initiative in the guild without holding
+    a membership row: a guild admin, or a live PAM / break-glass grantee."""
+    return guild_context.is_pam or rls_service.is_guild_admin(guild_context.role)
 
 
 async def _get_initiative_or_404(
@@ -198,17 +205,45 @@ async def list_initiatives(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    scope: Annotated[InitiativeListScope, Query()] = InitiativeListScope.member,
 ) -> List[InitiativeRead]:
+    """The initiatives the caller belongs to, or — for a guild admin asking for
+    ``scope=guild`` — every initiative in the guild.
+
+    The default is the caller's own workspace: what the sidebar and the
+    initiative pickers show. A guild admin's authority over their whole guild is
+    unchanged; it simply no longer decides what appears in their navigation.
+    They bring an initiative into it by taking the project manager role from the
+    guild-settings initiative table, which is also what ``scope=guild`` feeds.
+    """
+    if scope is InitiativeListScope.guild and not rls_service.is_guild_admin(
+        guild_context.role
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+        )
+
     # `initiatives` is a structural table (not initiative-RLS-gated), so scope it
-    # in the query with the ONE access rule — initiative_scope_clause defers to
-    # public.initiative_access (admin OR PAM OR member, from the request GUCs),
-    # the same predicate the content-table RLS uses — instead of re-deriving the
-    # admin/PAM/member split here.
+    # in the query. The guild-wide listing uses the ONE access rule —
+    # initiative_scope_clause defers to public.initiative_access (admin OR PAM OR
+    # member, from the request GUCs), the same predicate the content-table RLS
+    # uses. A time-bound grantee holds no memberships in the guild, so their
+    # session stays on that predicate too: the grant is what they navigate by.
+    if scope is InitiativeListScope.guild or guild_context.is_pam:
+        scope_clause = initiative_scope_clause(current_user.id, Initiative.id)
+    else:
+        scope_clause = Initiative.id.in_(
+            select(InitiativeMember.initiative_id).where(
+                InitiativeMember.user_id == current_user.id
+            )
+        )
+
     statement = (
         select(Initiative)
         .where(
             Initiative.guild_id == guild_context.guild_id,
-            initiative_scope_clause(current_user.id, Initiative.id),
+            scope_clause,
         )
         .options(
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
@@ -646,8 +681,10 @@ async def get_initiative(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
         )
-    # Check access: must be guild admin or initiative member
-    if not rls_service.is_guild_admin(guild_context.role):
+    # Reachable by an initiative member, by a guild admin (the same override the
+    # RLS admin leg grants), and by a PAM / break-glass grantee — who holds no
+    # membership row in this guild and reads it through the grant for its window.
+    if not _reaches_whole_guild(guild_context):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(
@@ -841,8 +878,8 @@ async def list_initiative_roles(
         initiative_id, session, guild_context.guild_id
     )
 
-    # Check access: must be guild admin or initiative member
-    if not rls_service.is_guild_admin(guild_context.role):
+    # Same readership as the initiative itself: member, guild admin, or grantee.
+    if not _reaches_whole_guild(guild_context):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(

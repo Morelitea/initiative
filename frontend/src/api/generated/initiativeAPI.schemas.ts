@@ -2990,6 +2990,22 @@ export interface InitiativeJoinRequestRead {
 }
 
 /**
+ * Which initiatives ``GET /initiatives/`` should return.
+ *
+ * ``member`` — the caller's own workspace: the initiatives they hold a
+ * membership in. This is what the sidebar and every initiative picker show.
+ *
+ * ``guild`` — every initiative in the guild, for the guild-settings
+ * management table. Guild admins only.
+ */
+export type InitiativeListScope = (typeof InitiativeListScope)[keyof typeof InitiativeListScope];
+
+export const InitiativeListScope = {
+  member: "member",
+  guild: "guild",
+} as const;
+
+/**
  * Add a member to an initiative.
  */
 export interface InitiativeMemberAdd {
@@ -5544,6 +5560,10 @@ export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type ListInitiativesApiV1GGuildIdInitiativesGetParams = {
+  scope?: InitiativeListScope;
 };
 
 export type ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams = {

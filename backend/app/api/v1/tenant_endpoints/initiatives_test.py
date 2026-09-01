@@ -16,17 +16,43 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
+from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
 from app.services.tenant import initiatives as initiatives_service
+from app.testing import create_user, get_auth_headers
 from app.testing.factories import create_initiative
 
 
+async def _live_grant(session: AsyncSession, *, user, guild, approver, level: str):
+    """An approved, currently-live access grant — the PAM branch of GuildContext."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.platform.access_grant import AccessGrant
+
+    now = datetime.now(timezone.utc)
+    session.add(
+        AccessGrant(
+            user_id=user.id,
+            guild_id=guild.id,
+            access_level=level,
+            status="approved",
+            reason="ticket",
+            requested_duration_minutes=60,
+            requested_by_id=user.id,
+            approved_by_id=approver.id,
+            decided_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+    )
+    await session.commit()
+
+
 @pytest.mark.integration
-async def test_list_initiatives_as_admin_shows_all(
+async def test_list_initiatives_returns_own_memberships(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test that guild admin can see all initiatives."""
+    """The default listing is the caller's own workspace."""
     admin = await acting_user(guild_role=GuildRole.admin)
 
     # Create multiple initiatives (factory creates builtin roles + PM membership)
@@ -41,6 +67,146 @@ async def test_list_initiatives_as_admin_shows_all(
     initiative_names = {init["name"] for init in data}
     assert "Initiative 1" in initiative_names
     assert "Initiative 2" in initiative_names
+
+
+@pytest.mark.integration
+async def test_list_initiatives_omits_ones_admin_has_not_joined(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild admin's navigation is their memberships, not the whole guild."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    await create_initiative(session, admin.guild, other.user, name="Not Admin's")
+
+    response = await client.get(admin.g("/initiatives/"), headers=admin.headers)
+
+    assert response.status_code == 200
+    assert "Not Admin's" not in {init["name"] for init in response.json()}
+
+
+@pytest.mark.integration
+async def test_list_initiatives_guild_scope_shows_all_for_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``scope=guild`` is the guild-settings management listing."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    other = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    await create_initiative(session, admin.guild, other.user, name="Not Admin's")
+
+    response = await client.get(
+        admin.g("/initiatives/?scope=guild"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    assert "Not Admin's" in {init["name"] for init in response.json()}
+
+
+@pytest.mark.integration
+async def test_list_initiatives_shows_whole_guild_to_a_scoped_grantee(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A grantee holds no membership in the guild — the grant is what they
+    navigate by, so the default listing stays the whole guild for its window."""
+    owner = await acting_user(guild_role=GuildRole.admin)
+    await create_initiative(session, owner.guild, owner.user, name="Apollo")
+
+    support = await create_user(session, role=UserRole.support)
+    await _live_grant(
+        session, user=support, guild=owner.guild, approver=owner.user, level="read"
+    )
+
+    response = await client.get(
+        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=get_auth_headers(support)
+    )
+
+    assert response.status_code == 200, response.text
+    assert "Apollo" in {init["name"] for init in response.json()}
+
+
+@pytest.mark.integration
+async def test_list_initiatives_shows_whole_guild_to_break_glass(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Break-glass acts as a full guild admin for its window, in a guild the
+    holder is not a member of."""
+    owner = await acting_user(guild_role=GuildRole.admin)
+    await create_initiative(session, owner.guild, owner.user, name="Apollo")
+
+    operator = await create_user(session, role=UserRole.operator)
+    await _live_grant(
+        session,
+        user=operator,
+        guild=owner.guild,
+        approver=owner.user,
+        level="read_write",
+    )
+
+    response = await client.get(
+        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=get_auth_headers(operator)
+    )
+
+    assert response.status_code == 200, response.text
+    assert "Apollo" in {init["name"] for init in response.json()}
+
+
+@pytest.mark.integration
+async def test_scoped_grantee_reads_an_initiative_it_holds_no_membership_in(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The initiative and its roles are addressable by id for a grantee — the
+    pages that open one resolve it that way rather than from a roster."""
+    owner = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, owner.guild, owner.user, name="Apollo"
+    )
+
+    support = await create_user(session, role=UserRole.support)
+    await _live_grant(
+        session, user=support, guild=owner.guild, approver=owner.user, level="read"
+    )
+    headers = get_auth_headers(support)
+    base = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+
+    detail = await client.get(base, headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["name"] == "Apollo"
+
+    roles = await client.get(f"{base}/roles", headers=headers)
+    assert roles.status_code == 200, roles.text
+    assert "project_manager" in {role["name"] for role in roles.json()}
+
+
+@pytest.mark.integration
+async def test_guild_member_outside_an_initiative_still_cannot_read_it(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The grantee leg widened nothing for an ordinary member of the guild."""
+    owner = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, owner.guild, owner.user, name="Apollo"
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+
+    response = await client.get(
+        outsider.g(f"/initiatives/{initiative.id}"), headers=outsider.headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"
+
+
+@pytest.mark.integration
+async def test_list_initiatives_guild_scope_requires_guild_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    member = await acting_user(guild_role=GuildRole.member)
+
+    response = await client.get(
+        member.g("/initiatives/?scope=guild"), headers=member.headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_ADMIN_REQUIRED"
 
 
 @pytest.mark.integration
@@ -303,7 +469,9 @@ async def test_archive_initiative_via_patch(
 
     # Archived initiatives are NOT removed from the list — only the sidebar
     # filters them client-side; the settings table must still see them.
-    listing = await client.get(admin.g("/initiatives/"), headers=admin.headers)
+    listing = await client.get(
+        admin.g("/initiatives/?scope=guild"), headers=admin.headers
+    )
     assert listing.status_code == 200
     archived = next(i for i in listing.json() if i["id"] == initiative.id)
     assert archived["is_archived"] is True
@@ -1461,30 +1629,6 @@ async def _notifications_for(
         )
     )
     return list(result.all())
-
-
-async def _live_grant(session: AsyncSession, *, user, guild, approver, level: str):
-    """An approved, currently-live access grant — the PAM branch of GuildContext."""
-    from datetime import datetime, timedelta, timezone
-
-    from app.models.platform.access_grant import AccessGrant
-
-    now = datetime.now(timezone.utc)
-    session.add(
-        AccessGrant(
-            user_id=user.id,
-            guild_id=guild.id,
-            access_level=level,
-            status="approved",
-            reason="ticket",
-            requested_duration_minutes=60,
-            requested_by_id=user.id,
-            approved_by_id=approver.id,
-            decided_at=now,
-            expires_at=now + timedelta(hours=1),
-        )
-    )
-    await session.commit()
 
 
 async def _requestable(session: AsyncSession, actor, **overrides):

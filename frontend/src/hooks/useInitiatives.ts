@@ -10,6 +10,7 @@ import type {
   InitiativeRead,
   JoinRequestStatus,
 } from "@/api/generated/initiativeAPI.schemas";
+import { InitiativeListScope } from "@/api/generated/initiativeAPI.schemas";
 import {
   addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost,
   approveJoinRequestApiV1GGuildIdInitiativesInitiativeIdJoinRequestsRequestIdApprovePost,
@@ -46,11 +47,33 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
+/**
+ * The initiatives you are in — the sidebar's list, and every initiative picker.
+ *
+ * A guild admin is no exception here: their authority still reaches the whole
+ * guild, but their navigation is their own memberships. {@link useGuildInitiatives}
+ * is the guild-wide listing.
+ */
 export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId),
     queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId),
+    ...options,
+  });
+};
+
+const GUILD_SCOPE = { scope: InitiativeListScope.guild } as const;
+
+/**
+ * Every initiative in the guild, for the guild-settings management table.
+ * Guild admins only — the endpoint answers 403 to anyone else.
+ */
+export const useGuildInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
+  const guildId = useActiveGuildId();
+  return useQuery<InitiativeRead[]>({
+    queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId, GUILD_SCOPE),
+    queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId, GUILD_SCOPE),
     ...options,
   });
 };

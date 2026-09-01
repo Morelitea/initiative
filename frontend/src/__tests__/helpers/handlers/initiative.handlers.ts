@@ -19,6 +19,16 @@ export const initiativeHandlers = [
     return HttpResponse.json([]);
   }),
 
+  // MSW matches handlers in order, so this pattern is declared after the
+  // literal `/initiatives/directory` route it would also match.
+  guildHttp.get("/initiatives/:id", ({ params }) => {
+    const id = Number(params.id);
+    if (!Number.isFinite(id)) {
+      return undefined;
+    }
+    return HttpResponse.json(buildInitiative({ id }));
+  }),
+
   guildHttp.post("/initiatives/:id/join", ({ params }) => {
     return HttpResponse.json(buildInitiative({ id: Number(params.id), join_policy: "open" }));
   }),

@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, create_model
@@ -27,6 +28,20 @@ HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
 #: queue, not a document — so it is capped well below the 8 KB plain-text
 #: ceiling every ``SanitizedBaseModel`` string already carries.
 JOIN_REQUEST_MESSAGE_MAX_LENGTH = 1000
+
+
+class InitiativeListScope(str, Enum):
+    """Which initiatives ``GET /initiatives/`` should return.
+
+    ``member`` — the caller's own workspace: the initiatives they hold a
+    membership in. This is what the sidebar and every initiative picker show.
+
+    ``guild`` — every initiative in the guild, for the guild-settings
+    management table. Guild admins only.
+    """
+
+    member = "member"
+    guild = "guild"
 
 
 # Derived bases: one `{tool.plural}_enabled` master-switch field per
