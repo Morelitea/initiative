@@ -41,9 +41,17 @@ import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
-import { hitIcon, searchHitPath } from "@/lib/searchResults";
+import {
+  categoryEntityTypes,
+  DEFAULT_SEARCH_CATEGORY,
+  hitIcon,
+  SEARCH_CATEGORIES,
+  type SearchCategory,
+  searchHitPath,
+} from "@/lib/searchResults";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import { entityRefRoute, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
 // Module-level callback so other components can open the command center
 let openCommandCenter: (() => void) | null = null;
@@ -54,7 +62,10 @@ export function getOpenCommandCenter() {
 export function CommandCenter() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const { t } = useTranslation(["command", "common"]);
+  // Which slice of the guild the results are from — the same three the results
+  // page is split into, opening on the same one.
+  const [scope, setScope] = useState<SearchCategory>(DEFAULT_SEARCH_CATEGORY);
+  const { t } = useTranslation(["command", "common", "search"]);
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
@@ -82,8 +93,29 @@ export function CommandCenter() {
 
   // Reset the input whenever the dialog closes so reopening starts fresh.
   useEffect(() => {
-    if (!open) setSearchQuery("");
+    if (!open) {
+      setSearchQuery("");
+      setScope(DEFAULT_SEARCH_CATEGORY);
+    }
   }, [open]);
+
+  // Tab moves between the slices while there is something to search for. It
+  // reaches the dialog rather than the tab strip, so the hands stay on the
+  // query the whole time.
+  useEffect(() => {
+    if (!open || !isSearching) return;
+    const handleTab = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      event.preventDefault();
+      setScope((current) => {
+        const step = event.shiftKey ? -1 : 1;
+        const next = SEARCH_CATEGORIES.indexOf(current) + step;
+        return SEARCH_CATEGORIES[(next + SEARCH_CATEGORIES.length) % SEARCH_CATEGORIES.length];
+      });
+    };
+    document.addEventListener("keydown", handleTab);
+    return () => document.removeEventListener("keydown", handleTab);
+  }, [open, isSearching]);
 
   // Expose open callback for external triggers (e.g. sidebar button)
   useEffect(() => {
@@ -122,6 +154,7 @@ export function CommandCenter() {
   // back — tasks, documents, queue items, events, tags — ranked together.
   const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
     enabled: open && !!user && isSearching,
+    types: categoryEntityTypes(scope),
     staleTime: 30_000,
   });
   // Browsing (palette just opened): the user's own not-done tasks, most
@@ -244,6 +277,35 @@ export function CommandCenter() {
           activeGuildName: activeGuild?.name ?? t("common:appName"),
         })}
       />
+      {isSearching && (
+        <div
+          className="flex items-center gap-1 border-b px-2 py-1.5"
+          role="tablist"
+          aria-label={t("search:title")}
+        >
+          {SEARCH_CATEGORIES.map((category) => (
+            <button
+              key={category}
+              type="button"
+              role="tab"
+              aria-selected={scope === category}
+              onClick={() => setScope(category)}
+              className={cn(
+                "rounded-md px-2 py-1 text-sm transition-colors",
+                scope === category
+                  ? "bg-accent font-medium text-accent-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t(`search:tabs.${category}`)}
+            </button>
+          ))}
+          <span className="ml-auto pr-1 text-muted-foreground text-xs">
+            {t("search:switchHint")}
+          </span>
+        </div>
+      )}
+
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
 
@@ -274,7 +336,8 @@ export function CommandCenter() {
                 keywords={[effectiveSearch]}
                 onSelect={() =>
                   handleSelect(
-                    `${getGuildPath("/search")}?q=${encodeURIComponent(effectiveSearch)}`
+                    `${getGuildPath("/search")}?q=${encodeURIComponent(effectiveSearch)}` +
+                      (scope === DEFAULT_SEARCH_CATEGORY ? "" : `&tab=${scope}`)
                   )
                 }
               >

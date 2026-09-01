@@ -17,7 +17,10 @@ from sqlmodel import select
 
 from sqlmodel import SQLModel
 
+from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.db.search_index import (
+    COMMENT_PREVIEW_CHARS,
     NOT_SEARCHABLE,
     SEARCH_SOURCES,
     addressable_tables,
@@ -28,7 +31,13 @@ from app.db.session import set_rls_context
 from app.db.tenancy import INITIATIVE_SCOPED_TABLES
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
-from app.testing import create_project, create_tag, create_task
+from app.testing import (
+    create_comment,
+    create_document,
+    create_project,
+    create_tag,
+    create_task,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -99,11 +108,75 @@ def test_update_trigger_carries_a_when_clause():
 
 
 @pytest.mark.unit
-def test_default_scope_is_the_indexed_set_for_now():
-    assert entity_types(default_scope_only=True) == entity_types()
+def test_comments_are_the_one_source_a_caller_has_to_ask_for():
+    """Everything else answers a query that names no types. Comments are the
+    highest-volume table in a busy guild, so reaching them is a decision."""
+    assert set(entity_types()) - set(entity_types(default_scope_only=True)) == {
+        SearchEntityType.comment
+    }
+
+
+@pytest.mark.unit
+def test_the_enum_and_the_registry_name_the_same_set():
+    """Neither can grow a member alone: the enum is what the API accepts, the
+    registry is what is actually indexed."""
+    assert set(entity_types()) == set(SearchEntityType)
+
+
+@pytest.mark.unit
+def test_every_tool_is_searchable_under_its_own_name():
+    """A tool's rows are indexed under the tool's own name, which is what lets
+    the enum derive from ``Tool`` instead of restating it."""
+    for tool in Tool:
+        assert SearchEntityType(tool.value) in set(entity_types())
 
 
 # --- the trigger ----------------------------------------------------------
+
+
+async def test_a_comment_on_a_task_is_shared_as_its_project(session, acting_user):
+    """A comment hangs off exactly one parent, and is reached by whoever can
+    reach that parent. A task is shared as part of its project, so that is the
+    gate a comment on one carries."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="vendor renewal")
+    comment = await create_comment(
+        session, a.user, task=task, content="the renewal terms changed in March"
+    )
+
+    rows = await _entries(session, a.guild.id, "comment", comment.id)
+    assert rows, "commenting produced no search entry"
+    row = rows[0]
+    assert row.dac_tool == Tool.project.value
+    assert row.dac_id == a.project.id
+    assert row.initiative_id == a.initiative.id
+    # The whole comment is searchable; the title is the opening it is shown by.
+    assert "renewal terms changed" in (row.body or "")
+    assert row.title == "the renewal terms changed in March"
+
+
+async def test_a_comment_on_a_document_is_shared_as_that_document(session, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    document = await create_document(session, a.initiative, a.user)
+    comment = await create_comment(
+        session, a.user, document=document, content="second draft reads better"
+    )
+
+    rows = await _entries(session, a.guild.id, "comment", comment.id)
+    assert rows
+    assert rows[0].dac_tool == Tool.document.value
+    assert rows[0].dac_id == document.id
+
+
+async def test_a_long_comment_is_shown_by_its_opening(session, acting_user):
+    """Storing the whole of one would put an essay where a name goes."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task, content="x" * 500)
+
+    rows = await _entries(session, a.guild.id, "comment", comment.id)
+    assert len(rows[0].title) == COMMENT_PREVIEW_CHARS
+    assert "x" * 500 in (rows[0].body or "")
 
 
 async def test_creating_a_task_is_indexed(session, acting_user):

@@ -12,6 +12,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import GuildContext, RLSSessionDep, get_guild_membership
+from app.core.search import SearchEntityType
 from app.db.search_index import entity_types
 from app.models.platform.user import User
 from app.schemas.tenant.search import SearchResults, SearchSuggestion
@@ -24,7 +25,8 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 _TYPE_DESCRIPTION = (
     "Restrict to these entity types. Omit for the default scope "
-    f"({', '.join(entity_types(default_scope_only=True))}); naming a type "
+    f"({', '.join(t.value for t in entity_types(default_scope_only=True))}); "
+    "naming a type "
     "reaches it explicitly."
 )
 
@@ -35,7 +37,9 @@ async def search_guild(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     q: str = Query(description="What to search for.", max_length=1000),
-    types: Optional[List[str]] = Query(default=None, description=_TYPE_DESCRIPTION),
+    types: Optional[List[SearchEntityType]] = Query(
+        default=None, description=_TYPE_DESCRIPTION
+    ),
     initiative_id: Optional[int] = Query(
         default=None, description="Restrict to one initiative."
     ),
@@ -65,13 +69,21 @@ async def suggest_guild(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     q: str = Query(description="What to jump to.", max_length=200),
+    types: Optional[List[SearchEntityType]] = Query(
+        default=None, description=_TYPE_DESCRIPTION
+    ),
     limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
 ) -> List[SearchSuggestion]:
-    """Titles for the command palette — a way to reach one thing quickly."""
+    """Titles for the command palette — a way to reach one thing quickly.
+
+    Takes the same ``types`` as the search itself, so the palette and the
+    results page can be narrowed to the same slice of the guild.
+    """
     return await search_service.suggest(
         session,
         query=q,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
+        types=types,
         limit=limit,
     )

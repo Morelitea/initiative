@@ -13,6 +13,7 @@
   },
   "tabs": {
     "tool": "Outils",
+    "comment": "Commentaires",
     "tag": "Étiquettes"
   },
   "types": {
@@ -26,6 +27,8 @@
     "calendar": "Calendrier",
     "calendar_event": "Événement",
     "dashboard": "Tableau de bord",
-    "tag": "Étiquette"
-  }
+    "tag": "Étiquette",
+    "comment": "Commentaire"
+  },
+  "switchHint": "Tab pour changer"
 }

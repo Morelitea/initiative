@@ -12,9 +12,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { buildSearchHit } from "@/__tests__/factories";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  COMMENT_ENTITY_TYPE,
+  categoryEntityTypes,
   hitCategory,
+  SEARCH_CATEGORIES,
   type SearchTarget,
   searchHitPath,
   TAG_ENTITY_TYPE,
@@ -64,6 +67,32 @@ describe("searchHitPath", () => {
     ).toBe("/i/5/queues/2");
   });
 
+  it("sends a comment to the thing it is on, which is where it is read", () => {
+    // A comment has no page of its own. It names the tool that governs it, so
+    // that is where it goes — including a comment on a task, which is shared,
+    // and so addressed, as part of its project.
+    expect(
+      searchHitPath(
+        target({
+          entity_type: COMMENT_ENTITY_TYPE,
+          entity_id: 3,
+          tool: Tool.document,
+          tool_id: 9,
+        })
+      )
+    ).toBe("/i/5/documents/9");
+    expect(
+      searchHitPath(
+        target({
+          entity_type: COMMENT_ENTITY_TYPE,
+          entity_id: 4,
+          tool: Tool.project,
+          tool_id: 7,
+        })
+      )
+    ).toBe("/i/5/projects/7");
+  });
+
   it("gives a tag the guild address it has — tags belong to no initiative", () => {
     expect(searchHitPath(target({ entity_type: TAG_ENTITY_TYPE, entity_id: 12 }))).toBe("/tags/12");
   });
@@ -93,11 +122,18 @@ describe("searchHitPath", () => {
 });
 
 describe("categories", () => {
-  it("puts everything but the guild's vocabulary under tools", () => {
+  it("puts everything but comments and the guild's vocabulary under tools", () => {
     for (const entityType of TOOL_ENTITY_TYPES) {
       expect(hitCategory(target({ entity_type: entityType }))).toBe("tool");
     }
     expect(hitCategory(target({ entity_type: TAG_ENTITY_TYPE }))).toBe("tag");
+    expect(hitCategory(target({ entity_type: COMMENT_ENTITY_TYPE }))).toBe("comment");
+  });
+
+  it("asks for one category at a time, and the three cover the index", () => {
+    const asked = SEARCH_CATEGORIES.flatMap(categoryEntityTypes);
+    expect(new Set(asked)).toEqual(new Set(Object.values(SearchEntityType)));
+    expect(asked).toHaveLength(new Set(asked).size);
   });
 
   it("covers every tool, so a new one is searchable without an edit here", () => {
@@ -113,7 +149,7 @@ describe("labels", () => {
   ).types as Record<string, string>;
 
   it("names every kind of result a reader can be shown", () => {
-    for (const entityType of [...TOOL_ENTITY_TYPES, TAG_ENTITY_TYPE]) {
+    for (const entityType of Object.values(SearchEntityType)) {
       expect(labels[entityType], `search.json is missing types.${entityType}`).toBeTruthy();
     }
   });

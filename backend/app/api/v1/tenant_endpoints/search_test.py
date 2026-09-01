@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 import pytest
 
 from app.models.platform.guild import GuildRole
-from app.testing import Actor, create_document, create_tag, create_task
+from app.testing import Actor, create_comment, create_document, create_tag, create_task
 
 pytestmark = pytest.mark.integration
 
@@ -166,6 +166,68 @@ async def test_suggest_returns_titles_to_jump_to(
     assert [r["entity_id"] for r in rows] == [task.id]
     assert rows[0]["tool_id"] == a.project.id
     assert "snippet" not in rows[0]
+
+
+async def test_comments_are_reached_by_asking_for_them(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Comments are out of the default scope — the busiest table in a guild is
+    not something every bare query should pay for — so a caller names the type,
+    which is what the results page's own tab does."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="stage build")
+    await create_comment(
+        session, a.user, task=task, content="the vendor confirmed the platform"
+    )
+
+    unasked = await client.get(
+        a.g("/search/"), headers=a.headers, params={"q": "vendor confirmed"}
+    )
+    assert unasked.status_code == 200, unasked.text
+    assert unasked.json()["items"] == []
+
+    asked = await client.get(
+        a.g("/search/"),
+        headers=a.headers,
+        params={"q": "vendor confirmed", "types": ["comment"]},
+    )
+    assert asked.status_code == 200, asked.text
+    items = asked.json()["items"]
+    assert [i["entity_type"] for i in items] == ["comment"]
+    # It names the project, because that is where a comment on a task is read.
+    assert items[0]["tool"] == "project"
+    assert items[0]["tool_id"] == a.project.id
+
+
+async def test_suggest_narrows_to_the_types_it_is_given(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The palette's tabs and the results page ask the same question, so the
+    palette can be on one slice while the guild holds matches in another."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="riverside")
+    tag = await create_tag(session, a.guild, name="riverside")
+
+    tags_only = await client.get(
+        a.g("/search/suggest"),
+        headers=a.headers,
+        params={"q": "riverside", "types": ["tag"]},
+    )
+    assert tags_only.status_code == 200, tags_only.text
+    assert [r["entity_id"] for r in tags_only.json()] == [tag.id]
+
+
+async def test_an_unknown_type_is_refused_rather_than_ignored(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The accepted set is declared, so a name that is not one of them is a bad
+    request — not a search that quietly returns everything."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    response = await client.get(
+        a.g("/search/"), headers=a.headers, params={"q": "x", "types": ["invoice"]}
+    )
+    assert response.status_code == 422, response.text
 
 
 async def test_a_non_member_cannot_search_the_guild(

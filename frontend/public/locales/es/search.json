@@ -13,6 +13,7 @@
   },
   "tabs": {
     "tool": "Herramientas",
+    "comment": "Comentarios",
     "tag": "Etiquetas"
   },
   "types": {
@@ -26,6 +27,8 @@
     "calendar": "Calendario",
     "calendar_event": "Evento",
     "dashboard": "Panel",
-    "tag": "Etiqueta"
-  }
+    "tag": "Etiqueta",
+    "comment": "Comentario"
+  },
+  "switchHint": "Tab para cambiar"
 }

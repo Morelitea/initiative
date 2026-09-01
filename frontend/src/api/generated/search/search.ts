@@ -197,6 +197,9 @@ export function useSearchGuildApiV1GGuildIdSearchGet<
 
 /**
  * Titles for the command palette — a way to reach one thing quickly.
+ *
+ * Takes the same ``types`` as the search itself, so the palette and the
+ * results page can be narrowed to the same slice of the guild.
  * @summary Suggest Guild
  */
 export const suggestGuildApiV1GGuildIdSearchSuggestGet = (

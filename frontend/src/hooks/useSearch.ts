@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
+  SearchEntityType,
   SearchGuildApiV1GGuildIdSearchGetParams,
   SearchResults,
   SearchSuggestion,
@@ -37,14 +38,21 @@ export const useGuildSearch = (
 /**
  * Titles to jump to, for the command palette. Matches a partial last word, so
  * it answers while the reader is still typing.
+ *
+ * Takes the same `types` as a search, so the palette can be narrowed to the
+ * same slice of the guild the results page is showing.
  */
 export const useGuildSearchSuggest = (
   query: string,
-  options?: QueryOpts<SearchSuggestion[]> & { limit?: number }
+  options?: QueryOpts<SearchSuggestion[]> & { limit?: number; types?: SearchEntityType[] }
 ) => {
   const guildId = useActiveGuildId();
-  const { limit, ...queryOptions } = options ?? {};
-  const params = { q: query, ...(limit != null ? { limit } : {}) };
+  const { limit, types, ...queryOptions } = options ?? {};
+  const params = {
+    q: query,
+    ...(limit != null ? { limit } : {}),
+    ...(types ? { types } : {}),
+  };
   return useQuery<SearchSuggestion[]>({
     queryKey: getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryKey(guildId, params),
     queryFn: () => suggestGuildApiV1GGuildIdSearchSuggestGet(guildId, params),

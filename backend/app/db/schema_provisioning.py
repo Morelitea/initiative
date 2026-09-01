@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -774,6 +775,14 @@ async def backfill_guild_search() -> int:
     return total
 
 
+#: Where the install script sits, in the image and in a checkout. The first that
+#: exists is the one the message names, so it names a path the reader has.
+_SEARCH_OPERATOR_SCRIPTS = (
+    Path("/app/scripts/create-search-operator.sql"),
+    Path(__file__).resolve().parents[2] / "scripts" / "create-search-operator.sql",
+)
+
+
 async def warn_if_search_operator_missing() -> None:
     """Say so, loudly, when the search operator is absent.
 
@@ -781,25 +790,35 @@ async def warn_if_search_operator_missing() -> None:
     reads more of the index table to do it. Nothing else reports it, so a
     restore or a major-version upgrade that lost the objects would otherwise
     show up only as search getting slower.
+
+    Names the database it checked, because a host commonly has more than one and
+    the objects are per-database.
     """
     if await search_operator_ready():
         return
+    database = db_session.provisioning_engine.url.database or "?"
+    script = next(
+        (p for p in _SEARCH_OPERATOR_SCRIPTS if p.exists()),
+        _SEARCH_OPERATOR_SCRIPTS[0],
+    )
     logger.warning(
         "\n%s\n"
-        "Guild search is running without its index.\n"
+        'Guild search is running without its index (database "%s").\n'
         "Results are unchanged; each search reads more of the index table,\n"
-        "which grows with the guild. Install the operator once, as a SUPERUSER.\n"
-        "The script ships inside this image, so no checkout is needed:\n"
+        "which grows with the guild.\n"
         "\n"
-        "  docker compose exec -T initiative \\\n"
-        "      cat /app/scripts/create-search-operator.sql \\\n"
-        "    | docker compose exec -T db \\\n"
-        "      psql -v ON_ERROR_STOP=1 -U <user> -d <database>\n"
+        "Installing it is one file, once per database, run as a SUPERUSER —\n"
+        "which the app's own role deliberately is not:\n"
+        "\n"
+        "  psql -U <superuser> -d %s -f %s\n"
         "\n"
         "Then restart: the index is rebuilt on the next provisioning sweep.\n"
-        "Run once per database; re-running is safe.\n"
+        "Re-running is safe.\n"
         "%s",
         "=" * 70,
+        database,
+        database,
+        script,
         "=" * 70,
     )
 

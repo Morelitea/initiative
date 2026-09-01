@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db.search_index import entity_types
 from app.models.tenant.search_entry import SearchEntry
@@ -82,7 +83,7 @@ def _scoped(
     *,
     user_id: int,
     guild_id: int,
-    types: Optional[Sequence[str]],
+    types: Optional[Sequence[SearchEntityType]],
     initiative_id: Optional[int],
 ) -> tuple[ColumnElement[bool], object]:
     """The predicate every search shares, and the parsed query it uses."""
@@ -133,7 +134,7 @@ async def search(
     query: str,
     user_id: int,
     guild_id: int,
-    types: Optional[Sequence[str]] = None,
+    types: Optional[Sequence[SearchEntityType]] = None,
     initiative_id: Optional[int] = None,
     limit: int = 20,
     offset: int = 0,
@@ -187,6 +188,7 @@ async def suggest(
     query: str,
     user_id: int,
     guild_id: int,
+    types: Optional[Sequence[SearchEntityType]] = None,
     limit: int = SUGGEST_LIMIT,
 ) -> list[SearchSuggestion]:
     """Titles to jump to. No snippets and no body ranking — this answers "take
@@ -204,10 +206,11 @@ async def suggest(
     title_match = func.to_tsvector("simple", SearchEntry.title).op(
         "@@", is_comparison=True
     )(parsed)
+    wanted = tuple(types) if types else entity_types(default_scope_only=True)
     clause = (
         search_match_clause(parsed)
         & title_match
-        & SearchEntry.entity_type.in_(entity_types(default_scope_only=True))
+        & SearchEntry.entity_type.in_(wanted)
         & search_scope_clause(user_id, guild_id=guild_id)
     )
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)

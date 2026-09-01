@@ -13,6 +13,7 @@
   },
   "tabs": {
     "tool": "Tools",
+    "comment": "Comments",
     "tag": "Tags"
   },
   "types": {
@@ -26,6 +27,8 @@
     "calendar": "Calendar",
     "calendar_event": "Event",
     "dashboard": "Dashboard",
-    "tag": "Tag"
-  }
+    "tag": "Tag",
+    "comment": "Comment"
+  },
+  "switchHint": "Tab to switch"
 }
