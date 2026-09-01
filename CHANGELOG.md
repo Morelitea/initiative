@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Community pages have moved from `/g/` to `/c/`.** A page inside a community now lives at `/c/{id}/…` instead of `/g/{id}/…`, the per-community sign-in link is `/community/{id}/login`, and the platform tab is Settings › Admin › Communities. Old links do not forward — bookmarks, saved links and any per-community sign-in link you handed out need replacing with the new address.
 
+- **A new install's first community is now called "Primary Community".** It was still called "Primary Guild" — the one place the old word survived the rename. Existing communities are untouched; this only changes what a fresh install starts with.
+
 ### Fixed
 
 - **Open tabs no longer flicker when you switch community.** The recents bar lists tabs from every community you are in, but switching community threw its contents away and fetched them again, blanking the bar for a moment each time. It now stays put — there is nothing about it that a switch changes.

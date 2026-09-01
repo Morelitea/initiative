@@ -60,7 +60,7 @@ async def init_owner() -> None:
         # commit, then provision the schema and seed its content (settings +
         # default initiative). No bespoke seeding path — it's a real guild.
         guild = await guilds_service.create_guild(
-            session, name="Primary Guild", creator=user
+            session, name="Primary Community", creator=user
         )
         await session.commit()
         # Capture ids before the seed: the rollback in the failure path expires the
