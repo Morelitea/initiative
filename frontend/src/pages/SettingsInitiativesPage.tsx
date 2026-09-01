@@ -1,20 +1,47 @@
-import { Archive, ArchiveRestore, CircleAlert, Loader2, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Check,
+  ChevronsUpDown,
+  CircleAlert,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, UserGuildMember } from "@/api/generated/initiativeAPI.schemas";
 import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
 import { DataTable } from "@/components/ui/data-table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles, useUpdateRole } from "@/hooks/useInitiativeRoles";
-import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hooks/useInitiatives";
+import {
+  useAddInitiativeMember,
+  useDeleteInitiative,
+  useGuildInitiatives,
+  useRemoveInitiativeMember,
+  useUpdateInitiative,
+  useUpdateInitiativeMember,
+} from "@/hooks/useInitiatives";
+import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import type { AppColumnDef } from "@/lib/table";
+import { getUserDisplayName } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 /**
  * Per-row "PM full access" toggle. The full-access flag is
@@ -80,14 +107,192 @@ const PmFullAccessCell = ({ initiativeId }: { initiativeId: number }) => {
   );
 };
 
+/**
+ * Per-row project-manager picker — how a guild admin staffs an initiative, and
+ * how they put one in their own sidebar (tick yourself).
+ *
+ * Ticking someone promotes them: an existing member's role changes, a
+ * non-member gets a membership row. Unticking only takes the manager role away
+ * — they stay in the initiative with the built-in member role. A guild admin is
+ * the exception: they cannot hold a standard role, so unticking removes their
+ * row (which is also how they leave an initiative they added themselves to).
+ */
+const InitiativeManagersCell = ({
+  initiative,
+  candidates,
+  adminUserIds,
+}: {
+  initiative: InitiativeRead;
+  candidates: UserGuildMember[];
+  adminUserIds: Set<number>;
+}) => {
+  const { t } = useTranslation(["initiatives", "common"]);
+  const [open, setOpen] = useState(false);
+  const rolesQuery = useInitiativeRoles(initiative.id);
+
+  const managerRole = useMemo(
+    () =>
+      rolesQuery.data?.find((role) => role.is_manager) ??
+      rolesQuery.data?.find((role) => role.name === "project_manager"),
+    [rolesQuery.data]
+  );
+  const memberRole = useMemo(
+    () => rolesQuery.data?.find((role) => role.name === "member"),
+    [rolesQuery.data]
+  );
+
+  const managerIds = useMemo(
+    () => new Set(initiative.members.filter((m) => m.is_manager).map((m) => m.user.id)),
+    [initiative.members]
+  );
+  const memberIds = useMemo(
+    () => new Set(initiative.members.map((m) => m.user.id)),
+    [initiative.members]
+  );
+
+  const onError = (error: unknown) => {
+    toast.error(getErrorMessage(error, "initiatives:manage.managersError"));
+  };
+  const onSuccess = () => {
+    toast.success(t("manage.managersUpdated"));
+  };
+  const addMember = useAddInitiativeMember({ onSuccess, onError });
+  const updateMember = useUpdateInitiativeMember({ onSuccess, onError });
+  const removeMember = useRemoveInitiativeMember({ onSuccess, onError });
+  const pending = addMember.isPending || updateMember.isPending || removeMember.isPending;
+
+  const toggle = (userId: number) => {
+    if (!managerRole) {
+      return;
+    }
+    if (!managerIds.has(userId)) {
+      if (memberIds.has(userId)) {
+        updateMember.mutate({
+          initiativeId: initiative.id,
+          userId,
+          data: { role_id: managerRole.id },
+        });
+      } else {
+        addMember.mutate({
+          initiativeId: initiative.id,
+          data: { user_id: userId, role_id: managerRole.id },
+        });
+      }
+      return;
+    }
+    if (adminUserIds.has(userId) || !memberRole) {
+      removeMember.mutate({ initiativeId: initiative.id, userId });
+    } else {
+      updateMember.mutate({
+        initiativeId: initiative.id,
+        userId,
+        data: { role_id: memberRole.id },
+      });
+    }
+  };
+
+  if (rolesQuery.isLoading) {
+    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+  }
+
+  // Same reasoning as the full-access toggle: an unusable picker must say so
+  // rather than sit on a spinner that never resolves.
+  if (rolesQuery.isError || !managerRole) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex text-destructive">
+              <CircleAlert className="h-4 w-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{t("manage.managersUnavailable")}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  const selectedLabel =
+    managerIds.size === 0
+      ? t("manage.noManagers")
+      : managerIds.size === 1
+        ? getUserDisplayName(
+            candidates.find((c) => managerIds.has(c.id)),
+            t("manage.managerCount", { count: 1 })
+          )
+        : t("manage.managerCount", { count: managerIds.size });
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          aria-expanded={open}
+          aria-label={t("manage.managersColumn")}
+          className="w-48 justify-between font-normal"
+        >
+          <span className={managerIds.size === 0 ? "text-muted-foreground" : undefined}>
+            {selectedLabel}
+          </span>
+          {pending ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          ) : (
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0">
+        <Command>
+          <CommandInput placeholder={t("common:search")} />
+          <CommandEmpty>{t("manage.noCandidates")}</CommandEmpty>
+          <CommandGroup className="max-h-64 overflow-y-auto">
+            {candidates.map((candidate) => (
+              <CommandItem
+                key={candidate.id}
+                value={getUserDisplayName(candidate)}
+                disabled={pending}
+                onSelect={() => toggle(candidate.id)}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    managerIds.has(candidate.id) ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                {getUserDisplayName(candidate)}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const SettingsInitiativesPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
   const { activeGuild } = useGuilds();
   const isGuildAdmin = activeGuild?.role === "admin";
 
-  const initiativesQuery = useInitiatives({ enabled: isGuildAdmin });
+  // The guild-wide listing, not the admin's own memberships — this table is
+  // where they manage initiatives they have not joined.
+  const initiativesQuery = useGuildInitiatives({ enabled: isGuildAdmin });
   const updateInitiative = useUpdateInitiative();
   const deleteInitiative = useDeleteInitiative();
+
+  // One roster fetch for the whole table; every row's manager picker reads it.
+  const usersQuery = useUsers({ enabled: isGuildAdmin, staleTime: 5 * 60 * 1000 });
+  const candidates = useMemo(
+    () => (usersQuery.data ?? []).filter((candidate) => candidate.status !== "anonymized"),
+    [usersQuery.data]
+  );
+  const adminUserIds = useMemo(
+    () =>
+      new Set(candidates.filter((candidate) => candidate.guild_role === "admin").map((c) => c.id)),
+    [candidates]
+  );
 
   const [deleteTarget, setDeleteTarget] = useState<InitiativeRead | null>(null);
 
@@ -156,6 +361,17 @@ export const SettingsInitiativesPage = () => {
         <span className="text-muted-foreground text-sm">
           {t("manage.memberCount", { count: row.original.members.length })}
         </span>
+      ),
+    },
+    {
+      id: "managers",
+      header: t("manage.managersColumn"),
+      cell: ({ row }) => (
+        <InitiativeManagersCell
+          initiative={row.original}
+          candidates={candidates}
+          adminUserIds={adminUserIds}
+        />
       ),
     },
     {

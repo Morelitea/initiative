@@ -34,6 +34,7 @@ import type {
   InitiativeRoleRead,
   InitiativeRoleUpdate,
   InitiativeUpdate,
+  ListInitiativesApiV1GGuildIdInitiativesGetParams,
   ListJoinRequestsApiV1GGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
   MyInitiativePermissions,
   SearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGetParams,
@@ -62,21 +63,33 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
+ * The initiatives the caller belongs to, or — for a guild admin asking for
+ * ``scope=guild`` — every initiative in the guild.
+ *
+ * The default is the caller's own workspace: what the sidebar and the
+ * initiative pickers show. A guild admin's authority over their whole guild is
+ * unchanged; it simply no longer decides what appears in their navigation.
+ * They bring an initiative into it by taking the project manager role from the
+ * guild-settings initiative table, which is also what ``scope=guild`` feeds.
  * @summary List Initiatives
  */
 export const listInitiativesApiV1GGuildIdInitiativesGet = (
   guildId: number,
+  params?: ListInitiativesApiV1GGuildIdInitiativesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeRead[]>(
-    { url: `/api/v1/g/${guildId}/initiatives/`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/initiatives/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListInitiativesApiV1GGuildIdInitiativesGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/initiatives/`] as const;
+export const getListInitiativesApiV1GGuildIdInitiativesGetQueryKey = (
+  guildId: number,
+  params?: ListInitiativesApiV1GGuildIdInitiativesGetParams
+) => {
+  return [`/api/v1/g/${guildId}/initiatives/`, ...(params ? [params] : [])] as const;
 };
 
 export const getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions = <
@@ -84,6 +97,7 @@ export const getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListInitiativesApiV1GGuildIdInitiativesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -98,11 +112,13 @@ export const getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId);
+    queryOptions?.queryKey ??
+    getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>
-  > = ({ signal }) => listInitiativesApiV1GGuildIdInitiativesGet(guildId, requestOptions, signal);
+  > = ({ signal }) =>
+    listInitiativesApiV1GGuildIdInitiativesGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -126,6 +142,7 @@ export function useListInitiativesApiV1GGuildIdInitiativesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params: undefined | ListInitiativesApiV1GGuildIdInitiativesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -151,6 +168,7 @@ export function useListInitiativesApiV1GGuildIdInitiativesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListInitiativesApiV1GGuildIdInitiativesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -176,6 +194,7 @@ export function useListInitiativesApiV1GGuildIdInitiativesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListInitiativesApiV1GGuildIdInitiativesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -197,6 +216,7 @@ export function useListInitiativesApiV1GGuildIdInitiativesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListInitiativesApiV1GGuildIdInitiativesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -209,7 +229,11 @@ export function useListInitiativesApiV1GGuildIdInitiativesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions(guildId, options);
+  const queryOptions = getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

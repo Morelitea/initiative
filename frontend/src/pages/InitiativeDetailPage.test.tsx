@@ -24,17 +24,17 @@ const page = () =>
 /** Every tool list answers the same envelope; the tabs only need it to be empty. */
 function stubEverything(permissions: Record<string, boolean> = {}) {
   server.use(
-    guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([
+    guildHttp.get("/initiatives/:id", ({ params }) =>
+      HttpResponse.json(
         buildInitiative({
-          id: INITIATIVE_ID,
+          id: Number(params.id),
           name: "Apollo",
           queues_enabled: true,
           dashboards_enabled: true,
           calendars_enabled: true,
           counter_groups_enabled: true,
-        }),
-      ])
+        })
+      )
     ),
     guildHttp.get("/initiatives/:id/my-permissions", () =>
       HttpResponse.json({

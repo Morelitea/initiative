@@ -24,8 +24,8 @@ const INITIATIVE_ID = 7;
 
 function stubInitiative(members: unknown[] = []) {
   server.use(
-    guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members })])
+    guildHttp.get("/initiatives/:id", () =>
+      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))
     )
   );
 }
@@ -104,7 +104,7 @@ describe("InitiativeSettingsLayout", () => {
   });
 
   it("says so when the initiative isn't one this reader can see", async () => {
-    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    server.use(guildHttp.get("/initiatives/:id", () => new HttpResponse(null, { status: 404 })));
 
     renderLayout();
 
