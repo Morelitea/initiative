@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   activeMention,
   entityMentionSyntax,
   MENTIONABLE_TYPES,
+  supportsEntityMentions,
   typeForTrigger,
   typeTrigger,
 } from "@/lib/mentions";
@@ -69,5 +70,20 @@ describe("what gets written into the comment", () => {
     expect(entityMentionSyntax(SearchEntityType.counter_group, "Q1", 7)).toBe(
       "#counter-group[Q1](7)"
     );
+  });
+});
+
+describe("where # is offered", () => {
+  it("is a standard document and nothing else", () => {
+    expect(supportsEntityMentions(DocumentType.native)).toBe(true);
+    for (const type of Object.values(DocumentType)) {
+      if (type === DocumentType.native) continue;
+      expect(supportsEntityMentions(type)).toBe(false);
+    }
+  });
+
+  it("is off while the document type is still unknown", () => {
+    expect(supportsEntityMentions(null)).toBe(false);
+    expect(supportsEntityMentions(undefined)).toBe(false);
   });
 });

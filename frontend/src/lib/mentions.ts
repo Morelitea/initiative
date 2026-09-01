@@ -11,7 +11,7 @@
  * written inside a code fence stays literal.
  */
 
-import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 
 /** People. A separate trigger because they are read from the roster, not the
  *  index — identity is shared across communities, content is not. */
@@ -104,3 +104,14 @@ export const activeMention = (text: string): ActiveMention | null => {
     length: word.length + narrowed.length + 2,
   };
 };
+
+/**
+ * Whether a document offers `#`.
+ *
+ * Only a standard document does. A whiteboard and a spreadsheet hold their
+ * content in shapes and cells rather than prose, and a file or a linked page
+ * has no body of its own to write in — none of them has a line of text with a
+ * caret in it for a trigger to be typed into.
+ */
+export const supportsEntityMentions = (type: DocumentType | null | undefined): boolean =>
+  type === DocumentType.native;

@@ -157,7 +157,7 @@ export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRail
                     </span>
                     <span
                       className={cn(
-                        "w-full px-1 text-xs text-wrap -mt-3 z-5",
+                        "z-5 -mt-3 w-full text-wrap px-1 text-xs",
                         isSelected
                           ? "font-semibold text-primary"
                           : "font-medium text-muted-foreground group-hover:text-foreground"

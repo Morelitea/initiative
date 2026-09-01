@@ -54,7 +54,7 @@ export const ChooseHandle = () => {
               suggestion={suggestion}
               disabled={submitting}
             />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-destructive text-sm">{error}</p>}
             <Button type="submit" className="w-full" disabled={submitting || !username.trim()}>
               {submitting ? t("common:submitting") : t("chooseHandle.submit")}
             </Button>

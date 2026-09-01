@@ -44,6 +44,7 @@ import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/l
 import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
+import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
 import { WikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
@@ -83,6 +84,8 @@ export interface EditorProps {
   trackChanges?: boolean;
   isSynced?: boolean;
   initiativeId?: number | null;
+  /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
+  supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
   onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }
@@ -100,6 +103,7 @@ export function Editor({
   trackChanges,
   isSynced = true,
   initiativeId = null,
+  supportsEntityMentions = false,
   onWikilinkNavigate,
   onWikilinkCreate,
 }: EditorProps) {
@@ -145,6 +149,7 @@ export function Editor({
         TweetNode,
         YouTubeNode,
         WikilinkNode,
+        EntityMentionNode,
       ],
       theme: editorTheme,
       editable: !initialReadOnlyRef.current,
@@ -212,6 +217,7 @@ export function Editor({
             collaborative={useCollaborativeMode}
             cursorsContainerRef={cursorsContainerRef}
             initiativeId={initiativeId}
+            supportsEntityMentions={supportsEntityMentions}
             onWikilinkNavigate={onWikilinkNavigate}
             onWikilinkCreate={onWikilinkCreate}
           />
