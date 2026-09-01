@@ -22,6 +22,7 @@
  * an explicit `Promise.all` — two boundary-respecting calls, never one matcher
  * that blurs the line.
  */
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
@@ -396,3 +397,38 @@ export const invalidateInitiativeMembership = () =>
     invalidateAllCalendars(),
     invalidateAllDashboards(),
   ]);
+
+// ── One tool entity (guild, cross-tool) ─────────────────────────────────────────
+// What every generic per-tool mutation — set tags, flip the comment switch —
+// has to refresh: that tool's list and detail queries. `Record<Tool, …>` so a
+// new Tool member fails to compile until it declares its invalidation. Declared
+// last so it can compose the per-resource helpers above.
+
+const TOOL_INVALIDATORS: Record<Tool, (id: number) => void> = {
+  [Tool.project]: (id) => {
+    void invalidateProject(id);
+    void invalidateAllProjects();
+  },
+  [Tool.document]: (id) => {
+    void invalidateDocument(id);
+    void invalidateAllDocuments();
+  },
+  [Tool.queue]: (id) => {
+    void invalidateQueue(id);
+    void invalidateAllQueues();
+  },
+  [Tool.counter_group]: (id) => {
+    void invalidateCounterGroup(id);
+    void invalidateAllCounterGroups();
+  },
+  [Tool.calendar]: (id) => {
+    void invalidateCalendar(id);
+    void invalidateAllCalendars();
+  },
+  [Tool.dashboard]: (id) => {
+    void invalidateDashboard(id);
+    void invalidateAllDashboards();
+  },
+};
+
+export const invalidateTool = (tool: Tool, id: number) => TOOL_INVALIDATORS[tool](id);

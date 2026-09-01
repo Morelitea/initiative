@@ -307,6 +307,7 @@ const createFallbackSummary = (
   projects: [],
   is_template: false,
   comment_count: 0,
+  comments_disabled: false,
   grants: [],
   tags: [],
   properties: [],

@@ -241,8 +241,11 @@ export const DocumentDetailPage = () => {
 
   const commentsQueryParams = { document_id: parsedId };
   const commentsCache = useCommentsCache(commentsQueryParams);
+  // The document's own comment switch: with it off there is no thread to load
+  // and no tab to show it in.
+  const commentsEnabled = documentQuery.data?.comments_disabled !== true;
   const commentsQuery = useComments(commentsQueryParams, {
-    enabled: Number.isFinite(parsedId),
+    enabled: Number.isFinite(parsedId) && commentsEnabled,
   });
 
   const document = documentQuery.data;
@@ -1026,6 +1029,7 @@ export const DocumentDetailPage = () => {
   }
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
+  const showSummaryTab = document.document_type === "native" && isAIEnabled;
 
   return (
     <div className="space-y-6">
@@ -1057,15 +1061,17 @@ export const DocumentDetailPage = () => {
               </Link>
             </Button>
           )}
-          <Button
-            variant={sidePanel.isOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={sidePanel.toggle}
-            title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
-          >
-            <PanelRight className="h-4 w-4" />
-            <span className="sr-only">{t("detail.togglePanel")}</span>
-          </Button>
+          {(showSummaryTab || commentsEnabled) && (
+            <Button
+              variant={sidePanel.isOpen ? "secondary" : "outline"}
+              size="sm"
+              onClick={sidePanel.toggle}
+              title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
+            >
+              <PanelRight className="h-4 w-4" />
+              <span className="sr-only">{t("detail.togglePanel")}</span>
+            </Button>
+          )}
         </div>
       </div>
       <div className="space-y-2">
@@ -1533,7 +1539,8 @@ export const DocumentDetailPage = () => {
       <DocumentSidePanel
         isOpen={sidePanel.isOpen}
         onOpenChange={sidePanel.setIsOpen}
-        showSummaryTab={document.document_type === "native" && isAIEnabled}
+        showSummaryTab={showSummaryTab}
+        showCommentsTab={commentsEnabled}
         summaryContent={
           <DocumentSummary
             documentId={parsedId}

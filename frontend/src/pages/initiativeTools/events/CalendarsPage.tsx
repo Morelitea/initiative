@@ -814,6 +814,7 @@ export function CalendarFocusPage() {
         entityId={calendar.id}
         initiativeId={calendar.initiative_id ?? 0}
         canModerate={hasWriteAccess(calendar.my_permission_level)}
+        disabled={calendar.comments_disabled}
       />
     </div>
   );

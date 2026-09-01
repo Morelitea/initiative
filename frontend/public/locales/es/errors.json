@@ -187,6 +187,7 @@
   "COMMENT_AUTHOR_ONLY_EDIT": "Solo el autor del comentario puede editar",
   "COMMENT_AUTHOR_ONLY_DELETE": "Solo puedes eliminar tus propios comentarios",
   "COMMENT_NOT_LINKED": "El comentario no está vinculado a ningún elemento",
+  "COMMENTS_DISABLED": "Los comentarios están desactivados para este elemento",
   "SETTINGS_PROVIDE_TEST_EMAIL": "Proporciona una dirección de email de prueba",
   "SETTINGS_SMTP_INCOMPLETE": "La configuración SMTP está incompleta",
   "SETTINGS_MAPPING_NOT_FOUND": "Mapeo no encontrado",

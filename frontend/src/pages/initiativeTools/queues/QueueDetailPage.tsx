@@ -357,6 +357,7 @@ export function QueueDetailPage() {
         entityId={queue.id}
         initiativeId={queue.initiative_id ?? 0}
         canModerate={canEdit}
+        disabled={queue.comments_disabled}
       />
 
       {/* Add Item Dialog */}

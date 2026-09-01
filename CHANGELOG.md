@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every tool can now turn its comments off.** A project, document, queue, counter group, calendar, or dashboard has a switch under Settings › Advanced that takes its comment thread off the page entirely. Comments stay on by default, and turning them off deletes nothing — the thread comes back whole when you turn them back on. Tasks keep their own comments either way: a task's thread belongs to the task, not to the project page it sits under.
+
 - **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
 
 ### Changed

@@ -1,11 +1,12 @@
 /**
  * THE settings page every tool gets.
  *
- * Rename, describe, tag, share, and delete are identical for all six tools, so
- * they live here once. Everything the page needs is derived from the `tool`
- * value — breadcrumb labels, list/detail routes, the tag mutation — and all of
- * its copy comes from the shared `common:toolSettings.*` namespace, so adding a
- * tool costs a wrapper that names its data hooks and nothing else.
+ * Rename, describe, tag, share, turn comments off, and delete are identical for
+ * all six tools, so they live here once. Everything the page needs is derived
+ * from the `tool` value — breadcrumb labels, list/detail routes, the tag and
+ * comment-switch mutations — and all of its copy comes from the shared
+ * `common:toolSettings.*` namespace, so adding a tool costs a wrapper that
+ * names its data hooks and nothing else.
  *
  * A tool with genuinely extra settings passes them as `detailsExtra` /
  * `advancedExtra` rather than as configuration; the shell stays the same shape
@@ -26,8 +27,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useSetToolComments } from "@/hooks/useToolComments";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -47,6 +50,7 @@ export interface ToolSettingsEntity {
   my_permission_level: string | null;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
+  comments_disabled: boolean;
 }
 
 /** Per-call callbacks so this page — not each wrapper — owns toasts and routing. */
@@ -104,6 +108,7 @@ export const ToolSettingsPage = ({
   const [nameValue, setNameValue] = useState("");
   const [descriptionValue, setDescriptionValue] = useState("");
   const [tags, setTags] = useState<TagSummary[]>([]);
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -111,9 +116,11 @@ export const ToolSettingsPage = ({
     setNameValue(entity.name);
     setDescriptionValue(entity.description ?? "");
     setTags(entity.tags ?? []);
+    setCommentsDisabled(entity.comments_disabled);
   }, [entity]);
 
   const setToolTags = useSetToolTags(tool);
+  const setToolComments = useSetToolComments(tool);
 
   if (isLoading) {
     return (
@@ -295,6 +302,31 @@ export const ToolSettingsPage = ({
         ))}
 
         <TabsContent value="advanced" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>{t("common:toolSettings.comments")}</CardTitle>
+                <CardDescription>{t("common:toolSettings.commentsDescription")}</CardDescription>
+              </div>
+              <Switch
+                id="tool-settings-comments-disabled"
+                checked={commentsDisabled}
+                onCheckedChange={(value) => {
+                  // The switch shows the new state immediately and puts the old
+                  // one back if the write fails, like the tag picker above.
+                  const previous = commentsDisabled;
+                  setCommentsDisabled(value);
+                  setToolComments.mutate(
+                    { id: entity.id, disabled: value },
+                    { onError: () => setCommentsDisabled(previous) }
+                  );
+                }}
+                disabled={!canManage || setToolComments.isPending}
+                aria-label={t("common:toolSettings.commentsToggle")}
+              />
+            </CardHeader>
+          </Card>
+
           {advancedExtra}
 
           {isOwner && (

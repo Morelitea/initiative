@@ -189,6 +189,7 @@
   "COMMENT_AUTHOR_ONLY_EDIT": "Nur der Verfasser des Kommentars kann ihn bearbeiten",
   "COMMENT_AUTHOR_ONLY_DELETE": "Du kannst nur deine eigenen Kommentare löschen",
   "COMMENT_NOT_LINKED": "Der Kommentar ist mit keinem Element verknüpft",
+  "COMMENTS_DISABLED": "Kommentare sind für dieses Element deaktiviert",
   "SETTINGS_PROVIDE_TEST_EMAIL": "Gib eine Test-E-Mail-Adresse an",
   "SETTINGS_SMTP_INCOMPLETE": "SMTP-Einstellungen sind unvollständig",
   "SETTINGS_MAPPING_NOT_FOUND": "Zuordnung nicht gefunden",

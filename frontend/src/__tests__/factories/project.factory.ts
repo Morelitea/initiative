@@ -90,6 +90,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     documents: [],
     task_summary: { total: 0, completed: 0 },
     tags: [],
+    comments_disabled: false,
     ...overrides,
   };
 }
