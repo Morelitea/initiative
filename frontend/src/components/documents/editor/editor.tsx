@@ -42,6 +42,7 @@ import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-ex
 import { LayoutExtension } from "@/components/ui/editor/extensions/layout-extension";
 import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/list-max-indent-level-extension";
 import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
+import { BadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
 import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
@@ -150,6 +151,7 @@ export function Editor({
         YouTubeNode,
         WikilinkNode,
         EntityMentionNode,
+        BadgeNode,
       ],
       theme: editorTheme,
       editable: !initialReadOnlyRef.current,
