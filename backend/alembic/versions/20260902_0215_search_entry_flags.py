@@ -15,17 +15,17 @@ context for its policies to read, so the write is bracketed by lifting and
 restoring that. A failure anywhere in between rolls the whole migration back,
 restoring it with everything else.
 
-Revision ID: 20260901_0212
-Revises: 20260902_0211
-Create Date: 2026-09-01
+Revision ID: 20260902_0215
+Revises: 20260902_0214
+Create Date: 2026-09-02
 """
 
 from alembic import op
 
 from app.db.guild_migrations import apply_to_all_guild_schemas
 
-revision = "20260901_0212"
-down_revision = "20260902_0211"
+revision = "20260902_0215"
+down_revision = "20260902_0214"
 branch_labels = None
 depends_on = None
 

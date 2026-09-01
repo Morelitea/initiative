@@ -33,6 +33,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
 from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
 from app.core.user_display import handle_of
+from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
