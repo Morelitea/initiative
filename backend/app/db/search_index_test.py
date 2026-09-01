@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from sqlmodel import SQLModel
@@ -32,8 +33,18 @@ from app.testing import create_project, create_tag, create_task
 pytestmark = pytest.mark.integration
 
 
-async def _entries(session, guild_id: int, entity_type: str, entity_id: int):
-    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+async def _entries(
+    session: AsyncSession,
+    guild_id: int,
+    entity_type: str,
+    entity_id: int,
+    *,
+    user_id: int | None = None,
+    guild_role: str = "admin",
+) -> list[SearchEntry]:
+    await set_rls_context(
+        session, user_id=user_id, guild_id=guild_id, guild_role=guild_role
+    )
     rows = await session.exec(
         select(SearchEntry)
         .where(
@@ -186,3 +197,47 @@ async def test_short_text_is_exactly_one_chunk(session, acting_user):
     rows = await _entries(session, a.guild.id, "project", project.id)
     assert len(rows) == 1
     assert rows[0].chunk_ix == 0
+
+
+async def test_a_guild_member_outside_the_initiative_sees_nothing(session, acting_user):
+    """The initiative gate this table registers, proven against the database.
+
+    A guild member who is not in the initiative gets no rows — the same answer
+    the content tables give, from the same ``initiative_access`` call.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    # Both actors up front: reading routes the session into a guild role, which
+    # the factories cannot run under.
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    task = await create_task(session, a.project, title="quarterly vendor renewal")
+
+    assert await _entries(session, a.guild.id, "task", task.id)
+    assert (
+        await _entries(
+            session,
+            a.guild.id,
+            "task",
+            task.id,
+            user_id=outsider.user.id,
+            guild_role="member",
+        )
+        == []
+    )
+
+
+async def test_a_guild_level_tag_is_visible_to_any_member(session, acting_user):
+    """The NULL-initiative leg: guild vocabulary every member already sees in
+    every picker is not hidden from them in search."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    tag = await create_tag(session, a.guild, name="urgent")
+
+    rows = await _entries(
+        session,
+        a.guild.id,
+        "tag",
+        tag.id,
+        user_id=member.user.id,
+        guild_role="member",
+    )
+    assert [r.title for r in rows] == ["urgent"]

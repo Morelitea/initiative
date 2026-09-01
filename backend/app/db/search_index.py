@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy import MetaData
 from sqlmodel import SQLModel
 
 from app.core.tools import Tool
@@ -152,7 +153,7 @@ NOT_SEARCHABLE: dict[str, str] = {
 #: its own. Their composite primary key says so, which is the same derivation
 #: ``event_capture`` uses to report them against their parent — so they are
 #: excluded by construction rather than by a list that would need maintaining.
-def addressable_tables(metadata) -> set[str]:
+def addressable_tables(metadata: MetaData) -> set[str]:
     """Guild content tables a search hit could name — those with an ``id``."""
     return {
         name
