@@ -109,7 +109,9 @@ export function EntityMentionsPlugin({
           option.suggestion.title
         );
         if (nodeToReplace) nodeToReplace.replace(node);
-        node.select();
+        // A decorator has no caret of its own; put it after the reference so
+        // typing continues in the sentence.
+        node.selectNext();
         closeMenu();
       });
     },

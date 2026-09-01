@@ -35,6 +35,9 @@ interface CommentInputProps {
   onClearError?: () => void;
   autoFocus?: boolean;
   compact?: boolean;
+  /** Asked to make something `[[ ]]` could not find, by the name typed. The
+   *  composer does not create: it says what was asked for. */
+  onCreateRequest?: (name: string) => void;
   /** When set, a Cancel button sits beside Submit and Escape dismisses. */
   onCancel?: () => void;
   cancelLabel?: string;
@@ -52,6 +55,7 @@ export const CommentInput = ({
   onClearError,
   autoFocus = false,
   compact = false,
+  onCreateRequest,
   onCancel,
   cancelLabel,
 }: CommentInputProps) => {
@@ -106,6 +110,15 @@ export const CommentInput = ({
     (choice: MentionChoice) => {
       if (!mentionTrigger || !textareaRef.current) return;
 
+      // Making something is a different act from naming one, and it is the
+      // caller's to do — it needs a dialog, and the composer has no business
+      // opening one.
+      if (!choice.user && "create" in choice) {
+        onCreateRequest?.(choice.create);
+        setMentionTrigger(null);
+        return;
+      }
+
       // The label is written into the text, so the characters the syntax is
       // built from cannot appear inside it.
       const label = (choice.user ? choice.label : choice.suggestion.title).replace(/[[\]()]/g, "");
@@ -128,7 +141,7 @@ export const CommentInput = ({
         textareaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition);
       }, 0);
     },
-    [mentionTrigger, value, onChange]
+    [mentionTrigger, value, onChange, onCreateRequest]
   );
 
   // Close popover

@@ -4,7 +4,10 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { useCommentReferences } from "@/components/comments/CommentReferences";
 import { useGuilds } from "@/hooks/useGuilds";
+import { referenceRef } from "@/lib/badges";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute } from "@/lib/tools";
@@ -45,6 +48,7 @@ const buildMentionSpan = (linked: boolean) =>
   function MentionSpan({ children, node: _node, ...props }: SpanProps) {
     const { t } = useTranslation(["comments", "search"]);
     const { activeGuildId } = useGuilds();
+    const references = useCommentReferences();
 
     const attrs = props as Record<string, string | undefined>;
     const type = attrs["data-mention-type"] as MentionType | undefined;
@@ -56,7 +60,11 @@ const buildMentionSpan = (linked: boolean) =>
     }
 
     if (type === "user") {
-      return <span className={MENTION_BADGE}>@{label}</span>;
+      // The name is read, not trusted: a comment written a year ago says what
+      // that person is called today. The label it was written with stands in
+      // while the answer is on its way, and for good once they are gone.
+      const live = id ? references.people.get(Number(id)) : undefined;
+      return <span className={MENTION_BADGE}>@{live ?? label}</span>;
     }
 
     // A mention carries only an id, and an entity's address names its
@@ -68,10 +76,16 @@ const buildMentionSpan = (linked: boolean) =>
       return <span>{label}</span>;
     }
 
+    const live = references.titles.get(referenceRef(type as SearchEntityType, Number(id)));
     const text = t("contextPrefix", {
       type: t(`search:types.${type}` as never, { defaultValue: type }),
-      name: label,
+      name: live ?? label,
     });
+    // Nothing came back for it once the answer has arrived: deleted, or never
+    // shared with this reader. It keeps its words and stops being a link.
+    if (references.ready && live === undefined) {
+      return <span className="text-muted-foreground/80">{text}</span>;
+    }
     if (!linked) {
       return <span className={MENTION_BADGE}>{text}</span>;
     }

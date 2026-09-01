@@ -21,6 +21,7 @@ import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CommandDialog,
   CommandEmpty,
@@ -36,6 +37,7 @@ import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useRecents } from "@/hooks/useRecents";
 import { useGuildSearchSuggest } from "@/hooks/useSearch";
 import { useTasks } from "@/hooks/useTasks";
+import { useUserSearch } from "@/hooks/useUsers";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
@@ -45,12 +47,18 @@ import {
   categoryEntityTypes,
   DEFAULT_SEARCH_CATEGORY,
   hitIcon,
-  INDEX_SEARCH_CATEGORIES,
+  SEARCH_CATEGORIES,
   type SearchCategory,
   searchHitPath,
 } from "@/lib/searchResults";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import { entityRefRoute, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
+import {
+  getAvatarSrc,
+  getInitialsForUser,
+  getUrlHandle,
+  getUserDisplayName,
+} from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 // Module-level callback so other components can open the command center
@@ -58,6 +66,10 @@ let openCommandCenter: (() => void) | null = null;
 export function getOpenCommandCenter() {
   return openCommandCenter;
 }
+
+/** How many people the palette offers at once — it is a way to reach one,
+ *  not a roster. */
+const PALETTE_MEMBER_LIMIT = 5;
 
 export function CommandCenter() {
   const [open, setOpen] = useState(false);
@@ -113,8 +125,8 @@ export function CommandCenter() {
       if (!target?.hasAttribute("cmdk-input")) return;
       event.preventDefault();
       setScope((current) => {
-        const next = INDEX_SEARCH_CATEGORIES.indexOf(current) + 1;
-        return INDEX_SEARCH_CATEGORIES[next % INDEX_SEARCH_CATEGORIES.length];
+        const next = SEARCH_CATEGORIES.indexOf(current) + 1;
+        return SEARCH_CATEGORIES[next % SEARCH_CATEGORIES.length];
       });
     };
     document.addEventListener("keydown", handleTab);
@@ -156,11 +168,19 @@ export function CommandCenter() {
   const recentQuery = useRecents({ staleTime: 30_000 });
   // Searching asks the guild index one question and gets every kind of thing
   // back — tasks, documents, queue items, events, tags — ranked together.
+  // `null` for Members, who are not in the index: identity is shared across
+  // communities while the index is per-community, so they are read from the
+  // roster — the same split the results page makes.
+  const scopeTypes = categoryEntityTypes(scope);
   const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
-    enabled: open && !!user && isSearching,
-    // Never null: the palette's scopes are the ones the index answers for.
-    types: categoryEntityTypes(scope) ?? undefined,
+    enabled: open && !!user && isSearching && scopeTypes !== null,
+    types: scopeTypes ?? undefined,
     staleTime: 30_000,
+  });
+  const membersQuery = useUserSearch({
+    search: effectiveSearch,
+    pageSize: PALETTE_MEMBER_LIMIT,
+    enabled: open && !!user && isSearching && scopeTypes === null,
   });
   // Browsing (palette just opened): the user's own not-done tasks, most
   // recently updated — surfacing what they're actively working on. Fired once
@@ -207,6 +227,8 @@ export function CommandCenter() {
         .filter((row): row is { hit: SearchSuggestion; path: string } => row.path !== null),
     [suggestQuery.data]
   );
+
+  const members = membersQuery.data?.items ?? [];
 
   const isGuildAdmin = activeGuild?.role === "admin";
   const showPlatformSettings = canManagePlatformConfig(user);
@@ -288,7 +310,7 @@ export function CommandCenter() {
           role="tablist"
           aria-label={t("search:title")}
         >
-          {INDEX_SEARCH_CATEGORIES.map((category) => (
+          {SEARCH_CATEGORIES.map((category) => (
             <button
               key={category}
               type="button"
@@ -319,6 +341,24 @@ export function CommandCenter() {
             keyed on the query itself rather than re-filtered here. */}
         {isSearching && (
           <CommandGroup heading={t("groups.results")}>
+            {members.map((member) => (
+              // A profile belongs to the person rather than to the community
+              // the search ran in, so this leaves the community tree.
+              <CommandItem
+                key={`member-${member.id}`}
+                value={`member-${member.id}`}
+                keywords={[effectiveSearch, getUserDisplayName(member)]}
+                onSelect={() => handleSelect(`/u/${getUrlHandle(member)}`)}
+              >
+                <Avatar className="size-4">
+                  <AvatarImage src={getAvatarSrc(member)} alt="" />
+                  <AvatarFallback className="text-[9px]">
+                    {getInitialsForUser(member)}
+                  </AvatarFallback>
+                </Avatar>
+                <span>{getUserDisplayName(member)}</span>
+              </CommandItem>
+            ))}
             {suggestions.map(({ hit, path }) => {
               const Icon = hitIcon(hit);
               return (

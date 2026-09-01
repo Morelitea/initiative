@@ -3,14 +3,14 @@ import type { JSX, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { BadgeState } from "@/api/generated/initiativeAPI.schemas";
-import { $isBadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { BadgeStatesContext, useDocumentBadges } from "@/hooks/useDocumentBadges";
+import { collectReferences } from "@/lib/documentReferences";
 
 /**
- * Reads every chip on the page, once.
+ * Reads everything the page refers to, once.
  *
- * The chips do not fetch for themselves — thirty badges would be thirty
- * requests. This walks the editor for their references, asks for them together,
+ * Chips and references do not fetch for themselves — thirty of them would be
+ * thirty requests. This walks the editor for their references, asks for them together,
  * and hands the answer down. A chip added or deleted changes the set, which is
  * why it re-collects on every update rather than only on mount.
  */
@@ -21,13 +21,9 @@ export function DocumentBadgesPlugin({ children }: { children?: ReactNode }): JS
   useEffect(() => {
     const collect = () => {
       editor.getEditorState().read(() => {
-        const found = new Set<string>();
-        for (const node of Object.values(editor.getEditorState()._nodeMap)) {
-          if ($isBadgeNode(node)) found.add(node.getRef());
-        }
-        // Sorted and compared as a string so an edit that moves a badge without
+        // Compared as a string so an edit that moves a reference without
         // changing the set does not start a new request.
-        const next = [...found].sort();
+        const next = collectReferences(Object.values(editor.getEditorState()._nodeMap));
         setRefs((current) => (current.join() === next.join() ? current : next));
       });
     };

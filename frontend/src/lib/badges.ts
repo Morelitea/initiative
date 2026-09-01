@@ -38,6 +38,10 @@ export const badgeAspect = (kind: BadgeKind): string => kind.split(SEPARATOR)[1]
 export const badgeRef = (kind: BadgeKind, entityId: number): string =>
   `${badgeEntityType(kind)}${SEPARATOR}${entityId}${SEPARATOR}${badgeAspect(kind)}`;
 
+/** What a link stores: `task:12`, which resolves to what it is called now. */
+export const referenceRef = (entityType: SearchEntityType, entityId: number): string =>
+  `${entityType}${SEPARATOR}${entityId}`;
+
 /**
  * The classes a tone renders in.
  *

@@ -1,6 +1,9 @@
 {
   "contentRequired": "Inhalt ist erforderlich.",
   "contextPrefix": "{{type}}: {{name}}",
+  "createKindPrompt": "Um was für eine Sache handelt es sich?",
+  "createNamed": "„{{name}}\" erstellen",
+  "createNothingAllowed": "Du kannst dieser Initiative nichts hinzufügen.",
   "deleteComment": "Löschen",
   "editPlaceholder": "Bearbeite deinen Kommentar...",
   "edited": "(bearbeitet)",

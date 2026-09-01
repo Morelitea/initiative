@@ -744,6 +744,20 @@ export interface BackupEstimate {
   max_upload_bytes?: number;
 }
 
+/**
+ * The fact a badge is about.
+ */
+export type BadgeAspect = (typeof BadgeAspect)[keyof typeof BadgeAspect];
+
+export const BadgeAspect = {
+  status: "status",
+  assignee: "assignee",
+  due: "due",
+  priority: "priority",
+  value: "value",
+  when: "when",
+} as const;
+
 export type BadgeKind = (typeof BadgeKind)[keyof typeof BadgeKind];
 
 export const BadgeKind = {
@@ -753,6 +767,23 @@ export const BadgeKind = {
   "task:due": "task:due",
   "task:priority": "task:priority",
   "task:status": "task:status",
+} as const;
+
+export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
+
+export const SearchEntityType = {
+  calendar: "calendar",
+  calendar_event: "calendar_event",
+  comment: "comment",
+  counter: "counter",
+  counter_group: "counter_group",
+  dashboard: "dashboard",
+  document: "document",
+  project: "project",
+  queue: "queue",
+  queue_item: "queue_item",
+  tag: "tag",
+  task: "task",
 } as const;
 
 /**
@@ -782,7 +813,8 @@ export const BadgeTone = {
  */
 export interface BadgeState {
   ref: string;
-  kind: BadgeKind;
+  entity_type: SearchEntityType;
+  aspect: BadgeAspect | null;
   text: string;
   tone: BadgeTone;
   color: string | null;
@@ -4392,23 +4424,6 @@ export interface ResourceGrantBulkResponse {
 export interface RestoreResponse {
   restored: boolean;
 }
-
-export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
-
-export const SearchEntityType = {
-  calendar: "calendar",
-  calendar_event: "calendar_event",
-  comment: "comment",
-  counter: "counter",
-  counter_group: "counter_group",
-  dashboard: "dashboard",
-  document: "document",
-  project: "project",
-  queue: "queue",
-  queue_item: "queue_item",
-  tag: "tag",
-  task: "task",
-} as const;
 
 /**
  * One thing found.

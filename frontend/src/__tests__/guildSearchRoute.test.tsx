@@ -332,12 +332,21 @@ describe("the command palette", () => {
     expect(tools).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Comments" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Tags" })).toBeInTheDocument();
-    // Not Members: every slice here is one the index answers, and people are
-    // not in it — they are read from the roster, which is a second request the
-    // palette does not make.
-    expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
+    // Members too: people are read from the roster rather than the index, and
+    // the palette makes that second request so its scopes match the page's.
+    expect(screen.getByRole("tab", { name: "Members" })).toBeInTheDocument();
 
     // Tab from the input moves between slices, so the hands stay on the query.
+    // Members sits second, and is the one the index does not answer.
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute("aria-selected", "true")
+    );
+    expect(useSearchModule.useGuildSearchSuggest).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ enabled: false })
+    );
+
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
     await waitFor(() =>
       expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute("aria-selected", "true")
@@ -389,5 +398,53 @@ describe("the command palette", () => {
     await userEvent.click(await screen.findByText(/See all results/));
     expect(pageRouter.state.location.pathname).toBe("/c/1/search");
     expect(pageRouter.state.location.searchStr).toContain("q=riverside");
+  });
+
+  it("finds a person from the palette and opens their profile", async () => {
+    // Profiles are public and belong to the person, so this leaves the
+    // community tree rather than routing under /c/{guild}.
+    mocks.members.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 4,
+            username: "thorn-ironforge",
+            discriminator: 22,
+            full_name: "Thorn Ironforge",
+            avatar_url: null,
+            status: "active",
+          },
+        ],
+        total_count: 1,
+        page: 1,
+        page_size: 5,
+        has_next: false,
+        has_prev: false,
+      },
+      isLoading: false,
+      isFetched: true,
+    });
+    mocks.suggest.mockReturnValue({ data: [] });
+
+    renderPage(CommandCenter, {
+      initialRoute: "/g/$guildId",
+      routeParams: { guildId: "1" },
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+    await userEvent.type(await screen.findByRole("combobox"), "thorn");
+    // The strip appears once there is a query to scope; Tab needs it there.
+    await screen.findByRole("tab", { name: "Members" }, { timeout: 2000 });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute("aria-selected", "true")
+    );
+    expect(await screen.findByText("Thorn Ironforge")).toBeInTheDocument();
+    expect(mocks.members).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "thorn", enabled: true })
+    );
   });
 });

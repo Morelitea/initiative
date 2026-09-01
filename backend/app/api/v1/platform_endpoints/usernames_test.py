@@ -303,7 +303,12 @@ class TestFindingSomeone:
         assert [item["username"] for item in items] == ["morgan"]
 
     async def test_and_not_where_it_is_not(self, client, session, searchable_guild):
-        """A guild that does not show names does not match on them either."""
+        """A guild that does not show names does not match on them either.
+
+        Asserted as "the person whose name that is does not come back" rather
+        than "nothing comes back": handles are still matched, and loosely, so
+        someone whose handle merely resembles the word is a legitimate hit.
+        """
         admin, guild = searchable_guild
         guild.show_member_names = False
         session.add(guild)
@@ -311,4 +316,4 @@ class TestFindingSomeone:
 
         items = await self._search(client, admin, guild, "Three")
 
-        assert items == []
+        assert "morgan" not in [item["username"] for item in items]

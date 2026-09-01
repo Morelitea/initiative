@@ -29,6 +29,23 @@ _REF_DESCRIPTION = (
 )
 
 
+@router.get("/kinds", response_model=List[BadgeKind])
+async def list_badge_kinds(
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildContextDep,
+) -> List[BadgeKind]:
+    """The badges an editor may offer to insert.
+
+    Asked for rather than assumed, so an editor cannot put a badge in a
+    document that this server has no reader for — and gains one the day a
+    reader is added, without being told.
+
+    Titles are not here: every referenceable thing has one, and it is how a
+    reference renders rather than something chosen from a menu.
+    """
+    return list(BadgeKind)
+
+
 @router.get("/", response_model=BadgeStateList)
 async def read_badges(
     session: RLSSessionDep,

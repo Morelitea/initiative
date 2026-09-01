@@ -4,6 +4,7 @@ import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { type RefObject, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import { ActionsPlugin } from "@/components/ui/editor/plugins/actions/actions-plugin";
@@ -27,7 +28,6 @@ import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-p
 import { EntityMentionsPlugin } from "@/components/ui/editor/plugins/entity-mentions-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
-import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
@@ -88,7 +88,7 @@ export function Plugins({
   initiativeId = null,
   supportsEntityMentions = false,
   onWikilinkNavigate,
-  onWikilinkCreate,
+  onCreateReferencedThing,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
@@ -100,7 +100,10 @@ export function Plugins({
    *  or a linked page has no body of its own to write in. */
   supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
-  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
+  onCreateReferencedThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }) {
   const { t } = useTranslation("documents");
   const [editor] = useLexicalComposerContext();
@@ -217,7 +220,7 @@ export function Plugins({
         <WikilinksPlugin
           initiativeId={initiativeId}
           onNavigate={onWikilinkNavigate}
-          onCreateDocument={onWikilinkCreate}
+          onCreateThing={onCreateReferencedThing}
         />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
 
@@ -265,12 +268,6 @@ export function Plugins({
           anchorElem={floatingAnchorElem}
           isLinkEditMode={isLinkEditMode}
           setIsLinkEditMode={setIsLinkEditMode}
-        />
-        <FloatingWikilinkEditorPlugin
-          anchorElem={floatingAnchorElem}
-          initiativeId={initiativeId}
-          onNavigate={onWikilinkNavigate}
-          onCreateDocument={onWikilinkCreate}
         />
         <FloatingTextFormatToolbarPlugin
           anchorElem={floatingAnchorElem}

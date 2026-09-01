@@ -17,7 +17,6 @@ import {
   COMMENT_ENTITY_TYPE,
   categoryEntityTypes,
   hitCategory,
-  INDEX_SEARCH_CATEGORIES,
   SEARCH_CATEGORIES,
   type SearchTarget,
   searchHitPath,
@@ -132,7 +131,7 @@ describe("categories", () => {
   });
 
   it("asks for one category at a time, and between them they cover the index", () => {
-    const asked = INDEX_SEARCH_CATEGORIES.flatMap((c) => categoryEntityTypes(c) ?? []);
+    const asked = SEARCH_CATEGORIES.flatMap((c) => categoryEntityTypes(c) ?? []);
     expect(new Set(asked)).toEqual(new Set(Object.values(SearchEntityType)));
     expect(asked).toHaveLength(new Set(asked).size);
   });
@@ -142,7 +141,7 @@ describe("categories", () => {
     // content. So the Members tab asks the roster, and says so by having no
     // entity types of its own.
     expect(categoryEntityTypes("member")).toBeNull();
-    expect(INDEX_SEARCH_CATEGORIES).not.toContain("member");
+    expect(categoryEntityTypes("member")).toBeNull();
     expect(SEARCH_CATEGORIES).toContain("member");
   });
 

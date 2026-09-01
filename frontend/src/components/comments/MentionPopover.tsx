@@ -1,13 +1,17 @@
+import type { TFunction } from "i18next";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion, UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildSearchSuggest } from "@/hooks/useSearch";
 import { useInitiativeMemberSearch } from "@/hooks/useUsers";
 import { getInitials } from "@/lib/initials";
 import type { ActiveMention } from "@/lib/mentions";
 import { MENTIONABLE_TYPES } from "@/lib/mentions";
+import { linkableToolTypes } from "@/lib/references";
 import { hitIcon } from "@/lib/searchResults";
 import { getAvatarSrc, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -18,7 +22,9 @@ const MENTION_LIMIT = 8;
 /** What choosing a row means: a person, or one of the things in this community. */
 export type MentionChoice =
   | { user: true; id: number; label: string }
-  | { user: false; suggestion: SearchSuggestion };
+  | { user: false; suggestion: SearchSuggestion }
+  /** Nothing matched and `[[ ]]` offered to make it. */
+  | { user: false; create: string };
 
 interface MentionPopoverProps {
   /** The mention being typed — who or what, and how much of it. */
@@ -60,6 +66,14 @@ const memberRow = (member: UserSummary): Row => {
   };
 };
 
+const createRow = (name: string, t: TFunction<["comments", "common"]>): Row => ({
+  key: `create-${name}`,
+  label: t("createNamed", { name }),
+  subtitle: null,
+  leading: <Plus className="h-4 w-4 shrink-0" />,
+  choose: { user: false, create: name },
+});
+
 const suggestionRow = (suggestion: SearchSuggestion): Row => {
   const Icon = hitIcon(suggestion);
   return {
@@ -100,8 +114,13 @@ export const MentionPopover = ({
     pageSize: MENTION_LIMIT,
     enabled: active.user && inInitiative,
   });
+  // `[[ ]]` reaches the tools this initiative has; `#` reaches everything.
+  const { data: initiative } = useInitiative(inInitiative ? initiativeId : null);
+  const types = active.canCreate
+    ? linkableToolTypes(initiative)
+    : (active.types ?? MENTIONABLE_TYPES);
   const suggestions = useGuildSearchSuggest(active.query, {
-    types: active.types ?? MENTIONABLE_TYPES,
+    types,
     initiative_id: initiativeId,
     // A mention points at work, not at the blueprint work is started from.
     template: false,
@@ -113,13 +132,19 @@ export const MentionPopover = ({
   // narrows the kinds faster than the answer can arrive, so what is on screen
   // is held to the kinds asked for now rather than the ones asked for a
   // keystroke ago.
-  const wanted = active.types;
+  const wanted = active.canCreate ? types : active.types;
   const rows: Row[] = useMemo(() => {
     if (active.user) return (members.data?.items ?? []).map(memberRow);
-    return (suggestions.data ?? [])
+    const found = (suggestions.data ?? [])
       .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
       .map(suggestionRow);
-  }, [active.user, wanted, members.data, suggestions.data]);
+    if (!active.canCreate || !active.query.trim()) return found;
+    // `[[ ]]` is the trigger that can make what it cannot find. The option is
+    // last, so it never sits where an existing thing was about to be picked.
+    const named = active.query.trim().toLowerCase();
+    if (found.some((row) => row.label.toLowerCase() === named)) return found;
+    return [...found, createRow(active.query.trim(), t)];
+  }, [active.user, active.canCreate, active.query, wanted, members.data, suggestions.data, t]);
 
   const isLoading = inInitiative && (active.user ? members.isLoading : suggestions.isLoading);
 

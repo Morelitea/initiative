@@ -26,6 +26,7 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextExtension } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import {
+  $createTextNode,
   configExtension,
   defineExtension,
   type EditorState,
@@ -35,6 +36,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
 import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
 import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
@@ -45,7 +47,10 @@ import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/ma
 import { BadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
-import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
+import {
+  $createEntityMentionNode,
+  EntityMentionNode,
+} from "@/components/ui/editor/nodes/entity-mention-node";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
 import { WikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
@@ -88,7 +93,10 @@ export interface EditorProps {
   /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
   supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
-  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
+  onCreateReferencedThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }
 
 export function Editor({
@@ -106,7 +114,7 @@ export function Editor({
   initiativeId = null,
   supportsEntityMentions = false,
   onWikilinkNavigate,
-  onWikilinkCreate,
+  onCreateReferencedThing,
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
@@ -149,9 +157,28 @@ export function Editor({
         MentionNode,
         TweetNode,
         YouTubeNode,
-        WikilinkNode,
         EntityMentionNode,
         BadgeNode,
+        // `[[ ]]` wrote its own node before references were one thing. Stored
+        // documents still hold them, so every one is read as the reference it
+        // always was — rendering live like the rest, and written back as a
+        // reference the next time the document is saved.
+        {
+          replace: WikilinkNode,
+          with: (node: WikilinkNode) => {
+            const documentId = node.getDocumentId();
+            // One that never resolved points at nothing, so there is nothing to
+            // migrate but the words. Keeping its id would write a reference to
+            // document 0 — a link that can never come good.
+            return documentId
+              ? $createEntityMentionNode(
+                  SearchEntityType.document,
+                  documentId,
+                  node.getDocumentTitle()
+                )
+              : $createTextNode(node.getDocumentTitle());
+          },
+        },
       ],
       theme: editorTheme,
       editable: !initialReadOnlyRef.current,
@@ -221,7 +248,7 @@ export function Editor({
             initiativeId={initiativeId}
             supportsEntityMentions={supportsEntityMentions}
             onWikilinkNavigate={onWikilinkNavigate}
-            onWikilinkCreate={onWikilinkCreate}
+            onCreateReferencedThing={onCreateReferencedThing}
           />
 
           {useCollaborativeMode && providerFactory && (

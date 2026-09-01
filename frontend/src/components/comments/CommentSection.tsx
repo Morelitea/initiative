@@ -3,15 +3,18 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommentCreate, CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { entityMentionSyntax } from "@/lib/mentions";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 import { CommentInput } from "./CommentInput";
+import { CommentReferences } from "./CommentReferences";
 import { CommentThread } from "./CommentThread";
 
 export interface CommentWithReplies extends CommentRead {
@@ -112,6 +115,10 @@ export const CommentSection = ({
   // Build comment tree
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
   const hasComments = comments.length > 0;
+  // A name `[[ ]]` could not find. Holding it here opens the dialog that makes
+  // it, which knows which tools this initiative has and which the writer may
+  // add — neither of which a text box should be deciding.
+  const [pendingCreate, setPendingCreate] = useState<string | null>(null);
 
   // Build display name maps from comment authors
   const userDisplayNames = useMemo(() => {
@@ -172,84 +179,105 @@ export const CommentSection = ({
     // Full width wherever it lands: a comment thread is a conversation, and a
     // narrow column makes every reply wrap. Callers give it its own row rather
     // than a sidebar or a half-width cell.
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquarePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <h3>{title ?? t("title")}</h3>
-          </div>
-          <HoverCard>
-            <HoverCardTrigger asChild>
-              <button type="button" className="text-muted-foreground hover:text-foreground">
-                <HelpCircle className="h-4 w-4" />
-              </button>
-            </HoverCardTrigger>
-            <HoverCardContent side="left" align="start" className="w-56">
-              <p className="font-medium text-sm">{t("mentionSyntax")}</p>
-              <ul className="mt-2 space-y-1.5 text-sm">
-                <li>
-                  <code className="rounded bg-muted px-1 text-xs">@</code> {t("mentionUser")}
-                </li>
-                <li>
-                  <code className="rounded bg-muted px-1 text-xs">#</code> {t("mentionAnything")}
-                </li>
-                <li className="text-muted-foreground">{t("mentionNarrow")}</li>
-              </ul>
-              <p className="mt-3 font-medium text-sm">{t("formattingSyntax")}</p>
-              <p className="mt-1 text-muted-foreground text-sm">{t("markdownHint")}</p>
-            </HoverCardContent>
-          </HoverCard>
-        </CardTitle>
-      </CardHeader>
+    <CommentReferences contents={comments.map((comment) => comment.content)}>
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquarePlus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <h3>{title ?? t("title")}</h3>
+            </div>
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground">
+                  <HelpCircle className="h-4 w-4" />
+                </button>
+              </HoverCardTrigger>
+              <HoverCardContent side="left" align="start" className="w-56">
+                <p className="font-medium text-sm">{t("mentionSyntax")}</p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  <li>
+                    <code className="rounded bg-muted px-1 text-xs">@</code> {t("mentionUser")}
+                  </li>
+                  <li>
+                    <code className="rounded bg-muted px-1 text-xs">#</code> {t("mentionAnything")}
+                  </li>
+                  <li className="text-muted-foreground">{t("mentionNarrow")}</li>
+                </ul>
+                <p className="mt-3 font-medium text-sm">{t("formattingSyntax")}</p>
+                <p className="mt-1 text-muted-foreground text-sm">{t("markdownHint")}</p>
+              </HoverCardContent>
+            </HoverCard>
+          </CardTitle>
+        </CardHeader>
 
-      <CardContent>
-        {activeGuildReadOnly ? (
-          <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
-        ) : (
-          <CommentInput
-            value={content}
-            onChange={setContent}
-            onSubmit={handleSubmit}
-            isSubmitting={createComment.isPending}
-            initiativeId={initiativeId}
-            error={error}
-            onClearError={() => setError(null)}
-          />
-        )}
-
-        <div className="mt-4 space-y-3">
-          {isLoading ? (
-            <p className="text-muted-foreground text-sm">{t("loading")}</p>
-          ) : hasComments ? (
-            commentTree.map((comment) => (
-              <CommentThread
-                key={comment.id}
-                comment={comment}
-                depth={0}
-                onReply={handleReply}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
-                canModerate={canModerate}
-                currentUserId={user?.id}
-                initiativeId={initiativeId}
-                isSubmitting={
-                  createComment.isPending || deleteComment.isPending || updateComment.isPending
-                }
-                canReact={!activeGuildReadOnly}
-                deleteError={deleteComment.variables === comment.id ? deleteError : null}
-                userDisplayNames={userDisplayNames}
-              />
-            ))
+        <CardContent>
+          {activeGuildReadOnly ? (
+            <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
           ) : (
-            <p className="text-muted-foreground text-sm">{t("empty")}</p>
+            <CommentInput
+              onCreateRequest={setPendingCreate}
+              value={content}
+              onChange={setContent}
+              onSubmit={handleSubmit}
+              isSubmitting={createComment.isPending}
+              initiativeId={initiativeId}
+              error={error}
+              onClearError={() => setError(null)}
+            />
           )}
-          {deleteError && !deleteComment.variables && (
-            <p className="text-destructive text-sm">{deleteError}</p>
-          )}
-          {editError && <p className="text-destructive text-sm">{editError}</p>}
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* One request for everything the whole thread points at: forty
+            comments naming the same task ask about it once. */}
+          <div className="mt-4 space-y-3">
+            {isLoading ? (
+              <p className="text-muted-foreground text-sm">{t("loading")}</p>
+            ) : hasComments ? (
+              commentTree.map((comment) => (
+                <CommentThread
+                  key={comment.id}
+                  comment={comment}
+                  depth={0}
+                  onReply={handleReply}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  canModerate={canModerate}
+                  currentUserId={user?.id}
+                  initiativeId={initiativeId}
+                  isSubmitting={
+                    createComment.isPending || deleteComment.isPending || updateComment.isPending
+                  }
+                  canReact={!activeGuildReadOnly}
+                  deleteError={deleteComment.variables === comment.id ? deleteError : null}
+                  userDisplayNames={userDisplayNames}
+                />
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm">{t("empty")}</p>
+            )}
+            {deleteError && !deleteComment.variables && (
+              <p className="text-destructive text-sm">{deleteError}</p>
+            )}
+            {editError && <p className="text-destructive text-sm">{editError}</p>}
+          </div>
+        </CardContent>
+      </Card>
+      {pendingCreate !== null && (
+        <CreateReferencedThingDialog
+          name={pendingCreate}
+          initiativeId={initiativeId}
+          onCreated={(made) => {
+            // Straight into the sentence being written, so making something
+            // never costs the writer their place.
+            setContent(
+              (current) =>
+                `${current}${entityMentionSyntax(made.entityType, made.name, made.entityId)} `
+            );
+            setPendingCreate(null);
+          }}
+          onClose={() => setPendingCreate(null)}
+        />
+      )}
+    </CommentReferences>
   );
 };

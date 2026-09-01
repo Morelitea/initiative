@@ -114,13 +114,6 @@ export const categoryEntityTypes = (category: SearchCategory): SearchEntityType[
   return TOOL_ENTITY_TYPES;
 };
 
-/** The tabs the search index answers for — everything but the people, who are
- *  read from the roster. Derived, so a category added above joins the right
- *  one of the two by what it is rather than by being listed twice. */
-export const INDEX_SEARCH_CATEGORIES: SearchCategory[] = SEARCH_CATEGORIES.filter(
-  (category) => categoryEntityTypes(category) !== null
-);
-
 /** The category a hit renders under. */
 export const hitCategory = (target: SearchTarget): SearchCategory => {
   if (target.entity_type === TAG_ENTITY_TYPE) return "tag";
