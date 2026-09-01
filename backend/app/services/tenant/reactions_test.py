@@ -3,13 +3,10 @@ emoji rule, and the registry's completeness."""
 
 import pytest
 
+from app.core.emoji import MAX_EMOJI_CODEPOINTS, validate_emoji
 from app.core.reactions import REACTION_TARGETS, ReactionTarget
 from app.models.tenant.reaction import Reaction
-from app.schemas.tenant.reaction import (
-    MAX_EMOJI_CODEPOINTS,
-    SUGGESTED_EMOJI,
-    validate_emoji,
-)
+from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import (
     MAX_NAMED_REACTORS,
     TARGET_RESOLVERS,

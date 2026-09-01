@@ -39,6 +39,19 @@ export const getUserHandle = (user: DisplayableUser | null | undefined): string 
 };
 
 /**
+ * ``jordan1234`` — the handle as one URL segment, which is how a profile is
+ * addressed.
+ *
+ * No ``#``: it never survives a URL. The number keeps its four digits and runs
+ * straight on from the name, which stays reversible because the width is
+ * fixed — ``user2`` + ``0007`` is ``user20007``, not ``user`` + ``20007``.
+ */
+export const getUrlHandle = (user: DisplayableUser | null | undefined): string => {
+  if (!user?.username) return "";
+  return `${user.username}${formatDiscriminator(user.discriminator)}`;
+};
+
+/**
  * The single source of truth for "what string do we render for this user".
  *
  * A real name where the guild shows names, the handle otherwise — and the

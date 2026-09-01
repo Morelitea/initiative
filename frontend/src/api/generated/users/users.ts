@@ -33,10 +33,12 @@ import type {
   GetUserStatsApiV1MeStatsGetParams,
   HTTPValidationError,
   OwnedContentResponse,
+  OwnedDecorationsResponse,
   OwnershipTransferRequest,
   OwnershipTransferResponse,
   SearchUsersApiV1GGuildIdUsersSearchGetParams,
   UserGuildMember,
+  UserProfile,
   UserPublic,
   UserRead,
   UserSelfUpdate,
@@ -272,6 +274,328 @@ export const useUpdateUsersMeApiV1UsersMePatch = <
 > => {
   return useMutation(getUpdateUsersMeApiV1UsersMePatchMutationOptions(options), queryClient);
 };
+/**
+ * Everything the caller may dress their profile in.
+ *
+ * What ships with the app plus what this account acquired, which is what the
+ * pickers on Settings > Profile offer and exactly what the write path
+ * accepts. Own-row: ``public.user_decorations`` is readable only by the
+ * account whose library it is.
+ * @summary List My Decorations
+ */
+export const listMyDecorationsApiV1UsersMeDecorationsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OwnedDecorationsResponse>(
+    { url: `/api/v1/users/me/decorations`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey = () => {
+  return [`/api/v1/users/me/decorations`] as const;
+};
+
+export const getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
+  > = ({ signal }) => listMyDecorationsApiV1UsersMeDecorationsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyDecorationsApiV1UsersMeDecorationsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
+>;
+export type ListMyDecorationsApiV1UsersMeDecorationsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyDecorationsApiV1UsersMeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyDecorationsApiV1UsersMeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyDecorationsApiV1UsersMeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Decorations
+ */
+
+export function useListMyDecorationsApiV1UsersMeDecorationsGet<
+  TData = Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyDecorationsApiV1UsersMeDecorationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyDecorationsApiV1UsersMeDecorationsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * One person's profile, addressed by their handle.
+ *
+ * ``jordan1234`` — the name and the number it is always written with, run
+ * together. ``#`` never survives a URL, and the number's four digits are
+ * fixed width, so the two come apart again exactly.
+ *
+ * A profile is public and has no guild in it: it carries the handle, the
+ * face, the status, the look and whether they are online, and it is the same
+ * page whoever opens it. That is why it is not reached through a guild — no
+ * part of the answer depends on one.
+ *
+ * Read from ``public.user_profiles``, the view that *is* the public
+ * projection: which columns are public is decided by the view and the column
+ * grant behind it (migration 0214), not here. An ordinary platform-tier
+ * session, RLS enforced. A suspended account has no profile.
+ * @summary Read User Profile
+ */
+export const readUserProfileApiV1UsersHandleProfileGet = (
+  handle: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserProfile>(
+    { url: `/api/v1/users/${handle}/profile`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadUserProfileApiV1UsersHandleProfileGetQueryKey = (handle: string) => {
+  return [`/api/v1/users/${handle}/profile`] as const;
+};
+
+export const getReadUserProfileApiV1UsersHandleProfileGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadUserProfileApiV1UsersHandleProfileGetQueryKey(handle);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+  > = ({ signal }) => readUserProfileApiV1UsersHandleProfileGet(handle, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: handle !== null && handle !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadUserProfileApiV1UsersHandleProfileGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+>;
+export type ReadUserProfileApiV1UsersHandleProfileGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+          TError,
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+          TError,
+          Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read User Profile
+ */
+
+export function useReadUserProfileApiV1UsersHandleProfileGet<
+  TData = Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserProfileApiV1UsersHandleProfileGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadUserProfileApiV1UsersHandleProfileGetQueryOptions(handle, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Pick the handle for an account that was assigned one.
  *

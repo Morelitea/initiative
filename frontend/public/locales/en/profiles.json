@@ -1,0 +1,35 @@
+{
+  "notFound": {
+    "title": "No profile here",
+    "description": "Either nobody has this profile, or they are not in this community.",
+    "back": "Back to the community"
+  },
+  "noStatus": "Nothing set right now.",
+  "presence": {
+    "label": "Presence",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "joined": {
+    "label": "Joined"
+  },
+  "decorations": {
+    "aurora": "Aurora",
+    "ember": "Ember",
+    "parchment": "Parchment",
+    "gold": "Gilded",
+    "arcane": "Arcane",
+    "founder": "Founder",
+    "storyteller": "Storyteller",
+    "trailblazer": "Trailblazer"
+  },
+  "decorationPicker": {
+    "heading": "Profile decorations",
+    "help": "Pick from what you have. Packs from the marketplace add more.",
+    "banner": "Banner",
+    "frame": "Frame",
+    "badge": "Badges",
+    "empty": "Nothing here yet.",
+    "badgeCount": "{{count}} of {{max}} worn"
+  }
+}

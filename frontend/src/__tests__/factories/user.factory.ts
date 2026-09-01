@@ -1,5 +1,7 @@
 import type {
+  OwnedDecoration,
   UserGuildMember,
+  UserProfile,
   UserPublic,
   UserRead,
   UserRole,
@@ -108,6 +110,8 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
+    custom_status: { emoji: null, text: null },
+    profile_decorations: { banner: null, frame: null, badges: [] },
     week_starts_on: 0,
     timezone: "America/New_York",
     ...overrides,
@@ -131,4 +135,28 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
     initiative_roles: [],
     ...overrides,
   };
+}
+
+/** A member's profile, as the rest of their guild sees them. Bare by default —
+ *  no status and nothing worn — so a test that asserts on a decoration has to
+ *  have put it there. */
+export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {
+  counter++;
+  return {
+    id: counter,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
+    avatar_url: null,
+    status: "active",
+    custom_status: { emoji: null, text: null },
+    profile_decorations: { banner: null, frame: null, badges: [] },
+    online: false,
+    joined_at: "2026-01-15T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/** One decoration in somebody's library. Shipped (no pack) by default. */
+export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
+  return { id: "core.aurora", kind: "banner", source: null, ...overrides };
 }

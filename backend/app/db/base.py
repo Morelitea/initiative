@@ -54,6 +54,7 @@ from app.models.tenant.counter import (
     CounterGroup,
 )
 from app.models.tenant.upload import Upload
+from app.models.platform.user_decoration import UserDecoration
 from app.models.platform.user_view_preference import UserViewPreference
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.auth_provider import AuthProvider
@@ -150,6 +151,7 @@ __all__ = [
     "Counter",
     "CounterGroup",
     "Upload",
+    "UserDecoration",
     "UserViewPreference",
     "UserToken",
     "PushToken",

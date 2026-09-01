@@ -60,6 +60,7 @@ _RLS_SHARED_TABLES = {
     "storage_backfill_state",
     "user_api_keys",
     "user_avatars",
+    "user_decorations",
     "user_view_preferences",
     "users",
 }
@@ -201,6 +202,113 @@ async def test_guild_image_bytes_are_unreadable_by_request_roles(engine):
                 f"{role} may read {sorted(got)} of guild_images; expected "
                 f"exactly {sorted(readable)}"
             )
+
+
+async def test_profile_view_publishes_only_the_public_columns(engine):
+    """What is public about an account is decided in the catalog.
+
+    ``public.user_profiles`` is the projection the profile endpoint reads, and
+    it is not a convention the handler keeps: the reader role behind the view
+    holds SELECT on exactly the public columns of ``public.users``, so a column
+    added to the view without a matching grant returns nothing, and one added
+    to the table is not in the view until somebody puts it there (migration
+    0214)."""
+    public_columns = {
+        "id",
+        "username",
+        "discriminator",
+        "avatar_url",
+        "status",
+        "custom_status",
+        "profile_decorations",
+        "created_at",
+    }
+    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    async with engine.connect() as conn:
+        view_columns = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' "
+                        "AND table_name = 'user_profiles'"
+                    )
+                )
+            ).all()
+        }
+        assert view_columns == public_columns, (
+            "public.user_profiles carries columns that were not decided as "
+            f"public: {sorted(view_columns - public_columns)}; missing "
+            f"{sorted(public_columns - view_columns)}"
+        )
+
+        readable = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT column_name, has_column_privilege("
+                        "'app_profile_reader', 'public.users', column_name, "
+                        "'SELECT') FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'users'"
+                    )
+                )
+            ).all()
+            if row[1]
+        }
+        assert readable == public_columns, (
+            "app_profile_reader reads columns of public.users that are not "
+            f"public: {sorted(readable - public_columns)}; missing "
+            f"{sorted(public_columns - readable)}"
+        )
+
+        # It reads, and that is all it does — to the table or to the view.
+        for verb in ("INSERT", "UPDATE", "DELETE"):
+            can_write = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege('app_profile_reader', "
+                        f"'public.users', '{verb}')"
+                    )
+                )
+            ).scalar()
+            assert not can_write, f"app_profile_reader must not hold {verb}"
+
+        # The request path reads the view and cannot write through it — the
+        # schema's default privileges would otherwise have granted all four.
+        can_read = (
+            await conn.execute(
+                text(
+                    "SELECT has_table_privilege(:role, 'public.user_profiles', "
+                    "'SELECT')"
+                ),
+                {"role": base},
+            )
+        ).scalar()
+        assert can_read, f"{base} must be able to read public.user_profiles"
+        for verb in ("INSERT", "UPDATE", "DELETE"):
+            can_write = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege(:role, "
+                        f"'public.user_profiles', '{verb}')"
+                    ),
+                    {"role": base},
+                )
+            ).scalar()
+            assert not can_write, f"{base} must not hold {verb} on public.user_profiles"
+
+        # And it holds no standing bypass of its own.
+        bypasses = (
+            await conn.execute(
+                text(
+                    "SELECT rolbypassrls FROM pg_roles "
+                    "WHERE rolname = 'app_profile_reader'"
+                )
+            )
+        ).scalar()
+        assert not bypasses, "app_profile_reader must not hold BYPASSRLS"
 
 
 async def test_users_role_is_writable_only_by_the_system_engine(engine):

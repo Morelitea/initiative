@@ -19,6 +19,8 @@ import {
   getListUsersApiV1GGuildIdUsersGetQueryKey,
   listUsersApiV1GGuildIdUsersGet,
   updateUsersMeApiV1UsersMePatch,
+  useListMyDecorationsApiV1UsersMeDecorationsGet,
+  useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
@@ -78,6 +80,37 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
   search: search?.trim() || undefined,
   user_id: userIds?.length ? userIds.slice(0, USER_ID_LOOKUP_MAX) : undefined,
 });
+
+/**
+ * One person's profile, by their handle as it appears in a URL
+ * (``jordan1234`` — see ``getUrlHandle``).
+ *
+ * Public and community-independent: the same page whoever opens it, so there
+ * is no guild in the call.
+ */
+export const useUserProfile = (handle: string | null | undefined) =>
+  useReadUserProfileApiV1UsersHandleProfileGet(handle as string, {
+    query: {
+      enabled: Boolean(handle),
+      // A profile changes without the reader doing anything — the subject
+      // signs off, edits their status, changes what they are wearing — and
+      // this page is outside the community tree, so no realtime socket is
+      // going to tell it. Nor does the app refetch on focus. So it asks again
+      // on a timer, which pauses while the tab is in the background.
+      staleTime: 30_000,
+      refetchInterval: 60_000,
+    },
+  });
+
+/**
+ * What the signed-in account may dress its profile in — what ships with the
+ * app plus whatever it has acquired. Drives the pickers on Settings > Profile;
+ * a library changes only when a pack is installed, so it is held a good while.
+ */
+export const useMyDecorations = () =>
+  useListMyDecorationsApiV1UsersMeDecorationsGet({
+    query: { staleTime: 5 * 60_000 },
+  });
 
 /**
  * Slim, server-side member typeahead for the active guild. Returns

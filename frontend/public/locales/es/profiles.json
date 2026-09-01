@@ -1,0 +1,35 @@
+{
+  "notFound": {
+    "title": "Aquí no hay ningún perfil",
+    "description": "O nadie tiene este perfil, o esa persona no está en esta comunidad.",
+    "back": "Volver a la comunidad"
+  },
+  "noStatus": "Ahora mismo no hay nada.",
+  "presence": {
+    "label": "Presencia",
+    "online": "En línea",
+    "offline": "Desconectado"
+  },
+  "joined": {
+    "label": "Se unió"
+  },
+  "decorations": {
+    "aurora": "Aurora",
+    "ember": "Brasa",
+    "parchment": "Pergamino",
+    "gold": "Dorado",
+    "arcane": "Arcano",
+    "founder": "Fundador",
+    "storyteller": "Narrador",
+    "trailblazer": "Pionero"
+  },
+  "decorationPicker": {
+    "heading": "Decoraciones del perfil",
+    "help": "Elige entre lo que tienes. Los packs del mercado añaden más.",
+    "banner": "Cabecera",
+    "frame": "Marco",
+    "badge": "Insignias",
+    "empty": "Aquí todavía no hay nada.",
+    "badgeCount": "{{count}} de {{max}} puestas"
+  }
+}

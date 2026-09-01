@@ -1,11 +1,20 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, computed_field, model_validator
+from pydantic import (
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.emoji import validate_emoji
+from app.core.profile_decorations import BADGE, BANNER, FRAME
 from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
@@ -163,6 +172,185 @@ class UserSummaryListResponse(SanitizedBaseModel):
     has_prev: bool
 
 
+#: How long the line beside the emoji may run.
+STATUS_TEXT_MAX_LENGTH = 100
+
+
+class CustomStatus(SanitizedBaseModel):
+    """What a person is up to, in their own words.
+
+    One object, stored in one column, because it is one thing a person sets
+    and one thing every surface that names them renders: splitting it in two
+    would mean two reads and two writes for a single line of text.
+
+    Not to be confused with ``UserStatus`` (``users.status``), which is the
+    account's standing — suspended, deactivated — and is not the person's to
+    write.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", json_schema_serialization_defaults_required=True
+    )
+
+    emoji: Optional[str] = None
+    text: Optional[str] = Field(default=None, max_length=STATUS_TEXT_MAX_LENGTH)
+
+    @field_validator("emoji")
+    @classmethod
+    def _check_emoji(cls, value: Optional[str]) -> Optional[str]:
+        """Hold the status emoji to the same shape a reaction's is held to.
+
+        An empty string means "take it off", which is how a picker sends a
+        cleared selection.
+        """
+        if value is None or not value.strip():
+            return None
+        return validate_emoji(value)
+
+    @field_validator("text")
+    @classmethod
+    def _blank_is_none(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else (value.strip() or None)
+
+
+#: What a decoration id may be made of. An explicit set rather than a pattern:
+#: the id is spliced into the path of a local asset by the client, so the
+#: characters it may contain are worth reading at a glance.
+_DECORATION_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
+
+#: How long one id may be, and how many badges one profile may wear. The badge
+#: cap is a rendering bound — a row of them beside a name, not a wall.
+DECORATION_ID_MAX_LENGTH = 64
+MAX_PROFILE_BADGES = 6
+
+
+def validate_decoration_id(value: str) -> str:
+    """Return ``value`` if it is shaped like a catalog id, else raise.
+
+    A catalog id is a flat, lowercase name — ``core.aurora`` — and this holds
+    it to that vocabulary.
+    """
+    identifier = value.strip()
+    if not identifier:
+        raise ValueError("Decoration id is required")
+    if len(identifier) > DECORATION_ID_MAX_LENGTH:
+        raise ValueError("Decoration id is too long")
+    if not all(char in _DECORATION_ID_CHARS for char in identifier):
+        raise ValueError("Decoration id has characters that are not allowed")
+    return identifier
+
+
+class ProfileDecorations(SanitizedBaseModel):
+    """How a profile is dressed: a banner, a frame, badges beside the name.
+
+    Every value is an **id naming a catalog entry**, never an image. The client
+    resolves an id to artwork it already ships, so a decorated profile takes up
+    none of a guild's upload allowance. An id this deployment's catalog doesn't
+    know simply renders nothing, which is what lets a profile keep wearing
+    something the store stopped offering.
+
+    ``extra="forbid"``: the set of things a profile can wear is this list, and
+    a client sending a key that isn't here is told so rather than having it
+    quietly stored and never rendered.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", json_schema_serialization_defaults_required=True
+    )
+
+    banner: Optional[str] = None
+    frame: Optional[str] = None
+    badges: List[str] = Field(default_factory=list, max_length=MAX_PROFILE_BADGES)
+
+    @field_validator("banner", "frame")
+    @classmethod
+    def _check_single(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else validate_decoration_id(value)
+
+    @field_validator("badges")
+    @classmethod
+    def _check_badges(cls, value: List[str]) -> List[str]:
+        seen: List[str] = []
+        for badge in value:
+            identifier = validate_decoration_id(badge)
+            # Wearing the same badge twice is a duplicate, not a second badge.
+            if identifier not in seen:
+                seen.append(identifier)
+        return seen
+
+    def worn(self) -> List[tuple[str, str]]:
+        """``(id, slot)`` for everything this profile is wearing.
+
+        The one place a slot is paired with its id, so the check against a
+        person's library and the shape they wrote it in cannot disagree about
+        which is which.
+        """
+        pairs: List[tuple[str, str]] = []
+        if self.banner:
+            pairs.append((self.banner, BANNER))
+        if self.frame:
+            pairs.append((self.frame, FRAME))
+        pairs.extend((badge, BADGE) for badge in self.badges)
+        return pairs
+
+
+class OwnedDecoration(SanitizedBaseModel):
+    """One decoration an account may wear, and where it came from.
+
+    ``source`` names the marketplace pack that granted it, and is ``None`` for
+    the ones that ship with the app. The client renders a picker per slot from
+    these, drawing each id with the artwork it has for it and skipping the ones
+    it doesn't.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: str
+    kind: str
+    source: Optional[str] = None
+
+
+class OwnedDecorationsResponse(SanitizedBaseModel):
+    """A person's whole library, in one read — it is small and it is all
+    needed at once, because the profile form renders every slot together."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[OwnedDecoration]
+
+
+class UserProfile(SanitizedBaseModel):
+    """A person, as anyone can see them.
+
+    A profile is public. It carries the handle — which is the name in this
+    product, unique and never withheld — the face, the line they wrote, the
+    look they picked, whether they are online, and when they joined. It never
+    carries a real name: ``full_name`` is a guild's business (a guild decides
+    whether it renders names at all), and this shape has no guild in it.
+
+    Nothing here is private to a guild, so nothing here is reached through
+    one. What it does not carry is the whole point of it being its own shape:
+    no address, no roles, no memberships, no preferences.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    username: str
+    discriminator: int
+    avatar_url: Optional[str] = None
+    status: UserStatus = UserStatus.active
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+    #: Whether this person has Initiative open right now — the account, not a
+    #: guild. Set by the endpoint from ``realtime.manager.online``.
+    online: bool = False
+    #: When the account was made.
+    joined_at: datetime
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -179,6 +367,8 @@ class UserRead(UserBase):
     created_at: datetime
     updated_at: datetime
     avatar_url: Optional[str] = None
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
@@ -258,6 +448,11 @@ class UserSelfUpdate(SanitizedBaseModel):
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
     avatar_url: Optional[str] = None
+    # Sending ``null`` takes the status off; leaving it out leaves it alone.
+    custom_status: Optional[CustomStatus] = None
+    # The whole set at once rather than one key at a time: a profile wears a
+    # look, and a partial write would have no way to say "take the frame off".
+    profile_decorations: Optional[ProfileDecorations] = None
     week_starts_on: Optional[int] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None

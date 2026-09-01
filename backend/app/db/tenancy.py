@@ -68,6 +68,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.
         "user_avatars",
+        # What one account may dress its profile in beyond what ships with the
+        # app. Personal and cross-guild, like the row it hangs off.
+        "user_decorations",
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.

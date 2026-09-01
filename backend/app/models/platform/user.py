@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -131,6 +132,25 @@ class User(SQLModel, table=True):
     token_version: int = Field(
         default=1,
         sa_column=Column(Integer, nullable=False, server_default="1"),
+    )
+    #: What this person is up to, in their own words: an emoji, a short line,
+    #: or both, as ``{"emoji": ..., "text": ...}``. One column rather than two,
+    #: because it is one thing a person sets and one thing every surface that
+    #: names them renders. Distinct from ``status`` above, which is the
+    #: account's standing and is not theirs to write. The shape is
+    #: ``app.schemas.platform.user.CustomStatus``.
+    custom_status: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    #: How this person's profile is dressed: a banner, a frame around the
+    #: picture, badges beside the name. Each is an id naming a catalog entry
+    #: the client resolves to artwork it already ships — never an upload, so a
+    #: decorated profile costs a guild none of its storage. The shape is
+    #: ``app.schemas.platform.user.ProfileDecorations``.
+    profile_decorations: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
     week_starts_on: int = Field(
         default=0,

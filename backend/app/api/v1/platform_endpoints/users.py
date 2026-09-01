@@ -56,8 +56,11 @@ from app.models.platform.user import User, UserStatus
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.user import (
+    OwnedDecorationsResponse,
+    ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
+    UserProfile,
     UserRead,
     UserSelfUpdate,
     UserSummary,
@@ -91,9 +94,12 @@ from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import usernames as username_service
 from app.services.platform.guilds import adopt_guild_name_display
+from app.services.realtime import manager as realtime_manager
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.models.platform.user_profile_view import user_profiles
 from app.services.platform import user_avatars as user_avatars_service
+from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import csv_export
@@ -283,6 +289,89 @@ async def search_users(
         page_size=page_size,
         has_next=page_has_next(actual_page, page_size, total_count),
         has_prev=actual_page > 1,
+    )
+
+
+@router.get("/me/decorations", response_model=OwnedDecorationsResponse)
+async def list_my_decorations(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> OwnedDecorationsResponse:
+    """Everything the caller may dress their profile in.
+
+    What ships with the app plus what this account acquired, which is what the
+    pickers on Settings > Profile offer and exactly what the write path
+    accepts. Own-row: ``public.user_decorations`` is readable only by the
+    account whose library it is.
+    """
+    return OwnedDecorationsResponse(
+        items=await profile_decorations_service.owned_decorations(
+            session, current_user.id
+        )
+    )
+
+
+@router.get("/{handle}/profile", response_model=UserProfile)
+async def read_user_profile(
+    handle: str,
+    session: UserSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserProfile:
+    """One person's profile, addressed by their handle.
+
+    ``jordan1234`` — the name and the number it is always written with, run
+    together. ``#`` never survives a URL, and the number's four digits are
+    fixed width, so the two come apart again exactly.
+
+    A profile is public and has no guild in it: it carries the handle, the
+    face, the status, the look and whether they are online, and it is the same
+    page whoever opens it. That is why it is not reached through a guild — no
+    part of the answer depends on one.
+
+    Read from ``public.user_profiles``, the view that *is* the public
+    projection: which columns are public is decided by the view and the column
+    grant behind it (migration 0214), not here. An ordinary platform-tier
+    session, RLS enforced. A suspended account has no profile.
+    """
+    parsed = usernames.parse_url_handle(handle)
+    if parsed is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    name, discriminator = parsed
+    # Named one by one rather than as the whole view: a single-entity select
+    # comes back scalarized to its first column.
+    stmt = select(
+        user_profiles.c.id,
+        user_profiles.c.username,
+        user_profiles.c.discriminator,
+        user_profiles.c.avatar_url,
+        user_profiles.c.status,
+        user_profiles.c.custom_status,
+        user_profiles.c.profile_decorations,
+        user_profiles.c.created_at,
+    ).where(
+        func.lower(user_profiles.c.username) == name,
+        user_profiles.c.discriminator == discriminator,
+        users_service.visible_to_other_people(user_profiles.c.status),
+    )
+    row = (await session.exec(stmt)).first()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    return UserProfile(
+        id=row.id,
+        username=row.username,
+        discriminator=row.discriminator,
+        avatar_url=row.avatar_url,
+        status=row.status,
+        custom_status=row.custom_status or {},
+        profile_decorations=row.profile_decorations or {},
+        online=realtime_manager.online.is_online(row.id),
+        joined_at=row.created_at,
     )
 
 
@@ -632,6 +721,29 @@ async def update_users_me(
         )
     if "locale" in update_data:
         current_user.locale = update_data["locale"]
+    if "custom_status" in update_data:
+        # Already held to shape by ``CustomStatus``; ``None`` is the status
+        # taken off, which is the empty object rather than a null column.
+        current_user.custom_status = update_data["custom_status"] or {}
+    if "profile_decorations" in update_data:
+        # The payload validated it into ``ProfileDecorations``, so what lands
+        # in the column is a known set of keys holding catalog ids and nothing
+        # else. ``None`` is the bare profile.
+        decorations = user_in.profile_decorations or ProfileDecorations()
+        worn = decorations.worn()
+        if worn:
+            # You wear what you have. The library is the authority for both
+            # halves of that — whether the account has the decoration at all,
+            # and whether it has it for the slot it is being put in.
+            owned = await profile_decorations_service.owned_kinds(
+                session, current_user.id
+            )
+            if profile_decorations_service.unwearable(worn, owned):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=UserMessages.DECORATION_NOT_OWNED,
+                )
+        current_user.profile_decorations = decorations.model_dump()
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)

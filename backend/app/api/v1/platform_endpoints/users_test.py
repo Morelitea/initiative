@@ -19,7 +19,11 @@ from app.db.query import MAX_ID_FILTER_VALUES
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
+from app.core.profile_decorations import SHIPPED_DECORATIONS
+from app.core.usernames import url_handle
+from app.models.platform.user_decoration import UserDecoration
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.services.realtime import manager as realtime_manager
 
 from app.testing.factories import (
     create_federated_identity,
@@ -1150,3 +1154,393 @@ async def test_initiative_members_excludes_anonymized(
     ids = {member["id"] for member in response.json()}
     assert departing.id not in ids
     assert survivor.id in ids
+
+
+@pytest.mark.integration
+async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSession):
+    """A profile: the handle, the face, the line they wrote, the look they
+    picked, and when they joined."""
+    caller = await create_user(session)
+    subject = await create_user(
+        session,
+        username="tinker",
+        full_name="Tinker Bell",
+        avatar_url="https://example.com/tinker.png",
+        custom_status={"emoji": "\N{GAME DIE}", "text": "rolling for initiative"},
+        profile_decorations={"banner": "core.aurora", "badges": ["core.founder"]},
+    )
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == subject.id
+    assert body["username"] == "tinker"
+    assert body["avatar_url"] == "https://example.com/tinker.png"
+    assert body["custom_status"] == {
+        "emoji": "\N{GAME DIE}",
+        "text": "rolling for initiative",
+    }
+    assert body["profile_decorations"] == {
+        "banner": "core.aurora",
+        "frame": None,
+        "badges": ["core.founder"],
+    }
+    assert body["online"] is False
+    assert body["joined_at"]
+
+
+@pytest.mark.integration
+async def test_profile_never_carries_a_real_name(
+    client: AsyncClient, session: AsyncSession
+):
+    """The handle is the name here. A profile is the same page for everyone,
+    so it carries nothing a guild decides the visibility of."""
+    caller = await create_user(session)
+    subject = await create_user(session, username="tinker", full_name="Tinker Bell")
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "full_name" not in body
+    assert body["username"] == "tinker"
+    # Nor anything else the account keeps to itself.
+    assert set(body.keys()) == {
+        "id",
+        "username",
+        "discriminator",
+        "avatar_url",
+        "status",
+        "custom_status",
+        "profile_decorations",
+        "online",
+        "joined_at",
+    }
+
+
+@pytest.mark.integration
+async def test_profile_needs_no_guild_in_common(
+    client: AsyncClient, session: AsyncSession
+):
+    """Profiles are public: sharing a guild is not what makes one readable."""
+    guild = await create_guild(session)
+    caller = await create_user(session)
+    await create_guild_membership(session, user=caller, guild=guild)
+    stranger = await create_user(session, username="stranger")
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(stranger.username, stranger.discriminator)}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "stranger"
+
+
+@pytest.mark.integration
+async def test_profile_hides_a_suspended_account(
+    client: AsyncClient, session: AsyncSession
+):
+    """A suspended account vanishes from rosters, and from the page they lead
+    to."""
+    caller = await create_user(session)
+    subject = await create_user(session, status=UserStatus.suspended)
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "USER_NOT_FOUND"
+
+
+@pytest.mark.integration
+async def test_profile_says_when_someone_is_online(
+    client: AsyncClient, session: AsyncSession
+):
+    """Online is a fact about the person, not about a guild — a reader who
+    shares no guild with them still sees it."""
+    guild = await create_guild(session)
+    caller = await create_user(session)
+    subject = await create_user(session)
+    await create_guild_membership(session, user=subject, guild=guild)
+
+    socket = object()
+    await realtime_manager.connect(guild.id, [], socket, user_id=subject.id)  # type: ignore[arg-type]
+    try:
+        response = await client.get(
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await realtime_manager.disconnect(socket)  # type: ignore[arg-type]
+
+    assert response.status_code == 200
+    assert response.json()["online"] is True
+
+    after = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
+    )
+    assert after.json()["online"] is False
+
+
+@pytest.mark.integration
+async def test_profile_requires_a_signed_in_reader(client: AsyncClient):
+    response = await client.get("/api/v1/users/nobody0001/profile")
+
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_custom_status_round_trips_as_one_object(
+    client: AsyncClient, session: AsyncSession
+):
+    """One column, one write: the emoji and the line are set together."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"custom_status": {"emoji": "\N{ROCKET}", "text": "  shipping  "}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["custom_status"] == {
+        "emoji": "\N{ROCKET}",
+        "text": "shipping",
+    }
+
+    cleared = await client.patch(
+        "/api/v1/users/me", headers=headers, json={"custom_status": None}
+    )
+
+    assert cleared.status_code == 200
+    assert cleared.json()["custom_status"] == {"emoji": None, "text": None}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"custom_status": {"emoji": "not an emoji"}},
+        {"custom_status": {"mood": "chipper"}},
+        {"profile_decorations": {"banner": "../../etc/passwd"}},
+        {"profile_decorations": {"hat": "core.aurora"}},
+        {"profile_decorations": {"badges": ["a", "b", "c", "d", "e", "f", "g"]}},
+    ],
+)
+async def test_profile_writes_reject_a_shape_that_is_not_the_shape(
+    client: AsyncClient, session: AsyncSession, payload: dict
+):
+    """Text where an emoji goes, a key nothing wears, a path where an id goes,
+    and more badges than a profile has room for."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me", headers=get_auth_headers(user), json=payload
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_library_lists_what_ships_with_the_app(
+    client: AsyncClient, session: AsyncSession
+):
+    """A fresh account has the shipped set and nothing else, and none of it
+    names a pack — nobody granted it."""
+    user = await create_user(session)
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert {item["id"] for item in items} == set(SHIPPED_DECORATIONS)
+    assert all(item["source"] is None for item in items)
+    assert {item["kind"] for item in items} == {"banner", "frame", "badge"}
+
+
+@pytest.mark.integration
+async def test_library_carries_what_a_pack_granted(
+    client: AsyncClient, session: AsyncSession
+):
+    """An acquired decoration joins the shipped set and says where it came
+    from, so a picker can group by pack."""
+    user = await create_user(session)
+    session.add(
+        UserDecoration(
+            user_id=user.id,
+            decoration_id="pack.midnight",
+            kind="banner",
+            source="studio.midnight-pack",
+        )
+    )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    granted = next(item for item in items if item["id"] == "pack.midnight")
+    assert granted == {
+        "id": "pack.midnight",
+        "kind": "banner",
+        "source": "studio.midnight-pack",
+    }
+    assert len(items) == len(SHIPPED_DECORATIONS) + 1
+
+
+@pytest.mark.integration
+async def test_library_is_the_readers_own(client: AsyncClient, session: AsyncSession):
+    """Somebody else's acquisitions are not in your library."""
+    user = await create_user(session)
+    other = await create_user(session)
+    session.add(
+        UserDecoration(user_id=other.id, decoration_id="pack.midnight", kind="banner")
+    )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    assert "pack.midnight" not in {item["id"] for item in response.json()["items"]}
+
+
+@pytest.mark.integration
+async def test_wearing_a_decoration_requires_having_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """You wear what you have."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"profile_decorations": {"banner": "pack.midnight"}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_DECORATION_NOT_OWNED"
+
+
+@pytest.mark.integration
+async def test_a_decoration_goes_in_the_slot_it_is_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """Having a frame is not having a banner."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"profile_decorations": {"banner": "core.gold"}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_DECORATION_NOT_OWNED"
+
+
+@pytest.mark.integration
+async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSession):
+    """The acquired half of the library is wearable on the same terms as the
+    shipped half."""
+    user = await create_user(session)
+    session.add(
+        UserDecoration(
+            user_id=user.id,
+            decoration_id="pack.midnight",
+            kind="banner",
+            source="studio.midnight-pack",
+        )
+    )
+    await session.commit()
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={
+            "profile_decorations": {
+                "banner": "pack.midnight",
+                "frame": "core.gold",
+                "badges": ["core.founder", "core.founder"],
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["profile_decorations"] == {
+        "banner": "pack.midnight",
+        "frame": "core.gold",
+        # The same badge twice is a duplicate, not a second badge.
+        "badges": ["core.founder"],
+    }
+
+
+@pytest.mark.integration
+async def test_profile_is_addressed_by_handle(
+    client: AsyncClient, session: AsyncSession
+):
+    """``jordan1234`` is the handle as one URL segment — the name and the four
+    digits it is always written with, run together, because ``#`` never
+    survives a URL."""
+    caller = await create_user(session)
+    subject = await create_user(session, username="jordan", discriminator=1234)
+
+    response = await client.get(
+        "/api/v1/users/jordan1234/profile", headers=get_auth_headers(caller)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == subject.id
+    assert response.json()["username"] == "jordan"
+    assert response.json()["discriminator"] == 1234
+
+
+@pytest.mark.integration
+async def test_profile_handle_comes_apart_at_a_fixed_width(
+    client: AsyncClient, session: AsyncSession
+):
+    """A name may itself end in digits. The number is always four wide, which
+    is what keeps ``user2`` + ``0007`` from reading as ``user`` + ``20007``."""
+    caller = await create_user(session)
+    subject = await create_user(session, username="user2", discriminator=7)
+
+    response = await client.get(
+        "/api/v1/users/user20007/profile", headers=get_auth_headers(caller)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "user2"
+    assert response.json()["discriminator"] == subject.discriminator
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("handle", ["jordan", "jordan12a4", "ab0001", "jordan1234x"])
+async def test_profile_404s_on_something_that_is_not_a_handle(
+    client: AsyncClient, session: AsyncSession, handle: str
+):
+    """No number, a number with a letter in it, too short a name, and a name
+    where the number should be."""
+    caller = await create_user(session)
+
+    response = await client.get(
+        f"/api/v1/users/{handle}/profile", headers=get_auth_headers(caller)
+    )
+
+    assert response.status_code == 404

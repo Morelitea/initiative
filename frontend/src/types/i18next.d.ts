@@ -21,6 +21,7 @@ import type landing from "../../public/locales/en/landing.json";
 import type marketplace from "../../public/locales/en/marketplace.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
+import type profiles from "../../public/locales/en/profiles.json";
 import type projects from "../../public/locales/en/projects.json";
 import type properties from "../../public/locales/en/properties.json";
 import type queues from "../../public/locales/en/queues.json";
@@ -59,6 +60,7 @@ declare module "i18next" {
       landing: typeof landing;
       nav: typeof nav;
       notifications: typeof notifications;
+      profiles: typeof profiles;
       projects: typeof projects;
       properties: typeof properties;
       queues: typeof queues;

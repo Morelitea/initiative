@@ -1706,6 +1706,38 @@ export interface CounterUpdate {
   position?: number | string | null;
 }
 
+/**
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
+ */
+export interface CustomStatusInput {
+  emoji?: string | null;
+  text?: string | null;
+}
+
+/**
+ * What a person is up to, in their own words.
+ *
+ * One object, stored in one column, because it is one thing a person sets
+ * and one thing every surface that names them renders: splitting it in two
+ * would mean two reads and two writes for a single line of text.
+ *
+ * Not to be confused with ``UserStatus`` (``users.status``), which is the
+ * account's standing — suspended, deactivated — and is not the person's to
+ * write.
+ */
+export interface CustomStatusOutput {
+  emoji: string | null;
+  text: string | null;
+}
+
 export type DashboardCreateDefinition = { [key: string]: unknown };
 
 export type DashboardCreateConfig = { [key: string]: unknown };
@@ -3576,6 +3608,28 @@ export interface OwnedContentResponse {
 }
 
 /**
+ * One decoration an account may wear, and where it came from.
+ *
+ * ``source`` names the marketplace pack that granted it, and is ``None`` for
+ * the ones that ship with the app. The client renders a picker per slot from
+ * these, drawing each id with the artwork it has for it and skipping the ones
+ * it doesn't.
+ */
+export interface OwnedDecoration {
+  id: string;
+  kind: string;
+  source: string | null;
+}
+
+/**
+ * A person's whole library, in one read — it is small and it is all
+ * needed at once, because the profile form renders every slot together.
+ */
+export interface OwnedDecorationsResponse {
+  items: OwnedDecoration[];
+}
+
+/**
  * Who should end up owning it. Must be an active admin of this guild.
  */
 export interface OwnershipTransferRequest {
@@ -3675,6 +3729,46 @@ export const UserRole = {
  */
 export interface PlatformRoleUpdate {
   role: UserRole;
+}
+
+/**
+ * How a profile is dressed: a banner, a frame, badges beside the name.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsInput {
+  banner?: string | null;
+  frame?: string | null;
+  /** @maxItems 6 */
+  badges?: string[];
+}
+
+/**
+ * How a profile is dressed: a banner, a frame, badges beside the name.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsOutput {
+  banner: string | null;
+  frame: string | null;
+  /** @maxItems 6 */
+  badges: string[];
 }
 
 export interface ProjectActivityEntry {
@@ -4943,6 +5037,31 @@ export interface UserGuildMember {
   initiative_roles: UserInitiativeRole[];
 }
 
+/**
+ * A person, as anyone can see them.
+ *
+ * A profile is public. It carries the handle — which is the name in this
+ * product, unique and never withheld — the face, the line they wrote, the
+ * look they picked, whether they are online, and when they joined. It never
+ * carries a real name: ``full_name`` is a guild's business (a guild decides
+ * whether it renders names at all), and this shape has no guild in it.
+ *
+ * Nothing here is private to a guild, so nothing here is reached through
+ * one. What it does not carry is the whole point of it being its own shape:
+ * no address, no roles, no memberships, no preferences.
+ */
+export interface UserProfile {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+  custom_status: CustomStatusOutput;
+  profile_decorations: ProfileDecorationsOutput;
+  online: boolean;
+  joined_at: string;
+}
+
 export interface UserRead {
   email: string;
   full_name: string | null;
@@ -4956,6 +5075,8 @@ export interface UserRead {
   created_at: string;
   updated_at: string;
   avatar_url: string | null;
+  custom_status: CustomStatusOutput;
+  profile_decorations: ProfileDecorationsOutput;
   week_starts_on: number;
   recent_tabs_limit: number;
   timezone: string;
@@ -5001,6 +5122,8 @@ export interface UserSelfUpdate {
   password?: string | null;
   current_password?: string | null;
   avatar_url?: string | null;
+  custom_status?: CustomStatusInput | null;
+  profile_decorations?: ProfileDecorationsInput | null;
   week_starts_on?: number | null;
   recent_tabs_limit?: number | null;
   timezone?: string | null;
