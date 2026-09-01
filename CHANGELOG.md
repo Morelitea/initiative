@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Community pages have moved from `/g/` to `/c/`.** A page inside a community now lives at `/c/{id}/…` instead of `/g/{id}/…`, the per-community sign-in link is `/community/{id}/login`, and the platform tab is Settings › Admin › Communities. Old links do not forward — bookmarks, saved links and any per-community sign-in link you handed out need replacing with the new address.
 
+- **A new install's first community is now called "Primary Community".** It was still called "Primary Guild" — the one place the old word survived the rename. Existing communities are untouched; this only changes what a fresh install starts with.
+
 ## [0.64.3] - 2026-08-30
 
 - **Link to documentation for help not the github page.**

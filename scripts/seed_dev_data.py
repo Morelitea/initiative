@@ -7,20 +7,20 @@ Usage:
 Designed to run from the backend/ directory (CWD) so app imports resolve.
 Saves created IDs to .vscode/.dev_seed_ids.json for cleanup.
 
-Creates 3 guilds with multiple users, initiatives, projects, tasks, documents,
-tags, and comments to exercise all features of the app, plus six small guilds
-that exist to fill the community directory (which this switches on). Guilds 1
+Creates 3 communities with multiple users, initiatives, projects, tasks, documents,
+tags, and comments to exercise all features of the app, plus six small communities
+that exist to fill the community directory (which this switches on). Communities 1
 and 2 stay invite-only so the unlisted case is still there to look at.
 
 Seeded logins (all password "changeme"):
-- admin1..admin4@example.com — dedicated guild admins (platform tier: member).
-- user1..user8@example.com — regular guild members only (never guild admins);
+- admin1..admin4@example.com — dedicated community admins (platform tier: member).
+- user1..user8@example.com — regular community members only (never community admins);
   several are initiative PMs so PM full access is testable from a non-admin.
 - owner@/operator@/moderator@/support@/member@example.com — one user per
   platform tier, plus seeded PAM access-grant rows (pending / live / denied /
   expired / break-glass) to exercise the privileged-access flows.
 
-Every guild also seeds template projects and archived projects (with a spread of
+Every community also seeds template projects and archived projects (with a spread of
 archive dates, tags, and tasks) so the Templates and Archive tabs have the same
 variety the active list does.
 
@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import zlib
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -101,6 +102,7 @@ from app.models.tenant.queue import (  # noqa: E402
 from app.models.tenant.guild_setting import GuildSetting  # noqa: E402
 from app.models.tenant.initiative import (  # noqa: E402
     Initiative,
+    InitiativeJoinPolicy,
     InitiativeMember,
     InitiativeRoleModel,
     InitiativeRolePermission,
@@ -135,7 +137,9 @@ from app.services.platform.app_settings import (  # noqa: E402
     get_app_settings,
     get_or_create_guild_settings,
 )
+from app.services.platform import guild_images  # noqa: E402
 from app.services.platform import guilds as guilds_service  # noqa: E402
+from app.models.platform.guild_image import GuildImageVariant  # noqa: E402
 from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
     ensure_default_initiative,
@@ -402,7 +406,7 @@ class IDTracker:
 
 
 # ---------------------------------------------------------------------------
-# Guild seeder helpers
+# Community seeder helpers
 # ---------------------------------------------------------------------------
 
 
@@ -482,7 +486,7 @@ def _expunge_guild_scoped(session: AsyncSession) -> None:
     """
     sync = session.sync_session
     for obj in list(sync.identity_map.values()):
-        # expunge cascades along relationships, so a guild-scoped object from the
+        # expunge cascades along relationships, so a community-scoped object from the
         # snapshot may already be detached (e.g. an Initiative's members went with
         # it) — skip anything no longer in the session.
         if obj in sync and getattr(obj, "__tablename__", None) in GUILD_SCOPED_TABLES:
@@ -505,9 +509,9 @@ async def _create_guild(
     community directory joins against it, and ``get_administration`` raises
     without it).
     """
-    # Creating a public.guilds row is a bootstrap write: there is no guild to be
-    # admin of yet, so no guild-admin RLS leg can authorize it — it must run on the
-    # BYPASSRLS login role (app_admin). After seeding a previous guild's content the
+    # Creating a public.guilds row is a bootstrap write: there is no community to be
+    # admin of yet, so no community-admin RLS leg can authorize it — it must run on the
+    # BYPASSRLS login role (app_admin). After seeding a previous community's content the
     # session is still SET ROLE'd into that guild_<id> (and the admin-role
     # dual-path bypass is retired), so reset to the bare login-role baseline first.
     await set_rls_context(session)
@@ -533,8 +537,8 @@ async def _add_guild_members(
 ) -> None:
     """Add users to a guild as members (or admins if specified)."""
     # Membership rows carrying a role are a system-engine write (request-path
-    # inserts are pinned to plain members): reset any guild routing left from
-    # seeding a previous guild's content so the BYPASSRLS baseline applies.
+    # inserts are pinned to plain members): reset any community routing left from
+    # seeding a previous community's content so the BYPASSRLS baseline applies.
     await set_rls_context(session)
     admin_ids = {u.id for u in (admin_users or [])}
     for user in users:
@@ -563,8 +567,16 @@ async def _create_initiative(
     counter_groups_enabled: bool = False,
     calendars_enabled: bool = False,
     dashboards_enabled: bool = False,
+    join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private,
+    auto_join: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
-    """Create an initiative with roles and members."""
+    """Create an initiative with roles and members.
+
+    ``join_policy`` decides how a community member without a membership row
+    gets one: ``private`` is invite-only, ``request`` puts them in the manager's
+    queue, ``open`` is one click. ``auto_join`` enrols every new arrival to the
+    community and the check constraint only allows it on an ``open`` one.
+    """
     initiative = Initiative(
         guild_id=guild.id,
         name=name,
@@ -574,6 +586,8 @@ async def _create_initiative(
         counter_groups_enabled=counter_groups_enabled,
         calendars_enabled=calendars_enabled,
         dashboards_enabled=dashboards_enabled,
+        join_policy=join_policy.value,
+        auto_join=auto_join,
     )
     session.add(initiative)
     await session.flush()
@@ -643,13 +657,86 @@ async def _enable_community_directory(session: AsyncSession) -> None:
     await session.flush()
 
 
+def _gradient_png(
+    width: int, height: int, top: tuple[int, int, int], bottom: tuple[int, int, int]
+) -> bytes:
+    """A vertical-gradient PNG, written by hand so seeding needs no image library.
+
+    Every row is one flat colour, which is what keeps the result a few KB
+    instead of the megabytes its raw pixels would be — well inside the caps in
+    ``IMAGE_SPECS``.
+    """
+    raw = bytearray()
+    for y in range(height):
+        ratio = y / max(height - 1, 1)
+        pixel = bytes(
+            round(start + (end - start) * ratio) for start, end in zip(top, bottom)
+        )
+        raw.append(0)  # per-scanline filter: none
+        raw.extend(pixel * width)
+
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return (
+            len(payload).to_bytes(4, "big")
+            + kind
+            + payload
+            + zlib.crc32(kind + payload).to_bytes(4, "big")
+        )
+
+    header = (
+        width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+        + bytes((8, 2, 0, 0, 0))  # 8-bit truecolour, no interlace
+    )
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+async def _set_guild_images(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    uploader: User,
+    icon: tuple[tuple[int, int, int], tuple[int, int, int]],
+    banner: tuple[tuple[int, int, int], tuple[int, int, int]],
+) -> None:
+    """Give a community an icon and a banner, through the upload path itself.
+
+    Each rendition goes through ``validate_rendition`` rather than straight into
+    the table, so seeded artwork is held to the same shape and size rules an
+    uploaded one is. The banner is stored as both of its renditions together,
+    which is what the card and the front page read.
+
+    Writes ``public.guild_images``, so the session must not be routed into a
+    guild schema when this is called.
+    """
+    renditions = [
+        guild_images.validate_rendition(
+            GuildImageVariant.icon, _gradient_png(256, 256, *icon), None
+        ),
+        guild_images.validate_rendition(
+            GuildImageVariant.full, _gradient_png(2400, 600, *banner), None
+        ),
+        guild_images.validate_rendition(
+            GuildImageVariant.card, _gradient_png(1040, 260, *banner), None
+        ),
+    ]
+    await guild_images.set_images(
+        session, guild_id=guild.id, user_id=uploader.id, renditions=renditions
+    )
+
+
 async def _list_guild_in_directory(
     session: AsyncSession,
     guild: Guild,
     *,
     categories: list[GuildCategory],
 ) -> None:
-    """Opt a guild into the directory.
+    """Opt a community into the directory.
 
     A listing is the shelves plus the 18+ declaration together — the database
     refuses a listed guild missing either — and the categories are stored in the
@@ -682,13 +769,25 @@ async def _create_community_guild(
     initiative_name: str,
     initiative_description: str,
     initiative_color: str,
+    icon: tuple[tuple[int, int, int], tuple[int, int, int]],
+    banner: tuple[tuple[int, int, int], tuple[int, int, int]],
+    join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.open,
+    auto_join: bool = False,
+    second_initiative: dict | None = None,
+    project: dict | None = None,
 ) -> Guild:
-    """A small guild that exists to be found in the directory.
+    """A community that exists to be found in the directory.
 
-    Enough to be a believable card — a name, a description, its shelves, and a
-    roster whose size shows on it — plus one initiative everybody in it belongs
-    to, so joining from the directory lands somewhere rather than in a guild
-    that looks broken. The deep content stays in guilds 1-3.
+    Enough to be a believable card — a name, a description, artwork, its
+    shelves, and a roster whose size shows on it — and enough behind the card
+    to be worth arriving at: the initiative everybody belongs to, a second one
+    the visitor is *not* in so the join affordances have something to act on,
+    and a project with a few tasks so the front page is not bare. The deep
+    content still lives in communities 1-3.
+
+    The two initiatives deliberately carry different join policies. That is the
+    pair worth looking at: one says come in, the other says ask first, and the
+    directory is the only place a stranger meets either.
     """
     guild = await _create_guild(
         session,
@@ -698,10 +797,11 @@ async def _create_community_guild(
         creator=admin,
     )
     await _list_guild_in_directory(session, guild, categories=categories)
+    await _set_guild_images(session, guild, uploader=admin, icon=icon, banner=banner)
     guild_id = guild.id
 
-    # Same order the guild sections above use: commit the shared rows, provision
-    # the schema, add the roster, then route in to write the guild's content.
+    # Same order the community sections above use: commit the shared rows,
+    # provision the schema, add the roster, then route in to write the content.
     await session.commit()
     _expunge_guild_scoped(session)
     await provision_guild(guild_id)
@@ -709,7 +809,7 @@ async def _create_community_guild(
     await set_rls_context(
         session, user_id=admin.id, guild_id=guild_id, guild_role="admin"
     )
-    await _create_initiative(
+    initiative, _pm_role, _member_role = await _create_initiative(
         session,
         ids,
         guild=guild,
@@ -718,7 +818,57 @@ async def _create_community_guild(
         color=initiative_color,
         pm_user=admin,
         member_users=members,
+        join_policy=join_policy,
+        auto_join=auto_join,
     )
+
+    # Only the admin is in this one, so everyone else sees it the way a visitor
+    # does — as something to join or ask to join.
+    if second_initiative is not None:
+        await _create_initiative(
+            session,
+            ids,
+            guild=guild,
+            name=second_initiative["name"],
+            description=second_initiative["description"],
+            color=second_initiative["color"],
+            pm_user=admin,
+            member_users=[],
+            join_policy=second_initiative.get(
+                "join_policy", InitiativeJoinPolicy.request
+            ),
+        )
+
+    if project is not None:
+        proj = await _create_project(
+            session,
+            ids,
+            guild=guild,
+            initiative=initiative,
+            name=project["name"],
+            icon=project["icon"],
+            description=project["description"],
+            owner=admin,
+            general_access=ResourceAccessLevel.write,
+        )
+        statuses = await ensure_default_statuses(session, proj.id)
+        for preset in await ensure_default_presets(session, proj.id):
+            ids.add("project_filter_presets", preset.id)
+        status_map = {}
+        for status in statuses:
+            status_map[status.category] = status
+            ids.add("task_statuses", status.id)
+        await _create_tasks(
+            session,
+            ids,
+            guild=guild,
+            status_map=status_map,
+            task_defs=[
+                {**task, "project_id": proj.id} for task in project.get("tasks", [])
+            ],
+            all_users={user.full_name: user for user in [admin, *members]},
+        )
+
     await session.commit()
     _expunge_guild_scoped(session)
     await set_rls_context(session)
@@ -2075,7 +2225,7 @@ async def seed() -> None:
             print("  Run with --clean first to remove existing data.")
         return
 
-    print("Seeding dev data (3 guilds, multiple users)...")
+    print("Seeding dev data (3 communities, multiple users)...")
     _mark_seed_incomplete()
     ids = IDTracker()
 
@@ -2149,10 +2299,10 @@ async def seed() -> None:
                     "color_theme": "strahd",
                     "week_starts_on": 1,
                 },
-                # Dedicated guild admins — user1..8 above are ALWAYS regular guild
+                # Dedicated community admins — user1..8 above are ALWAYS regular community
                 # members (several are initiative PMs), so these four carry every
-                # guild-admin membership instead. Platform tier stays `member`:
-                # guild admin is a guild role, orthogonal to the platform ladder.
+                # community-admin membership instead. Platform tier stays `member`:
+                # community admin is a community role, orthogonal to the platform ladder.
                 {
                     "email": "admin1@example.com",
                     "full_name": "Guildmaster Aldric",
@@ -2235,17 +2385,17 @@ async def seed() -> None:
         kael = new_users["Kael Windrunner"]
         aurelia = new_users["Aurelia Brightshield"]
 
-        # Guild admins: admin1 → guild 1, admin2 → guild 2, admin3 → guild 3,
-        # admin4 → second admin in guilds 1 and 3 (multi-guild admin path).
-        # None of them join initiatives — they exercise the guild-admin
-        # override (full guild visibility WITHOUT initiative membership).
+        # Community admins: admin1 → community 1, admin2 → community 2, admin3 → community 3,
+        # admin4 → second admin in communities 1 and 3 (multi-community admin path).
+        # None of them join initiatives — they exercise the community-admin
+        # override (full community visibility WITHOUT initiative membership).
         admin1 = new_users["Guildmaster Aldric"]
         admin2 = new_users["Overseer Nova"]
         admin3 = new_users["Harbormaster Marisol"]
         admin4 = new_users["Archivist Okoro"]
 
-        # Platform-role users. Their platform tier is orthogonal to guild
-        # membership, so spread them across a variety of guilds/initiatives
+        # Platform-role users. Their platform tier is orthogonal to community
+        # membership, so spread them across a variety of communities/initiatives
         # below to exercise the app as ordinary members from every tier.
         p_owner = new_users["Platform Owner"]
         p_operator = new_users["Platform Operator"]
@@ -2254,22 +2404,29 @@ async def seed() -> None:
         p_member = new_users["Platform Member"]
 
         # ==============================================================
-        # GUILD 1: Primary guild — "Curse of Strahd" TTRPG campaign
-        # (The primary guild already exists from init_db)
+        # GUILD 1: Primary community — "Curse of Strahd" TTRPG campaign
+        # (The primary community already exists from init_db)
         # ==============================================================
-        print("\n  --- Guild 1: Primary Guild (TTRPG Campaign) ---")
+        print("\n  --- Community 1: Primary Community (TTRPG Campaign) ---")
         g1 = primary_guild
         g1_id = g1.id
+        await _set_guild_images(
+            session,
+            g1,
+            uploader=admin_user,
+            icon=((190, 18, 60), (136, 19, 55)),
+            banner=((69, 10, 30), (190, 18, 60)),
+        )
 
         # Commit the shared rows (users) so far.
         await session.commit()
 
-        # Add members to primary guild (incl. a couple of platform-role users) —
+        # Add members to primary community (incl. a couple of platform-role users) —
         # a shared-table system-engine write, so it happens BEFORE routing into
-        # the guild schema. admin1/admin4 are the guild admins; dm stays a
+        # the community schema. admin1/admin4 are the community admins; dm stays a
         # REGULAR member but is PM of two initiatives below (PM-full-access path
-        # without admin). kael joins the guild but no G1 initiative — his view
-        # of guild 1 must be empty (initiative RLS hides everything; content
+        # without admin). kael joins the community but no G1 initiative — his view
+        # of community 1 must be empty (initiative RLS hides everything; content
         # 404s, not 403s).
         await _add_guild_members(
             session,
@@ -2279,19 +2436,19 @@ async def seed() -> None:
             admin_users=[admin1, admin4],
         )
 
-        # Route into the primary guild's schema (search_path + SET ROLE) so all
-        # of its guild-scoped data — initiatives, projects, tasks, ... — is
+        # Route into the primary community's schema (search_path + SET ROLE) so all
+        # of its community-scoped data — initiatives, projects, tasks, ... — is
         # created there, not in public.
         await set_rls_context(
             session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
         )
 
-        # Look up the primary guild's "Default Initiative", creating it if it
-        # doesn't exist (same approach as the guild 2/3 sections below).
+        # Look up the primary community's "Default Initiative", creating it if it
+        # doesn't exist (same approach as the community 2/3 sections below).
         #
         # Why it can be missing: a dev database can end up with a
-        # "Primary Guild" row in public.guilds but NO matching guild_1
-        # schema (for example, the row was created before per-guild schemas
+        # "Primary Community" row in public.guilds but NO matching guild_1
+        # schema (for example, the row was created before per-community schemas
         # existed, or a cleanup was interrupted partway). On the next backend
         # startup, backfill_guild_schemas() creates the missing guild_1
         # schema — but it only creates the empty tables, it never inserts
@@ -2302,7 +2459,7 @@ async def seed() -> None:
             session, admin_user, guild_id=g1_id
         )
         # guild_1.guild_settings has the same gap: normally one row is
-        # inserted when a guild is created, but a startup back-fill leaves
+        # inserted when a community is created, but a startup back-fill leaves
         # the table empty — create the row if it isn't there.
         await get_or_create_guild_settings(session, g1_id)
 
@@ -2341,6 +2498,9 @@ async def seed() -> None:
             color="#7C3AED",
             pm_user=dm,
             member_users=[thorn, elara, vex, sera, p_operator],
+            # Invite-only on purpose: kael is in the community and in no
+            # initiative, which is the view that has to come back empty.
+            join_policy=InitiativeJoinPolicy.private,
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
@@ -2357,6 +2517,7 @@ async def seed() -> None:
             color="#059669",
             pm_user=admin_user,
             member_users=[dm, thorn, elara, p_support],
+            join_policy=InitiativeJoinPolicy.request,
             queues_enabled=True,
             counter_groups_enabled=True,
             calendars_enabled=True,
@@ -2364,7 +2525,7 @@ async def seed() -> None:
         )
 
         # -- Projects --
-        print("  Creating Guild 1 projects...")
+        print("  Creating Community 1 projects...")
 
         # Share-status variety across G1 projects:
         #   Barovia Arc      — user grants + general access (Viewer)
@@ -2561,7 +2722,7 @@ async def seed() -> None:
         )
 
         # Task statuses
-        print("  Creating Guild 1 task statuses...")
+        print("  Creating Community 1 task statuses...")
         g1_projects = [
             g1_barovia,
             g1_ravenloft,
@@ -2594,7 +2755,7 @@ async def seed() -> None:
         await session.flush()
 
         # -- Tasks --
-        print("  Creating Guild 1 tasks...")
+        print("  Creating Community 1 tasks...")
         g1_task_defs = [
             # Barovia Arc
             {
@@ -3008,7 +3169,7 @@ async def seed() -> None:
             g1_tasks.update(tasks)
 
         # -- Tags --
-        print("  Creating Guild 1 tags...")
+        print("  Creating Community 1 tags...")
         g1_tags = await _create_tags(
             session,
             ids,
@@ -3077,7 +3238,7 @@ async def seed() -> None:
         )
 
         # -- Documents --
-        print("  Creating Guild 1 documents...")
+        print("  Creating Community 1 documents...")
         g1_docs = await _create_documents(
             session,
             ids,
@@ -3252,7 +3413,7 @@ async def seed() -> None:
         )
 
         # -- Comments --
-        print("  Creating Guild 1 comments...")
+        print("  Creating Community 1 comments...")
         await _create_comments(
             session,
             ids,
@@ -3315,7 +3476,7 @@ async def seed() -> None:
         )
 
         # -- Favorites & Recent Views --
-        print("  Creating Guild 1 favorites & views...")
+        print("  Creating Community 1 favorites & views...")
         await _create_favorites(
             session,
             ids,
@@ -3332,8 +3493,8 @@ async def seed() -> None:
                 (sera, g1_barovia),
                 (admin_user, g1_phandalin),
                 (admin_user, g1_wave_echo),
-                # Guild admin favoriting a project they access purely via the
-                # guild-admin override (admin1 is in no G1 initiative).
+                # Community admin favoriting a project they access purely via the
+                # community-admin override (admin1 is in no G1 initiative).
                 (admin1, g1_barovia),
             ],
         )
@@ -3356,7 +3517,7 @@ async def seed() -> None:
         )
 
         # -- Document Links (wikilinks) --
-        print("  Creating Guild 1 document links...")
+        print("  Creating Community 1 document links...")
         await _create_document_links(
             session,
             ids,
@@ -3390,7 +3551,7 @@ async def seed() -> None:
         )
 
         # -- Queues --
-        print("  Creating Guild 1 queues...")
+        print("  Creating Community 1 queues...")
         await _create_queues(
             session,
             ids,
@@ -3587,7 +3748,7 @@ async def seed() -> None:
         )
 
         # -- Counters --
-        print("  Creating Guild 1 counter groups...")
+        print("  Creating Community 1 counter groups...")
         g1_groups = await _create_counter_groups(
             session,
             ids,
@@ -3732,7 +3893,7 @@ async def seed() -> None:
         )
 
         # -- Dashboards --
-        print("  Creating Guild 1 dashboards...")
+        print("  Creating Community 1 dashboards...")
         await _create_dashboards(
             session,
             ids,
@@ -3881,7 +4042,7 @@ async def seed() -> None:
         )
 
         # -- Calendar events --
-        print("  Creating Guild 1 calendar events...")
+        print("  Creating Community 1 calendar events...")
         g1_events = await _create_calendar_events(
             session,
             ids,
@@ -4001,7 +4162,7 @@ async def seed() -> None:
         )
 
         # -- Custom properties --
-        print("  Creating Guild 1 property definitions + values...")
+        print("  Creating Community 1 property definitions + values...")
         g1_strahd_props = await _create_property_definitions(
             session,
             ids,
@@ -4180,7 +4341,7 @@ async def seed() -> None:
         # ==============================================================
         # GUILD 2: "Starforge Collective" — Sci-Fi Campaign
         # ==============================================================
-        print("\n  --- Guild 2: Starforge Collective (Sci-Fi) ---")
+        print("\n  --- Community 2: Starforge Collective (Sci-Fi) ---")
 
         g2 = await _create_guild(
             session,
@@ -4189,18 +4350,25 @@ async def seed() -> None:
             description="A science fiction tabletop campaign set in the far reaches of the galaxy",
             creator=admin_user,
         )
+        await _set_guild_images(
+            session,
+            g2,
+            uploader=admin_user,
+            icon=((37, 99, 235), (30, 58, 138)),
+            banner=((15, 23, 42), (37, 99, 235)),
+        )
         g2_id = g2.id
 
-        # Commit the new guild's shared rows (also flushes guild 1's data), then
+        # Commit the new community's shared rows (also flushes community 1's data), then
         # provision its schema.
         await session.commit()
         _expunge_guild_scoped(
             session
-        )  # clear guild 1's per-schema ids from the identity map
+        )  # clear community 1's per-schema ids from the identity map
         await provision_guild(g2_id)
 
         # Memberships are a shared-table system-engine write — add them before
-        # routing into the guild schema. admin2 is the (only added) guild
+        # routing into the community schema. admin2 is the (only added) community
         # admin; finley is a regular member who is PM of the Side Missions
         # initiative below.
         await _add_guild_members(
@@ -4211,7 +4379,7 @@ async def seed() -> None:
             admin_users=[admin2],
         )
 
-        # Route into the guild before creating its content.
+        # Route into the community before creating its content.
         await set_rls_context(
             session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
         )
@@ -4273,6 +4441,7 @@ async def seed() -> None:
             session,
             ids,
             guild=g2,
+            join_policy=InitiativeJoinPolicy.open,
             name="Starfall: The Exodus Protocol",
             description="Humanity's last fleet searches for a new homeworld after Earth's collapse",
             color="#0EA5E9",
@@ -4288,6 +4457,7 @@ async def seed() -> None:
             session,
             ids,
             guild=g2,
+            join_policy=InitiativeJoinPolicy.request,
             name="Side Missions: Fringe Space",
             description="One-shots and side adventures in the frontier sectors",
             color="#F59E0B",
@@ -4299,7 +4469,7 @@ async def seed() -> None:
         )
 
         # Projects
-        print("  Creating Guild 2 projects...")
+        print("  Creating Community 2 projects...")
         g2_exodus = await _create_project(
             session,
             ids,
@@ -4446,7 +4616,7 @@ async def seed() -> None:
         await session.flush()
 
         # Tasks
-        print("  Creating Guild 2 tasks...")
+        print("  Creating Community 2 tasks...")
         g2_task_defs = [
             # Exodus Fleet
             {
@@ -4699,7 +4869,7 @@ async def seed() -> None:
             g2_tasks.update(tasks)
 
         # Tags
-        print("  Creating Guild 2 tags...")
+        print("  Creating Community 2 tags...")
         g2_tags = await _create_tags(
             session,
             ids,
@@ -4760,7 +4930,7 @@ async def seed() -> None:
         )
 
         # Documents
-        print("  Creating Guild 2 documents...")
+        print("  Creating Community 2 documents...")
         g2_docs = await _create_documents(
             session,
             ids,
@@ -4860,7 +5030,7 @@ async def seed() -> None:
         )
 
         # Comments
-        print("  Creating Guild 2 comments...")
+        print("  Creating Community 2 comments...")
         await _create_comments(
             session,
             ids,
@@ -4907,12 +5077,12 @@ async def seed() -> None:
             all_users,
         )
 
-        # -- Guild 2 Settings --
-        print("  Creating Guild 2 settings...")
+        # -- Community 2 Settings --
+        print("  Creating Community 2 settings...")
         await _create_guild_settings(session, ids, g2, ai_enabled=True)
 
         # -- Favorites & Recent Views --
-        print("  Creating Guild 2 favorites & views...")
+        print("  Creating Community 2 favorites & views...")
         await _create_favorites(
             session,
             ids,
@@ -4944,7 +5114,7 @@ async def seed() -> None:
         )
 
         # -- Document Links --
-        print("  Creating Guild 2 document links...")
+        print("  Creating Community 2 document links...")
         await _create_document_links(
             session,
             ids,
@@ -4967,7 +5137,7 @@ async def seed() -> None:
         )
 
         # -- Queues --
-        print("  Creating Guild 2 queues...")
+        print("  Creating Community 2 queues...")
         await _create_queues(
             session,
             ids,
@@ -5041,7 +5211,7 @@ async def seed() -> None:
         await _enable_queue_permissions(session, [g2_main_mem])
 
         # -- Counters --
-        print("  Creating Guild 2 counter groups...")
+        print("  Creating Community 2 counter groups...")
         g2_groups = await _create_counter_groups(
             session,
             ids,
@@ -5168,7 +5338,7 @@ async def seed() -> None:
         )
 
         # -- Dashboards --
-        print("  Creating Guild 2 dashboards...")
+        print("  Creating Community 2 dashboards...")
         await _create_dashboards(
             session,
             ids,
@@ -5246,7 +5416,7 @@ async def seed() -> None:
         await _enable_role_feature(session, [g2_main_mem], "dashboards_enabled")
 
         # -- Calendar events --
-        print("  Creating Guild 2 calendar events...")
+        print("  Creating Community 2 calendar events...")
         await _create_calendar_events(
             session,
             ids,
@@ -5350,7 +5520,7 @@ async def seed() -> None:
         )
 
         # -- Custom properties --
-        print("  Creating Guild 2 property definitions + values...")
+        print("  Creating Community 2 property definitions + values...")
         g2_main_props = await _create_property_definitions(
             session,
             ids,
@@ -5509,9 +5679,9 @@ async def seed() -> None:
         # ==============================================================
         # GUILD 3: "Realm of Tides" — Pirate/Nautical Campaign
         # ==============================================================
-        print("\n  --- Guild 3: Realm of Tides (Pirate Campaign) ---")
+        print("\n  --- Community 3: Realm of Tides (Pirate Campaign) ---")
 
-        # admin3 creates (and therefore admins) this guild; finley is a regular
+        # admin3 creates (and therefore admins) this community; finley is a regular
         # member who is PM of the main initiative below. The platform owner
         # superuser is deliberately a plain member here.
         g3 = await _create_guild(
@@ -5521,16 +5691,23 @@ async def seed() -> None:
             description="A nautical fantasy campaign across the Shattered Seas",
             creator=admin3,
         )
+        await _set_guild_images(
+            session,
+            g3,
+            uploader=admin3,
+            icon=((13, 148, 136), (15, 118, 110)),
+            banner=((4, 47, 46), (20, 184, 166)),
+        )
         g3_id = g3.id
 
-        # Commit guild 2's data + guild 3's shared rows, then provision.
+        # Commit community 2's data + community 3's shared rows, then provision.
         await session.commit()
         _expunge_guild_scoped(
             session
-        )  # clear guild 2's per-schema ids from the identity map
+        )  # clear community 2's per-schema ids from the identity map
         await provision_guild(g3_id)
 
-        # Shared-table membership writes before routing into the guild.
+        # Shared-table membership writes before routing into the community.
         await _add_guild_members(
             session,
             ids,
@@ -5554,7 +5731,7 @@ async def seed() -> None:
             session, user_id=admin3.id, guild_id=g3_id, guild_role="admin"
         )
 
-        # Default initiative (admin3, the guild creator, becomes its PM)
+        # Default initiative (admin3, the community creator, becomes its PM)
         g3_default_init = await ensure_default_initiative(
             session, admin3, guild_id=g3_id
         )
@@ -5612,6 +5789,8 @@ async def seed() -> None:
             session,
             ids,
             guild=g3,
+            join_policy=InitiativeJoinPolicy.open,
+            auto_join=True,
             name="The Crimson Tide Campaign",
             description="A pirate crew sails the Shattered Seas in search of the Leviathan's Heart",
             color="#DC2626",
@@ -5627,6 +5806,7 @@ async def seed() -> None:
             session,
             ids,
             guild=g3,
+            join_policy=InitiativeJoinPolicy.private,
             name="Royal Navy Conflicts",
             description="Encounters and battles with the Imperial Navy",
             color="#1E40AF",
@@ -5638,7 +5818,7 @@ async def seed() -> None:
         )
 
         # Projects
-        print("  Creating Guild 3 projects...")
+        print("  Creating Community 3 projects...")
         g3_ship = await _create_project(
             session,
             ids,
@@ -5784,7 +5964,7 @@ async def seed() -> None:
         await session.flush()
 
         # Tasks
-        print("  Creating Guild 3 tasks...")
+        print("  Creating Community 3 tasks...")
         g3_task_defs = [
             # The Crimson Maiden
             {
@@ -6039,7 +6219,7 @@ async def seed() -> None:
             g3_tasks.update(tasks)
 
         # Tags
-        print("  Creating Guild 3 tags...")
+        print("  Creating Community 3 tags...")
         g3_tags = await _create_tags(
             session,
             ids,
@@ -6098,7 +6278,7 @@ async def seed() -> None:
         )
 
         # Documents
-        print("  Creating Guild 3 documents...")
+        print("  Creating Community 3 documents...")
         g3_docs = await _create_documents(
             session,
             ids,
@@ -6215,7 +6395,7 @@ async def seed() -> None:
         )
 
         # Comments
-        print("  Creating Guild 3 comments...")
+        print("  Creating Community 3 comments...")
         await _create_comments(
             session,
             ids,
@@ -6277,12 +6457,12 @@ async def seed() -> None:
             all_users,
         )
 
-        # -- Guild 3 Settings --
-        print("  Creating Guild 3 settings...")
+        # -- Community 3 Settings --
+        print("  Creating Community 3 settings...")
         await _create_guild_settings(session, ids, g3, ai_enabled=False)
 
         # -- Favorites & Recent Views --
-        print("  Creating Guild 3 favorites & views...")
+        print("  Creating Community 3 favorites & views...")
         await _create_favorites(
             session,
             ids,
@@ -6320,7 +6500,7 @@ async def seed() -> None:
         )
 
         # -- Document Links --
-        print("  Creating Guild 3 document links...")
+        print("  Creating Community 3 document links...")
         await _create_document_links(
             session,
             ids,
@@ -6355,7 +6535,7 @@ async def seed() -> None:
         )
 
         # -- Queues --
-        print("  Creating Guild 3 queues...")
+        print("  Creating Community 3 queues...")
         await _create_queues(
             session,
             ids,
@@ -6492,7 +6672,7 @@ async def seed() -> None:
         await _enable_queue_permissions(session, [g3_main_mem])
 
         # -- Counters --
-        print("  Creating Guild 3 counter groups...")
+        print("  Creating Community 3 counter groups...")
         g3_groups = await _create_counter_groups(
             session,
             ids,
@@ -6630,7 +6810,7 @@ async def seed() -> None:
         )
 
         # -- Dashboards --
-        print("  Creating Guild 3 dashboards...")
+        print("  Creating Community 3 dashboards...")
         await _create_dashboards(
             session,
             ids,
@@ -6709,7 +6889,7 @@ async def seed() -> None:
         await _enable_role_feature(session, [g3_main_mem], "dashboards_enabled")
 
         # -- Calendar events --
-        print("  Creating Guild 3 calendar events...")
+        print("  Creating Community 3 calendar events...")
         await _create_calendar_events(
             session,
             ids,
@@ -6835,7 +7015,7 @@ async def seed() -> None:
         )
 
         # -- Custom properties --
-        print("  Creating Guild 3 property definitions + values...")
+        print("  Creating Community 3 property definitions + values...")
         g3_main_props = await _create_property_definitions(
             session,
             ids,
@@ -6998,21 +7178,21 @@ async def seed() -> None:
             ],
         )
 
-        # Commit guild 3's data — each guild section is committed as it completes
-        # (its writes are routed into that guild's schema).
+        # Commit community 3's data — each community section is committed as it completes
+        # (its writes are routed into that community's schema).
         await session.commit()
 
         # ==============================================================
         # COMMUNITY DIRECTORY
         # ==============================================================
-        # Guilds 1 and 2 stay invite-only, so the private case is still there to
-        # look at: an unlisted guild has no categories, no 18+ answer, and no
-        # card. Guild 3 is listed, which puts one guild with real content behind
+        # Communities 1 and 2 stay invite-only, so the private case is still there to
+        # look at: an unlisted community has no categories, no 18+ answer, and no
+        # card. Community 3 is listed, which puts one community with real content behind
         # a directory card — the superuser is already in it, so it shows the
         # already-a-member state next to the joinable ones. The rest are small
-        # guilds that exist to fill the shelves.
+        # communities that exist to fill the shelves.
         print("\n  --- Community directory ---")
-        await set_rls_context(session)  # shared/public tables — no guild routing
+        await set_rls_context(session)  # shared/public tables — no community routing
         await _enable_community_directory(session)
         await _list_guild_in_directory(
             session, g3, categories=[GuildCategory.ttrpg, GuildCategory.social]
@@ -7021,6 +7201,12 @@ async def seed() -> None:
 
         # One shelf (music) is deliberately left empty, so the "nothing on this
         # shelf" state is reachable without editing anything.
+        # Artwork, and a pair of join policies each: the roster's initiative
+        # plus one nobody outside the admin is in, so "Join" and "Request to
+        # join" are both on a front page a visitor can actually reach. One
+        # community auto-joins its arrivals. A listing is fixed at "no adult
+        # content" and "handles, not real names" — the two check constraints on
+        # a listed community leave no other answer.
         community_specs = [
             {
                 "name": "The Cartographers' Table",
@@ -7032,6 +7218,38 @@ async def seed() -> None:
                 "initiative_name": "Map Swap",
                 "initiative_description": "The running map exchange and its critique threads.",
                 "initiative_color": "#0891b2",
+                "icon": ((8, 145, 178), (14, 116, 144)),
+                "banner": ((6, 78, 96), (8, 145, 178)),
+                "join_policy": InitiativeJoinPolicy.open,
+                "second_initiative": {
+                    "name": "Cartography Guild Critique",
+                    "description": "Line-by-line feedback on a map before it goes out.",
+                    "color": "#155e75",
+                    "join_policy": InitiativeJoinPolicy.request,
+                },
+                "project": {
+                    "name": "Autumn Swap",
+                    "icon": "\U0001f5fa\ufe0f",
+                    "description": "Everything owed for this round of the exchange.",
+                    "tasks": [
+                        {
+                            "title": "Collect this round's submissions",
+                            "category": TaskStatusCategory.in_progress,
+                            "priority": TaskPriority.high,
+                            "due_days": 4,
+                        },
+                        {
+                            "title": "Pair each map with a critic",
+                            "category": TaskStatusCategory.todo,
+                            "priority": TaskPriority.medium,
+                        },
+                        {
+                            "title": "Post the summer round-up",
+                            "category": TaskStatusCategory.done,
+                            "priority": TaskPriority.low,
+                        },
+                    ],
+                },
             },
             {
                 "name": "Midnight Homebrew",
@@ -7043,6 +7261,35 @@ async def seed() -> None:
                 "initiative_name": "Playtest Queue",
                 "initiative_description": "Everything waiting on a table to try it.",
                 "initiative_color": "#7c3aed",
+                "icon": ((124, 58, 237), (76, 29, 149)),
+                "banner": ((49, 16, 100), (124, 58, 237)),
+                # Arrivals land in the playtest queue with nothing to click.
+                "join_policy": InitiativeJoinPolicy.open,
+                "auto_join": True,
+                "second_initiative": {
+                    "name": "Table Scars",
+                    "description": "The rules that broke, and what broke them.",
+                    "color": "#a21caf",
+                    "join_policy": InitiativeJoinPolicy.request,
+                },
+                "project": {
+                    "name": "Subclass Review",
+                    "icon": "\U0001f9ea",
+                    "description": "The subclasses currently in front of a table.",
+                    "tasks": [
+                        {
+                            "title": "Break the Tidecaller's capstone",
+                            "category": TaskStatusCategory.in_progress,
+                            "priority": TaskPriority.urgent,
+                            "due_days": 2,
+                        },
+                        {
+                            "title": "Second table for the Grave Warden",
+                            "category": TaskStatusCategory.todo,
+                            "priority": TaskPriority.medium,
+                        },
+                    ],
+                },
             },
             {
                 "name": "Sunday Session Zero",
@@ -7054,6 +7301,33 @@ async def seed() -> None:
                 "initiative_name": "This Month's Tables",
                 "initiative_description": "Who is running what, and which seats are open.",
                 "initiative_color": "#ea580c",
+                "icon": ((234, 88, 12), (194, 65, 12)),
+                "banner": ((124, 45, 18), (234, 88, 12)),
+                "join_policy": InitiativeJoinPolicy.open,
+                "second_initiative": {
+                    "name": "Table Hosts",
+                    "description": "For the people running a table, not sitting at one.",
+                    "color": "#9a3412",
+                    "join_policy": InitiativeJoinPolicy.request,
+                },
+                "project": {
+                    "name": "October Seats",
+                    "icon": "\U0001f3b2",
+                    "description": "Seats open, seats taken, and who is running what.",
+                    "tasks": [
+                        {
+                            "title": "Confirm the two Saturday hosts",
+                            "category": TaskStatusCategory.todo,
+                            "priority": TaskPriority.high,
+                            "due_days": 6,
+                        },
+                        {
+                            "title": "Close the waitlist for the Friday table",
+                            "category": TaskStatusCategory.backlog,
+                            "priority": TaskPriority.low,
+                        },
+                    ],
+                },
             },
             {
                 "name": "Pixel & Palette",
@@ -7064,6 +7338,32 @@ async def seed() -> None:
                 "initiative_name": "Studio",
                 "initiative_description": "Works in progress and the tools that made them.",
                 "initiative_color": "#db2777",
+                "icon": ((219, 39, 119), (157, 23, 77)),
+                "banner": ((131, 24, 67), (219, 39, 119)),
+                "join_policy": InitiativeJoinPolicy.request,
+                "second_initiative": {
+                    "name": "Tooling",
+                    "description": "The scripts and brushes the studio runs on.",
+                    "color": "#be185d",
+                    "join_policy": InitiativeJoinPolicy.open,
+                },
+                "project": {
+                    "name": "Brush Pack v3",
+                    "icon": "\U0001f3a8",
+                    "description": "The next pack, and what is still missing from it.",
+                    "tasks": [
+                        {
+                            "title": "Redraw the inking set at 2x",
+                            "category": TaskStatusCategory.in_progress,
+                            "priority": TaskPriority.medium,
+                        },
+                        {
+                            "title": "Licence file for the pack",
+                            "category": TaskStatusCategory.todo,
+                            "priority": TaskPriority.low,
+                        },
+                    ],
+                },
             },
             {
                 "name": "Dawn Patrol",
@@ -7075,6 +7375,38 @@ async def seed() -> None:
                 "initiative_name": "Season Plan",
                 "initiative_description": "The training block everyone is on.",
                 "initiative_color": "#16a34a",
+                "icon": ((22, 163, 74), (21, 128, 61)),
+                "banner": ((20, 83, 45), (22, 163, 74)),
+                "join_policy": InitiativeJoinPolicy.open,
+                "second_initiative": {
+                    "name": "Race Day",
+                    "description": "The half-marathon block, for whoever is signed up.",
+                    "color": "#15803d",
+                    "join_policy": InitiativeJoinPolicy.request,
+                },
+                "project": {
+                    "name": "Spring Block",
+                    "icon": "\U0001f3c3",
+                    "description": "Twelve weeks, and who is holding which week.",
+                    "tasks": [
+                        {
+                            "title": "Publish the week 6 route",
+                            "category": TaskStatusCategory.todo,
+                            "priority": TaskPriority.medium,
+                            "due_days": 3,
+                        },
+                        {
+                            "title": "Find a wet-weather alternative to the river loop",
+                            "category": TaskStatusCategory.backlog,
+                            "priority": TaskPriority.low,
+                        },
+                        {
+                            "title": "Sort out the winter timing sheet",
+                            "category": TaskStatusCategory.done,
+                            "priority": TaskPriority.medium,
+                        },
+                    ],
+                },
             },
             {
                 "name": "Founders' Roundtable",
@@ -7086,21 +7418,49 @@ async def seed() -> None:
                 "initiative_name": "Roundtable",
                 "initiative_description": "The standing agenda and its notes.",
                 "initiative_color": "#0f766e",
+                "icon": ((15, 118, 110), (17, 94, 89)),
+                "banner": ((4, 47, 46), (15, 118, 110)),
+                # The one that keeps its door shut: ask, and an admin answers.
+                "join_policy": InitiativeJoinPolicy.request,
+                "second_initiative": {
+                    "name": "Hiring Notes",
+                    "description": "What worked, what did not, and what it cost.",
+                    "color": "#134e4a",
+                    "join_policy": InitiativeJoinPolicy.private,
+                },
+                "project": {
+                    "name": "Q1 Agenda",
+                    "icon": "\U0001f4c8",
+                    "description": "What each month's roundtable is about.",
+                    "tasks": [
+                        {
+                            "title": "Pick February's topic",
+                            "category": TaskStatusCategory.todo,
+                            "priority": TaskPriority.high,
+                            "due_days": 9,
+                        },
+                        {
+                            "title": "Write up January's notes",
+                            "category": TaskStatusCategory.in_progress,
+                            "priority": TaskPriority.medium,
+                        },
+                    ],
+                },
             },
         ]
         for spec in community_specs:
-            print(f"  Listing community guild: {spec['name']}")
+            print(f"  Listing community community: {spec['name']}")
             await _create_community_guild(session, ids, **spec)
 
         # ==============================================================
         # PAM access grants (platform-role testing paths)
         # ==============================================================
-        # Every grant targets a guild the grantee is NOT a member of — PAM
-        # is the only way a platform user reaches a foreign guild. Covers
+        # Every grant targets a community the grantee is NOT a member of — PAM
+        # is the only way a platform user reaches a foreign community. Covers
         # the full lifecycle: pending, live, self-approved break-glass,
         # denied, and expired.
         print("\n  Creating PAM access grants...")
-        await set_rls_context(session)  # shared/public table — leave guild routing
+        await set_rls_context(session)  # shared/public table — leave community routing
         await _create_access_grants(
             session,
             ids,
@@ -7131,7 +7491,7 @@ async def seed() -> None:
                 },
                 {
                     # Live break-glass — operator self-issued and self-approved,
-                    # read_write (acts as a full guild admin for the window).
+                    # read_write (acts as a full community admin for the window).
                     "user": p_operator,
                     "guild_id": g2_id,
                     "access_level": AccessLevel.read_write,
@@ -7182,7 +7542,7 @@ async def seed() -> None:
     print("\nDone! Dev data seeded successfully.")
     print(f"  {total_users} users (password: changeme)")
     print(
-        f"  {len(ids.data['guilds']) + 1} guilds "
+        f"  {len(ids.data['guilds']) + 1} communities "
         f"({len(ids.data['initiatives'])} initiatives); "
         "community directory on"
     )
@@ -7218,12 +7578,12 @@ async def seed() -> None:
     print(
         f"\n  Owner login: {settings.FIRST_OWNER_EMAIL} / {settings.FIRST_OWNER_PASSWORD}"
     )
-    print("  Guild admins (password: changeme):")
-    print("    admin1@example.com (guild 1), admin2@example.com (guild 2),")
-    print("    admin3@example.com (guild 3), admin4@example.com (guilds 1+3)")
+    print("  Community admins (password: changeme):")
+    print("    admin1@example.com (community 1), admin2@example.com (community 2),")
+    print("    admin3@example.com (community 3), admin4@example.com (communities 1+3)")
     print("  Regular members: user1@example.com .. user8@example.com / changeme")
-    print("    (never guild admins; user1 + user6 are initiative PMs,")
-    print("     user7 is in guild 1 with no initiative membership)")
+    print("    (never community admins; user1 + user6 are initiative PMs,")
+    print("     user7 is in community 1 with no initiative membership)")
     print("  Platform-role users (password: changeme):")
     print("    owner@example.com, operator@example.com, moderator@example.com,")
     print("    support@example.com, member@example.com")
@@ -7247,7 +7607,7 @@ async def clean() -> None:
 
     import app.db.session as db_session
 
-    print("Cleaning up dev data (dropping guild schemas + wiping shared rows)...")
+    print("Cleaning up dev data (dropping community schemas + wiping shared rows)...")
     async with db_session.provisioning_engine.begin() as conn:
         schemas = [
             s
@@ -7266,7 +7626,7 @@ async def clean() -> None:
             ).all()
         ]
 
-    # One transaction per schema, and the truncate in its own. A guild schema is
+    # One transaction per schema, and the truncate in its own. A community schema is
     # ~40 tables plus their indexes, so dropping every one of them and cascading
     # a truncate in a single transaction holds more locks than a default
     # `max_locks_per_transaction` allows — and the whole clean then rolls back,
@@ -7282,7 +7642,7 @@ async def clean() -> None:
             "TRUNCATE TABLE users, guilds RESTART IDENTITY CASCADE"
         )
 
-    # Drop guild roles best-effort, each in its own transaction: guild roles are
+    # Drop community roles best-effort, each in its own transaction: community roles are
     # cluster-global, so one a co-located test DB also uses owns objects in *that*
     # database and can't be dropped here — that must not abort the cleanup.
     dropped = 0
@@ -7294,10 +7654,10 @@ async def clean() -> None:
                 await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
             dropped += 1
     print(
-        f"  Dropped {len(schemas)} guild schema(s) + {dropped}/{len(roles)} role(s); wiped users + guilds"
+        f"  Dropped {len(schemas)} community schema(s) + {dropped}/{len(roles)} role(s); wiped users + communities"
     )
 
-    # The directory switch is a platform setting, so it outlives every guild
+    # The directory switch is a platform setting, so it outlives every community
     # that was listed in it. Put it back to the off state a fresh install has,
     # or the next un-seeded dev database starts with a directory nobody asked
     # for. app_settings is not truncated above, so this is its own write.
@@ -7311,7 +7671,7 @@ async def clean() -> None:
 
     STATE_FILE.unlink(missing_ok=True)
     print(
-        "Done! All dev data removed. Run dev-migrate to recreate the primary guild + superuser."
+        "Done! All dev data removed. Run dev-migrate to recreate the primary community + superuser."
     )
 
 
