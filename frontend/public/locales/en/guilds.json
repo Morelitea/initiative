@@ -248,6 +248,7 @@
     "commentOnTask": "{{commenterName}} commented on {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} commented on {{entityName}}.",
     "commentReply": "{{replierName}} replied to your comment on {{contextTitle}}.",
+    "commentReaction": "{{reactorName}} reacted {{emoji}} to your comment on {{contextTitle}}.",
     "accessGrantRequested": "{{requester}} requested {{level}} access to {{guild}}.",
     "accessGrantRequestedGeneric": "{{requester}} requested access to {{guild}}.",
     "accessGrantApproved": "Your {{level}} access to {{guild}} was approved.",

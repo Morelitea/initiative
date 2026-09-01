@@ -29,6 +29,7 @@ const buildEntry = (overrides: Partial<RecentActivityEntry> = {}): RecentActivit
     project_name: "Apollo",
     initiative_id: 1,
     author: { id: 9, full_name: "Ada Lovelace", email: "ada@example.com" },
+    reactions: [],
     ...overrides,
   }) as RecentActivityEntry;
 
@@ -106,5 +107,27 @@ describe("GuildRecentComments read more", () => {
     expect(await screen.findByText(/Task: Fix login/)).toBeInTheDocument();
     // One link for the entry itself; the mention must not add another.
     expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+});
+
+describe("GuildRecentComments reactions", () => {
+  it("shows the reactions a comment drew, read-only", async () => {
+    showFeed([
+      buildEntry({
+        reactions: [{ emoji: "👍", count: 3, reacted: false, users: [] }],
+      }),
+    ]);
+
+    const chip = await screen.findByRole("button", { name: /👍, 3 reactions/i });
+    // The feed reports; reacting belongs in the thread the entry links to.
+    expect(chip).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /add a reaction/i })).toBeNull();
+  });
+
+  it("adds nothing to an entry with no reactions", async () => {
+    showFeed([buildEntry()]);
+
+    expect(await screen.findByText("Looks good to me.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reaction/i })).toBeNull();
   });
 });

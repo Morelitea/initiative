@@ -186,5 +186,14 @@
       "body": "Your request to join <strong>{{initiativeName}}</strong> was declined.",
       "textBody": "Your request to join {{initiativeName}} was declined. {{link}}"
     }
+  },
+  "reaction": {
+    "subject": "New reactions to your posts",
+    "title": "Reaction summary",
+    "greeting": "Hi <strong>{{name}}</strong>,",
+    "body": "Here is your summary of reactions to what you posted:",
+    "line": "from <strong>{{name}}</strong> on",
+    "footer": "Visit Initiative to see the conversation.",
+    "textBody": "Here is your summary of reactions to what you posted:"
   }
 }

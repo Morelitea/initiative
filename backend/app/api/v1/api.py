@@ -39,6 +39,7 @@ from app.api.v1.tenant_endpoints import (
     projects,
     property_definitions,
     queues,
+    reactions,
     recents,
     resource_grants,
     storage,
@@ -154,6 +155,7 @@ guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 guild_router.include_router(tasks.subtasks_router, tags=["subtasks"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
+guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
 guild_router.include_router(
     ai_settings.router, prefix="/settings", tags=["ai-settings"]

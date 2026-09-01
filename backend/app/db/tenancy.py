@@ -268,6 +268,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "event_outbox",
         "event_reminder_dispatches",
         "search_entries",
+        "reaction_digest_items",
         "task_assignment_digest_items",
         "webhook_deliveries",
     }

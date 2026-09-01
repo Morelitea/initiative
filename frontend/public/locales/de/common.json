@@ -119,5 +119,20 @@
     "selectItems": "Elemente auswählen",
     "view": "Ansicht",
     "details": "Details"
+  },
+  "emojiPicker": {
+    "searchPlaceholder": "Emoji suchen…",
+    "empty": "Keine Emojis gefunden.",
+    "prompt": "Emoji auswählen…"
+  },
+  "reactions": {
+    "add": "Reaktion hinzufügen",
+    "chipLabel_one": "{{emoji}}, {{count}} Reaktion",
+    "chipLabel_other": "{{emoji}}, {{count}} Reaktionen",
+    "countOnly_one": "{{count}} Reaktion",
+    "countOnly_other": "{{count}} Reaktionen",
+    "namesAndMore_one": "{{names}} und {{count}} weitere Person",
+    "namesAndMore_other": "{{names}} und {{count}} weitere Personen",
+    "error": "Deine Reaktion konnte nicht gespeichert werden."
   }
 }

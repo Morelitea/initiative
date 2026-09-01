@@ -30,7 +30,7 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import { CommentSection } from "@/components/comments/CommentSection";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
@@ -41,7 +41,6 @@ import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagPicker } from "@/components/tags/TagPicker";
-import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -78,7 +77,6 @@ import type { ProviderAwareness } from "@lexical/yjs";
 import type * as Y from "yjs";
 
 import type {
-  CommentRead,
   DocumentProjectLink,
   PropertyDefinitionRead,
   PropertySummary,
@@ -237,15 +235,6 @@ export const DocumentDetailPage = () => {
       });
       setCollaborationEnabled(false);
     },
-  });
-
-  const commentsQueryParams = { document_id: parsedId };
-  const commentsCache = useCommentsCache(commentsQueryParams);
-  // The document's own comment switch: with it off there is no thread to load
-  // and no tab to show it in.
-  const commentsEnabled = documentQuery.data?.comments_disabled !== true;
-  const commentsQuery = useComments(commentsQueryParams, {
-    enabled: Number.isFinite(parsedId) && commentsEnabled,
   });
 
   const document = documentQuery.data;
@@ -492,20 +481,6 @@ export const DocumentDetailPage = () => {
       const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
       return { ...previous, comment_count: nextCount };
     });
-  };
-
-  const handleCommentCreated = (comment: CommentRead) => {
-    commentsCache.addComment(comment);
-    updateDocumentCommentCount(1);
-  };
-
-  const handleCommentDeleted = (commentId: number) => {
-    commentsCache.removeComment(commentId);
-    updateDocumentCommentCount(-1);
-  };
-
-  const handleCommentUpdated = (updatedComment: CommentRead) => {
-    commentsCache.updateComment(updatedComment);
   };
 
   const saveDocument = useUpdateDocument(parsedId, {
@@ -1061,7 +1036,7 @@ export const DocumentDetailPage = () => {
               </Link>
             </Button>
           )}
-          {(showSummaryTab || commentsEnabled) && (
+          {showSummaryTab && (
             <Button
               variant={sidePanel.isOpen ? "secondary" : "outline"}
               size="sm"
@@ -1533,40 +1508,31 @@ export const DocumentDetailPage = () => {
 
         {/* Backlinks - documents that link to this one */}
         <DocumentBacklinks documentId={parsedId} />
+
+        {/* The thread, at the width of the document it is about — the same
+            place every other tool puts it. */}
+        <ToolCommentsPanel
+          tool={Tool.document}
+          entity={document}
+          canModerate={commentsCanModerate}
+          onCountChange={updateDocumentCommentCount}
+        />
       </div>
 
-      {/* Side panel for AI summary and comments */}
-      <DocumentSidePanel
-        isOpen={sidePanel.isOpen}
-        onOpenChange={sidePanel.setIsOpen}
-        showSummaryTab={showSummaryTab}
-        showCommentsTab={commentsEnabled}
-        summaryContent={
-          <DocumentSummary
-            documentId={parsedId}
-            summary={aiSummary}
-            onSummaryChange={setAiSummary}
-          />
-        }
-        commentsContent={
-          <>
-            {commentsQuery.isError && (
-              <p className="mb-4 text-destructive text-sm">{t("detail.commentsLoadError")}</p>
-            )}
-            <CommentSection
-              entityType="document"
-              entityId={parsedId}
-              comments={commentsQuery.data ?? []}
-              isLoading={commentsQuery.isLoading}
-              onCommentCreated={handleCommentCreated}
-              onCommentDeleted={handleCommentDeleted}
-              onCommentUpdated={handleCommentUpdated}
-              canModerate={commentsCanModerate}
-              initiativeId={document.initiative_id}
+      {/* Side panel for the AI summary */}
+      {showSummaryTab && (
+        <DocumentSidePanel
+          isOpen={sidePanel.isOpen}
+          onOpenChange={sidePanel.setIsOpen}
+          summaryContent={
+            <DocumentSummary
+              documentId={parsedId}
+              summary={aiSummary}
+              onSummaryChange={setAiSummary}
             />
-          </>
-        }
-      />
+          }
+        />
+      )}
 
       {/* Wikilink create document dialog */}
       <CreateWikilinkDocumentDialog

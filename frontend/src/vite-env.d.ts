@@ -2,6 +2,9 @@
 
 declare const __APP_VERSION__: string;
 declare const __IS_CAPACITOR__: boolean;
+/** Where the emoji picker fetches its dataset from — served by the app itself
+ *  (see the emojibase plugin in vite.config.ts), never a public CDN. */
+declare const __EMOJIBASE_URL__: string;
 
 // Vite's default client types cover common image/font asset URLs but not
 // .wav. Declare it so `import url from "@/assets/foo.wav"` resolves to a

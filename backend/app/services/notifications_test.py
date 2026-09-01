@@ -46,11 +46,13 @@ from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_comment,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_initiative_member,
     create_project,
+    create_task,
     create_user,
 )
 
@@ -976,3 +978,155 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
     await set_rls_context(session)
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2
+
+
+# ---------------------------------------------------------------------------
+# Reaction digest
+# ---------------------------------------------------------------------------
+
+
+async def _reaction_item_in_new_guild(
+    session: AsyncSession, user: User, *, label: str, emoji: str = "👍"
+):
+    """Queue a reaction digest item for ``user`` in a brand-new guild."""
+    from app.models.tenant.reaction_digest import ReactionDigestItem
+
+    # A prior call left the session in a guild-member context; reset so the new
+    # guild INSERT into public.guilds isn't RLS-denied.
+    await set_rls_context(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user, name=label)
+    project = await create_project(session, initiative, user, name=f"{label} Project")
+    task = await create_task(session, project)
+    # A real comment: the queue row is gated through the thing that was
+    # reacted to, so it cannot be queued against an id that resolves nowhere.
+    comment = await create_comment(session, user, task=task, content=f"{label} thread")
+
+    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    session.add(
+        ReactionDigestItem(
+            user_id=user.id,
+            reaction_id=None,
+            target_type="comment",
+            target_id=comment.id,
+            emoji=emoji,
+            target_path=f"/projects/{project.id}/tasks/{task.id}",
+            context_title=f"{label} thread",
+            reactor_name="reactor#0001",
+        )
+    )
+    await session.commit()
+    return guild
+
+
+@pytest.mark.integration
+async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
+    session: AsyncSession, monkeypatch
+):
+    """The reaction digest runs on the same engine as the assignment digest,
+    so it must show the same cross-guild behaviour: gather from every guild the
+    user belongs to, send once, mark processed in each schema."""
+    from app.models.tenant.reaction_digest import ReactionDigestItem
+    from app.services.notifications import _run_reaction_digest_pass
+
+    user = await create_user(session, email="reaction-digest@example.com")
+    guild_a = await _reaction_item_in_new_guild(session, user, label="Alpha")
+    guild_b = await _reaction_item_in_new_guild(session, user, label="Beta", emoji="🎉")
+
+    captured: dict = {}
+
+    async def _capture_email(sess, recipient, reactions):
+        captured["user_id"] = recipient.id
+        captured["emoji"] = {r["emoji"] for r in reactions}
+
+    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+
+    assert captured.get("user_id") == user.id
+    assert captured.get("emoji") == {"👍", "🎉"}
+
+    for guild_id in (guild_a.id, guild_b.id):
+        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+        pending = (
+            await session.exec(
+                select(ReactionDigestItem).where(
+                    ReactionDigestItem.processed_at.is_(None)
+                )
+            )
+        ).all()
+        assert pending == [], f"guild {guild_id} items not marked processed"
+
+
+@pytest.mark.integration
+async def test_reaction_digest_waits_for_the_flurry_to_end(
+    session: AsyncSession, monkeypatch
+):
+    """Reactions arrive in bursts more than anything else in the app, so the
+    quiet period matters most here."""
+    from app.services.notifications import _run_reaction_digest_pass
+
+    user = await create_user(session, email="reaction-debounce@example.com")
+    await _reaction_item_in_new_guild(session, user, label="Alpha")
+
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, reactions):
+        sent.append(len(reactions))
+
+    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
+    assert sent == []
+
+    await _reaction_item_in_new_guild(session, user, label="Beta", emoji="🚀")
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2
+    )
+    assert sent == []
+
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+    assert sent == [2]
+
+
+@pytest.mark.integration
+async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monkeypatch):
+    """The reaction gate is its own: switching reactions off must not need the
+    mention or assignment preferences touched, and must not silence them."""
+    from app.services.notifications import _run_reaction_digest_pass
+
+    user = await create_user(
+        session,
+        email="reaction-optout@example.com",
+        email_comment_reactions=False,
+        push_comment_reactions=False,
+    )
+    await _reaction_item_in_new_guild(session, user, label="Alpha")
+
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, reactions):
+        sent.append(len(reactions))
+
+    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+    assert sent == []
+    assert pushes == []

@@ -119,5 +119,20 @@
     "selectItems": "Select items",
     "view": "View",
     "details": "Details"
+  },
+  "emojiPicker": {
+    "searchPlaceholder": "Search emoji…",
+    "empty": "No emoji found.",
+    "prompt": "Select an emoji…"
+  },
+  "reactions": {
+    "add": "Add a reaction",
+    "chipLabel_one": "{{emoji}}, {{count}} reaction",
+    "chipLabel_other": "{{emoji}}, {{count}} reactions",
+    "countOnly_one": "{{count}} reaction",
+    "countOnly_other": "{{count}} reactions",
+    "namesAndMore_one": "{{names}} and {{count}} other",
+    "namesAndMore_other": "{{names}} and {{count}} others",
+    "error": "Could not save your reaction."
   }
 }

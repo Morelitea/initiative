@@ -186,5 +186,14 @@
       "body": "Tu solicitud para unirte a <strong>{{initiativeName}}</strong> fue rechazada.",
       "textBody": "Tu solicitud para unirte a {{initiativeName}} fue rechazada. {{link}}"
     }
+  },
+  "reaction": {
+    "subject": "Nuevas reacciones a tus publicaciones",
+    "title": "Resumen de reacciones",
+    "greeting": "Hola <strong>{{name}}</strong>,",
+    "body": "Este es tu resumen de reacciones a lo que has publicado:",
+    "line": "de <strong>{{name}}</strong> en",
+    "footer": "Entra en Initiative para ver la conversación.",
+    "textBody": "Este es tu resumen de reacciones a lo que has publicado:"
   }
 }

@@ -153,13 +153,7 @@ export function DashboardDetailPage() {
       />
 
       {dashboard != null && (
-        <ToolCommentsPanel
-          entityType={Tool.dashboard}
-          entityId={dashboard.id}
-          initiativeId={dashboard.initiative_id ?? 0}
-          canModerate={canEdit}
-          disabled={dashboard.comments_disabled}
-        />
+        <ToolCommentsPanel tool={Tool.dashboard} entity={dashboard} canModerate={canEdit} />
       )}
 
       {dashboard != null && (

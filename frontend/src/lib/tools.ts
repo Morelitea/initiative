@@ -281,6 +281,19 @@ export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
   `can_create_${toolPlural(tool)}` as keyof InitiativeMemberRead;
 
 /**
+ * The shape every tool's read schema shares where comments are concerned: the
+ * row's id, the initiative it lives in (null for a guild-level entity), and its
+ * own comment switch. `tools_test.py` holds every tool's model and read schema
+ * to carrying `comments_disabled`, so a tool entity satisfies this by
+ * construction — which is what lets one panel serve all of them.
+ */
+export interface ToolCommentEntity {
+  id: number;
+  initiative_id?: number | null;
+  comments_disabled?: boolean;
+}
+
+/**
  * The initiative master-switch field for a toggleable tool (same spelling as
  * the view permission). Core tools have no switch — callers get `true`.
  */

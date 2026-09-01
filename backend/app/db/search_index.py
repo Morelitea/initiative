@@ -221,6 +221,8 @@ NOT_SEARCHABLE: dict[str, str] = {
     "initiatives": "structural; discovery is the join surface, not search",
     "event_reminder_dispatches": "scheduler bookkeeping",
     "task_assignment_digest_items": "scheduler bookkeeping",
+    "reaction_digest_items": "scheduler bookkeeping",
+    "reactions": "a gesture with no text of its own",
 }
 
 

@@ -133,6 +133,49 @@ TEST_STATEMENT_TIMEOUT = "30s"
 BACKEND_DIR = Path(__file__).resolve().parent
 
 
+# --- `-n auto` is bounded by MEMORY, not just cores --------------------------
+# A worker is not a thread: it imports the whole app and opens its own engines
+# and pools, and was measured at ~500MB resident, with its Postgres backends and
+# the WAL its writes generate on top of that. So on a 16-core machine plain
+# `-n auto` asks for ~8GB of workers before Postgres or an editor gets a byte,
+# and a fixed-ceiling host (a WSL2 VM is the one that bites here) dies partway
+# through the suite instead of finishing it.
+#
+# Cores stay the upper bound; memory becomes the second one. Budget half of
+# MemTotal for workers -- the other half is Postgres, its page cache, and
+# whatever else is running -- and divide by the per-worker cost. Set
+# PYTEST_XDIST_AUTO_NUM_WORKERS to override on a host that knows better: xdist
+# reads that variable in its own implementation of this hook, so returning None
+# here hands the decision straight back to it.
+_WORKER_MEMORY_BUDGET_MB = 900
+
+
+def _mem_total_mb() -> int | None:
+    """Total RAM in MB, or None where /proc/meminfo isn't readable."""
+    try:
+        with open("/proc/meminfo") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return None
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_xdist_auto_num_workers(config: "pytest.Config") -> int | None:
+    if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
+        return None  # explicit override; let xdist's own hook answer
+    if hasattr(os, "sched_getaffinity"):
+        cores = len(os.sched_getaffinity(0))
+    else:
+        cores = os.cpu_count() or 1
+    mem_total = _mem_total_mb()
+    if mem_total is None:
+        return None  # unknown host; xdist's core count is as good a guess as any
+    return max(1, min(cores, (mem_total // 2) // _WORKER_MEMORY_BUDGET_MB))
+
+
 async def connect_su_postgres() -> asyncpg.Connection:
     """Test-infra superuser connection to the always-present ``postgres`` DB.
 

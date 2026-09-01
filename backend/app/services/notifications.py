@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -16,6 +18,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -129,6 +132,15 @@ def _initiative_target_path(initiative_id: int | None) -> str:
     return f"/i/{initiative_id}"
 
 
+# Public spellings of the three path builders above. Another service that
+# addresses the same entity must produce the IDENTICAL path — a notification
+# and a reaction digest pointing at the same comment must land in the same
+# place — so it calls these rather than deriving its own.
+task_target_path = _task_target_path
+document_target_path = _document_target_path
+tool_target_path = _tool_target_path
+
+
 def _recipient_locale(user: User) -> str:
     return getattr(user, "locale", None) or "en"
 
@@ -193,13 +205,8 @@ async def enqueue_task_assignment_event(
 
 
 def wants_assignment_digest(email_pref: bool | None, push_pref: bool | None) -> bool:
-    """Whether a user still wants the assignment digest on either channel.
-
-    One queue backs both, so it may only be discarded once neither is on —
-    clearing it because the email was switched off would silently take the
-    push with it.
-    """
-    return email_pref is not False or push_pref is not False
+    """Whether a user still wants the assignment digest on either channel."""
+    return wants_digest(email_pref, push_pref)
 
 
 async def dequeue_task_assignment_events(
@@ -222,23 +229,32 @@ async def dequeue_task_assignment_events(
     )
 
 
+async def clear_digest_queue_for_user(
+    session: AsyncSession, user_id: int, models: Sequence[type]
+) -> None:
+    """Clear the user's pending items in the CURRENTLY ROUTED guild schema.
+    Callers on the platform path (no guild route) must use
+    :func:`clear_digest_queue_across_guilds` instead."""
+    for model in models:
+        await session.exec(
+            delete(model).where(
+                model.user_id == user_id,
+                model.processed_at.is_(None),
+            )
+        )
+
+
 async def clear_task_assignment_queue_for_user(
     session: AsyncSession, user_id: int
 ) -> None:
-    """Clear the user's pending digest items in the CURRENTLY ROUTED guild
-    schema. Callers on the platform path (no guild route) must use
-    :func:`clear_task_assignment_queue_across_guilds` instead."""
-    stmt = delete(TaskAssignmentDigestItem).where(
-        TaskAssignmentDigestItem.user_id == user_id,
-        TaskAssignmentDigestItem.processed_at.is_(None),
-    )
-    await session.exec(stmt)
+    """The assignment queue alone, in the currently routed guild schema."""
+    await clear_digest_queue_for_user(session, user_id, (TaskAssignmentDigestItem,))
 
 
-async def clear_task_assignment_queue_across_guilds(
-    session: AsyncSession, user_id: int
+async def clear_digest_queue_across_guilds(
+    session: AsyncSession, user_id: int, models: Sequence[type]
 ) -> None:
-    """Platform-path variant: the digest queue is guild-scoped, so visit each
+    """Platform-path variant: a digest queue is guild-scoped, so visit each
     of the user's guild schemas. Leaves the session routed into the last guild
     and the identity map expunged — the caller restores its own context.
     Deletes are flushed, not committed; they ride the caller's transaction."""
@@ -247,13 +263,22 @@ async def clear_task_assignment_queue_across_guilds(
     guild_ids = await cross_guild.member_guild_ids(session, user_id)
 
     async def _clear(routed: AsyncSession, _gid: int) -> list:
-        await clear_task_assignment_queue_for_user(routed, user_id)
+        await clear_digest_queue_for_user(routed, user_id, models)
         return []
 
     # Membership-based hygiene, not content access: must reach every guild
     # the user belongs to, including auth-policy-gated ones.
     await cross_guild.gather_across_guilds(
         session, user_id, guild_ids, _clear, satisfied_providers=SYSTEM_SATISFIED
+    )
+
+
+async def clear_task_assignment_queue_across_guilds(
+    session: AsyncSession, user_id: int
+) -> None:
+    """The assignment queue alone, across every guild the user belongs to."""
+    await clear_digest_queue_across_guilds(
+        session, user_id, (TaskAssignmentDigestItem,)
     )
 
 
@@ -1488,44 +1513,89 @@ async def _send_assignment_push(
     return sent > 0, False
 
 
-def _digest_is_due(timestamps: list[datetime], *, now: datetime) -> bool:
+def _digest_is_due(
+    timestamps: list[datetime],
+    *,
+    now: datetime,
+    quiet_period: timedelta = ASSIGNMENT_QUIET_PERIOD,
+    max_window: timedelta = ASSIGNMENT_MAX_WINDOW,
+) -> bool:
     """Whether a user's queued items have settled enough to send.
 
-    The digest ships once nothing new has arrived for ``ASSIGNMENT_QUIET_PERIOD``
-    — so a lone assignment goes out promptly and a burst arrives as one — or
-    once the oldest item hits ``ASSIGNMENT_MAX_WINDOW``, which stops a steady
-    trickle from deferring it indefinitely.
+    The digest ships once nothing new has arrived for ``quiet_period`` — so a
+    lone item goes out promptly and a burst arrives as one — or once the oldest
+    item hits ``max_window``, which stops a steady trickle from deferring it
+    indefinitely.
     """
     if not timestamps:
         return False
-    return (
-        now - max(timestamps) >= ASSIGNMENT_QUIET_PERIOD
-        or now - min(timestamps) >= ASSIGNMENT_MAX_WINDOW
-    )
+    return now - max(timestamps) >= quiet_period or now - min(timestamps) >= max_window
 
 
-async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Send task-assignment digests to opted-in users as of ``now``.
+@dataclass(frozen=True)
+class DigestSpec:
+    """One digested notification stream, described once.
 
-    Split out from ``process_task_assignment_digests`` so tests can drive it with
-    the test session. Each user's pending digest items live in their own guild
-    schemas, so they're gathered with the user's membership context (no
-    the guild's role) and the items are marked processed back in each schema.
-
-    Email and push ship together from here, on the same trigger, so the two
-    channels tell the same story — see :func:`_digest_is_due` for the timing.
+    Every digest in the app works the same way — queue a row per (recipient,
+    event) in the guild the event happened in, wait for the flurry to settle,
+    then send email and push together off one drain and mark the batch
+    processed. What differs between two of them is only what is stated here, so
+    the machinery below is written once and a new digest is a spec, not a copy.
     """
+
+    #: Log label ("task-digest", "reaction-digest").
+    name: str
+    #: The guild-scoped queue table.
+    model: type
+    #: ``User`` attributes gating each channel. One queue backs both.
+    email_pref: str
+    push_pref: str
+    #: What one queued row looks like to the senders, given the guild schema it
+    #: was found in (which IS the row's guild).
+    row: Callable[[object, int], dict]
+    #: Send the batch. The push half returns ``(delivered, retry_worth_it)``.
+    send_email: Callable[[AsyncSession, User, list[dict]], Awaitable[None]]
+    send_push: Callable[[AsyncSession, User, list[dict]], Awaitable[tuple[bool, bool]]]
+    #: ``User`` column recording when the last one went out, if any. A record,
+    #: never a gate — the send window comes from the queue itself.
+    stamp: str | None = None
+    quiet_period: timedelta = ASSIGNMENT_QUIET_PERIOD
+    max_window: timedelta = ASSIGNMENT_MAX_WINDOW
+
+
+def wants_digest(email_pref: bool | None, push_pref: bool | None) -> bool:
+    """Whether a user still wants a digest on either channel.
+
+    One queue backs both, so it may only be discarded once neither is on —
+    clearing it because the email was switched off would silently take the
+    push with it.
+    """
+    return email_pref is not False or push_pref is not False
+
+
+async def _run_digest_pass(
+    session: AsyncSession, spec: DigestSpec, *, now: datetime
+) -> None:
+    """Send ``spec``'s digest to opted-in users as of ``now``.
+
+    Each user's pending items live in their own guild schemas, so they are
+    gathered with the user's membership context (not the guild's role) and
+    marked processed back in each schema. Email and push ship together, on the
+    same trigger, so the two channels tell the same story — see
+    :func:`_digest_is_due` for the timing.
+    """
+    model = spec.model
     result = await session.exec(
         select(User).where(
             or_(
-                User.email_task_assignment.is_not(False),
-                User.push_task_assignment.is_not(False),
+                getattr(User, spec.email_pref).is_not(False),
+                getattr(User, spec.push_pref).is_not(False),
             )
         )
     )
     users = result.scalars().all()
     if not users:
-        logger.debug("task-digest: no opted-in users")
+        logger.debug("%s: no opted-in users", spec.name)
         return
     # Capture before routing — the gather expunges the identity map. The
     # channel preferences are deliberately NOT snapshotted here; they are read
@@ -1549,12 +1619,12 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             items = (
                 (
                     await routed.exec(
-                        select(TaskAssignmentDigestItem)
+                        select(model)
                         .where(
-                            TaskAssignmentDigestItem.user_id == _uid,
-                            TaskAssignmentDigestItem.processed_at.is_(None),
+                            model.user_id == _uid,
+                            model.processed_at.is_(None),
                         )
-                        .order_by(TaskAssignmentDigestItem.created_at.asc())
+                        .order_by(model.created_at.asc())
                     )
                 )
                 .scalars()
@@ -1562,32 +1632,20 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             )
             _items[gid] = [item.id for item in items]
             _queued.extend(item.created_at for item in items)
-            return [
-                {
-                    "task_title": item.task_title,
-                    "project_name": item.project_name,
-                    "assigned_by_name": item.assigned_by_name,
-                    "link": _build_smart_link(
-                        target_path=_task_target_path(item.task_id, item.project_id),
-                        guild_id=gid,  # the item's guild IS the routed schema
-                    ),
-                    # The push carries one deep link rather than a list; these
-                    # let a digest of one point at its task. Ignored by the
-                    # email, which renders ``link`` per row.
-                    "task_id": item.task_id,
-                    "project_id": item.project_id,
-                    "guild_id": gid,
-                }
-                for item in items
-            ]
+            return [spec.row(item, gid) for item in items]
 
         guild_ids = await member_guild_ids(session, user_id)
         # Digests act on membership (no live session exists here) — the
         # system sentinel clears the guild auth-policy gate.
-        assignments = await gather_across_guilds(
+        batch = await gather_across_guilds(
             session, user_id, guild_ids, _fetch, satisfied_providers=SYSTEM_SATISFIED
         )
-        if not assignments or not _digest_is_due(queued_at, now=now):
+        if not batch or not _digest_is_due(
+            queued_at,
+            now=now,
+            quiet_period=spec.quiet_period,
+            max_window=spec.max_window,
+        ):
             continue
         # Send: re-load the user (gather expunged it) in a shared-table context.
         session.expunge_all()
@@ -1607,26 +1665,22 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         # Re-read the preferences off the row just reloaded, not the snapshot
         # taken before the cross-guild gather: a channel switched off while the
         # gather was running must not still be delivered to.
-        if user.email_task_assignment is not False:
+        if getattr(user, spec.email_pref) is not False:
             try:
-                await email_service.send_task_assignment_digest_email(
-                    session, user, assignments
-                )
+                await spec.send_email(session, user, batch)
                 delivered = True
                 logger.info(
-                    "task-digest: sent %d assignment(s) to user %s",
-                    len(assignments),
-                    email,
+                    "%s: sent %d item(s) to user %s", spec.name, len(batch), email
                 )
             except email_service.EmailNotConfiguredError:
                 logger.warning(
-                    "SMTP not configured; skipping task digest for %s", email
+                    "SMTP not configured; skipping %s for %s", spec.name, email
                 )
             except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send task digest: %s", exc)
+                logger.error("Failed to send %s: %s", spec.name, exc)
                 retry = True
-        if user.push_task_assignment is not False:
-            pushed, push_retry = await _send_assignment_push(session, user, assignments)
+        if getattr(user, spec.push_pref) is not False:
+            pushed, push_retry = await spec.send_push(session, user, batch)
             delivered = delivered or pushed
             retry = retry or push_retry
         if retry and not delivered:
@@ -1638,9 +1692,10 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             # and a duplicate digest is the louder failure. Logged so the loss
             # is visible rather than silent.
             logger.warning(
-                "task-digest: a channel failed after another delivered; "
-                "%d assignment(s) not retried for user %s",
-                len(assignments),
+                "%s: a channel failed after another delivered; "
+                "%d item(s) not retried for user %s",
+                spec.name,
+                len(batch),
                 email,
             )
         # Mark the gathered items processed, back in each guild's schema.
@@ -1655,11 +1710,11 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 satisfied_providers=SYSTEM_SATISFIED,
             )
             await session.exec(
-                sa_update(TaskAssignmentDigestItem)
-                .where(TaskAssignmentDigestItem.id.in_(item_ids))
-                .values(processed_at=now)
+                sa_update(model).where(model.id.in_(item_ids)).values(processed_at=now)
             )
             await session.commit()
+        if spec.stamp is None:
+            continue
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
         user = (
@@ -1667,19 +1722,14 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         ).scalar_one_or_none()
         if user is None:
             continue
-        # A record of when the last digest went out (it is serialized on the
-        # user), not a gate — the send window is derived from the queue itself.
-        user.last_task_assignment_digest_at = now
+        setattr(user, spec.stamp, now)
         session.add(user)
         await session.commit()
 
 
-async def process_task_assignment_digests() -> None:
-    async with AdminSessionLocal() as session:
-        await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
-
-
-async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
+async def _run_gc_pass(
+    session: AsyncSession, models: Sequence[type], *, now: datetime
+) -> None:
     """Drop digest items older than the retention window, guild by guild.
 
     Sent items are bookkeeping once the mail is gone. Unsent items of the same
@@ -1702,18 +1752,197 @@ async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> No
     for guild_id in guild_ids:
         session.expunge_all()
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-        await session.exec(
-            delete(TaskAssignmentDigestItem).where(
-                TaskAssignmentDigestItem.created_at < cutoff
-            )
-        )
+        for model in models:
+            await session.exec(delete(model).where(model.created_at < cutoff))
         await session.commit()
+
+
+# --- Task assignment -------------------------------------------------------
+
+
+def _assignment_row(item, guild_id: int) -> dict:
+    return {
+        "task_title": item.task_title,
+        "project_name": item.project_name,
+        "assigned_by_name": item.assigned_by_name,
+        "link": _build_smart_link(
+            target_path=_task_target_path(item.task_id, item.project_id),
+            guild_id=guild_id,  # the item's guild IS the routed schema
+        ),
+        # The push carries one deep link rather than a list; these let a digest
+        # of one point at its task. Ignored by the email, which renders
+        # ``link`` per row.
+        "task_id": item.task_id,
+        "project_id": item.project_id,
+        "guild_id": guild_id,
+    }
+
+
+ASSIGNMENT_DIGEST = DigestSpec(
+    name="task-digest",
+    model=TaskAssignmentDigestItem,
+    email_pref="email_task_assignment",
+    push_pref="push_task_assignment",
+    row=_assignment_row,
+    send_email=lambda session, user, items: (
+        email_service.send_task_assignment_digest_email(session, user, items)
+    ),
+    send_push=_send_assignment_push,
+    stamp="last_task_assignment_digest_at",
+)
+
+
+async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Send task-assignment digests. Split out from
+    ``process_task_assignment_digests`` so tests can drive it with the test
+    session."""
+    await _run_digest_pass(session, ASSIGNMENT_DIGEST, now=now)
+
+
+async def process_task_assignment_digests() -> None:
+    async with AdminSessionLocal() as session:
+        await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
+
+
+async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
+    await _run_gc_pass(session, (TaskAssignmentDigestItem, ReactionDigestItem), now=now)
 
 
 async def process_assignment_digest_gc() -> None:
     async with AdminSessionLocal() as session:
         await set_rls_context(session)
         await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
+
+
+# --- Reactions -------------------------------------------------------------
+
+
+async def enqueue_reaction_event(
+    session: AsyncSession,
+    *,
+    author: User,
+    reactor: User,
+    reaction,
+    context_title: str,
+    target_path: str,
+    guild_id: int,
+) -> None:
+    """Record that someone reacted to something ``author`` wrote.
+
+    The bell gets its entry immediately, like every other notification; email
+    and push wait for the digest, because a reaction is the lightest signal in
+    the app and they arrive in flurries.
+    """
+    if author.id == reactor.id:
+        return
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    reactor_name = handle_of(reactor)
+    await user_notifications.create_notification(
+        session,
+        user_id=author.id,
+        notification_type=NotificationType.comment_reaction,
+        data={
+            "target_type": reaction.target_type,
+            "target_id": reaction.target_id,
+            "emoji": reaction.emoji,
+            "context_title": context_title,
+            "reactor_name": reactor_name,
+            "reactor_id": reactor.id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": smart_link,
+        },
+    )
+    if wants_digest(author.email_comment_reactions, author.push_comment_reactions):
+        session.add(
+            ReactionDigestItem(
+                user_id=author.id,
+                reaction_id=reaction.id,
+                target_type=reaction.target_type,
+                target_id=reaction.target_id,
+                emoji=reaction.emoji,
+                target_path=target_path,
+                context_title=context_title,
+                reactor_name=reactor_name,
+                reactor_id=reactor.id,
+            )
+        )
+
+
+async def _send_reaction_push(
+    session: AsyncSession, user: User, reactions: list[dict]
+) -> tuple[bool, bool]:
+    """Push a reaction digest. Returns ``(delivered, retry_worth_it)``.
+
+    A digest of one names its emoji and deep-links to what was reacted to; a
+    larger one spans guilds, so it points at My Tasks the way the other
+    cross-guild digests do.
+    """
+    locale = _recipient_locale(user)
+    first = reactions[0]
+    data: dict[str, str] = {
+        "type": NotificationType.comment_reaction.value,
+        "count": str(len(reactions)),
+        "target_path": MY_TASKS_TARGET_PATH,
+    }
+    if len(reactions) == 1 and first.get("guild_id") is not None:
+        data["target_path"] = first["target_path"]
+        data["guild_id"] = str(first["guild_id"])
+    try:
+        sent = await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.comment_reaction,
+            title=_nt("comment.reaction.title", locale),
+            body=_nt(
+                "comment.reaction.body",
+                locale,
+                count=len(reactions),
+                actor=first.get("reactor_name") or "",
+                emoji=first.get("emoji") or "",
+                context=first.get("context_title") or "",
+            ),
+            data=data,
+        )
+    except Exception as exc:
+        logger.error("Failed to send reaction digest push: %s", exc, exc_info=True)
+        return False, True
+    return sent > 0, False
+
+
+def _reaction_row(item, guild_id: int) -> dict:
+    return {
+        "emoji": item.emoji,
+        "reactor_name": item.reactor_name,
+        "context_title": item.context_title,
+        "target_path": item.target_path,
+        "link": _build_smart_link(target_path=item.target_path, guild_id=guild_id),
+        "guild_id": guild_id,
+    }
+
+
+REACTION_DIGEST = DigestSpec(
+    name="reaction-digest",
+    model=ReactionDigestItem,
+    email_pref="email_comment_reactions",
+    push_pref="push_comment_reactions",
+    row=_reaction_row,
+    send_email=lambda session, user, items: email_service.send_reaction_digest_email(
+        session, user, items
+    ),
+    send_push=_send_reaction_push,
+)
+
+
+async def _run_reaction_digest_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Send reaction digests. Split out from ``process_reaction_digests`` so
+    tests can drive it with the test session."""
+    await _run_digest_pass(session, REACTION_DIGEST, now=now)
+
+
+async def process_reaction_digests() -> None:
+    async with AdminSessionLocal() as session:
+        await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
 
 
 def _resolve_timezone(value: str | None) -> ZoneInfo:

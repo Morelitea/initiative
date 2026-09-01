@@ -485,11 +485,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     user.email_project_added = True
     user.email_overdue_tasks = True
     user.email_mentions = True
+    user.email_comment_reactions = True
     user.push_initiative_addition = True
     user.push_task_assignment = True
     user.push_project_added = True
     user.push_overdue_tasks = True
     user.push_mentions = True
+    user.push_comment_reactions = True
 
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
