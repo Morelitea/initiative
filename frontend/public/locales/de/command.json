@@ -11,7 +11,8 @@
     "queues": "Abläufe (Queues)",
     "counterGroups": "Zähler",
     "calendars": "Kalender",
-    "dashboards": "Dashboards"
+    "dashboards": "Dashboards",
+    "results": "Ergebnisse"
   },
   "actions": {
     "addTask": "Aufgabe hinzufügen",
@@ -38,5 +39,6 @@
     "project": "Projekt",
     "task": "Aufgabe",
     "document": "Dokument"
-  }
+  },
+  "seeAllResults": "Alle Ergebnisse für „{{query}}“ anzeigen"
 }

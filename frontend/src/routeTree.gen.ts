@@ -49,6 +49,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformRouteImport } from 
 import { Route as ServerRequiredGuildGuildIdLoginRouteImport } from './routes/_serverRequired/guild.$guildId.login'
 import { Route as ServerRequiredAuthenticatedGGuildIdIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/marketplace'
+import { Route as ServerRequiredAuthenticatedGGuildIdSearchRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/search'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings'
 import { Route as ServerRequiredAuthenticatedSettingsAdminIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/index'
 import { Route as ServerRequiredAuthenticatedSettingsAdminAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/access'
@@ -348,6 +349,12 @@ const ServerRequiredAuthenticatedGGuildIdMarketplaceRoute =
   ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport.update({
     id: '/marketplace',
     path: '/marketplace',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdSearchRoute =
+  ServerRequiredAuthenticatedGGuildIdSearchRouteImport.update({
+    id: '/search',
+    path: '/search',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdSettingsRoute =
@@ -892,6 +899,7 @@ export interface FileRoutesByFullPath {
   '/guild/$guildId/login': typeof ServerRequiredGuildGuildIdLoginRoute
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
+  '/g/$guildId/search': typeof ServerRequiredAuthenticatedGGuildIdSearchRoute
   '/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
   '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
@@ -996,6 +1004,7 @@ export interface FileRoutesByTo {
   '/guild/$guildId/login': typeof ServerRequiredGuildGuildIdLoginRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
+  '/g/$guildId/search': typeof ServerRequiredAuthenticatedGGuildIdSearchRoute
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
   '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
@@ -1104,6 +1113,7 @@ export interface FileRoutesById {
   '/_serverRequired/guild/$guildId/login': typeof ServerRequiredGuildGuildIdLoginRoute
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
   '/_serverRequired/_authenticated/g/$guildId/marketplace': typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
+  '/_serverRequired/_authenticated/g/$guildId/search': typeof ServerRequiredAuthenticatedGGuildIdSearchRoute
   '/_serverRequired/_authenticated/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
   '/_serverRequired/_authenticated/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
@@ -1214,6 +1224,7 @@ export interface FileRouteTypes {
     | '/guild/$guildId/login'
     | '/profile/'
     | '/g/$guildId/marketplace'
+    | '/g/$guildId/search'
     | '/g/$guildId/settings'
     | '/settings/admin/access'
     | '/settings/admin/audit'
@@ -1318,6 +1329,7 @@ export interface FileRouteTypes {
     | '/guild/$guildId/login'
     | '/profile'
     | '/g/$guildId/marketplace'
+    | '/g/$guildId/search'
     | '/settings/admin/access'
     | '/settings/admin/audit'
     | '/settings/admin/guilds'
@@ -1425,6 +1437,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/guild/$guildId/login'
     | '/_serverRequired/_authenticated/profile/'
     | '/_serverRequired/_authenticated/g/$guildId/marketplace'
+    | '/_serverRequired/_authenticated/g/$guildId/search'
     | '/_serverRequired/_authenticated/g/$guildId/settings'
     | '/_serverRequired/_authenticated/settings/admin/access'
     | '/_serverRequired/_authenticated/settings/admin/audit'
@@ -1782,6 +1795,13 @@ declare module '@tanstack/react-router' {
       path: '/marketplace'
       fullPath: '/g/$guildId/marketplace'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/search': {
+      id: '/_serverRequired/_authenticated/g/$guildId/search'
+      path: '/search'
+      fullPath: '/g/$guildId/search'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSearchRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/settings': {
@@ -2547,6 +2567,7 @@ const ServerRequiredAuthenticatedGGuildIdIInitiativeIdRouteWithChildren =
 
 interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
   ServerRequiredAuthenticatedGGuildIdMarketplaceRoute: typeof ServerRequiredAuthenticatedGGuildIdMarketplaceRoute
+  ServerRequiredAuthenticatedGGuildIdSearchRoute: typeof ServerRequiredAuthenticatedGGuildIdSearchRoute
   ServerRequiredAuthenticatedGGuildIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedGGuildIdIndexRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute: typeof ServerRequiredAuthenticatedGGuildIdAppsAppIdRoute
@@ -2566,6 +2587,8 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
   {
     ServerRequiredAuthenticatedGGuildIdMarketplaceRoute:
       ServerRequiredAuthenticatedGGuildIdMarketplaceRoute,
+    ServerRequiredAuthenticatedGGuildIdSearchRoute:
+      ServerRequiredAuthenticatedGGuildIdSearchRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedGGuildIdIndexRoute:
