@@ -20,6 +20,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
+from app.core.profile_packs import PROFILE_PACKS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
@@ -1544,3 +1545,191 @@ async def test_profile_404s_on_something_that_is_not_a_handle(
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_decoration_packs_list_the_store(
+    client: AsyncClient, session: AsyncSession
+):
+    """Every pack this build ships, none of them held yet."""
+    user = await create_user(session)
+
+    response = await client.get(
+        "/api/v1/users/me/decoration-packs", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert {item["id"] for item in items} == set(PROFILE_PACKS)
+    assert all(item["installed"] is False for item in items)
+    ttrpg = next(item for item in items if item["id"] == "ttrpg")
+    # A pack is a set you take together: one of each slot.
+    assert {content["kind"] for content in ttrpg["contents"]} == {
+        "banner",
+        "frame",
+        "badge",
+    }
+    assert all(content["source"] == "ttrpg" for content in ttrpg["contents"])
+
+
+@pytest.mark.integration
+async def test_installing_a_pack_puts_it_in_the_library(
+    client: AsyncClient, session: AsyncSession
+):
+    """What the store grants is what the pickers then offer."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    install = await client.post(
+        "/api/v1/users/me/decoration-packs/ttrpg", headers=headers
+    )
+
+    assert install.status_code == 200
+    assert install.json()["installed"] is True
+
+    library = await client.get("/api/v1/users/me/decorations", headers=headers)
+    owned = {item["id"]: item for item in library.json()["items"]}
+    assert "ttrpg.d20" in owned
+    assert owned["ttrpg.d20"]["kind"] == "badge"
+    assert owned["ttrpg.d20"]["source"] == "ttrpg"
+
+    listed = await client.get("/api/v1/users/me/decoration-packs", headers=headers)
+    installed = {item["id"] for item in listed.json()["items"] if item["installed"]}
+    assert installed == {"ttrpg"}
+
+
+@pytest.mark.integration
+async def test_installing_a_pack_twice_changes_nothing(
+    client: AsyncClient, session: AsyncSession
+):
+    """A second click on a slow connection is not a second copy."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    for _ in range(2):
+        assert (
+            await client.post(
+                "/api/v1/users/me/decoration-packs/music", headers=headers
+            )
+        ).status_code == 200
+
+    library = await client.get("/api/v1/users/me/decorations", headers=headers)
+    ids = [item["id"] for item in library.json()["items"]]
+    assert ids.count("music.vinyl") == 1
+
+
+@pytest.mark.integration
+async def test_a_pack_you_have_is_wearable(client: AsyncClient, session: AsyncSession):
+    """The whole point of taking one."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+    await client.post("/api/v1/users/me/decoration-packs/ttrpg", headers=headers)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={
+            "profile_decorations": {
+                "banner": "ttrpg.dicetower",
+                "frame": "ttrpg.natural20",
+                "badges": ["ttrpg.d20"],
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["profile_decorations"]["badges"] == ["ttrpg.d20"]
+
+
+@pytest.mark.integration
+async def test_a_pack_you_do_not_have_is_not_wearable(
+    client: AsyncClient, session: AsyncSession
+):
+    """The store is the only way in."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"profile_decorations": {"badges": ["ttrpg.d20"]}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_DECORATION_NOT_OWNED"
+
+
+@pytest.mark.integration
+async def test_removing_a_pack_takes_off_what_was_worn(
+    client: AsyncClient, session: AsyncSession
+):
+    """A profile must not go on wearing what the account gave back — the next
+    unrelated edit would be refused if it did."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+    await client.post("/api/v1/users/me/decoration-packs/ttrpg", headers=headers)
+    await client.post("/api/v1/users/me/decoration-packs/music", headers=headers)
+    await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={
+            "profile_decorations": {
+                "banner": "ttrpg.dicetower",
+                "frame": "music.vinyl",
+                "badges": ["ttrpg.d20", "music.cassette"],
+            }
+        },
+    )
+
+    removed = await client.delete(
+        "/api/v1/users/me/decoration-packs/ttrpg", headers=headers
+    )
+
+    assert removed.status_code == 200
+    assert removed.json()["installed"] is False
+
+    me = await client.get("/api/v1/users/me", headers=headers)
+    worn = me.json()["profile_decorations"]
+    # The tabletop pieces came off; the band's stayed on.
+    assert worn["banner"] is None
+    assert worn["frame"] == "music.vinyl"
+    assert worn["badges"] == ["music.cassette"]
+
+    library = await client.get("/api/v1/users/me/decorations", headers=headers)
+    assert "ttrpg.d20" not in {item["id"] for item in library.json()["items"]}
+
+
+@pytest.mark.integration
+async def test_removing_a_pack_leaves_someone_elses_library_alone(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+    other = await create_user(session)
+    await client.post(
+        "/api/v1/users/me/decoration-packs/ttrpg", headers=get_auth_headers(user)
+    )
+    await client.post(
+        "/api/v1/users/me/decoration-packs/ttrpg", headers=get_auth_headers(other)
+    )
+
+    await client.delete(
+        "/api/v1/users/me/decoration-packs/ttrpg", headers=get_auth_headers(user)
+    )
+
+    library = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(other)
+    )
+    assert "ttrpg.d20" in {item["id"] for item in library.json()["items"]}
+
+
+@pytest.mark.integration
+async def test_an_unknown_pack_is_not_a_pack(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+
+    response = await client.post(
+        "/api/v1/users/me/decoration-packs/nonesuch", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "USER_DECORATION_PACK_NOT_FOUND"

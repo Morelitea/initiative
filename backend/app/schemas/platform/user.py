@@ -310,6 +310,29 @@ class OwnedDecoration(SanitizedBaseModel):
     source: Optional[str] = None
 
 
+class DecorationPack(SanitizedBaseModel):
+    """One installable set of decorations, and whether this account has it.
+
+    What it is called is the client's: the words live in its ``profiles``
+    translations, keyed by this id, in every language the app speaks.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: str
+    contents: List[OwnedDecoration]
+    installed: bool = False
+
+
+class DecorationPackListResponse(SanitizedBaseModel):
+    """Every pack this build ships. Small and read all at once — the store is
+    one page."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[DecorationPack]
+
+
 class OwnedDecorationsResponse(SanitizedBaseModel):
     """A person's whole library, in one read — it is small and it is all
     needed at once, because the profile form renders every slot together."""

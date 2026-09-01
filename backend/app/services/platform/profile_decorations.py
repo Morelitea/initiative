@@ -10,12 +10,15 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from sqlalchemy import delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.profile_decorations import SHIPPED_DECORATIONS
+from app.core.profile_packs import PROFILE_PACKS, ProfilePack
+from app.models.platform.user import User
 from app.models.platform.user_decoration import UserDecoration
-from app.schemas.platform.user import OwnedDecoration
+from app.schemas.platform.user import OwnedDecoration, ProfileDecorations
 
 
 async def owned_decorations(
@@ -69,3 +72,85 @@ def unwearable(wanted: Iterable[tuple[str, str]], owned: dict[str, str]) -> list
         for decoration_id, kind in wanted
         if owned.get(decoration_id) != kind
     ]
+
+
+async def installed_pack_ids(session: AsyncSession, user_id: int) -> set[str]:
+    """Which packs this account has. A pack is installed when its rows are
+    there, so nothing else records it."""
+    sources = (
+        await session.exec(
+            select(UserDecoration.source).where(
+                UserDecoration.user_id == user_id,
+                UserDecoration.source.is_not(None),
+            )
+        )
+    ).all()
+    return {source for source in sources if source in PROFILE_PACKS}
+
+
+async def install_pack(
+    session: AsyncSession, *, user_id: int, pack: ProfilePack
+) -> None:
+    """Put a pack's decorations in this account's library.
+
+    Idempotent: taking a pack you already have changes nothing, which is what
+    a second click on a slow connection should do. Runs on the system engine —
+    the request path reads its library and never writes it.
+    """
+    held = set(
+        (
+            await session.exec(
+                select(UserDecoration.decoration_id).where(
+                    UserDecoration.user_id == user_id,
+                    UserDecoration.decoration_id.in_(list(pack.decorations)),
+                )
+            )
+        ).all()
+    )
+    for decoration_id, kind in pack.decorations.items():
+        if decoration_id in held:
+            continue
+        session.add(
+            UserDecoration(
+                user_id=user_id,
+                decoration_id=decoration_id,
+                kind=kind,
+                source=pack.id,
+            )
+        )
+
+
+async def remove_pack(
+    session: AsyncSession, *, user_id: int, pack: ProfilePack
+) -> None:
+    """Take a pack's decorations back out of this account's library.
+
+    Scoped to rows this pack granted: a decoration that arrived from somewhere
+    else and happens to share an id is not this pack's to remove.
+    """
+    await session.exec(
+        delete(UserDecoration).where(
+            UserDecoration.user_id == user_id,
+            UserDecoration.source == pack.id,
+        )
+    )
+
+
+def undress(worn: ProfileDecorations, gone: ProfilePack) -> ProfileDecorations:
+    """The same look with anything from ``gone`` taken off.
+
+    Removing a pack has to take its pieces off the profile as well as out of
+    the library, or the profile would go on wearing something the account no
+    longer has — which the write path would then refuse to save on the next
+    unrelated edit.
+    """
+    return ProfileDecorations(
+        banner=None if worn.banner in gone.decorations else worn.banner,
+        frame=None if worn.frame in gone.decorations else worn.frame,
+        badges=[badge for badge in worn.badges if badge not in gone.decorations],
+    )
+
+
+def user_is_wearing(user: User) -> ProfileDecorations:
+    """What this account currently has on, as the typed shape."""
+    return ProfileDecorations.model_validate(user.profile_decorations or {})

@@ -32,6 +32,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
+from app.core.profile_packs import PROFILE_PACKS, ProfilePack
 from app.core import usernames
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
@@ -56,6 +57,9 @@ from app.models.platform.user import User, UserStatus
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.user import (
+    DecorationPack,
+    DecorationPackListResponse,
+    OwnedDecoration,
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
@@ -309,6 +313,93 @@ async def list_my_decorations(
             session, current_user.id
         )
     )
+
+
+def _pack_or_404(pack_id: str) -> ProfilePack:
+    pack = PROFILE_PACKS.get(pack_id)
+    if pack is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=UserMessages.DECORATION_PACK_NOT_FOUND,
+        )
+    return pack
+
+
+def _pack_entry(pack: ProfilePack, *, installed: bool) -> DecorationPack:
+    return DecorationPack(
+        id=pack.id,
+        contents=[
+            OwnedDecoration(id=decoration_id, kind=kind, source=pack.id)
+            for decoration_id, kind in pack.decorations.items()
+        ],
+        installed=installed,
+    )
+
+
+@router.get("/me/decoration-packs", response_model=DecorationPackListResponse)
+async def list_decoration_packs(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPackListResponse:
+    """The store: every pack this build ships, and which ones you have."""
+    installed = await profile_decorations_service.installed_pack_ids(
+        session, current_user.id
+    )
+    return DecorationPackListResponse(
+        items=[
+            _pack_entry(pack, installed=pack.id in installed)
+            for pack in PROFILE_PACKS.values()
+        ]
+    )
+
+
+@router.post("/me/decoration-packs/{pack_id}", response_model=DecorationPack)
+async def install_decoration_pack(
+    pack_id: str,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPack:
+    """Take a pack, putting its decorations in your library.
+
+    Runs on the system engine because a grant is issued rather than
+    self-served: the request path holds no write verb on
+    ``public.user_decorations``. What makes it the caller's own is that the
+    only account it ever names is theirs.
+    """
+    pack = _pack_or_404(pack_id)
+    await profile_decorations_service.install_pack(
+        admin_session, user_id=current_user.id, pack=pack
+    )
+    await admin_session.commit()
+    return _pack_entry(pack, installed=True)
+
+
+@router.delete("/me/decoration-packs/{pack_id}", response_model=DecorationPack)
+async def remove_decoration_pack(
+    pack_id: str,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPack:
+    """Give a pack back, taking its decorations out of your library.
+
+    Anything from it that was being worn comes off at the same time — a
+    profile must not go on wearing what the account no longer has.
+    """
+    pack = _pack_or_404(pack_id)
+    await profile_decorations_service.remove_pack(
+        admin_session, user_id=current_user.id, pack=pack
+    )
+    await admin_session.commit()
+
+    worn = profile_decorations_service.user_is_wearing(current_user)
+    stripped = profile_decorations_service.undress(worn, pack)
+    if stripped != worn:
+        current_user.profile_decorations = stripped.model_dump()
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+    return _pack_entry(pack, installed=False)
 
 
 @router.get("/{handle}/profile", response_model=UserProfile)
