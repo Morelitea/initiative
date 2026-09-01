@@ -203,6 +203,12 @@ const notificationText = (
         replierName: data.replier_name ?? "Someone",
         contextTitle: data.context_title ?? "an item",
       });
+    case "comment_reaction":
+      return t("notifications.commentReaction", {
+        reactorName: data.reactor_name ?? "Someone",
+        emoji: data.emoji ?? "",
+        contextTitle: data.context_title ?? "an item",
+      });
     case "access_grant_requested": {
       const level = accessLevelLabel(data.access_level, t);
       const requester = data.requester_name ?? "Someone";

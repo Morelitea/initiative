@@ -11,8 +11,13 @@ import { MessageSquare } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type RecentActivityEntry, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  ReactionTarget,
+  type RecentActivityEntry,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -148,6 +153,18 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
           {expanded ? t("recentComments.showLess") : t("recentComments.readMore")}
         </button>
       )}
+      {/* Read-only here, and also outside the link: the feed shows how a
+          comment landed, and reacting to one belongs in the thread it is in —
+          which is exactly where the row already goes. */}
+      {entry.reactions?.length ? (
+        <ReactionBar
+          className="mt-1 ml-11"
+          targetType={ReactionTarget.comment}
+          targetId={entry.comment_id}
+          groups={entry.reactions}
+          canReact={false}
+        />
+      ) : null}
     </div>
   );
 };

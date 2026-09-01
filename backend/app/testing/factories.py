@@ -33,6 +33,7 @@ from app.core.security import (
     mint_access_token,
 )
 from app.models.platform.app_service_registration import AppServiceRegistration
+from app.core.reactions import ReactionTarget
 from app.models.tenant.calendar import Calendar
 from app.models.platform.marketplace import (
     MarketplaceListing,
@@ -64,6 +65,7 @@ from app.models.tenant.property import (
     TaskPropertyValue,
 )
 from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.reaction import Reaction
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import (
     Subtask,
@@ -1387,6 +1389,39 @@ async def create_comment(
         await session.refresh(comment)
 
     return comment
+
+
+async def create_reaction(
+    session: AsyncSession,
+    user: User,
+    *,
+    comment: Comment,
+    emoji: str = "\N{THUMBS UP SIGN}",
+    commit: bool = True,
+    **overrides: Any,
+) -> Reaction:
+    """Put one person's emoji on one comment.
+
+    Takes the target as a typed keyword rather than a ``(type, id)`` pair so a
+    second reactable kind adds a keyword here and nothing has to remember the
+    string.
+    """
+    await route_session_to_guild(session, comment.guild_id)
+    defaults = {
+        "guild_id": comment.guild_id,
+        "target_type": ReactionTarget.comment.value,
+        "target_id": comment.id,
+        "emoji": emoji,
+        "created_by": user.id,
+    }
+    reaction = Reaction(**{**defaults, **overrides})
+    session.add(reaction)
+
+    if commit:
+        await session.commit()
+        await session.refresh(reaction)
+
+    return reaction
 
 
 async def create_tag(

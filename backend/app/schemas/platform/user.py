@@ -188,11 +188,13 @@ class UserRead(UserBase):
     email_project_added: bool = True
     email_overdue_tasks: bool = True
     email_mentions: bool = True
+    email_comment_reactions: bool = True
     push_initiative_addition: bool = True
     push_task_assignment: bool = True
     push_project_added: bool = True
     push_overdue_tasks: bool = True
     push_mentions: bool = True
+    push_comment_reactions: bool = True
     email_events: bool = True
     push_events: bool = True
     email_event_reminders: bool = True
@@ -265,11 +267,13 @@ class UserSelfUpdate(SanitizedBaseModel):
     email_project_added: Optional[bool] = None
     email_overdue_tasks: Optional[bool] = None
     email_mentions: Optional[bool] = None
+    email_comment_reactions: Optional[bool] = None
     push_initiative_addition: Optional[bool] = None
     push_task_assignment: Optional[bool] = None
     push_project_added: Optional[bool] = None
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
+    push_comment_reactions: Optional[bool] = None
     email_events: Optional[bool] = None
     push_events: Optional[bool] = None
     email_event_reminders: Optional[bool] = None

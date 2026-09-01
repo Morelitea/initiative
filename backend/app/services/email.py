@@ -671,6 +671,78 @@ async def send_task_assignment_digest_email(
     )
 
 
+async def send_reaction_digest_email(
+    session: AsyncSession,
+    user: User,
+    reactions: Sequence[dict],
+) -> None:
+    """The "people reacted to your posts" summary.
+
+    Same shape as the assignment digest: one list, one line per reaction,
+    linking back to what was reacted to.
+    """
+    if not reactions:
+        return
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+
+    def reaction_html(item: dict) -> str:
+        # ``emoji`` and ``context_title`` are user-controlled and spliced into
+        # markup directly (not via email_t), so escape them here.
+        emoji = _html.escape(item.get("emoji") or "")
+        context = _html.escape(item.get("context_title") or "")
+        actor = item.get("reactor_name") or ""
+        link = item.get("link")
+        context_markup = (
+            f'<a href="{link}"><strong>{context}</strong></a>'
+            if link
+            else f"<strong>{context}</strong>"
+        )
+        return (
+            f"<li>{emoji} "
+            f"{email_t('reaction.line', locale=locale, name=actor)} {context_markup}</li>"
+        )
+
+    def reaction_text(item: dict) -> str:
+        emoji = item.get("emoji") or ""
+        context = item.get("context_title") or ""
+        actor = item.get("reactor_name") or ""
+        link = item.get("link")
+        line_text = _strip_html(
+            email_t("reaction.line", locale=locale, name=actor, escape=False)
+        )
+        line = f"- {emoji} {line_text} {context}"
+        if link:
+            line += f" -> {link}"
+        return line
+
+    items_html = "".join(reaction_html(item) for item in reactions)
+    body = f"""
+    <p>{email_t("reaction.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("reaction.body", locale=locale)}</p>
+    <ul>{items_html}</ul>
+    <p>{email_t("reaction.footer", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("reaction.title", locale=locale), body, accent, locale=locale
+    )
+    text_lines = [
+        email_t("reaction.textBody", locale=locale, escape=False),
+        *(reaction_text(item) for item in reactions),
+        email_t("reaction.footer", locale=locale, escape=False),
+    ]
+    text_body = "\n".join(text_lines)
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject=email_t("reaction.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=text_body,
+        settings_obj=settings_obj,
+    )
+
+
 async def send_mention_email(
     session: AsyncSession,
     user: User,

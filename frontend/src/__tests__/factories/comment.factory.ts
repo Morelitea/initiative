@@ -1,4 +1,8 @@
-import type { CommentRead, RecentActivityEntry } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CommentRead,
+  ReactionGroup,
+  RecentActivityEntry,
+} from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
 
@@ -29,6 +33,26 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
       full_name: "Comment Author",
       avatar_url: null,
     },
+    reactions: [],
+    ...overrides,
+  };
+}
+
+/** One emoji's worth of reactions on something, as the API groups them. */
+export function buildReactionGroup(overrides: Partial<ReactionGroup> = {}): ReactionGroup {
+  return {
+    emoji: "\u{1F44D}",
+    count: 1,
+    reacted: false,
+    users: [
+      {
+        id: 1,
+        username: "reactor",
+        discriminator: 2002,
+        full_name: "Reactor One",
+        avatar_url: null,
+      },
+    ],
     ...overrides,
   };
 }
@@ -59,6 +83,7 @@ export function buildRecentActivityEntry(
     entity_id: null,
     entity_name: null,
     initiative_id: null,
+    reactions: [],
     ...overrides,
   };
 }

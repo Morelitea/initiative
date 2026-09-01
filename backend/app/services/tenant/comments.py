@@ -161,6 +161,11 @@ def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
     return provided[0]
 
 
+def comment_target(comment: Comment) -> tuple[str, int]:
+    """Which parent column a comment hangs off, and that parent's id."""
+    return _comment_target(comment)
+
+
 def _comment_target(comment: Comment) -> tuple[str, int]:
     for column in COMMENT_PARENT_COLUMNS:
         value = getattr(comment, column)
@@ -318,18 +323,48 @@ async def _ensure_parent_access(
     raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
 
 
-def serialize_comment(comment: Comment):
+def serialize_comment(comment: Comment, *, viewer_id: Optional[int] = None):
     """The read shape of one comment. A task comment reports its task's
     project — resolved by whichever service call loaded the parent — through
     the same ``project_id`` field a project comment fills from its own column.
+
+    Reactions come from rows stamped on the comment by
+    :func:`attach_reactions`; a comment that was never stamped serializes with
+    none rather than issuing a query of its own here.
     """
     from app.schemas.tenant.comment import CommentRead
+    from app.services.tenant import reactions as reactions_service
 
     read = CommentRead.model_validate(comment)
     task_project_id = getattr(comment, "_task_project_id", None)
     if task_project_id is not None:
         read.project_id = task_project_id
+    rows = getattr(comment, "_reactions", None)
+    if rows:
+        read.reactions = reactions_service.summarize(rows, viewer_id=viewer_id)
     return read
+
+
+async def attach_reactions(session: AsyncSession, *comments: Comment) -> None:
+    """Load every comment's reactions in ONE query and stamp them on the rows.
+
+    A plain attribute, like ``_task_project_id`` above — the comments table has
+    no relationship to the polymorphic reactions table, and a thread of fifty
+    must not become fifty queries.
+    """
+    from app.services.tenant import reactions as reactions_service
+    from app.core.reactions import ReactionTarget
+
+    rows = [c for c in comments if c.id is not None]
+    if not rows:
+        return
+    grouped = await reactions_service.load_reactions(
+        session,
+        target=ReactionTarget.comment,
+        target_ids=[cast(int, c.id) for c in rows],
+    )
+    for comment in rows:
+        object.__setattr__(comment, "_reactions", grouped.get(comment.id, []))
 
 
 async def _get_comment(
@@ -377,18 +412,20 @@ def _stamp_task_project(ctx: _ParentContext, *comments: Comment) -> None:
         object.__setattr__(comment, "_task_project_id", ctx.project.id)
 
 
-async def get_comment(
+async def get_comment_with_parent(
     session: AsyncSession,
     *,
     comment_id: int,
     user: User,
     guild_id: int,
-) -> Comment:
-    """One comment, gated exactly like listing its parent's thread.
+    access: str = "read",
+) -> tuple[Comment, _ParentContext]:
+    """One comment plus its resolved parent, gated at ``access``.
 
-    The read-back half of the event contract: a ``comments.*`` event names an
-    id, and this is what resolves it. Access is the parent's — read on the
-    task's project or on the tool entity — same as ``list_comments``.
+    The parent is what every decision about a comment runs through — who may
+    read the thread, who may add to it — so anything acting ON a comment
+    (reactions, the read-back route) resolves both in one call rather than
+    re-deriving the chain.
     """
     stmt = (
         select(Comment)
@@ -406,10 +443,81 @@ async def get_comment(
         entity_id=entity_id,
         guild_id=guild_id,
         user=user,
-        access="read",
+        access=access,
     )
     _stamp_task_project(ctx, comment)
+    await attach_reactions(session, comment)
+    return comment, ctx
+
+
+async def get_comment(
+    session: AsyncSession,
+    *,
+    comment_id: int,
+    user: User,
+    guild_id: int,
+) -> Comment:
+    """One comment, gated exactly like listing its parent's thread.
+
+    The read-back half of the event contract: a ``comments.*`` event names an
+    id, and this is what resolves it. Access is the parent's — read on the
+    task's project or on the tool entity — same as ``list_comments``.
+    """
+    comment, _ctx = await get_comment_with_parent(
+        session, comment_id=comment_id, user=user, guild_id=guild_id, access="read"
+    )
     return comment
+
+
+async def initiative_of_comment(
+    session: AsyncSession, comment: Comment
+) -> Optional[int]:
+    """Which initiative a comment's parent lives in, or None.
+
+    Resolved through whichever parent the comment hangs off — the task's
+    project, or the tool entity itself. A parent that names no initiative (a
+    guild-level calendar) yields None, and so does a parent the routed session
+    cannot see. Both callers of this — the comment events and the reaction
+    events — must land in the SAME room for the same comment, which is why
+    there is one lookup rather than two.
+    """
+    if comment.task_id is not None:
+        row = (
+            await session.exec(
+                select(Project.initiative_id)
+                .join(Task, Task.project_id == Project.id)
+                .where(Task.id == comment.task_id)
+            )
+        ).one_or_none()
+        return row
+    for target in TOOL_COMMENT_TARGETS.values():
+        value = getattr(comment, target.column)
+        if value is None:
+            continue
+        return (
+            await session.exec(
+                select(target.model.initiative_id).where(target.model.id == value)
+            )
+        ).one_or_none()
+    return None
+
+
+def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
+    """Where a notification about ``comment`` should land.
+
+    The comment has no page of its own — it lives on its parent's — so the
+    address is the parent's, built with the same helpers the comment
+    notifications use so both point at the same place.
+    """
+    from app.services import notifications
+
+    if comment.task_id is not None:
+        return notifications.task_target_path(
+            comment.task_id, ctx.project.id if ctx.project is not None else None
+        )
+    if comment.document_id is not None:
+        return notifications.document_target_path(comment.document_id)
+    return notifications.tool_target_path(cast(Tool, ctx.tool).value, ctx.entity_id)
 
 
 async def create_comment(
@@ -686,6 +794,7 @@ async def list_comments(
     )
     comments = (await session.exec(stmt)).all()
     _stamp_task_project(ctx, *comments)
+    await attach_reactions(session, *comments)
     return comments
 
 
@@ -769,4 +878,8 @@ async def update_comment(
     session.add(comment)
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
+    # The edit reply is what the client writes back into its cache, so it must
+    # carry the reactions the comment still has — serializing without them
+    # would blank the chips until the next refetch.
+    await attach_reactions(session, comment)
     return comment

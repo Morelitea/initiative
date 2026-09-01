@@ -44,6 +44,10 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.comment_on_task: "comments",
     NotificationType.comment_on_resource: "comments",
     NotificationType.comment_reply: "comments",
+    # A reaction is comment news, so it rides the channel the installed app
+    # already registers for comments — same reasoning as the join requests
+    # above: a new channel id would mean a native release.
+    NotificationType.comment_reaction: "comments",
     NotificationType.event_invitation: "calendar_events",
     NotificationType.event_updated: "calendar_events",
     NotificationType.event_cancelled: "calendar_events",

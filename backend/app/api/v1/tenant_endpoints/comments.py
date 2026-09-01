@@ -12,6 +12,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
@@ -34,6 +35,7 @@ from app.schemas.tenant.comment import (
 )
 from app.db.query import page_has_next, paginated_query
 from app.services.tenant import comments as comments_service
+from app.services.tenant import reactions as reactions_service
 from app.services.realtime import broadcast_event
 from app.core import usernames
 from app.core.user_display import display_name, handle_of
@@ -56,7 +58,6 @@ async def _broadcast_comment(session, guild_id: int, comment, action: str) -> No
     ids: dict = {"comment_id": comment.id}
     for column in comments_service.COMMENT_PARENT_COLUMNS:
         ids[column] = getattr(comment, column)
-    initiative_id = None
     if comment.task_id is not None:
         row = (
             await session.exec(
@@ -65,19 +66,11 @@ async def _broadcast_comment(session, guild_id: int, comment, action: str) -> No
                 .where(Task.id == comment.task_id)
             )
         ).one_or_none()
-        if row is not None:
-            ids["project_id"], initiative_id = row
+        if row is None:
+            return
+        ids["project_id"], initiative_id = row
     else:
-        for target in comments_service.TOOL_COMMENT_TARGETS.values():
-            value = getattr(comment, target.column)
-            if value is None:
-                continue
-            initiative_id = (
-                await session.exec(
-                    select(target.model.initiative_id).where(target.model.id == value)
-                )
-            ).one_or_none()
-            break
+        initiative_id = await comments_service.initiative_of_comment(session, comment)
     if initiative_id is None:
         return
     await broadcast_event(guild_id, initiative_id, "comment", action, ids)
@@ -114,7 +107,7 @@ async def create_comment(
 
     await session.commit()
     await session.refresh(comment)
-    response = comments_service.serialize_comment(comment)
+    response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     await _broadcast_comment(session, guild_context.guild_id, comment, "created")
     return response
 
@@ -224,6 +217,13 @@ async def recent_comments(
         )
         rows_by_tool[tool] = {row.id: row for row in loaded.all()}
 
+    # The feed's chips, in one query for the whole page rather than one per row.
+    reactions_by_comment = await reactions_service.load_reactions(
+        session,
+        target=ReactionTarget.comment,
+        target_ids=[c.id for c in comments],
+    )
+
     entries: List[RecentActivityEntry] = []
     for comment in comments:
         author = comment.author
@@ -233,6 +233,9 @@ async def recent_comments(
             "content": comment.content,
             "created_at": comment.created_at,
             "author": author_payload,
+            "reactions": reactions_service.summarize(
+                reactions_by_comment.get(comment.id, []), viewer_id=user_id
+            ),
         }
         if comment.task_id:
             task = tasks_by_id.get(comment.task_id)
@@ -313,7 +316,10 @@ async def list_comments(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
-    return [comments_service.serialize_comment(comment) for comment in comments]
+    return [
+        comments_service.serialize_comment(comment, viewer_id=current_user.id)
+        for comment in comments
+    ]
 
 
 @router.get("/{comment_id}", response_model=CommentRead)
@@ -340,7 +346,7 @@ async def read_comment(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
-    return comments_service.serialize_comment(comment)
+    return comments_service.serialize_comment(comment, viewer_id=current_user.id)
 
 
 @router.patch("/{comment_id}", response_model=CommentRead)
@@ -373,7 +379,7 @@ async def update_comment(
 
     await session.commit()
     await session.refresh(comment)
-    response = comments_service.serialize_comment(comment)
+    response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     await _broadcast_comment(session, guild_context.guild_id, comment, "updated")
     return response
 

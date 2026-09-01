@@ -79,7 +79,7 @@ Documents are built for collaboration:
 
 ## Comments and mentions
 
-Open a document's **Comments** to discuss it without changing the content. You can reply to build a thread, and edit or delete your own comments.
+Open a document's **Comments** to discuss it without changing the content. You can reply to build a thread, and edit or delete your own comments. The thread sits at the full width of the page, underneath the document — the same place it sits on every other kind of page.
 
 To pull someone (or something) into the conversation, **mention** it by typing `@`:
 
@@ -87,6 +87,16 @@ To pull someone (or something) into the conversation, **mention** it by typing `
 - `@task`, `@doc`, `@project` — link directly to a task, document, or project.
 
 Mentioned people get a notification, so it's the right way to say "hey, take a look at this."
+
+### Reactions
+
+Every comment has a row of **reactions** underneath it and a small button to add one. A reaction is a way to answer without writing a reply — agreement, thanks, or "I've seen this."
+
+- Click the button to pick an emoji. It opens on a set of common suggestions, with every emoji searchable underneath.
+- Click a reaction someone has already added to add yours to it; click it again to take yours back.
+- Hovering a reaction shows who added it.
+
+Anyone who can reply to a thread can react to it, and the guild home's recent-comments feed shows what each comment drew. The comment's author is notified about reactions — as a periodic summary rather than one message each, and only if they've left that switch on under [Notifications](notifications.md).
 
 !!! tip "Turning comments off"
     Every tool — documents, projects, queues, counters, calendars, and dashboards — has a

@@ -119,5 +119,20 @@
     "selectItems": "Seleccionar elementos",
     "view": "Vista",
     "details": "Detalles"
+  },
+  "emojiPicker": {
+    "searchPlaceholder": "Buscar emoji…",
+    "empty": "No se encontraron emojis.",
+    "prompt": "Selecciona un emoji…"
+  },
+  "reactions": {
+    "add": "Añadir una reacción",
+    "chipLabel_one": "{{emoji}}, {{count}} reacción",
+    "chipLabel_other": "{{emoji}}, {{count}} reacciones",
+    "countOnly_one": "{{count}} reacción",
+    "countOnly_other": "{{count}} reacciones",
+    "namesAndMore_one": "{{names}} y {{count}} persona más",
+    "namesAndMore_other": "{{names}} y {{count}} personas más",
+    "error": "No se pudo guardar tu reacción."
   }
 }

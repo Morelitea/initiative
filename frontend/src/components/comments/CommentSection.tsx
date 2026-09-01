@@ -169,7 +169,10 @@ export const CommentSection = ({
   };
 
   return (
-    <Card>
+    // Full width wherever it lands: a comment thread is a conversation, and a
+    // narrow column makes every reply wrap. Callers give it its own row rather
+    // than a sidebar or a half-width cell.
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -242,6 +245,7 @@ export const CommentSection = ({
                 isSubmitting={
                   createComment.isPending || deleteComment.isPending || updateComment.isPending
                 }
+                canReact={!activeGuildReadOnly}
                 deleteError={deleteComment.variables === comment.id ? deleteError : null}
                 userDisplayNames={userDisplayNames}
               />

@@ -261,6 +261,8 @@
       "taskAssignmentsDescription": "Récapitulatif horaire lorsque d'autres vous assignent des tâches.",
       "mentions": "Mentions",
       "mentionsDescription": "Lorsque quelqu'un vous mentionne ou commente votre travail.",
+      "commentReactions": "Réactions",
+      "commentReactionsDescription": "Un résumé périodique lorsque d'autres réagissent à vos commentaires.",
       "newProject": "Nouveau projet dans l'initiative",
       "newProjectDescription": "Lorsque des projets sont créés dans vos initiatives.",
       "overdueTasks": "Tâches en retard",

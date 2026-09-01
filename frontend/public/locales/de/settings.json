@@ -261,6 +261,8 @@
       "taskAssignmentsDescription": "Stündliche Zusammenfassung, wenn andere dir Aufgaben zuweisen.",
       "mentions": "Erwähnungen",
       "mentionsDescription": "Wenn dich jemand erwähnt oder deine Arbeit kommentiert.",
+      "commentReactions": "Reaktionen",
+      "commentReactionsDescription": "Eine regelmäßige Übersicht, wenn andere auf deine Kommentare reagieren.",
       "newProject": "Neues Projekt in der Initiative",
       "newProjectDescription": "Wenn in deinen Initiativen Projekte erstellt werden.",
       "overdueTasks": "Überfällige Aufgaben",

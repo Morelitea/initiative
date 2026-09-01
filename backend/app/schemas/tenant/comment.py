@@ -7,6 +7,7 @@ from typing import Optional
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.platform.user import GuildNameVisibility
 
 
@@ -122,9 +123,18 @@ class CommentRead(CommentBase):
     # project, the task's for a task comment (filled by the service's
     # serializer).
     project_id: Optional[int] = None
+    # Reactions ride along with the comment rather than costing a request per
+    # row: a thread renders its chips from one list call. Empty until the
+    # loader stamps them (see ``comments_service.attach_reactions``).
+    reactions: list[ReactionGroup] = Field(default_factory=list)
 
 
 class RecentActivityEntry(SanitizedBaseModel):
+    # Same as the other read schemas here: a field with a default is still
+    # always sent, so the generated client should see it as present rather than
+    # optional.
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     comment_id: int
     content: RichTextStr
     created_at: datetime
@@ -145,6 +155,11 @@ class RecentActivityEntry(SanitizedBaseModel):
     # its real address. None when the parent is gone or unreadable (or the
     # parent is a guild-level calendar, which belongs to no initiative).
     initiative_id: Optional[int] = None
+    # The same chips the thread shows. The feed is where a guild sees what is
+    # going on, and a comment that drew six reactions reads differently from
+    # one that drew none — so the row carries them rather than looking like a
+    # quieter comment than it was.
+    reactions: list[ReactionGroup] = Field(default_factory=list)
 
 
 class MentionSuggestion(SanitizedBaseModel):

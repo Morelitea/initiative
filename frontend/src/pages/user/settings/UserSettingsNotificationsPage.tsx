@@ -29,6 +29,7 @@ type NotificationField =
   | "email_project_added"
   | "email_overdue_tasks"
   | "email_mentions"
+  | "email_comment_reactions"
   | "email_events"
   | "email_event_reminders"
   | "push_initiative_addition"
@@ -36,6 +37,7 @@ type NotificationField =
   | "push_project_added"
   | "push_overdue_tasks"
   | "push_mentions"
+  | "push_comment_reactions"
   | "push_events"
   | "push_event_reminders";
 
@@ -83,6 +85,7 @@ export const UserSettingsNotificationsPage = ({
   const [emailProjectAdded, setEmailProjectAdded] = useState(user.email_project_added ?? true);
   const [emailOverdue, setEmailOverdue] = useState(user.email_overdue_tasks ?? true);
   const [emailMentions, setEmailMentions] = useState(user.email_mentions ?? true);
+  const [emailReactions, setEmailReactions] = useState(user.email_comment_reactions ?? true);
   const [emailEvents, setEmailEvents] = useState(user.email_events ?? true);
   const [emailEventReminders, setEmailEventReminders] = useState(
     user.email_event_reminders ?? true
@@ -94,6 +97,7 @@ export const UserSettingsNotificationsPage = ({
   const [pushProjectAdded, setPushProjectAdded] = useState(user.push_project_added ?? true);
   const [pushOverdue, setPushOverdue] = useState(user.push_overdue_tasks ?? true);
   const [pushMentions, setPushMentions] = useState(user.push_mentions ?? true);
+  const [pushReactions, setPushReactions] = useState(user.push_comment_reactions ?? true);
   const [pushEvents, setPushEvents] = useState(user.push_events ?? true);
   const [pushEventReminders, setPushEventReminders] = useState(user.push_event_reminders ?? true);
 
@@ -109,6 +113,7 @@ export const UserSettingsNotificationsPage = ({
     setEmailProjectAdded(user.email_project_added ?? true);
     setEmailOverdue(user.email_overdue_tasks ?? true);
     setEmailMentions(user.email_mentions ?? true);
+    setEmailReactions(user.email_comment_reactions ?? true);
     setEmailEvents(user.email_events ?? true);
     setEmailEventReminders(user.email_event_reminders ?? true);
     setPushInitiative(user.push_initiative_addition ?? true);
@@ -116,6 +121,7 @@ export const UserSettingsNotificationsPage = ({
     setPushProjectAdded(user.push_project_added ?? true);
     setPushOverdue(user.push_overdue_tasks ?? true);
     setPushMentions(user.push_mentions ?? true);
+    setPushReactions(user.push_comment_reactions ?? true);
     setPushEvents(user.push_events ?? true);
     setPushEventReminders(user.push_event_reminders ?? true);
     setReminderMinutes(user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES);
@@ -217,6 +223,19 @@ export const UserSettingsNotificationsPage = ({
       pushField: "push_mentions",
       pushValue: pushMentions,
       pushSetter: setPushMentions,
+    },
+    {
+      // Its own gate, not part of mentions: a reaction is the lightest signal
+      // in the app, and wanting to hear about being named says nothing about
+      // wanting to hear about every thumbs-up.
+      label: t("notifications.categories.commentReactions"),
+      description: t("notifications.categories.commentReactionsDescription"),
+      emailField: "email_comment_reactions",
+      emailValue: emailReactions,
+      emailSetter: setEmailReactions,
+      pushField: "push_comment_reactions",
+      pushValue: pushReactions,
+      pushSetter: setPushReactions,
     },
     {
       label: t("notifications.categories.newProject"),

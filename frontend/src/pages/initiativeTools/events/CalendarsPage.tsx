@@ -810,11 +810,9 @@ export function CalendarFocusPage() {
         soloCalendar={isGuildCalendar ? calendar : undefined}
       />
       <ToolCommentsPanel
-        entityType={Tool.calendar}
-        entityId={calendar.id}
-        initiativeId={calendar.initiative_id ?? 0}
+        tool={Tool.calendar}
+        entity={calendar}
         canModerate={hasWriteAccess(calendar.my_permission_level)}
-        disabled={calendar.comments_disabled}
       />
     </div>
   );

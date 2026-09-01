@@ -29,6 +29,7 @@ The categories are:
 | **Initiative invites** | You're added to a new initiative. |
 | **Task assignments** | Someone assigns you tasks (sent as one summary, not one-by-one). |
 | **Mentions** | Someone `@mentions` you or comments on your work. |
+| **Reactions** | Someone reacts to one of your comments (sent as one summary, not one-by-one). |
 | **New project in initiative** | A project is created in one of your initiatives. |
 | **Overdue tasks** | A daily reminder of what's past due, at a time you choose. |
 | **Events** | You're invited to an event, or one you're attending changes. |
@@ -41,6 +42,7 @@ The categories are:
 A couple of categories are about *when*, not just *whether*:
 
 - **Task assignments** arrive as one summary once the dust settles: Initiative waits until nothing new has been assigned to you for a few minutes, so a batch of tasks reaches you as a single message rather than a stream. If assignments keep arriving, the summary is sent anyway within half an hour. Email and mobile follow the same schedule, so you never get the same news twice at different times.
+- **Reactions** work the same way, and for the same reason: they tend to arrive several at a time. The bell shows each one as it happens; email and mobile wait for the flurry to end and then arrive as a single summary.
 - **Overdue tasks** arrive as one **daily digest** at a time you set, in your **timezone**. Set both on the same Notifications page.
 - **Event reminders** can be set per event — at the start, or a chosen number of minutes, hours, or days before.
 

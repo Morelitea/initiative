@@ -261,6 +261,8 @@
       "taskAssignmentsDescription": "Resumen cada hora cuando otros te asignan tareas.",
       "mentions": "Menciones",
       "mentionsDescription": "Cuando alguien te menciona o comenta en tu trabajo.",
+      "commentReactions": "Reacciones",
+      "commentReactionsDescription": "Un resumen periódico cuando otras personas reaccionan a tus comentarios.",
       "newProject": "Nuevo proyecto en iniciativa",
       "newProjectDescription": "Cuando se crean proyectos en tus iniciativas.",
       "overdueTasks": "Tareas vencidas",

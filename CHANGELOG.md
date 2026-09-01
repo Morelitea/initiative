@@ -9,11 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **React to a comment with an emoji.** Every comment now carries a row of reaction chips and a small button to add one. A chip shows the emoji, how many people picked it, and who — click it to add yours or take it back. The picker opens on the eight suggestions everyone sees (❤️ 👍 👎 😄 🎉 😕 👀 🚀) with the full emoji set searchable underneath. Anyone who can reply to a thread can react to it, and the guild home's recent-comments feed shows what each comment drew.
+
+- **The author hears about reactions, in a digest.** Reactions arrive in flurries, so they are collected the way task assignments are: the bell gets each one immediately, and email and push wait until the burst has settled and then arrive as one summary. It has its own switch under Settings › Notifications — wanting to hear about mentions no longer means hearing about every thumbs-up.
+
 - **Every tool can now turn its comments off.** A project, document, queue, counter group, calendar, or dashboard has a switch under Settings › Advanced that takes its comment thread off the page entirely. Comments stay on by default, and turning them off deletes nothing — the thread comes back whole when you turn them back on. Tasks keep their own comments either way: a task's thread belongs to the task, not to the project page it sits under.
 
 - **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
 
 ### Changed
+
+- **Comment threads now run the full width of the page.** They were squeezed into a half-width column on tasks and into a slide-out panel on documents, which wrapped almost every reply. A thread is a conversation, so it now gets its own full-width row underneath, in the same place on every kind of page. The document side panel is now just the AI summary.
+
+- **Replies are easier to follow.** Each level of nesting draws its thread line in a different theme colour, so you can see how deep a reply sits even where the indentation stops.
+
+- **One emoji picker, everywhere.** The picker used for a project's icon and the new reaction picker are the same component, searchable and in your language, and it ships with the app rather than fetching its emoji list from an outside service — so it works on an install with no internet access.
+
 - **A guild admin's sidebar now lists the initiatives they are in, not every initiative in the guild.** An admin who runs a guild of thirty initiatives had all thirty in their sidebar whether or not they had anything to do with them. The sidebar is now their own workspace. Their authority over the guild is unchanged — they can still open any initiative in it — and Settings › Initiatives has a new "Project managers" column for staffing one, which is also how an admin brings an initiative into their own sidebar: tick yourself. Unticking someone leaves them in the initiative as an ordinary member. The collapsed "Guild admins" list at the bottom of an initiative's own members page is gone with it.
 
 ## [0.64.3] - 2026-08-30

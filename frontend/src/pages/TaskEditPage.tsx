@@ -890,22 +890,25 @@ export const TaskEditPage = () => {
             projectId={task?.project_id ?? null}
             canEdit={!isReadOnly}
           />
-          {commentsQuery.isError ? (
-            <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
-          ) : null}
-          <CommentSection
-            entityType="task"
-            entityId={parsedTaskId}
-            comments={commentsQuery.data ?? []}
-            isLoading={commentsQuery.isLoading}
-            onCommentCreated={handleCommentCreated}
-            onCommentDeleted={handleCommentDeleted}
-            onCommentUpdated={handleCommentUpdated}
-            canModerate={canModerateComments}
-            initiativeId={projectQuery.data?.initiative_id ?? 0}
-          />
         </div>
       </div>
+
+      {/* The thread gets the whole row rather than half of one: a conversation
+          read in a column this narrow wraps every reply. */}
+      {commentsQuery.isError ? (
+        <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
+      ) : null}
+      <CommentSection
+        entityType="task"
+        entityId={parsedTaskId}
+        comments={commentsQuery.data ?? []}
+        isLoading={commentsQuery.isLoading}
+        onCommentCreated={handleCommentCreated}
+        onCommentDeleted={handleCommentDeleted}
+        onCommentUpdated={handleCommentUpdated}
+        canModerate={canModerateComments}
+        initiativeId={projectQuery.data?.initiative_id ?? 0}
+      />
 
       <ConfirmDialog
         open={showDeleteConfirm}

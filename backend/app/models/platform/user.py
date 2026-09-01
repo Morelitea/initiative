@@ -176,6 +176,13 @@ class User(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # Reactions get their own gate rather than riding on ``*_mentions``: a
+    # reaction is a far lighter signal than being named, and someone who wants
+    # to hear about mentions may well not want to hear about every thumbs-up.
+    email_comment_reactions: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     push_initiative_addition: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
@@ -193,6 +200,10 @@ class User(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
     push_mentions: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_comment_reactions: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )

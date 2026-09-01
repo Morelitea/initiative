@@ -221,13 +221,7 @@ export const ProjectDetailPage = () => {
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
         />
-        <ToolCommentsPanel
-          entityType={Tool.project}
-          entityId={project.id}
-          initiativeId={project.initiative_id}
-          canModerate={hasWritePermission}
-          disabled={project.comments_disabled}
-        />
+        <ToolCommentsPanel tool={Tool.project} entity={project} canModerate={hasWritePermission} />
       </div>
     </PullToRefresh>
   );

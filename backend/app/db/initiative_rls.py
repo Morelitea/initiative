@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.core.reactions import ReactionTarget
 from app.core.tools import RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
@@ -209,6 +210,43 @@ def comments_path() -> InitiativePath:
     return InitiativePath(predicate=build, initiative_expr=locate)
 
 
+def reactions_path() -> InitiativePath:
+    """A reaction is reached by whoever can reach the thing it is on.
+
+    Polymorphic over ``(target_type, target_id)``, so each kind is one EXISTS
+    leg into the target's table, and the target's OWN path decides — for a
+    comment that is the multi-parent predicate declared just above, reused here
+    rather than restated. A new reactable kind adds a leg by adding a
+    ``ReactionTarget`` member; nothing about the gate is written twice.
+    """
+    legs: dict[ReactionTarget, InitiativePath] = {
+        ReactionTarget.comment: comments_path(),
+    }
+
+    def build(t: str, w: bool) -> str:
+        return (
+            "("
+            + " OR ".join(
+                f"({t}.target_type = '{target.value}' AND EXISTS ("
+                f"SELECT 1 FROM {target.table} rt WHERE rt.id = {t}.target_id "
+                f"AND {path.predicate('rt', w)}))"
+                for target, path in legs.items()
+            )
+            + ")"
+        )
+
+    def locate(r: str) -> str:
+        arms = " ".join(
+            f"WHEN '{target.value}' THEN "
+            f"(SELECT {path.initiative_expr('rt')} FROM {target.table} rt "  # noqa: S608
+            f"WHERE rt.id = {r}.target_id)"
+            for target, path in legs.items()
+        )
+        return f"(CASE {r}.target_type {arms} END)"
+
+    return InitiativePath(predicate=build, initiative_expr=locate)
+
+
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
 # point at is an initiative-scoped table with a direct initiative_id, so the path
 # is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
@@ -379,10 +417,15 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     ),
     # Multi-parent
     "comments": comments_path(),
+    # Polymorphic over what it is on; gated by that thing's own path.
+    "reactions": reactions_path(),
     # Per-user state, scoped via the entity it points at
     "project_orders": via("projects", "project_id"),
     "project_favorites": via("projects", "project_id"),
     "task_assignment_digest_items": via("projects", "project_id"),
+    # Same polymorphic target columns as the reactions themselves, so the
+    # queued line is gated exactly like the gesture it describes.
+    "reaction_digest_items": reactions_path(),
     "event_reminder_dispatches": via_event_calendar("event_id"),
     "recent_views": recent_views_path(),
 }
@@ -460,6 +503,25 @@ def grants_report_on_their_resource() -> ReportsAs:
     )
 
 
+def reactions_report_on_their_target() -> ReportsAs:
+    """A reaction is a facet OF what it is on — report it there.
+
+    The reaction row's own id resolves to no route (there is no
+    ``/reactions/{id}`` to re-read), where the comment it lands on already has
+    one. So the event says "this comment changed, facet: reactions" and the
+    subscriber re-reads the comment, whose read carries the current counts.
+    """
+    arms = " ".join(
+        f"WHEN '{target.value}' THEN '{target.table}'" for target in ReactionTarget
+    )
+    return ReportsAs(
+        resource_types=frozenset(target.table for target in ReactionTarget),
+        id_expr=lambda r: f"{r}.target_id",
+        facet="reactions",
+        type_expr=lambda r: f"(CASE {r}.target_type {arms} END)",
+    )
+
+
 def _role_initiative(r: str) -> str:
     """The initiative a row's ``initiative_role_id`` belongs to."""
     return (
@@ -506,6 +568,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "project_orders": Silent("one member's own ordering state"),
     "project_favorites": Silent("one member's own pinning state"),
     "task_assignment_digest_items": Silent("internal digest bookkeeping"),
+    "reaction_digest_items": Silent("internal digest bookkeeping"),
     "event_reminder_dispatches": Silent("internal reminder bookkeeping"),
     "webhook_subscriptions": Silent(
         "integration config; it reports on content, not on itself"
@@ -564,6 +627,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
         reports_as=reports_as("documents", "document_id", "versions")
     ),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
+    "reactions": Emit(reports_as=reactions_report_on_their_target()),
 }
 
 _SILENT: frozenset[str] = frozenset(

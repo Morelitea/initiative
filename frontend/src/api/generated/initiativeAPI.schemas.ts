@@ -1413,6 +1413,27 @@ export interface CommentCreate {
   parent_comment_id?: number | null;
 }
 
+/**
+ * Who reacted, named the way comment authors are named.
+ */
+export interface ReactionUser {
+  id: number;
+  username: string;
+  discriminator: number;
+  full_name?: string | null;
+  avatar_url?: string | null;
+}
+
+/**
+ * One emoji on one target, and who chose it.
+ */
+export interface ReactionGroup {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+  users: ReactionUser[];
+}
+
 export interface CommentRead {
   content: string;
   id: number;
@@ -1428,6 +1449,7 @@ export interface CommentRead {
   updated_at: string | null;
   author: CommentAuthor | null;
   project_id: number | null;
+  reactions: ReactionGroup[];
 }
 
 /**
@@ -3364,6 +3386,7 @@ export const NotificationType = {
   comment_on_task: "comment_on_task",
   comment_on_resource: "comment_on_resource",
   comment_reply: "comment_reply",
+  comment_reaction: "comment_reaction",
   access_grant_requested: "access_grant_requested",
   access_grant_approved: "access_grant_approved",
   access_grant_denied: "access_grant_denied",
@@ -4048,21 +4071,48 @@ export interface QueueUpdate {
   description?: string | null;
 }
 
+/**
+ * A kind of thing reactions hang off. The value is stored verbatim in
+ * ``reactions.target_type`` and appears in the API path.
+ */
+export type ReactionTarget = (typeof ReactionTarget)[keyof typeof ReactionTarget];
+
+export const ReactionTarget = {
+  comment: "comment",
+} as const;
+
+/**
+ * Every reaction on one target, newest emoji last.
+ */
+export interface ReactionSummary {
+  target_type: ReactionTarget;
+  target_id: number;
+  groups: ReactionGroup[];
+}
+
+/**
+ * The body of the toggle route: which emoji to add or take back.
+ */
+export interface ReactionToggle {
+  emoji: string;
+}
+
 export interface RecentActivityEntry {
   comment_id: number;
   content: string;
   created_at: string;
-  author?: CommentAuthor | null;
-  task_id?: number | null;
-  task_title?: string | null;
-  document_id?: number | null;
-  document_name?: string | null;
-  project_id?: number | null;
-  project_name?: string | null;
-  entity_type?: string | null;
-  entity_id?: number | null;
-  entity_name?: string | null;
-  initiative_id?: number | null;
+  author: CommentAuthor | null;
+  task_id: number | null;
+  task_title: string | null;
+  document_id: number | null;
+  document_name: string | null;
+  project_id: number | null;
+  project_name: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  entity_name: string | null;
+  initiative_id: number | null;
+  reactions: ReactionGroup[];
 }
 
 export type RecentEntityType = (typeof RecentEntityType)[keyof typeof RecentEntityType];
@@ -4860,11 +4910,13 @@ export interface UserRead {
   email_project_added: boolean;
   email_overdue_tasks: boolean;
   email_mentions: boolean;
+  email_comment_reactions: boolean;
   push_initiative_addition: boolean;
   push_task_assignment: boolean;
   push_project_added: boolean;
   push_overdue_tasks: boolean;
   push_mentions: boolean;
+  push_comment_reactions: boolean;
   email_events: boolean;
   push_events: boolean;
   email_event_reminders: boolean;
@@ -4903,11 +4955,13 @@ export interface UserSelfUpdate {
   email_project_added?: boolean | null;
   email_overdue_tasks?: boolean | null;
   email_mentions?: boolean | null;
+  email_comment_reactions?: boolean | null;
   push_initiative_addition?: boolean | null;
   push_task_assignment?: boolean | null;
   push_project_added?: boolean | null;
   push_overdue_tasks?: boolean | null;
   push_mentions?: boolean | null;
+  push_comment_reactions?: boolean | null;
   email_events?: boolean | null;
   push_events?: boolean | null;
   email_event_reminders?: boolean | null;
