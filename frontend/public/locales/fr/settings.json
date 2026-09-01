@@ -4,14 +4,14 @@
     "subtitle": "Gérez votre profil, vos préférences d'interface et vos notifications.",
     "tabs": {
       "profile": "Profil",
+      "account": "Compte",
       "interface": "Interface",
       "notifications": "Notifications",
       "ai": "IA",
       "import": "Importer",
       "security": "Sécurité",
       "trash": "Corbeille",
-      "danger": "Zone de danger",
-      "decorations": "Décorations"
+      "danger": "Zone de danger"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
     "goToLogin": "Aller à la connexion"
@@ -43,9 +43,8 @@
     }
   },
   "profile": {
-    "subtitle": "Gardez les détails de votre compte à jour.",
-    "cardTitle": "Informations personnelles",
-    "cardDescription": "Mettez à jour votre nom, mot de passe et avatar.",
+    "cardTitle": "Votre apparence",
+    "cardDescription": "Votre photo, le nom qu'emploieront les communautés qui affichent les vrais noms, et ce que vous faites.",
     "emailLabel": "E-mail",
     "emailHelp": "Les adresses e-mail ne peuvent pas être modifiées.",
     "fullNameLabel": "Nom complet",
@@ -56,10 +55,6 @@
     "newPasswordLabel": "Nouveau mot de passe",
     "confirmPasswordLabel": "Confirmer le mot de passe",
     "passwordPlaceholder": "••••••••",
-    "timezoneLabel": "Fuseau horaire",
-    "timezonePlaceholder": "Sélectionner un fuseau horaire",
-    "timezoneEmpty": "Aucun fuseau horaire trouvé.",
-    "timezoneHelp": "Utilisé pour les échéances, les rappels quotidiens et les calculs de tâches récurrentes. Détecté depuis votre navigateur lors de l'inscription ; modifiez-le ici s'il est incorrect.",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Télécharger",
     "avatarUrlTab": "URL",
@@ -84,7 +79,7 @@
     "statusLabel": "Statut",
     "statusPlaceholder": "Qu'est-ce qui vous occupe ?",
     "statusEmojiPlaceholder": "Émoji",
-    "statusHelp": "Affiché sur votre profil pour toutes les personnes avec qui vous partagez une communauté."
+    "statusHelp": "Affiché sur votre profil, que tout le monde peut ouvrir."
   },
   "security": {
     "devicesTitle": "Appareils connectés",
@@ -233,7 +228,13 @@
       "label": "Garder l'écran allumé",
       "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte. Ce paramètre est enregistré uniquement sur cet appareil.",
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
-    }
+    },
+    "completionTitle": "Quand vous terminez une tâche",
+    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder.",
+    "timezone": "Fuseau horaire",
+    "timezoneDescription": "L'horloge sur laquelle sont calculés les échéances, les rappels et les répétitions. Reprise de votre navigateur à l'inscription.",
+    "timezonePlaceholder": "Sélectionner un fuseau horaire",
+    "timezoneEmpty": "Aucun fuseau horaire trouvé."
   },
   "notifications": {
     "title": "Paramètres de notifications",
@@ -286,18 +287,17 @@
       "hour_other": "{{count}} heures avant",
       "day_one": "{{count}} jour avant",
       "day_other": "{{count}} jours avant"
-    }
+    },
+    "scheduleTitle": "Rappel quotidien",
+    "scheduleDescription": "Quand part le rappel des retards, et à quelle horloge.",
+    "channelsTitle": "Ce dont on vous informe",
+    "channelsDescription": "Choisissez un canal par type de nouvelle. Les notifications de la cloche arrivent de toute façon."
   },
   "dangerZone": {
     "serverConnection": "Connexion au serveur",
     "connectedTo": "Actuellement connecté à {{hostname}}.",
-    "disconnectTitle": "Se déconnecter du serveur",
     "disconnectDescription": "Se déconnecter du compte et du serveur. Vous pouvez vous connecter à un autre serveur ensuite.",
     "disconnectButton": "Se déconnecter",
-    "title": "Zone de danger",
-    "subtitle": "Actions irréversibles et destructrices pour votre compte.",
-    "deleteTitle": "Supprimer le compte",
-    "deleteDescription": "Supprimez définitivement votre compte ou désactivez-le temporairement. Cette action affecte vos projets, documents et autre contenu.",
     "deactivateTitle": "Désactiver le compte",
     "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
     "permanentDeleteTitle": "Supprimer définitivement le compte",
@@ -1131,5 +1131,11 @@
     "actions": {
       "user.avatar_removed": "Photo de profil supprimée"
     }
+  },
+  "account": {
+    "identityTitle": "Comment vous vous connectez",
+    "identityDescription": "Votre adresse et votre pseudo. Ni l'un ni l'autre ne se change ici.",
+    "passwordTitle": "Mot de passe",
+    "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil."
   }
 }

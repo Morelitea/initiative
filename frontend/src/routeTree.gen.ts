@@ -38,9 +38,9 @@ import { Route as ServerRequiredInviteCodeRouteImport } from './routes/_serverRe
 import { Route as ServerRequiredOidcCallbackRouteImport } from './routes/_serverRequired/oidc.callback'
 import { Route as ServerRequiredAuthenticatedCGuildIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
+import { Route as ServerRequiredAuthenticatedProfileAccountRouteImport } from './routes/_serverRequired/_authenticated/profile/account'
 import { Route as ServerRequiredAuthenticatedProfileAiRouteImport } from './routes/_serverRequired/_authenticated/profile/ai'
 import { Route as ServerRequiredAuthenticatedProfileDangerRouteImport } from './routes/_serverRequired/_authenticated/profile/danger'
-import { Route as ServerRequiredAuthenticatedProfileDecorationsRouteImport } from './routes/_serverRequired/_authenticated/profile/decorations'
 import { Route as ServerRequiredAuthenticatedProfileImportRouteImport } from './routes/_serverRequired/_authenticated/profile/import'
 import { Route as ServerRequiredAuthenticatedProfileInterfaceRouteImport } from './routes/_serverRequired/_authenticated/profile/interface'
 import { Route as ServerRequiredAuthenticatedProfileNotificationsRouteImport } from './routes/_serverRequired/_authenticated/profile/notifications'
@@ -310,6 +310,12 @@ const ServerRequiredAuthenticatedProfileIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
   } as any)
+const ServerRequiredAuthenticatedProfileAccountRoute =
+  ServerRequiredAuthenticatedProfileAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
+  } as any)
 const ServerRequiredAuthenticatedProfileAiRoute =
   ServerRequiredAuthenticatedProfileAiRouteImport.update({
     id: '/ai',
@@ -320,12 +326,6 @@ const ServerRequiredAuthenticatedProfileDangerRoute =
   ServerRequiredAuthenticatedProfileDangerRouteImport.update({
     id: '/danger',
     path: '/danger',
-    getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
-  } as any)
-const ServerRequiredAuthenticatedProfileDecorationsRoute =
-  ServerRequiredAuthenticatedProfileDecorationsRouteImport.update({
-    id: '/decorations',
-    path: '/decorations',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileImportRoute =
@@ -1132,9 +1132,9 @@ export interface FileRoutesByFullPath {
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
+  '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/profile/decorations': typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -1264,9 +1264,9 @@ export interface FileRoutesByTo {
   '/user-stats': typeof ServerRequiredAuthenticatedUserStatsRoute
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/profile/decorations': typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -1389,9 +1389,9 @@ export interface FileRoutesById {
   '/_serverRequired/oidc/callback': typeof ServerRequiredOidcCallbackRoute
   '/_serverRequired/_authenticated/': typeof ServerRequiredAuthenticatedIndexRoute
   '/_serverRequired/_authenticated/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
+  '/_serverRequired/_authenticated/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/_serverRequired/_authenticated/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
-  '/_serverRequired/_authenticated/profile/decorations': typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   '/_serverRequired/_authenticated/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/_serverRequired/_authenticated/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/_serverRequired/_authenticated/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -1525,9 +1525,9 @@ export interface FileRouteTypes {
     | '/invite/$code'
     | '/oidc/callback'
     | '/c/$guildId'
+    | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
-    | '/profile/decorations'
     | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
@@ -1657,9 +1657,9 @@ export interface FileRouteTypes {
     | '/user-stats'
     | '/invite/$code'
     | '/oidc/callback'
+    | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
-    | '/profile/decorations'
     | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
@@ -1781,9 +1781,9 @@ export interface FileRouteTypes {
     | '/_serverRequired/oidc/callback'
     | '/_serverRequired/_authenticated/'
     | '/_serverRequired/_authenticated/c/$guildId'
+    | '/_serverRequired/_authenticated/profile/account'
     | '/_serverRequired/_authenticated/profile/ai'
     | '/_serverRequired/_authenticated/profile/danger'
-    | '/_serverRequired/_authenticated/profile/decorations'
     | '/_serverRequired/_authenticated/profile/import'
     | '/_serverRequired/_authenticated/profile/interface'
     | '/_serverRequired/_authenticated/profile/notifications'
@@ -2100,6 +2100,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
     }
+    '/_serverRequired/_authenticated/profile/account': {
+      id: '/_serverRequired/_authenticated/profile/account'
+      path: '/account'
+      fullPath: '/profile/account'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedProfileAccountRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
+    }
     '/_serverRequired/_authenticated/profile/ai': {
       id: '/_serverRequired/_authenticated/profile/ai'
       path: '/ai'
@@ -2112,13 +2119,6 @@ declare module '@tanstack/react-router' {
       path: '/danger'
       fullPath: '/profile/danger'
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileDangerRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
-    }
-    '/_serverRequired/_authenticated/profile/decorations': {
-      id: '/_serverRequired/_authenticated/profile/decorations'
-      path: '/decorations'
-      fullPath: '/profile/decorations'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedProfileDecorationsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
     }
     '/_serverRequired/_authenticated/profile/import': {
@@ -2839,9 +2839,9 @@ declare module '@tanstack/react-router' {
 }
 
 interface ServerRequiredAuthenticatedProfileRouteChildren {
+  ServerRequiredAuthenticatedProfileAccountRoute: typeof ServerRequiredAuthenticatedProfileAccountRoute
   ServerRequiredAuthenticatedProfileAiRoute: typeof ServerRequiredAuthenticatedProfileAiRoute
   ServerRequiredAuthenticatedProfileDangerRoute: typeof ServerRequiredAuthenticatedProfileDangerRoute
-  ServerRequiredAuthenticatedProfileDecorationsRoute: typeof ServerRequiredAuthenticatedProfileDecorationsRoute
   ServerRequiredAuthenticatedProfileImportRoute: typeof ServerRequiredAuthenticatedProfileImportRoute
   ServerRequiredAuthenticatedProfileInterfaceRoute: typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   ServerRequiredAuthenticatedProfileNotificationsRoute: typeof ServerRequiredAuthenticatedProfileNotificationsRoute
@@ -2852,12 +2852,12 @@ interface ServerRequiredAuthenticatedProfileRouteChildren {
 
 const ServerRequiredAuthenticatedProfileRouteChildren: ServerRequiredAuthenticatedProfileRouteChildren =
   {
+    ServerRequiredAuthenticatedProfileAccountRoute:
+      ServerRequiredAuthenticatedProfileAccountRoute,
     ServerRequiredAuthenticatedProfileAiRoute:
       ServerRequiredAuthenticatedProfileAiRoute,
     ServerRequiredAuthenticatedProfileDangerRoute:
       ServerRequiredAuthenticatedProfileDangerRoute,
-    ServerRequiredAuthenticatedProfileDecorationsRoute:
-      ServerRequiredAuthenticatedProfileDecorationsRoute,
     ServerRequiredAuthenticatedProfileImportRoute:
       ServerRequiredAuthenticatedProfileImportRoute,
     ServerRequiredAuthenticatedProfileInterfaceRoute:

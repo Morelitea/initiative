@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
@@ -299,22 +299,13 @@ export const UserSettingsNotificationsPage = ({
   ];
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>{t("notifications.title")}</CardTitle>
-        <CardDescription>{t("notifications.description")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Push Notifications Section (Mobile Only) */}
-        {isSupported && (
-          <div className="space-y-2 rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{t("notifications.pushNotifications")}</p>
-                <p className="text-muted-foreground text-sm">
-                  {t("notifications.pushDescription")}
-                </p>
-              </div>
+    <div className="space-y-6">
+      {isSupported && (
+        <SettingsSection
+          title={t("notifications.pushNotifications")}
+          description={t("notifications.pushDescription")}
+          action={
+            <>
               {permissionStatus === "granted" && (
                 <Badge variant="default" className="bg-green-600 hover:bg-green-600">
                   {t("notifications.pushEnabled")}
@@ -326,22 +317,39 @@ export const UserSettingsNotificationsPage = ({
               {permissionStatus === "prompt" && (
                 <Badge variant="secondary">{t("notifications.pushNotEnabled")}</Badge>
               )}
+            </>
+          }
+        >
+          {permissionStatus === "prompt" && (
+            <Button onClick={requestPermission} size="sm">
+              {t("notifications.enablePush")}
+            </Button>
+          )}
+          {permissionStatus === "denied" && (
+            <div className="rounded bg-muted p-3 text-muted-foreground text-sm">
+              <p className="mb-1 font-medium">{t("notifications.pushBlockedTitle")}</p>
+              <p>{t("notifications.pushBlockedDescription")}</p>
             </div>
-            {permissionStatus === "prompt" && (
-              <Button onClick={requestPermission} size="sm" className="w-full">
-                {t("notifications.enablePush")}
-              </Button>
-            )}
-            {permissionStatus === "denied" && (
-              <div className="rounded bg-muted p-3 text-muted-foreground text-sm">
-                <p className="mb-1 font-medium">{t("notifications.pushBlockedTitle")}</p>
-                <p>{t("notifications.pushBlockedDescription")}</p>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </SettingsSection>
+      )}
 
-        <div className="grid gap-4 md:grid-cols-3">
+      <SettingsSection
+        title={t("notifications.scheduleTitle")}
+        description={t("notifications.scheduleDescription")}
+        footer={
+          <Button
+            type="button"
+            onClick={handleScheduleSave}
+            disabled={updateNotificationSchedule.isPending}
+          >
+            {updateNotificationSchedule.isPending
+              ? t("notifications.savingSchedule")
+              : t("notifications.saveSchedule")}
+          </Button>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>{t("notifications.timezone")}</Label>
             <SearchableCombobox
@@ -362,21 +370,13 @@ export const UserSettingsNotificationsPage = ({
             />
             <p className="text-muted-foreground text-xs">{t("notifications.overdueTimeHelp")}</p>
           </div>
-          <div className="flex items-center">
-            <Button
-              type="button"
-              className="w-full"
-              onClick={handleScheduleSave}
-              disabled={updateNotificationSchedule.isPending}
-            >
-              {updateNotificationSchedule.isPending
-                ? t("notifications.savingSchedule")
-                : t("notifications.saveSchedule")}
-            </Button>
-          </div>
         </div>
+      </SettingsSection>
 
-        {/* Notification preferences table */}
+      <SettingsSection
+        title={t("notifications.channelsTitle")}
+        description={t("notifications.channelsDescription")}
+      >
         <div className="space-y-1">
           {/* Header row */}
           <div
@@ -438,7 +438,7 @@ export const UserSettingsNotificationsPage = ({
             </div>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </SettingsSection>
+    </div>
   );
 };

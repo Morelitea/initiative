@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import {
   ChartColumn,
   CircleQuestionMark,
+  CircleUserRound,
   Settings,
   ShieldCheck,
   SquareCheckBig,
@@ -9,9 +10,9 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { ModeToggle } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,19 +25,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarFooter } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { VersionDialog } from "@/components/VersionDialog";
 import { guildPath } from "@/lib/guildUrl";
+import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 
 export interface SidebarUserFooterProps {
-  userId: number | null;
-  userDisplayName: string;
-  userInitials: string;
-  avatarSrc: string | null;
+  /** The signed-in account, or null while it is still being fetched. */
+  user: UserRead | null;
   isGuildAdmin: boolean;
   canManagePlatformConfig: boolean;
   canAccessAdminDashboard: boolean;
   activeGuildId: number | null;
-  hasUser: boolean;
   currentVersion: string;
   latestVersion: string | null;
   hasUpdate: boolean;
@@ -45,15 +45,11 @@ export interface SidebarUserFooterProps {
 }
 
 export const SidebarUserFooter = ({
-  userId,
-  userDisplayName,
-  userInitials,
-  avatarSrc,
+  user,
   isGuildAdmin,
   canManagePlatformConfig,
   canAccessAdminDashboard,
   activeGuildId,
-  hasUser,
   currentVersion,
   latestVersion,
   hasUpdate,
@@ -62,6 +58,8 @@ export const SidebarUserFooter = ({
 }: SidebarUserFooterProps) => {
   const { t } = useTranslation(["nav"]);
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
+  const displayName = getUserDisplayName(user);
+  const handle = getUrlHandle(user);
 
   return (
     <SidebarFooter className="border-t border-r">
@@ -76,20 +74,29 @@ export const SidebarUserFooter = ({
                 variant="ghost"
                 className="h-auto min-w-0 flex-1 justify-start gap-2 px-2 py-2"
               >
-                <Avatar className="h-8 w-8 shrink-0">
-                  {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
-                  <AvatarFallback userId={userId} className="text-xs">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
+                {/* Wearing the frame it is wearing on the profile: what you
+                    picked is on you everywhere you appear, not only where the
+                    picking happened. */}
+                <ProfileAvatar
+                  user={user}
+                  decorations={user?.profile_decorations}
+                  className="size-8 text-xs"
+                />
                 <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left">
-                  <span className="w-full truncate font-medium text-sm">{userDisplayName}</span>
+                  <span className="w-full truncate font-medium text-sm">{displayName}</span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>{t("myAccount")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {handle ? (
+                <DropdownMenuItem asChild>
+                  <Link to="/u/$handle" params={{ handle }}>
+                    <CircleUserRound className="h-4 w-4" /> {t("myProfile")}
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem asChild>
                 <Link to="/">
                   <SquareCheckBig className="h-4 w-4" /> {t("myTasks")}
@@ -132,7 +139,7 @@ export const SidebarUserFooter = ({
           </DropdownMenu>
 
           <div className="flex shrink-0 items-center gap-1">
-            {hasUser && <NotificationBell />}
+            {user ? <NotificationBell /> : null}
             <ModeToggle />
           </div>
         </div>

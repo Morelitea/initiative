@@ -3,6 +3,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import type { ApiKeyMetadata, DeviceTokenInfo } from "@/api/generated/initiativeAPI.schemas";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +16,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
@@ -153,235 +153,223 @@ export const UserSettingsSecurityPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Device Tokens Section */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("security.devicesTitle")}</CardTitle>
-          <CardDescription>{t("security.devicesDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {devicesQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">{t("security.loadingDevices")}</p>
-          ) : devicesQuery.isError ? (
-            <p className="text-destructive text-sm">{t("security.devicesError")}</p>
-          ) : devices.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center text-muted-foreground">
-              <Smartphone className="h-10 w-10 opacity-50" />
-              <div>
-                <p className="font-medium">{t("security.noDevices")}</p>
-                <p className="text-sm">{t("security.noDevicesHint")}</p>
-              </div>
+      <SettingsSection
+        title={t("security.devicesTitle")}
+        description={t("security.devicesDescription")}
+      >
+        {devicesQuery.isLoading ? (
+          <p className="text-muted-foreground text-sm">{t("security.loadingDevices")}</p>
+        ) : devicesQuery.isError ? (
+          <p className="text-destructive text-sm">{t("security.devicesError")}</p>
+        ) : devices.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center text-muted-foreground">
+            <Smartphone className="h-10 w-10 opacity-50" />
+            <div>
+              <p className="font-medium">{t("security.noDevices")}</p>
+              <p className="text-sm">{t("security.noDevicesHint")}</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {devices.map((device) => (
-                <div
-                  key={device.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                      <Smartphone className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {device.device_name ?? t("security.unknownDevice")}
-                      </p>
-                      <p className="text-muted-foreground text-sm">
-                        {t("security.loggedIn", { date: formatDateTime(device.created_at) })}
-                      </p>
-                    </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {devices.map((device) => (
+              <div
+                key={device.id}
+                className="flex items-center justify-between gap-4 rounded-lg border p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                    <Smartphone className="h-5 w-5" />
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setRevokeTarget(device)}
-                    disabled={revokeToken.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {t("security.revoke")}
-                  </Button>
+                  <div>
+                    <p className="font-medium">
+                      {device.device_name ?? t("security.unknownDevice")}
+                    </p>
+                    <p className="text-muted-foreground text-sm">
+                      {t("security.loggedIn", { date: formatDateTime(device.created_at) })}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRevokeTarget(device)}
+                  disabled={revokeToken.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("security.revoke")}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsSection>
 
-      {/* API Keys Section */}
       {generatedSecret ? (
-        <Card className="border-primary/50 shadow-sm">
-          <CardHeader>
-            <CardTitle>{t("security.newKeyTitle")}</CardTitle>
-            <CardDescription>{t("security.newKeyDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-start gap-4">
-            <code className="flex-1 break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
-              {generatedSecret}
-            </code>
-            <Button type="button" variant="secondary" onClick={copySecret}>
-              {t("security.copy")}
-            </Button>
-          </CardContent>
-        </Card>
+        <SettingsSection
+          className="border-primary/50"
+          title={t("security.newKeyTitle")}
+          description={t("security.newKeyDescription")}
+          contentClassName="flex flex-wrap items-start gap-4"
+        >
+          <code className="flex-1 break-all rounded-md border bg-muted px-3 py-2 font-mono text-sm">
+            {generatedSecret}
+          </code>
+          <Button type="button" variant="secondary" onClick={copySecret}>
+            {t("security.copy")}
+          </Button>
+        </SettingsSection>
       ) : null}
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("security.generateTitle")}</CardTitle>
-          <CardDescription>{t("security.generateDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleCreate}>
-            <div className="space-y-2">
-              <Label htmlFor="api-key-name">{t("security.keyNameLabel")}</Label>
-              <Input
-                id="api-key-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("security.keyNamePlaceholder")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="api-key-expiration">{t("security.expirationLabel")}</Label>
-              <DateTimePicker
-                id="api-key-expiration"
-                value={expiresAtInput}
-                onChange={setExpiresAtInput}
-                placeholder={t("security.neverExpires")}
-                calendarProps={{
-                  hidden: {
-                    before: new Date(),
-                  },
-                }}
-              />
-              <p className="text-muted-foreground text-xs">{t("security.expirationHelp")}</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="api-key-read-only"
-                checked={readOnly}
-                onCheckedChange={(checked) => setReadOnly(checked === true)}
-                className="mt-0.5"
-              />
-              <div className="space-y-1">
-                <Label htmlFor="api-key-read-only">{t("security.readOnlyLabel")}</Label>
-                <p className="text-muted-foreground text-xs">{t("security.readOnlyHelp")}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="api-key-guild">{t("security.guildLabel")}</Label>
-              <Select value={guildId} onValueChange={setGuildId}>
-                <SelectTrigger id="api-key-guild">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("security.guildAllGuilds")}</SelectItem>
-                  {guilds.map((guild) => (
-                    <SelectItem key={guild.id} value={String(guild.id)}>
-                      {guild.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">{t("security.guildHelp")}</p>
-            </div>
+      <form onSubmit={handleCreate}>
+        <SettingsSection
+          title={t("security.generateTitle")}
+          description={t("security.generateDescription")}
+          footer={
             <Button type="submit" disabled={createKey.isPending}>
               {createKey.isPending ? t("security.generating") : t("security.generateButton")}
             </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("security.existingTitle")}</CardTitle>
-          <CardDescription>{t("security.existingDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {apiKeysQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">{t("security.loadingKeys")}</p>
-          ) : apiKeysQuery.isError ? (
-            <p className="text-destructive text-sm">{t("security.keysError")}</p>
-          ) : apiKeys.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t("security.noKeys")}</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-muted-foreground">
-                  <tr>
-                    <th className="py-2 pr-4 font-medium">{t("security.columnName")}</th>
-                    <th className="py-2 pr-4 font-medium">{t("security.columnPrefix")}</th>
-                    <th className="py-2 pr-4 font-medium">{t("security.columnStatus")}</th>
-                    <th className="py-2 pr-4 font-medium">{t("security.columnScope")}</th>
-                    <th className="py-2 pr-4 font-medium">{t("security.columnLastUsed")}</th>
-                    <th className="py-2 pr-4 font-medium">{t("security.columnExpires")}</th>
-                    <th className="py-2 text-right font-medium">{t("security.columnActions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {apiKeys.map((key) => {
-                    const status = computeStatus(key);
-                    return (
-                      <tr key={key.id} className="border-t">
-                        <td className="py-3 pr-4">
-                          <div className="font-medium">{key.name}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {formatDateTime(key.created_at)}
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4 font-mono">{key.token_prefix}...</td>
-                        <td className="py-3 pr-4">
-                          <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <div className="flex flex-wrap gap-1">
-                            {key.read_only ? (
-                              <Badge variant="secondary">{t("security.scopeReadOnly")}</Badge>
-                            ) : null}
-                            {key.guild_id != null ? (
-                              <Badge variant="outline">
-                                {t("security.scopeGuild", {
-                                  guild: guildName(key.guild_id),
-                                })}
-                              </Badge>
-                            ) : null}
-                            {!key.read_only && key.guild_id == null ? (
-                              <span className="text-muted-foreground text-xs">
-                                {t("security.scopeFull")}
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4">
-                          {key.last_used_at
-                            ? formatDateTime(key.last_used_at)
-                            : t("security.never")}
-                        </td>
-                        <td className="py-3 pr-4">{formatDateTime(key.expires_at) || "—"}</td>
-                        <td className="py-3 text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteKey.mutate(key.id)}
-                            disabled={deleteTarget === key.id && deleteKey.isPending}
-                          >
-                            {deleteTarget === key.id && deleteKey.isPending
-                              ? t("security.deleting")
-                              : t("security.deleteButton")}
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          }
+        >
+          <div className="space-y-2">
+            <Label htmlFor="api-key-name">{t("security.keyNameLabel")}</Label>
+            <Input
+              id="api-key-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("security.keyNamePlaceholder")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="api-key-expiration">{t("security.expirationLabel")}</Label>
+            <DateTimePicker
+              id="api-key-expiration"
+              value={expiresAtInput}
+              onChange={setExpiresAtInput}
+              placeholder={t("security.neverExpires")}
+              calendarProps={{
+                hidden: {
+                  before: new Date(),
+                },
+              }}
+            />
+            <p className="text-muted-foreground text-xs">{t("security.expirationHelp")}</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="api-key-read-only"
+              checked={readOnly}
+              onCheckedChange={(checked) => setReadOnly(checked === true)}
+              className="mt-0.5"
+            />
+            <div className="space-y-1">
+              <Label htmlFor="api-key-read-only">{t("security.readOnlyLabel")}</Label>
+              <p className="text-muted-foreground text-xs">{t("security.readOnlyHelp")}</p>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="api-key-guild">{t("security.guildLabel")}</Label>
+            <Select value={guildId} onValueChange={setGuildId}>
+              <SelectTrigger id="api-key-guild">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("security.guildAllGuilds")}</SelectItem>
+                {guilds.map((guild) => (
+                  <SelectItem key={guild.id} value={String(guild.id)}>
+                    {guild.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">{t("security.guildHelp")}</p>
+          </div>
+        </SettingsSection>
+      </form>
+
+      <SettingsSection
+        title={t("security.existingTitle")}
+        description={t("security.existingDescription")}
+      >
+        {apiKeysQuery.isLoading ? (
+          <p className="text-muted-foreground text-sm">{t("security.loadingKeys")}</p>
+        ) : apiKeysQuery.isError ? (
+          <p className="text-destructive text-sm">{t("security.keysError")}</p>
+        ) : apiKeys.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("security.noKeys")}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-4 font-medium">{t("security.columnName")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("security.columnPrefix")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("security.columnStatus")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("security.columnScope")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("security.columnLastUsed")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("security.columnExpires")}</th>
+                  <th className="py-2 text-right font-medium">{t("security.columnActions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {apiKeys.map((key) => {
+                  const status = computeStatus(key);
+                  return (
+                    <tr key={key.id} className="border-t">
+                      <td className="py-3 pr-4">
+                        <div className="font-medium">{key.name}</div>
+                        <div className="text-muted-foreground text-xs">
+                          {formatDateTime(key.created_at)}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4 font-mono">{key.token_prefix}...</td>
+                      <td className="py-3 pr-4">
+                        <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="flex flex-wrap gap-1">
+                          {key.read_only ? (
+                            <Badge variant="secondary">{t("security.scopeReadOnly")}</Badge>
+                          ) : null}
+                          {key.guild_id != null ? (
+                            <Badge variant="outline">
+                              {t("security.scopeGuild", {
+                                guild: guildName(key.guild_id),
+                              })}
+                            </Badge>
+                          ) : null}
+                          {!key.read_only && key.guild_id == null ? (
+                            <span className="text-muted-foreground text-xs">
+                              {t("security.scopeFull")}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        {key.last_used_at ? formatDateTime(key.last_used_at) : t("security.never")}
+                      </td>
+                      <td className="py-3 pr-4">{formatDateTime(key.expires_at) || "—"}</td>
+                      <td className="py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteKey.mutate(key.id)}
+                          disabled={deleteTarget === key.id && deleteKey.isPending}
+                        >
+                          {deleteTarget === key.id && deleteKey.isPending
+                            ? t("security.deleting")
+                            : t("security.deleteButton")}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SettingsSection>
 
       {/* Revoke Device Dialog */}
       <AlertDialog open={revokeTarget !== null} onOpenChange={() => setRevokeTarget(null)}>

@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="presentation">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
   <defs>
     <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#fde68a"/>
@@ -6,12 +8,13 @@
       <stop offset="100%" stop-color="#8a6508"/>
     </linearGradient>
   </defs>
-  <circle cx="64" cy="64" r="60" fill="none" stroke="url(#gold)" stroke-width="7"/>
-  <circle cx="64" cy="64" r="53.5" fill="none" stroke="#4a3608" stroke-opacity=".45" stroke-width="1.5"/>
-  <g fill="#fde68a">
-    <circle cx="64" cy="4.5" r="5"/>
-    <circle cx="64" cy="123.5" r="4"/>
-    <circle cx="4.5" cy="64" r="4"/>
-    <circle cx="123.5" cy="64" r="4"/>
+  <circle cx="64" cy="64" r="53.5" fill="none" stroke="url(#gold)" stroke-width="7"/>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#4a3608" stroke-opacity=".5" stroke-width="1.6"/>
+  <circle cx="64" cy="64" r="56.6" fill="none" stroke="#8a6508" stroke-opacity=".6" stroke-width="1"/>
+  <g fill="#fde68a" stroke="#8a6508" stroke-width="1">
+    <circle cx="64" cy="7" r="4.5"/>
+    <circle cx="64" cy="121" r="4.5"/>
+    <circle cx="7" cy="64" r="4.5"/>
+    <circle cx="121" cy="64" r="4.5"/>
   </g>
 </svg>

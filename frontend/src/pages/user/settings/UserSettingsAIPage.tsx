@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import type { MyAIConnectionRow } from "@/api/generated/initiativeAPI.schemas";
 import { MyGuildAISection } from "@/components/settings/MyGuildAISection";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 import { useMyAI } from "@/hooks/useAISettings";
 
 interface GuildGroup {
@@ -61,12 +61,8 @@ export const UserSettingsAIPage = () => {
   };
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>{t("memberAI.title")}</CardTitle>
-        <CardDescription>{t("memberAI.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>{content()}</CardContent>
-    </Card>
+    <SettingsSection title={t("memberAI.title")} description={t("memberAI.description")}>
+      {content()}
+    </SettingsSection>
   );
 };

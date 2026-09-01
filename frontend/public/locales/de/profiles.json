@@ -41,23 +41,9 @@
     "empty": "Hier ist noch nichts.",
     "badgeCount": "{{count}} von {{max}} getragen"
   },
-  "packs": {
-    "ttrpg": {
-      "name": "Spieltisch",
-      "tagline": "Für alle, die den Würfel entscheiden lassen. Es ist derselbe, den die App wirft, wenn du etwas abschließt."
-    },
-    "music": {
-      "name": "Soundcheck",
-      "tagline": "Für Bands, Chöre und alle, die den Raum buchen und einstöpseln."
-    },
-    "science": {
-      "name": "Sternwarte",
-      "tagline": "Für Labore, Feldstationen und Lesekreise mit Whiteboard."
-    }
-  },
   "store": {
     "title": "Dekorationspacks",
-    "description": "Nimm ein Pack, und seine Teile landen in deiner Sammlung, bereit zum Anlegen. Gib es zurück, und sie verschwinden – samt allem, was du davon getragen hast.",
+    "description": "Nimm ein Pack, und seine Teile landen in deiner Sammlung, bereit zum Anlegen. Entfernst du es, verschwinden sie – samt allem, was du davon getragen hast.",
     "get": "Pack nehmen",
     "installed": "In deiner Sammlung",
     "empty": "In dieser Version gibt es keine Packs.",
@@ -69,14 +55,22 @@
     "save": "Aussehen speichern",
     "saved": "Aussehen gespeichert.",
     "failed": "Das Aussehen konnte nicht gespeichert werden.",
-    "title": "Dein Aussehen"
+    "title": "Dein Aussehen",
+    "description": "Dein Profil, so wie alle anderen es sehen. Wähl unten etwas aus, und es ändert sich zuerst hier."
   },
   "myPacks": {
     "title": "Deine Packs",
-    "description": "Was du heruntergeladen hast und was jedes Pack dir gebracht hat. Gibst du eines zurück, verschwinden seine Teile – samt allem, was du davon getragen hast.",
-    "empty": "Du hast noch kein Pack heruntergeladen. Wähl oben eines aus, dann landen seine Teile hier.",
-    "remove": "Zurückgeben",
-    "removed": "Pack zurückgegeben.",
-    "browse": "Marktplatz durchsuchen"
+    "description": "Was du heruntergeladen hast und was jedes Pack dir gebracht hat. Entfernst du eines, verschwinden seine Teile – samt allem, was du davon getragen hast.",
+    "empty": "Noch keine Packs. Im Marktplatz findest du welche.",
+    "remove": "Pack entfernen",
+    "removed": "Pack entfernt.",
+    "browse": "Marktplatz durchsuchen",
+    "removing": "Wird entfernt …",
+    "confirmTitle": "{{name}} entfernen?",
+    "confirmBody": "Seine Teile verlassen deine Sammlung, und alles, was du davon trägst, wird abgelegt. Du kannst es jederzeit wieder aus dem Marktplatz holen.",
+    "filter": "{{count}} Packs durchsuchen",
+    "filterLabel": "Deine Packs durchsuchen",
+    "noMatch": "Kein Pack mit diesem Namen.",
+    "removeNamed": "{{name}} entfernen"
   }
 }

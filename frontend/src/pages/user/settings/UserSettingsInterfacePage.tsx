@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateRecents } from "@/api/query-keys";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -27,6 +29,7 @@ import {
 } from "@/lib/taskCompletionFeedback";
 import type { ThemeColors } from "@/lib/themes";
 import { getTheme, getThemeList } from "@/lib/themes";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.sunday", value: 0 },
@@ -149,24 +152,46 @@ function ThemeColorPreview({ themeId }: { themeId: string }) {
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>{t("interface.themePreview")}</CardTitle>
-        <CardDescription>{theme.description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <p className="font-medium text-muted-foreground text-xs">{t("interface.lightMode")}</p>
-            <MiniMockup colors={theme.light} />
-          </div>
-          <div className="space-y-1.5">
-            <p className="font-medium text-muted-foreground text-xs">{t("interface.darkMode")}</p>
-            <MiniMockup colors={theme.dark} />
-          </div>
+    <SettingsSection title={t("interface.themePreview")} description={theme.description}>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <p className="font-medium text-muted-foreground text-xs">{t("interface.lightMode")}</p>
+          <MiniMockup colors={theme.light} />
         </div>
-      </CardContent>
-    </Card>
+        <div className="space-y-1.5">
+          <p className="font-medium text-muted-foreground text-xs">{t("interface.darkMode")}</p>
+          <MiniMockup colors={theme.dark} />
+        </div>
+      </div>
+    </SettingsSection>
+  );
+}
+
+/**
+ * One preference: what it is, what it does, and the control that sets it.
+ *
+ * A settings tab is a column of these, and they only read as a column if the
+ * label, the explanation and the control land in the same place every time —
+ * so the arrangement is settled here rather than in each of the eight rows
+ * that used to carry their own copy of it.
+ */
+function Preference({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-b pb-4 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="min-w-0">
+        <p className="font-medium">{label}</p>
+        <p className="text-muted-foreground text-sm">{description}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
   );
 }
 
@@ -186,6 +211,7 @@ export const UserSettingsInterfacePage = ({
   );
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
+  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
     parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback)
   );
@@ -206,6 +232,7 @@ export const UserSettingsInterfacePage = ({
     setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
+    setTimezone(user.timezone ?? "UTC");
     setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
     setAudioFeedback(user.task_completion_audio_feedback ?? true);
     setHapticFeedback(user.task_completion_haptic_feedback ?? true);
@@ -230,6 +257,9 @@ export const UserSettingsInterfacePage = ({
         setLocale(newLocale);
         void i18n.changeLanguage(newLocale);
       }
+      if (variables.timezone !== undefined) {
+        setTimezone(String(variables.timezone));
+      }
       if (variables.task_completion_visual_feedback !== undefined) {
         setVisualFeedback(
           parseTaskCompletionVisualFeedback(String(variables.task_completion_visual_feedback))
@@ -250,6 +280,7 @@ export const UserSettingsInterfacePage = ({
       setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
+      setTimezone(user.timezone ?? "UTC");
       setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
       setAudioFeedback(user.task_completion_audio_feedback ?? true);
       setHapticFeedback(user.task_completion_haptic_feedback ?? true);
@@ -265,241 +296,240 @@ export const UserSettingsInterfacePage = ({
   };
 
   return (
-    <div className="space-y-4">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("interface.title")}</CardTitle>
-          <CardDescription>{t("interface.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.language")}</p>
-              <p className="text-muted-foreground text-sm">{t("interface.languageDescription")}</p>
-            </div>
-            <Select
-              value={locale}
-              onValueChange={(next) => {
-                setLocale(next);
-                updateInterfacePrefs.mutate({ locale: next });
-              }}
-              disabled={updateInterfacePrefs.isPending}
-            >
-              <SelectTrigger className="sm:w-52">
-                <SelectValue>
-                  {LANGUAGE_OPTIONS.find((l) => l.value === locale)?.label ?? "English"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {LANGUAGE_OPTIONS.map((lang) => (
-                  <SelectItem key={lang.value} value={lang.value}>
-                    {lang.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.colorTheme")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("interface.colorThemeDescription")}
-              </p>
-            </div>
-            <Select
-              value={colorTheme}
-              onValueChange={(next) => {
-                setColorTheme(next);
-                updateInterfacePrefs.mutate({ color_theme: next });
-              }}
-              disabled={updateInterfacePrefs.isPending}
-            >
-              <SelectTrigger className="sm:w-52">
-                <SelectValue>
-                  {getThemeList().find((t) => t.id === colorTheme)?.name ?? "Kobold"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {getThemeList().map((theme) => (
-                  <SelectItem key={theme.id} value={theme.id}>
-                    {theme.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.weekStartsOn")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("interface.weekStartsOnDescription")}
-              </p>
-            </div>
-            <Select
-              value={String(weekStartsOn)}
-              onValueChange={(next) => {
-                const value = Number(next);
-                setWeekStartsOn(value);
-                updateInterfacePrefs.mutate({ week_starts_on: value });
-              }}
-              disabled={updateInterfacePrefs.isPending}
-            >
-              <SelectTrigger className="sm:w-52">
-                <SelectValue>
-                  {t(
-                    (WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.labelKey ??
-                      "dates:weekdays.sunday") as never
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {WEEK_START_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={String(option.value)}>
-                    {t(option.labelKey as never)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.recentTabsLimit")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("interface.recentTabsLimitDescription")}
-              </p>
-            </div>
-            <Input
-              type="number"
-              min={RECENT_TABS_LIMIT_MIN}
-              max={RECENT_TABS_LIMIT_MAX}
-              value={recentTabsLimit}
-              onChange={(event) => setRecentTabsLimit(Number(event.target.value))}
-              onBlur={commitRecentTabsLimit}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.currentTarget.blur();
-                }
-              }}
-              disabled={updateInterfacePrefs.isPending}
-              aria-label={t("interface.recentTabsLimit")}
-              className="sm:w-52"
-            />
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.taskCompletionVisualFeedback.label")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("interface.taskCompletionVisualFeedback.description")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Select
-                value={visualFeedback}
-                onValueChange={(next) => {
-                  const value = next as TaskCompletionVisualFeedback;
-                  setVisualFeedback(value);
-                  updateInterfacePrefs.mutate({ task_completion_visual_feedback: value });
-                }}
-                disabled={updateInterfacePrefs.isPending}
-              >
-                <SelectTrigger className="sm:w-52">
-                  <SelectValue>
-                    {t(`interface.taskCompletionVisualFeedback.options.${visualFeedback}` as never)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_COMPLETION_VISUAL_FEEDBACK_VALUES.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {t(`interface.taskCompletionVisualFeedback.options.${value}` as never)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => dispatchTaskCompletionVisualFeedback(visualFeedback)}
-                disabled={visualFeedback === "none"}
-              >
-                {t("interface.taskCompletionVisualFeedback.preview")}
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.taskCompletionAudioFeedback.label")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("interface.taskCompletionAudioFeedback.description")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={audioFeedback}
-                onCheckedChange={(next) => {
-                  setAudioFeedback(next);
-                  updateInterfacePrefs.mutate({ task_completion_audio_feedback: next });
-                }}
-                disabled={updateInterfacePrefs.isPending}
-                aria-label={t("interface.taskCompletionAudioFeedback.label")}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => playTaskCompletionSound()}
-              >
-                {t("interface.taskCompletionAudioFeedback.preview")}
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.taskCompletionHapticFeedback.label")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("interface.taskCompletionHapticFeedback.description")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={hapticFeedback}
-                onCheckedChange={(next) => {
-                  setHapticFeedback(next);
-                  updateInterfacePrefs.mutate({ task_completion_haptic_feedback: next });
-                }}
-                disabled={updateInterfacePrefs.isPending}
-                aria-label={t("interface.taskCompletionHapticFeedback.label")}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => triggerTaskCompletionHaptic()}
-              >
-                {t("interface.taskCompletionHapticFeedback.preview")}
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium">{t("interface.keepScreenAwake.label")}</p>
-              <p className="text-muted-foreground text-sm">
-                {keepAwakeSupported
-                  ? t("interface.keepScreenAwake.description")
-                  : t("interface.keepScreenAwake.unsupported")}
-              </p>
-            </div>
-            <Switch
-              checked={keepAwake}
-              onCheckedChange={setKeepAwake}
-              disabled={!keepAwakeSupported}
-              aria-label={t("interface.keepScreenAwake.label")}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <SettingsSection title={t("interface.title")} description={t("interface.description")}>
+        <Preference
+          label={t("interface.language")}
+          description={t("interface.languageDescription")}
+        >
+          <Select
+            value={locale}
+            onValueChange={(next) => {
+              setLocale(next);
+              updateInterfacePrefs.mutate({ locale: next });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>
+                {LANGUAGE_OPTIONS.find((l) => l.value === locale)?.label ?? "English"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <SelectItem key={lang.value} value={lang.value}>
+                  {lang.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Preference>
+
+        <Preference
+          label={t("interface.colorTheme")}
+          description={t("interface.colorThemeDescription")}
+        >
+          <Select
+            value={colorTheme}
+            onValueChange={(next) => {
+              setColorTheme(next);
+              updateInterfacePrefs.mutate({ color_theme: next });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>
+                {getThemeList().find((theme) => theme.id === colorTheme)?.name ?? "Kobold"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {getThemeList().map((theme) => (
+                <SelectItem key={theme.id} value={theme.id}>
+                  {theme.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Preference>
+
+        <Preference
+          label={t("interface.timezone")}
+          description={t("interface.timezoneDescription")}
+        >
+          <SearchableCombobox
+            className="sm:w-52"
+            items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+            value={timezone}
+            onValueChange={(next) => {
+              setTimezone(next);
+              updateInterfacePrefs.mutate({ timezone: next });
+            }}
+            placeholder={t("interface.timezonePlaceholder")}
+            emptyMessage={t("interface.timezoneEmpty")}
+          />
+        </Preference>
+
+        <Preference
+          label={t("interface.weekStartsOn")}
+          description={t("interface.weekStartsOnDescription")}
+        >
+          <Select
+            value={String(weekStartsOn)}
+            onValueChange={(next) => {
+              const value = Number(next);
+              setWeekStartsOn(value);
+              updateInterfacePrefs.mutate({ week_starts_on: value });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>
+                {t(
+                  (WEEK_START_OPTIONS.find((option) => option.value === weekStartsOn)?.labelKey ??
+                    "dates:weekdays.sunday") as never
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {WEEK_START_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={String(option.value)}>
+                  {t(option.labelKey as never)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Preference>
+
+        <Preference
+          label={t("interface.recentTabsLimit")}
+          description={t("interface.recentTabsLimitDescription")}
+        >
+          <Input
+            type="number"
+            min={RECENT_TABS_LIMIT_MIN}
+            max={RECENT_TABS_LIMIT_MAX}
+            value={recentTabsLimit}
+            onChange={(event) => setRecentTabsLimit(Number(event.target.value))}
+            onBlur={commitRecentTabsLimit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
+            disabled={updateInterfacePrefs.isPending}
+            aria-label={t("interface.recentTabsLimit")}
+            className="sm:w-52"
+          />
+        </Preference>
+
+        <Preference
+          label={t("interface.keepScreenAwake.label")}
+          description={
+            keepAwakeSupported
+              ? t("interface.keepScreenAwake.description")
+              : t("interface.keepScreenAwake.unsupported")
+          }
+        >
+          <Switch
+            checked={keepAwake}
+            onCheckedChange={setKeepAwake}
+            disabled={!keepAwakeSupported}
+            aria-label={t("interface.keepScreenAwake.label")}
+          />
+        </Preference>
+      </SettingsSection>
 
       <ThemeColorPreview themeId={colorTheme} />
+
+      {/* Three settings with one trigger between them, so they are read
+          together rather than found one at a time down a long list. */}
+      <SettingsSection
+        title={t("interface.completionTitle")}
+        description={t("interface.completionDescription")}
+      >
+        <Preference
+          label={t("interface.taskCompletionVisualFeedback.label")}
+          description={t("interface.taskCompletionVisualFeedback.description")}
+        >
+          <Select
+            value={visualFeedback}
+            onValueChange={(next) => {
+              const value = next as TaskCompletionVisualFeedback;
+              setVisualFeedback(value);
+              updateInterfacePrefs.mutate({ task_completion_visual_feedback: value });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+          >
+            <SelectTrigger className="sm:w-52">
+              <SelectValue>
+                {t(`interface.taskCompletionVisualFeedback.options.${visualFeedback}` as never)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {TASK_COMPLETION_VISUAL_FEEDBACK_VALUES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`interface.taskCompletionVisualFeedback.options.${value}` as never)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => dispatchTaskCompletionVisualFeedback(visualFeedback)}
+            disabled={visualFeedback === "none"}
+          >
+            {t("interface.taskCompletionVisualFeedback.preview")}
+          </Button>
+        </Preference>
+
+        <Preference
+          label={t("interface.taskCompletionAudioFeedback.label")}
+          description={t("interface.taskCompletionAudioFeedback.description")}
+        >
+          <Switch
+            checked={audioFeedback}
+            onCheckedChange={(next) => {
+              setAudioFeedback(next);
+              updateInterfacePrefs.mutate({ task_completion_audio_feedback: next });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+            aria-label={t("interface.taskCompletionAudioFeedback.label")}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => playTaskCompletionSound()}
+          >
+            {t("interface.taskCompletionAudioFeedback.preview")}
+          </Button>
+        </Preference>
+
+        <Preference
+          label={t("interface.taskCompletionHapticFeedback.label")}
+          description={t("interface.taskCompletionHapticFeedback.description")}
+        >
+          <Switch
+            checked={hapticFeedback}
+            onCheckedChange={(next) => {
+              setHapticFeedback(next);
+              updateInterfacePrefs.mutate({ task_completion_haptic_feedback: next });
+            }}
+            disabled={updateInterfacePrefs.isPending}
+            aria-label={t("interface.taskCompletionHapticFeedback.label")}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => triggerTaskCompletionHaptic()}
+          >
+            {t("interface.taskCompletionHapticFeedback.preview")}
+          </Button>
+        </Preference>
+      </SettingsSection>
     </div>
   );
 };

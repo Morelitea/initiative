@@ -66,7 +66,7 @@ Check the **Trash** (in Community settings, or your personal Trash for your own 
 
 ### Why are my due dates or reminders off by a few hours?
 
-Your **timezone** is probably wrong. Fix it in **User settings → Profile**. See [Profile & preferences](../account/profile-and-preferences.md).
+Your **timezone** is probably wrong. Fix it in **User settings → Interface**. See [Profile & preferences](../account/profile-and-preferences.md).
 
 ### I'm getting too many (or too few) emails.
 

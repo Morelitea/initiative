@@ -30,7 +30,7 @@ It only ever returns what you already have access to, so a search never tells yo
 
 ### The results page
 
-Results are grouped into tabs — **Tools**, **Members**, **Comments** and **Tags**. It opens on Tools, which is where most things you're looking for live. Every tab stays clickable, so you can always check one for yourself; an empty one says so.
+Results are grouped into tabs — **Tools**, **Members**, **Comments** and **Tags**. It opens on Tools, which is where most things you're looking for live. Every tab stays clickable, so you can always check one for yourself; an empty one says so. Opening someone from **Members** takes you to [their profile](../account/profile-and-preferences.md#your-profile-page).
 
 Each result shows the line that matched, with your words highlighted, so you can tell which of five similarly-named documents is the one you want before opening any of them.
 

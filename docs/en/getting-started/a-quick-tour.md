@@ -29,7 +29,7 @@ When you're in a community, the sidebar maps out that community. You'll usually 
 
 Pinned to the **bottom** of the sidebar are your personal controls:
 
-- Your **name and avatar** — opens your **account menu**, **settings**, and **sign out**.
+- Your **name and picture** — opens your **account menu**, with **My profile**, your **settings**, and **sign out**. Your picture wears whatever frame you have put on it.
 - The **light / dark theme** toggle — switch the whole app between **Light**, **Dark**, or **System** (which follows your device's own setting). Set it once and forget it.
 - Your **notifications** — a running list of everything you've been alerted to.
 

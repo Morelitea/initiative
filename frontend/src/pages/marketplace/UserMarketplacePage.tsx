@@ -28,7 +28,7 @@ export const UserMarketplacePage = ({ user }: { user: UserRead }) => {
           <p className="text-muted-foreground text-sm">{t("store.description")}</p>
         </div>
         <Button variant="outline" asChild>
-          <Link to="/profile/decorations">{t("store.manage")}</Link>
+          <Link to="/profile">{t("store.manage")}</Link>
         </Button>
       </div>
       <DecorationStore user={user} />
