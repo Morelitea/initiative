@@ -181,10 +181,19 @@ const reactionSummary = (
     emoji.push(latestEmoji);
   }
 
+  // `reactor_count` counts everyone the line has rolled up, including people
+  // whose reactions have since rolled off the detail it keeps — counting the
+  // names here would understate the crowd on a busy comment. Rows written
+  // before the roster existed only ever had the names, so they use those.
+  const rostered = Number(data.reactor_count);
+  const others = Number.isFinite(rostered)
+    ? Math.max(rostered - 1, 0)
+    : new Set(names.filter((name) => name !== reactorName)).size;
+
   return {
     reactorName,
     emoji: Array.from(new Set(emoji)).slice(0, MAX_SHOWN_REACTION_EMOJI).join(""),
-    others: new Set(names.filter((name) => name !== reactorName)).size,
+    others,
   };
 };
 

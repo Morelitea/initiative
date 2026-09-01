@@ -158,6 +158,8 @@ describe("NotificationBell reaction notifications", () => {
           target_path: "/go/task/3",
           context_title: "Ship the thing",
           count: 3,
+          reactor_count: 2,
+          reactor_ids: [2, 3],
           emoji: "🎉",
           reactor_name: "@carol",
           reactor_id: 3,
@@ -176,6 +178,34 @@ describe("NotificationBell reaction notifications", () => {
     expect(
       await screen.findByText(/@carol and 1 other reacted 👍🎉 to your comment on Ship the thing/i)
     ).toBeInTheDocument();
+  });
+
+  it("counts everyone the line rolled up, not just the reactions it kept", async () => {
+    mockInbox([
+      buildNotification({
+        type: "comment_reaction" as NotificationType,
+        data: {
+          guild_id: 1,
+          target_type: "comment",
+          target_id: 7,
+          target_path: "/go/task/3",
+          context_title: "Ship the thing",
+          count: 40,
+          reactor_count: 40,
+          // The detail has rolled off; only the two most recent survive.
+          reactions: [
+            { id: 39, emoji: "👍", reactor_id: 39, reactor_name: "@u39" },
+            { id: 40, emoji: "🎉", reactor_id: 40, reactor_name: "@u40" },
+          ],
+          emoji: "🎉",
+          reactor_name: "@u40",
+          reactor_id: 40,
+        },
+      }),
+    ]);
+    await openBell();
+
+    expect(await screen.findByText(/@u40 and 39 others reacted/i)).toBeInTheDocument();
   });
 
   it("reads a pre-rollup notification as the single reaction it named", async () => {

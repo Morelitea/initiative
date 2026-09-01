@@ -4,7 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -1818,10 +1818,16 @@ async def process_assignment_digest_gc() -> None:
 # --- Reactions -------------------------------------------------------------
 
 
-#: How many individual reactions one rolled-up bell line remembers by name.
+#: How many individual reactions one rolled-up bell line remembers in detail.
 #: ``count`` above it stays the whole truth; this only bounds how much of the
 #: payload the line carries so a popular comment cannot grow it without limit.
 MAX_ROLLED_UP_REACTIONS = 20
+
+#: How many distinct reactors the line rosters. The roster is what the sentence
+#: counts ("and 12 others"), so it is kept separately from the detail above and
+#: held to a far higher bound: it is one id per person, and it must not shrink
+#: as older reactions roll off, or the line would understate its own crowd.
+MAX_ROLLED_UP_REACTORS = 100
 
 
 def _reaction_rollup_match(reaction, guild_id: int) -> dict[str, object]:
@@ -1854,6 +1860,23 @@ def _rolled_up_reactions(data: Mapping[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _rolled_up_reactor_ids(data: Mapping[str, Any]) -> list[int]:
+    """The distinct people a bell line has rostered, oldest first.
+
+    A line written before the roster existed answers from the reactions it
+    still remembers, which for such a line is all it ever had.
+    """
+    rostered = data.get("reactor_ids")
+    if isinstance(rostered, list):
+        return [value for value in rostered if isinstance(value, int)]
+    seen: list[int] = []
+    for entry in _rolled_up_reactions(data):
+        reactor_id = entry.get("reactor_id")
+        if isinstance(reactor_id, int) and reactor_id not in seen:
+            seen.append(reactor_id)
+    return seen
+
+
 def _rolled_up_count(data: Mapping[str, Any]) -> int:
     """How many reactions the line stands for, including any that have rolled
     past :data:`MAX_ROLLED_UP_REACTIONS`."""
@@ -1868,6 +1891,7 @@ def _reaction_line(
     entries: Sequence[dict[str, Any]],
     *,
     count: int,
+    reactor_ids: Sequence[int],
     context_title: str,
     target_path: str,
     smart_link: str | None,
@@ -1879,7 +1903,10 @@ def _reaction_line(
 
     ``emoji`` / ``reactor_name`` / ``reactor_id`` keep naming the most recent
     one: a client that predates the rollup still renders a true sentence, and
-    the newer client uses them as the reactor it names first.
+    the newer client uses them as the reactor it names first. ``reactor_ids``
+    is what the sentence counts, so it outlives the detail entries — a line
+    whose oldest reactions have rolled off still knows how many people are in
+    it.
     """
     latest = entries[-1] if entries else {}
     return {
@@ -1893,6 +1920,8 @@ def _reaction_line(
         "reactor_name": latest.get("reactor_name"),
         "reactor_id": latest.get("reactor_id"),
         "count": count,
+        "reactor_count": len(reactor_ids),
+        "reactor_ids": list(reactor_ids),
         "reactions": list(entries[-MAX_ROLLED_UP_REACTIONS:]),
     }
 
@@ -1950,9 +1979,13 @@ async def enqueue_reaction_event(
         match=_reaction_rollup_match(reaction, guild_id),
     )
     previous: Mapping[str, Any] = (existing.data if existing else None) or {}
+    roster = _rolled_up_reactor_ids(previous)
+    if reactor.id not in roster and len(roster) < MAX_ROLLED_UP_REACTORS:
+        roster.append(cast(int, reactor.id))
     line = _reaction_line(
         _rolled_up_reactions(previous) + [entry],
         count=_rolled_up_count(previous) + 1,
+        reactor_ids=roster,
         context_title=context_title,
         target_path=target_path,
         smart_link=smart_link,
@@ -1985,11 +2018,31 @@ async def enqueue_reaction_event(
         )
 
 
+def _matches_withdrawn(
+    entry: Mapping[str, Any], *, reaction_id: int, reactor_id: int, emoji: str
+) -> bool:
+    """Whether a rolled-up entry is the gesture being taken back.
+
+    Normally the reaction's own id answers it. A line written before the
+    rollup carries no id, so it is matched on who reacted and with what —
+    which for a line holding a single gesture is the same question.
+    """
+    if entry.get("id") == reaction_id:
+        return True
+    return (
+        entry.get("id") is None
+        and entry.get("reactor_id") == reactor_id
+        and entry.get("emoji") == emoji
+    )
+
+
 async def withdraw_reaction_event(
     session: AsyncSession,
     *,
     author_id: int,
     reaction_id: int,
+    reactor_id: int,
+    emoji: str,
     target_type: str,
     target_id: int,
     guild_id: int,
@@ -1998,7 +2051,7 @@ async def withdraw_reaction_event(
 
     Un-reacting should leave no trace where the recipient has not looked yet,
     the same rule the queued digest line follows. Only a line still holding
-    this exact reaction is touched: one the recipient has already read is
+    this exact gesture is touched: one the recipient has already read is
     history, and one that has rolled the gesture past the payload cap can no
     longer prove it was ever there, so both are left alone rather than
     decremented on a guess.
@@ -2021,19 +2074,31 @@ async def withdraw_reaction_event(
         return
     previous: Mapping[str, Any] = existing.data or {}
     entries = _rolled_up_reactions(previous)
-    remaining = [entry for entry in entries if entry.get("id") != reaction_id]
+    remaining = [
+        entry
+        for entry in entries
+        if not _matches_withdrawn(
+            entry, reaction_id=reaction_id, reactor_id=reactor_id, emoji=emoji
+        )
+    ]
     if len(remaining) == len(entries):
         return
     count = _rolled_up_count(previous) - 1
     if count <= 0 or not remaining:
         await user_notifications.delete_notification(session, existing)
         return
+    # The reactor leaves the roster only once the line remembers nothing else
+    # of theirs — a second emoji of theirs still counts them as present.
+    roster = _rolled_up_reactor_ids(previous)
+    if all(entry.get("reactor_id") != reactor_id for entry in remaining):
+        roster = [rostered for rostered in roster if rostered != reactor_id]
     await user_notifications.refresh_notification(
         session,
         existing,
         data=_reaction_line(
             remaining,
             count=count,
+            reactor_ids=roster,
             context_title=previous.get("context_title") or "",
             target_path=previous.get("target_path") or MY_TASKS_TARGET_PATH,
             smart_link=previous.get("smart_link"),

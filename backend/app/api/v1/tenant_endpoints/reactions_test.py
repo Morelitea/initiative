@@ -631,6 +631,9 @@ class TestReactionNotifications:
         assert len(bell) == 1
         data = bell[0].data
         assert data["count"] == 3
+        # Two people, three gestures — the sentence counts people.
+        assert data["reactor_count"] == 2
+        assert set(data["reactor_ids"]) == {b.user.id, c.user.id}
         assert [entry["emoji"] for entry in data["reactions"]] == [
             THUMBS,
             PARTY,
@@ -742,6 +745,64 @@ class TestReactionNotifications:
         assert [entry["emoji"] for entry in line.data["reactions"]] == [THUMBS]
 
         # Take the last one back and the line has nothing left to say.
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
+        )
+        session.expunge_all()
+        assert await _bell() == []
+
+    async def test_a_pre_rollup_line_can_still_be_un_said(
+        self, client, session, acting_user
+    ):
+        """A line written before reactions rolled up carries no reaction id, so
+        it has to be matched on who reacted and with what — otherwise the first
+        un-react after the upgrade leaves it standing forever."""
+        from app.models.platform.notification import Notification, NotificationType
+        from sqlmodel import select
+
+        a = await acting_user(
+            guild_role=GuildRole.member, initiative=True, project=True
+        )
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(
+            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        )
+        task = await create_task(session, a.project)
+        comment_id = await _comment_on_task(client, a, task.id)
+
+        await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
+        )
+
+        async def _bell():
+            return (
+                await session.exec(
+                    select(Notification).where(
+                        Notification.user_id == a.user.id,
+                        Notification.type == NotificationType.comment_reaction,
+                    )
+                )
+            ).all()
+
+        # Rewrite the line into the shape this feature replaced.
+        [line] = await _bell()
+        line.data = {
+            key: value
+            for key, value in line.data.items()
+            if key not in {"count", "reactions", "reactor_count", "reactor_ids"}
+        }
+        session.add(line)
+        await session.commit()
+
         await client.put(
             a.g(f"/reactions/comment/{comment_id}"),
             headers=b.headers,

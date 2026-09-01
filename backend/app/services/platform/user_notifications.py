@@ -67,13 +67,20 @@ async def refresh_notification(
 ) -> Notification:
     """Rewrite a notification's payload in place.
 
-    ``bump`` moves it back to the top of the inbox, which is what a rolled-up
-    line wants: the entry is about the latest event, so it should sort by it.
-    A withdrawal passes ``bump=False`` — taking something away is not news.
+    ``bump`` says the line has something new to say, so it returns to the top
+    of the inbox AND to unread. Unread matters for more than tidiness: the
+    recipient can mark the line read between the lookup that found it and this
+    write, and a rolled-up event landing on an already-read line would never be
+    seen. Clearing the stamp is a no-op on the line this was meant for — it was
+    unread when it was found — and the right answer when it is not.
+
+    A withdrawal passes ``bump=False``: taking something away is not news, and
+    must not resurrect a line the recipient has already dealt with.
     """
     notification.data = dict(data)
     if bump:
         notification.created_at = datetime.now(timezone.utc)
+        notification.read_at = None
     session.add(notification)
     await session.flush()
     return notification

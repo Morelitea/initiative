@@ -282,6 +282,7 @@ async def toggle_reaction(
             session,
             reaction_id=cast(int, removed),
             reactor=user,
+            emoji=emoji,
             ctx=ctx,
             guild_id=guild_id,
         )
@@ -376,6 +377,7 @@ async def _withdraw_reaction_notification(
     *,
     reaction_id: int,
     reactor: User,
+    emoji: str,
     ctx: TargetContext,
     guild_id: int,
 ) -> None:
@@ -393,6 +395,8 @@ async def _withdraw_reaction_notification(
         session,
         author_id=ctx.author_id,
         reaction_id=reaction_id,
+        reactor_id=cast(int, reactor.id),
+        emoji=emoji,
         target_type=ctx.target.value,
         target_id=ctx.target_id,
         guild_id=guild_id,
