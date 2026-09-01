@@ -51,10 +51,16 @@ from app.core.user_input_validators import (
 from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
+from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.schemas.platform.guild import (
+    CommunityGuildRead,
+    GuildBannerRead,
+    GuildCategory,
+)
 from app.schemas.platform.user import (
     DecorationPack,
     DecorationPackListResponse,
@@ -95,6 +101,8 @@ from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
+from app.services.platform import guild_images as images_service
+from app.services.realtime import manager as realtime_manager
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
 from app.services.platform.guilds import adopt_guild_name_display
@@ -458,6 +466,85 @@ async def read_user_profile(
         online=presence.online.is_online(row.id),
         joined_at=row.created_at,
     )
+
+
+@router.get("/{handle}/communities", response_model=List[CommunityGuildRead])
+async def read_user_communities(
+    handle: str,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[CommunityGuildRead]:
+    """The listed communities one person belongs to.
+
+    A separate read from the profile on purpose: the profile is the public
+    projection of ``public.users`` and this is not about that row at all. It
+    also cannot run on the same session — ``guild_memberships`` is scoped to
+    the caller's own rows on the request path, and the question is about
+    somebody else — so it takes the system engine, exactly as the directory
+    does, with the same service-side filters deciding what may appear.
+
+    Only guilds that opted into the directory. One someone is in that did not
+    is nobody else's business, and does not appear here for anyone.
+    """
+    parsed = usernames.parse_url_handle(handle)
+    if parsed is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    name, discriminator = parsed
+    subject = (
+        await admin_session.exec(
+            select(User).where(
+                func.lower(User.username) == name,
+                User.discriminator == discriminator,
+                users_service.visible_to_other_people(),
+            )
+        )
+    ).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+
+    guilds = await guilds_service.list_profile_communities(
+        admin_session, user_id=subject.id
+    )
+    mine = {
+        row.guild_id
+        for row in (
+            await admin_session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.user_id == current_user.id
+                )
+            )
+        ).all()
+    }
+    online = realtime_manager.present_counts(guild.id for guild in guilds)
+    # Digests only, in one query: a card names its pictures, never carries them.
+    images = await images_service.image_urls(
+        admin_session,
+        [guild.id for guild in guilds],
+        GuildImageVariant.icon,
+        GuildImageVariant.card,
+    )
+    return [
+        CommunityGuildRead(
+            id=guild.id,
+            name=guild.name,
+            description=guild.description,
+            icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
+            banner=GuildBannerRead(
+                image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
+                **guild.banner,
+            ),
+            categories=[GuildCategory(value) for value in guild.categories],
+            online_count=online.get(guild.id, 0),
+            already_member=guild.id in mine,
+        )
+        for guild in guilds
+    ]
 
 
 _GUILD_CSV_HEADERS = [

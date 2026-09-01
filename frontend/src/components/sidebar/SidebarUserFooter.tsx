@@ -84,6 +84,7 @@ export const SidebarUserFooter = ({
                 <ProfileAvatar
                   user={user}
                   decorations={user?.profile_decorations}
+                  online={Boolean(user)}
                   className="size-8 text-xs"
                 />
                 <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left">

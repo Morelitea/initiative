@@ -1093,6 +1093,42 @@ async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> boo
     return bool((await session.exec(statement)).one())
 
 
+async def list_profile_communities(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> list[Guild]:
+    """The listed communities one account belongs to, for their profile.
+
+    Which guilds may appear is ``community_listing_filters()`` — the same list
+    the directory, the join it authorizes and the images it publishes all ask,
+    so a guild that leaves the shelf leaves every profile in the same instant.
+    A guild someone is in that never opted in is nobody else's business and is
+    not here.
+
+    Needs a session that can see another account's ``guild_memberships`` (the
+    system engine): the request path is scoped to the caller's own rows, and
+    the question is about somebody else. Nothing from inside a guild's schema
+    is read — only the identity it published by opting in.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    # A deployment with the directory off publishes no communities at all, so
+    # there is nothing a profile could name.
+    if not await app_settings_service.community_directory_enabled(session):
+        return []
+    stmt = (
+        select(Guild)
+        .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+        .join(
+            GuildAdministration, GuildAdministration.guild_id == Guild.id, isouter=True
+        )
+        .where(GuildMembership.user_id == user_id, *community_listing_filters())
+        .order_by(Guild.name.asc())
+    )
+    return list((await session.exec(stmt)).unique().all())
+
+
 async def list_community_guilds(
     session: AsyncSession,
     *,

@@ -4,11 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getInitialsForUser, getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
+import { getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
@@ -86,10 +85,6 @@ export const CommentThread = ({
   const displayName = comment.author
     ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
     : `User #${comment.created_by}`;
-  const avatarSrc = anonymizedAuthor
-    ? undefined
-    : resolveUploadUrl(comment.author?.avatar_url) || undefined;
-
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
@@ -120,12 +115,16 @@ export const CommentThread = ({
     >
       <div className="rounded-md border border-border p-3">
         <div className="flex gap-3">
-          <Avatar className="h-9 w-9 border bg-background">
-            {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-            <AvatarFallback userId={anonymizedAuthor ? null : comment.created_by}>
-              {getInitialsForUser(comment.author)}
-            </AvatarFallback>
-          </Avatar>
+          {/* The same picture component the profile and the sidebar draw, so
+              a frame someone put on shows wherever they appear at a size it
+              reads at — and the presence dot with it. An anonymized author has
+              neither a picture nor a profile to have decorated. */}
+          <ProfileAvatar
+            user={anonymizedAuthor ? { id: null } : (comment.author ?? { id: comment.created_by })}
+            decorations={anonymizedAuthor ? null : comment.author?.profile_decorations}
+            online={!anonymizedAuthor && comment.author?.online}
+            className="size-9"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
               <span className="font-medium text-foreground">{displayName}</span>

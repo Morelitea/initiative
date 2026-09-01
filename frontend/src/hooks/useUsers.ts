@@ -25,6 +25,7 @@ import {
   updateUsersMeApiV1UsersMePatch,
   useListDecorationPacksApiV1UsersMeDecorationPacksGet,
   useListMyDecorationsApiV1UsersMeDecorationsGet,
+  useReadUserCommunitiesApiV1UsersHandleCommunitiesGet,
   useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
@@ -93,6 +94,18 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
  * Public and community-independent: the same page whoever opens it, so there
  * is no guild in the call.
  */
+/**
+ * The listed communities one person belongs to.
+ *
+ * Its own read rather than part of the profile: the profile is the public
+ * projection of the account row, and this is about guilds. It also changes far
+ * more slowly than a status or a presence dot, so it is held longer.
+ */
+export const useUserCommunities = (handle: string | null | undefined) =>
+  useReadUserCommunitiesApiV1UsersHandleCommunitiesGet(handle as string, {
+    query: { enabled: Boolean(handle), staleTime: 5 * 60_000 },
+  });
+
 export const useUserProfile = (handle: string | null | undefined) =>
   useReadUserProfileApiV1UsersHandleProfileGet(handle as string, {
     query: {

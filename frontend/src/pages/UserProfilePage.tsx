@@ -7,6 +7,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { UserHandle } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileBadges } from "@/components/user/ProfileBadges";
+import { ProfileCommunities } from "@/components/user/ProfileCommunities";
 import { ProfileMeta } from "@/components/user/ProfileMeta";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
 import { useAuth } from "@/hooks/useAuth";
@@ -101,6 +102,8 @@ export const UserProfilePage = () => {
       />
 
       <ProfileMeta online={profile.online} joinedAt={profile.joined_at} />
+
+      <ProfileCommunities handle={handle} />
     </div>
   );
 };

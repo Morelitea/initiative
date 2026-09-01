@@ -24,6 +24,8 @@ vi.mock("@/hooks/useUsers", () => ({
   // The status bubble is a control on your own profile, so it holds a mutation
   // whether or not this one is yours.
   useUpdateCurrentUser: () => ({ mutate: vi.fn(), isPending: false }),
+  // The communities strip is its own read, and shows nothing without one.
+  useUserCommunities: () => ({ data: [] }),
 }));
 
 const router = createRouter({ routeTree });

@@ -29,6 +29,7 @@ from app.testing.factories import (
     get_auth_headers,
     guild_administration,
 )
+from app.core.usernames import url_handle
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -1079,3 +1080,47 @@ async def test_repeat_community_join_does_not_duplicate_enrolment(
         )
     ).all()
     assert len(rows) == 1
+
+
+@pytest.mark.integration
+async def test_a_profile_names_only_the_listed_communities(
+    client: AsyncClient, session: AsyncSession
+):
+    """A profile says which shelves someone is on, and nothing about the
+    guilds they are in that never opted onto one."""
+    subject = await create_user(session, username="tinker")
+    reader = await create_user(session)
+    listed = await _list_as_community(session, await create_guild(session))
+    private = await create_guild(session)
+    for guild in (listed, private):
+        await create_guild_membership(session, user=subject, guild=guild)
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/communities",
+        headers=get_auth_headers(reader),
+    )
+
+    assert response.status_code == 200
+    assert [row["name"] for row in response.json()] == [listed.name]
+
+
+@pytest.mark.integration
+async def test_a_profile_names_no_communities_where_the_directory_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nothing is published on a deployment that publishes nothing."""
+    subject = await create_user(session, username="tinker")
+    reader = await create_user(session)
+    listed = await _list_as_community(session, await create_guild(session))
+    await create_guild_membership(session, user=subject, guild=listed)
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False
+    )
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/communities",
+        headers=get_auth_headers(reader),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

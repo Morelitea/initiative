@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A profile says which communities someone is in.** Only the ones that opted into the community directory — a community that never listed itself does not appear on anybody's profile, for anyone.
+
+- **Frames and the presence dot follow people around.** The picture beside a comment, the one at the bottom of the sidebar and the one on a profile are drawn by the same component now, so a frame you put on shows wherever you appear at a size it reads at, and the green dot with it.
+
 - **Three more decoration packs: Mushrooms, Spooky and Pride.** Mushrooms is for foragers and anyone who stops a walk to look at a log — the badge is a morel, pitted cap and hollow stem, and the frame is the moss and twigs it came up through. Spooky is cobwebs, lantern light and something in the trees, with a web for a frame and a spider still patrolling it. Pride carries the Progress flag in full on its banner and the heart on its badge. Badges are drawn at twice the detail they were and shown at a size that detail survives.
 
 - **Set your status where you read it.** Your status is a thought bubble on your own profile and at the bottom of the sidebar, and clicking either one opens it: the emoji and the line together, both optional, saved on the spot. No form, and no second place that has to agree with the first. Changing your picture works the same way — click the picture.
