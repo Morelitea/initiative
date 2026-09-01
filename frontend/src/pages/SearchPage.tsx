@@ -108,21 +108,6 @@ export function SearchPage() {
     { enabled }
   );
 
-  // One row is all the tab strip needs. The tab being read answers for itself,
-  // so only the others are asked.
-  const toolProbe = useGuildSearch(
-    { q: query, types: categoryEntityTypes("tool"), limit: 1 },
-    { enabled: enabled && tab !== "tool" }
-  );
-  const tagProbe = useGuildSearch(
-    { q: query, types: categoryEntityTypes("tag"), limit: 1 },
-    { enabled: enabled && tab !== "tag" }
-  );
-  const probes: Record<SearchCategory, ReturnType<typeof useGuildSearch>> = {
-    tool: toolProbe,
-    tag: tagProbe,
-  };
-
   // A page past the end of the answer — a link from before the content moved,
   // or a query that has since narrowed. Left alone it reads as "nothing
   // matched", which is the opposite of what happened, so it corrects itself
@@ -140,7 +125,11 @@ export function SearchPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("search:title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">
+          {activeGuild
+            ? t("search:titleInGuild", { guildName: activeGuild.name })
+            : t("search:title")}
+        </h1>
         <div className="relative max-w-2xl">
           <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -166,12 +155,11 @@ export function SearchPage() {
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsBar>
             {SEARCH_CATEGORIES.map((category) => (
-              <TabsTrigger
-                key={category}
-                value={category}
-                // Nothing behind it, and not where the reader already is.
-                disabled={category !== tab && settledTotal(probes[category]) === 0}
-              >
+              // Every tab stays open, including one holding nothing: closing
+              // it off leaves the reader unable to confirm that for themselves,
+              // and unable to get back once a changed query fills it. An empty
+              // tab says so.
+              <TabsTrigger key={category} value={category}>
                 {t(`search:tabs.${category}`)}
               </TabsTrigger>
             ))}

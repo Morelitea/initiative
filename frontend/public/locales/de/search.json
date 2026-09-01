@@ -1,5 +1,6 @@
 {
   "title": "Suche",
+  "titleInGuild": "{{guildName}} durchsuchen",
   "placeholder": "{{guildName}} durchsuchen",
   "seeAll": "Alle anzeigen",
   "prompt": {
