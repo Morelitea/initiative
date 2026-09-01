@@ -10,6 +10,7 @@ Tests the user API endpoints at /api/v1/users including:
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,9 +21,10 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
-from app.core.profile_packs import PROFILE_PACKS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
+from app.services.marketplace import catalog as marketplace_catalog
+from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services.realtime import manager as realtime_manager
@@ -32,6 +34,8 @@ from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_initiative,
+    create_marketplace_listing,
+    create_profile_pack,
     create_project,
     create_task,
     create_user,
@@ -1401,6 +1405,8 @@ async def test_library_carries_what_a_pack_granted(
     assert granted == {
         "id": "pack.midnight",
         "kind": "banner",
+        # No listing behind this row in this test, so no name to carry.
+        "name": None,
         "source": "studio.midnight-pack",
     }
     assert len(items) == len(SHIPPED_DECORATIONS) + 1
@@ -1552,25 +1558,53 @@ async def test_profile_404s_on_something_that_is_not_a_handle(
 async def test_decoration_packs_list_the_store(
     client: AsyncClient, session: AsyncSession
 ):
-    """Every pack this build ships, none of them held yet."""
+    """The shelf is the marketplace catalog: a pack is a listing, named by its
+    publisher and identified by the uid a granted row records."""
     user = await create_user(session)
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
 
     response = await client.get(
         "/api/v1/users/me/decoration-packs", headers=get_auth_headers(user)
     )
 
     assert response.status_code == 200
-    items = response.json()["items"]
-    assert {item["id"] for item in items} == set(PROFILE_PACKS)
-    assert all(item["installed"] is False for item in items)
-    ttrpg = next(item for item in items if item["id"] == "ttrpg")
+    entry = next(
+        item for item in response.json()["items"] if item["uid"] == listing.uid
+    )
+    assert entry["installed"] is False
+    assert entry["public_id"] == listing.public_id
+    assert entry["name"] == listing.name
+    assert entry["publisher"] == listing.publisher
     # A pack is a set you take together: one of each slot.
-    assert {content["kind"] for content in ttrpg["contents"]} == {
+    assert {content["kind"] for content in entry["contents"]} == {
         "banner",
         "frame",
         "badge",
     }
-    assert all(content["source"] == "ttrpg" for content in ttrpg["contents"])
+    assert all(content["source"] == listing.uid for content in entry["contents"])
+
+
+@pytest.mark.integration
+async def test_the_shipped_packs_are_on_the_shelf(
+    client: AsyncClient, session: AsyncSession
+):
+    """The packs this build ships reach the store the way any listing does —
+    through the catalog, seeded from their manifests."""
+    user = await create_user(session)
+    for manifest in load_builtin_manifests():
+        if manifest.get("kind") == "profile_pack":
+            await marketplace_catalog.upsert_listing(
+                session, manifest, source="builtin"
+            )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decoration-packs", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    shipped = {item["public_id"] for item in response.json()["items"]}
+    assert {"core.tabletop", "core.soundcheck", "core.observatory"} <= shipped
 
 
 @pytest.mark.integration
@@ -1579,10 +1613,11 @@ async def test_installing_a_pack_puts_it_in_the_library(
 ):
     """What the store grants is what the pickers then offer."""
     user = await create_user(session)
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
     headers = get_auth_headers(user)
 
     install = await client.post(
-        "/api/v1/users/me/decoration-packs/ttrpg", headers=headers
+        f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=headers
     )
 
     assert install.status_code == 200
@@ -1590,13 +1625,13 @@ async def test_installing_a_pack_puts_it_in_the_library(
 
     library = await client.get("/api/v1/users/me/decorations", headers=headers)
     owned = {item["id"]: item for item in library.json()["items"]}
-    assert "ttrpg.d20" in owned
-    assert owned["ttrpg.d20"]["kind"] == "badge"
-    assert owned["ttrpg.d20"]["source"] == "ttrpg"
+    assert owned["tt.badge"]["kind"] == "badge"
+    # The grant records the listing uid — the one name for this pack anywhere.
+    assert owned["tt.badge"]["source"] == listing.uid
 
     listed = await client.get("/api/v1/users/me/decoration-packs", headers=headers)
-    installed = {item["id"] for item in listed.json()["items"] if item["installed"]}
-    assert installed == {"ttrpg"}
+    installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
+    assert installed == {listing.uid}
 
 
 @pytest.mark.integration
@@ -1605,41 +1640,45 @@ async def test_installing_a_pack_twice_changes_nothing(
 ):
     """A second click on a slow connection is not a second copy."""
     user = await create_user(session)
+    listing = await create_profile_pack(session, uid="PACKBAND000001", slug="mu")
     headers = get_auth_headers(user)
 
     for _ in range(2):
         assert (
             await client.post(
-                "/api/v1/users/me/decoration-packs/music", headers=headers
+                f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=headers
             )
         ).status_code == 200
 
     library = await client.get("/api/v1/users/me/decorations", headers=headers)
     ids = [item["id"] for item in library.json()["items"]]
-    assert ids.count("music.vinyl") == 1
+    assert ids.count("mu.frame") == 1
 
 
 @pytest.mark.integration
 async def test_a_pack_you_have_is_wearable(client: AsyncClient, session: AsyncSession):
     """The whole point of taking one."""
     user = await create_user(session)
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
     headers = get_auth_headers(user)
-    await client.post("/api/v1/users/me/decoration-packs/ttrpg", headers=headers)
+    await client.post(
+        f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=headers
+    )
 
     response = await client.patch(
         "/api/v1/users/me",
         headers=headers,
         json={
             "profile_decorations": {
-                "banner": "ttrpg.dicetower",
-                "frame": "ttrpg.natural20",
-                "badges": ["ttrpg.d20"],
+                "banner": "tt.banner",
+                "frame": "tt.frame",
+                "badges": ["tt.badge"],
             }
         },
     )
 
     assert response.status_code == 200
-    assert response.json()["profile_decorations"]["badges"] == ["ttrpg.d20"]
+    assert response.json()["profile_decorations"]["badges"] == ["tt.badge"]
 
 
 @pytest.mark.integration
@@ -1648,11 +1687,12 @@ async def test_a_pack_you_do_not_have_is_not_wearable(
 ):
     """The store is the only way in."""
     user = await create_user(session)
+    await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
 
     response = await client.patch(
         "/api/v1/users/me",
         headers=get_auth_headers(user),
-        json={"profile_decorations": {"badges": ["ttrpg.d20"]}},
+        json={"profile_decorations": {"badges": ["tt.badge"]}},
     )
 
     assert response.status_code == 422
@@ -1666,23 +1706,29 @@ async def test_removing_a_pack_takes_off_what_was_worn(
     """A profile must not go on wearing what the account gave back — the next
     unrelated edit would be refused if it did."""
     user = await create_user(session)
+    tabletop = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    music = await create_profile_pack(
+        session, uid="PACKBAND000001", public_id="test.music", slug="mu"
+    )
     headers = get_auth_headers(user)
-    await client.post("/api/v1/users/me/decoration-packs/ttrpg", headers=headers)
-    await client.post("/api/v1/users/me/decoration-packs/music", headers=headers)
+    for listing in (tabletop, music):
+        await client.post(
+            f"/api/v1/users/me/decoration-packs/{listing.uid}", headers=headers
+        )
     await client.patch(
         "/api/v1/users/me",
         headers=headers,
         json={
             "profile_decorations": {
-                "banner": "ttrpg.dicetower",
-                "frame": "music.vinyl",
-                "badges": ["ttrpg.d20", "music.cassette"],
+                "banner": "tt.banner",
+                "frame": "mu.frame",
+                "badges": ["tt.badge", "mu.badge"],
             }
         },
     )
 
     removed = await client.delete(
-        "/api/v1/users/me/decoration-packs/ttrpg", headers=headers
+        f"/api/v1/users/me/decoration-packs/{tabletop.uid}", headers=headers
     )
 
     assert removed.status_code == 200
@@ -1690,13 +1736,13 @@ async def test_removing_a_pack_takes_off_what_was_worn(
 
     me = await client.get("/api/v1/users/me", headers=headers)
     worn = me.json()["profile_decorations"]
-    # The tabletop pieces came off; the band's stayed on.
+    # The tabletop pieces came off; the other pack's stayed on.
     assert worn["banner"] is None
-    assert worn["frame"] == "music.vinyl"
-    assert worn["badges"] == ["music.cassette"]
+    assert worn["frame"] == "mu.frame"
+    assert worn["badges"] == ["mu.badge"]
 
     library = await client.get("/api/v1/users/me/decorations", headers=headers)
-    assert "ttrpg.d20" not in {item["id"] for item in library.json()["items"]}
+    assert "tt.badge" not in {item["id"] for item in library.json()["items"]}
 
 
 @pytest.mark.integration
@@ -1705,21 +1751,22 @@ async def test_removing_a_pack_leaves_someone_elses_library_alone(
 ):
     user = await create_user(session)
     other = await create_user(session)
-    await client.post(
-        "/api/v1/users/me/decoration-packs/ttrpg", headers=get_auth_headers(user)
-    )
-    await client.post(
-        "/api/v1/users/me/decoration-packs/ttrpg", headers=get_auth_headers(other)
-    )
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    for who in (user, other):
+        await client.post(
+            f"/api/v1/users/me/decoration-packs/{listing.uid}",
+            headers=get_auth_headers(who),
+        )
 
     await client.delete(
-        "/api/v1/users/me/decoration-packs/ttrpg", headers=get_auth_headers(user)
+        f"/api/v1/users/me/decoration-packs/{listing.uid}",
+        headers=get_auth_headers(user),
     )
 
     library = await client.get(
         "/api/v1/users/me/decorations", headers=get_auth_headers(other)
     )
-    assert "ttrpg.d20" in {item["id"] for item in library.json()["items"]}
+    assert "tt.badge" in {item["id"] for item in library.json()["items"]}
 
 
 @pytest.mark.integration
@@ -1729,7 +1776,8 @@ async def test_an_unknown_pack_is_not_a_pack(
     user = await create_user(session)
 
     response = await client.post(
-        "/api/v1/users/me/decoration-packs/nonesuch", headers=get_auth_headers(user)
+        "/api/v1/users/me/decoration-packs/NSCHPACK000001",
+        headers=get_auth_headers(user),
     )
 
     assert response.status_code == 404
@@ -1737,9 +1785,23 @@ async def test_an_unknown_pack_is_not_a_pack(
 
 
 @pytest.mark.integration
-async def test_installing_a_pack_survives_two_requests_at_once(
-    session: AsyncSession,
+async def test_a_listing_of_another_kind_is_not_a_pack(
+    client: AsyncClient, session: AsyncSession
 ):
+    """A uid names a listing; only a profile pack installs to a person."""
+    user = await create_user(session)
+    dashboard = await create_marketplace_listing(session, uid="DASHBRD0000001")
+
+    response = await client.post(
+        f"/api/v1/users/me/decoration-packs/{dashboard.uid}",
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_installing_a_pack_survives_two_requests_at_once(session: AsyncSession):
     """Two installs that cannot see each other's rows.
 
     The real race is two requests in flight together, neither's insert visible
@@ -1748,7 +1810,8 @@ async def test_installing_a_pack_survives_two_requests_at_once(
     both conclude the same row was missing and collide on the primary key.
     """
     user = await create_user(session)
-    pack = PROFILE_PACKS["ttrpg"]
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
 
     await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
     await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
@@ -1775,22 +1838,18 @@ async def test_giving_a_pack_back_is_all_or_nothing(session: AsyncSession):
     # Held before the rollback below, which expires every instance: reading
     # ``user.id`` afterwards would be a lazy refresh in the wrong place.
     user_id = user.id
-    pack = PROFILE_PACKS["ttrpg"]
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
     await profile_decorations_service.install_pack(session, user_id=user_id, pack=pack)
     user.profile_decorations = {
-        "banner": "ttrpg.dicetower",
+        "banner": "tt.banner",
         "frame": None,
-        "badges": ["ttrpg.d20"],
+        "badges": ["tt.badge"],
     }
     session.add(user)
     await session.commit()
 
-    await profile_decorations_service.remove_pack(
-        session,
-        user_id=user_id,
-        pack=pack,
-        worn=profile_decorations_service.user_is_wearing(user),
-    )
+    await profile_decorations_service.remove_pack(session, user_id=user_id, pack=pack)
     await session.rollback()
 
     still_held = (
@@ -1800,4 +1859,52 @@ async def test_giving_a_pack_back_is_all_or_nothing(session: AsyncSession):
     ).all()
     fresh = (await session.exec(select(User).where(User.id == user_id))).one()
     assert len(still_held) == len(pack.decorations)
-    assert fresh.profile_decorations["banner"] == "ttrpg.dicetower"
+    assert fresh.profile_decorations["banner"] == "tt.banner"
+
+
+@pytest.mark.integration
+async def test_giving_a_pack_back_reads_what_is_worn_now(session: AsyncSession):
+    """Undressing works from the value in the database, not one read earlier.
+
+    Building a whole replacement from a stale read is how a profile edit that
+    lands in between gets overwritten — or how a piece the reader just took off
+    comes back. The read happens inside the transaction, under a row lock.
+    """
+    user = await create_user(session)
+    user_id = user.id
+    listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
+    music = await create_profile_pack(
+        session, uid="PACKBAND000001", public_id="test.music", slug="mu"
+    )
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
+    music_pack = await profile_decorations_service.pack_by_uid(session, music.uid)
+    await profile_decorations_service.install_pack(session, user_id=user_id, pack=pack)
+    await profile_decorations_service.install_pack(
+        session, user_id=user_id, pack=music_pack
+    )
+    user.profile_decorations = {"banner": "tt.banner", "frame": None, "badges": []}
+    session.add(user)
+    await session.commit()
+
+    # Somebody changes their look after that value was last read anywhere.
+    await session.exec(
+        update(User)
+        .where(User.id == user_id)
+        .values(
+            profile_decorations={
+                "banner": "mu.banner",
+                "frame": "tt.frame",
+                "badges": ["mu.badge"],
+            }
+        )
+    )
+    await session.commit()
+
+    await profile_decorations_service.remove_pack(session, user_id=user_id, pack=pack)
+    await session.commit()
+
+    fresh = (await session.exec(select(User).where(User.id == user_id))).one()
+    # The newer choice survived; only the given-back pack's piece came off.
+    assert fresh.profile_decorations["banner"] == "mu.banner"
+    assert fresh.profile_decorations["frame"] is None
+    assert fresh.profile_decorations["badges"] == ["mu.badge"]

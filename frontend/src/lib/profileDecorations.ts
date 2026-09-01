@@ -45,36 +45,12 @@ type DecorationName =
   | "orbital"
   | "flask";
 
-/** The packs this build has artwork for. */
-export type PackId = "ttrpg" | "music" | "science";
-
-export interface Pack {
-  id: PackId;
-  nameKey: `packs.${PackId}.name`;
-  taglineKey: `packs.${PackId}.tagline`;
-  /** The decoration whose artwork stands for the pack in the store. */
-  coverId: string;
-}
-
-const pack = (id: PackId, coverId: string): Pack => ({
-  id,
-  nameKey: `packs.${id}.name`,
-  taglineKey: `packs.${id}.tagline`,
-  coverId,
-});
-
 /**
- * The packs, by id. The server decides what a pack *contains* and whether you
- * have it; this is what the store needs to draw one.
+ * A pack is a marketplace listing now, so its name, publisher and description
+ * come from the catalog — this file only says what its *pieces* look like.
+ * That is why there is no pack table here: a pack published tomorrow needs no
+ * entry, only artwork for the ids it grants.
  */
-export const PACKS: Readonly<Record<string, Pack>> = {
-  ttrpg: pack("ttrpg", "ttrpg.dicetower"),
-  music: pack("music", "music.soundcheck"),
-  science: pack("science", "science.observatory"),
-};
-
-/** The pack this id names, if this build has artwork for it. */
-export const resolvePack = (id: string): Pack | undefined => PACKS[id];
 
 export interface Decoration {
   id: string;

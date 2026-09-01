@@ -62,7 +62,8 @@
     "installed": "In your collection",
     "empty": "No packs in this build.",
     "failed": "That pack could not be changed.",
-    "got": "Pack downloaded."
+    "got": "Pack downloaded.",
+    "manage": "Your packs"
   },
   "look": {
     "save": "Save look",
@@ -75,6 +76,7 @@
     "description": "What you have downloaded, and what each one gave you. Give a pack back and its pieces go, along with anything from it you were wearing.",
     "empty": "You have not downloaded a pack yet. Pick one above and its pieces land here.",
     "remove": "Give back",
-    "removed": "Pack given back."
+    "removed": "Pack given back.",
+    "browse": "Browse the marketplace"
   }
 }

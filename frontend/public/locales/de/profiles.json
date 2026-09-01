@@ -62,7 +62,8 @@
     "installed": "In deiner Sammlung",
     "empty": "In dieser Version gibt es keine Packs.",
     "failed": "Dieses Pack konnte nicht geändert werden.",
-    "got": "Pack heruntergeladen."
+    "got": "Pack heruntergeladen.",
+    "manage": "Deine Packs"
   },
   "look": {
     "save": "Aussehen speichern",
@@ -75,6 +76,7 @@
     "description": "Was du heruntergeladen hast und was jedes Pack dir gebracht hat. Gibst du eines zurück, verschwinden seine Teile – samt allem, was du davon getragen hast.",
     "empty": "Du hast noch kein Pack heruntergeladen. Wähl oben eines aus, dann landen seine Teile hier.",
     "remove": "Zurückgeben",
-    "removed": "Pack zurückgegeben."
+    "removed": "Pack zurückgegeben.",
+    "browse": "Marktplatz durchsuchen"
   }
 }

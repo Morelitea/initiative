@@ -36,6 +36,9 @@ from app.services.marketplace.manifest_values import (
     clean_text,
     fail,
 )
+from app.services.marketplace.profile_packs import (
+    normalize_profile_pack_definition,
+)
 from app.services.marketplace.service_apps import (
     app_widget_type,
     normalize_service_app_definition,
@@ -48,6 +51,9 @@ from app.services.tenant.dashboard_definition import (
 __all__ = [
     "ListingDefinitionError",
     "LISTING_KINDS",
+    "LISTING_AUDIENCES",
+    "KIND_AUDIENCE",
+    "kinds_for_audience",
     "LISTING_SOURCES",
     "APP_KINDS",
     "GUILD_INSTALLABLE_APP_KINDS",
@@ -66,7 +72,39 @@ __all__ = [
 #: name and filter by it — while nothing installs one yet: a manifest carrying
 #: one is refused with a reason rather than stored as something no code can
 #: resolve.
-LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto"})
+#:
+#: ``profile_pack`` installs to a *person* rather than a guild — the decorations
+#: it grants land in an account's own library. It is the one kind that does, and
+#: the catalog does not need to know: publishing, browsing and versioning are
+#: the same for it as for anything else, and only the install path differs.
+LISTING_KINDS: frozenset[str] = frozenset({"dashboard", "app", "auto", "profile_pack"})
+
+#: Who a listing installs to.
+#:
+#: Every kind but one installs to a **guild** — a dashboard lands in an
+#: initiative, an app mounts in a community. A profile pack installs to a
+#: **user**: its decorations land in one account's own library and belong to
+#: that person across every community they are in.
+#:
+#: The distinction is not cosmetic. It decides which marketplace offers a
+#: listing, who is allowed to install it, and what "installed" is even recorded
+#: against — so it is declared once, here, beside the kinds themselves.
+LISTING_AUDIENCES: frozenset[str] = frozenset({"guild", "user"})
+
+KIND_AUDIENCE: dict[str, str] = {
+    "dashboard": "guild",
+    "app": "guild",
+    "auto": "guild",
+    "profile_pack": "user",
+}
+
+
+def kinds_for_audience(audience: str) -> frozenset[str]:
+    """The listing kinds a given marketplace offers."""
+    if audience not in LISTING_AUDIENCES:
+        raise ValueError(f"unknown listing audience {audience!r}")
+    return frozenset(kind for kind, who in KIND_AUDIENCE.items() if who == audience)
+
 
 #: How a listing reached this deployment. Not a trust ranking shown to a reader
 #: — every listing is here because an administrator put it here — but the reason
@@ -206,6 +244,8 @@ def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
         )
     if kind == "app":
         return _normalize_app_definition(definition)
+    if kind == "profile_pack":
+        return normalize_profile_pack_definition(definition)
     try:
         return normalize_dashboard_definition(definition)
     except DashboardDefinitionError as exc:

@@ -62,7 +62,8 @@
     "installed": "Dans votre collection",
     "empty": "Aucun pack dans cette version.",
     "failed": "Ce pack n'a pas pu être modifié.",
-    "got": "Pack téléchargé."
+    "got": "Pack téléchargé.",
+    "manage": "Vos packs"
   },
   "look": {
     "save": "Enregistrer l'allure",
@@ -75,6 +76,7 @@
     "description": "Ce que vous avez téléchargé, et ce que chaque pack vous a donné. Rendez-en un et ses pièces repartent, avec ce que vous en portiez.",
     "empty": "Vous n'avez encore téléchargé aucun pack. Choisissez-en un ci-dessus et ses pièces arriveront ici.",
     "remove": "Rendre",
-    "removed": "Pack rendu."
+    "removed": "Pack rendu.",
+    "browse": "Parcourir la boutique"
   }
 }

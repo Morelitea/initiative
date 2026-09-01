@@ -7,7 +7,7 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useDecorationPacks, useInstallDecorationPack } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { type Pack, resolveDecoration, resolvePack } from "@/lib/profileDecorations";
+import { resolveDecoration } from "@/lib/profileDecorations";
 
 /**
  * One pack, shown as the profile it would make.
@@ -18,13 +18,11 @@ import { type Pack, resolveDecoration, resolvePack } from "@/lib/profileDecorati
  * A swatch grid could not answer it.
  */
 const PackCard = ({
-  pack,
   entry,
   user,
   busy,
   onInstall,
 }: {
-  pack: Pack;
   entry: DecorationPack;
   user: UserRead;
   busy: boolean;
@@ -56,12 +54,12 @@ const PackCard = ({
           />
           <div className="min-w-0 flex-1 pb-1">
             <div className="flex items-center gap-1.5">
-              <h3 className="truncate font-semibold">{t(pack.nameKey)}</h3>
+              <h3 className="truncate font-semibold">{entry.name}</h3>
               {badge ? <img src={badge.src} alt="" aria-hidden="true" className="size-5" /> : null}
             </div>
           </div>
         </div>
-        <p className="text-muted-foreground text-sm">{t(pack.taglineKey)}</p>
+        <p className="text-muted-foreground text-sm">{entry.description}</p>
         {entry.installed ? (
           <p className="flex items-center gap-1.5 py-1.5 font-medium text-sm">
             <Check className="size-4" aria-hidden="true" />
@@ -106,9 +104,14 @@ export const DecorationStore = ({ user }: { user: UserRead }) => {
     );
   }
 
-  const packs = (data?.items ?? [])
-    .map((entry) => ({ entry, pack: resolvePack(entry.id) }))
-    .filter((row): row is { entry: DecorationPack; pack: Pack } => Boolean(row.pack));
+  // A pack whose pieces this build has no artwork for would be a card of
+  // blanks; the catalog is shared across deployments and this one is not
+  // obliged to have art for everything in it.
+  const packs = (data?.items ?? []).filter((entry) =>
+    entry.contents.some((item) =>
+      resolveDecoration(item.id, item.kind as "banner" | "frame" | "badge")
+    )
+  );
 
   if (packs.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("store.empty")}</p>;
@@ -116,14 +119,13 @@ export const DecorationStore = ({ user }: { user: UserRead }) => {
 
   return (
     <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {packs.map(({ entry, pack }) => (
+      {packs.map((entry) => (
         <PackCard
-          key={pack.id}
-          pack={pack}
+          key={entry.uid}
           entry={entry}
           user={user}
-          busy={install.isPending && install.variables === pack.id}
-          onInstall={() => install.mutate(pack.id)}
+          busy={install.isPending && install.variables === entry.uid}
+          onInstall={() => install.mutate(entry.uid)}
         />
       ))}
     </ul>

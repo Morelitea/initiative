@@ -20,13 +20,18 @@ vi.mock("@/hooks/useUsers", () => ({
   useRemoveDecorationPack: (options: unknown) => mocks.remove(options),
 }));
 
-const entry = (id: string, installed: boolean) => ({
-  id,
+const entry = (uid: string, installed: boolean, { name = "Tabletop", slug = "ttrpg" } = {}) => ({
+  uid,
+  public_id: `core.${slug}`,
+  name,
+  publisher: "Initiative",
+  description: "Dice, and the people who roll them.",
+  avatar_url: null,
   installed,
   contents: [
-    { id: `${id}.dicetower`, kind: "banner", source: id },
-    { id: `${id}.natural20`, kind: "frame", source: id },
-    { id: `${id}.d20`, kind: "badge", source: id },
+    { id: `${slug}.dicetower`, kind: "banner", name: "Dice tower", source: uid },
+    { id: `${slug}.natural20`, kind: "frame", name: "Natural 20", source: uid },
+    { id: `${slug}.d20`, kind: "badge", name: "d20", source: uid },
   ],
 });
 
@@ -42,7 +47,7 @@ beforeEach(() => {
 
 describe("the packs you have", () => {
   it("lists a downloaded pack and names its pieces", async () => {
-    answerWith([entry("ttrpg", true)]);
+    answerWith([entry("PACKTABTP00001", true)]);
     renderWithProviders(<MyDecorationPacks />);
 
     expect(await screen.findByRole("heading", { name: "Tabletop" })).toBeInTheDocument();
@@ -52,7 +57,10 @@ describe("the packs you have", () => {
   });
 
   it("leaves out a pack that has not been downloaded", async () => {
-    answerWith([entry("ttrpg", true), entry("music", false)]);
+    answerWith([
+      entry("PACKTABTP00001", true),
+      entry("PACKBAND000001", false, { name: "Soundcheck", slug: "music" }),
+    ]);
     renderWithProviders(<MyDecorationPacks />);
 
     await screen.findByRole("heading", { name: "Tabletop" });
@@ -60,16 +68,16 @@ describe("the packs you have", () => {
   });
 
   it("gives a pack back", async () => {
-    answerWith([entry("ttrpg", true)]);
+    answerWith([entry("PACKTABTP00001", true)]);
     renderWithProviders(<MyDecorationPacks />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Give back" }));
 
-    expect(removeMutate).toHaveBeenCalledWith("ttrpg");
+    expect(removeMutate).toHaveBeenCalledWith("PACKTABTP00001");
   });
 
   it("points at the store when nothing has been downloaded", async () => {
-    answerWith([entry("ttrpg", false)]);
+    answerWith([entry("PACKTABTP00001", false)]);
     renderWithProviders(<MyDecorationPacks />);
 
     expect(await screen.findByText(/not downloaded a pack yet/)).toBeInTheDocument();

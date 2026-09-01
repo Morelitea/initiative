@@ -62,7 +62,8 @@
     "installed": "En tu colección",
     "empty": "Esta versión no trae packs.",
     "failed": "No se pudo cambiar ese pack.",
-    "got": "Pack descargado."
+    "got": "Pack descargado.",
+    "manage": "Tus packs"
   },
   "look": {
     "save": "Guardar aspecto",
@@ -75,6 +76,7 @@
     "description": "Lo que has descargado y lo que te dio cada pack. Si devuelves uno, sus piezas se van, junto con lo que llevaras puesto de él.",
     "empty": "Todavía no has descargado ningún pack. Elige uno arriba y sus piezas aparecerán aquí.",
     "remove": "Devolver",
-    "removed": "Pack devuelto."
+    "removed": "Pack devuelto.",
+    "browse": "Explorar el mercado"
   }
 }

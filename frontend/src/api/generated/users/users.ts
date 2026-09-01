@@ -427,7 +427,10 @@ export function useListMyDecorationsApiV1UsersMeDecorationsGet<
 }
 
 /**
- * The store: every pack this build ships, and which ones you have.
+ * The store: every profile pack this deployment offers, and which you have.
+ *
+ * The shelf is the marketplace catalog, so a pack that ships with the build
+ * and one published to it read the same here.
  * @summary List Decoration Packs
  */
 export const listDecorationPacksApiV1UsersMeDecorationPacksGet = (
@@ -575,41 +578,41 @@ export function useListDecorationPacksApiV1UsersMeDecorationPacksGet<
 /**
  * Take a pack, putting its decorations in your library.
  *
- * Runs on the system engine because a grant is issued rather than
- * self-served: the request path holds no write verb on
- * ``public.user_decorations``. What makes it the caller's own is that the
- * only account it ever names is theirs.
+ * The catalog is read on the request path; the grant is written on the system
+ * engine, because a grant is issued rather than self-served — the request path
+ * holds no write verb on ``public.user_decorations``. What makes it the
+ * caller's own is that the only account it ever names is theirs.
  * @summary Install Decoration Pack
  */
-export const installDecorationPackApiV1UsersMeDecorationPacksPackIdPost = (
-  packId: string,
+export const installDecorationPackApiV1UsersMeDecorationPacksUidPost = (
+  uid: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DecorationPack>(
-    { url: `/api/v1/users/me/decoration-packs/${packId}`, method: "POST", signal },
+    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "POST", signal },
     options
   );
 };
 
-export const getInstallDecorationPackApiV1UsersMeDecorationPacksPackIdPostMutationOptions = <
+export const getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksPackIdPost>>,
+    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
     TError,
-    { packId: string },
+    { uid: string },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksPackIdPost>>,
+  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
   TError,
-  { packId: string },
+  { uid: string },
   TContext
 > => {
-  const mutationKey = ["installDecorationPackApiV1UsersMeDecorationPacksPackIdPost"];
+  const mutationKey = ["installDecorationPackApiV1UsersMeDecorationPacksUidPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -617,49 +620,49 @@ export const getInstallDecorationPackApiV1UsersMeDecorationPacksPackIdPostMutati
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksPackIdPost>>,
-    { packId: string }
+    Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
+    { uid: string }
   > = (props) => {
-    const { packId } = props ?? {};
+    const { uid } = props ?? {};
 
-    return installDecorationPackApiV1UsersMeDecorationPacksPackIdPost(packId, requestOptions);
+    return installDecorationPackApiV1UsersMeDecorationPacksUidPost(uid, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type InstallDecorationPackApiV1UsersMeDecorationPacksPackIdPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksPackIdPost>>
+export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>
 >;
 
-export type InstallDecorationPackApiV1UsersMeDecorationPacksPackIdPostMutationError =
+export type InstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Install Decoration Pack
  */
-export const useInstallDecorationPackApiV1UsersMeDecorationPacksPackIdPost = <
+export const useInstallDecorationPackApiV1UsersMeDecorationPacksUidPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksPackIdPost>>,
+      Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
       TError,
-      { packId: string },
+      { uid: string },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksPackIdPost>>,
+  Awaited<ReturnType<typeof installDecorationPackApiV1UsersMeDecorationPacksUidPost>>,
   TError,
-  { packId: string },
+  { uid: string },
   TContext
 > => {
   return useMutation(
-    getInstallDecorationPackApiV1UsersMeDecorationPacksPackIdPostMutationOptions(options),
+    getInstallDecorationPackApiV1UsersMeDecorationPacksUidPostMutationOptions(options),
     queryClient
   );
 };
@@ -671,35 +674,35 @@ export const useInstallDecorationPackApiV1UsersMeDecorationPacksPackIdPost = <
  * two commits would leave a window where it was.
  * @summary Remove Decoration Pack
  */
-export const removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete = (
-  packId: string,
+export const removeDecorationPackApiV1UsersMeDecorationPacksUidDelete = (
+  uid: string,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<DecorationPack>(
-    { url: `/api/v1/users/me/decoration-packs/${packId}`, method: "DELETE", signal },
+    { url: `/api/v1/users/me/decoration-packs/${uid}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getRemoveDecorationPackApiV1UsersMeDecorationPacksPackIdDeleteMutationOptions = <
+export const getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete>>,
+    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
     TError,
-    { packId: string },
+    { uid: string },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete>>,
+  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
   TError,
-  { packId: string },
+  { uid: string },
   TContext
 > => {
-  const mutationKey = ["removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete"];
+  const mutationKey = ["removeDecorationPackApiV1UsersMeDecorationPacksUidDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -707,49 +710,49 @@ export const getRemoveDecorationPackApiV1UsersMeDecorationPacksPackIdDeleteMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete>>,
-    { packId: string }
+    Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
+    { uid: string }
   > = (props) => {
-    const { packId } = props ?? {};
+    const { uid } = props ?? {};
 
-    return removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete(packId, requestOptions);
+    return removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(uid, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksPackIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete>>
+export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>
 >;
 
-export type RemoveDecorationPackApiV1UsersMeDecorationPacksPackIdDeleteMutationError =
+export type RemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Remove Decoration Pack
  */
-export const useRemoveDecorationPackApiV1UsersMeDecorationPacksPackIdDelete = <
+export const useRemoveDecorationPackApiV1UsersMeDecorationPacksUidDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete>>,
+      Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
       TError,
-      { packId: string },
+      { uid: string },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete>>,
+  Awaited<ReturnType<typeof removeDecorationPackApiV1UsersMeDecorationPacksUidDelete>>,
   TError,
-  { packId: string },
+  { uid: string },
   TContext
 > => {
   return useMutation(
-    getRemoveDecorationPackApiV1UsersMeDecorationPacksPackIdDeleteMutationOptions(options),
+    getRemoveDecorationPackApiV1UsersMeDecorationPacksUidDeleteMutationOptions(options),
     queryClient
   );
 };

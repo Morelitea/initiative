@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { BadgePicker, SlotPicker } from "@/components/user/DecorationPicker";
-import { DecorationStore } from "@/components/user/DecorationStore";
 import { MyDecorationPacks } from "@/components/user/MyDecorationPacks";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
@@ -24,11 +24,12 @@ interface UserSettingsDecorationsPageProps {
 }
 
 /**
- * Where a profile gets its look, in the order it happens: browse a store, see
- * what you have taken from it, then put it on.
+ * What you own, and how you are wearing it.
  *
- * All three are one page because they are one task, and each answers a
- * different question — what could I have, what do I have, what am I wearing.
+ * Getting a pack is not here — that is the marketplace, and buying something
+ * and configuring it are different acts. This is the half you come back to:
+ * the packs you have, and the pickers that put their pieces on.
+ *
  * It sits apart from Settings › Profile, which is the account (address,
  * handle, password) rather than the face.
  */
@@ -71,18 +72,15 @@ export const UserSettingsDecorationsPage = ({
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>{t("profiles:store.title")}</CardTitle>
-          <CardDescription>{t("profiles:store.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DecorationStore user={user} />
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("profiles:myPacks.title")}</CardTitle>
-          <CardDescription>{t("profiles:myPacks.description")}</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>{t("profiles:myPacks.title")}</CardTitle>
+              <CardDescription>{t("profiles:myPacks.description")}</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/marketplace">{t("profiles:myPacks.browse")}</Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <MyDecorationPacks />

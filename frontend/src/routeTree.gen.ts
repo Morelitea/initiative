@@ -24,6 +24,7 @@ import { Route as ServerRequiredAuthenticatedCommunitiesRouteImport } from './ro
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
+import { Route as ServerRequiredAuthenticatedMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/marketplace'
 import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
 import { Route as ServerRequiredAuthenticatedMyDocumentsRouteImport } from './routes/_serverRequired/_authenticated/my-documents'
 import { Route as ServerRequiredAuthenticatedMyProjectsRouteImport } from './routes/_serverRequired/_authenticated/my-projects'
@@ -223,6 +224,12 @@ const ServerRequiredAuthenticatedInitiativesRoute =
   ServerRequiredAuthenticatedInitiativesRouteImport.update({
     id: '/initiatives',
     path: '/initiatives',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedMarketplaceRoute =
+  ServerRequiredAuthenticatedMarketplaceRouteImport.update({
+    id: '/marketplace',
+    path: '/marketplace',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedMyCalendarRoute =
@@ -1112,6 +1119,7 @@ export interface FileRoutesByFullPath {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -1245,6 +1253,7 @@ export interface FileRoutesByTo {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -1366,6 +1375,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
+  '/_serverRequired/_authenticated/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
   '/_serverRequired/_authenticated/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/_serverRequired/_authenticated/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -1502,6 +1512,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/marketplace'
     | '/my-calendar'
     | '/my-documents'
     | '/my-projects'
@@ -1635,6 +1646,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
+    | '/marketplace'
     | '/my-calendar'
     | '/my-documents'
     | '/my-projects'
@@ -1755,6 +1767,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
+    | '/_serverRequired/_authenticated/marketplace'
     | '/_serverRequired/_authenticated/my-calendar'
     | '/_serverRequired/_authenticated/my-documents'
     | '/_serverRequired/_authenticated/my-projects'
@@ -1987,6 +2000,13 @@ declare module '@tanstack/react-router' {
       path: '/initiatives'
       fullPath: '/initiatives'
       preLoaderRoute: typeof ServerRequiredAuthenticatedInitiativesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/marketplace': {
+      id: '/_serverRequired/_authenticated/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMarketplaceRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/my-calendar': {
@@ -3315,6 +3335,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
+  ServerRequiredAuthenticatedMarketplaceRoute: typeof ServerRequiredAuthenticatedMarketplaceRoute
   ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
   ServerRequiredAuthenticatedMyDocumentsRoute: typeof ServerRequiredAuthenticatedMyDocumentsRoute
   ServerRequiredAuthenticatedMyProjectsRoute: typeof ServerRequiredAuthenticatedMyProjectsRoute
@@ -3339,6 +3360,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedDocumentsRoute,
     ServerRequiredAuthenticatedInitiativesRoute:
       ServerRequiredAuthenticatedInitiativesRoute,
+    ServerRequiredAuthenticatedMarketplaceRoute:
+      ServerRequiredAuthenticatedMarketplaceRoute,
     ServerRequiredAuthenticatedMyCalendarRoute:
       ServerRequiredAuthenticatedMyCalendarRoute,
     ServerRequiredAuthenticatedMyDocumentsRoute:

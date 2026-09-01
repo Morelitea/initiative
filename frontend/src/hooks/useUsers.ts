@@ -19,9 +19,9 @@ import {
   getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
   getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
   getListUsersApiV1GGuildIdUsersGetQueryKey,
-  installDecorationPackApiV1UsersMeDecorationPacksPackIdPost,
+  installDecorationPackApiV1UsersMeDecorationPacksUidPost,
   listUsersApiV1GGuildIdUsersGet,
-  removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete,
+  removeDecorationPackApiV1UsersMeDecorationPacksUidDelete,
   updateUsersMeApiV1UsersMePatch,
   useListDecorationPacksApiV1UsersMeDecorationPacksGet,
   useListMyDecorationsApiV1UsersMeDecorationsGet,
@@ -146,13 +146,13 @@ const useDecorationPackMutation = (
 
 export const useInstallDecorationPack = (options?: MutationOpts<unknown, string>) =>
   useDecorationPackMutation(
-    (packId) => installDecorationPackApiV1UsersMeDecorationPacksPackIdPost(packId),
+    (packId) => installDecorationPackApiV1UsersMeDecorationPacksUidPost(packId),
     options
   );
 
 export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>) =>
   useDecorationPackMutation(
-    (packId) => removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete(packId),
+    (packId) => removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(packId),
     options
   );
 

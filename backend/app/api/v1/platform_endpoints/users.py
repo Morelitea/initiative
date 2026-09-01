@@ -32,7 +32,6 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
-from app.core.profile_packs import PROFILE_PACKS, ProfilePack
 from app.core.user_display import handle_of
 from app.core import usernames
 from app.core.usernames import UsernameError
@@ -295,8 +294,10 @@ async def list_my_decorations(
     )
 
 
-def _pack_or_404(pack_id: str) -> ProfilePack:
-    pack = PROFILE_PACKS.get(pack_id)
+async def _pack_or_404(
+    session: AsyncSession, uid: str
+) -> profile_decorations_service.Pack:
+    pack = await profile_decorations_service.pack_by_uid(session, uid)
     if pack is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -305,11 +306,19 @@ def _pack_or_404(pack_id: str) -> ProfilePack:
     return pack
 
 
-def _pack_entry(pack: ProfilePack, *, installed: bool) -> DecorationPack:
+def _pack_entry(
+    pack: profile_decorations_service.Pack, *, installed: bool
+) -> DecorationPack:
+    listing = pack.listing
     return DecorationPack(
-        id=pack.id,
+        uid=listing.uid,
+        public_id=listing.public_id,
+        name=listing.name,
+        publisher=listing.publisher,
+        description=listing.description,
+        avatar_url=listing.avatar_url,
         contents=[
-            OwnedDecoration(id=decoration_id, kind=kind, source=pack.id)
+            OwnedDecoration(id=decoration_id, kind=kind, name=None, source=listing.uid)
             for decoration_id, kind in pack.decorations.items()
         ],
         installed=installed,
@@ -321,32 +330,35 @@ async def list_decoration_packs(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DecorationPackListResponse:
-    """The store: every pack this build ships, and which ones you have."""
+    """The store: every profile pack this deployment offers, and which you have.
+
+    The shelf is the marketplace catalog, so a pack that ships with the build
+    and one published to it read the same here.
+    """
     installed = await profile_decorations_service.installed_pack_ids(
         session, current_user.id
     )
+    packs = await profile_decorations_service.available_packs(session)
     return DecorationPackListResponse(
-        items=[
-            _pack_entry(pack, installed=pack.id in installed)
-            for pack in PROFILE_PACKS.values()
-        ]
+        items=[_pack_entry(pack, installed=pack.uid in installed) for pack in packs]
     )
 
 
-@router.post("/me/decoration-packs/{pack_id}", response_model=DecorationPack)
+@router.post("/me/decoration-packs/{uid}", response_model=DecorationPack)
 async def install_decoration_pack(
-    pack_id: str,
+    uid: str,
+    session: UserSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DecorationPack:
     """Take a pack, putting its decorations in your library.
 
-    Runs on the system engine because a grant is issued rather than
-    self-served: the request path holds no write verb on
-    ``public.user_decorations``. What makes it the caller's own is that the
-    only account it ever names is theirs.
+    The catalog is read on the request path; the grant is written on the system
+    engine, because a grant is issued rather than self-served — the request path
+    holds no write verb on ``public.user_decorations``. What makes it the
+    caller's own is that the only account it ever names is theirs.
     """
-    pack = _pack_or_404(pack_id)
+    pack = await _pack_or_404(session, uid)
     await profile_decorations_service.install_pack(
         admin_session, user_id=current_user.id, pack=pack
     )
@@ -354,9 +366,10 @@ async def install_decoration_pack(
     return _pack_entry(pack, installed=True)
 
 
-@router.delete("/me/decoration-packs/{pack_id}", response_model=DecorationPack)
+@router.delete("/me/decoration-packs/{uid}", response_model=DecorationPack)
 async def remove_decoration_pack(
-    pack_id: str,
+    uid: str,
+    session: UserSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DecorationPack:
@@ -366,12 +379,9 @@ async def remove_decoration_pack(
     a profile must not be left wearing what the account no longer has, and
     two commits would leave a window where it was.
     """
-    pack = _pack_or_404(pack_id)
+    pack = await _pack_or_404(session, uid)
     await profile_decorations_service.remove_pack(
-        admin_session,
-        user_id=current_user.id,
-        pack=pack,
-        worn=profile_decorations_service.user_is_wearing(current_user),
+        admin_session, user_id=current_user.id, pack=pack
     )
     await admin_session.commit()
     return _pack_entry(pack, installed=False)

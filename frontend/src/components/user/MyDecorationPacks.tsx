@@ -1,17 +1,12 @@
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { DecorationPack, OwnedDecoration } from "@/api/generated/initiativeAPI.schemas";
+import type { OwnedDecoration } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { useDecorationPacks, useRemoveDecorationPack } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import {
-  type Decoration,
-  type Pack,
-  resolveDecoration,
-  resolvePack,
-} from "@/lib/profileDecorations";
+import { type Decoration, resolveDecoration } from "@/lib/profileDecorations";
 
 /** One piece of a pack, drawn the way its slot is worn, with its slot named. */
 const Piece = ({ decoration }: { decoration: Decoration }) => {
@@ -70,10 +65,7 @@ export const MyDecorationPacks = () => {
     );
   }
 
-  const owned = (data?.items ?? [])
-    .filter((entry) => entry.installed)
-    .map((entry) => ({ entry, pack: resolvePack(entry.id) }))
-    .filter((row): row is { entry: DecorationPack; pack: Pack } => Boolean(row.pack));
+  const owned = (data?.items ?? []).filter((entry) => entry.installed);
 
   if (owned.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("myPacks.empty")}</p>;
@@ -81,11 +73,11 @@ export const MyDecorationPacks = () => {
 
   return (
     <ul className="divide-y rounded-lg border">
-      {owned.map(({ entry, pack }) => (
-        <li key={pack.id} className="flex flex-wrap items-start gap-4 p-4">
+      {owned.map((entry) => (
+        <li key={entry.uid} className="flex flex-wrap items-start gap-4 p-4">
           <div className="min-w-40 flex-1">
-            <h3 className="font-medium">{t(pack.nameKey)}</h3>
-            <p className="text-muted-foreground text-sm">{t(pack.taglineKey)}</p>
+            <h3 className="font-medium">{entry.name}</h3>
+            <p className="text-muted-foreground text-sm">{entry.description}</p>
           </div>
           <ul className="flex flex-wrap gap-4">
             {pieces(entry.contents).map((decoration) => (
@@ -95,8 +87,8 @@ export const MyDecorationPacks = () => {
           <Button
             variant="outline"
             size="sm"
-            disabled={remove.isPending && remove.variables === pack.id}
-            onClick={() => remove.mutate(pack.id)}
+            disabled={remove.isPending && remove.variables === entry.uid}
+            onClick={() => remove.mutate(entry.uid)}
           >
             {t("myPacks.remove")}
           </Button>

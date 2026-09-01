@@ -1850,17 +1850,24 @@ export interface DashboardUpdate {
 export interface OwnedDecoration {
   id: string;
   kind: string;
+  name: string | null;
   source: string | null;
 }
 
 /**
  * One installable set of decorations, and whether this account has it.
  *
- * What it is called is the client's: the words live in its ``profiles``
- * translations, keyed by this id, in every language the app speaks.
+ * A marketplace listing, so the words are the listing's — its publisher named
+ * it, and nobody else can. ``uid`` is the identity: it means this pack on
+ * every deployment carrying the catalog, and it is what a granted row records.
  */
 export interface DecorationPack {
-  id: string;
+  uid: string;
+  public_id: string;
+  name: string;
+  publisher: string;
+  description: string;
+  avatar_url: string | null;
   contents: OwnedDecoration[];
   installed: boolean;
 }
@@ -3229,6 +3236,7 @@ export const ListingKind = {
   app: "app",
   auto: "auto",
   dashboard: "dashboard",
+  profile_pack: "profile_pack",
 } as const;
 
 /**

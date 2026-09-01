@@ -21,25 +21,25 @@ vi.mock("@/hooks/useUsers", () => ({
   useInstallDecorationPack: (options: unknown) => mocks.install(options),
 }));
 
-const pack = (id: string, installed = false) => ({
-  id,
+const listing = (
+  uid: string,
+  { installed = false, ids = ["ttrpg.dicetower", "ttrpg.natural20", "ttrpg.d20"] } = {}
+) => ({
+  uid,
+  public_id: "core.tabletop",
+  name: "Tabletop",
+  publisher: "Initiative",
+  description: "Dice, and the people who roll them.",
+  avatar_url: null,
   installed,
   contents: [
-    { id: `${id}.dicetower`, kind: "banner", source: id },
-    { id: `${id}.natural20`, kind: "frame", source: id },
-    { id: `${id}.d20`, kind: "badge", source: id },
+    { id: ids[0], kind: "banner", name: "Dice tower", source: uid },
+    { id: ids[1], kind: "frame", name: "Natural 20", source: uid },
+    { id: ids[2], kind: "badge", name: "d20", source: uid },
   ],
 });
 
-const ttrpg = (installed = false) => ({
-  id: "ttrpg",
-  installed,
-  contents: [
-    { id: "ttrpg.dicetower", kind: "banner", source: "ttrpg" },
-    { id: "ttrpg.natural20", kind: "frame", source: "ttrpg" },
-    { id: "ttrpg.d20", kind: "badge", source: "ttrpg" },
-  ],
-});
+const ttrpg = (installed = false) => listing("PACKTABTP00001", { installed });
 
 const answerWith = (items: unknown[]) =>
   mocks.packs.mockReturnValue({ data: { items }, isLoading: false });
@@ -58,8 +58,10 @@ describe("the decoration store", () => {
   it("shows a pack by its name and what it is for", async () => {
     render();
 
+    // The words are the listing's — its publisher named it, and nobody else
+    // can name a pack published tomorrow.
     expect(await screen.findByRole("heading", { name: "Tabletop" })).toBeInTheDocument();
-    expect(screen.getByText(/rolls for it/)).toBeInTheDocument();
+    expect(screen.getByText("Dice, and the people who roll them.")).toBeInTheDocument();
   });
 
   it("takes a pack when asked", async () => {
@@ -67,7 +69,7 @@ describe("the decoration store", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Get this pack" }));
 
-    expect(installMutate).toHaveBeenCalledWith("ttrpg");
+    expect(installMutate).toHaveBeenCalledWith("PACKTABTP00001");
   });
 
   it("marks a pack already held rather than offering it again", async () => {
@@ -83,7 +85,12 @@ describe("the decoration store", () => {
 
   it("leaves out a pack this build has no artwork for", async () => {
     // A later catalog, an older client. An empty card would be worse than none.
-    answerWith([ttrpg(), pack("studio.unknown")]);
+    answerWith([
+      ttrpg(),
+      listing("PACKUNKNWN0001", {
+        ids: ["studio.a", "studio.b", "studio.c"],
+      }),
+    ]);
     render();
 
     await screen.findByRole("heading", { name: "Tabletop" });
