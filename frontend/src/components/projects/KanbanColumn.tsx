@@ -338,15 +338,15 @@ const KanbanCardContent = memo(
           }}
           onMouseEnter={handlePrefetch}
           disabled={!canOpenTask}
-          className={`flex w-full flex-col items-start gap-1 text-left ${
+          className={`flex w-full min-w-0 flex-col items-start gap-1 text-left ${
             canOpenTask ? "" : "cursor-not-allowed opacity-70"
           }`}
         >
-          <p className="font-medium">{task.title}</p>
+          <p className="wrap-break-word w-full min-w-0 font-medium">{task.title}</p>
           {task.description ? (
-            <Markdown content={task.description} className="line-clamp-2" />
+            <Markdown content={task.description} className="line-clamp-2 w-full min-w-0" />
           ) : null}
-          <div className="space-y-1 text-muted-foreground text-xs">
+          <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">
             {task.assignees.length > 0 ? (
               <TaskAssigneeList assignees={task.assignees} className="text-xs" />
             ) : null}
@@ -356,7 +356,7 @@ const KanbanCardContent = memo(
           </div>
           <TaskChecklistProgress progress={task.subtask_progress} className="w-full pt-1" />
         </button>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Badge variant={priorityVariant[task.priority]}>
             {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
           </Badge>
@@ -498,50 +498,17 @@ const KanbanTaskCard = ({
   onTaskClick,
   canOpenTask,
 }: KanbanTaskCardProps) => {
-  const { t } = useTranslation(["projects", "dates"]);
-  const router = useRouter();
-  const gp = useGuildPath();
-  const { activeGuildId } = useGuilds();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "task", statusId: task.task_status_id },
     disabled: !canWrite,
   });
 
-  const handlePrefetch = () => {
-    if (canOpenTask && activeGuildId && task.initiative_id != null) {
-      router.preloadRoute({
-        to: "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
-        params: {
-          guildId: String(activeGuildId),
-          initiativeId: String(task.initiative_id),
-          projectId: String(task.project_id),
-          taskId: String(task.id),
-        },
-      });
-    }
-  };
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.25 : undefined,
   };
-
-  const recurrenceSummary = task.recurrence
-    ? summarizeRecurrence(
-        task.recurrence,
-        {
-          referenceDate: task.start_date || task.due_date,
-          strategy: task.recurrence_strategy,
-        },
-        t as TranslateFn
-      )
-    : null;
-  const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
-  const formattedStart = task.start_date ? new Date(task.start_date).toLocaleString() : null;
-  const formattedDue = task.due_date ? new Date(task.due_date).toLocaleString() : null;
-  const commentCount = task.comment_count ?? 0;
 
   return (
     <div
@@ -555,52 +522,12 @@ const KanbanTaskCard = ({
       )}
       data-kanban-scroll-lock="true"
     >
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          if (!canOpenTask) {
-            return;
-          }
-          onTaskClick(task.id);
-        }}
-        onMouseEnter={handlePrefetch}
-        disabled={!canOpenTask}
-        className={`flex w-full flex-col items-start gap-1 text-left ${
-          canOpenTask ? "" : "cursor-not-allowed opacity-70"
-        }`}
-      >
-        <p className="font-medium">{task.title}</p>
-        {task.description ? <Markdown content={task.description} className="line-clamp-2" /> : null}
-        <div className="space-y-1 text-muted-foreground text-xs">
-          {task.assignees.length > 0 ? (
-            <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-          ) : null}
-          {formattedStart ? <p>{t("kanban.starts", { date: formattedStart })}</p> : null}
-          {formattedDue ? <p>{t("kanban.due", { date: formattedDue })}</p> : null}
-          {recurrenceText ? <p>{recurrenceText}</p> : null}
-        </div>
-        <TaskChecklistProgress progress={task.subtask_progress} className="w-full pt-1" />
-      </button>
-      <div className="flex flex-wrap gap-2">
-        <Badge variant={priorityVariant[task.priority]}>
-          {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
-        </Badge>
-        {commentCount > 0 ? (
-          <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-            {commentCount}
-          </Badge>
-        ) : null}
-        {task.tags &&
-          task.tags.length > 0 &&
-          task.tags.map((tag) => (
-            <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-          ))}
-        {nonEmptyPropertySummaries(task.properties).map((summary) => (
-          <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
-        ))}
-      </div>
+      <KanbanCardContent
+        task={task}
+        priorityVariant={priorityVariant}
+        onTaskClick={onTaskClick}
+        canOpenTask={canOpenTask}
+      />
     </div>
   );
 };
