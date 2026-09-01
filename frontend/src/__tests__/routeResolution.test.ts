@@ -35,7 +35,7 @@ describe("initiative route resolution", () => {
     ["/c/1/i/5", `${INITIATIVE}/`],
     ["/c/1/i/5/projects", `${INITIATIVE}/projects/`],
     ["/c/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
-    ["/c/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings`],
+    ["/c/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings/`],
     ["/c/1/i/5/projects/7/tasks/22", `${INITIATIVE}/projects/$projectId/tasks/$taskId`],
     ["/c/1/i/5/documents/3", `${INITIATIVE}/documents/$documentId/`],
     ["/c/1/i/5/queues/4", `${INITIATIVE}/queues/$queueId/`],
@@ -69,6 +69,39 @@ describe("initiative route resolution", () => {
     ["/c/1/i/5/settings/danger", `${INITIATIVE}/settings/danger`],
   ])("resolves %s", (pathname, routeId) => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
+  });
+
+  // A tool's settings sections are addresses too, so a share link can point at
+  // the sharing controls and the back button walks back out of them.
+  it.each([
+    ["/c/1/i/5/projects/7/settings/access", `${INITIATIVE}/projects/$projectId/settings/access`],
+    [
+      "/c/1/i/5/projects/7/settings/task-statuses",
+      `${INITIATIVE}/projects/$projectId/settings/task-statuses`,
+    ],
+    ["/c/1/i/5/queues/4/settings", `${INITIATIVE}/queues/$queueId/settings/`],
+    ["/c/1/i/5/queues/4/settings/advanced", `${INITIATIVE}/queues/$queueId/settings/advanced`],
+    ["/c/1/i/5/documents/3/settings/access", `${INITIATIVE}/documents/$documentId/settings/access`],
+    [
+      "/c/1/i/5/counter-groups/6/settings/advanced",
+      `${INITIATIVE}/counter-groups/$counterGroupId/settings/advanced`,
+    ],
+    [
+      "/c/1/i/5/dashboards/5/settings/access",
+      `${INITIATIVE}/dashboards/$dashboardId/settings/access`,
+    ],
+    ["/c/1/i/5/calendars/2/settings", `${INITIATIVE}/calendars/$calendarId/settings/`],
+    ["/c/1/calendars/2/settings/access", `${GUILD}/calendars/$calendarId/settings/access`],
+  ])("resolves %s", (pathname, routeId) => {
+    expect(resolvedRouteId(pathname)).toBe(routeId);
+  });
+
+  // A calendar's events sit beside its settings sections; neither may swallow
+  // the other.
+  it("keeps a calendar's events clear of its settings sections", () => {
+    expect(resolvedRouteId("/c/1/i/5/calendars/2/events/8/settings")).toBe(
+      `${INITIATIVE}/calendars/$calendarId/events/$eventId/settings`
+    );
   });
 
   // `gallery` is a static sibling of `$dashboardId` at the same depth.

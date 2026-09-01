@@ -5,13 +5,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildProject, resetFactories } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { ProjectSettingsDetailsTab } from "@/components/projects/settings/ProjectSettingsDetailsTab";
-import { Tabs } from "@/components/ui/tabs";
 
 const renderTab = (project: ReturnType<typeof buildProject>) =>
   renderWithProviders(
-    <Tabs defaultValue="details">
-      <ProjectSettingsDetailsTab project={project} projectId={project.id} canWriteProject />
-    </Tabs>
+    <ProjectSettingsDetailsTab project={project} projectId={project.id} canWriteProject />
   );
 
 const nameField = () => screen.getByLabelText("Name") as HTMLInputElement;
@@ -33,13 +30,11 @@ describe("ProjectSettingsDetailsTab seeding", () => {
 
     // Same project, refetched after someone else renamed it.
     rerender(
-      <Tabs defaultValue="details">
-        <ProjectSettingsDetailsTab
-          project={{ ...project, name: "Renamed elsewhere" }}
-          projectId={project.id}
-          canWriteProject
-        />
-      </Tabs>
+      <ProjectSettingsDetailsTab
+        project={{ ...project, name: "Renamed elsewhere" }}
+        projectId={project.id}
+        canWriteProject
+      />
     );
 
     expect(nameField().value).toBe("Renamed elsewhere");
@@ -54,13 +49,11 @@ describe("ProjectSettingsDetailsTab seeding", () => {
     await user.type(nameField(), "My unsaved edit");
 
     rerender(
-      <Tabs defaultValue="details">
-        <ProjectSettingsDetailsTab
-          project={{ ...project, name: "Renamed elsewhere" }}
-          projectId={project.id}
-          canWriteProject
-        />
-      </Tabs>
+      <ProjectSettingsDetailsTab
+        project={{ ...project, name: "Renamed elsewhere" }}
+        projectId={project.id}
+        canWriteProject
+      />
     );
 
     expect(nameField().value).toBe("My unsaved edit");
@@ -75,11 +68,7 @@ describe("ProjectSettingsDetailsTab seeding", () => {
     await user.type(nameField(), "My unsaved edit");
 
     const other = buildProject({ name: "Other project" });
-    rerender(
-      <Tabs defaultValue="details">
-        <ProjectSettingsDetailsTab project={other} projectId={other.id} canWriteProject />
-      </Tabs>
-    );
+    rerender(<ProjectSettingsDetailsTab project={other} projectId={other.id} canWriteProject />);
 
     expect(nameField().value).toBe("Other project");
   });

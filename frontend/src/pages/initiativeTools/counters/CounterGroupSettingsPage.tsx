@@ -2,7 +2,7 @@ import { useParams } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DuplicateCounterGroupCard } from "@/components/initiativeTools/counters/DuplicateCounterGroupCard";
-import { ToolSettingsPage } from "@/components/tools/settings/ToolSettingsPage";
+import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useCounterGroup,
   useDeleteCounterGroup,
@@ -23,7 +23,7 @@ export const CounterGroupSettingsPage = () => {
   const group = groupQuery.data;
 
   return (
-    <ToolSettingsPage
+    <ToolSettingsLayout
       tool={Tool.counter_group}
       entity={group}
       isLoading={isValidId && groupQuery.isLoading}

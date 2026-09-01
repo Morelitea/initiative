@@ -108,7 +108,9 @@
     "deleteConfirmDescription": "Das Element wird in den Papierkorb verschoben. Du kannst es unter Einstellungen → Papierkorb wiederherstellen, bevor der Aufbewahrungszeitraum endet.",
     "deleted": "„{{name}}“ gelöscht",
     "notFound": "Nicht gefunden",
-    "loadError": "Dieses Element konnte nicht geladen werden."
+    "loadError": "Dieses Element konnte nicht geladen werden.",
+    "permissionRequired": "Berechtigung erforderlich",
+    "permissionRequiredDescription": "Du hast keinen Zugriff auf diesen Bereich dieser Einstellungen."
   },
   "toolbar": {
     "filters": "Filter",

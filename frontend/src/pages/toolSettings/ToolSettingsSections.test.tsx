@@ -8,8 +8,14 @@ import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type ToolSettingsEntity,
+  ToolSettingsProvider,
+} from "@/components/tools/settings/ToolSettingsContext";
 
-import { type ToolSettingsEntity, ToolSettingsPage } from "./ToolSettingsPage";
+import { ToolSettingsAccessPage } from "./ToolSettingsAccessPage";
+import { ToolSettingsAdvancedPage } from "./ToolSettingsAdvancedPage";
+import { ToolSettingsDetailsPage } from "./ToolSettingsDetailsPage";
 
 const ADDED_TAG = buildTagSummary({ id: 99, name: "Added tag" });
 
@@ -46,24 +52,28 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
 
 const noopMutation = () => ({ mutate: vi.fn(), isPending: false });
 
-// The breadcrumb renders router Links, so this needs a real router around it.
-const renderSettings = (entity: ToolSettingsEntity) =>
+/** One section, mounted the way its route mounts it: inside the frame's context. */
+const renderSection = (Section: React.ComponentType, entity: ToolSettingsEntity) =>
   renderPage(() => (
-    <ToolSettingsPage
-      tool={Tool.queue}
-      entity={entity}
-      isLoading={false}
-      isError={false}
-      setGrants={noopMutation()}
-      remove={noopMutation()}
-    />
+    <ToolSettingsProvider
+      value={{
+        tool: Tool.queue,
+        entity,
+        canManage: entity.my_permission_level !== "read",
+        isOwner: entity.my_permission_level === "owner",
+        setGrants: noopMutation(),
+        remove: noopMutation(),
+      }}
+    >
+      <Section />
+    </ToolSettingsProvider>
   ));
 
-describe("ToolSettingsPage tags", () => {
+describe("ToolSettingsDetailsPage tags", () => {
   it("keeps the new selection when the write succeeds", async () => {
     resetFactories();
     server.use(guildHttp.put("/tools/:tool/:toolId/tags", () => HttpResponse.json([ADDED_TAG])));
-    renderSettings(buildEntity());
+    renderSection(ToolSettingsDetailsPage, buildEntity());
 
     await userEvent.click(await screen.findByRole("button", { name: "pick tag" }));
 
@@ -78,7 +88,7 @@ describe("ToolSettingsPage tags", () => {
         HttpResponse.json({ detail: "NOPE" }, { status: 500 })
       )
     );
-    renderSettings(buildEntity({ tags: [existing] }));
+    renderSection(ToolSettingsDetailsPage, buildEntity({ tags: [existing] }));
 
     expect(await screen.findByTestId("selected-tags")).toHaveTextContent("Existing tag");
 
@@ -93,10 +103,7 @@ describe("ToolSettingsPage tags", () => {
   });
 });
 
-describe("ToolSettingsPage comments switch", () => {
-  const openAdvanced = async () =>
-    userEvent.click(await screen.findByRole("tab", { name: "Advanced" }));
-
+describe("ToolSettingsAdvancedPage comments switch", () => {
   it("turns comments off and keeps the new state", async () => {
     resetFactories();
     server.use(
@@ -104,8 +111,7 @@ describe("ToolSettingsPage comments switch", () => {
         HttpResponse.json({ comments_disabled: true })
       )
     );
-    renderSettings(buildEntity());
-    await openAdvanced();
+    renderSection(ToolSettingsAdvancedPage, buildEntity());
 
     const toggle = await screen.findByRole("switch", { name: "Disable comments" });
     expect(toggle).not.toBeChecked();
@@ -122,12 +128,22 @@ describe("ToolSettingsPage comments switch", () => {
         HttpResponse.json({ detail: "NOPE" }, { status: 500 })
       )
     );
-    renderSettings(buildEntity());
-    await openAdvanced();
+    renderSection(ToolSettingsAdvancedPage, buildEntity());
 
     const toggle = await screen.findByRole("switch", { name: "Disable comments" });
     await userEvent.click(toggle);
 
     await waitFor(() => expect(toggle).not.toBeChecked());
+  });
+});
+
+describe("ToolSettingsAccessPage", () => {
+  it("refuses a reader who reached the address without write access", async () => {
+    resetFactories();
+    // The tab bar hides this section from them; the address is still typeable,
+    // so the section says no on its own.
+    renderSection(ToolSettingsAccessPage, buildEntity({ my_permission_level: "read" }));
+
+    expect(await screen.findByText("Permission required")).toBeInTheDocument();
   });
 });

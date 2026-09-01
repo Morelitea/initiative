@@ -1,7 +1,7 @@
 import { useParams } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { ToolSettingsPage } from "@/components/tools/settings/ToolSettingsPage";
+import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useDashboard,
   useDeleteDashboard,
@@ -20,7 +20,7 @@ export const DashboardSettingsPage = () => {
   const remove = useDeleteDashboard();
 
   return (
-    <ToolSettingsPage
+    <ToolSettingsLayout
       tool={Tool.dashboard}
       entity={dashboardQuery.data}
       isLoading={isValidId && dashboardQuery.isLoading}

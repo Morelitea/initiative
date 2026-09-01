@@ -108,7 +108,9 @@
     "deleteConfirmDescription": "L'élément sera envoyé à la corbeille. Vous pouvez le restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "deleted": "« {{name}} » supprimé",
     "notFound": "Introuvable",
-    "loadError": "Impossible de charger cet élément."
+    "loadError": "Impossible de charger cet élément.",
+    "permissionRequired": "Permission requise",
+    "permissionRequiredDescription": "Vous n'avez pas accès à cette section de ces paramètres."
   },
   "toolbar": {
     "filters": "Filtres",
