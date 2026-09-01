@@ -11,7 +11,6 @@
     "description": "Vérifiez l’orthographe ou essayez un autre mot."
   },
   "tabs": {
-    "all": "Tout",
     "tool": "Outils",
     "tag": "Étiquettes"
   },

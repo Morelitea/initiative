@@ -1,20 +1,20 @@
 /**
  * Guild-wide search results.
  *
- * Three tabs and no counts on any of them: a tab is a place to look, not a
- * reported quantity. The split is by KIND of thing rather than one tab per
- * tool — per-tool tabs would privilege projects and documents and would reflow
- * every time a tool is added.
+ * Tabs by KIND of thing rather than one per tool, and no counts on any of
+ * them: a tab is a place to look, not a reported quantity. Per-tool tabs would
+ * privilege projects and documents — an artifact of them being the two core
+ * tools — and would reflow every time a tool is added.
  *
- * Each tab is a differently scoped query, not a filter over one. `All` runs the
- * per-category queries side by side and shows a bounded few of each, so no
- * category can crowd the others out — and those same two answers are what let a
- * tab with nothing behind it render disabled instead of vanishing.
+ * A tab is a differently scoped query, not a filter over one, so the tab a
+ * reader is on is the only scope that runs. The others are asked for a single
+ * row, which is enough to show a tab with nothing behind it as disabled rather
+ * than let the reader click through to an empty page.
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2, Search, SearchX } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
@@ -28,16 +28,14 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildSearch } from "@/hooks/useSearch";
 import {
   categoryEntityTypes,
-  isSearchTab,
+  DEFAULT_SEARCH_CATEGORY,
+  isSearchCategory,
   SEARCH_CATEGORIES,
   type SearchCategory,
-  type SearchTab,
 } from "@/lib/searchResults";
 
 /** A page of one category. */
 const PAGE_SIZE = 20;
-/** How many of a category the All tab shows before pointing at its tab. */
-const SECTION_LIMIT = 5;
 
 export function SearchPage() {
   const { t } = useTranslation(["search", "common"]);
@@ -46,7 +44,7 @@ export function SearchPage() {
   const search = useSearch({ strict: false }) as { q?: string; tab?: string; page?: number };
 
   const query = (search.q ?? "").trim();
-  const tab: SearchTab = isSearchTab(search.tab) ? search.tab : "all";
+  const tab: SearchCategory = isSearchCategory(search.tab) ? search.tab : DEFAULT_SEARCH_CATEGORY;
   const page = search.page && search.page >= 1 ? search.page : 1;
 
   // The URL is the query's home — a result page has to be linkable. The input
@@ -82,45 +80,62 @@ export function SearchPage() {
       to: ".",
       search: (prev: Record<string, unknown>) => ({
         ...prev,
-        tab: next === "all" ? undefined : next,
+        tab: next === DEFAULT_SEARCH_CATEGORY ? undefined : next,
         page: undefined,
       }),
     });
   };
 
-  const setPage = (next: number) => {
-    void navigate({
-      to: ".",
-      search: (prev: Record<string, unknown>) => ({ ...prev, page: next > 1 ? next : undefined }),
-    });
-  };
+  const setPage = useCallback(
+    (next: number, replace = false) => {
+      void navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => ({ ...prev, page: next > 1 ? next : undefined }),
+        replace,
+      });
+    },
+    [navigate]
+  );
 
   const enabled = query.length > 0;
-  const tools = useGuildSearch(
-    { q: query, types: categoryEntityTypes("tool"), limit: SECTION_LIMIT },
-    { enabled }
-  );
-  const tags = useGuildSearch(
-    { q: query, types: categoryEntityTypes("tag"), limit: SECTION_LIMIT },
-    { enabled }
-  );
-  const sections: Record<SearchCategory, ReturnType<typeof useGuildSearch>> = {
-    tool: tools,
-    tag: tags,
-  };
-
-  // The open tab's own page. `all` reads the two above instead.
-  const paged = useGuildSearch(
+  const results = useGuildSearch(
     {
       q: query,
-      types: tab === "all" ? undefined : categoryEntityTypes(tab),
+      types: categoryEntityTypes(tab),
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     },
-    { enabled: enabled && tab !== "all" }
+    { enabled }
   );
 
-  const anyLoading = tools.isLoading || tags.isLoading || paged.isLoading;
+  // One row is all the tab strip needs. The tab being read answers for itself,
+  // so only the others are asked.
+  const toolProbe = useGuildSearch(
+    { q: query, types: categoryEntityTypes("tool"), limit: 1 },
+    { enabled: enabled && tab !== "tool" }
+  );
+  const tagProbe = useGuildSearch(
+    { q: query, types: categoryEntityTypes("tag"), limit: 1 },
+    { enabled: enabled && tab !== "tag" }
+  );
+  const probes: Record<SearchCategory, ReturnType<typeof useGuildSearch>> = {
+    tool: toolProbe,
+    tag: tagProbe,
+  };
+
+  // A page past the end of the answer — a link from before the content moved,
+  // or a query that has since narrowed. Left alone it reads as "nothing
+  // matched", which is the opposite of what happened, so it corrects itself
+  // back onto the last page that has results.
+  const total = results.data?.total;
+  const lastPage = total === undefined ? undefined : Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const outOfRange = lastPage !== undefined && page > lastPage;
+  useEffect(() => {
+    if (!outOfRange || lastPage === undefined) return;
+    setPage(lastPage, true);
+  }, [outOfRange, lastPage, setPage]);
+
+  const items = results.data?.items ?? [];
 
   return (
     <div className="space-y-6">
@@ -150,16 +165,15 @@ export function SearchPage() {
       ) : (
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsBar>
-            <TabsTrigger value="all">{t("search:tabs.all")}</TabsTrigger>
             {SEARCH_CATEGORIES.map((category) => (
               <TabsTrigger
                 key={category}
                 value={category}
                 // Nothing behind it, and not where the reader already is.
                 disabled={
-                  tab !== category &&
-                  sections[category].isFetched &&
-                  (sections[category].data?.total ?? 0) === 0
+                  category !== tab &&
+                  probes[category].isFetched &&
+                  (probes[category].data?.total ?? 0) === 0
                 }
               >
                 {t(`search:tabs.${category}`)}
@@ -167,48 +181,18 @@ export function SearchPage() {
             ))}
           </TabsBar>
 
-          <TabsContent value="all" className="space-y-6">
-            {anyLoading ? (
-              <Loading />
-            ) : SEARCH_CATEGORIES.every((c) => (sections[c].data?.items.length ?? 0) === 0) ? (
-              <NoResults query={query} />
-            ) : (
-              SEARCH_CATEGORIES.map((category) => {
-                const results = sections[category].data;
-                if (!results || results.items.length === 0) return null;
-                return (
-                  <section key={category} className="space-y-1">
-                    <div className="flex items-center justify-between px-3">
-                      <h2 className="font-medium text-muted-foreground text-sm">
-                        {t(`search:tabs.${category}`)}
-                      </h2>
-                      {results.total > results.items.length && (
-                        <Button variant="link" size="sm" onClick={() => setTab(category)}>
-                          {t("search:seeAll")}
-                        </Button>
-                      )}
-                    </div>
-                    {results.items.map((hit) => (
-                      <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
-                    ))}
-                  </section>
-                );
-              })
-            )}
-          </TabsContent>
-
           {SEARCH_CATEGORIES.map((category) => (
             <TabsContent key={category} value={category} className="space-y-1">
-              {paged.isLoading ? (
+              {results.isLoading || outOfRange ? (
                 <Loading />
-              ) : (paged.data?.items.length ?? 0) === 0 ? (
+              ) : items.length === 0 ? (
                 <NoResults query={query} />
               ) : (
                 <>
-                  {paged.data?.items.map((hit) => (
+                  {items.map((hit) => (
                     <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
                   ))}
-                  <Pager results={paged.data} page={page} onPageChange={setPage} />
+                  <Pager results={results.data} page={page} onPageChange={setPage} />
                 </>
               )}
             </TabsContent>

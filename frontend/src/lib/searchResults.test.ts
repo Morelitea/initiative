@@ -11,6 +11,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { buildSearchHit } from "@/__tests__/factories";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   hitCategory,
@@ -21,8 +22,9 @@ import {
 } from "@/lib/searchResults";
 import { TOOLS } from "@/lib/tools";
 
-const target = (overrides: Partial<SearchTarget> & Pick<SearchTarget, "entity_type">) =>
-  ({ entity_id: 1, initiative_id: 5, tool: null, tool_id: null, ...overrides }) as SearchTarget;
+const target = (
+  overrides: Partial<SearchTarget> & Pick<SearchTarget, "entity_type">
+): SearchTarget => buildSearchHit({ tool: null, tool_id: null, ...overrides });
 
 describe("searchHitPath", () => {
   it("addresses a tool's own row inside its initiative", () => {

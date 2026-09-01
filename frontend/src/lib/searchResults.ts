@@ -65,14 +65,18 @@ const TOOL_CHILDREN: Record<string, ToolChild> = {
  */
 export const TOOL_ENTITY_TYPES: string[] = [...TOOLS, ...Object.keys(TOOL_CHILDREN)];
 
-/** Which tab a result belongs under. `all` is the union, not a kind. */
+/** Which tab a result belongs under. */
 export type SearchCategory = "tool" | "tag";
-export const SEARCH_CATEGORIES: SearchCategory[] = ["tool", "tag"];
-export type SearchTab = "all" | SearchCategory;
-export const SEARCH_TABS: SearchTab[] = ["all", ...SEARCH_CATEGORIES];
 
-export const isSearchTab = (value: unknown): value is SearchTab =>
-  typeof value === "string" && (SEARCH_TABS as string[]).includes(value);
+/** The tabs, in the order they are shown. */
+export const SEARCH_CATEGORIES: SearchCategory[] = ["tool", "tag"];
+
+/** Where a search lands. Tools is where nearly everything a reader is looking
+ *  for lives, so it is the tab to open on rather than one more click away. */
+export const DEFAULT_SEARCH_CATEGORY: SearchCategory = "tool";
+
+export const isSearchCategory = (value: unknown): value is SearchCategory =>
+  typeof value === "string" && (SEARCH_CATEGORIES as string[]).includes(value);
 
 /** The `types` param restricting a search to one category. */
 export const categoryEntityTypes = (category: SearchCategory): string[] =>

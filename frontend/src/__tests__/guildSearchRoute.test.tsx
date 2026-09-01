@@ -8,15 +8,16 @@
  * proves neither.
  */
 import { createRouter } from "@tanstack/react-router";
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SearchHit, SearchResults } from "@/api/generated/initiativeAPI.schemas";
+import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CommandCenter } from "@/components/CommandCenter";
 import { routeTree } from "@/routeTree.gen";
 
+import { buildSearchHit, buildSearchResults, buildSearchSuggestion } from "./factories";
 import { renderPage } from "./helpers/render";
 
 const SEARCH_ROUTE_ID = "/_serverRequired/_authenticated/g/$guildId/search";
@@ -27,40 +28,28 @@ vi.mock("@/hooks/useSearch", () => ({
   useGuildSearchSuggest: () => mocks.suggest(),
 }));
 
-const project: SearchHit = {
-  entity_type: "project",
-  entity_id: 7,
-  title: "Riverside kickoff",
-  snippet: "the <riverside> stage build",
-  initiative_id: 5,
-  tool: Tool.project,
-  tool_id: 7,
-};
-const tag: SearchHit = {
-  entity_type: "tag",
-  entity_id: 12,
-  title: "riverside",
-  snippet: null,
-  initiative_id: null,
-  tool: null,
-  tool_id: null,
-};
+type SearchParams = { types?: string[]; limit?: number; offset?: number };
 
-const answer = (items: SearchHit[]): SearchResults => ({
-  items,
-  total: items.length,
-  limit: 5,
-  offset: 0,
-});
-
-const query = (data: SearchResults) => ({ data, isLoading: false, isFetched: true });
-
-/** Answer per scope, the way the endpoint does — the page asks a different
- *  question per tab, and mixing the answers would hide that. */
+/**
+ * Answer per scope and per page, the way the endpoint does: `total` counts
+ * everything that matched, not what came back, and a window past the end comes
+ * back empty with the total intact.
+ */
 const withHits = (tools: SearchHit[], tags: SearchHit[]) => {
-  mocks.search.mockImplementation((params: { types?: string[] }) =>
-    query(answer(params.types?.includes("tag") ? tags : tools))
-  );
+  mocks.search.mockImplementation((params: SearchParams) => {
+    const all = params.types?.includes("tag") ? tags : tools;
+    const limit = params.limit ?? 20;
+    const offset = params.offset ?? 0;
+    return {
+      data: buildSearchResults(all.slice(offset, offset + limit), {
+        total: all.length,
+        limit,
+        offset,
+      }),
+      isLoading: false,
+      isFetched: true,
+    };
+  });
 };
 
 const router = createRouter({ routeTree });
@@ -81,6 +70,33 @@ const searchPage = async () => {
   return Page;
 };
 
+const renderSearch = async (routerSearch: Record<string, unknown>) => {
+  const Page = await searchPage();
+  return renderPage(Page, {
+    initialRoute: "/g/$guildId/search",
+    routeParams: { guildId: "1" },
+    routerSearch,
+  });
+};
+
+const project = () =>
+  buildSearchHit({
+    entity_id: 7,
+    tool_id: 7,
+    title: "Riverside kickoff",
+    snippet: "the <riverside> stage build",
+  });
+
+const tag = () =>
+  buildSearchHit({
+    entity_type: "tag",
+    entity_id: 12,
+    title: "riverside",
+    initiative_id: null,
+    tool: null,
+    tool_id: null,
+  });
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.suggest.mockReturnValue({ data: [], isLoading: false });
@@ -92,36 +108,35 @@ describe("the guild search page", () => {
     expect(resolvedRouteId("/g/1/search")).toBe(SEARCH_ROUTE_ID);
   });
 
-  it("shows each kind of result under its own heading, linked to where it lives", async () => {
-    withHits([project], [tag]);
-    const Page = await searchPage();
-    renderPage(Page, {
-      initialRoute: "/g/$guildId/search",
-      routeParams: { guildId: "1" },
-      routerSearch: { q: "riverside" },
-    });
+  it("lands on tools, linked to where each result lives", async () => {
+    withHits([project()], [tag()]);
+    await renderSearch({ q: "riverside" });
 
-    const hit = await screen.findByRole("link", { name: /Riverside kickoff/ });
-    expect(hit).toHaveAttribute("href", "/g/1/i/5/projects/7");
-    // The tag matched too, and lands on its own guild-level page.
-    expect(screen.getByRole("link", { name: /^riversideTag$/ })).toHaveAttribute(
-      "href",
-      "/g/1/tags/12"
+    expect(await screen.findByRole("tab", { name: "Tools" })).toHaveAttribute(
+      "aria-selected",
+      "true"
     );
+    const hit = screen.getByRole("link", { name: /Riverside kickoff/ });
+    expect(hit).toHaveAttribute("href", "/g/1/i/5/projects/7");
     // What matched is marked up inside the snippet rather than shown with the
     // delimiters the database wrapped it in.
     expect(within(hit).getByText("riverside")).toBeInTheDocument();
     expect(hit).not.toHaveTextContent("<riverside>");
   });
 
+  it("gives the guild's vocabulary its own tab and its own address", async () => {
+    withHits([project()], [tag()]);
+    await renderSearch({ q: "riverside", tab: "tag" });
+
+    expect(await screen.findByRole("link", { name: /^riversideTag$/ })).toHaveAttribute(
+      "href",
+      "/g/1/tags/12"
+    );
+  });
+
   it("offers nothing to open on a tab with nothing behind it", async () => {
-    withHits([project], []);
-    const Page = await searchPage();
-    renderPage(Page, {
-      initialRoute: "/g/$guildId/search",
-      routeParams: { guildId: "1" },
-      routerSearch: { q: "riverside" },
-    });
+    withHits([project()], []);
+    await renderSearch({ q: "riverside" });
 
     await screen.findByRole("link", { name: /Riverside kickoff/ });
     expect(screen.getByRole("tab", { name: "Tools" })).toBeEnabled();
@@ -129,14 +144,27 @@ describe("the guild search page", () => {
   });
 
   it("asks nothing until there is something to search for", async () => {
-    const Page = await searchPage();
-    renderPage(Page, { initialRoute: "/g/$guildId/search", routeParams: { guildId: "1" } });
+    await renderSearch({});
 
     expect(await screen.findByText("Search this guild")).toBeInTheDocument();
-    expect(mocks.search).toHaveBeenCalledWith(expect.objectContaining({ q: "" }));
     for (const call of mocks.search.mock.calls) {
       expect(call[0].q).toBe("");
     }
+  });
+
+  it("puts a reader who arrives past the last page back on results", async () => {
+    // A link from before the content moved, or a query that has since
+    // narrowed: page 99 of 25 results is empty, and left alone it would read
+    // as "nothing matched".
+    withHits(
+      Array.from({ length: 25 }, (_, index) => buildSearchHit({ title: `Match ${index}` })),
+      []
+    );
+    const { router: pageRouter } = await renderSearch({ q: "riverside", page: 99 });
+
+    expect(await screen.findByText("Match 20")).toBeInTheDocument();
+    await waitFor(() => expect(pageRouter.state.location.search).toMatchObject({ page: 2 }));
+    expect(screen.queryByText(/No results for/)).not.toBeInTheDocument();
   });
 });
 
@@ -144,14 +172,13 @@ describe("the command palette", () => {
   it("answers from the index once there is a query, and offers the whole page", async () => {
     mocks.suggest.mockReturnValue({
       data: [
-        {
+        buildSearchSuggestion({
           entity_type: "calendar_event",
           entity_id: 8,
           title: "Riverside read-through",
-          initiative_id: 5,
           tool: Tool.calendar,
           tool_id: 2,
-        },
+        }),
       ],
       isLoading: false,
     });
@@ -170,8 +197,9 @@ describe("the command palette", () => {
     const input = await screen.findByRole("combobox");
     await userEvent.type(input, "riverside");
 
-    const hit = await screen.findByText("Riverside read-through", undefined, { timeout: 2000 });
-    expect(hit).toBeInTheDocument();
+    expect(
+      await screen.findByText("Riverside read-through", undefined, { timeout: 2000 })
+    ).toBeInTheDocument();
 
     await userEvent.click(await screen.findByText(/See all results/));
     expect(pageRouter.state.location.pathname).toBe("/g/1/search");
