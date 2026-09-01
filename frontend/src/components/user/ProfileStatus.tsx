@@ -17,33 +17,57 @@ const STATUS_MAX_LENGTH = 100;
 
 const isEmpty = (status: CustomStatusOutput) => !status.emoji && !status.text;
 
-/** The bubble itself, which is all a reader of someone else's profile gets. */
+/** Which way the dots run: toward the picture, wherever it is. */
+export type Tail = "up" | "down";
+
+/**
+ * The bubble itself, which is all a reader of someone else's profile gets.
+ *
+ * A thought bubble rather than a speech one: a status is what someone is
+ * thinking about, not something they said to you. So the tail is two dots
+ * shrinking toward whoever is thinking it, and which way they run depends on
+ * where the picture is — above the bubble in the sidebar, below it everywhere
+ * the bubble leads.
+ */
 const Bubble = ({
   status,
   muted,
+  tail,
   className,
 }: {
   status: CustomStatusOutput;
   muted?: boolean;
+  tail: Tail;
   className?: string;
 }) => {
   const { t } = useTranslation("profiles");
+  const dots = (
+    // Offset from the left edge so it reads as coming from the picture rather
+    // than from the corner of the box.
+    <span aria-hidden="true" className="flex items-center gap-1 pl-5">
+      <span className="block size-2 rounded-full border bg-card" />
+      <span className="block size-1 rounded-full border bg-card" />
+    </span>
+  );
   return (
-    <span
-      className={cn(
-        "inline-flex max-w-full items-center gap-2 rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-left",
-        muted && "text-muted-foreground",
-        className
-      )}
-    >
-      {status.emoji ? (
-        <span className="text-lg leading-none" aria-hidden="true">
-          {status.emoji}
-        </span>
-      ) : (
-        <MessageCircle className="size-4 shrink-0 opacity-60" aria-hidden="true" />
-      )}
-      <span className="min-w-0 break-words">{status.text || t("status.empty")}</span>
+    <span className={cn("inline-block max-w-full text-left", className)}>
+      {tail === "up" ? <span className="mb-0.5 block">{dots}</span> : null}
+      <span
+        className={cn(
+          "flex max-w-full items-center gap-2 rounded-[1.25rem] border bg-card px-3.5 py-2",
+          muted && "text-muted-foreground"
+        )}
+      >
+        {status.emoji ? (
+          <span className="text-lg leading-none" aria-hidden="true">
+            {status.emoji}
+          </span>
+        ) : (
+          <MessageCircle className="size-4 shrink-0 opacity-60" aria-hidden="true" />
+        )}
+        <span className="min-w-0 break-words">{status.text || t("status.empty")}</span>
+      </span>
+      {tail === "down" ? <span className="mt-0.5 block">{dots}</span> : null}
     </span>
   );
 };
@@ -61,12 +85,15 @@ const Bubble = ({
 export const ProfileStatus = ({
   status,
   editable = false,
+  tail = "down",
   onSaved,
   className,
 }: {
   status: CustomStatusOutput;
   /** Whether this is your own profile, and the bubble opens an editor. */
   editable?: boolean;
+  /** Where the picture this belongs to is. Down — below the bubble — by default. */
+  tail?: Tail;
   onSaved?: () => Promise<void> | void;
   className?: string;
 }) => {
@@ -93,7 +120,7 @@ export const ProfileStatus = ({
 
   if (!editable) {
     if (isEmpty(status)) return null;
-    return <Bubble status={status} className={className} />;
+    return <Bubble status={status} tail={tail} className={className} />;
   }
 
   return (
@@ -107,7 +134,7 @@ export const ProfileStatus = ({
           )}
           aria-label={t("profiles:status.edit")}
         >
-          <Bubble status={status} muted={isEmpty(status)} />
+          <Bubble status={status} muted={isEmpty(status)} tail={tail} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 space-y-3">

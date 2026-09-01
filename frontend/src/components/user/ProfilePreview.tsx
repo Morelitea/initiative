@@ -53,25 +53,26 @@ export const ProfilePreview = ({
         style={banner ? { backgroundImage: `url(${banner.src})` } : undefined}
       />
       <CardContent className="space-y-4">
-        <div className="-mt-14 flex flex-wrap items-end gap-4">
-          <ProfilePicture
-            user={user}
-            decorations={decorations}
-            online
-            editable
-            onChanged={onChanged}
-            className="size-24 sm:size-28"
-          />
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
-            <UserHandle user={user} className="font-semibold text-2xl" />
-            <ProfileBadges decorations={decorations} />
+        {/* The status above the picture, the same way the page has it: the
+            bubble is a thought and the face under it is who is thinking. */}
+        <div className="-mt-20 space-y-1">
+          <ProfileStatus status={status} editable onSaved={onChanged} />
+          <div className="flex flex-wrap items-end gap-4">
+            <ProfilePicture
+              user={user}
+              decorations={decorations}
+              online
+              editable
+              onChanged={onChanged}
+              className="size-24 sm:size-28"
+            />
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
+              <UserHandle user={user} className="font-semibold text-2xl" />
+              <ProfileBadges decorations={decorations} />
+            </div>
           </div>
         </div>
 
-        <ProfileStatus status={status} editable onSaved={onChanged} />
-
-        {/* You are looking at the app, so the dot is the truth rather than a
-            mock-up of one. */}
         <ProfileMeta online joinedAt={joinedAt} />
       </CardContent>
     </Card>

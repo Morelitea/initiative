@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The mushrooms grow properly now.** The Mushrooms pack was drawn on a pixel grid, which a mushroom does not have — a cap is a dome and a stem is a taper. It is all curves, and it is a forest floor rather than the same mushroom three times: a morel, a fly agaric, a cluster of little brown ones, and bracket fungus on a fallen log.
+
+- **Your status is a thought bubble, and it sits with the face thinking it.** Two dots trail from the bubble toward your picture — above the picture on your profile, below it in the sidebar, so they always run the right way.
+
+- **Badges read on any banner.** A row of dark discs laid on a night-sky banner was a row you could not see. They sit on a tray now, welded to it by the same goo filter the community tool rail uses, so a set of badges reads as one collection at any brightness.
+
 - **Your profile page is built like a community's front page.** The banner runs the full width of the content area with your handle on it and your badges in the corner, fading into the page the way a community's does, and your picture sits over the tail of it. What a community's admin chooses there, a decoration declares here.
 
 - **Settings › Profile is now the face, and Account is the account.** The profile tab is the preview card, your look, and your packs, in that order. Your real name and your timezone moved to Account, beside your address and your handle — nothing on the profile tab is private, and nothing on Account is visible to anyone else.
