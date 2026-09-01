@@ -72,34 +72,31 @@ export const UserProfilePage = () => {
         />
       ) : null}
 
-      {/* The picture sits over the tail of the banner, the way a profile's
-          always has. With no banner there is nothing to sit over, so the row
-          carries the name and the badges itself. */}
-      <div
-        className={
-          banner ? "-mt-14 flex flex-wrap items-end gap-4" : "flex flex-wrap items-end gap-4"
-        }
-      >
-        <ProfileAvatar
-          user={profile}
-          decorations={profile.profile_decorations}
-          online={profile.online}
-          ring
-          className="size-24 sm:size-28"
+      {/* The status sits above the picture, because it is a thought bubble and
+          the thinker is the face under it. Both ride over the tail of the
+          banner's fade, the way a community's page rides over its own. */}
+      <div className={banner ? "-mt-20 space-y-1" : "space-y-1"}>
+        <ProfileStatus
+          status={profile.custom_status}
+          editable={mine}
+          onSaved={() => void refetch()}
         />
-        {banner ? null : (
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
-            <h1 className="font-semibold text-2xl">{name}</h1>
-            <ProfileBadges decorations={profile.profile_decorations} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-end gap-4">
+          <ProfileAvatar
+            user={profile}
+            decorations={profile.profile_decorations}
+            online={profile.online}
+            ring
+            className="size-24 sm:size-28"
+          />
+          {banner ? null : (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
+              <h1 className="font-semibold text-2xl">{name}</h1>
+              <ProfileBadges decorations={profile.profile_decorations} />
+            </div>
+          )}
+        </div>
       </div>
-
-      <ProfileStatus
-        status={profile.custom_status}
-        editable={mine}
-        onSaved={() => void refetch()}
-      />
 
       <ProfileMeta online={profile.online} joinedAt={profile.joined_at} />
 

@@ -156,6 +156,7 @@ export const SidebarUserFooter = ({
             <ProfileStatus
               status={user.custom_status}
               editable
+              tail="up"
               onSaved={refreshUser}
               className="block w-full text-xs"
             />
