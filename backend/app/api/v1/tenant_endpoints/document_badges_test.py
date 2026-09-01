@@ -355,9 +355,11 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
 ) -> None:
     """The gate is the resource's own sharing, not a rule badges invented.
 
-    A counter group is the creator's until they share it, so a fellow member
-    reads nothing. A calendar is shared with the initiative when it is made, so
-    the same member reads its events. Both are the same check.
+    Both of these are made by a factory, which shares a calendar with the
+    initiative and leaves a counter group to its owner. Whichever way the
+    sharing goes, the chip follows it — which is the thing being asserted. (The
+    create endpoints both default to Viewer for the initiative; the factories
+    are not trying to mirror them.)
     """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)

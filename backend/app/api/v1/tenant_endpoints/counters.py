@@ -427,7 +427,7 @@ async def create_counter_group(
     session.add(owner_perm)
 
     # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (empty default = owner-only until shared).
+    # code path (defaults to Viewer for all initiative members).
     await permissions_service.replace_resource_grants(
         session,
         resource_type="counter_group",
