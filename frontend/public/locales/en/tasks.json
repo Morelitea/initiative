@@ -63,12 +63,8 @@
     "noAccessDescription": "You don’t have permission to view this task. Ask a project manager to grant you access.",
     "backToProjects": "← Back to projects",
     "loadProjectError": "Unable to load project context for this task.",
-    "statusBadge": "Status",
     "createdBy": "Created by {{name}} · {{time}}",
     "createdAt": "Created {{time}}",
-    "subtitle": "Edit every detail of this task.",
-    "detailsTitle": "Task details",
-    "detailsDescription": "Update the fields below and save your changes.",
     "readOnlyNoAccess": "You only have read access to this project, so task fields are disabled.",
     "readOnlyArchived": "This project is archived. Unarchive it from project settings to edit tasks.",
     "titleLabel": "Title",
@@ -289,6 +285,11 @@
     "startDateLabel": "Start date",
     "dueDateLabel": "Due date",
     "tagsLabel": "Tags",
-    "tagsPlaceholder": "Add tags"
+    "tagsPlaceholder": "Add tags",
+    "sections": {
+      "tracking": "Tracking",
+      "schedule": "Schedule",
+      "people": "People & labels"
+    }
   }
 }
