@@ -289,9 +289,11 @@ export const TaskRecurrenceSelector = ({
     [i18n.language, t]
   );
 
+  // Null whenever there is no rule worth describing — the select already says
+  // "Does not repeat", so a summary repeating it verbatim is pure noise.
   const summary = useMemo(() => {
     if (!recurrence) {
-      return t("recurrence.doesNotRepeat");
+      return null;
     }
     const rule = recurrence;
     const interval = rule.interval;
@@ -360,11 +362,11 @@ export const TaskRecurrenceSelector = ({
       }
     }
 
-    return base || t("recurrence.doesNotRepeat");
+    return base || null;
   }, [recurrence, referenceDate, t, formatWeekdayList]);
 
   return (
-    <div className="space-y-4 rounded-md border border-border/70 border-dashed p-4">
+    <div className="space-y-4">
       <div className="space-y-2">
         <Label>{t("recurrence.repeat")}</Label>
         <Select
@@ -383,7 +385,7 @@ export const TaskRecurrenceSelector = ({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground text-sm">{summary}</p>
+        {summary ? <p className="text-muted-foreground text-sm">{summary}</p> : null}
       </div>
 
       {showCustomFields && recurrence ? (

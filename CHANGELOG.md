@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The Repeat field no longer tells you twice that a task does not repeat.** A summary line sat under the Repeat picker restating whatever the picker already showed, so every task that does not repeat said "Does not repeat" twice in a row. The summary now appears only when there is a real schedule to spell out — "Every 2 weeks on Monday" — and Repeat has lost the dashed box that made the least-used field on the form the heaviest thing on the page.
+
 - **A task description with a code block no longer stretches its board card out of the column.** Code fences, tables, images and unbroken strings were rendered at whatever width they wanted, so one task with a snippet in its description pushed its card past the edge of the column and left the whole board scrolling sideways. Code now wraps, wide tables and images stay inside the card, and a long title breaks rather than pushing. The same containment applies everywhere a description is rendered, so the task detail page and the hover preview get it too — and code blocks and inline code now read as code, on a tinted, rounded background.
 
 - **Renaming a spreadsheet sheet keeps what you type.** The tab's rename box re-selected the whole name after every keystroke, so each new character wiped out the one before it and the sheet ended up named after the last letter typed. The name is now selected once when the box opens, as intended, and typing behaves normally from there.
