@@ -64,6 +64,9 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/schema_provisioning.py::apply_guild_capture": (
         "int-derived schema name + registry-rendered trigger DDL (constants)"
     ),
+    "app/db/schema_provisioning.py::apply_guild_search": (
+        "int-derived schema name + registry-rendered trigger DDL (constants)"
+    ),
     "app/db/schema_provisioning.py::drop_guild_schema": (
         "int-derived guild_<id> schema/role names"
     ),

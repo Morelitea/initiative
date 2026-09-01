@@ -240,6 +240,29 @@ def webhook_subscription_path() -> InitiativePath:
     )
 
 
+def search_entries_path() -> InitiativePath:
+    """The search index is reached exactly like the content it describes.
+
+    It stores ``initiative_id`` directly, so unlike ``recent_views`` this needs
+    no per-type EXISTS join — the row was stamped with its source's initiative
+    by the same registry that renders that source's own policies.
+
+    A NULL initiative is the guild-level case (a tag, a guild calendar): the
+    initiative gate has nothing to decide, and these are rows every member
+    already sees everywhere else in the app. It is not an ungated leg — a row
+    carrying a ``dac_tool`` still answers to sharing, and reaching this schema
+    at all is the guild gate.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.initiative_id IS NULL "
+            f"THEN true "
+            f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
+
+
 def recent_views_path() -> InitiativePath:
     def build(t: str, w: bool) -> str:
         legs = [
@@ -303,6 +326,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # Reading is the question this path answers; writing is the capture
     # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
     "event_outbox": direct(),
+    # The search index. Derived from the content tables, and gated like them.
+    "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
     # One hop -> projects
@@ -477,6 +502,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
+    "search_entries": Silent("derived index, rebuilt from the content it mirrors"),
     "project_orders": Silent("one member's own ordering state"),
     "project_favorites": Silent("one member's own pinning state"),
     "task_assignment_digest_items": Silent("internal digest bookkeeping"),
