@@ -21,6 +21,7 @@ from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.services import email as email_service
 from app.services.tenant import initiatives as initiatives_service
 from app.testing import create_user, get_auth_headers
+from app.testing.factories import create_guild_membership, create_initiative_member
 from app.testing.factories import create_initiative
 
 
@@ -2705,3 +2706,23 @@ async def test_unconfigured_smtp_does_not_break_the_request(
         )
         == 1
     )
+
+
+@pytest.mark.integration
+async def test_initiative_member_search_finds_a_misspelled_name(
+    client, session, acting_user
+):
+    """One rule for looking people up, wherever the picker is. An initiative's
+    roster matches a near miss exactly as the guild's does."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await create_user(session, username="moonwhisper")
+    await create_guild_membership(session, user=member, guild=a.guild)
+    await create_initiative_member(session, a.initiative, member)
+
+    response = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/members/search"),
+        headers=a.headers,
+        params={"search": "moonwhsiper"},
+    )
+    assert response.status_code == 200, response.text
+    assert member.username in {u["username"] for u in response.json()["items"]}

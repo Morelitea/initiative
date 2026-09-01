@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import MetaData
 from sqlmodel import SQLModel
@@ -203,6 +203,20 @@ def _title_expr(source: "SearchSource", row: str = ROW) -> str:
     return f"{row}.{source.title}"
 
 
+#: Boolean columns that say a row is not part of the working set. Having the
+#: column IS the declaration — a source states nothing, the same way ``deleted_at``
+#: is read off the table rather than declared.
+FLAG_COLUMNS: dict[str, str] = {"archived": "is_archived", "template": "is_template"}
+
+
+def _flag_expr(table: str, flag: str, row: str) -> str | None:
+    """Row expression for one flag, or ``None`` where the table cannot carry it."""
+    column = FLAG_COLUMNS[flag]
+    if column not in SQLModel.metadata.tables[table].columns:
+        return None
+    return f"{row}.{column}"
+
+
 def _body_expr(source: "SearchSource", row: str = ROW) -> str:
     """Row expression yielding a source's body text."""
     if source.body_sql is not None:
@@ -213,34 +227,44 @@ def _body_expr(source: "SearchSource", row: str = ROW) -> str:
     return " || ' ' || ".join(parts) if len(parts) > 1 else parts[0]
 
 
-#: table -> how its rows are indexed.
-#:
-#: ``comments`` resolves its tool per row — see :func:`_comment_dac` — and is the
-#: only source outside the default scope: it is the highest-volume table in an
-#: active community, and the tab that shows it names the type.
-SEARCH_SOURCES: dict[str, SearchSource] = {
-    "projects": SearchSource(
-        SearchEntityType.project,
+#: How a tool indexes when it says nothing: its own name and description, gated
+#: by its own sharing. Stated once and applied to every member of ``Tool``, so a
+#: seventh tool is searchable the day its table exists.
+def _tool_source(tool: Tool) -> SearchSource:
+    return SearchSource(
+        SearchEntityType(tool.value),
         title="name",
         body=("description",),
-        dac_tool=Tool.project,
-    ),
+        dac_tool=tool,
+    )
+
+
+#: Where a tool's text is not simply its name and description. A tool absent
+#: from here is not an omission — it is a tool that takes the shape above.
+TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
+    Tool.document: {
+        "body": ("content", "document_type", "original_filename"),
+        "body_sql": _document_text,
+    },
+}
+
+#: table -> how its rows are indexed.
+#:
+#: The six tools are derived; what is written out is what a tool does not
+#: describe — the entities that live INSIDE one, the guild's vocabulary, and
+#: comments. Those differ from each other in ways no rule covers: which column
+#: is the title, which parent's sharing governs them.
+SEARCH_SOURCES: dict[str, SearchSource] = {
+    **{
+        tool.plural: replace(_tool_source(tool), **TOOL_OVERRIDES.get(tool, {}))
+        for tool in Tool
+    },
     "tasks": SearchSource(
         SearchEntityType.task,
         title="title",
         body=("description",),
         dac_tool=Tool.project,
         dac_id="project_id",
-    ),
-    "documents": SearchSource(
-        SearchEntityType.document,
-        title="name",
-        body=("content", "document_type", "original_filename"),
-        body_sql=_document_text,
-        dac_tool=Tool.document,
-    ),
-    "queues": SearchSource(
-        SearchEntityType.queue, title="name", body=("description",), dac_tool=Tool.queue
     ),
     "queue_items": SearchSource(
         SearchEntityType.queue_item,
@@ -249,23 +273,11 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         dac_tool=Tool.queue,
         dac_id="queue_id",
     ),
-    "counter_groups": SearchSource(
-        SearchEntityType.counter_group,
-        title="name",
-        body=("description",),
-        dac_tool=Tool.counter_group,
-    ),
     "counters": SearchSource(
         SearchEntityType.counter,
         title="name",
         dac_tool=Tool.counter_group,
         dac_id="counter_group_id",
-    ),
-    "calendars": SearchSource(
-        SearchEntityType.calendar,
-        title="name",
-        body=("description",),
-        dac_tool=Tool.calendar,
     ),
     "calendar_events": SearchSource(
         SearchEntityType.calendar_event,
@@ -273,12 +285,6 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         body=("description", "location"),
         dac_tool=Tool.calendar,
         dac_id="calendar_id",
-    ),
-    "dashboards": SearchSource(
-        SearchEntityType.dashboard,
-        title="name",
-        body=("description",),
-        dac_tool=Tool.dashboard,
     ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.
@@ -368,6 +374,7 @@ def _when_clause(table: str, source: SearchSource) -> str:
     watched = [source.title, *source.body]
     if source.dac_id:
         watched.append(source.dac_id)
+    watched.extend(FLAG_COLUMNS.values())
     watched.append("deleted_at")
     columns = SQLModel.metadata.tables[table].columns
     present = [c for c in dict.fromkeys(watched) if c in columns]
@@ -387,7 +394,9 @@ CREATE OR REPLACE FUNCTION {write_fn}(
     p_dac_tool    text,
     p_dac_id      integer,
     p_title       text,
-    p_body        text
+    p_body        text,
+    p_archived    boolean,
+    p_template    boolean
 ) RETURNS void
     LANGUAGE plpgsql AS $write$
 DECLARE
@@ -433,13 +442,15 @@ BEGIN
         EXECUTE format(
             'INSERT INTO %I.search_entries ('
             '  entity_type, entity_id, chunk_ix, initiative_id,'
-            '  dac_tool, dac_id, title, body, updated_at, tsv'
-            ') VALUES ($1, $2, $3, $4, nullif($5, ''''), $6, $7, nullif($8, ''''), now(),'
+            '  dac_tool, dac_id, title, body, archived, template, updated_at, tsv'
+            ') VALUES ($1, $2, $3, $4, nullif($5, ''''), $6, $7, nullif($8, ''''),'
+            '  coalesce($9, false), coalesce($10, false), now(),'
             '  setweight(to_tsvector(''simple'', $7), ''A'') ||'
             '  setweight(to_tsvector(''simple'', $8), ''B''))',
             p_schema
         ) USING p_entity_type, p_entity_id, v_ix, p_initiative,
-                p_dac_tool, p_dac_id, v_title, v_chunk;
+                p_dac_tool, p_dac_id, v_title, v_chunk,
+                p_archived, p_template;
 
         v_ix := v_ix + 1;
         v_pos := v_pos + v_cut;
@@ -461,6 +472,8 @@ DECLARE
     v_title      text;
     v_body       text;
     v_dac_tool   text;
+    v_archived   boolean := false;
+    v_template   boolean := false;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         v_row := OLD;
@@ -494,10 +507,17 @@ BEGIN
         EXECUTE 'SELECT ' || TG_ARGV[5] INTO v_dac_tool USING v_row;
         EXECUTE 'SELECT ' || TG_ARGV[6] INTO v_dac_id USING v_row;
     END IF;
+    IF TG_ARGV[7] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[7] INTO v_archived USING v_row;
+    END IF;
+    IF TG_ARGV[8] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[8] INTO v_template USING v_row;
+    END IF;
 
     PERFORM {write_fn}(
         TG_TABLE_SCHEMA, TG_ARGV[1], v_entity, v_initiative,
-        v_dac_tool, v_dac_id, v_title, v_body
+        v_dac_tool, v_dac_id, v_title, v_body,
+        v_archived, v_template
     );
     RETURN NULL;
 END
@@ -554,10 +574,13 @@ def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
         else "NULL::integer"
     )
     body = _body_expr(source, row) or "''"
+    archived = _flag_expr(table, "archived", row) or "false"
+    template = _flag_expr(table, "template", row) or "false"
     return (
         f"{WRITE_FUNCTION}({schema}, '{source.entity_type.value}', {row}.id,"
         f" ({initiative_locator(table)(row)})::integer,"
-        f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body})"
+        f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body},"
+        f" {archived}, {template})"
     )
 
 
@@ -590,7 +613,11 @@ def _dependency_block(
 
 
 def _call_args(table: str, source: SearchSource) -> list[str]:
-    """The seven trigger arguments, shared by both triggers on a table."""
+    """The nine trigger arguments, shared by both triggers on a table.
+
+    An argument is the empty string where the source has nothing to say — no
+    body, no sharing gate, no flag column — and the function skips it.
+    """
     locator = initiative_locator(table)
     dac_tool, dac_id = _dac_exprs(source)
     return [
@@ -600,7 +627,9 @@ def _call_args(table: str, source: SearchSource) -> list[str]:
         f"    {_quoted(_title_expr(source))},",
         f"    {_quoted(_body_expr(source))},",
         f"    {_quoted(dac_tool)},",
-        f"    {_quoted(dac_id)}",
+        f"    {_quoted(dac_id)},",
+        f"    {_quoted(_flag_expr(table, 'archived', ROW) or '')},",
+        f"    {_quoted(_flag_expr(table, 'template', ROW) or '')}",
     ]
 
 

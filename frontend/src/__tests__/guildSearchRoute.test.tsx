@@ -332,8 +332,9 @@ describe("the command palette", () => {
     expect(tools).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Comments" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Tags" })).toBeInTheDocument();
-    // Not Members: the palette is a way to reach one thing, and a person has
-    // no page to be reached at yet.
+    // Not Members: every slice here is one the index answers, and people are
+    // not in it — they are read from the roster, which is a second request the
+    // palette does not make.
     expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
 
     // Tab from the input moves between slices, so the hands stay on the query.

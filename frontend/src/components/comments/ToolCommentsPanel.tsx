@@ -40,7 +40,7 @@ export const ToolCommentsPanel = ({
   title,
   onCountChange,
 }: ToolCommentsPanelProps) => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("comments");
 
   const entityId = entity.id;
   const disabled = entity.comments_disabled ?? false;
@@ -65,9 +65,7 @@ export const ToolCommentsPanel = ({
 
   return (
     <div className="space-y-2">
-      {commentsQuery.isError && (
-        <p className="text-destructive text-sm">{t("comments.loadError")}</p>
-      )}
+      {commentsQuery.isError && <p className="text-destructive text-sm">{t("loadError")}</p>}
       <CommentSection
         entityType={tool}
         entityId={entityId}

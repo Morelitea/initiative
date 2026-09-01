@@ -59,7 +59,7 @@ const useIsTruncated = (ref: React.RefObject<HTMLElement | null>, collapsed: boo
 };
 
 const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation(["guildHome", "comments"]);
   const gp = useGuildPath();
   const contentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -170,7 +170,7 @@ const CommentEntry = ({ entry }: { entry: RecentActivityEntry }) => {
 };
 
 export const GuildRecentComments = () => {
-  const { t } = useTranslation("guildHome");
+  const { t } = useTranslation(["guildHome", "comments"]);
   const { data: comments, isLoading, isError } = useRecentComments(RECENT_COMMENTS_PARAMS);
 
   return (

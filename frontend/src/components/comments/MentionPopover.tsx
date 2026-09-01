@@ -1,106 +1,144 @@
-import { CheckSquare, FileText, FolderKanban } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { MentionEntityType, MentionSuggestion } from "@/api/generated/initiativeAPI.schemas";
+import type { SearchSuggestion, UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useMentionSuggestions } from "@/hooks/useComments";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useInitiativeMemberSearch } from "@/hooks/useUsers";
 import { getInitials } from "@/lib/initials";
-import { getAvatarSrc } from "@/lib/userDisplay";
+import type { ActiveMention } from "@/lib/mentions";
+import { MENTIONABLE_TYPES } from "@/lib/mentions";
+import { hitIcon } from "@/lib/searchResults";
+import { getAvatarSrc, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
+/** How many rows a mention picker offers. */
+const MENTION_LIMIT = 8;
+
+/** What choosing a row means: a person, or one of the things in this community. */
+export type MentionChoice =
+  | { user: true; id: number; label: string }
+  | { user: false; suggestion: SearchSuggestion };
+
 interface MentionPopoverProps {
-  type: MentionEntityType;
-  query: string;
+  /** The mention being typed — who or what, and how much of it. */
+  active: ActiveMention;
   initiativeId: number;
   /** Pixel anchor (relative to the field) so the popover sits under the word
    *  being typed. Falls back to below the whole field when absent. */
   anchor?: { top: number; left: number } | null;
-  onSelect: (suggestion: MentionSuggestion) => void;
+  onSelect: (choice: MentionChoice) => void;
   onClose: () => void;
 }
 
-// User suggestions render a face (parity with the member typeaheads); the
-// other entity types render their type icon.
-const renderLeading = (suggestion: MentionSuggestion) => {
-  if (suggestion.type === "user") {
-    const src = getAvatarSrc(suggestion);
-    return (
+/** One offered row, reduced to what the list renders. */
+interface Row {
+  key: string;
+  label: string;
+  subtitle: string | null;
+  leading: React.ReactNode;
+  choose: MentionChoice;
+}
+
+const memberRow = (member: UserSummary): Row => {
+  const src = getAvatarSrc(member);
+  const label = getUserDisplayName(member);
+  const handle = getUserHandle(member);
+  return {
+    key: `user-${member.id}`,
+    label,
+    // The handle under the name is what tells two people of the same name
+    // apart. Nothing to add when the line above already IS the handle.
+    subtitle: handle === label ? null : handle,
+    leading: (
       <Avatar className="h-5 w-5 shrink-0 text-[10px]">
-        {src ? <AvatarImage src={src} alt={suggestion.display_text} /> : null}
-        <AvatarFallback userId={suggestion.id}>
-          {getInitials(suggestion.display_text)}
-        </AvatarFallback>
+        {src ? <AvatarImage src={src} alt={label} /> : null}
+        <AvatarFallback userId={member.id}>{getInitials(label)}</AvatarFallback>
       </Avatar>
-    );
-  }
-  switch (suggestion.type) {
-    case "task":
-      return <CheckSquare className="h-4 w-4 shrink-0" />;
-    case "doc":
-      return <FileText className="h-4 w-4 shrink-0" />;
-    case "project":
-      return <FolderKanban className="h-4 w-4 shrink-0" />;
-  }
+    ),
+    choose: { user: true, id: member.id, label },
+  };
 };
 
+const suggestionRow = (suggestion: SearchSuggestion): Row => {
+  const Icon = hitIcon(suggestion);
+  return {
+    key: `${suggestion.entity_type}-${suggestion.entity_id}`,
+    label: suggestion.title,
+    subtitle: null,
+    leading: <Icon className="h-4 w-4 shrink-0" />,
+    choose: { user: false, suggestion },
+  };
+};
+
+/**
+ * The list under a half-typed `@` or `#`.
+ *
+ * People come from the initiative's roster and everything else from the search
+ * index — the same two reads the results page makes, for the same reason: a
+ * person exists across communities, content exists in one.
+ */
 export const MentionPopover = ({
-  type,
-  query,
+  active,
   initiativeId,
   anchor,
   onSelect,
   onClose,
 }: MentionPopoverProps) => {
-  const { t } = useTranslation(["documents", "common"]);
+  const { t } = useTranslation(["comments", "common"]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Anchor under the caret when we have a position; otherwise drop below the
-  // whole field (the legacy fallback).
   const positionClass = anchor ? "" : "top-full left-0 mt-1";
   const positionStyle = anchor ? { top: anchor.top, left: anchor.left } : undefined;
 
-  const typeLabels: Record<MentionEntityType, string> = useMemo(
-    () => ({
-      user: t("comments.typeUsers"),
-      task: t("comments.typeTasks"),
-      doc: t("comments.typeDocs"),
-      project: t("comments.typeProjects"),
-    }),
-    [t]
-  );
+  // A guild-level surface — a community calendar, say — belongs to no
+  // initiative, so there is nothing initiative-scoped to offer.
+  const inInitiative = initiativeId > 0;
+  const members = useInitiativeMemberSearch(initiativeId, {
+    search: active.query,
+    pageSize: MENTION_LIMIT,
+    enabled: active.user && inInitiative,
+  });
+  const suggestions = useGuildSearchSuggest(active.query, {
+    types: active.types ?? MENTIONABLE_TYPES,
+    initiative_id: initiativeId,
+    // A mention points at work, not at the blueprint work is started from.
+    template: false,
+    limit: MENTION_LIMIT,
+    enabled: !active.user && inInitiative,
+  });
 
-  const { data: suggestions = [], isLoading } = useMentionSuggestions(type, initiativeId, query);
+  const rows: Row[] = useMemo(() => {
+    if (active.user) return (members.data?.items ?? []).map(memberRow);
+    return (suggestions.data ?? []).map(suggestionRow);
+  }, [active.user, members.data, suggestions.data]);
 
-  // Reset selection when suggestions change
+  const isLoading = inInitiative && (active.user ? members.isLoading : suggestions.isLoading);
+
   useEffect(() => {
     setSelectedIndex(0);
-  }, [suggestions]);
+  }, [rows]);
 
-  // Handle keyboard navigation
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!suggestions.length) return;
-
+      if (!rows.length) return;
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
           e.stopPropagation();
-          setSelectedIndex((prev) => (prev + 1) % suggestions.length);
+          setSelectedIndex((prev) => (prev + 1) % rows.length);
           break;
         case "ArrowUp":
           e.preventDefault();
           e.stopPropagation();
-          setSelectedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+          setSelectedIndex((prev) => (prev - 1 + rows.length) % rows.length);
           break;
         case "Enter":
         case "Tab":
           e.preventDefault();
           e.stopPropagation();
-          if (suggestions[selectedIndex]) {
-            onSelect(suggestions[selectedIndex]);
-          }
+          if (rows[selectedIndex]) onSelect(rows[selectedIndex].choose);
           break;
         case "Escape":
           e.preventDefault();
@@ -109,7 +147,7 @@ export const MentionPopover = ({
           break;
       }
     },
-    [suggestions, selectedIndex, onSelect, onClose]
+    [rows, selectedIndex, onSelect, onClose]
   );
 
   useEffect(() => {
@@ -119,79 +157,59 @@ export const MentionPopover = ({
     };
   }, [handleKeyDown]);
 
-  // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose();
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [onClose]);
 
+  const shell = cn(
+    "absolute z-50 w-64 rounded-md border bg-popover text-popover-foreground shadow-md",
+    positionClass
+  );
+
   if (isLoading) {
     return (
-      <div
-        ref={popoverRef}
-        style={positionStyle}
-        className={cn(
-          "absolute z-50 w-64 rounded-md border bg-popover p-2 text-popover-foreground shadow-md",
-          positionClass
-        )}
-      >
+      <div ref={popoverRef} style={positionStyle} className={cn(shell, "p-2")}>
         <p className="text-muted-foreground text-sm">{t("common:loading")}</p>
       </div>
     );
   }
 
-  if (!suggestions.length) {
+  if (!rows.length) {
     return (
-      <div
-        ref={popoverRef}
-        style={positionStyle}
-        className={cn(
-          "absolute z-50 w-64 rounded-md border bg-popover p-2 text-popover-foreground shadow-md",
-          positionClass
-        )}
-      >
+      <div ref={popoverRef} style={positionStyle} className={cn(shell, "p-2")}>
         <p className="text-muted-foreground text-sm">
-          {t("comments.noResults", { type: typeLabels[type].toLowerCase() })}
+          {active.user ? t("noPeople") : t("noMatches")}
         </p>
       </div>
     );
   }
 
   return (
-    <div
-      ref={popoverRef}
-      style={positionStyle}
-      className={cn(
-        "absolute z-50 w-64 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
-        positionClass
-      )}
-    >
-      <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
-        {typeLabels[type]}
-      </div>
+    <div ref={popoverRef} style={positionStyle} className={cn(shell, "overflow-hidden")}>
       <div className="max-h-48 overflow-y-auto">
-        {suggestions.map((suggestion, index) => (
+        {rows.map((row, index) => (
           <button
-            key={`${suggestion.type}-${suggestion.id}`}
+            key={row.key}
             type="button"
-            onClick={() => onSelect(suggestion)}
-            className={`flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent ${
-              index === selectedIndex ? "bg-accent" : ""
-            }`}
+            onClick={() => onSelect(row.choose)}
+            className={cn(
+              "flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent",
+              index === selectedIndex && "bg-accent"
+            )}
           >
-            {renderLeading(suggestion)}
+            {row.leading}
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{suggestion.display_text}</p>
-              {suggestion.subtitle && (
-                <p className="truncate text-muted-foreground text-xs">{suggestion.subtitle}</p>
+              <p className="truncate font-medium">{row.label}</p>
+              {row.subtitle && (
+                <p className="truncate text-muted-foreground text-xs">{row.subtitle}</p>
               )}
             </div>
           </button>

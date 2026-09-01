@@ -23,6 +23,7 @@ from app.db.search_index import (
     COMMENT_PREVIEW_CHARS,
     NOT_SEARCHABLE,
     SEARCH_SOURCES,
+    TOOL_OVERRIDES,
     addressable_tables,
     entity_types,
     render_guild_search_ddl,
@@ -382,3 +383,26 @@ async def test_moving_a_task_regates_it(session, acting_user):
     await session.commit()
 
     assert (await _entries(session, a.guild.id, "task", task.id))[0].dac_id == other.id
+
+
+def test_every_tool_is_searchable_without_being_listed():
+    """A tool's own rows are indexed because it is a tool.
+
+    The six entries are derived from ``Tool``, so this fails the moment a
+    seventh is added and its table is not reachable under the same rule.
+    """
+    for tool in Tool:
+        source = SEARCH_SOURCES[tool.plural]
+        assert source.entity_type.value == tool.value
+        assert source.dac_tool is tool
+
+
+def test_a_tool_that_overrides_nothing_takes_the_shared_shape():
+    """Only what differs is written down."""
+    plain = [t for t in Tool if t not in TOOL_OVERRIDES]
+    assert plain, "the derivation is pointless if every tool overrides it"
+    for tool in plain:
+        source = SEARCH_SOURCES[tool.plural]
+        assert source.title == "name"
+        assert source.body == ("description",)
+        assert source.body_sql is None

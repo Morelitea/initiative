@@ -62,7 +62,6 @@ from app.models.tenant.tag import Tag, DocumentTag
 from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
-    DocumentAutocomplete,
     DocumentBacklink,
     DocumentCountsResponse,
     DocumentCreate,
@@ -799,74 +798,6 @@ async def list_documents(
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
-
-
-@router.get("/autocomplete", response_model=List[DocumentAutocomplete])
-async def autocomplete_documents(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(
-        default=None,
-        description=(
-            "Restrict to one initiative. Omit to search the whole guild — "
-            "templates are picked guild-wide."
-        ),
-    ),
-    q: str = Query(default=""),
-    is_template: Optional[bool] = Query(
-        default=None, description="Filter to template (or non-template) documents"
-    ),
-    document_type: Optional[DocumentType] = Query(
-        default=None, description="Filter by document type"
-    ),
-    limit: int = Query(default=10, ge=1, le=20),
-) -> List[DocumentAutocomplete]:
-    """Search documents by name for autocomplete/wikilinks and pickers.
-
-    Returns lightweight document info (id, name, updated_at, document_type)
-    for typeahead. Scoped to one initiative when ``initiative_id`` is given,
-    otherwise to the whole guild. Visibility matches the document list —
-    only documents the caller can access come back.
-
-    An empty ``q`` matches everything, so a picker that opens before the user
-    types gets the most recently updated documents rather than an error. The
-    result is bounded by ``limit`` either way.
-    """
-    if initiative_id is not None:
-        await _get_initiative_or_404(
-            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
-        )
-
-    conditions = _build_visible_docs_filters(
-        guild_context.guild_id,
-        current_user.id,
-        initiative_id=initiative_id,
-        search=q,
-        is_template=is_template,
-        document_type=document_type,
-    )
-
-    stmt = (
-        select(Document)
-        .join(Document.initiative)
-        .where(*conditions)
-        .order_by(Document.updated_at.desc())
-        .limit(limit)
-    )
-
-    result = await session.exec(stmt)
-    documents = result.all()
-
-    return [
-        DocumentAutocomplete(
-            id=doc.id,
-            name=doc.name,
-            updated_at=doc.updated_at,
-            document_type=doc.document_type,
-        )
-        for doc in documents
-    ]
 
 
 async def _check_duplicate_name(

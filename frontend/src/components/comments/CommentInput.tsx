@@ -1,52 +1,26 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { MentionEntityType, MentionSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getCaretCoordinates } from "@/lib/caretCoordinates";
+import type { ActiveMention } from "@/lib/mentions";
+import { activeMention, entityMentionSyntax, userMentionSyntax } from "@/lib/mentions";
 
+import type { MentionChoice } from "./MentionPopover";
 import { MentionPopover } from "./MentionPopover";
 
 // Matches the popover width (w-64) so it can be clamped inside the field.
 const POPOVER_WIDTH = 256;
 
-interface MentionTrigger {
-  type: MentionEntityType;
-  triggerText: string;
-  query: string;
-  startIndex: number;
-}
+/** A mention being typed, and where in the field it starts. */
+type MentionTrigger = ActiveMention & { startIndex: number };
 
-// Detect mention triggers in text
+/** The mention the caret is sitting in, if any. */
 function detectMentionTrigger(text: string, cursorPosition: number): MentionTrigger | null {
-  // Get text before cursor
-  const textBeforeCursor = text.slice(0, cursorPosition);
-
-  // Check for triggers (in order of specificity)
-  const triggers = [
-    { pattern: /#project:(\w*)$/, type: "project" as const },
-    { pattern: /#task:(\w*)$/, type: "task" as const },
-    { pattern: /#doc:(\w*)$/, type: "doc" as const },
-    { pattern: /@(\w*)$/, type: "user" as const },
-  ];
-
-  for (const { pattern, type } of triggers) {
-    const match = textBeforeCursor.match(pattern);
-    if (match) {
-      const query = match[1] || "";
-      const startIndex = cursorPosition - match[0].length;
-
-      return {
-        type,
-        triggerText: match[0],
-        query,
-        startIndex,
-      };
-    }
-  }
-
-  return null;
+  const active = activeMention(text.slice(0, cursorPosition));
+  if (!active) return null;
+  return { ...active, startIndex: cursorPosition - active.length };
 }
 
 interface CommentInputProps {
@@ -81,9 +55,9 @@ export const CommentInput = ({
   onCancel,
   cancelLabel,
 }: CommentInputProps) => {
-  const { t } = useTranslation(["documents", "common"]);
-  const resolvedPlaceholder = placeholder ?? t("comments.placeholder");
-  const resolvedSubmitLabel = submitLabel ?? t("comments.postComment");
+  const { t } = useTranslation(["comments", "common"]);
+  const resolvedPlaceholder = placeholder ?? t("placeholder");
+  const resolvedSubmitLabel = submitLabel ?? t("postComment");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
   // Pixel anchor (relative to the field) for the popover, at the trigger char.
@@ -129,33 +103,19 @@ export const CommentInput = ({
 
   // Handle mention selection
   const handleMentionSelect = useCallback(
-    (suggestion: MentionSuggestion) => {
+    (choice: MentionChoice) => {
       if (!mentionTrigger || !textareaRef.current) return;
 
-      // Build the mention syntax with embedded display text
-      // Format: @[Display Name](id) or #type[Display Text](id)
-      let mentionSyntax = "";
-      const displayText = suggestion.display_text.replace(/[[\]()]/g, ""); // Sanitize brackets
-      switch (suggestion.type) {
-        case "user":
-          mentionSyntax = `@[${displayText}](${suggestion.id})`;
-          break;
-        case "task":
-          mentionSyntax = `#task[${displayText}](${suggestion.id})`;
-          break;
-        case "doc":
-          mentionSyntax = `#doc[${displayText}](${suggestion.id})`;
-          break;
-        case "project":
-          mentionSyntax = `#project[${displayText}](${suggestion.id})`;
-          break;
-      }
+      // The label is written into the text, so the characters the syntax is
+      // built from cannot appear inside it.
+      const label = (choice.user ? choice.label : choice.suggestion.title).replace(/[[\]()]/g, "");
+      const mentionSyntax = choice.user
+        ? userMentionSyntax(label, choice.id)
+        : entityMentionSyntax(choice.suggestion.entity_type, label, choice.suggestion.entity_id);
 
       // Replace the trigger text with the mention syntax
       const beforeTrigger = value.slice(0, mentionTrigger.startIndex);
-      const afterTrigger = value.slice(
-        mentionTrigger.startIndex + mentionTrigger.triggerText.length
-      );
+      const afterTrigger = value.slice(mentionTrigger.startIndex + mentionTrigger.length);
       const newValue = beforeTrigger + mentionSyntax + " " + afterTrigger;
 
       onChange(newValue);
@@ -236,8 +196,7 @@ export const CommentInput = ({
 
         {mentionTrigger && (
           <MentionPopover
-            type={mentionTrigger.type}
-            query={mentionTrigger.query}
+            active={mentionTrigger}
             initiativeId={initiativeId}
             anchor={mentionAnchor}
             onSelect={handleMentionSelect}
@@ -265,7 +224,7 @@ export const CommentInput = ({
           disabled={isSubmitting || value.trim().length === 0}
           size={compact ? "sm" : "default"}
         >
-          {isSubmitting ? t("comments.posting") : resolvedSubmitLabel}
+          {isSubmitting ? t("posting") : resolvedSubmitLabel}
         </Button>
       </div>
     </form>

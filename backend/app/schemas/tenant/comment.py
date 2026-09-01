@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
@@ -9,13 +8,6 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.platform.user import GuildNameVisibility
-
-
-class MentionEntityType(str, Enum):
-    user = "user"
-    task = "task"
-    doc = "doc"
-    project = "project"
 
 
 class CommentAuthor(GuildNameVisibility):
@@ -160,31 +152,3 @@ class RecentActivityEntry(SanitizedBaseModel):
     # one that drew none — so the row carries them rather than looking like a
     # quieter comment than it was.
     reactions: list[ReactionGroup] = Field(default_factory=list)
-
-
-class MentionSuggestion(SanitizedBaseModel):
-    """A suggestion for mention autocomplete."""
-
-    type: MentionEntityType
-    id: int
-    display_text: str
-    #: The line under the name: the handle for a person (what tells two of
-    #: the same name apart), the project for a task.
-    subtitle: Optional[str] = None
-    # Populated for ``user`` suggestions so the picker can render a face
-    # (parity with the member typeaheads); ``None`` for non-user entities.
-    avatar_url: Optional[str] = None
-
-
-class MentionSuggestionListResponse(SanitizedBaseModel):
-    """Paginated envelope for mention search — same shape as the member search
-    responses (``UserSummaryListResponse`` et al.)."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    items: list[MentionSuggestion]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
-    has_prev: bool

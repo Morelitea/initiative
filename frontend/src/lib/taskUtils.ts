@@ -1,12 +1,4 @@
-import type {
-  AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams,
-  TaskAutocomplete,
-  TaskListRead,
-  TaskRead,
-} from "@/api/generated/initiativeAPI.schemas";
-import { autocompleteTasksApiV1GGuildIdTasksAutocompleteGet } from "@/api/generated/tasks/tasks";
-
-export type { TaskAutocomplete };
+import type { TaskListRead, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * Project the ``TaskRead`` detail shape onto the denormalized ``TaskListRead``
@@ -27,20 +19,3 @@ export const taskReadToListRow = (task: TaskRead): TaskListRead => {
     initiative_color: project?.initiative?.color ?? null,
   };
 };
-
-/**
- * Search tasks by title for typeahead pickers.
- *
- * Returns lightweight task info (id, title) — it skips the eager-load chains
- * and annotation query the full task list endpoint runs, so a picker's cost
- * tracks what the user typed rather than the whole collection.
- */
-export async function autocompleteTasks(
-  guildId: number,
-  params: AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams
-): Promise<TaskAutocomplete[]> {
-  return autocompleteTasksApiV1GGuildIdTasksAutocompleteGet(guildId, {
-    limit: 10,
-    ...params,
-  });
-}

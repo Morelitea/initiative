@@ -18,6 +18,7 @@ import type {
   InitiativeRead,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
@@ -42,12 +43,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import {
-  useCreateDocument,
-  useTemplateAutocomplete,
-  useUploadDocument,
-} from "@/hooks/useDocuments";
+import { useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
 import { toast } from "@/lib/chesterToast";
 import { formatBytes, getFileTypeLabel } from "@/lib/fileUtils";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
@@ -114,20 +112,19 @@ export const CreateDocumentDialog = ({
 
   const lockedInitiative = lockedInitiativeFromList ?? initiativeQuery.data ?? null;
 
-  // Template picker — a guild-wide server typeahead, only while the dialog is
-  // open. Scoped in SQL to templates of the currently selected document type so
-  // we don't let users copy a Lexical template into a whiteboard slot (or vice
-  // versa); the backend enforces access control via RLS.
-  const templateDocumentsQuery = useTemplateAutocomplete(templateSearch, {
-    documentType: newDocumentType,
+  // Template picker — the shared lookup, asked for blueprints, only while the
+  // dialog is open.
+  const templateDocumentsQuery = useGuildSearchSuggest(templateSearch, {
+    types: [SearchEntityType.document],
+    template: true,
     enabled: open && !isTemplateDocument,
   });
 
   const templateItems = useMemo(
     () =>
       (templateDocumentsQuery.data ?? []).map((doc) => ({
-        value: String(doc.id),
-        label: doc.name,
+        value: String(doc.entity_id),
+        label: doc.title,
       })),
     [templateDocumentsQuery.data]
   );

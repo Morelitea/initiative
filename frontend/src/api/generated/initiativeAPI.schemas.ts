@@ -1880,29 +1880,6 @@ export interface DeviceTokenResponse {
 }
 
 /**
- * Discriminator for document type.
- */
-export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
-
-export const DocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
-
-/**
- * Lightweight document info for autocomplete/wikilinks.
- */
-export interface DocumentAutocomplete {
-  id: number;
-  name: string;
-  updated_at: string;
-  document_type: DocumentType;
-}
-
-/**
  * Document that links to another document.
  */
 export interface DocumentBacklink {
@@ -2133,6 +2110,19 @@ export interface DocumentRead {
   yjs_updated_at: string | null;
   content: DocumentReadContent;
 }
+
+/**
+ * Discriminator for document type.
+ */
+export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
+
+export const DocumentType = {
+  native: "native",
+  file: "file",
+  whiteboard: "whiteboard",
+  smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
+} as const;
 
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
 
@@ -3330,39 +3320,6 @@ export interface MemberAIView {
   mode: AIConfigMode;
   enabled: boolean;
   connections: MemberAIConnectionView[];
-}
-
-export type MentionEntityType = (typeof MentionEntityType)[keyof typeof MentionEntityType];
-
-export const MentionEntityType = {
-  user: "user",
-  task: "task",
-  doc: "doc",
-  project: "project",
-} as const;
-
-/**
- * A suggestion for mention autocomplete.
- */
-export interface MentionSuggestion {
-  type: MentionEntityType;
-  id: number;
-  display_text: string;
-  subtitle?: string | null;
-  avatar_url?: string | null;
-}
-
-/**
- * Paginated envelope for mention search — same shape as the member search
- * responses (``UserSummaryListResponse`` et al.).
- */
-export interface MentionSuggestionListResponse {
-  items: MentionSuggestion[];
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
 }
 
 /**
@@ -4610,14 +4567,6 @@ export interface TaggedEntitiesResponse {
   documents: TaggedDocumentSummary[];
 }
 
-/**
- * Lightweight task info for autocomplete/pickers (id + title only).
- */
-export interface TaskAutocomplete {
-  id: number;
-  title: string;
-}
-
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -5736,19 +5685,6 @@ export type ListTasksApiV1GGuildIdTasksGetParams = {
   tz?: string | null;
 };
 
-export type AutocompleteTasksApiV1GGuildIdTasksAutocompleteGetParams = {
-  /**
-   * Restrict to one initiative. Omit to search the whole guild.
-   */
-  initiative_id?: number | null;
-  q?: string;
-  /**
-   * @minimum 1
-   * @maximum 50
-   */
-  limit?: number;
-};
-
 export type ReadTaskApiV1GGuildIdTasksTaskIdGetParams = {
   /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
@@ -5790,27 +5726,6 @@ export type ReadCommentApiV1GGuildIdCommentsCommentIdGetParams = {
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
-};
-
-export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
-  entity_type: MentionEntityType;
-  /**
-   * @exclusiveMinimum 0
-   */
-  initiative_id: number;
-  /**
-   * @maxLength 100
-   */
-  q?: string;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  page_size?: number;
 };
 
 export type ListInitiativesApiV1GGuildIdInitiativesGetParams = {
@@ -5905,27 +5820,6 @@ export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
-};
-
-export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
-  /**
-   * Restrict to one initiative. Omit to search the whole guild — templates are picked guild-wide.
-   */
-  initiative_id?: number | null;
-  q?: string;
-  /**
-   * Filter to template (or non-template) documents
-   */
-  is_template?: boolean | null;
-  /**
-   * Filter by document type
-   */
-  document_type?: DocumentType | null;
-  /**
-   * @minimum 1
-   * @maximum 20
-   */
-  limit?: number;
 };
 
 export type ReadDocumentApiV1GGuildIdDocumentsDocumentIdGetParams = {
@@ -6420,6 +6314,14 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
    */
   initiative_id?: number | null;
   /**
+   * Include archived work. Left out by default, so a search answers with what is in play.
+   */
+  include_archived?: boolean;
+  /**
+   * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
+   */
+  template?: boolean | null;
+  /**
    * @minimum 1
    * @maximum 100
    */
@@ -6440,6 +6342,14 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
+  /**
+   * Restrict to one initiative.
+   */
+  initiative_id?: number | null;
+  /**
+   * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
+   */
+  template?: boolean | null;
   /**
    * @minimum 1
    */
