@@ -4257,6 +4257,23 @@ export interface RestoreResponse {
   restored: boolean;
 }
 
+export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
+
+export const SearchEntityType = {
+  calendar: "calendar",
+  calendar_event: "calendar_event",
+  comment: "comment",
+  counter: "counter",
+  counter_group: "counter_group",
+  dashboard: "dashboard",
+  document: "document",
+  project: "project",
+  queue: "queue",
+  queue_item: "queue_item",
+  tag: "tag",
+  task: "task",
+} as const;
+
 /**
  * One thing found.
  *
@@ -4266,7 +4283,7 @@ export interface RestoreResponse {
  * tool's own row.
  */
 export interface SearchHit {
-  entity_type: string;
+  entity_type: SearchEntityType;
   entity_id: number;
   title: string;
   snippet?: string | null;
@@ -4280,13 +4297,14 @@ export interface SearchResults {
   total: number;
   limit: number;
   offset: number;
+  fuzzy?: boolean;
 }
 
 /**
  * A jump-to target for the command palette: enough to render and route.
  */
 export interface SearchSuggestion {
-  entity_type: string;
+  entity_type: SearchEntityType;
   entity_id: number;
   title: string;
   initiative_id?: number | null;
@@ -6273,7 +6291,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
   /**
    * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
-  types?: string[] | null;
+  types?: SearchEntityType[] | null;
   /**
    * Restrict to one initiative.
    */
@@ -6295,6 +6313,10 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    * @maxLength 200
    */
   q: string;
+  /**
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   */
+  types?: SearchEntityType[] | null;
   /**
    * @minimum 1
    */

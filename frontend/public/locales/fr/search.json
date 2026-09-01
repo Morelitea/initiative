@@ -13,6 +13,7 @@
   },
   "tabs": {
     "tool": "Outils",
+    "comment": "Commentaires",
     "tag": "Étiquettes"
   },
   "types": {
@@ -26,6 +27,9 @@
     "calendar": "Calendrier",
     "calendar_event": "Événement",
     "dashboard": "Tableau de bord",
-    "tag": "Étiquette"
-  }
+    "tag": "Étiquette",
+    "comment": "Commentaire"
+  },
+  "switchHint": "Tab pour changer",
+  "closeMatches": "Rien ne correspond exactement à « {{query}} ». Voici ce qui s’en rapproche le plus."
 }

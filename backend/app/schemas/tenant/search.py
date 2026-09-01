@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 
 
@@ -20,7 +21,7 @@ class SearchHit(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    entity_type: str
+    entity_type: SearchEntityType
     entity_id: int
     title: str
     snippet: Optional[str] = None
@@ -34,6 +35,9 @@ class SearchResults(BaseModel):
     total: int
     limit: int
     offset: int
+    #: True when nothing matched what was typed and these are the closest
+    #: titles instead — so a reader is told which of the two they are reading.
+    fuzzy: bool = False
 
 
 class SearchSuggestion(BaseModel):
@@ -41,7 +45,7 @@ class SearchSuggestion(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    entity_type: str
+    entity_type: SearchEntityType
     entity_id: int
     title: str
     initiative_id: Optional[int] = None

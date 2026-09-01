@@ -199,6 +199,12 @@ _COMMENT_PARENTS: tuple[tuple[str, str, str, str], ...] = (
 )
 
 
+#: The comment columns naming a parent, in declaration order. Search reads this
+#: to work out which tool's sharing governs a comment, so the parent set is
+#: stated once and the two derivations cannot disagree.
+COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(col for col, *_ in _COMMENT_PARENTS)
+
+
 def comments_path() -> InitiativePath:
     """Comments hang off exactly one parent — a task or any tool entity —
     declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""

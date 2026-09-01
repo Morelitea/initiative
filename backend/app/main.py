@@ -105,7 +105,6 @@ async def lifespan(app: FastAPI):
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
     await warn_if_search_operator_missing()
-    await backfill_guild_search()
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).
@@ -132,6 +131,9 @@ async def lifespan(app: FastAPI):
             backfill.skipped,
             backfill.total,
         )
+    # After the schemas, never before: the sweep writes through functions and
+    # into a table whose shape the pass above is what brings up to date.
+    await backfill_guild_search()
     # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
     # matching the object-store layout. Local-only, idempotent, self-disabling —
     # a no-op once converted, so packaged deploys convert themselves on boot.

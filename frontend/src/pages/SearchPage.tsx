@@ -173,6 +173,11 @@ export function SearchPage() {
                 <NoResults query={query} />
               ) : (
                 <>
+                  {results.data?.fuzzy && (
+                    <p className="px-3 pb-2 text-muted-foreground text-sm">
+                      {t("search:closeMatches", { query })}
+                    </p>
+                  )}
                   {items.map((hit) => (
                     <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
                   ))}

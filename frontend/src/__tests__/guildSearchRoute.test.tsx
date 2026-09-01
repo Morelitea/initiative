@@ -25,8 +25,11 @@ const SEARCH_ROUTE_ID = "/_serverRequired/_authenticated/c/$guildId/search";
 const mocks = vi.hoisted(() => ({ search: vi.fn(), suggest: vi.fn() }));
 vi.mock("@/hooks/useSearch", () => ({
   useGuildSearch: (params: unknown) => mocks.search(params),
-  useGuildSearchSuggest: () => mocks.suggest(),
+  useGuildSearchSuggest: (query: string, options: unknown) => mocks.suggest(query, options),
 }));
+
+/** The mocked module, for asserting how the palette scoped its question. */
+const useSearchModule = { useGuildSearchSuggest: mocks.suggest };
 
 type SearchParams = { types?: string[]; limit?: number; offset?: number };
 
@@ -35,9 +38,13 @@ type SearchParams = { types?: string[]; limit?: number; offset?: number };
  * everything that matched, not what came back, and a window past the end comes
  * back empty with the total intact.
  */
-const withHits = (tools: SearchHit[], tags: SearchHit[]) => {
+const withHits = (tools: SearchHit[], tags: SearchHit[], comments: SearchHit[] = []) => {
   mocks.search.mockImplementation((params: SearchParams) => {
-    const all = params.types?.includes("tag") ? tags : tools;
+    const all = params.types?.includes("tag")
+      ? tags
+      : params.types?.includes("comment")
+        ? comments
+        : tools;
     const limit = params.limit ?? 20;
     const offset = params.offset ?? 0;
     return {
@@ -104,6 +111,15 @@ const project = () =>
     snippet: "the <riverside> stage build",
   });
 
+const comment = () =>
+  buildSearchHit({
+    entity_type: "comment",
+    entity_id: 31,
+    title: "the riverside stage is booked",
+    tool: Tool.project,
+    tool_id: 7,
+  });
+
 const tag = () =>
   buildSearchHit({
     entity_type: "tag",
@@ -165,6 +181,16 @@ describe("the guild search page", () => {
     expect(await screen.findByText(/No results for/)).toBeInTheDocument();
   });
 
+  it("reads what people said on the content, on its own tab", async () => {
+    withHits([project()], [], [comment()]);
+    await renderSearch({ q: "riverside", tab: "comment" });
+
+    // A comment has no page of its own, so it goes to the thing it is on.
+    expect(
+      await screen.findByRole("link", { name: /the riverside stage is booked/ })
+    ).toHaveAttribute("href", "/c/1/i/5/projects/7");
+  });
+
   it("asks nothing until there is something to search for", async () => {
     await renderSearch({});
 
@@ -200,6 +226,23 @@ describe("the guild search page", () => {
     expect(screen.queryByText(/No results for/)).not.toBeInTheDocument();
   });
 
+  it("says so when it is showing close matches rather than what was asked", async () => {
+    // Whole-word matching cannot answer a misspelling. Offering the closest
+    // titles is better than an empty page, as long as the reader is told which
+    // of the two they got.
+    mocks.search.mockImplementation((params: SearchParams) => ({
+      data: buildSearchResults(params.types?.includes("tag") ? [] : [project()], {
+        fuzzy: !params.types?.includes("tag"),
+      }),
+      isLoading: false,
+      isFetched: true,
+    }));
+    await renderSearch({ q: "riversde" });
+
+    expect(await screen.findByText(/Nothing matches/)).toHaveTextContent("riversde");
+    expect(screen.getByRole("link", { name: /Riverside kickoff/ })).toBeInTheDocument();
+  });
+
   it("draws no conclusion from a total that belongs to the query before it", async () => {
     // Arriving on page 3 of a fresh query while the previous query's results
     // are still on screen. That query's total belongs to the query that is
@@ -214,6 +257,41 @@ describe("the guild search page", () => {
 });
 
 describe("the command palette", () => {
+  it("carries the same three slices, and narrows to the one it is on", async () => {
+    mocks.suggest.mockReturnValue({ data: [], isLoading: false });
+    renderPage(CommandCenter, {
+      initialRoute: "/g/$guildId",
+      routeParams: { guildId: "1" },
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+    await userEvent.type(await screen.findByRole("combobox"), "riverside");
+
+    // Opens on the same slice the results page does.
+    const tools = await screen.findByRole("tab", { name: "Tools" }, { timeout: 2000 });
+    expect(tools).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Comments" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tags" })).toBeInTheDocument();
+
+    // Tab from the input moves between slices, so the hands stay on the query.
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute("aria-selected", "true")
+    );
+    expect(useSearchModule.useGuildSearchSuggest).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ types: ["comment"] })
+    );
+
+    // Shift+Tab is left alone, so focus can still walk out of the input and
+    // reach the strip, the results and the close button by keyboard.
+    const before = screen.getByRole("tab", { selected: true }).textContent;
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab", shiftKey: true });
+    expect(screen.getByRole("tab", { selected: true })).toHaveTextContent(before ?? "");
+  });
+
   it("answers from the index once there is a query, and offers the whole page", async () => {
     mocks.suggest.mockReturnValue({
       data: [

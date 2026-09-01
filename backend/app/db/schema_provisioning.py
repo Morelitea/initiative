@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -178,6 +179,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         )
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
         from app.db.search_index import (
+            DEPENDENT_FUNCTION_SQL,
             SEARCH_FUNCTION_SQL,
             WRITE_FUNCTION_SQL,
             render_guild_search_ddl,
@@ -199,6 +201,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         digest.update(search_ddl.encode())
         digest.update(SEARCH_FUNCTION_SQL.encode())
         digest.update(WRITE_FUNCTION_SQL.encode())
+        digest.update(DEPENDENT_FUNCTION_SQL.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -298,16 +301,22 @@ async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     on the next boot rather than needing a migration per edit), then the
     per-table triggers, both idempotent.
     """
-    from app.db.search_index import SEARCH_FUNCTION_SQL, WRITE_FUNCTION_SQL
+    from app.db.search_index import (
+        DEPENDENT_FUNCTION_SQL,
+        SEARCH_FUNCTION_SQL,
+        WRITE_FUNCTION_SQL,
+    )
 
     ddl = (await get_provisioning_bundle()).search_ddl
     raw = await conn.get_raw_connection()
-    # The write function first: the trigger function calls it.
+    # The write function first: both trigger functions call it.
     await raw.driver_connection.execute(
         "SET check_function_bodies = false;\n"
         + WRITE_FUNCTION_SQL
         + "\n"
         + SEARCH_FUNCTION_SQL
+        + "\n"
+        + DEPENDENT_FUNCTION_SQL
     )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
@@ -774,6 +783,14 @@ async def backfill_guild_search() -> int:
     return total
 
 
+#: Where the install script sits, in the image and in a checkout. The first that
+#: exists is the one the message names, so it names a path the reader has.
+_SEARCH_OPERATOR_SCRIPTS = (
+    Path("/app/scripts/create-search-operator.sql"),
+    Path(__file__).resolve().parents[2] / "scripts" / "create-search-operator.sql",
+)
+
+
 async def warn_if_search_operator_missing() -> None:
     """Say so, loudly, when the search operator is absent.
 
@@ -781,25 +798,35 @@ async def warn_if_search_operator_missing() -> None:
     reads more of the index table to do it. Nothing else reports it, so a
     restore or a major-version upgrade that lost the objects would otherwise
     show up only as search getting slower.
+
+    Names the database it checked, because a host commonly has more than one and
+    the objects are per-database.
     """
     if await search_operator_ready():
         return
+    database = db_session.provisioning_engine.url.database or "?"
+    script = next(
+        (p for p in _SEARCH_OPERATOR_SCRIPTS if p.exists()),
+        _SEARCH_OPERATOR_SCRIPTS[0],
+    )
     logger.warning(
         "\n%s\n"
-        "Guild search is running without its index.\n"
+        'Guild search is running without its index (database "%s").\n'
         "Results are unchanged; each search reads more of the index table,\n"
-        "which grows with the guild. Install the operator once, as a SUPERUSER.\n"
-        "The script ships inside this image, so no checkout is needed:\n"
+        "which grows with the guild.\n"
         "\n"
-        "  docker compose exec -T initiative \\\n"
-        "      cat /app/scripts/create-search-operator.sql \\\n"
-        "    | docker compose exec -T db \\\n"
-        "      psql -v ON_ERROR_STOP=1 -U <user> -d <database>\n"
+        "Installing it is one file, once per database, run as a SUPERUSER —\n"
+        "which the app's own role deliberately is not:\n"
+        "\n"
+        "  psql -U <superuser> -d %s -f %s\n"
         "\n"
         "Then restart: the index is rebuilt on the next provisioning sweep.\n"
-        "Run once per database; re-running is safe.\n"
+        "Re-running is safe.\n"
         "%s",
         "=" * 70,
+        database,
+        database,
+        script,
         "=" * 70,
     )
 

@@ -23,8 +23,9 @@ from dataclasses import dataclass
 from sqlalchemy import MetaData
 from sqlmodel import SQLModel
 
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.db.initiative_rls import initiative_locator
+from app.db.initiative_rls import COMMENT_PARENT_COLUMNS, initiative_locator
 
 #: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE.
 ROW = "($1)"
@@ -37,15 +38,43 @@ SEARCH_FUNCTION = "public.refresh_search_entry"
 CHUNK_CHARS = 8000
 MAX_CHUNKS = 2000
 
+#: How much of a comment stands in for its title.
+COMMENT_PREVIEW_CHARS = 140
+
+
+@dataclass(frozen=True)
+class SearchDependency:
+    """A column on ANOTHER table that a source's stored gate is derived from.
+
+    Almost every source names its parent in a column of its own, so its own
+    trigger fires when that parent changes. A comment does not: it names a task,
+    and the tool governing it is the task's PROJECT — so a task moving between
+    projects moves the comment without touching the comment's row. Declared here,
+    it gets a trigger on the table that moved, rewriting the entries that
+    followed it.
+    """
+
+    #: The table whose column moves rows between gates.
+    table: str
+    #: The column on it that does the moving.
+    column: str
+    #: How the dependent source's rows tie back to it.
+    local_column: str
+
 
 @dataclass(frozen=True)
 class SearchSource:
     """How one table's rows become search entries."""
 
     #: Value stored in ``search_entries.entity_type``.
-    entity_type: str
-    #: Column holding the row's display title (weighted 'A').
+    entity_type: SearchEntityType
+    #: Column holding the row's display title (weighted 'A'). Also the column
+    #: whose change makes the entry stale, even where ``title_sql`` builds the
+    #: stored value from it.
     title: str
+    #: Builds the title from a row alias, for a source whose title is not a
+    #: column as it stands — a comment has no title, so it shows an opening.
+    title_sql: Callable[[str], str] | None = None
     #: Columns feeding the body (weighted 'B'). Also the columns whose change
     #: makes the entry stale, so they drive the trigger's WHEN clause.
     body: tuple[str, ...] = ()
@@ -58,15 +87,20 @@ class SearchSource:
     #: ``dac_tool=None`` means the row carries no sharing gate (a tag).
     dac_tool: Tool | None = None
     dac_id: str | None = None
+    #: Builds ``(tool, id)`` from a row alias, for a source whose governing tool
+    #: differs per row. Takes precedence over the pair above.
+    dac_sql: Callable[[str], tuple[str, str]] | None = None
     #: Whether this source is searched when the caller names no types. False
     #: puts the source behind an explicit opt-in and out of the default index.
     in_default_scope: bool = True
+    #: Columns on other tables that move these rows between gates.
+    depends_on: tuple[SearchDependency, ...] = ()
 
     @property
     def trigger_name(self) -> str:
         """Stem for this table's triggers; INSERT/DELETE and UPDATE are split
         (a WHEN clause naming OLD is invalid on INSERT)."""
-        return f"search_{self.entity_type}"
+        return f"search_{self.entity_type.value}"
 
 
 def _json_text(row: str, path: str, *, column: str = "content") -> str:
@@ -128,6 +162,47 @@ def _document_text(row: str) -> str:
     )
 
 
+def _comment_preview(row: str) -> str:
+    """The opening of a comment, as the line a result is shown by.
+
+    A comment has no title. Storing the whole of one would put an essay where a
+    name goes; the full text is still indexed as the body, so what matched is
+    findable either way.
+    """
+    return f"left({row}.content, {COMMENT_PREVIEW_CHARS})"
+
+
+def _comment_dac(row: str) -> tuple[str, str]:
+    """Which tool's sharing governs a comment, and which of its entities.
+
+    A comment hangs off exactly one parent, and the parents are declared once
+    for the RLS policies — so the legs are derived from that same list rather
+    than restated here. A comment on a task is the one leg whose id is not its
+    own column: a task is shared as part of its project.
+    """
+    tools: list[str] = []
+    ids: list[str] = []
+    for column in COMMENT_PARENT_COLUMNS:
+        if column == "task_id":
+            tool, ident = (
+                Tool.project,
+                (f"(SELECT project_id FROM tasks WHERE id = {row}.task_id)"),
+            )
+        else:
+            tool = Tool(column.removesuffix("_id"))
+            ident = f"{row}.{column}"
+        tools.append(f"WHEN {row}.{column} IS NOT NULL THEN '{tool.value}'")
+        ids.append(f"WHEN {row}.{column} IS NOT NULL THEN {ident}")
+    return f"(CASE {' '.join(tools)} END)", f"(CASE {' '.join(ids)} END)"
+
+
+def _title_expr(source: "SearchSource", row: str = ROW) -> str:
+    """Row expression yielding a source's stored title."""
+    if source.title_sql is not None:
+        return source.title_sql(row)
+    return f"{row}.{source.title}"
+
+
 def _body_expr(source: "SearchSource", row: str = ROW) -> str:
     """Row expression yielding a source's body text."""
     if source.body_sql is not None:
@@ -140,65 +215,90 @@ def _body_expr(source: "SearchSource", row: str = ROW) -> str:
 
 #: table -> how its rows are indexed.
 #:
-#: ``comments`` is deliberately absent for now: it resolves its tool per row and
-#: is the highest-volume source, so it arrives with the toggle and the partial
-#: index that keep it off the default scope.
+#: ``comments`` resolves its tool per row — see :func:`_comment_dac` — and is the
+#: only source outside the default scope: it is the highest-volume table in an
+#: active community, and the tab that shows it names the type.
 SEARCH_SOURCES: dict[str, SearchSource] = {
     "projects": SearchSource(
-        "project", title="name", body=("description",), dac_tool=Tool.project
+        SearchEntityType.project,
+        title="name",
+        body=("description",),
+        dac_tool=Tool.project,
     ),
     "tasks": SearchSource(
-        "task",
+        SearchEntityType.task,
         title="title",
         body=("description",),
         dac_tool=Tool.project,
         dac_id="project_id",
     ),
     "documents": SearchSource(
-        "document",
+        SearchEntityType.document,
         title="name",
         body=("content", "document_type", "original_filename"),
         body_sql=_document_text,
         dac_tool=Tool.document,
     ),
     "queues": SearchSource(
-        "queue", title="name", body=("description",), dac_tool=Tool.queue
+        SearchEntityType.queue, title="name", body=("description",), dac_tool=Tool.queue
     ),
     "queue_items": SearchSource(
-        "queue_item",
+        SearchEntityType.queue_item,
         title="label",
         body=("notes",),
         dac_tool=Tool.queue,
         dac_id="queue_id",
     ),
     "counter_groups": SearchSource(
-        "counter_group",
+        SearchEntityType.counter_group,
         title="name",
         body=("description",),
         dac_tool=Tool.counter_group,
     ),
     "counters": SearchSource(
-        "counter",
+        SearchEntityType.counter,
         title="name",
         dac_tool=Tool.counter_group,
         dac_id="counter_group_id",
     ),
     "calendars": SearchSource(
-        "calendar", title="name", body=("description",), dac_tool=Tool.calendar
+        SearchEntityType.calendar,
+        title="name",
+        body=("description",),
+        dac_tool=Tool.calendar,
     ),
     "calendar_events": SearchSource(
-        "calendar_event",
+        SearchEntityType.calendar_event,
         title="title",
         body=("description", "location"),
         dac_tool=Tool.calendar,
         dac_id="calendar_id",
     ),
     "dashboards": SearchSource(
-        "dashboard", title="name", body=("description",), dac_tool=Tool.dashboard
+        SearchEntityType.dashboard,
+        title="name",
+        body=("description",),
+        dac_tool=Tool.dashboard,
     ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.
-    "tags": SearchSource("tag", title="name"),
+    "tags": SearchSource(SearchEntityType.tag, title="name"),
+    # What people said on the content above. Out of the default scope: it is the
+    # highest-volume table in a busy guild, and a caller that wants it says so —
+    # which is what the results page's own tab does.
+    "comments": SearchSource(
+        SearchEntityType.comment,
+        title="content",
+        title_sql=_comment_preview,
+        body=("content",),
+        dac_sql=_comment_dac,
+        in_default_scope=False,
+        # A comment on a task is governed by the task's project, and a task can
+        # move between projects. Nothing about the comment changes when it does,
+        # so the entry is rewritten from the table that moved. Every other
+        # parent names its own initiative and cannot move between them.
+        depends_on=(SearchDependency("tasks", "project_id", "task_id"),),
+    ),
 }
 
 #: Tables that are deliberately NOT searchable, and why. Every guild content
@@ -217,7 +317,6 @@ NOT_SEARCHABLE: dict[str, str] = {
     "document_file_versions": "history of a document already indexed",
     "document_links": "derived wikilink graph",
     "subtasks": "checklist lines, reached from the task",
-    "comments": "arrives with the per-guild toggle and partial index",
     "initiatives": "structural; discovery is the join surface, not search",
     "event_reminder_dispatches": "scheduler bookkeeping",
     "task_assignment_digest_items": "scheduler bookkeeping",
@@ -239,14 +338,17 @@ def addressable_tables(metadata: MetaData) -> set[str]:
     }
 
 
-def entity_types(*, default_scope_only: bool = False) -> tuple[str, ...]:
+def entity_types(*, default_scope_only: bool = False) -> tuple[SearchEntityType, ...]:
     """Indexed entity types, sorted. The default-scope subset is what a query
     naming no types searches."""
     return tuple(
         sorted(
-            s.entity_type
-            for s in SEARCH_SOURCES.values()
-            if s.in_default_scope or not default_scope_only
+            (
+                s.entity_type
+                for s in SEARCH_SOURCES.values()
+                if s.in_default_scope or not default_scope_only
+            ),
+            key=lambda t: t.value,
         )
     )
 
@@ -358,6 +460,7 @@ DECLARE
     v_dac_id     integer;
     v_title      text;
     v_body       text;
+    v_dac_tool   text;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         v_row := OLD;
@@ -387,13 +490,14 @@ BEGIN
     IF TG_ARGV[4] <> '' THEN
         EXECUTE 'SELECT ' || TG_ARGV[4] INTO v_body USING v_row;
     END IF;
-    IF TG_ARGV[6] <> '' THEN
+    IF TG_ARGV[5] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[5] INTO v_dac_tool USING v_row;
         EXECUTE 'SELECT ' || TG_ARGV[6] INTO v_dac_id USING v_row;
     END IF;
 
     PERFORM {write_fn}(
         TG_TABLE_SCHEMA, TG_ARGV[1], v_entity, v_initiative,
-        nullif(TG_ARGV[5], ''), v_dac_id, v_title, v_body
+        v_dac_tool, v_dac_id, v_title, v_body
     );
     RETURN NULL;
 END
@@ -401,18 +505,102 @@ $search$;
 """.format(fn=SEARCH_FUNCTION, write_fn=WRITE_FUNCTION)
 
 
+def _dac_exprs(source: SearchSource) -> tuple[str, str]:
+    """The ``(tool, id)`` expressions naming a row's sharing gate, or empty
+    strings where the source has none."""
+    if source.dac_sql is not None:
+        return source.dac_sql(ROW)
+    if source.dac_tool is None:
+        return "", ""
+    dac_id = f"{ROW}.{source.dac_id}" if source.dac_id else f"{ROW}.id"
+    return f"'{source.dac_tool.value}'::text", dac_id
+
+
+DEPENDENT_FUNCTION = "public.refresh_search_dependents"
+
+#: Rewrites the entries of rows that moved because a column on ANOTHER table
+#: changed. The statement is rendered per dependency and passed whole, so a row
+#: rewritten here goes through the same expressions as one rewritten by its own
+#: trigger or by the sweep.
+DEPENDENT_FUNCTION_SQL = """
+CREATE OR REPLACE FUNCTION {fn}() RETURNS trigger
+    LANGUAGE plpgsql AS $dep$
+BEGIN
+    EXECUTE TG_ARGV[0] USING TG_TABLE_SCHEMA, NEW.id;
+    RETURN NULL;
+END
+$dep$;
+""".format(fn=DEPENDENT_FUNCTION)
+
+
+def _live_clause(table: str, row: str) -> str:
+    """Restricts to rows that have an entry at all — trash is browsed through
+    the trash surface, not found by searching."""
+    columns = SQLModel.metadata.tables[table].columns
+    return f" AND {row}.deleted_at IS NULL" if "deleted_at" in columns else ""
+
+
+def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
+    """The ``search_entry_write`` call for one row of a source, as SQL.
+
+    The sweep and the dependency triggers both go through this, so a row
+    rewritten by either is written identically.
+    """
+    dac_tool_expr, dac_id_expr = _dac_exprs(source)
+    dac_tool = dac_tool_expr.replace(ROW, row) if dac_tool_expr else "NULL::text"
+    dac_id = (
+        f"({dac_id_expr.replace(ROW, row)})::integer"
+        if dac_id_expr
+        else "NULL::integer"
+    )
+    body = _body_expr(source, row) or "''"
+    return (
+        f"{WRITE_FUNCTION}({schema}, '{source.entity_type.value}', {row}.id,"
+        f" ({initiative_locator(table)(row)})::integer,"
+        f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body})"
+    )
+
+
+def _dependency_block(
+    table: str, source: SearchSource, dependency: SearchDependency
+) -> str:
+    """DDL for the trigger that rewrites entries when a row moves under them.
+
+    ``$1`` is the guild schema and ``$2`` the id of the row that moved. The
+    dependent table is named unqualified, as every other rendered expression is:
+    the trigger runs with its own schema first on the search path.
+    """
+    row = "t"
+    statement = (
+        f"SELECT {_write_call(table, source, row, '$1')}"  # noqa: S608 — rendered
+        f" FROM {table} {row}"
+        f" WHERE {row}.{dependency.local_column} = $2{_live_clause(table, row)}"
+    )
+    name = f"{source.trigger_name}_from_{dependency.table}"
+    return "\n".join(
+        [
+            f"DROP TRIGGER IF EXISTS {name} ON {dependency.table};",
+            f"CREATE TRIGGER {name}",
+            f"  AFTER UPDATE ON {dependency.table}",
+            f"  FOR EACH ROW WHEN (OLD.{dependency.column} "
+            f"IS DISTINCT FROM NEW.{dependency.column})",
+            f"  EXECUTE FUNCTION {DEPENDENT_FUNCTION}({_quoted(statement)});",
+        ]
+    )
+
+
 def _call_args(table: str, source: SearchSource) -> list[str]:
     """The seven trigger arguments, shared by both triggers on a table."""
     locator = initiative_locator(table)
-    dac_id = f"{ROW}.{source.dac_id}" if source.dac_id else f"{ROW}.id"
+    dac_tool, dac_id = _dac_exprs(source)
     return [
         f"    {_quoted(locator(ROW))},",
-        f"    '{source.entity_type}',",
+        f"    '{source.entity_type.value}',",
         f"    {_quoted(f'{ROW}.id')},",
-        f"    {_quoted(f'{ROW}.{source.title}')},",
+        f"    {_quoted(_title_expr(source))},",
         f"    {_quoted(_body_expr(source))},",
-        f"    '{source.dac_tool.value if source.dac_tool else ''}',",
-        f"    {_quoted(dac_id if source.dac_tool else '')}",
+        f"    {_quoted(dac_tool)},",
+        f"    {_quoted(dac_id)}",
     ]
 
 
@@ -459,6 +647,24 @@ _HEADER = """\
 
 
 SEARCH_INDEX = "ix_search_entries_tsv"
+ENTITY_TYPE_CHECK = "ck_search_entries_entity_type"
+
+
+def _entity_type_check_block() -> str:
+    """DDL asserting the entity-type CHECK names exactly the indexed set.
+
+    Rendered here rather than migrated so the list has one home. A migration
+    would freeze a snapshot of it, and the next source added would be rejected
+    at write time by a constraint nobody remembered to widen; because this text
+    names the types, adding one moves the provisioning stamp and the next boot
+    re-asserts the constraint for every guild.
+    """
+    values = ", ".join(f"'{t.value}'" for t in entity_types())
+    return (
+        f"ALTER TABLE search_entries DROP CONSTRAINT IF EXISTS {ENTITY_TYPE_CHECK};\n"
+        f"ALTER TABLE search_entries ADD CONSTRAINT {ENTITY_TYPE_CHECK}\n"
+        f"    CHECK (entity_type IN ({values}));"
+    )
 
 
 def _index_block(opclass: str | None) -> str:
@@ -505,6 +711,12 @@ def render_guild_search_ddl(opclass: str | None = None) -> str:
         _trigger_block(table, source)
         for table, source in sorted(SEARCH_SOURCES.items())
     ]
+    blocks.extend(
+        _dependency_block(table, source, dependency)
+        for table, source in sorted(SEARCH_SOURCES.items())
+        for dependency in source.depends_on
+    )
+    blocks.append(_entity_type_check_block())
     blocks.append(_index_block(opclass))
     return _HEADER + "\n\n" + "\n\n".join(blocks) + "\n"
 
@@ -533,22 +745,11 @@ def reindex_statement(table: str, source: SearchSource) -> str:
     bounded transactions rather than one.
     """
     row = "t"
-    columns = SQLModel.metadata.tables[table].columns
-    dac_tool = f"'{source.dac_tool.value}'" if source.dac_tool else "NULL"
-    dac_id = (
-        f"{row}.{source.dac_id or 'id'}::integer"
-        if source.dac_tool
-        else "NULL::integer"
-    )
-    body = _body_expr(source, row) or "''"
-    live = " AND t.deleted_at IS NULL" if "deleted_at" in columns else ""
     return (
-        f"SELECT {row}.id AS id, {WRITE_FUNCTION}("  # noqa: S608 — registry-rendered
-        f":schema, '{source.entity_type}', {row}.id,"
-        f" ({initiative_locator(table)(row)})::integer,"
-        f" {dac_tool}, {dac_id}, {row}.{source.title}, {body})"
+        f"SELECT {row}.id AS id,"  # noqa: S608 — registry-rendered
+        f" {_write_call(table, source, row, ':schema')}"
         f" FROM {table} {row}"
-        f" WHERE {row}.id > :cursor{live}"
+        f" WHERE {row}.id > :cursor{_live_clause(table, row)}"
         f" ORDER BY {row}.id LIMIT :batch"
         # Locks each row for the duration of the write, so the values written
         # are the row's current ones: a concurrent write to the same row
@@ -561,6 +762,6 @@ def reindex_statement(table: str, source: SearchSource) -> str:
 def reindex_plan() -> list[tuple[str, str]]:
     """``(entity_type, statement)`` for every indexed source, in a stable order."""
     return [
-        (source.entity_type, reindex_statement(table, source))
+        (source.entity_type.value, reindex_statement(table, source))
         for table, source in sorted(SEARCH_SOURCES.items())
     ]

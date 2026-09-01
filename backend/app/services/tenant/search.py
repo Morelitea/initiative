@@ -14,11 +14,13 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from sqlalchemy import Select, false, func, select
+from sqlalchemy import Select, false, func, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db.search_index import entity_types
 from app.models.tenant.search_entry import SearchEntry
@@ -69,12 +71,67 @@ SUGGEST_LIMIT = 10
 
 _HEADLINE_OPTIONS = "MaxFragments=2,MinWords=5,MaxWords=18,StartSel=<,StopSel=>"
 
+#: How many close matches a failed search offers. It is a suggestion, not a
+#: result set.
+FUZZY_LIMIT = 5
+#: How close a word has to be to be worth offering. Measured against the
+#: closest RUN of the title rather than the whole of it: a title is a sentence
+#: and the query is a word, so comparing them entire scores an exact match at
+#: 0.14 and finds nothing. A typo of a real word lands around 0.5.
+FUZZY_THRESHOLD = 0.4
+#: The close-match read cannot be served from an index — its operator is not
+#: leakproof, so under RLS it is a scan — and it only ever runs on a search that
+#: already found nothing. Bounded here so a large community gives up rather
+#: than making the reader wait for a suggestion.
+FUZZY_TIMEOUT_MS = 250
+
+
+#: A prefix scan widens as the prefix shortens, so the last word earns one only
+#: once it is specific enough for that to be worth the reading.
+MIN_PREFIX_CHARS = 3
+
+#: What ``websearch_to_tsquery`` reads as syntax rather than as a word.
+_WEBSEARCH_OPERATORS = frozenset({"or", "and"})
+
+
+def _trailing_prefix(query: str) -> tuple[str, Optional[str]]:
+    """The query without its last word, and that word to match as a prefix.
+
+    A results page searches as its reader types, so the last word is usually
+    half-finished: someone who has got as far as ``thro`` means ``Throne``.
+    Only a plain word qualifies — a quoted phrase, an exclusion or an operator
+    is what the reader asked for exactly, and is left alone.
+    """
+    if query.count('"') % 2:
+        # Mid-phrase: the quote that would close it has not been typed yet.
+        return query, None
+    head, _, last = query.rpartition(" ")
+    if not last.isalnum() or len(last) < MIN_PREFIX_CHARS:
+        return query, None
+    if last.lower() in _WEBSEARCH_OPERATORS:
+        return query, None
+    return head, last
+
 
 def _tsquery(query: str):
     """The parsed query. ``websearch_to_tsquery`` takes what a person types —
     bare words, "quoted phrases", ``or``, ``-excluded`` — and never raises on
-    input it cannot make sense of."""
-    return func.websearch_to_tsquery("simple", query)
+    input it cannot make sense of.
+
+    Its one gap is that it matches whole words, which reads as nothing being
+    found while a word is still being typed. So a bare last word is matched as a
+    prefix and ANDed onto the rest, which keeps every bit of the syntax above
+    and answers as the reader types.
+    """
+    head, prefix = _trailing_prefix(query)
+    if prefix is None:
+        return func.websearch_to_tsquery("simple", query)
+    # `prefix` is alphanumeric, so it reaches `to_tsquery` as a word and never
+    # as syntax.
+    tail = func.to_tsquery("simple", f"{prefix}:*")
+    if not head.strip():
+        return tail
+    return func.websearch_to_tsquery("simple", head).op("&&")(tail)
 
 
 def _scoped(
@@ -82,7 +139,7 @@ def _scoped(
     *,
     user_id: int,
     guild_id: int,
-    types: Optional[Sequence[str]],
+    types: Optional[Sequence[SearchEntityType]],
     initiative_id: Optional[int],
 ) -> tuple[ColumnElement[bool], object]:
     """The predicate every search shares, and the parsed query it uses."""
@@ -127,13 +184,71 @@ def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
     )
 
 
+async def _close_titles(
+    session: AsyncSession,
+    *,
+    query: str,
+    user_id: int,
+    guild_id: int,
+    types: Optional[Sequence[SearchEntityType]],
+    initiative_id: Optional[int],
+) -> list[SearchHit]:
+    """Entities whose TITLE is close to what was typed, for when nothing matched.
+
+    This answers the typo — ``comunity`` finding Community — which whole-word
+    matching cannot. Titles only, one row per entity, and never blended into a
+    search that worked: a reader is shown these as close matches, not told they
+    are what was asked for.
+    """
+    wanted = tuple(types) if types else entity_types(default_scope_only=True)
+    closeness = func.word_similarity(query, SearchEntry.title)
+    clause = (
+        (closeness >= FUZZY_THRESHOLD)
+        & (SearchEntry.chunk_ix == 0)
+        & SearchEntry.entity_type.in_(wanted)
+        & search_scope_clause(user_id, guild_id=guild_id)
+    )
+    if initiative_id is not None:
+        clause = clause & (SearchEntry.initiative_id == initiative_id)
+
+    statement = (
+        select(
+            SearchEntry.entity_type,
+            SearchEntry.entity_id,
+            SearchEntry.initiative_id,
+            SearchEntry.dac_tool.label("tool"),
+            SearchEntry.dac_id.label("tool_id"),
+            SearchEntry.title,
+        )
+        .where(clause)
+        .order_by(closeness.desc(), SearchEntry.entity_type, SearchEntry.entity_id)
+        .limit(FUZZY_LIMIT)
+    )
+    try:
+        # A savepoint, so giving up leaves the request's transaction usable.
+        async with session.begin_nested():
+            await session.exec(
+                text(f"SET LOCAL statement_timeout = '{FUZZY_TIMEOUT_MS}ms'")
+            )
+            rows = (await session.exec(statement)).all()
+    except SQLAlchemyError:
+        # Gave up, or this database has no pg_trgm. Either way the reader gets
+        # the empty page they already had.
+        return []
+    finally:
+        # ``SET LOCAL`` outlives the savepoint when it commits, so it is put
+        # back rather than left on the rest of the request.
+        await session.exec(text("SET LOCAL statement_timeout = DEFAULT"))
+    return [SearchHit.model_validate(row, from_attributes=True) for row in rows]
+
+
 async def search(
     session: AsyncSession,
     *,
     query: str,
     user_id: int,
     guild_id: int,
-    types: Optional[Sequence[str]] = None,
+    types: Optional[Sequence[SearchEntityType]] = None,
     initiative_id: Optional[int] = None,
     limit: int = 20,
     offset: int = 0,
@@ -173,6 +288,26 @@ async def search(
             .offset(offset)
         )
     ).all()
+    if not rows and offset == 0:
+        # Nothing matched what was typed. Offer what is closest to it rather
+        # than an empty page — flagged, so the reader is told which they got.
+        close = await _close_titles(
+            session,
+            query=query,
+            user_id=user_id,
+            guild_id=guild_id,
+            types=types,
+            initiative_id=initiative_id,
+        )
+        if close:
+            return SearchResults(
+                items=close,
+                total=len(close),
+                limit=limit,
+                offset=offset,
+                fuzzy=True,
+            )
+
     return SearchResults(
         items=[SearchHit.model_validate(r, from_attributes=True) for r in rows],
         total=total,
@@ -187,6 +322,7 @@ async def suggest(
     query: str,
     user_id: int,
     guild_id: int,
+    types: Optional[Sequence[SearchEntityType]] = None,
     limit: int = SUGGEST_LIMIT,
 ) -> list[SearchSuggestion]:
     """Titles to jump to. No snippets and no body ranking — this answers "take
@@ -204,10 +340,11 @@ async def suggest(
     title_match = func.to_tsvector("simple", SearchEntry.title).op(
         "@@", is_comparison=True
     )(parsed)
+    wanted = tuple(types) if types else entity_types(default_scope_only=True)
     clause = (
         search_match_clause(parsed)
         & title_match
-        & SearchEntry.entity_type.in_(entity_types(default_scope_only=True))
+        & SearchEntry.entity_type.in_(wanted)
         & search_scope_clause(user_id, guild_id=guild_id)
     )
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)
