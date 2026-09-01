@@ -52,6 +52,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
+from app.services.tenant import search as search_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
@@ -546,12 +547,9 @@ def _visible_project_conditions(
     else:
         conditions.append(Project.is_archived.is_(archived))
 
-    if search and search.strip():
-        # autoescape so a literal % or _ in the query is matched as itself, not
-        # as a LIKE wildcard — keeps the documented substring semantics.
-        conditions.append(
-            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
-        )
+    name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     return conditions
 
@@ -965,10 +963,9 @@ async def _list_global_projects(
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
     ]
-    if search:
-        conditions.append(
-            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
-        )
+    name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[ProjectRead]:
         statement = (

@@ -14,11 +14,12 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
+from app.core.tools import Tool
 from app.db.search_index import entity_types
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
@@ -159,7 +160,15 @@ async def search(
     rows = (
         await session.exec(
             select(best)
-            .order_by(best.c.rank.desc(), best.c.updated_at.desc())
+            # entity_type/entity_id last: rank and timestamp both tie, and an
+            # order that is not total lets a row repeat on one page and vanish
+            # from the next.
+            .order_by(
+                best.c.rank.desc(),
+                best.c.updated_at.desc(),
+                best.c.entity_type,
+                best.c.entity_id,
+            )
             .limit(limit)
             .offset(offset)
         )
@@ -185,8 +194,21 @@ async def suggest(
     limit = max(1, min(limit, SUGGEST_LIMIT))
     if not query.strip():
         return []
-    clause, parsed = _scoped(
-        query, user_id=user_id, guild_id=guild_id, types=None, initiative_id=None
+    parsed = prefix_tsquery(query)
+    if parsed is None:
+        return []
+    # The stored vector carries title AND body, so it narrows through the index
+    # but would also offer a row whose title shows nothing of what was typed.
+    # Rechecking the title alone keeps the palette's answers legible; it runs on
+    # what the index already narrowed to.
+    title_match = func.to_tsvector("simple", SearchEntry.title).op(
+        "@@", is_comparison=True
+    )(parsed)
+    clause = (
+        search_match_clause(parsed)
+        & title_match
+        & SearchEntry.entity_type.in_(entity_types(default_scope_only=True))
+        & search_scope_clause(user_id, guild_id=guild_id)
     )
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)
     rows = (
@@ -200,8 +222,59 @@ async def suggest(
                 SearchEntry.title,
             )
             .where(clause, SearchEntry.chunk_ix == 0)
-            .order_by(rank.desc(), SearchEntry.updated_at.desc())
+            .order_by(
+                rank.desc(),
+                SearchEntry.updated_at.desc(),
+                SearchEntry.entity_type,
+                SearchEntry.entity_id,
+            )
             .limit(limit)
         )
     ).all()
     return [SearchSuggestion.model_validate(r, from_attributes=True) for r in rows]
+
+
+def prefix_tsquery(text: str):
+    """A query whose last word matches as a prefix, or ``None`` for no terms.
+
+    What a filter box needs: someone typing ``ven`` should see ``vendor``
+    before they finish the word. ``websearch_to_tsquery`` matches whole words
+    only, which is right for a results page and wrong for type-ahead.
+
+    Tokens are reduced to alphanumerics, so nothing a person types reaches
+    ``to_tsquery`` as syntax.
+    """
+    tokens = ["".join(c for c in part if c.isalnum()) for part in text.split()]
+    tokens = [t for t in tokens if t]
+    if not tokens:
+        return None
+    return func.to_tsquery("simple", " & ".join([*tokens[:-1], f"{tokens[-1]}:*"]))
+
+
+def tool_search_clause(
+    tool: Tool, id_col: ColumnElement[int], search: Optional[str]
+) -> Optional[ColumnElement[bool]]:
+    """Narrow a tool's list to rows whose indexed text matches ``search``.
+
+    The same index the search page reads, so a tool's filter box and the search
+    page agree about what matches — and it reaches a description, not just a
+    name. ``None`` when there is nothing to search for, so a caller appends it
+    conditionally.
+
+    The subquery reads ``search_entries``, which is gated by its own policies;
+    the caller's own access clause still applies to the rows it returns.
+    """
+    if not search or not search.strip():
+        return None
+    parsed = prefix_tsquery(search)
+    if parsed is None:
+        # Something was typed, but it holds no word to match — punctuation only.
+        # Nothing matches it, which is a truer answer than the unfiltered list
+        # a caller would read as "the filter was ignored".
+        return false()
+    return id_col.in_(
+        select(SearchEntry.entity_id).where(
+            SearchEntry.entity_type == tool.value,
+            search_match_clause(parsed),
+        )
+    )

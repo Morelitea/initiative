@@ -91,6 +91,7 @@ from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
+from app.services.tenant import search as search_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
@@ -368,10 +369,9 @@ def _build_visible_docs_filters(
     if document_type is not None:
         conditions.append(Document.document_type == document_type)
 
-    if search:
-        normalized = search.strip().lower()
-        if normalized:
-            conditions.append(func.lower(Document.name).contains(normalized))
+    name_match = search_service.tool_search_clause(Tool.document, Document.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     if tag_ids:
         tag_subquery = (
@@ -459,10 +459,9 @@ async def _list_global_documents(
         session, current_user.id, restrict_to=guild_ids
     )
     conditions = [Document.created_by == current_user.id]
-    if search:
-        normalized = search.strip().lower()
-        if normalized:
-            conditions.append(func.lower(Document.name).contains(normalized))
+    name_match = search_service.tool_search_clause(Tool.document, Document.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     async def _fetch(
         guild_session: AsyncSession, _guild_id: int

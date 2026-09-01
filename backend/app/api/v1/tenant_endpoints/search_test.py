@@ -179,3 +179,68 @@ async def test_a_non_member_cannot_search_the_guild(
         a.g("/search/"), headers=outsider.headers, params={"q": "renewal"}
     )
     assert response.status_code == 403
+
+
+async def test_suggest_offers_only_titles_that_match(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The palette shows titles, so a hit whose title shows nothing of what was
+    typed reads as a mistake — even when the word is genuinely in the body."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Handbook",
+        content={
+            "root": {
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "text": "vendor renewal"}],
+                    }
+                ]
+            }
+        },
+    )
+    await create_document(session, a.initiative, a.user, name="Renewal calendar")
+
+    response = await client.get(
+        a.g("/search/suggest"), headers=a.headers, params={"q": "renewal"}
+    )
+    assert response.status_code == 200, response.text
+    assert [r["title"] for r in response.json()] == ["Renewal calendar"]
+
+    # ...while the full search still finds the body match.
+    body = await _search(client, a, q="renewal")
+    assert {h["title"] for h in body["items"]} == {"Handbook", "Renewal calendar"}
+
+
+async def test_suggest_matches_a_partly_typed_word(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A palette answers while you are still typing."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="vendor renewal")
+
+    response = await client.get(
+        a.g("/search/suggest"), headers=a.headers, params={"q": "ven"}
+    )
+    assert [r["title"] for r in response.json()] == ["vendor renewal"]
+
+
+async def test_paging_does_not_repeat_or_drop_a_hit(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Rank and timestamp both tie across these, so the order has to be total
+    or a row shows on two pages and another on none."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    for n in range(6):
+        await create_task(session, a.project, title=f"renewal item {n}")
+
+    seen: list[int] = []
+    for offset in (0, 2, 4):
+        page = await _search(client, a, q="renewal", limit=2, offset=offset)
+        seen.extend(h["entity_id"] for h in page["items"])
+    assert len(seen) == 6
+    assert len(set(seen)) == 6
