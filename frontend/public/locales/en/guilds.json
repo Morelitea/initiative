@@ -249,6 +249,8 @@
     "commentOnResource": "{{commenterName}} commented on {{entityName}}.",
     "commentReply": "{{replierName}} replied to your comment on {{contextTitle}}.",
     "commentReaction": "{{reactorName}} reacted {{emoji}} to your comment on {{contextTitle}}.",
+    "commentReactionMulti_one": "{{reactorName}} and 1 other reacted {{emoji}} to your comment on {{contextTitle}}.",
+    "commentReactionMulti_other": "{{reactorName}} and {{count}} others reacted {{emoji}} to your comment on {{contextTitle}}.",
     "accessGrantRequested": "{{requester}} requested {{level}} access to {{guild}}.",
     "accessGrantRequestedGeneric": "{{requester}} requested access to {{guild}}.",
     "accessGrantApproved": "Your {{level}} access to {{guild}} was approved.",

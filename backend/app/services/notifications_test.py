@@ -1130,3 +1130,144 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
     )
     assert sent == []
     assert pushes == []
+
+
+@pytest.mark.unit
+class TestReactionBellRollup:
+    """The payload arithmetic behind the rolled-up bell line, including what it
+    makes of a line written before reactions rolled up at all."""
+
+    def test_a_pre_rollup_line_counts_as_the_one_reaction_it_named(self):
+        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+
+        legacy = {
+            "emoji": "\N{THUMBS UP SIGN}",
+            "reactor_name": "@ada",
+            "reactor_id": 7,
+        }
+        assert _rolled_up_count(legacy) == 1
+        assert _rolled_up_reactions(legacy) == [
+            {
+                "id": None,
+                "emoji": "\N{THUMBS UP SIGN}",
+                "reactor_id": 7,
+                "reactor_name": "@ada",
+            }
+        ]
+
+    def test_an_empty_payload_stands_for_nothing(self):
+        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+
+        assert _rolled_up_count({}) == 0
+        assert _rolled_up_reactions({}) == []
+
+    def test_the_named_reactions_are_capped_but_the_counts_are_not(self):
+        """The detail rolls off; what the sentence says must not. A line that
+        forgot its oldest reactions still knows how big its crowd is."""
+        from app.services.notifications import (
+            MAX_ROLLED_UP_REACTIONS,
+            _reaction_line,
+        )
+
+        entries = [
+            {
+                "id": i,
+                "emoji": "\N{PARTY POPPER}",
+                "reactor_id": i,
+                "reactor_name": f"@u{i}",
+            }
+            for i in range(MAX_ROLLED_UP_REACTIONS + 5)
+        ]
+        line = _reaction_line(
+            entries,
+            count=len(entries),
+            reactor_ids=[entry["reactor_id"] for entry in entries],
+            context_title="a task",
+            target_path="/go/task/1",
+            smart_link=None,
+            target_type="comment",
+            target_id=1,
+            guild_id=3,
+        )
+        assert line["count"] == MAX_ROLLED_UP_REACTIONS + 5
+        assert line["reactor_count"] == MAX_ROLLED_UP_REACTIONS + 5
+        assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
+        # The cap drops the oldest, so the newest reactor is still the one named.
+        assert line["reactor_id"] == entries[-1]["reactor_id"]
+
+    def test_the_roster_keeps_growing_after_the_detail_rolls_off(self):
+        """A cap on the roster would be a cap on the truth — the count would
+        freeze on exactly the comment where the number matters most."""
+        from app.services.notifications import (
+            MAX_ROLLED_UP_REACTIONS,
+            _reaction_line,
+        )
+
+        crowd = list(range(MAX_ROLLED_UP_REACTIONS * 10))
+        line = _reaction_line(
+            [
+                {
+                    "id": i,
+                    "emoji": "\N{PARTY POPPER}",
+                    "reactor_id": i,
+                    "reactor_name": f"@u{i}",
+                }
+                for i in crowd
+            ],
+            count=len(crowd),
+            reactor_ids=crowd,
+            context_title="a task",
+            target_path="/go/task/1",
+            smart_link=None,
+            target_type="comment",
+            target_id=1,
+            guild_id=3,
+        )
+        assert line["reactor_count"] == len(crowd)
+        assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
+
+    def test_a_pre_roster_line_reads_its_crowd_off_the_reactions_it_kept(self):
+        from app.services.notifications import _rolled_up_reactor_ids
+
+        assert _rolled_up_reactor_ids(
+            {
+                "reactions": [
+                    {"id": 1, "emoji": "a", "reactor_id": 2, "reactor_name": "@bob"},
+                    {"id": 2, "emoji": "b", "reactor_id": 2, "reactor_name": "@bob"},
+                    {"id": 3, "emoji": "c", "reactor_id": 5, "reactor_name": "@ada"},
+                ]
+            }
+        ) == [2, 5]
+        # And one written before rollups at all still names its one reactor.
+        assert _rolled_up_reactor_ids(
+            {"emoji": "\N{THUMBS UP SIGN}", "reactor_id": 7, "reactor_name": "@ada"}
+        ) == [7]
+
+    def test_a_pre_rollup_gesture_is_matched_by_who_reacted_and_with_what(self):
+        """Such a line carries no reaction id, so an un-react would never match
+        it on id alone and the line would keep claiming the reaction stands."""
+        from app.services.notifications import _matches_withdrawn
+
+        legacy = {
+            "id": None,
+            "emoji": "\N{THUMBS UP SIGN}",
+            "reactor_id": 7,
+            "reactor_name": "@ada",
+        }
+        assert _matches_withdrawn(
+            legacy, reaction_id=99, reactor_id=7, emoji="\N{THUMBS UP SIGN}"
+        )
+        assert not _matches_withdrawn(
+            legacy, reaction_id=99, reactor_id=8, emoji="\N{THUMBS UP SIGN}"
+        )
+        assert not _matches_withdrawn(
+            legacy, reaction_id=99, reactor_id=7, emoji="\N{PARTY POPPER}"
+        )
+        # A gesture that knows its own id is matched by it, and only by it.
+        known = {**legacy, "id": 99}
+        assert _matches_withdrawn(
+            known, reaction_id=99, reactor_id=0, emoji="\N{PARTY POPPER}"
+        )
+        assert not _matches_withdrawn(
+            known, reaction_id=98, reactor_id=7, emoji="\N{THUMBS UP SIGN}"
+        )

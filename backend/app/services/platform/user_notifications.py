@@ -23,6 +23,78 @@ async def create_notification(
     return notification
 
 
+async def find_unread_by_data(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    notification_type: NotificationType,
+    match: Mapping[str, object],
+) -> Notification | None:
+    """The newest UNREAD notification of this type whose ``data`` matches every
+    key in ``match``, if there is one.
+
+    This is what lets a notification stream roll up rather than repeat: a
+    second event about the same thing updates the line the first one wrote
+    instead of adding another. Unread is the whole window — once the recipient
+    has seen a line, the next event starts a fresh one, which is what keeps
+    "new" meaning something.
+    """
+    stmt = select(Notification).where(
+        Notification.user_id == user_id,
+        Notification.type == notification_type,
+        Notification.read_at.is_(None),
+    )
+    for key, value in match.items():
+        # ``->>`` compares as text, so the value is stringified to match how
+        # Postgres renders it — an int in the payload reads back as "12".
+        stmt = stmt.where(Notification.data[key].as_string() == str(value))
+    stmt = stmt.order_by(Notification.created_at.desc(), Notification.id.desc()).limit(
+        1
+    )
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    if row is None:
+        return None
+    return row[0] if isinstance(row, tuple) else row
+
+
+async def refresh_notification(
+    session: AsyncSession,
+    notification: Notification,
+    *,
+    data: Mapping[str, object],
+    bump: bool = True,
+) -> Notification:
+    """Rewrite a notification's payload in place.
+
+    ``bump`` says the line has something new to say, so it returns to the top
+    of the inbox AND to unread. Unread matters for more than tidiness: the
+    recipient can mark the line read between the lookup that found it and this
+    write, and a rolled-up event landing on an already-read line would never be
+    seen. Clearing the stamp is a no-op on the line this was meant for — it was
+    unread when it was found — and the right answer when it is not.
+
+    A withdrawal passes ``bump=False``: taking something away is not news, and
+    must not resurrect a line the recipient has already dealt with.
+    """
+    notification.data = dict(data)
+    if bump:
+        notification.created_at = datetime.now(timezone.utc)
+        notification.read_at = None
+    session.add(notification)
+    await session.flush()
+    return notification
+
+
+async def delete_notification(
+    session: AsyncSession, notification: Notification
+) -> None:
+    """Remove a notification outright — used when every event it rolled up has
+    been taken back, so the line has nothing left to say."""
+    await session.delete(notification)
+    await session.flush()
+
+
 async def list_notifications(
     session: AsyncSession,
     *,
