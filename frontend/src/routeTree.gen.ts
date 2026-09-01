@@ -56,7 +56,6 @@ import { Route as ServerRequiredAuthenticatedSettingsAdminAccessRouteImport } fr
 import { Route as ServerRequiredAuthenticatedSettingsAdminAuditRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/audit'
 import { Route as ServerRequiredAuthenticatedSettingsAdminCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/communities'
 import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/users'
-import { Route as ServerRequiredAuthenticatedSettingsCommunitySplatRouteImport } from './routes/_serverRequired/_authenticated/settings/community.$'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/index'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAiRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/ai'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAppServicesRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/app-services'
@@ -392,12 +391,6 @@ const ServerRequiredAuthenticatedSettingsAdminUsersRoute =
     id: '/users',
     path: '/users',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
-  } as any)
-const ServerRequiredAuthenticatedSettingsCommunitySplatRoute =
-  ServerRequiredAuthenticatedSettingsCommunitySplatRouteImport.update({
-    id: '/community/$',
-    path: '/community/$',
-    getParentRoute: () => ServerRequiredAuthenticatedSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsPlatformIndexRoute =
   ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport.update({
@@ -905,7 +898,6 @@ export interface FileRoutesByFullPath {
   '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/communities': typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
-  '/settings/community/$': typeof ServerRequiredAuthenticatedSettingsCommunitySplatRoute
   '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
   '/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
@@ -1009,7 +1001,6 @@ export interface FileRoutesByTo {
   '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/communities': typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
-  '/settings/community/$': typeof ServerRequiredAuthenticatedSettingsCommunitySplatRoute
   '/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
   '/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
@@ -1119,7 +1110,6 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/_serverRequired/_authenticated/settings/admin/communities': typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
-  '/_serverRequired/_authenticated/settings/community/$': typeof ServerRequiredAuthenticatedSettingsCommunitySplatRoute
   '/_serverRequired/_authenticated/settings/platform/ai': typeof ServerRequiredAuthenticatedSettingsPlatformAiRoute
   '/_serverRequired/_authenticated/settings/platform/app-services': typeof ServerRequiredAuthenticatedSettingsPlatformAppServicesRoute
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
@@ -1230,7 +1220,6 @@ export interface FileRouteTypes {
     | '/settings/admin/audit'
     | '/settings/admin/communities'
     | '/settings/admin/users'
-    | '/settings/community/$'
     | '/settings/platform/ai'
     | '/settings/platform/app-services'
     | '/settings/platform/auth'
@@ -1334,7 +1323,6 @@ export interface FileRouteTypes {
     | '/settings/admin/audit'
     | '/settings/admin/communities'
     | '/settings/admin/users'
-    | '/settings/community/$'
     | '/settings/platform/ai'
     | '/settings/platform/app-services'
     | '/settings/platform/auth'
@@ -1443,7 +1431,6 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/admin/audit'
     | '/_serverRequired/_authenticated/settings/admin/communities'
     | '/_serverRequired/_authenticated/settings/admin/users'
-    | '/_serverRequired/_authenticated/settings/community/$'
     | '/_serverRequired/_authenticated/settings/platform/ai'
     | '/_serverRequired/_authenticated/settings/platform/app-services'
     | '/_serverRequired/_authenticated/settings/platform/auth'
@@ -1845,13 +1832,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/admin/users'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminUsersRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
-    }
-    '/_serverRequired/_authenticated/settings/community/$': {
-      id: '/_serverRequired/_authenticated/settings/community/$'
-      path: '/community/$'
-      fullPath: '/settings/community/$'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsCommunitySplatRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedSettingsRoute
     }
     '/_serverRequired/_authenticated/settings/platform/': {
       id: '/_serverRequired/_authenticated/settings/platform/'
@@ -2385,7 +2365,6 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren =
 interface ServerRequiredAuthenticatedSettingsRouteChildren {
   ServerRequiredAuthenticatedSettingsAdminRoute: typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
   ServerRequiredAuthenticatedSettingsPlatformRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
-  ServerRequiredAuthenticatedSettingsCommunitySplatRoute: typeof ServerRequiredAuthenticatedSettingsCommunitySplatRoute
 }
 
 const ServerRequiredAuthenticatedSettingsRouteChildren: ServerRequiredAuthenticatedSettingsRouteChildren =
@@ -2394,8 +2373,6 @@ const ServerRequiredAuthenticatedSettingsRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedSettingsAdminRouteWithChildren,
     ServerRequiredAuthenticatedSettingsPlatformRoute:
       ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren,
-    ServerRequiredAuthenticatedSettingsCommunitySplatRoute:
-      ServerRequiredAuthenticatedSettingsCommunitySplatRoute,
   }
 
 const ServerRequiredAuthenticatedSettingsRouteWithChildren =
