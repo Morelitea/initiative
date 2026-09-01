@@ -318,8 +318,17 @@ export const invalidateGuildInvites = (guildId: number) =>
   invalidatePersonalExact([`/api/v1/guilds/${guildId}/invites`]);
 
 // ── Guild Switch ──────────────────────────────────────────────────────────────
-// Keys that are NOT guild-scoped and should survive a guild switch
-const GLOBAL_KEY_PREFIXES = ["/api/v1/guilds", "/api/v1/users/me", "/api/v1/version"];
+// Keys that are NOT guild-scoped and should survive a guild switch.
+// `/api/v1/recents` is one of them: the recents bar is a cross-guild personal
+// list, so switching community neither changes its contents nor invalidates
+// them. Resetting it made the bar blank and refetch on every switch, dropping
+// tabs that belong to the community being left as well as the one arriving.
+const GLOBAL_KEY_PREFIXES = [
+  "/api/v1/guilds",
+  "/api/v1/users/me",
+  "/api/v1/version",
+  "/api/v1/recents",
+];
 
 /** Remove all guild-scoped query data so stale cross-guild results are never shown. */
 export const resetGuildScopedQueries = () =>

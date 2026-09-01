@@ -22,6 +22,7 @@ import { AppsSection } from "@/components/sidebar/AppsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
+import { SidebarSearchButton } from "@/components/sidebar/SidebarSearchButton";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
 import { Button } from "@/components/ui/button";
@@ -336,21 +337,29 @@ export const AppSidebar = () => {
             ) : (
               <>
                 <SidebarHeader
-                  className="gap-0 border-b p-0"
+                  className="gap-0 p-0"
                   style={{ paddingTop: "var(--safe-area-inset-top)" }}
                 >
-                  <div className="flex h-12 min-w-0 items-center justify-between gap-2 px-2.5">
-                    <h2 className="min-w-0 flex-1 truncate font-semibold text-lg">
-                      {activeGuild?.name ?? t("selectGuild")}
-                    </h2>
-                    {activeGuild && isGuildAdmin && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-                        <Link to={gp("/settings")} aria-label={t("guildSettings")}>
-                          <Settings className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    )}
+                  {/* The rule goes on the wrapper, not the h-12 row, so the
+                      row is a full 3rem and the border sits below it — the
+                      recents bar across the top of the page is built the same
+                      way, and a border inside the box would leave the two 1px
+                      out of line. */}
+                  <div className="border-b">
+                    <div className="flex h-12 min-w-0 items-center justify-between gap-2 px-2.5">
+                      <h2 className="min-w-0 flex-1 truncate font-semibold text-lg">
+                        {activeGuild?.name ?? t("selectGuild")}
+                      </h2>
+                      {activeGuild && isGuildAdmin && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+                          <Link to={gp("/settings")} aria-label={t("guildSettings")}>
+                            <Settings className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                  <SidebarSearchButton guildName={activeGuild?.name} />
                 </SidebarHeader>
 
                 <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">

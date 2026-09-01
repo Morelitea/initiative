@@ -151,13 +151,18 @@ describe("the guild search page", () => {
     );
   });
 
-  it("offers nothing to open on a tab with nothing behind it", async () => {
+  it("lets a reader open a tab with nothing behind it and says so", async () => {
     withHits([project()], []);
+    const user = userEvent.setup();
     await renderSearch({ q: "riverside" });
 
     await screen.findByRole("link", { name: /Riverside kickoff/ });
-    expect(screen.getByRole("tab", { name: "Tools" })).toBeEnabled();
-    expect(screen.getByRole("tab", { name: "Tags" })).toBeDisabled();
+    const tags = screen.getByRole("tab", { name: "Tags" });
+    expect(tags).toBeEnabled();
+
+    await user.click(tags);
+
+    expect(await screen.findByText(/No results for/)).toBeInTheDocument();
   });
 
   it("asks nothing until there is something to search for", async () => {
@@ -167,6 +172,17 @@ describe("the guild search page", () => {
     for (const call of mocks.search.mock.calls) {
       expect(call[0].q).toBe("");
     }
+  });
+
+  // The heading names what is being searched, the same way the sidebar's search
+  // row does — a result page reached from anywhere says which community it
+  // covers, rather than a bare "Search".
+  it("names the community in its heading", async () => {
+    await renderSearch({ q: "alpha" });
+
+    expect(
+      await screen.findByRole("heading", { name: "Search Guild 1", level: 1 })
+    ).toBeInTheDocument();
   });
 
   it("puts a reader who arrives past the last page back on results", async () => {
@@ -186,15 +202,14 @@ describe("the guild search page", () => {
 
   it("draws no conclusion from a total that belongs to the query before it", async () => {
     // Arriving on page 3 of a fresh query while the previous query's results
-    // are still on screen. That query matched one thing in one tab and nothing
-    // in the other, and neither fact is about this one — so the page must not
-    // be corrected, and the empty tab must not be closed off.
+    // are still on screen. That query's total belongs to the query that is
+    // leaving and says nothing about this one, so the page must not be
+    // corrected off 3 on the strength of it.
     withStaleAnswer();
     const { router: pageRouter } = await renderSearch({ q: "riverside", page: 3 });
 
     await screen.findByRole("tab", { name: "Tools" });
     expect(pageRouter.state.location.search).toMatchObject({ page: 3 });
-    expect(screen.getByRole("tab", { name: "Tags" })).toBeEnabled();
   });
 });
 

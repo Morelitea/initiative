@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The search page names the community it is searching, and every tab stays open.** The heading said only "Search"; it now says which community the results come from. Tabs with nothing behind them were greyed out, so you could not check an empty tab for yourself or return to one once a changed query filled it — every tab is now reachable and an empty one says nothing matched. Finding out which tabs to grey out cost two extra searches per query, which are gone with it.
+
+- **Search moved into the sidebar.** The search button sat in the tab strip above the page, where it read as one more tab. It is now a search field under the community name in the sidebar, labelled with the community it searches and showing the ⌘K / Ctrl+K shortcut. The recents strip is now only recents, and disappears when there are none.
+
 - **Comment threads now run the full width of the page.** They were squeezed into a half-width column on tasks and into a slide-out panel on documents, which wrapped almost every reply. A thread is a conversation, so it now gets its own full-width row underneath, in the same place on every kind of page. The document side panel is now just the AI summary.
 
 - **Replies are easier to follow.** Each level of nesting draws its thread line in a different theme colour, so you can see how deep a reply sits even where the indentation stops.
@@ -32,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guilds are now communities.** The name was picked for gaming guilds, and the people using Initiative turned out to be running far more than that — clubs, teams, departments, whole organisations. Everything you see now says community: menus, settings, notifications, error messages, and the help site, in all four languages. Nothing about how it works has changed; only what it is called.
 
 - **Community pages have moved from `/g/` to `/c/`.** A page inside a community now lives at `/c/{id}/…` instead of `/g/{id}/…`, the per-community sign-in link is `/community/{id}/login`, and the platform tab is Settings › Admin › Communities. Old links do not forward — bookmarks, saved links and any per-community sign-in link you handed out need replacing with the new address.
+
+### Fixed
+
+- **Open tabs no longer flicker when you switch community.** The recents bar lists tabs from every community you are in, but switching community threw its contents away and fetched them again, blanking the bar for a moment each time. It now stays put — there is nothing about it that a switch changes.
 
 ## [0.64.3] - 2026-08-30
 
