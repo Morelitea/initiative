@@ -185,7 +185,11 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
         rls_ddl = render_guild_rls_ddl()
         capture_ddl = render_guild_capture_ddl()
-        search_ddl = render_guild_search_ddl()
+        # Naming the operator class in the rendered text is what makes the
+        # stamp move when it is installed later, so the sweep rebuilds indexes
+        # that were created without it.
+        opclass = f"public.{SEARCH_OPCLASS}" if await search_operator_ready() else None
+        search_ddl = render_guild_search_ddl(opclass)
         digest = hashlib.sha256()
         digest.update(schema_ddl.encode())
         digest.update(rls_ddl.encode())
@@ -627,6 +631,76 @@ async def warn_if_privileged_database_url() -> None:
             "a SUPERUSER" if rolsuper else "a BYPASSRLS",
             "=" * 70,
         )
+
+
+SEARCH_OPCLASS = "tsvector_search_ops"
+SEARCH_MATCH_FUNCTION = "search_tsmatch"
+
+_SEARCH_OPERATOR_SQL = text(
+    "SELECT "
+    "  EXISTS (SELECT 1 FROM pg_opclass c JOIN pg_namespace n ON n.oid = c.opcnamespace"
+    "          WHERE n.nspname = 'public' AND c.opcname = :opclass) AS opclass_present,"
+    "  coalesce((SELECT p.proleakproof FROM pg_proc p"
+    "            JOIN pg_namespace n ON n.oid = p.pronamespace"
+    "            WHERE n.nspname = 'public' AND p.proname = :fn), false) AS fn_leakproof"
+)
+
+
+#: Cached at boot by :func:`search_operator_ready`. ``False`` until checked, so
+#: a query path that runs before the check falls back to the stock operator —
+#: same rows, no index.
+_search_operator_ready: bool = False
+
+
+def search_operator_available() -> bool:
+    """The cached answer, for the query path (sync, no round trip)."""
+    return _search_operator_ready
+
+
+async def search_operator_ready() -> bool:
+    """Whether guild search can use its index.
+
+    ``scripts/create-search-operator.sql`` installs the match operator and its
+    operator class; both must be present.
+    """
+    async with db_session.provisioning_engine.connect() as conn:
+        row = (
+            await conn.execute(
+                _SEARCH_OPERATOR_SQL,
+                {"opclass": SEARCH_OPCLASS, "fn": SEARCH_MATCH_FUNCTION},
+            )
+        ).one()
+    global _search_operator_ready
+    _search_operator_ready = bool(row.opclass_present and row.fn_leakproof)
+    return _search_operator_ready
+
+
+async def warn_if_search_operator_missing() -> None:
+    """Say so, loudly, when the search operator is absent.
+
+    Its absence is not a failure: search returns the same rows either way, and
+    reads more of the index table to do it. Nothing else reports it, so a
+    restore or a major-version upgrade that lost the objects would otherwise
+    show up only as search getting slower.
+    """
+    if await search_operator_ready():
+        return
+    logger.warning(
+        "\n%s\n"
+        "Guild search is running without its index.\n"
+        "Results are unchanged; each search reads more of the index table,\n"
+        "which grows with the guild. Install the operator once, as a SUPERUSER:\n"
+        "\n"
+        "  docker exec -i initiative-db \\\n"
+        "    psql -v ON_ERROR_STOP=1 -U <user> -d <database> \\\n"
+        "         -f - < backend/scripts/create-search-operator.sql\n"
+        "\n"
+        "Then restart: the index is rebuilt on the next provisioning sweep.\n"
+        "Fresh docker-compose installs get this at first database init.\n"
+        "%s",
+        "=" * 70,
+        "=" * 70,
+    )
 
 
 _EFFECTIVE_BYPASS_SQL = (
