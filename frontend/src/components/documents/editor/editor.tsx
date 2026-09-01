@@ -35,6 +35,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
 import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
 import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
@@ -45,7 +46,10 @@ import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/ma
 import { BadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
-import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
+import {
+  $createEntityMentionNode,
+  EntityMentionNode,
+} from "@/components/ui/editor/nodes/entity-mention-node";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
 import { WikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
@@ -149,9 +153,22 @@ export function Editor({
         MentionNode,
         TweetNode,
         YouTubeNode,
-        WikilinkNode,
         EntityMentionNode,
         BadgeNode,
+        // `[[ ]]` wrote its own node before references were one thing. Stored
+        // documents still hold them, so every one is read as the reference it
+        // always was — rendering live like the rest, and written back as a
+        // reference the next time the document is saved.
+        {
+          replace: WikilinkNode,
+          with: (node: WikilinkNode) =>
+            $createEntityMentionNode(
+              SearchEntityType.document,
+              node.getDocumentId() ?? 0,
+              node.getDocumentTitle()
+            ),
+          withKlass: EntityMentionNode,
+        },
       ],
       theme: editorTheme,
       editable: !initialReadOnlyRef.current,

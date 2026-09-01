@@ -21,8 +21,11 @@ import { createPortal } from "react-dom";
 
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { linkableToolTypes } from "@/lib/references";
 
 // Regex to match [[ followed by any characters (for partial wikilinks)
 const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
@@ -89,12 +92,21 @@ class WikilinkTypeaheadOption extends MenuOption {
   title: string;
   documentId: number | null;
   isCreateNew: boolean;
+  /** What kind of thing this names. A row still to be created is a document:
+   *  it is the one tool a name and an initiative are enough to make. */
+  entityType: SearchEntityType;
 
-  constructor(title: string, documentId: number | null, isCreateNew = false) {
-    super(title);
+  constructor(
+    title: string,
+    documentId: number | null,
+    isCreateNew = false,
+    entityType: SearchEntityType = SearchEntityType.document
+  ) {
+    super(`${entityType}-${documentId ?? "new"}-${title}`);
     this.title = title;
     this.documentId = documentId;
     this.isCreateNew = isCreateNew;
+    this.entityType = entityType;
   }
 }
 
@@ -106,8 +118,15 @@ function useWikilinkSearch(
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
   // The shared lookup, narrowed to this initiative's live documents. A
   // wikilink points at a document to read, not at a blueprint.
+  // `[[ ]]` reaches the TOOLS THIS INITIATIVE HAS — derived, so a seventh is
+  // linkable the day it exists and one switched off is not offered at all.
+  // Everything smaller than a tool (a task, an event) is reached with `#`:
+  // those cannot be made from a name alone, which is the whole difference
+  // between the two triggers.
+  const { data: initiative } = useInitiative(initiativeId);
+  const linkable = useMemo(() => linkableToolTypes(initiative), [initiative]);
   const { data, isFetching } = useGuildSearchSuggest(queryString ?? "", {
-    types: [SearchEntityType.document],
+    types: linkable,
     initiative_id: initiativeId ?? undefined,
     template: false,
     limit: SUGGESTION_LIST_LENGTH_LIMIT,
@@ -118,7 +137,7 @@ function useWikilinkSearch(
 
   const options = useMemo(() => {
     const docOptions = results.map(
-      (doc) => new WikilinkTypeaheadOption(doc.title, doc.entity_id, false)
+      (hit) => new WikilinkTypeaheadOption(hit.title, hit.entity_id, false, hit.entity_type)
     );
 
     // Add "Create new document" option if query doesn't exactly match any result
@@ -218,7 +237,11 @@ export function WikilinksPlugin({
       pendingTrailingCleanup = null;
 
       editor.update(() => {
-        const wikilinkNode = $createWikilinkNode(selectedOption.title, selectedOption.documentId);
+        const wikilinkNode = $createEntityMentionNode(
+          selectedOption.entityType,
+          selectedOption.documentId ?? 0,
+          selectedOption.title
+        );
         if (nodeToReplace) {
           nodeToReplace.replace(wikilinkNode);
         }
@@ -239,7 +262,7 @@ export function WikilinksPlugin({
           }
         }
 
-        wikilinkNode.select();
+        wikilinkNode.selectNext();
         closeMenu();
       });
     },

@@ -5,8 +5,9 @@ import {
   getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryKey,
   readBadgesApiV1GGuildIdDocumentBadgesGet,
 } from "@/api/generated/document-badges/document-badges";
-import type { BadgeState } from "@/api/generated/initiativeAPI.schemas";
+import type { BadgeState, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { referenceRef } from "@/lib/badges";
 
 /** How long a chip may be behind the thing it is about. */
 const STALE_MS = 30_000;
@@ -38,8 +39,18 @@ export const useDocumentBadges = (refs: string[], enabled = true) => {
   });
 };
 
-/** What the chips on this page currently say, by reference. */
+/** What everything this page refers to currently says, by reference.
+ *
+ * Chips and links read from the same map: a chip asks `task:12:status`, a link
+ * asks `task:12`, and both came back in one request. */
 export const BadgeStatesContext = createContext<Map<string, BadgeState>>(new Map());
 
 export const useBadgeState = (ref: string): BadgeState | undefined =>
   useContext(BadgeStatesContext).get(ref);
+
+/** What a referenced thing is called right now, or `undefined` where it cannot
+ *  be read — deleted, or never shared with this reader. */
+export const useReferenceTitle = (
+  entityType: SearchEntityType,
+  entityId: number
+): string | undefined => useBadgeState(referenceRef(entityType, entityId))?.text || undefined;

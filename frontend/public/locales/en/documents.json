@@ -343,6 +343,10 @@
     "next": "Next",
     "rangeOf": "{{start}}–{{end}} of {{total}}"
   },
+  "references": {
+    "gone": "Deleted",
+    "unavailable": "This is no longer available to you"
+  },
   "settings": {
     "loading": "Loading document…",
     "notFound": "Document not found.",
