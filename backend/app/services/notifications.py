@@ -1823,11 +1823,12 @@ async def process_assignment_digest_gc() -> None:
 #: payload the line carries so a popular comment cannot grow it without limit.
 MAX_ROLLED_UP_REACTIONS = 20
 
-#: How many distinct reactors the line rosters. The roster is what the sentence
-#: counts ("and 12 others"), so it is kept separately from the detail above and
-#: held to a far higher bound: it is one id per person, and it must not shrink
-#: as older reactions roll off, or the line would understate its own crowd.
-MAX_ROLLED_UP_REACTORS = 100
+# The roster of distinct reactors is deliberately NOT capped. It is what the
+# sentence counts ("and 12 others"), so a bound on it is a bound on the truth:
+# capping it would freeze the count and understate the crowd on exactly the
+# comment where the number matters most. Unlike the detail above it costs one
+# integer per person, it can only grow to the number of people who can see the
+# comment, and the whole line goes the moment the recipient reads it.
 
 
 def _reaction_rollup_match(reaction, guild_id: int) -> dict[str, object]:
@@ -1980,7 +1981,7 @@ async def enqueue_reaction_event(
     )
     previous: Mapping[str, Any] = (existing.data if existing else None) or {}
     roster = _rolled_up_reactor_ids(previous)
-    if reactor.id not in roster and len(roster) < MAX_ROLLED_UP_REACTORS:
+    if reactor.id not in roster:
         roster.append(cast(int, reactor.id))
     line = _reaction_line(
         _rolled_up_reactions(previous) + [entry],

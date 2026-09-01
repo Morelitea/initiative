@@ -1195,6 +1195,37 @@ class TestReactionBellRollup:
         # The cap drops the oldest, so the newest reactor is still the one named.
         assert line["reactor_id"] == entries[-1]["reactor_id"]
 
+    def test_the_roster_keeps_growing_after_the_detail_rolls_off(self):
+        """A cap on the roster would be a cap on the truth — the count would
+        freeze on exactly the comment where the number matters most."""
+        from app.services.notifications import (
+            MAX_ROLLED_UP_REACTIONS,
+            _reaction_line,
+        )
+
+        crowd = list(range(MAX_ROLLED_UP_REACTIONS * 10))
+        line = _reaction_line(
+            [
+                {
+                    "id": i,
+                    "emoji": "\N{PARTY POPPER}",
+                    "reactor_id": i,
+                    "reactor_name": f"@u{i}",
+                }
+                for i in crowd
+            ],
+            count=len(crowd),
+            reactor_ids=crowd,
+            context_title="a task",
+            target_path="/go/task/1",
+            smart_link=None,
+            target_type="comment",
+            target_id=1,
+            guild_id=3,
+        )
+        assert line["reactor_count"] == len(crowd)
+        assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
+
     def test_a_pre_roster_line_reads_its_crowd_off_the_reactions_it_kept(self):
         from app.services.notifications import _rolled_up_reactor_ids
 
