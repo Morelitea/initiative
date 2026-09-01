@@ -1130,3 +1130,63 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
     )
     assert sent == []
     assert pushes == []
+
+
+@pytest.mark.unit
+class TestReactionBellRollup:
+    """The payload arithmetic behind the rolled-up bell line, including what it
+    makes of a line written before reactions rolled up at all."""
+
+    def test_a_pre_rollup_line_counts_as_the_one_reaction_it_named(self):
+        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+
+        legacy = {
+            "emoji": "\N{THUMBS UP SIGN}",
+            "reactor_name": "@ada",
+            "reactor_id": 7,
+        }
+        assert _rolled_up_count(legacy) == 1
+        assert _rolled_up_reactions(legacy) == [
+            {
+                "id": None,
+                "emoji": "\N{THUMBS UP SIGN}",
+                "reactor_id": 7,
+                "reactor_name": "@ada",
+            }
+        ]
+
+    def test_an_empty_payload_stands_for_nothing(self):
+        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+
+        assert _rolled_up_count({}) == 0
+        assert _rolled_up_reactions({}) == []
+
+    def test_the_named_reactions_are_capped_but_the_count_is_not(self):
+        from app.services.notifications import (
+            MAX_ROLLED_UP_REACTIONS,
+            _reaction_line,
+        )
+
+        entries = [
+            {
+                "id": i,
+                "emoji": "\N{PARTY POPPER}",
+                "reactor_id": i,
+                "reactor_name": f"@u{i}",
+            }
+            for i in range(MAX_ROLLED_UP_REACTIONS + 5)
+        ]
+        line = _reaction_line(
+            entries,
+            count=len(entries),
+            context_title="a task",
+            target_path="/go/task/1",
+            smart_link=None,
+            target_type="comment",
+            target_id=1,
+            guild_id=3,
+        )
+        assert line["count"] == MAX_ROLLED_UP_REACTIONS + 5
+        assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
+        # The cap drops the oldest, so the newest reactor is still the one named.
+        assert line["reactor_id"] == entries[-1]["reactor_id"]

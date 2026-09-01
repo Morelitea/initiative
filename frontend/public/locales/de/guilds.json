@@ -249,6 +249,8 @@
     "commentOnResource": "{{commenterName}} hat {{entityName}} kommentiert.",
     "commentReply": "{{replierName}} hat auf deinen Kommentar zu {{contextTitle}} geantwortet.",
     "commentReaction": "{{reactorName}} hat mit {{emoji}} auf deinen Kommentar zu {{contextTitle}} reagiert.",
+    "commentReactionMulti_one": "{{reactorName}} und 1 weitere Person haben mit {{emoji}} auf deinen Kommentar zu {{contextTitle}} reagiert.",
+    "commentReactionMulti_other": "{{reactorName}} und {{count}} weitere Personen haben mit {{emoji}} auf deinen Kommentar zu {{contextTitle}} reagiert.",
     "accessGrantRequested": "{{requester}} hat {{level}}-Zugriff auf {{guild}} angefragt.",
     "accessGrantRequestedGeneric": "{{requester}} hat Zugriff auf {{guild}} angefragt.",
     "accessGrantApproved": "Dein {{level}}-Zugriff auf {{guild}} wurde genehmigt.",

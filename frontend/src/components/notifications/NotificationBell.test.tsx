@@ -136,3 +136,68 @@ describe("NotificationBell export notifications", () => {
     expect(screen.queryByText(/new notification/i)).not.toBeInTheDocument();
   });
 });
+
+describe("NotificationBell reaction notifications", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const openBell = async () => {
+    renderWithProviders(<NotificationBell />);
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+  };
+
+  it("names the latest reactor and how many others joined them", async () => {
+    mockInbox([
+      buildNotification({
+        type: "comment_reaction" as NotificationType,
+        data: {
+          guild_id: 1,
+          target_type: "comment",
+          target_id: 7,
+          target_path: "/go/task/3",
+          context_title: "Ship the thing",
+          count: 3,
+          emoji: "🎉",
+          reactor_name: "@carol",
+          reactor_id: 3,
+          reactions: [
+            { id: 1, emoji: "👍", reactor_id: 2, reactor_name: "@bob" },
+            { id: 2, emoji: "👍", reactor_id: 3, reactor_name: "@carol" },
+            { id: 3, emoji: "🎉", reactor_id: 3, reactor_name: "@carol" },
+          ],
+        },
+      }),
+    ]);
+    await openBell();
+
+    // One line for the whole flurry: the newest reactor, the others as a
+    // count, and every distinct emoji they used.
+    expect(
+      await screen.findByText(/@carol and 1 other reacted 👍🎉 to your comment on Ship the thing/i)
+    ).toBeInTheDocument();
+  });
+
+  it("reads a pre-rollup notification as the single reaction it named", async () => {
+    mockInbox([
+      buildNotification({
+        type: "comment_reaction" as NotificationType,
+        data: {
+          guild_id: 1,
+          target_type: "comment",
+          target_id: 7,
+          target_path: "/go/task/3",
+          context_title: "Ship the thing",
+          emoji: "👍",
+          reactor_name: "@bob",
+          reactor_id: 2,
+        },
+      }),
+    ]);
+    await openBell();
+
+    expect(
+      await screen.findByText(/@bob reacted 👍 to your comment on Ship the thing/i)
+    ).toBeInTheDocument();
+  });
+});

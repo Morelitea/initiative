@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import or_, select, delete, update as sa_update
+from sqlalchemy import func, or_, select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
@@ -1817,6 +1818,97 @@ async def process_assignment_digest_gc() -> None:
 # --- Reactions -------------------------------------------------------------
 
 
+#: How many individual reactions one rolled-up bell line remembers by name.
+#: ``count`` above it stays the whole truth; this only bounds how much of the
+#: payload the line carries so a popular comment cannot grow it without limit.
+MAX_ROLLED_UP_REACTIONS = 20
+
+
+def _reaction_rollup_match(reaction, guild_id: int) -> dict[str, object]:
+    """What makes two reactions the same bell line: same guild, same thing
+    reacted to. Emoji and reactor deliberately do not — they are what the one
+    line rolls up."""
+    return {
+        "guild_id": guild_id,
+        "target_type": reaction.target_type,
+        "target_id": reaction.target_id,
+    }
+
+
+def _rolled_up_reactions(data: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The individual reactions a bell line is already carrying."""
+    rolled = data.get("reactions")
+    if isinstance(rolled, list):
+        return [entry for entry in rolled if isinstance(entry, dict)]
+    # A line written before the bell rolled these up names its one reaction in
+    # the top-level fields instead.
+    if data.get("emoji"):
+        return [
+            {
+                "id": None,
+                "emoji": data.get("emoji"),
+                "reactor_id": data.get("reactor_id"),
+                "reactor_name": data.get("reactor_name"),
+            }
+        ]
+    return []
+
+
+def _rolled_up_count(data: Mapping[str, Any]) -> int:
+    """How many reactions the line stands for, including any that have rolled
+    past :data:`MAX_ROLLED_UP_REACTIONS`."""
+    try:
+        count = int(data.get("count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    return count or len(_rolled_up_reactions(data))
+
+
+def _reaction_line(
+    entries: Sequence[dict[str, Any]],
+    *,
+    count: int,
+    context_title: str,
+    target_path: str,
+    smart_link: str | None,
+    target_type: str,
+    target_id: int,
+    guild_id: int,
+) -> dict[str, Any]:
+    """One bell payload for every reaction rolled up so far.
+
+    ``emoji`` / ``reactor_name`` / ``reactor_id`` keep naming the most recent
+    one: a client that predates the rollup still renders a true sentence, and
+    the newer client uses them as the reactor it names first.
+    """
+    latest = entries[-1] if entries else {}
+    return {
+        "target_type": target_type,
+        "target_id": target_id,
+        "context_title": context_title,
+        "guild_id": guild_id,
+        "target_path": target_path,
+        "smart_link": smart_link,
+        "emoji": latest.get("emoji"),
+        "reactor_name": latest.get("reactor_name"),
+        "reactor_id": latest.get("reactor_id"),
+        "count": count,
+        "reactions": list(entries[-MAX_ROLLED_UP_REACTIONS:]),
+    }
+
+
+async def _lock_reaction_line(session: AsyncSession, key: str) -> None:
+    """Serialize the read-then-write on one recipient's rolled-up line.
+
+    Two people reacting to the same comment at the same moment would otherwise
+    both find no line to join and write one each. Transaction-scoped, and keyed
+    narrowly enough that only reactions aimed at the same line ever wait.
+    """
+    await session.exec(
+        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
+    )
+
+
 async def enqueue_reaction_event(
     session: AsyncSession,
     *,
@@ -1829,30 +1921,54 @@ async def enqueue_reaction_event(
 ) -> None:
     """Record that someone reacted to something ``author`` wrote.
 
-    The bell gets its entry immediately, like every other notification; email
-    and push wait for the digest, because a reaction is the lightest signal in
-    the app and they arrive in flurries.
+    Reactions are the lightest signal in the app and they arrive in flurries,
+    so every channel digests them — including the bell, which rolls them up per
+    thing-reacted-to rather than listing one entry per tap. An unread line
+    absorbs the next reaction to the same comment and returns to the top of the
+    inbox; once read, the next reaction starts a fresh line. Email and push
+    wait for the digest worker as before.
     """
     if author.id == reactor.id:
         return
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     reactor_name = handle_of(reactor)
-    await user_notifications.create_notification(
+    entry = {
+        "id": reaction.id,
+        "emoji": reaction.emoji,
+        "reactor_id": reactor.id,
+        "reactor_name": reactor_name,
+    }
+    await _lock_reaction_line(
+        session,
+        f"reaction-bell:{guild_id}:{reaction.target_type}:"
+        f"{reaction.target_id}:{author.id}",
+    )
+    existing = await user_notifications.find_unread_by_data(
         session,
         user_id=author.id,
         notification_type=NotificationType.comment_reaction,
-        data={
-            "target_type": reaction.target_type,
-            "target_id": reaction.target_id,
-            "emoji": reaction.emoji,
-            "context_title": context_title,
-            "reactor_name": reactor_name,
-            "reactor_id": reactor.id,
-            "guild_id": guild_id,
-            "target_path": target_path,
-            "smart_link": smart_link,
-        },
+        match=_reaction_rollup_match(reaction, guild_id),
     )
+    previous: Mapping[str, Any] = (existing.data if existing else None) or {}
+    line = _reaction_line(
+        _rolled_up_reactions(previous) + [entry],
+        count=_rolled_up_count(previous) + 1,
+        context_title=context_title,
+        target_path=target_path,
+        smart_link=smart_link,
+        target_type=reaction.target_type,
+        target_id=reaction.target_id,
+        guild_id=guild_id,
+    )
+    if existing is None:
+        await user_notifications.create_notification(
+            session,
+            user_id=author.id,
+            notification_type=NotificationType.comment_reaction,
+            data=line,
+        )
+    else:
+        await user_notifications.refresh_notification(session, existing, data=line)
     if wants_digest(author.email_comment_reactions, author.push_comment_reactions):
         session.add(
             ReactionDigestItem(
@@ -1867,6 +1983,66 @@ async def enqueue_reaction_event(
                 reactor_id=reactor.id,
             )
         )
+
+
+async def withdraw_reaction_event(
+    session: AsyncSession,
+    *,
+    author_id: int,
+    reaction_id: int,
+    target_type: str,
+    target_id: int,
+    guild_id: int,
+) -> None:
+    """Take an un-reacted gesture back out of the unread bell line.
+
+    Un-reacting should leave no trace where the recipient has not looked yet,
+    the same rule the queued digest line follows. Only a line still holding
+    this exact reaction is touched: one the recipient has already read is
+    history, and one that has rolled the gesture past the payload cap can no
+    longer prove it was ever there, so both are left alone rather than
+    decremented on a guess.
+    """
+    await _lock_reaction_line(
+        session,
+        f"reaction-bell:{guild_id}:{target_type}:{target_id}:{author_id}",
+    )
+    existing = await user_notifications.find_unread_by_data(
+        session,
+        user_id=author_id,
+        notification_type=NotificationType.comment_reaction,
+        match={
+            "guild_id": guild_id,
+            "target_type": target_type,
+            "target_id": target_id,
+        },
+    )
+    if existing is None:
+        return
+    previous: Mapping[str, Any] = existing.data or {}
+    entries = _rolled_up_reactions(previous)
+    remaining = [entry for entry in entries if entry.get("id") != reaction_id]
+    if len(remaining) == len(entries):
+        return
+    count = _rolled_up_count(previous) - 1
+    if count <= 0 or not remaining:
+        await user_notifications.delete_notification(session, existing)
+        return
+    await user_notifications.refresh_notification(
+        session,
+        existing,
+        data=_reaction_line(
+            remaining,
+            count=count,
+            context_title=previous.get("context_title") or "",
+            target_path=previous.get("target_path") or MY_TASKS_TARGET_PATH,
+            smart_link=previous.get("smart_link"),
+            target_type=target_type,
+            target_id=target_id,
+            guild_id=guild_id,
+        ),
+        bump=False,
+    )
 
 
 async def _send_reaction_push(
