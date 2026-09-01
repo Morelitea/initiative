@@ -744,6 +744,63 @@ export interface BackupEstimate {
   max_upload_bytes?: number;
 }
 
+export type BadgeKind = (typeof BadgeKind)[keyof typeof BadgeKind];
+
+export const BadgeKind = {
+  "calendar_event:when": "calendar_event:when",
+  "counter:value": "counter:value",
+  "task:assignee": "task:assignee",
+  "task:due": "task:due",
+  "task:priority": "task:priority",
+  "task:status": "task:status",
+} as const;
+
+/**
+ * How a chip is coloured when nothing more specific applies.
+ *
+ * The server decides this rather than the client, because what counts as
+ * finished, late or urgent is a product rule and not a rendering detail. A
+ * chip with its own colour — a task status carries one — sends that instead.
+ */
+export type BadgeTone = (typeof BadgeTone)[keyof typeof BadgeTone];
+
+export const BadgeTone = {
+  neutral: "neutral",
+  muted: "muted",
+  good: "good",
+  warn: "warn",
+  danger: "danger",
+} as const;
+
+/**
+ * One chip's current reading.
+ *
+ * ``text`` is always set, so a client that understands nothing else can still
+ * render the chip. ``date`` and ``number`` are sent alongside it where the
+ * value is one of those, because a date and a number belong in the reader's
+ * own locale and only the client knows what that is.
+ */
+export interface BadgeState {
+  ref: string;
+  kind: BadgeKind;
+  text: string;
+  tone: BadgeTone;
+  color: string | null;
+  date: string | null;
+  number: string | null;
+}
+
+/**
+ * The chips that could be read.
+ *
+ * A ref that names nothing, or something this caller cannot see, is simply
+ * absent: the two are the same answer, and the chip falls back to the label
+ * the document already stored.
+ */
+export interface BadgeStateList {
+  items: BadgeState[];
+}
+
 /**
  * How far a banner dissolves into the page beneath it.
  *
@@ -6382,6 +6439,14 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    * @minimum 1
    */
   limit?: number;
+};
+
+export type ReadBadgesApiV1GGuildIdDocumentBadgesGetParams = {
+  /**
+   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no badge are ignored. Available: calendar_event:when, counter:value, task:assignee, task:due, task:priority, task:status
+   * @maxItems 100
+   */
+  ref?: string[];
 };
 
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {

@@ -15,6 +15,7 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    document_badges,
     search as guild_search,
     ai_settings,
     app_data,
@@ -215,6 +216,9 @@ guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 guild_router.include_router(guild_search.router, prefix="/search", tags=["search"])
+guild_router.include_router(
+    document_badges.router, prefix="/document-badges", tags=["document-badges"]
+)
 guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",

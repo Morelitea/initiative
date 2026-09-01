@@ -6,20 +6,50 @@ icon: lucide/search
 
 The fastest way to get anywhere in Initiative isn't clicking — it's searching. This page covers the search box and the handful of keystrokes worth knowing.
 
-## Search (the Command Center)
+## Search
 
 Press ++cmd+k++ (Mac) or ++ctrl+k++ (Windows and Linux) anywhere to open **search**. On a phone, a **three-finger tap** opens it too.
 
-Start typing and Initiative looks across your current community for:
-
-- **Projects, tasks, and documents** by name.
-- **Queues** and **counter groups**.
-- **Pages** like My Tasks, My Calendar, and your settings.
-- **Quick actions**, like "Add task" or "Add document."
-
-Use the arrow keys to move through results and ++enter++ to jump. It's usually quicker than navigating the sidebar — worth making a habit.
+Start typing and Initiative answers as you go — you don't have to finish the word. Results are ranked, so the thing you most likely meant is at the top.
 
 ![Searching with the Command Center](../images/search/command-center.png)
+
+Use the arrow keys to move through results and ++enter++ to jump. For anything more than jumping straight to one thing, press ++enter++ on **See all results** to open the full results page.
+
+### What search looks through
+
+Everything in the community you're in:
+
+- **Tools** — projects, queues, counter groups, calendars and dashboards.
+- **What's inside them** — tasks, queue items, counters and calendar events.
+- **Documents, and their contents.** Not just names: the words inside a text document, the text on a whiteboard, and the cells and sheet names of a spreadsheet.
+- **Comments** — what people have said on any of the above.
+- **Tags** and **people**.
+
+It only ever returns what you already have access to, so a search never tells you something exists that you couldn't otherwise open.
+
+### The results page
+
+Results are grouped into tabs — **Tools**, **Members**, **Comments** and **Tags**. It opens on Tools, which is where most things you're looking for live. Every tab stays clickable, so you can always check one for yourself; an empty one says so.
+
+Each result shows the line that matched, with your words highlighted, so you can tell which of five similarly-named documents is the one you want before opening any of them.
+
+**Archived work** is left out unless you ask for it. Switch **Include archived** on when you're looking for something you put away.
+
+### When you don't spell it right
+
+Two things happen without you doing anything:
+
+- **Half a word is enough.** Type `comm` and things called "Community" come back.
+- **A misspelling still finds it.** If nothing matches what you typed, Initiative offers the closest names it can find and tells you that's what it's doing.
+
+The same is true of people's names — you don't have to read the roster to learn a colleague's spelling.
+
+### Searching from a picker
+
+The same search is behind every picker in the app: mentioning something with `#`, linking documents with `[[`, attaching a document to a project, choosing what a badge is about. They all rank their answers and match as you type, for the same reason and in the same way.
+
+See [Mentions & links](mentions-and-links.md).
 
 ## The recent-items tab bar
 
