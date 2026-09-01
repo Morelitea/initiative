@@ -629,6 +629,10 @@ export const TaskEditPage = () => {
     taskStatuses.find((item) => item.id === effectiveStatusId) ??
     (task && task.task_status_id === effectiveStatusId ? task.task_status : null);
 
+  // Delete and move are excluded: their confirm/move dialogs stay open and
+  // already show the mutation's own loading state.
+  const menuActionPending = duplicateTask.isPending || toggleArchive.isPending;
+
   // Assemble the shared TaskForm value from the page's individual states. The
   // effective* fallbacks keep the form from flashing defaults during the
   // one-render gap between "task loaded" and "load effect ran".
@@ -830,14 +834,22 @@ export const TaskEditPage = () => {
                 {!isReadOnly ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
+                      {/* Duplicate and archive dismiss the menu that holds their
+                          own pending label, and neither opens a dialog to carry
+                          one, so the trigger reports their progress instead. */}
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
                         className="ml-auto"
                         aria-label={t("common:toolbar.moreActions")}
+                        aria-busy={menuActionPending}
                       >
-                        <MoreHorizontal className="h-4 w-4" />
+                        {menuActionPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MoreHorizontal className="h-4 w-4" />
+                        )}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

@@ -8,7 +8,7 @@
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildProject, buildTask } from "@/__tests__/factories";
@@ -89,6 +89,24 @@ describe("TaskEditPage", () => {
     for (const name of [/move to project/i, /duplicate task/i, /archive/i, /delete task/i]) {
       expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     }
+  });
+
+  it("reports duplicate progress on the trigger once the menu closes", async () => {
+    renderTaskPage();
+    server.use(
+      guildHttp.post("/tasks/:taskId/duplicate", async () => {
+        await delay("infinite");
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+
+    await openActionsMenu();
+    await userEvent.click(await screen.findByRole("menuitem", { name: /duplicate task/i }));
+
+    // Selecting the item dismisses the menu holding the "Duplicating…" label,
+    // and duplicate opens no dialog — so the trigger has to carry the state.
+    const trigger = await screen.findByRole("button", { name: /more actions/i });
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
   });
 
   it("opens the move dialog from the actions menu", async () => {
