@@ -8,6 +8,7 @@ import {
   PenLine,
   Plus,
   ScrollText,
+  Search,
   Settings,
   ShieldCheck,
   UserCog,
@@ -16,6 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
@@ -32,12 +34,14 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useRecents } from "@/hooks/useRecents";
-import { useTaskAutocomplete, useTasks } from "@/hooks/useTasks";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useTasks } from "@/hooks/useTasks";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
+import { hitIcon, searchHitPath } from "@/lib/searchResults";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
 import { entityRefRoute, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
 
@@ -114,18 +118,15 @@ export function CommandCenter() {
 
   // Data hooks — all use existing cached data except tasks which fetches when dialog opens
   const recentQuery = useRecents({ staleTime: 30_000 });
-  // Two modes for the tasks source:
-  //  - Searching: a slim id+title typeahead over the active guild's tasks (the
-  //    hot, per-keystroke path). The palette only renders the title and
-  //    navigates by id, so the heavy list row was pure overfetch here.
-  const searchTasksQuery = useTaskAutocomplete(effectiveSearch, {
+  // Searching asks the guild index one question and gets every kind of thing
+  // back — tasks, documents, queue items, events, tags — ranked together.
+  const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
     enabled: open && !!user && isSearching,
-    limit: 25,
     staleTime: 30_000,
   });
-  //  - Browsing (palette just opened): the user's own not-done tasks, most
-  //    recently updated — surfacing what they're actively working on. Fired
-  //    once on open, so the full list row is fine.
+  // Browsing (palette just opened): the user's own not-done tasks, most
+  // recently updated — surfacing what they're actively working on. Fired once
+  // on open, so the full list row is fine.
   const browseTasksQuery = useTasks(
     {
       page_size: 25,
@@ -147,23 +148,26 @@ export function CommandCenter() {
   // Suggested = mixed-type recent items, ordered by ``last_viewed_at`` desc
   // (same payload that backs the layout tabs bar).
   const recentItems = recentQuery.data ?? [];
-  // Normalize both sources to the id/title/guild the palette actually renders.
-  // Search rows come from the guild-scoped autocomplete (active guild); browse
-  // rows carry their own guild_id.
+  // Browse rows carry their own guild_id — a task in this list can come from
+  // any guild the user is in.
   const tasks = useMemo(
     () =>
-      isSearching
-        ? (searchTasksQuery.data ?? []).map((task) => ({
-            id: task.id,
-            title: task.title,
-            guildId: activeGuildId,
-          }))
-        : (browseTasksQuery.data?.items ?? []).map((task) => ({
-            id: task.id,
-            title: task.title,
-            guildId: task.guild_id ?? activeGuildId,
-          })),
-    [isSearching, searchTasksQuery.data, browseTasksQuery.data, activeGuildId]
+      (browseTasksQuery.data?.items ?? []).map((task) => ({
+        id: task.id,
+        title: task.title,
+        guildId: task.guild_id ?? activeGuildId,
+      })),
+    [browseTasksQuery.data, activeGuildId]
+  );
+
+  // Only what has somewhere to go: an entry that cannot navigate is worse than
+  // one that isn't offered.
+  const suggestions = useMemo(
+    () =>
+      (suggestQuery.data ?? [])
+        .map((hit) => ({ hit, path: searchHitPath(hit) }))
+        .filter((row): row is { hit: SearchSuggestion; path: string } => row.path !== null),
+    [suggestQuery.data]
   );
 
   const isGuildAdmin = activeGuild?.role === "admin";
@@ -243,6 +247,44 @@ export function CommandCenter() {
       <CommandList>
         <CommandEmpty>{t("noResults")}</CommandEmpty>
 
+        {/* What the guild index found — first, so the top hit is what Enter
+            opens. The server has already decided these match, so they are
+            keyed on the query itself rather than re-filtered here. */}
+        {isSearching && (
+          <CommandGroup heading={t("groups.results")}>
+            {suggestions.map(({ hit, path }) => {
+              const Icon = hitIcon(hit);
+              return (
+                <CommandItem
+                  key={`result-${hit.entity_type}-${hit.entity_id}`}
+                  value={`result-${hit.entity_type}-${hit.entity_id}`}
+                  keywords={[effectiveSearch, hit.title]}
+                  onSelect={() =>
+                    handleSelect(activeGuildId ? guildPath(activeGuildId, path) : path)
+                  }
+                >
+                  <Icon className="text-muted-foreground" />
+                  <span>{hit.title}</span>
+                </CommandItem>
+              );
+            })}
+            {activeGuildId !== null && (
+              <CommandItem
+                value="result-see-all"
+                keywords={[effectiveSearch]}
+                onSelect={() =>
+                  handleSelect(
+                    `${getGuildPath("/search")}?q=${encodeURIComponent(effectiveSearch)}`
+                  )
+                }
+              >
+                <Search className="text-muted-foreground" />
+                <span>{t("seeAllResults", { query: effectiveSearch })}</span>
+              </CommandItem>
+            )}
+          </CommandGroup>
+        )}
+
         {/* Actions — each shown only when the user can land its wizard
             somewhere (cmdk hides the group if it ends up empty). */}
         <CommandGroup heading={t("groups.actions")}>
@@ -273,8 +315,8 @@ export function CommandCenter() {
         </CommandGroup>
 
         {/* Suggested — mixed recents across projects/documents/queues/counter
-            groups (cmdk hides empty groups automatically when searching). */}
-        {recentItems.length > 0 && (
+            groups. Browsing only: once there is a query, the index answers. */}
+        {!isSearching && recentItems.length > 0 && (
           <CommandGroup heading={t("groups.suggested")}>
             {recentItems.slice(0, 5).map((item) => (
               <CommandItem
@@ -304,39 +346,42 @@ export function CommandCenter() {
           ))}
         </CommandGroup>
 
-        {/* One group per palette-enabled tool (registry-driven) */}
-        {PALETTE_TOOLS.map((tool) => (
-          <ToolPaletteGroup
-            key={tool}
-            tool={tool}
-            enabled={open && !!user}
-            search={isSearching ? effectiveSearch : undefined}
-            activeGuildId={activeGuildId}
-            onSelect={handleSelect}
-          />
-        ))}
-
-        {/* Tasks */}
-        <CommandGroup heading={t("groups.tasks")}>
-          {tasks.map((task) => (
-            <CommandItem
-              key={`task-${task.id}`}
-              value={`task-${task.id}-${task.title}`}
-              onSelect={() =>
-                handleSelect(
-                  // Cross-guild rows carry no initiative, so the resolver
-                  // works out the address on the way in.
-                  task.guildId
-                    ? guildPath(task.guildId, entityRefRoute("task", task.id))
-                    : entityRefRoute("task", task.id)
-                )
-              }
-            >
-              <CheckSquare className="text-muted-foreground" />
-              <span>{task.title}</span>
-            </CommandItem>
+        {/* Browsing only: one group per tool, and the tasks you are working
+            on. While searching, the index answers for every kind at once —
+            these would repeat it a tool at a time. */}
+        {!isSearching &&
+          PALETTE_TOOLS.map((tool) => (
+            <ToolPaletteGroup
+              key={tool}
+              tool={tool}
+              enabled={open && !!user}
+              activeGuildId={activeGuildId}
+              onSelect={handleSelect}
+            />
           ))}
-        </CommandGroup>
+
+        {!isSearching && (
+          <CommandGroup heading={t("groups.tasks")}>
+            {tasks.map((task) => (
+              <CommandItem
+                key={`task-${task.id}`}
+                value={`task-${task.id}-${task.title}`}
+                onSelect={() =>
+                  handleSelect(
+                    // Cross-guild rows carry no initiative, so the resolver
+                    // works out the address on the way in.
+                    task.guildId
+                      ? guildPath(task.guildId, entityRefRoute("task", task.id))
+                      : entityRefRoute("task", task.id)
+                  )
+                }
+              >
+                <CheckSquare className="text-muted-foreground" />
+                <span>{task.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   );
@@ -351,18 +396,16 @@ export function CommandCenter() {
 function ToolPaletteGroup({
   tool,
   enabled,
-  search,
   activeGuildId,
   onSelect,
 }: {
   tool: (typeof PALETTE_TOOLS)[number];
   enabled: boolean;
-  search?: string;
   activeGuildId: number | null;
   onSelect: (path: string) => void;
 }) {
   const heading = TOOL_PALETTE[tool].useHeading();
-  const items = TOOL_PALETTE[tool].useItems({ enabled, search });
+  const items = TOOL_PALETTE[tool].useItems({ enabled });
   if (heading === null) return null;
   const Icon = TOOL_ICONS[tool];
   return (

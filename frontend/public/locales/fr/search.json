@@ -1,0 +1,30 @@
+{
+  "title": "Recherche",
+  "placeholder": "Rechercher dans {{guildName}}",
+  "seeAll": "Tout afficher",
+  "prompt": {
+    "title": "Rechercher dans cette communauté",
+    "description": "Trouvez n’importe quoi par son nom ou par son contenu."
+  },
+  "empty": {
+    "title": "Aucun résultat pour « {{query}} »",
+    "description": "Vérifiez l’orthographe ou essayez un autre mot."
+  },
+  "tabs": {
+    "tool": "Outils",
+    "tag": "Étiquettes"
+  },
+  "types": {
+    "project": "Projet",
+    "task": "Tâche",
+    "document": "Document",
+    "queue": "File",
+    "queue_item": "Élément de file",
+    "counter_group": "Groupe de compteurs",
+    "counter": "Compteur",
+    "calendar": "Calendrier",
+    "calendar_event": "Événement",
+    "dashboard": "Tableau de bord",
+    "tag": "Étiquette"
+  }
+}

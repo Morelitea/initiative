@@ -11,7 +11,8 @@
     "queues": "Files",
     "counterGroups": "Groupes de compteurs",
     "calendars": "Calendriers",
-    "dashboards": "Tableaux de bord"
+    "dashboards": "Tableaux de bord",
+    "results": "Résultats"
   },
   "actions": {
     "addTask": "Ajouter une tâche",
@@ -38,5 +39,6 @@
     "project": "Projet",
     "task": "Tâche",
     "document": "Document"
-  }
+  },
+  "seeAllResults": "Voir tous les résultats pour « {{query}} »"
 }
