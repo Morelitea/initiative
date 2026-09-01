@@ -26,6 +26,7 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextExtension } from "@lexical/rich-text";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import {
+  $createTextNode,
   configExtension,
   defineExtension,
   type EditorState,
@@ -164,13 +165,19 @@ export function Editor({
         // reference the next time the document is saved.
         {
           replace: WikilinkNode,
-          with: (node: WikilinkNode) =>
-            $createEntityMentionNode(
-              SearchEntityType.document,
-              node.getDocumentId() ?? 0,
-              node.getDocumentTitle()
-            ),
-          withKlass: EntityMentionNode,
+          with: (node: WikilinkNode) => {
+            const documentId = node.getDocumentId();
+            // One that never resolved points at nothing, so there is nothing to
+            // migrate but the words. Keeping its id would write a reference to
+            // document 0 — a link that can never come good.
+            return documentId
+              ? $createEntityMentionNode(
+                  SearchEntityType.document,
+                  documentId,
+                  node.getDocumentTitle()
+                )
+              : $createTextNode(node.getDocumentTitle());
+          },
         },
       ],
       theme: editorTheme,

@@ -18,6 +18,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BadgeKind,
   BadgeStateList,
   HTTPValidationError,
   ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
@@ -42,6 +43,176 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+/**
+ * The badges an editor may offer to insert.
+ *
+ * Asked for rather than assumed, so an editor cannot put a badge in a
+ * document that this server has no reader for — and gains one the day a
+ * reader is added, without being told.
+ *
+ * Titles are not here: every referenceable thing has one, and it is how a
+ * reference renders rather than something chosen from a menu.
+ * @summary List Badge Kinds
+ */
+export const listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<BadgeKind[]>(
+    { url: `/api/v1/g/${guildId}/document-badges/kinds`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/document-badges/kinds`] as const;
+};
+
+export const getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+  > = ({ signal }) =>
+    listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+>;
+export type ListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
+  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
+  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
+  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Badge Kinds
+ */
+
+export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
+  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryOptions(
+    guildId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 /**
  * Read every chip on one page in one request.
