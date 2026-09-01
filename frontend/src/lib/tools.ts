@@ -45,7 +45,7 @@ import type {
   InitiativeRead,
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * The icon each tool renders with everywhere (sidebar, recents, palette,
@@ -89,6 +89,23 @@ export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
 /** Tools with an export-engine source (single + bulk selection export), and
  *  equally the tools whose envelope can be imported. */
 export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => !NON_EXPORTABLE_TOOLS.has(t));
+
+/**
+ * Tools the marketplace has a shelf for, and the listing kind that carries
+ * them. Stated as an inclusion — a tool has nothing to browse until the
+ * catalog can hold its content — and as a map rather than a set so a browse
+ * link addresses that tool's own shelf instead of the default one.
+ *
+ * The kinds mirror backend `LISTING_KINDS`. Not every kind belongs here: `app`
+ * installs at guild scope (the sidebar's apps section and guild settings own
+ * that link), and `auto` names a vocabulary entry nothing installs yet.
+ */
+export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {
+  [Tool.dashboard]: ListingKind.dashboard,
+};
+
+/** Which marketplace shelf a tool's list links to, or null when it has none. */
+export const toolListingKind = (tool: Tool): ListingKind | null => TOOL_LISTING_KINDS[tool] ?? null;
 
 /**
  * Sidebar display order within an initiative. Projects render last because the

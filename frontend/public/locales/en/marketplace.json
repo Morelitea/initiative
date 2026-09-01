@@ -3,6 +3,7 @@
   "subtitle": "Ready-made dashboards you can add to an initiative.",
   "searchPlaceholder": "Search the marketplace…",
   "backToMarketplace": "Back to the marketplace",
+  "browse": "Browse the marketplace",
   "card": {
     "installed": "Installed",
     "version": "v{{version}}",

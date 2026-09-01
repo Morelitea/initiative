@@ -3,6 +3,7 @@
   "subtitle": "Paneles listos para usar que puedes añadir a una iniciativa.",
   "searchPlaceholder": "Buscar en el mercado…",
   "backToMarketplace": "Volver al mercado",
+  "browse": "Explorar el mercado",
   "card": {
     "installed": "Instalado",
     "version": "v{{version}}",
