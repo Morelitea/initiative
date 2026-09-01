@@ -80,7 +80,7 @@ A tool that puts charts, single numbers, and timelines on **one screen**, drawn 
 
 ### Marketplace
 
-The catalog of ready-made **dashboards** and **apps** you can add to your workspace. It holds what ships with Initiative plus what your platform owner has added and approved. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+The catalog of ready-made things you can add. There are two: your **community's**, holding **dashboards** and **apps**, and **yours**, holding **decoration packs**. Both hold what ships with Initiative plus what your platform owner has added and approved. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
 
 ### App
 
@@ -92,7 +92,23 @@ A single tile on a dashboard. Widgets from the marketplace run in an isolated sa
 
 ### Listing
 
-One entry in the marketplace — a dashboard or an app, with its name, description, publisher, and version.
+One entry in a marketplace — a dashboard, an app, or a decoration pack — with its name, description, publisher, and version.
+
+### Handle
+
+The name you picked plus a four-digit number, written `jordan#1234`. The number is what lets two people share a name. It's how you're identified everywhere your real name isn't shown, and it addresses your profile page as `/u/jordan1234`.
+
+### Profile
+
+Your own page, at `/u/<handle>`: your picture, handle, status, badges, and whether you have Initiative open. Public, and the same page whoever opens it, because it belongs to you rather than to a community. See [Profile & preferences](../account/profile-and-preferences.md#your-profile-page).
+
+### Decoration pack
+
+A set of profile artwork from your marketplace — a banner, a frame for your picture, and a badge. You download one to your collection, then choose what to wear; pieces from different packs mix freely.
+
+### Profile status
+
+An emoji, a line about what you're up to, or both, shown on your profile. Not to be confused with a task's **status** above.
 
 ### Role (initiative role)
 

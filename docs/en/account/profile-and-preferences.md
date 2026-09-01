@@ -4,33 +4,79 @@ icon: lucide/user-cog
 
 # Profile & preferences
 
-Your personal settings, all in **User settings** (open it from your name/avatar at the bottom of the sidebar).
+Your personal settings all live in **User settings**, which you open from your name and picture at the bottom of the sidebar. Nothing here changes anything for anyone else.
+
+The tabs split along a simple line: **Profile** is the face other people see, **Account** is how you get in, and **Interface** is how the app reads to you.
+
+## Your profile page
+
+You have a page of your own at a link worth sharing — `/u/jordan1234`, your handle with its number run onto the end. Open it from **My profile** in your account menu, or by opening anyone from a member list or a search result.
+
+It shows your picture, your handle, whatever status you have set, the badges you are wearing, whether you have Initiative open right now, and when you joined. It is public and the same page whoever opens it, because it belongs to *you* rather than to any one community — so it shows your handle rather than your real name, wherever it is opened from.
+
+!!! screenshot "A profile page"
+    **Show:** someone's profile at `/u/…` — banner, framed picture, handle with badges beside it, a status line, and the online dot.
+
+    Save as `en/images/account/profile-page.png`, then replace this box with:
+    `![A profile page](../images/account/profile-page.png)`
 
 ## Profile
 
-The **Profile** tab is your account details:
+The **Profile** tab is everything on that page, with a live preview of it at the top: pick something below and the card changes before you save, so you never have to imagine the result.
 
-- **Full name** — how teammates see you. Change it any time.
-- **Email** — shown but **not editable**. It's the anchor of your account.
-- **Password** — to change it, enter your **current** password, then your **new** one twice (at least 12 characters). If you sign in with single sign-on, your password is managed by your identity provider, not here.
-- **Avatar** — upload a picture or point to an image URL.
-- **Timezone** — important: it's used for due dates, daily reminders, and recurring-task timing. Initiative detects it from your browser when you register; correct it here if it's off.
+- **Picture** — upload one, or point at an image URL. An uploaded picture saves the moment you choose it.
+- **Display name** — your real name, used only in communities that are set to show real names. Everywhere else you are your handle.
+- **Status** — an emoji, a line about what you are up to, or both. Up to 100 characters, and clearing it takes the status off.
+- **Your packs** — the decoration packs you have downloaded, and the way to remove one.
+- **Your look** — which banner, frame and badges you are wearing.
 
-![Profile settings](../images/account/profile.png)
+!!! screenshot "The Profile tab"
+    **Show:** User settings → Profile, with the preview card at the top and the pickers below it.
+
+    Save as `en/images/account/profile-settings.png`, then replace this box with:
+    `![The Profile tab](../images/account/profile-settings.png)`
+
+### Decorations
+
+A profile can wear three things, and you mix them freely — they do not have to come from the same pack.
+
+| | What it is | How many |
+|---|---|---|
+| **Banner** | The artwork across the top of your profile | One |
+| **Frame** | A ring around your picture, which follows you into the sidebar | One |
+| **Badges** | Small marks beside your handle | Up to six |
+
+Banners and frames move; badges hold still, because a row of them beside a name has to stay readable. If you have asked your device for less motion, they hold still too.
+
+You never upload a decoration. You pick from what you own, which starts with the set that ships with Initiative and grows with the **decoration packs** you download from your marketplace — see [Apps & the marketplace](../guides/apps-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community none of its storage.
+
+Picking the thing you are already wearing takes it off, so there is nothing extra to click for "none". Press **Save look** when you are happy with it.
+
+### Removing a pack
+
+**Remove pack** on any pack in **Your packs** gives it up. Its pieces leave your collection, and anything from it you were wearing comes off with it — Initiative says so before it does anything, and you can download the pack again later.
+
+## Account
+
+The **Account** tab is how you sign in. Two things on it are shown but not editable:
+
+- **Email** — the anchor of your account.
+- **Handle** — the name you picked and the four-digit number that makes it unique, like `jordan#1234`. The number is what lets two people share a name.
+
+**Password** is the one thing you change here. Enter your **current** password, then the new one twice (at least 12 characters). If you sign in with single sign-on, your password lives with your identity provider and this section does not apply to you.
 
 ## Interface
 
-The **Interface** tab controls look and feel:
+The **Interface** tab is how the app reads to you. Each choice saves as you make it — there is no Save button.
 
-- **Color theme** — Light, Dark, or System (follows your device).
 - **Language** — your preferred language for the interface.
+- **Color theme** — Light, Dark, or System (follows your device).
+- **Timezone** — the clock your due dates, daily reminders and repeating tasks are worked out on. Initiative takes it from your browser when you sign up; correct it here if it is wrong. It also appears beside the reminder time on the Notifications tab, where you need it in context.
 - **Week starts on** — which day calendars and date pickers show first.
 - **Recent items in tab bar** — how many recent things to keep along the top (1–100).
-- **Task completion feedback** — a bit of fun when you finish a task: **Confetti**, **+1 Heart**, **Natural 20**, **Gold coins**, **Random**, or **None**.
-- **Sound** and **vibration** on task completion — optional cues (vibration on supported devices).
-- **Keep screen awake** — stop this device's screen from dimming while Initiative is open (saved on this device only).
-
-These are all personal — they change nothing for anyone else.
+- **Task completion feedback** — a bit of fun when you finish a task: **Confetti**, **+1 Heart**, **Natural 20**, **Gold coins**, **Random (surprise me)**, or **None**.
+- **Sound** and **vibration** on task completion — optional cues, each with a button to try it.
+- **Keep screen awake** — stop this device's screen from dimming while Initiative is open. Saved on this device only.
 
 ## Trash
 
@@ -58,6 +104,7 @@ Before you can delete, Initiative makes sure your **owned projects are transferr
 
 ## Related
 
+- [Apps & the marketplace](../guides/apps-and-marketplace.md) — where decoration packs come from.
 - [Notifications](../guides/notifications.md) — what you're told about, and where.
 - [API keys & integrations](api-keys-and-integrations.md) — the Security tab's access keys.
 - [Data & compliance](../security/data-and-compliance.md) — what happens to your data.

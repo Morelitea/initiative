@@ -8,11 +8,19 @@ The tool your group needs has usually been needed before, by a group with the sa
 
 Your marketplace holds the listings that ship with Initiative, plus any that the person running your server has added and approved. It isn't an open upload pool — nothing reaches your marketplace without them putting it there.
 
-Open it from **Browse the marketplace** on your dashboards list, or from the **Apps** section at the top of the sidebar.
+## Two marketplaces
+
+There are two, and the difference is who gets what you take.
+
+| | **Your community's** | **Yours** |
+|---|---|---|
+| What's on it | Dashboards and apps | Decoration packs |
+| Who it's for | Everyone in that community | You, in every community you're in |
+| Where to open it | **Browse the marketplace** on your dashboards list, or the **Apps** section of the sidebar | **Browse the marketplace** on **User settings → Profile** |
 
 ![Browsing the marketplace](../images/marketplace/browse.png)
 
-## Two kinds of listing
+## Your community's marketplace
 
 | | **Dashboards** | **Apps** |
 |---|---|---|
@@ -69,6 +77,24 @@ Each connection shows which service it uses and what it's allowed to do there, s
 - **Turn off** hides an app from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay visible in **Community settings → Apps**, which is where an admin turns them back on.
 - **Remove** takes it out of the community entirely. Anything it created moves to the **Trash**, where it can still be restored during the retention window. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.
 
+## Your own marketplace
+
+Your marketplace holds **decoration packs** — sets of artwork for your profile. A pack carries a banner, a frame for your picture, and a badge, built around one thing a group of people has in common: **Tabletop** for the table that rolls for it, **Soundcheck** for bands and anyone who books the room and plugs in, **Observatory** for labs, field stations and reading groups with a whiteboard.
+
+What you take here is yours rather than your community's. Download a pack in one community and you are wearing it in all of them, because your profile belongs to you.
+
+1. Open **Browse the marketplace** on **User settings → Profile**.
+2. Open a pack to see the profile it would make — the banner running, the frame around your own picture, the badge beside your name.
+3. **Get this pack**, and its pieces land in your collection.
+
+Downloading a pack does not put anything on you. It gives you the pieces; you choose which to wear back on **User settings → Profile**, and you can mix pieces from different packs however you like. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
+
+!!! screenshot "Decoration packs"
+    **Show:** the user marketplace with two or three pack cards, each previewing the profile it would make.
+
+    Save as `en/images/marketplace/decoration-packs.png`, then replace this box with:
+    `![Decoration packs](../images/marketplace/decoration-packs.png)`
+
 ## Where listings come from, and what they can reach
 
 Every listing in your marketplace got there one of two ways:
@@ -87,6 +113,7 @@ Two things stay true whatever you install:
 
 ## Related
 
+- [Profile & preferences](../account/profile-and-preferences.md) — wearing what a decoration pack gave you.
 - [Tools](tools.md) — the calendar, queues, counters, and dashboards built into every initiative.
 - [Sharing & access](../sharing/index.md) — who can see what you add.
 - [Publishing your own listings](../admin/publishing-listings.md) — for administrators adding listings to their server's marketplace.

@@ -27,7 +27,7 @@ AI features run on an AI provider that someone supplies a key for. Depending on 
 | **Ollama** | Runs models locally; needs a base URL. |
 | **OpenAI-compatible** | Any service that speaks the OpenAI API; needs a base URL and key. |
 
-To set up your own, open **User settings → AI**, enable AI, choose your **provider**, paste your **API key** (and **base URL** if needed), pick a **model**, and use **Test connection** to confirm it works.
+To set up your own, open **User settings → AI** — the tab appears once there's a connection for you to set up — enable AI, choose your **provider**, paste your **API key** (and **base URL** if needed), pick a **model**, and use **Test connection** to confirm it works.
 
 ![Personal AI settings](../images/account/ai-settings.png)
 
