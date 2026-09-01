@@ -782,7 +782,7 @@ export const BadgeTone = {
  */
 export interface BadgeState {
   ref: string;
-  kind: BadgeKind;
+  kind: BadgeKind | null;
   text: string;
   tone: BadgeTone;
   color: string | null;

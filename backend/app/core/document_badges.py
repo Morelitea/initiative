@@ -1,18 +1,17 @@
-"""The vocabulary of document badges — what a chip in a document can be about.
+"""Badges — the facts a chip can show about a thing it references.
 
-A badge names one CHANGING fact about one thing: a task's status, a counter's
-number, when an event is. What it never names is something the document could
-have written down instead — a title does not change, so it is a mention rather
-than a badge.
+A reference (:mod:`app.core.references`) names something and resolves to what
+it is called. A badge goes one step further and shows a fact ABOUT it that
+changes on its own: the column a task sits in, a counter's reading, when an
+event is.
 
-Kept dependency-free, like :mod:`app.core.tools`, so the enums can be imported
-from a model, a service or a schema without a cycle. Which pairs of
-``(SearchEntityType, BadgeAspect)`` actually exist is the registry's business,
-in ``app.services.tenant.badges``.
+Only the facts live here. Which kinds can be referred to at all is a reference
+question, not a badge one.
 """
 
 from enum import Enum
 
+from app.core.references import REF_SEPARATOR
 from app.core.search import SearchEntityType
 
 
@@ -31,9 +30,6 @@ class BadgeAspect(str, Enum):
     value = "value"
     #: When something happens, and whether it has.
     when = "when"
-    #: What a thing is called right now — what a link to it renders as, so a
-    #: rename reaches every place that points at it.
-    title = "title"
 
 
 class BadgeTone(str, Enum):
@@ -55,14 +51,10 @@ class BadgeTone(str, Enum):
     danger = "danger"
 
 
-#: How the three parts of a reference are joined: ``task:12:status``.
-REF_SEPARATOR = ":"
-
-#: The facts a badge can be about, beyond the title every referenceable thing
-#: has. One entry is one reader in ``app.services.tenant.document_badges``.
+#: Every badge there is: a thing, and the changing fact about it.
 #:
-#: ``title`` is not listed: every kind that can be referred to has one, and the
-#: set of those kinds is derived rather than restated.
+#: One entry is one reader in ``app.services.tenant.document_badges``;
+#: ``document_badges_test`` fails until a pair added here has one.
 BADGE_KINDS: tuple[tuple[SearchEntityType, BadgeAspect], ...] = (
     (SearchEntityType.calendar_event, BadgeAspect.when),
     (SearchEntityType.counter, BadgeAspect.value),
@@ -78,11 +70,8 @@ def kind_value(entity_type: SearchEntityType, aspect: BadgeAspect) -> str:
     return f"{entity_type.value}{REF_SEPARATOR}{aspect.value}"
 
 
-#: The pairs an editor can insert, as a closed set the generated client reads.
-#:
-#: Only the aspect badges: a title is how a reference RENDERS, not something
-#: chosen from a menu, and which kinds have one is derived from the reference
-#: surface rather than restated here.
+#: The pairs as a closed set the generated client reads, so an editor's insert
+#: menu is built from what this server actually answers.
 BadgeKind = Enum(
     "BadgeKind",
     {

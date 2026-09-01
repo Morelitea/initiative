@@ -18,7 +18,8 @@ from app.models.platform.guild import GuildRole
 from sqlmodel import select
 
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
-from app.db.reference_targets import NOT_REFERENCEABLE, referenceable_types
+from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
+from app.db.reference_targets import referenceable_types
 from app.services.tenant.document_badges import BADGE_SOURCES
 from app.testing import (
     Actor,
@@ -296,7 +297,8 @@ async def test_a_chip_reads_nothing_the_caller_could_not_open(
 
 def test_every_declared_badge_has_a_reader():
     """The vocabulary and the readers are two lists in two layers; this is what
-    keeps them the same list."""
+    keeps them the same list. Titles are not here — one reader answers those
+    for every kind."""
     assert set(BADGE_SOURCES) == set(BADGE_KINDS)
 
 
@@ -344,6 +346,13 @@ def test_the_reference_surface_is_everything_indexed_but_a_comment():
 
     indexed = {source.entity_type for source in SEARCH_SOURCES.values()}
     assert set(referenceable_types()) == indexed - NOT_REFERENCEABLE
+
+
+def test_what_can_be_referred_to_and_what_can_be_resolved_are_the_same_set():
+    """One is declared from the kinds a reference may name, the other derived
+    from the tables that can answer. A tool in one and not the other would be
+    linkable and unresolvable, or resolvable and unreachable."""
+    assert set(REFERENCEABLE_TYPES) == set(referenceable_types())
 
 
 @pytest.mark.parametrize("aspect", ["status", "assignee", "due", "priority"])
@@ -404,7 +413,7 @@ async def test_a_reference_reads_the_current_name(
     new name without being touched."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Old name")
-    ref = f"task:{task.id}:title"
+    ref = f"task:{task.id}"
 
     assert (await _badges(client, a, ref))[ref]["text"] == "Old name"
 
@@ -428,15 +437,15 @@ async def test_every_kind_answers_with_whatever_it_calls_its_name(
     body = await _badges(
         client,
         a,
-        f"task:{task.id}:title",
-        f"project:{a.project.id}:title",
-        f"queue:{queue.id}:title",
-        f"queue_item:{item.id}:title",
+        f"task:{task.id}",
+        f"project:{a.project.id}",
+        f"queue:{queue.id}",
+        f"queue_item:{item.id}",
     )
-    assert body[f"task:{task.id}:title"]["text"] == "A task"
-    assert body[f"project:{a.project.id}:title"]["text"] == a.project.name
-    assert body[f"queue:{queue.id}:title"]["text"] == queue.name
-    assert body[f"queue_item:{item.id}:title"]["text"] == "An item"
+    assert body[f"task:{task.id}"]["text"] == "A task"
+    assert body[f"project:{a.project.id}"]["text"] == a.project.name
+    assert body[f"queue:{queue.id}"]["text"] == queue.name
+    assert body[f"queue_item:{item.id}"]["text"] == "An item"
 
 
 async def test_a_title_stops_at_the_same_gate_a_badge_does(
@@ -452,7 +461,7 @@ async def test_a_title_stops_at_the_same_gate_a_badge_does(
     )
     task = await create_task(session, a.project, title="restricted")
 
-    assert await _badges(client, b, f"task:{task.id}:title") == {}
+    assert await _badges(client, b, f"task:{task.id}") == {}
 
 
 async def test_a_comment_is_not_something_you_point_at(
@@ -464,4 +473,4 @@ async def test_a_comment_is_not_something_you_point_at(
     task = await create_task(session, a.project, title="Ship it")
     comment = await create_comment(session, a.user, task=task)
 
-    assert await _badges(client, a, f"comment:{comment.id}:title") == {}
+    assert await _badges(client, a, f"comment:{comment.id}") == {}

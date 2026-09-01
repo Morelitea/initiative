@@ -24,11 +24,8 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.core.document_badges import (
-    BadgeAspect,
-    BadgeTone,
-    REF_SEPARATOR,
-)
+from app.core.document_badges import BadgeAspect, BadgeTone
+from app.core.references import REF_SEPARATOR, is_referenceable
 from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.core.user_display import display_name
@@ -241,42 +238,40 @@ def reader_for(entity_type: SearchEntityType, aspect: BadgeAspect) -> Reader:
     return BADGE_SOURCES[(entity_type, aspect)]
 
 
-def parse_ref(ref: str) -> Optional[tuple[SearchEntityType, int, BadgeAspect]]:
-    """``task:12:status`` as its three parts, or ``None`` if it names no badge.
+def parse_ref(
+    ref: str,
+) -> Optional[tuple[SearchEntityType, int, Optional[BadgeAspect]]]:
+    """``task:12`` or ``task:12:status`` as its parts, or ``None`` for neither.
+
+    Two shapes on purpose. A bare reference asks what the thing is called,
+    which every referenceable kind answers; adding an aspect asks a fact about
+    it, which only some kinds have.
 
     A reference that does not parse is dropped rather than refused: a document
     can outlive a build that stopped offering one of these, and a chip that
-    cannot be read falls back to the words already stored beside it.
+    cannot be read falls back to the words stored beside it.
     """
     parts = ref.split(REF_SEPARATOR)
-    if len(parts) != 3:
+    if len(parts) not in (2, 3):
         return None
-    kind, raw_id, aspect = parts
+    kind, raw_id = parts[0], parts[1]
     if not raw_id.isdigit():
         return None
     try:
-        pair = (SearchEntityType(kind), BadgeAspect(aspect))
+        entity_type = SearchEntityType(kind)
     except ValueError:
         return None
-    if not _is_readable(*pair):
+    if not is_referenceable(entity_type):
         return None
-    return pair[0], int(raw_id), pair[1]
-
-
-def _is_readable(entity_type: SearchEntityType, aspect: BadgeAspect) -> bool:
-    """Whether this pair is something to read.
-
-    Two ways to be: an aspect with a reader of its own, or the title that every
-    referenceable kind has.
-    """
-    if aspect is BadgeAspect.title:
-        return entity_type in reference_targets.referenceable_types()
-    return (entity_type, aspect) in BADGE_SOURCES
-
-
-def format_ref(kind: SearchEntityType, entity_id: int, aspect: BadgeAspect) -> str:
-    """The reference a document stores for one chip."""
-    return REF_SEPARATOR.join((kind.value, str(entity_id), aspect.value))
+    if len(parts) == 2:
+        return entity_type, int(raw_id), None
+    try:
+        aspect = BadgeAspect(parts[2])
+    except ValueError:
+        return None
+    if (entity_type, aspect) not in BADGE_SOURCES:
+        return None
+    return entity_type, int(raw_id), aspect
 
 
 async def _titles(
@@ -329,30 +324,33 @@ async def read_badges(
     ids. A reference naming something that is gone, or that this caller cannot
     see, is left out of the answer.
     """
-    wanted: dict[tuple[SearchEntityType, BadgeAspect], list[int]] = {}
-    parsed: list[tuple[str, tuple[SearchEntityType, BadgeAspect], int]] = []
+    wanted: dict[tuple[SearchEntityType, Optional[BadgeAspect]], list[int]] = {}
+    parsed: list[tuple[str, tuple[SearchEntityType, Optional[BadgeAspect]], int]] = []
     for ref in dict.fromkeys(refs[:MAX_REFS]):
         resolved = parse_ref(ref)
         if resolved is None:
             continue
-        kind, entity_id, aspect = resolved
-        wanted.setdefault((kind, aspect), []).append(entity_id)
-        parsed.append((ref, (kind, aspect), entity_id))
+        entity_type, entity_id, aspect = resolved
+        wanted.setdefault((entity_type, aspect), []).append(entity_id)
+        parsed.append((ref, (entity_type, aspect), entity_id))
 
     by_type: dict[SearchEntityType, set[int]] = {}
     for (entity_type, _aspect), ids in wanted.items():
         by_type.setdefault(entity_type, set()).update(ids)
     visible = await _visible(session, user_id=user_id, wanted=by_type)
 
-    read: dict[tuple[SearchEntityType, BadgeAspect], dict[int, BadgeValue]] = {}
+    read: dict[
+        tuple[SearchEntityType, Optional[BadgeAspect]], dict[int, BadgeValue]
+    ] = {}
     for pair, ids in wanted.items():
-        allowed = [i for i in ids if i in visible.get(pair[0], ())]
+        entity_type, aspect = pair
+        allowed = [i for i in ids if i in visible.get(entity_type, ())]
         if not allowed:
             read[pair] = {}
-        elif pair[1] is BadgeAspect.title:
-            read[pair] = await _titles(session, pair[0], allowed)
+        elif aspect is None:
+            read[pair] = await _titles(session, entity_type, allowed)
         else:
-            read[pair] = await BADGE_SOURCES[pair](session, allowed)
+            read[pair] = await BADGE_SOURCES[(entity_type, aspect)](session, allowed)
 
     states: list[BadgeState] = []
     for ref, pair, entity_id in parsed:
@@ -362,6 +360,8 @@ async def read_badges(
         states.append(
             BadgeState(
                 ref=ref,
+                entity_type=pair[0],
+                aspect=pair[1],
                 text=value.text,
                 tone=value.tone,
                 color=value.color,

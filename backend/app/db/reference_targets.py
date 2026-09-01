@@ -21,14 +21,9 @@ from __future__ import annotations
 from sqlalchemy import Select, Table, func, select
 from sqlmodel import SQLModel
 
+from app.core.references import NOT_REFERENCEABLE
 from app.core.search import SearchEntityType
 from app.db.search_index import SEARCH_SOURCES
-
-#: Indexed kinds that are not things you point at mid-sentence.
-#:
-#: A comment is a remark ON something — the thing it is on is what a reader
-#: wants — and it resolves its "title" to an opening line rather than a name.
-NOT_REFERENCEABLE: frozenset[SearchEntityType] = frozenset({SearchEntityType.comment})
 
 
 def _table_for(entity_type: SearchEntityType) -> str:
