@@ -5,18 +5,14 @@ import {
   type MenuTextMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import {
-  $getNearestNodeFromDOMNode,
-  $getNodeByKey,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  CLICK_COMMAND,
-  COMMAND_PRIORITY_LOW,
   type LexicalEditor,
   type TextNode,
 } from "lexical";
 import { FileText, Plus } from "lucide-react";
-import { type JSX, useCallback, useEffect, useMemo, useState } from "react";
+import { type JSX, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
@@ -157,13 +153,19 @@ function useWikilinkSearch(
 export interface WikilinksPluginProps {
   initiativeId: number | null;
   onNavigate?: (documentId: number) => void;
-  onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void;
+  /** Asked to make what `[[ ]]` could not find. The caller opens the dialog
+   *  that knows which tools this initiative has; it answers with the reference
+   *  to drop in. */
+  onCreateThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }
 
 export function WikilinksPlugin({
   initiativeId,
   onNavigate,
-  onCreateDocument,
+  onCreateThing,
 }: WikilinksPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
@@ -179,6 +181,21 @@ export function WikilinksPlugin({
       // Capture the trailing text to clean up before the editor update
       const trailingToCleanup = pendingTrailingCleanup;
       pendingTrailingCleanup = null;
+
+      // Nothing matched, and `[[ ]]` is the trigger that can make one. The
+      // dialog owns which kind and whether this writer may; the reference
+      // comes back here to go in the sentence.
+      if (selectedOption.isCreateNew) {
+        closeMenu();
+        onCreateThing?.(selectedOption.title, (entityType, entityId, name) => {
+          editor.update(() => {
+            const made = $createEntityMentionNode(entityType, entityId, name);
+            if (nodeToReplace) nodeToReplace.replace(made);
+            made.selectNext();
+          });
+        });
+        return;
+      }
 
       editor.update(() => {
         const wikilinkNode = $createEntityMentionNode(
@@ -210,7 +227,7 @@ export function WikilinksPlugin({
         closeMenu();
       });
     },
-    [editor]
+    [editor, onCreateThing]
   );
 
   const checkForTriggerMatch = useCallback(
@@ -258,7 +275,7 @@ export function WikilinksPlugin({
           return createPortal(
             <div className="absolute z-10 w-[300px] rounded-md border bg-popover p-2 text-popover-foreground shadow-md">
               <span className="text-muted-foreground text-sm">
-                Type to search or create a new document
+                Type to search, or make what is not there yet
               </span>
             </div>,
             anchorElementRef.current

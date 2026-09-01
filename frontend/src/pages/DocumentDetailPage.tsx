@@ -30,8 +30,8 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
-import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
@@ -39,6 +39,7 @@ import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
+import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
@@ -207,7 +208,9 @@ export const DocumentDetailPage = () => {
   // Wikilink dialog state
   const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
   const [wikilinkTitle, setWikilinkTitle] = useState("");
-  const wikilinkUpdateCallbackRef = useRef<((documentId: number) => void) | null>(null);
+  const wikilinkUpdateCallbackRef = useRef<
+    ((entityType: SearchEntityType, entityId: number, name: string) => void) | null
+  >(null);
 
   // Network status for offline detection
   const { isOnline } = useNetworkStatus();
@@ -404,7 +407,7 @@ export const DocumentDetailPage = () => {
   // Whether the user can create documents in this document's initiative —
   // via the shared access helper, so guild admins and PAM grantees are
   // included regardless of any membership row.
-  const canCreateDocuments = useMemo(() => {
+  const _canCreateDocuments = useMemo(() => {
     if (!document?.initiative) {
       return false;
     }
@@ -421,59 +424,19 @@ export const DocumentDetailPage = () => {
     [navigate, gp, initiativeId]
   );
 
-  // Wikilink create handler - opens dialog and stores update callback
-  const handleWikilinkCreate = useCallback(
-    (docTitle: string, onCreated: (documentId: number) => void) => {
-      setWikilinkTitle(docTitle);
+  // `[[ ]]` found nothing and offered to make it. The dialog owns which kind
+  // and whether this writer may; the reference it answers with goes straight
+  // into the sentence, so making something never costs the writer their place.
+  const handleCreateReferencedThing = useCallback(
+    (
+      name: string,
+      onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+    ) => {
+      setWikilinkTitle(name);
       wikilinkUpdateCallbackRef.current = onCreated;
       setWikilinkDialogOpen(true);
     },
     []
-  );
-
-  // After creating document via wikilink, update the wikilink then navigate
-  const handleWikilinkDocumentCreated = useCallback(
-    (newDocumentId: number) => {
-      // Update the wikilink with the new document ID before navigating
-      if (wikilinkUpdateCallbackRef.current) {
-        wikilinkUpdateCallbackRef.current(newDocumentId);
-        wikilinkUpdateCallbackRef.current = null;
-      }
-      // Capture collaboration state and document ID NOW, before navigation changes them
-      const wasCollaborating = collaboratingRef.current;
-      const sourceDocumentId = parsedId;
-      // Explicitly sync content before navigating to ensure wikilinks are saved
-      // Use setTimeout(0) to allow OnChangePlugin to fire first
-      setTimeout(() => {
-        // Sync directly using captured values (they may have changed by now)
-        const stored = contentStateRef.current;
-        if (
-          wasCollaborating &&
-          token &&
-          activeGuildId &&
-          stored &&
-          stored.documentId === sourceDocumentId
-        ) {
-          // Header-less auth (cookie on web, scoped upload token on native) —
-          // the long-lived session JWT must never ride in a URL. The guild
-          // rides in the path (`/g/{guildId}/`), like every other guild call.
-          const syncUrl = resolveHeaderlessApiUrl(
-            `/api/v1/g/${activeGuildId}/collaboration/documents/${sourceDocumentId}/sync-content`
-          );
-          fetch(syncUrl, {
-            method: "POST",
-            body: JSON.stringify(stored.content),
-            headers: { "Content-Type": "application/json" },
-            keepalive: true,
-            credentials: "include",
-          }).catch(() => {});
-        }
-        void navigate({
-          to: gp(toolDetailRoute(Tool.document, initiativeId, newDocumentId)),
-        });
-      }, 0);
-    },
-    [navigate, gp, token, activeGuildId, parsedId, initiativeId]
   );
 
   const updateDocumentCommentCount = (delta: number) => {
@@ -1398,7 +1361,7 @@ export const DocumentDetailPage = () => {
                   initiativeId={document.initiative_id}
                   supportsEntityMentions={supportsEntityMentions(document.document_type)}
                   onWikilinkNavigate={handleWikilinkNavigate}
-                  onWikilinkCreate={handleWikilinkCreate}
+                  onCreateReferencedThing={handleCreateReferencedThing}
                 />
               )}
             </Suspense>
@@ -1536,15 +1499,21 @@ export const DocumentDetailPage = () => {
         />
       )}
 
-      {/* Wikilink create document dialog */}
-      <CreateWikilinkDocumentDialog
-        open={wikilinkDialogOpen}
-        onOpenChange={setWikilinkDialogOpen}
-        title={wikilinkTitle}
-        initiativeId={document.initiative_id}
-        canCreate={canCreateDocuments}
-        onCreated={handleWikilinkDocumentCreated}
-      />
+      {wikilinkDialogOpen && (
+        <CreateReferencedThingDialog
+          name={wikilinkTitle}
+          initiativeId={document.initiative_id}
+          onCreated={(made) => {
+            wikilinkUpdateCallbackRef.current?.(made.entityType, made.entityId, made.name);
+            wikilinkUpdateCallbackRef.current = null;
+            setWikilinkDialogOpen(false);
+          }}
+          onClose={() => {
+            wikilinkUpdateCallbackRef.current = null;
+            setWikilinkDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

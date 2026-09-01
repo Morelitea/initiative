@@ -43,7 +43,7 @@ Mentioning a task also notifies the people it's assigned to.
 
 The difference from `#` is what happens when nothing matches: `[[ ]]` offers to **make** the thing you named. That's why it reaches tools and `#` reaches everything. A tool needs only a name and the initiative you're already in; a task needs a project and an event needs a calendar and a time, so those can't be conjured from a name in a sentence — reach them with `#`.
 
-A tool your initiative has switched off isn't offered, and can't be created this way either.
+A tool your initiative has switched off isn't offered, and can't be created this way either. Whatever you make appears in the sentence you were writing — you don't leave the page to make it.
 
 Every document shows its **backlinks** — the other documents that point at it — so you can see what refers to a page without keeping track yourself. A `#` link counts, not just a `[[ ]]` one.
 

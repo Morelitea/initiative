@@ -92,7 +92,10 @@ export interface EditorProps {
   /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
   supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
-  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
+  onCreateReferencedThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }
 
 export function Editor({
@@ -110,7 +113,7 @@ export function Editor({
   initiativeId = null,
   supportsEntityMentions = false,
   onWikilinkNavigate,
-  onWikilinkCreate,
+  onCreateReferencedThing,
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
@@ -238,7 +241,7 @@ export function Editor({
             initiativeId={initiativeId}
             supportsEntityMentions={supportsEntityMentions}
             onWikilinkNavigate={onWikilinkNavigate}
-            onWikilinkCreate={onWikilinkCreate}
+            onCreateReferencedThing={onCreateReferencedThing}
           />
 
           {useCollaborativeMode && providerFactory && (

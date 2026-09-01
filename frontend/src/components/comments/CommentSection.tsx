@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { entityMentionSyntax } from "@/lib/mentions";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 import { CommentInput } from "./CommentInput";
@@ -265,6 +266,15 @@ export const CommentSection = ({
         <CreateReferencedThingDialog
           name={pendingCreate}
           initiativeId={initiativeId}
+          onCreated={(made) => {
+            // Straight into the sentence being written, so making something
+            // never costs the writer their place.
+            setContent(
+              (current) =>
+                `${current}${entityMentionSyntax(made.entityType, made.name, made.entityId)} `
+            );
+            setPendingCreate(null);
+          }}
           onClose={() => setPendingCreate(null)}
         />
       )}
