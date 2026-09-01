@@ -63,12 +63,8 @@
     "noAccessDescription": "No tienes permiso para ver esta tarea. Pide a un administrador del proyecto que te otorgue acceso.",
     "backToProjects": "← Volver a proyectos",
     "loadProjectError": "No se pudo cargar el contexto del proyecto para esta tarea.",
-    "statusBadge": "Estado",
     "createdBy": "Creada por {{name}} · {{time}}",
     "createdAt": "Creada {{time}}",
-    "subtitle": "Edita todos los detalles de esta tarea.",
-    "detailsTitle": "Detalles de la tarea",
-    "detailsDescription": "Actualiza los campos a continuación y guarda tus cambios.",
     "readOnlyNoAccess": "Solo tienes acceso de lectura a este proyecto, por lo que los campos de la tarea están deshabilitados.",
     "readOnlyArchived": "Este proyecto está archivado. Desarchívalo desde la configuración del proyecto para editar tareas.",
     "titleLabel": "Título",
@@ -289,6 +285,11 @@
     "startDateLabel": "Fecha de inicio",
     "dueDateLabel": "Fecha de vencimiento",
     "tagsLabel": "Etiquetas",
-    "tagsPlaceholder": "Añadir etiquetas"
+    "tagsPlaceholder": "Añadir etiquetas",
+    "sections": {
+      "tracking": "Seguimiento",
+      "schedule": "Programación",
+      "people": "Personas y etiquetas"
+    }
   }
 }

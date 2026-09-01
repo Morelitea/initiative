@@ -40,9 +40,8 @@ import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
@@ -625,10 +624,6 @@ export const TaskEditPage = () => {
   // badge + select trigger render correctly during the window between
   // "task loaded" and "project statuses loaded" — and as a safety net if
   // the status was archived out of the list since the task was last saved.
-  const currentStatus =
-    taskStatuses.find((item) => item.id === effectiveStatusId) ??
-    (task && task.task_status_id === effectiveStatusId ? task.task_status : null);
-
   // Delete and move are excluded: their confirm/move dialogs stay open and
   // already show the mutation's own loading state.
   const menuActionPending = duplicateTask.isPending || toggleArchive.isPending;
@@ -739,10 +734,11 @@ export const TaskEditPage = () => {
           { label: title || task?.title },
         ]}
       />
+      {/* The task's title and status are rendered once each, by the form's own
+          title field and status select. This row carries only the byline. */}
+      <h1 className="sr-only">{title || task?.title}</h1>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-semibold text-3xl tracking-tight">{title || task?.title}</h1>
-          <Badge variant="secondary">{currentStatus?.name ?? t("edit.statusBadge")}</Badge>
           {creationMeta ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -778,16 +774,11 @@ export const TaskEditPage = () => {
             </TooltipProvider>
           ) : null}
         </div>
-        <p className="text-muted-foreground text-sm">{t("edit.subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-6">
         <Card className="flex-1 shadow-sm sm:min-w-100">
-          <CardHeader>
-            <CardTitle>{t("edit.detailsTitle")}</CardTitle>
-            <CardDescription>{t("edit.detailsDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {isReadOnly && readOnlyMessage ? (
               <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
                 {readOnlyMessage}

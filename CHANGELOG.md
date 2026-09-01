@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Creating a task and editing one now lay the fields out the same way.** The two screens share the same set of fields but arranged them differently, and the order had stopped meaning anything — Assignees and Tags sat between the dates and the Repeat rule that is worked out from the due date. Both screens now use the same named sections in the same order — Tracking, Schedule, People & labels, Properties — with the create dialog collapsing all but the title and description. Start date, due date and Repeat finally sit together under Schedule.
+
+- **The task editor stops repeating itself.** The title was on screen three times over — in the breadcrumb, as the heading, and in the Title box — with the heading and the box showing the same live value, so typing in one retitled the other. The status was on screen twice for the same reason. Above the first field sat two separate lines explaining that this is where you edit a task. The Title box is now the heading itself, the status is stated once by its own picker, and both explanatory lines are gone.
+
 - **A task's editor ends in two buttons, not six.** Save, cancel, move to project, duplicate, archive and delete all sat in one row at the foot of the task editor, so the action you almost always want looked exactly like the ones you almost never do — and delete sat two buttons from save. Save and cancel keep their place; move, duplicate, archive and delete moved behind a single "…" menu at the end of the row, with delete set apart below a divider.
 
 - **"Browse the marketplace" is out of the overflow menu.** Adding a ready-made dashboard is the same kind of answer as making one from scratch, but only one of the two was on the page — the other sat behind the "…" button, where someone who has never opened it never learns the shelf exists. It now sits next to the create button on the dashboards list, at every width, and beside "Create your first dashboard" in an initiative that has none yet.

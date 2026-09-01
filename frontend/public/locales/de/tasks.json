@@ -63,12 +63,8 @@
     "noAccessDescription": "Du hast keine Berechtigung, diese Aufgabe anzuzeigen. Bitte einen Projektleiter, dir Zugriff zu gewähren.",
     "backToProjects": "← Zurück zu den Projekten",
     "loadProjectError": "Der Projektkontext für diese Aufgabe konnte nicht geladen werden.",
-    "statusBadge": "Status",
     "createdBy": "Erstellt von {{name}} · {{time}}",
     "createdAt": "Erstellt {{time}}",
-    "subtitle": "Bearbeite jedes Detail dieser Aufgabe.",
-    "detailsTitle": "Aufgabendetails",
-    "detailsDescription": "Aktualisiere die Felder unten und speichere deine Änderungen.",
     "readOnlyNoAccess": "Du hast nur Lesezugriff auf dieses Projekt, daher sind die Aufgabenfelder deaktiviert.",
     "readOnlyArchived": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Projekteinstellungen auf, um Aufgaben zu bearbeiten.",
     "titleLabel": "Titel",
@@ -289,6 +285,11 @@
     "startDateLabel": "Startdatum",
     "dueDateLabel": "Fälligkeitsdatum",
     "tagsLabel": "Tags",
-    "tagsPlaceholder": "Tags hinzufügen"
+    "tagsPlaceholder": "Tags hinzufügen",
+    "sections": {
+      "tracking": "Nachverfolgung",
+      "schedule": "Zeitplan",
+      "people": "Personen & Tags"
+    }
   }
 }
