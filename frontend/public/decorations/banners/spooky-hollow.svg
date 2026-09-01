@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     shape-rendering="crispEdges" role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Hollow</title>
+  <style>
+    .bat { animation: flit 7s linear infinite }
+    .b2 { animation-delay: -2.5s } .b3 { animation-delay: -5s }
+    @keyframes flit { 0% { transform: translate(0,0) } 25% { transform: translate(18px,-4px) } 50% { transform: translate(38px,2px) } 75% { transform: translate(58px,-3px) } 100% { transform: translate(78px,0) } }
+    .flicker { animation: lit 3.2s ease-in-out infinite }
+    @keyframes lit { 0%,100% { opacity: 1 } 45% { opacity: .55 } 60% { opacity: .95 } }
+    @media (prefers-reduced-motion: reduce) { .bat, .flicker { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#140a1f"/>
+      <stop offset="100%" stop-color="#2a1436"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#night)"/>
+  <!-- Moon, and the halo round it. -->
+  <circle cx="128" cy="11" r="9" fill="#3A2352" opacity=".5"/>
+  <circle cx="128" cy="11" r="6" fill="#F4E9C8"/>
+  <circle cx="131" cy="9" r="1.5" fill="#DCCFA8"/>
+  <circle cx="126" cy="13" r="1" fill="#DCCFA8"/>
+  <g fill="#F4E9C8" opacity=".7">
+    <rect x="18" y="6" width="1" height="1"/><rect x="46" y="4" width="1" height="1"/>
+    <rect x="70" y="9" width="1" height="1"/><rect x="96" y="5" width="1" height="1"/>
+    <rect x="8" y="14" width="1" height="1"/><rect x="58" y="15" width="1" height="1"/>
+  </g>
+  <!-- Bare trees against it. -->
+  <g fill="#0d0616">
+    <rect x="20" y="14" width="2" height="18"/>
+    <rect x="14" y="18" width="6" height="1"/><rect x="22" y="16" width="7" height="1"/>
+    <rect x="13" y="16" width="1" height="3"/><rect x="29" y="13" width="1" height="4"/>
+    <rect x="142" y="12" width="3" height="20"/>
+    <rect x="134" y="17" width="8" height="1"/><rect x="145" y="15" width="6" height="1"/>
+    <rect x="133" y="14" width="1" height="4"/><rect x="151" y="12" width="1" height="4"/>
+  </g>
+  <!-- The ground, and what is standing in it. -->
+  <rect x="0" y="30" width="160" height="10" fill="#1b0f24"/>
+  <rect x="0" y="30" width="160" height="1" fill="#3a2350"/>
+  <g fill="#2e2338">
+    <path d="M48 22 h9 v10 h-9 z"/><path d="M48 22 q4.5 -5 9 0"/>
+    <path d="M64 25 h7 v7 h-7 z"/><path d="M64 25 q3.5 -4 7 0"/>
+    <path d="M96 24 h8 v8 h-8 z"/><path d="M96 24 q4 -4.5 8 0"/>
+  </g>
+  <g fill="#4a3b58">
+    <rect x="50" y="25" width="5" height="1"/><rect x="52" y="24" width="1" height="4"/>
+    <rect x="98" y="27" width="4" height="1"/><rect x="99.5" y="26" width="1" height="3"/>
+  </g>
+  <!-- A lantern nobody left, still lit. -->
+  <g class="flicker">
+    <rect x="78" y="26" width="6" height="6" fill="#E8730C"/>
+    <rect x="79" y="27" width="4" height="4" fill="#FFD24A"/>
+    <rect x="80" y="24" width="2" height="2" fill="#3F6B2B"/>
+    <rect x="79" y="28" width="1" height="2" fill="#8a3d06"/>
+    <rect x="82" y="28" width="1" height="2" fill="#8a3d06"/>
+  </g>
+  <!-- Webbing in the corners, which is the pack's whole idea. -->
+  <g stroke="#B9A7D6" stroke-opacity=".5" stroke-width=".6" fill="none">
+    <path d="M0 0 L16 12"/><path d="M0 5 L11 13"/><path d="M0 11 L7 14"/><path d="M5 0 L14 8"/><path d="M11 0 L16 4"/>
+    <path d="M0 3 Q6 5 5 11"/><path d="M0 8 Q9 8 10 14"/>
+    <path d="M160 0 L146 10"/><path d="M160 4 L150 12"/><path d="M155 0 L148 5"/>
+    <path d="M160 2 Q154 4 155 9"/>
+  </g>
+</svg>

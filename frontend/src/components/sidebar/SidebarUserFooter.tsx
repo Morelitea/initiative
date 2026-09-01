@@ -26,6 +26,7 @@ import {
 import { SidebarFooter } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { ProfileStatus } from "@/components/user/ProfileStatus";
 import { VersionDialog } from "@/components/VersionDialog";
 import { guildPath } from "@/lib/guildUrl";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
@@ -42,6 +43,8 @@ export interface SidebarUserFooterProps {
   hasUpdate: boolean;
   isLoadingVersion: boolean;
   onLogout: () => void;
+  /** Re-read the account after the status is set from here. */
+  refreshUser: () => Promise<void>;
 }
 
 export const SidebarUserFooter = ({
@@ -55,6 +58,7 @@ export const SidebarUserFooter = ({
   hasUpdate,
   isLoadingVersion,
   onLogout,
+  refreshUser,
 }: SidebarUserFooterProps) => {
   const { t } = useTranslation(["nav"]);
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
@@ -143,6 +147,19 @@ export const SidebarUserFooter = ({
             <ModeToggle />
           </div>
         </div>
+        {/* Set where it is read, the same as on the profile: a status is the
+            thing you change most often, and the sidebar is where you already
+            are when it changes. */}
+        {user ? (
+          <div className="px-2 pb-2">
+            <ProfileStatus
+              status={user.custom_status}
+              editable
+              onSaved={refreshUser}
+              className="block w-full text-xs"
+            />
+          </div>
+        ) : null}
         <div className="border-t">
           <div className="flex items-center justify-between px-3 py-2">
             <VersionDialog

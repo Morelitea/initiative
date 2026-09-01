@@ -95,9 +95,9 @@ from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
+from app.services.platform import presence
 from app.services.platform import usernames as username_service
 from app.services.platform.guilds import adopt_guild_name_display
-from app.services.realtime import manager as realtime_manager
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import user_profiles
@@ -455,7 +455,7 @@ async def read_user_profile(
         status=row.status,
         custom_status=row.custom_status or {},
         profile_decorations=row.profile_decorations or {},
-        online=realtime_manager.online.is_online(row.id),
+        online=presence.online.is_online(row.id),
         joined_at=row.created_at,
     )
 

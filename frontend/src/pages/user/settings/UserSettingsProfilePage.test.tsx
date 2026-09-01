@@ -34,7 +34,7 @@ const user = buildUser({
   username: "jordan",
   discriminator: 1234,
   custom_status: { emoji: "🎲", text: "Rolling initiative" },
-  profile_decorations: { banner: null, frame: "core.gold", badges: ["core.founder"] },
+  profile_decorations: { banner: null, frame: "core.gold", badges: ["ttrpg.d20"] },
 });
 
 beforeEach(() => {
@@ -44,8 +44,8 @@ beforeEach(() => {
   mocks.library.mockReturnValue({
     data: {
       items: [
-        buildOwnedDecoration({ id: "core.founder", kind: "badge" }),
-        buildOwnedDecoration({ id: "core.storyteller", kind: "badge" }),
+        buildOwnedDecoration({ id: "ttrpg.d20", kind: "badge" }),
+        buildOwnedDecoration({ id: "fungi.morel", kind: "badge" }),
         buildOwnedDecoration({ id: "core.aurora", kind: "banner" }),
       ],
     },
@@ -64,15 +64,15 @@ describe("the profile preview", () => {
     // The handle, the status and the badge a stranger would see.
     expect(await screen.findByText("jordan")).toBeInTheDocument();
     expect(screen.getByText("Rolling initiative")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Founder" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "d20" })).toBeInTheDocument();
   });
 
   it("follows what is picked, before it is saved", async () => {
     render();
 
-    await userEvent.click(await screen.findByRole("checkbox", { name: "Storyteller" }));
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Morel" }));
 
-    expect(screen.getByRole("img", { name: "Storyteller" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Morel" })).toBeInTheDocument();
   });
 });
 
@@ -80,8 +80,8 @@ describe("the two halves of the page", () => {
   it("keeps an unsaved pick when the account is refreshed for another reason", async () => {
     const { rerender } = render();
 
-    await userEvent.click(await screen.findByRole("checkbox", { name: "Storyteller" }));
-    expect(screen.getByRole("img", { name: "Storyteller" })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Morel" }));
+    expect(screen.getByRole("img", { name: "Morel" })).toBeInTheDocument();
 
     // Saving the name above refetches the account. The look below it is
     // untouched on the server, so the pick has to survive.
@@ -92,13 +92,13 @@ describe("the two halves of the page", () => {
       />
     );
 
-    expect(screen.getByRole("img", { name: "Storyteller" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Morel" })).toBeInTheDocument();
   });
 
   it("drops a decoration the server has taken away", async () => {
     const { rerender } = render();
 
-    await screen.findByRole("img", { name: "Founder" });
+    await screen.findByRole("img", { name: "d20" });
 
     // Removing a pack strips its pieces server-side; the draft follows.
     rerender(
@@ -108,6 +108,6 @@ describe("the two halves of the page", () => {
       />
     );
 
-    expect(screen.queryByRole("img", { name: "Founder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "d20" })).not.toBeInTheDocument();
   });
 });

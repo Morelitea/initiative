@@ -55,7 +55,7 @@ const PackCard = ({
           <div className="min-w-0 flex-1 pb-1">
             <div className="flex items-center gap-1.5">
               <h3 className="truncate font-semibold">{entry.name}</h3>
-              {badge ? <img src={badge.src} alt="" aria-hidden="true" className="size-5" /> : null}
+              {badge ? <img src={badge.src} alt="" aria-hidden="true" className="size-7" /> : null}
             </div>
           </div>
         </div>

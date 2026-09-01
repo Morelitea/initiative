@@ -4,7 +4,6 @@
     "description": "Entweder hat niemand dieses Profil, oder die Person ist nicht in dieser Community.",
     "back": "Zurück zur Community"
   },
-  "noStatus": "Gerade nichts gesetzt.",
   "presence": {
     "label": "Präsenz",
     "online": "Online",
@@ -19,9 +18,6 @@
     "parchment": "Pergament",
     "gold": "Vergoldet",
     "arcane": "Arkan",
-    "founder": "Gründer:in",
-    "storyteller": "Erzähler:in",
-    "trailblazer": "Wegbereiter:in",
     "dicetower": "Würfelturm",
     "natural20": "Natürliche 20",
     "d20": "W20",
@@ -30,7 +26,17 @@
     "cassette": "Kassette",
     "observatory": "Sternwarte",
     "orbital": "Orbital",
-    "flask": "Kolben"
+    "flask": "Kolben",
+    "fan": "Fan Nummer eins",
+    "grove": "Hain",
+    "overgrown": "Überwuchert",
+    "morel": "Morchel",
+    "hollow": "Senke",
+    "cobweb": "Spinnennetz",
+    "lantern": "Kürbislaterne",
+    "parade": "Parade",
+    "spectrum": "Spektrum",
+    "prideheart": "Pride-Herz"
   },
   "decorationPicker": {
     "heading": "Profil-Dekorationen",
@@ -72,5 +78,19 @@
     "filterLabel": "Deine Packs durchsuchen",
     "noMatch": "Kein Pack mit diesem Namen.",
     "removeNamed": "{{name}} entfernen"
+  },
+  "status": {
+    "empty": "Sag, was du gerade machst",
+    "edit": "Dein Status",
+    "help": "Ein Emoji, eine Zeile oder beides. Alle, die dein Profil öffnen, sehen es.",
+    "placeholder": "Was machst du gerade?",
+    "emojiPlaceholder": "Emoji",
+    "save": "Status setzen",
+    "clear": "Löschen",
+    "failed": "Dieser Status konnte nicht gespeichert werden."
+  },
+  "guilds": {
+    "title": "Communitys",
+    "empty": "Keine öffentlichen Communitys."
   }
 }

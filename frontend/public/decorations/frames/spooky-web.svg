@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Cobweb</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       The whole web lives in the band outside it — silk over the picture would
+       be a veil across someone's face rather than a frame around it. -->
+  <style>
+    .spider { animation: patrol 18s linear infinite; transform-origin: 64px 64px }
+    @keyframes patrol { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .spider { animation: none } }
+  </style>
+  <circle cx="64" cy="64" r="51" fill="none" stroke="#1A0E26" stroke-width="3"/>
+  <path d="M64 1 A63 63 0 1 0 64 127 A63 63 0 1 0 64 1 Z M64 15 A49 49 0 1 1 64 113 A49 49 0 1 1 64 15 Z"
+        fill="#1A0E26" fill-opacity=".45" fill-rule="evenodd"/>
+  <!-- The radials the silk is strung between. -->
+  <g stroke="#B9A7D6" stroke-opacity=".75" stroke-width="1" fill="none" stroke-linecap="round">
+    <path d="M115.0 64.0 L127.0 64.0"/>
+    <path d="M111.1 83.5 L122.2 88.1"/>
+    <path d="M100.1 100.1 L108.5 108.5"/>
+    <path d="M83.5 111.1 L88.1 122.2"/>
+    <path d="M64.0 115.0 L64.0 127.0"/>
+    <path d="M44.5 111.1 L39.9 122.2"/>
+    <path d="M27.9 100.1 L19.5 108.5"/>
+    <path d="M16.9 83.5 L5.8 88.1"/>
+    <path d="M13.0 64.0 L1.0 64.0"/>
+    <path d="M16.9 44.5 L5.8 39.9"/>
+    <path d="M27.9 27.9 L19.5 19.5"/>
+    <path d="M44.5 16.9 L39.9 5.8"/>
+    <path d="M64.0 13.0 L64.0 1.0"/>
+    <path d="M83.5 16.9 L88.1 5.8"/>
+    <path d="M100.1 27.9 L108.5 19.5"/>
+    <path d="M111.1 44.5 L122.2 39.9"/>
+  </g>
+  <!-- And the spiral, sagging between each pair of spokes the way silk does. -->
+  <g stroke="#D8CCEC" stroke-opacity=".6" stroke-width="0.9" fill="none">
+    <path d="M118.0 64.0 Q115.0 74.1 113.9 84.7 M113.9 84.7 Q107.2 92.9 102.2 102.2 M102.2 102.2 Q92.9 107.2 84.7 113.9 M84.7 113.9 Q74.1 115.0 64.0 118.0 M64.0 118.0 Q53.9 115.0 43.3 113.9 M43.3 113.9 Q35.1 107.2 25.8 102.2 M25.8 102.2 Q20.8 92.9 14.1 84.7 M14.1 84.7 Q13.0 74.1 10.0 64.0 M10.0 64.0 Q13.0 53.9 14.1 43.3 M14.1 43.3 Q20.8 35.1 25.8 25.8 M25.8 25.8 Q35.1 20.8 43.3 14.1 M43.3 14.1 Q53.9 13.0 64.0 10.0 M64.0 10.0 Q74.1 13.0 84.7 14.1 M84.7 14.1 Q92.9 20.8 102.2 25.8 M102.2 25.8 Q107.2 35.1 113.9 43.3 M113.9 43.3 Q115.0 53.9 118.0 64.0"/>
+    <path d="M121.5 64.0 Q118.4 74.8 117.1 86.0 M117.1 86.0 Q110.1 94.8 104.7 104.7 M104.7 104.7 Q94.8 110.1 86.0 117.1 M86.0 117.1 Q74.8 118.4 64.0 121.5 M64.0 121.5 Q53.2 118.4 42.0 117.1 M42.0 117.1 Q33.2 110.1 23.3 104.7 M23.3 104.7 Q17.9 94.8 10.9 86.0 M10.9 86.0 Q9.6 74.8 6.5 64.0 M6.5 64.0 Q9.6 53.2 10.9 42.0 M10.9 42.0 Q17.9 33.2 23.3 23.3 M23.3 23.3 Q33.2 17.9 42.0 10.9 M42.0 10.9 Q53.2 9.6 64.0 6.5 M64.0 6.5 Q74.8 9.6 86.0 10.9 M86.0 10.9 Q94.8 17.9 104.7 23.3 M104.7 23.3 Q110.1 33.2 117.1 42.0 M117.1 42.0 Q118.4 53.2 121.5 64.0"/>
+    <path d="M124.5 64.0 Q121.4 75.4 119.9 87.2 M119.9 87.2 Q112.6 96.5 106.8 106.8 M106.8 106.8 Q96.5 112.6 87.2 119.9 M87.2 119.9 Q75.4 121.4 64.0 124.5 M64.0 124.5 Q52.6 121.4 40.8 119.9 M40.8 119.9 Q31.5 112.6 21.2 106.8 M21.2 106.8 Q15.4 96.5 8.1 87.2 M8.1 87.2 Q6.6 75.4 3.5 64.0 M3.5 64.0 Q6.6 52.6 8.1 40.8 M8.1 40.8 Q15.4 31.5 21.2 21.2 M21.2 21.2 Q31.5 15.4 40.8 8.1 M40.8 8.1 Q52.6 6.6 64.0 3.5 M64.0 3.5 Q75.4 6.6 87.2 8.1 M87.2 8.1 Q96.5 15.4 106.8 21.2 M106.8 21.2 Q112.6 31.5 119.9 40.8 M119.9 40.8 Q121.4 52.6 124.5 64.0"/>
+  </g>
+  <!-- The tenant. -->
+  <g class="spider">
+    <g transform="translate(64 7)">
+      <g stroke="#0F0818" stroke-width="1.4" fill="none" stroke-linecap="round">
+        <path d="M-2 -1 L-6 -4"/><path d="M-2 0 L-6.5 0"/><path d="M-2 1 L-6 4"/>
+        <path d="M2 -1 L6 -4"/><path d="M2 0 L6.5 0"/><path d="M2 1 L6 4"/>
+      </g>
+      <ellipse cx="0" cy="1.5" rx="3" ry="3.6" fill="#0F0818"/>
+      <circle cx="0" cy="-2.2" r="2" fill="#241338"/>
+      <circle cx="-0.8" cy="-2.6" r="0.6" fill="#E8730C"/>
+      <circle cx="0.8" cy="-2.6" r="0.6" fill="#E8730C"/>
+    </g>
+  </g>
+</svg>

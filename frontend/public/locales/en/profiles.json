@@ -4,7 +4,6 @@
     "description": "Either nobody has this profile, or they are not in this community.",
     "back": "Back to the community"
   },
-  "noStatus": "Nothing set right now.",
   "presence": {
     "label": "Presence",
     "online": "Online",
@@ -19,9 +18,6 @@
     "parchment": "Parchment",
     "gold": "Gilded",
     "arcane": "Arcane",
-    "founder": "Founder",
-    "storyteller": "Storyteller",
-    "trailblazer": "Trailblazer",
     "dicetower": "Dice tower",
     "natural20": "Natural 20",
     "d20": "d20",
@@ -30,7 +26,17 @@
     "cassette": "Cassette",
     "observatory": "Observatory",
     "orbital": "Orbital",
-    "flask": "Flask"
+    "flask": "Flask",
+    "fan": "Number one fan",
+    "grove": "Grove",
+    "overgrown": "Overgrown",
+    "morel": "Morel",
+    "hollow": "Hollow",
+    "cobweb": "Cobweb",
+    "lantern": "Jack-o'-lantern",
+    "parade": "Parade",
+    "spectrum": "Spectrum",
+    "prideheart": "Pride heart"
   },
   "decorationPicker": {
     "heading": "Profile decorations",
@@ -72,5 +78,19 @@
     "filterLabel": "Search your packs",
     "noMatch": "No pack by that name.",
     "removeNamed": "Remove {{name}}"
+  },
+  "status": {
+    "empty": "Say what you're up to",
+    "edit": "Your status",
+    "help": "An emoji, a line, or both. Everyone who opens your profile sees it.",
+    "placeholder": "What are you up to?",
+    "emojiPlaceholder": "Emoji",
+    "save": "Set status",
+    "clear": "Clear",
+    "failed": "That status could not be saved."
+  },
+  "guilds": {
+    "title": "Communities",
+    "empty": "No public communities."
   }
 }

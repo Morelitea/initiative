@@ -28,8 +28,8 @@ const banners = [
 ];
 
 const badges = [
-  buildOwnedDecoration({ id: "core.founder", kind: "badge" }),
-  buildOwnedDecoration({ id: "core.storyteller", kind: "badge" }),
+  buildOwnedDecoration({ id: "ttrpg.d20", kind: "badge" }),
+  buildOwnedDecoration({ id: "fungi.morel", kind: "badge" }),
 ];
 
 describe("a slot that holds one thing", () => {
@@ -94,18 +94,18 @@ describe("a slot that holds one thing", () => {
 describe("the badge row", () => {
   it("wears them in the order they were picked", async () => {
     const onChange = vi.fn();
-    render(<BadgePicker value={["core.storyteller"]} onChange={onChange} owned={badges} max={6} />);
+    render(<BadgePicker value={["fungi.morel"]} onChange={onChange} owned={badges} max={6} />);
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "decorations.founder" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 
-    expect(onChange).toHaveBeenCalledWith(["core.storyteller", "core.founder"]);
+    expect(onChange).toHaveBeenCalledWith(["fungi.morel", "ttrpg.d20"]);
   });
 
   it("takes one off when it is picked again", async () => {
     const onChange = vi.fn();
-    render(<BadgePicker value={["core.founder"]} onChange={onChange} owned={badges} max={6} />);
+    render(<BadgePicker value={["ttrpg.d20"]} onChange={onChange} owned={badges} max={6} />);
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "decorations.founder" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 
     expect(onChange).toHaveBeenCalledWith([]);
   });
@@ -113,19 +113,19 @@ describe("the badge row", () => {
   it("marks a tile past the cap as unavailable rather than just inert", async () => {
     // Disabled says "not now" to a screen reader; an unresponsive tile says
     // nothing at all.
-    render(<BadgePicker value={["core.storyteller"]} onChange={vi.fn()} owned={badges} max={1} />);
+    render(<BadgePicker value={["fungi.morel"]} onChange={vi.fn()} owned={badges} max={1} />);
 
-    expect(screen.getByRole("checkbox", { name: "decorations.founder" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "decorations.storyteller" })).toBeEnabled();
+    expect(screen.getByRole("checkbox", { name: "decorations.d20" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "decorations.morel" })).toBeEnabled();
   });
 
   it("stops at the cap rather than dropping what is already worn", async () => {
     // What is on is the reader's choice; the picker must not quietly evict the
     // oldest badge to make room for a new one.
     const onChange = vi.fn();
-    render(<BadgePicker value={["core.storyteller"]} onChange={onChange} owned={badges} max={1} />);
+    render(<BadgePicker value={["fungi.morel"]} onChange={onChange} owned={badges} max={1} />);
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "decorations.founder" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 
     expect(onChange).not.toHaveBeenCalled();
   });

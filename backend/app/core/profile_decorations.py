@@ -66,7 +66,8 @@ SHIPPED_DECORATIONS: dict[str, str] = {
     "core.parchment": BANNER,
     "core.gold": FRAME,
     "core.arcane": FRAME,
-    "core.founder": BADGE,
-    "core.storyteller": BADGE,
-    "core.trailblazer": BADGE,
+    # One badge, and it is the app's own rather than any community's: a badge
+    # is a mark of belonging to something, and the thing everyone here belongs
+    # to is Initiative. Every other badge is acquired.
+    "core.fan": BADGE,
 }

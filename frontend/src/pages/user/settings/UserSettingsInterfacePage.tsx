@@ -7,7 +7,6 @@ import { invalidateRecents } from "@/api/query-keys";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -29,7 +28,6 @@ import {
 } from "@/lib/taskCompletionFeedback";
 import type { ThemeColors } from "@/lib/themes";
 import { getTheme, getThemeList } from "@/lib/themes";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.sunday", value: 0 },
@@ -211,7 +209,6 @@ export const UserSettingsInterfacePage = ({
   );
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
-  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
     parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback)
   );
@@ -232,7 +229,6 @@ export const UserSettingsInterfacePage = ({
     setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
-    setTimezone(user.timezone ?? "UTC");
     setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
     setAudioFeedback(user.task_completion_audio_feedback ?? true);
     setHapticFeedback(user.task_completion_haptic_feedback ?? true);
@@ -257,9 +253,6 @@ export const UserSettingsInterfacePage = ({
         setLocale(newLocale);
         void i18n.changeLanguage(newLocale);
       }
-      if (variables.timezone !== undefined) {
-        setTimezone(String(variables.timezone));
-      }
       if (variables.task_completion_visual_feedback !== undefined) {
         setVisualFeedback(
           parseTaskCompletionVisualFeedback(String(variables.task_completion_visual_feedback))
@@ -280,7 +273,6 @@ export const UserSettingsInterfacePage = ({
       setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
-      setTimezone(user.timezone ?? "UTC");
       setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
       setAudioFeedback(user.task_completion_audio_feedback ?? true);
       setHapticFeedback(user.task_completion_haptic_feedback ?? true);
@@ -350,23 +342,6 @@ export const UserSettingsInterfacePage = ({
               ))}
             </SelectContent>
           </Select>
-        </Preference>
-
-        <Preference
-          label={t("interface.timezone")}
-          description={t("interface.timezoneDescription")}
-        >
-          <SearchableCombobox
-            className="sm:w-52"
-            items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
-            value={timezone}
-            onValueChange={(next) => {
-              setTimezone(next);
-              updateInterfacePrefs.mutate({ timezone: next });
-            }}
-            placeholder={t("interface.timezonePlaceholder")}
-            emptyMessage={t("interface.timezoneEmpty")}
-          />
         </Preference>
 
         <Preference

@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { setAuthToken } from "@/api/client";
@@ -8,10 +8,12 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { getUserHandle } from "@/lib/userDisplay";
 
 interface UserSettingsAccountPageProps {
@@ -32,10 +34,18 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   // server's ``PASSWORD_BREACHED`` code map without lazy-loading those
   // namespaces mid-submit.
   const { t } = useTranslation(["settings", "auth", "errors"]);
+  const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // Also editable beside the reminder time on Settings › Notifications, where
+  // you need to see which clock the time is in.
+  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTimezone(user.timezone ?? "UTC");
+  }, [user.timezone]);
 
   const updateAccount = useUpdateCurrentUser({
     onSuccess: async (_data, variables) => {
@@ -83,6 +93,12 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           }
         }
         const payload: Record<string, unknown> = {};
+        if (fullName !== user.full_name) {
+          payload.full_name = fullName;
+        }
+        if (timezone !== (user.timezone ?? "UTC")) {
+          payload.timezone = timezone;
+        }
         if (password) {
           payload.password = password;
           // Re-auth: the backend requires the current password to set a
@@ -105,12 +121,35 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="full-name">{t("profile.fullNameLabel")}</Label>
+          <Input
+            id="full-name"
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+            placeholder={t("profile.fullNamePlaceholder")}
+          />
+          <p className="text-muted-foreground text-xs">{t("account.fullNameHelp")}</p>
+        </div>
+
+        <div className="space-y-2">
           {/* Shown, not editable — the same arrangement the address has.
               It is how everyone else sees you, so it is the one thing on
               this page you would look for and not find. */}
           <Label>{t("profile.usernameLabel")}</Label>
           <Input value={getUserHandle(user)} disabled readOnly />
           <p className="text-muted-foreground text-xs">{t("profile.usernameHelp")}</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>{t("profile.timezoneLabel")}</Label>
+          <SearchableCombobox
+            items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+            value={timezone}
+            onValueChange={setTimezone}
+            placeholder={t("profile.timezonePlaceholder")}
+            emptyMessage={t("profile.timezoneEmpty")}
+          />
+          <p className="text-muted-foreground text-xs">{t("profile.timezoneHelp")}</p>
         </div>
       </SettingsSection>
 
@@ -130,6 +169,8 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 setPassword("");
                 setCurrentPassword("");
                 setConfirmPassword("");
+                setFullName(user.full_name ?? "");
+                setTimezone(user.timezone ?? "UTC");
                 setError(null);
               }}
             >

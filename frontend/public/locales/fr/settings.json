@@ -79,7 +79,13 @@
     "statusLabel": "Statut",
     "statusPlaceholder": "Qu'est-ce qui vous occupe ?",
     "statusEmojiPlaceholder": "Émoji",
-    "statusHelp": "Affiché sur votre profil, que tout le monde peut ouvrir."
+    "statusHelp": "Affiché sur votre profil, que tout le monde peut ouvrir.",
+    "pictureTitle": "Votre photo",
+    "pictureDescription": "Téléversez-en une, ou pointez vers une image. Elle est enregistrée dès que vous la choisissez.",
+    "timezoneLabel": "Fuseau horaire",
+    "timezonePlaceholder": "Sélectionner un fuseau horaire",
+    "timezoneEmpty": "Aucun fuseau horaire trouvé.",
+    "timezoneHelp": "Utilisé pour les échéances, les rappels quotidiens et les tâches récurrentes. Repris de votre navigateur à l'inscription ; corrigez-le ici s'il est faux."
   },
   "security": {
     "devicesTitle": "Appareils connectés",
@@ -230,11 +236,7 @@
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
     },
     "completionTitle": "Quand vous terminez une tâche",
-    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder.",
-    "timezone": "Fuseau horaire",
-    "timezoneDescription": "L'horloge sur laquelle sont calculés les échéances, les rappels et les répétitions. Reprise de votre navigateur à l'inscription.",
-    "timezonePlaceholder": "Sélectionner un fuseau horaire",
-    "timezoneEmpty": "Aucun fuseau horaire trouvé."
+    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder."
   },
   "notifications": {
     "title": "Paramètres de notifications",
@@ -1134,8 +1136,9 @@
   },
   "account": {
     "identityTitle": "Comment vous vous connectez",
-    "identityDescription": "Votre adresse et votre pseudo. Ni l'un ni l'autre ne se change ici.",
+    "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
-    "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil."
+    "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
+    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
   }
 }

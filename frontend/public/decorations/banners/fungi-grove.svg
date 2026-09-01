@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     shape-rendering="crispEdges" role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Grove</title>
+  <style>
+    /* Spores, going up the way they do in a shaft of light. */
+    .spore { animation: rise 9s linear infinite }
+    .s2 { animation-delay: -3s } .s3 { animation-delay: -6s }
+    @keyframes rise { 0% { transform: translateY(0); opacity: 0 } 20% { opacity: .8 } 100% { transform: translateY(-22px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .spore { animation: none; opacity: .5 } }
+  </style>
+  <defs>
+    <linearGradient id="canopy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1a12"/>
+      <stop offset="100%" stop-color="#16281a"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#canopy)"/>
+  <!-- Light coming down through the trees. -->
+  <g fill="#8FBF6A" opacity=".07">
+    <path d="M28 0 L44 0 L34 40 L22 40 Z"/>
+    <path d="M108 0 L120 0 L114 40 L104 40 Z"/>
+  </g>
+  <!-- The forest floor: moss, then leaf litter over it. -->
+  <rect x="0" y="30" width="160" height="10" fill="#20361f"/>
+  <rect x="0" y="30" width="160" height="2" fill="#2F5626"/>
+  <g fill="#4A7A3A">
+    <rect x="6" y="29" width="7" height="2"/><rect x="30" y="29" width="9" height="2"/>
+    <rect x="62" y="29" width="6" height="2"/><rect x="96" y="29" width="11" height="2"/>
+    <rect x="132" y="29" width="8" height="2"/>
+  </g>
+  <!-- Twigs. -->
+  <g fill="#4A3320">
+    <rect x="44" y="34" width="12" height="1"/><rect x="52" y="33" width="5" height="1"/>
+    <rect x="118" y="36" width="14" height="1"/><rect x="116" y="35" width="4" height="1"/>
+  </g>
+  <!-- Morels. The pack is named for this one, so it gets the middle and the
+       most pixels; the others are the same shape at half the size. -->
+  <g>
+    <rect x="77" y="20" width="6" height="12" fill="#E8DCC0"/>
+    <rect x="81" y="20" width="2" height="12" fill="#C9BC99"/>
+    <path d="M80 4 L87 11 L88 18 L80 21 L72 18 L73 11 Z" fill="#8B5A2B"/>
+    <path d="M80 4 L87 11 L88 18 L80 21 Z" fill="#79491F"/>
+    <g fill="#3E2517">
+      <rect x="79" y="7" width="2" height="2"/>
+      <rect x="76" y="10" width="2" height="2"/><rect x="82" y="10" width="2" height="2"/>
+      <rect x="74" y="13" width="2" height="2"/><rect x="79" y="13" width="2" height="2"/><rect x="84" y="13" width="2" height="2"/>
+      <rect x="75" y="16" width="2" height="2"/><rect x="79" y="16" width="2" height="2"/><rect x="83" y="16" width="2" height="2"/>
+    </g>
+  </g>
+  <g>
+    <rect x="35" y="25" width="3" height="7" fill="#E8DCC0"/>
+    <path d="M36.5 16 L41 20 L41 25 L36.5 26.5 L32 25 L32 20 Z" fill="#8B5A2B"/>
+    <g fill="#3E2517"><rect x="35" y="18" width="1.5" height="1.5"/><rect x="38" y="20" width="1.5" height="1.5"/><rect x="34" y="21" width="1.5" height="1.5"/><rect x="37" y="23" width="1.5" height="1.5"/></g>
+  </g>
+  <g>
+    <rect x="121" y="24" width="3" height="8" fill="#D9CDB0"/>
+    <path d="M122.5 15 L127 19 L127 24 L122.5 25.5 L118 24 L118 19 Z" fill="#79491F"/>
+    <g fill="#3E2517"><rect x="121" y="17" width="1.5" height="1.5"/><rect x="124" y="19" width="1.5" height="1.5"/><rect x="120" y="20" width="1.5" height="1.5"/><rect x="123" y="22" width="1.5" height="1.5"/></g>
+  </g>
+  <!-- Spores in the light. -->
+  <g fill="#D8E9BC">
+    <rect class="spore" x="34" y="24" width="1" height="1"/>
+    <rect class="spore s2" x="41" y="27" width="1" height="1"/>
+    <rect class="spore s3" x="112" y="25" width="1" height="1"/>
+  </g>
+</svg>

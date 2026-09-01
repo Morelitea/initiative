@@ -4,6 +4,8 @@ from typing import Any, Dict, Iterable, Set, Tuple
 
 from fastapi import WebSocket
 
+from app.services.platform import presence
+
 # A room is identified by (guild_id, initiative_id). The guild_id is REQUIRED in
 # the key: initiatives live in per-guild schemas (`guild_<id>.initiatives`, `id
 # SERIAL`), so initiative ids are per-schema sequences and collide across guilds
@@ -12,50 +14,6 @@ from fastapi import WebSocket
 # sockets from every guild that has an initiative 5 — a cross-guild leak. Never
 # key realtime state by a guild-schema-local id alone.
 RoomKey = Tuple[int, int]
-
-
-class OnlineRoll:
-    """Who has Initiative open — the person, not the place.
-
-    Deliberately separate from the guild presence the manager below keeps.
-    That one answers "how busy is this guild right now", and a guild is the
-    unit it counts in. This one answers "is this account online", which is a
-    fact about the person: they are online whether the tab they left open is a
-    guild they share with the asker, a guild they don't, or no guild at all.
-    Reading the guild roll for that answer would make someone look offline to
-    everyone who happens not to be in the guild they are sitting in.
-
-    Fed by the same connect/disconnect the rooms are, so there is one place a
-    socket is accounted for. Counted per user rather than per socket, so two
-    tabs are one person.
-
-    Bounded the same way the guild roll is: these are one process's own
-    sockets, held in memory. Where the API runs as more than one worker, each
-    holds a share, so this can say "no" about someone another worker is
-    serving. It drives a dot beside a name — a hint, not a fact anything
-    depends on.
-    """
-
-    def __init__(self) -> None:
-        # user_id -> how many of that user's sockets are open on this process.
-        self._sockets: Dict[int, int] = {}
-
-    def arrived(self, user_id: int) -> None:
-        self._sockets[user_id] = self._sockets.get(user_id, 0) + 1
-
-    def left(self, user_id: int) -> None:
-        remaining = self._sockets.get(user_id, 0) - 1
-        if remaining > 0:
-            self._sockets[user_id] = remaining
-        else:
-            self._sockets.pop(user_id, None)
-
-    def is_online(self, user_id: int) -> bool:
-        return user_id in self._sockets
-
-    def online_users(self, user_ids: Iterable[int]) -> Set[int]:
-        """Which of these accounts are online, for a page of them at a time."""
-        return {user_id for user_id in user_ids if user_id in self._sockets}
 
 
 class ConnectionManager:
@@ -81,8 +39,8 @@ class ConnectionManager:
     room, because a member of no initiative joins no rooms and is still here.
     Presence is counted per user, not per socket, so two tabs are one person.
     Whether a *person* is online at all is a different question and a different
-    object — ``self.online`` (see :class:`OnlineRoll`), fed from the same
-    connect/disconnect.
+    object — :mod:`app.services.platform.presence`, which this feeds from the
+    same connect/disconnect and which the notification stream feeds too.
 
     What that count is bounded by is worth stating: this is one process's own
     sockets, held in memory. Where the API runs as more than one worker each
@@ -98,9 +56,6 @@ class ConnectionManager:
         # guild_id -> user_id -> how many of that user's sockets are open here.
         self._present: Dict[int, Dict[int, int]] = {}
         self._socket_identity: Dict[WebSocket, Tuple[int, int]] = {}
-        # "Is this person online at all", which is not a guild question — see
-        # ``OnlineRoll``. Same sockets, different question.
-        self.online = OnlineRoll()
         self._lock = asyncio.Lock()
 
     async def connect(
@@ -122,7 +77,7 @@ class ConnectionManager:
             self._socket_identity[websocket] = (guild_id, user_id)
             present = self._present.setdefault(guild_id, {})
             present[user_id] = present.get(user_id, 0) + 1
-            self.online.arrived(user_id)
+            presence.online.arrived(user_id)
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a socket from every room it joined, and from its guild's roll."""
@@ -137,7 +92,7 @@ class ConnectionManager:
             if identity is None:
                 return
             guild_id, user_id = identity
-            self.online.left(user_id)
+            presence.online.left(user_id)
             present = self._present.get(guild_id)
             if present is None:
                 return

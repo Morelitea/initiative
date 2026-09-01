@@ -4,7 +4,6 @@
     "description": "Soit personne n'a ce profil, soit cette personne n'est pas dans cette communauté.",
     "back": "Retour à la communauté"
   },
-  "noStatus": "Rien pour le moment.",
   "presence": {
     "label": "Présence",
     "online": "En ligne",
@@ -19,9 +18,6 @@
     "parchment": "Parchemin",
     "gold": "Doré",
     "arcane": "Arcane",
-    "founder": "Fondateur",
-    "storyteller": "Conteur",
-    "trailblazer": "Pionnier",
     "dicetower": "Tour à dés",
     "natural20": "Vingt naturel",
     "d20": "d20",
@@ -30,7 +26,17 @@
     "cassette": "Cassette",
     "observatory": "Observatoire",
     "orbital": "Orbitale",
-    "flask": "Fiole"
+    "flask": "Fiole",
+    "fan": "Fan numéro un",
+    "grove": "Bosquet",
+    "overgrown": "Envahi de mousse",
+    "morel": "Morille",
+    "hollow": "Vallon",
+    "cobweb": "Toile d'araignée",
+    "lantern": "Citrouille d'Halloween",
+    "parade": "Défilé",
+    "spectrum": "Spectre",
+    "prideheart": "Cœur des fiertés"
   },
   "decorationPicker": {
     "heading": "Décorations du profil",
@@ -72,5 +78,19 @@
     "filterLabel": "Rechercher dans vos packs",
     "noMatch": "Aucun pack de ce nom.",
     "removeNamed": "Retirer {{name}}"
+  },
+  "status": {
+    "empty": "Dites ce que vous faites",
+    "edit": "Votre statut",
+    "help": "Un emoji, une ligne, ou les deux. Toute personne qui ouvre votre profil le voit.",
+    "placeholder": "Vous faites quoi ?",
+    "emojiPlaceholder": "Emoji",
+    "save": "Définir le statut",
+    "clear": "Effacer",
+    "failed": "Ce statut n'a pas pu être enregistré."
+  },
+  "guilds": {
+    "title": "Communautés",
+    "empty": "Aucune communauté publique."
   }
 }

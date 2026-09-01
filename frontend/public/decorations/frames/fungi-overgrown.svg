@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Overgrown</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <style>
+    /* Moss does not move. What moves is the light coming through the canopy
+       onto it, which is slow enough to notice only if you stay. */
+    .dapple { animation: drift 14s ease-in-out infinite }
+    @keyframes drift { 0%,100% { opacity:.25 } 50% { opacity:.6 } }
+    @media (prefers-reduced-motion: reduce) { .dapple { animation: none } }
+  </style>
+  <!-- Bark against the picture, then the moss growing over it. -->
+  <circle cx="64" cy="64" r="51" fill="none" stroke="#3E2517" stroke-width="3"/>
+  <circle cx="64" cy="64" r="55" fill="none" stroke="#4A7A3A" stroke-width="7"/>
+  <circle cx="64" cy="64" r="55" fill="none" stroke="#6FA34C" stroke-width="7"
+          stroke-dasharray="5 11" stroke-linecap="round" opacity=".85"/>
+  <circle cx="64" cy="64" r="55" fill="none" stroke="#2F5626" stroke-width="7"
+          stroke-dasharray="3 17" stroke-dashoffset="9" stroke-linecap="round"/>
+  <circle class="dapple" cx="64" cy="64" r="55" fill="none" stroke="#C8E6A0"
+          stroke-width="7" stroke-dasharray="2 30" stroke-linecap="round"/>
+  <!-- Twigs, laid across the moss rather than under it. -->
+  <g stroke="#5A3A1E" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <path d="M96 34 q8 -6 14 -4"/>
+    <path d="M101 32 l3 -6"/>
+    <path d="M26 88 q-8 7 -14 6"/>
+    <path d="M20 92 l-3 6"/>
+  </g>
+  <!-- Morels growing out of it, at the compass points a frame has room for. -->
+  <g>
+    <g transform="translate(64 6)">
+      <rect x="-1.5" y="4" width="3" height="6" fill="#E8DCC0"/>
+      <path d="M0 -4 L4 1 L4.5 5 L0 6.5 L-4.5 5 L-4 1 Z" fill="#8B5A2B"/>
+      <g fill="#3E2517"><rect x="-2" y="-1" width="1.5" height="1.5"/><rect x="1" y="-1" width="1.5" height="1.5"/><rect x="-3" y="2" width="1.5" height="1.5"/><rect x="0" y="2" width="1.5" height="1.5"/><rect x="2" y="2" width="1.5" height="1.5"/></g>
+    </g>
+    <g transform="translate(112 84) rotate(60)">
+      <rect x="-1.2" y="3" width="2.4" height="5" fill="#E8DCC0"/>
+      <path d="M0 -3 L3.2 1 L3.6 4 L0 5.2 L-3.6 4 L-3.2 1 Z" fill="#79491F"/>
+      <g fill="#3E2517"><rect x="-1.6" y="0" width="1.2" height="1.2"/><rect x="0.6" y="0" width="1.2" height="1.2"/><rect x="-0.6" y="2.4" width="1.2" height="1.2"/></g>
+    </g>
+    <g transform="translate(20 60) rotate(-75)">
+      <rect x="-1.2" y="3" width="2.4" height="5" fill="#E8DCC0"/>
+      <path d="M0 -3 L3.2 1 L3.6 4 L0 5.2 L-3.6 4 L-3.2 1 Z" fill="#8B5A2B"/>
+      <g fill="#3E2517"><rect x="-1.6" y="0" width="1.2" height="1.2"/><rect x="0.6" y="0" width="1.2" height="1.2"/><rect x="-0.6" y="2.4" width="1.2" height="1.2"/></g>
+    </g>
+  </g>
+</svg>

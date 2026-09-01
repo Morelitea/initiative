@@ -10,6 +10,10 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify("0.0.0-test"),
     __IS_CAPACITOR__: JSON.stringify(false),
+    // The app serves its own emoji dataset rather than reaching a CDN, and the
+    // path is a build-time constant. Without it here the identifier survives
+    // into the test bundle and any component that opens the picker throws.
+    __EMOJIBASE_URL__: JSON.stringify("/emojibase"),
   },
   test: {
     globals: true,

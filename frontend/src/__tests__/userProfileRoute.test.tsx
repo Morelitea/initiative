@@ -21,6 +21,9 @@ const PROFILE_ROUTE_ID = "/_serverRequired/_authenticated/u/$handle";
 const mocks = vi.hoisted(() => ({ profile: vi.fn() }));
 vi.mock("@/hooks/useUsers", () => ({
   useUserProfile: (handle: string | null) => mocks.profile(handle),
+  // The status bubble is a control on your own profile, so it holds a mutation
+  // whether or not this one is yours.
+  useUpdateCurrentUser: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 const router = createRouter({ routeTree });
@@ -98,21 +101,23 @@ describe("a member's profile", () => {
         profile_decorations: {
           banner: "core.aurora",
           frame: "core.gold",
-          badges: ["core.founder", "thirdparty.unknown"],
+          badges: ["ttrpg.d20", "thirdparty.unknown"],
         },
       })
     );
     const { container } = await renderProfile();
 
-    expect(await screen.findByAltText("Founder")).toHaveAttribute(
+    expect(await screen.findByAltText("d20")).toHaveAttribute(
       "src",
-      "/decorations/badges/core-founder.svg"
+      "/decorations/badges/ttrpg-d20.svg"
     );
     // The frame is worn over the picture and says nothing, so it is hidden
     // from assistive technology and found by its source instead.
     expect(container.querySelector('img[src="/decorations/frames/core-gold.svg"]')).not.toBeNull();
+    // The banner runs the width of the content area now, the way a
+    // community's front page does, so it is a picture rather than a fill.
     expect(
-      container.querySelector('[style*="/decorations/banners/core-aurora.svg"]')
+      container.querySelector('img[src="/decorations/banners/core-aurora.svg"]')
     ).not.toBeNull();
   });
 

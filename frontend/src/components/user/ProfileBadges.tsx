@@ -20,12 +20,12 @@ export const ProfileBadges = ({
   if (badges.length === 0) return null;
 
   return (
-    <ul className="flex flex-wrap items-center gap-1.5">
+    <ul className="flex flex-wrap items-center gap-2">
       {badges.map((badge) => {
         const label = t(badge.labelKey);
         return (
           <li key={badge.id}>
-            <img src={badge.src} alt={label} title={label} className="size-6" />
+            <img src={badge.src} alt={label} title={label} className="size-9" />
           </li>
         );
       })}

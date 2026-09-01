@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     shape-rendering="crispEdges" role="presentation">
+  <title>Morel</title>
+  <!-- A morel, which is the one mushroom you identify by its surface rather
+       than its shape: the pitted honeycomb cap is the whole tell, so the pits
+       get the pixels and everything else stays out of their way. -->
+  <circle cx="24" cy="24" r="23" fill="#16251A"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#2E4A34" stroke-width="2"/>
+  <!-- Stem. -->
+  <rect x="20" y="29" width="8" height="12" fill="#E8DCC0"/>
+  <rect x="25" y="29" width="3" height="12" fill="#C9BC99"/>
+  <rect x="20" y="39" width="8" height="2" fill="#B3A47F"/>
+  <!-- Cap. -->
+  <path d="M24 5 L31 13 L33 23 L31 30 L24 32 L17 30 L15 23 L17 13 Z" fill="#8B5A2B"/>
+  <path d="M24 5 L31 13 L33 23 L31 30 L24 32 Z" fill="#79491F"/>
+  <!-- The pits, in offset rows the way a morel's actually run. -->
+  <g fill="#3E2517">
+    <rect x="22" y="9" width="3" height="2"/>
+    <rect x="20" y="12" width="3" height="2"/><rect x="24" y="12" width="3" height="2"/>
+    <rect x="18" y="15" width="3" height="2"/><rect x="22" y="15" width="3" height="2"/><rect x="26" y="15" width="3" height="2"/>
+    <rect x="17" y="18" width="3" height="2"/><rect x="21" y="18" width="3" height="2"/><rect x="25" y="18" width="3" height="2"/><rect x="29" y="18" width="3" height="2"/>
+    <rect x="17" y="21" width="3" height="2"/><rect x="21" y="21" width="3" height="2"/><rect x="25" y="21" width="3" height="2"/><rect x="29" y="21" width="3" height="2"/>
+    <rect x="17" y="24" width="3" height="2"/><rect x="21" y="24" width="3" height="2"/><rect x="25" y="24" width="3" height="2"/><rect x="29" y="24" width="3" height="2"/>
+    <rect x="18" y="27" width="3" height="2"/><rect x="22" y="27" width="3" height="2"/><rect x="26" y="27" width="3" height="2"/>
+  </g>
+  <!-- The ridges between them, catching the light on the near side. -->
+  <g fill="#B07C4A">
+    <rect x="20" y="14" width="1" height="16"/>
+    <rect x="24" y="11" width="1" height="19"/>
+  </g>
+</svg>
