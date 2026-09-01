@@ -81,6 +81,7 @@ async def lifespan(app: FastAPI):
         verify_effective_shared_grants,
         verify_engine_identities,
         warn_if_privileged_database_url,
+        warn_if_search_operator_missing,
     )
 
     # Before the heals: name the three DB logins in the log, and warn loudly
@@ -102,6 +103,7 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
+    await warn_if_search_operator_missing()
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).

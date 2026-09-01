@@ -149,6 +149,22 @@ async def connect_su_postgres() -> asyncpg.Connection:
     )
 
 
+async def connect_su_test_db() -> asyncpg.Connection:
+    """Test-infra superuser connection to THIS worker's test database.
+
+    Same credentials as :func:`connect_su_postgres`, pointed at the database the
+    suite runs against — for the install-time DDL that requires superuser and
+    that infrastructure, not the app, performs.
+    """
+    return await asyncpg.connect(
+        user=_su_user,
+        password=_su_password,
+        host=_app_db.hostname,
+        port=_app_db.port or 5432,
+        database=TEST_DB_NAME,
+    )
+
+
 async def _ensure_test_database() -> None:
     """Create this worker's test database if it doesn't exist.
 
@@ -177,6 +193,27 @@ async def _ensure_test_database() -> None:
                 # than spin 12x and mask it behind a generic RuntimeError.
                 await asyncio.sleep(0.5)
         raise RuntimeError(f"could not create test database {TEST_DB_NAME!r}")
+    finally:
+        await conn.close()
+
+
+async def _install_search_operator() -> None:
+    """Install the search match operator + operator class in the test database.
+
+    Infrastructure installs these once as a superuser (compose init script, or
+    ``scripts/create-search-operator.sql``); the suite is that infrastructure for
+    its own database, the same way it sources its own superuser. Without them the
+    index falls back to the stock operator — a different plan than production
+    runs, so the tests would not be exercising what ships.
+    """
+    sql = (Path(__file__).parent / "scripts" / "create-search-operator.sql").read_text()
+    # psql meta-commands and the trailing verification SELECT are for humans.
+    body = "\n".join(
+        line for line in sql.splitlines() if not line.startswith("\\")
+    ).split("-- 4. Confirm.")[0]
+    conn = await connect_su_test_db()
+    try:
+        await conn.execute(body)
     finally:
         await conn.close()
 
@@ -233,6 +270,9 @@ async def _migrate_under_lock() -> None:
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
         await _ensure_test_database()
+        # Before migrations: the search-index migration chooses its operator
+        # class based on whether these objects are present.
+        await _install_search_operator()
         await asyncio.to_thread(_alembic_upgrade_head)
     finally:
         await lock_conn.close()  # closing the connection releases the advisory lock

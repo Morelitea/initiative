@@ -365,10 +365,52 @@ _HEADER = """\
 -- ============================================================================"""
 
 
-def render_guild_search_ddl() -> str:
-    """Per-table trigger DDL, applied inside each guild schema."""
+SEARCH_INDEX = "ix_search_entries_tsv"
+
+
+def _index_block(opclass: str | None) -> str:
+    """DDL asserting the index is built on ``opclass``, rebuilding only if not.
+
+    Rendered here rather than left to the reflected structure DDL, which emits
+    ``CREATE INDEX IF NOT EXISTS`` and so would keep whichever index a schema
+    already has. Because the rendered text names the operator class, installing
+    or removing it changes the provisioning stamp, and the next boot re-asserts
+    the index for every guild.
+    """
+    marker = opclass.split(".")[-1] if opclass else ""
+    using = f"gin (tsv {opclass})" if opclass else "gin (tsv)"
+    # With a class: rebuild unless already on it. Without: rebuild if it is on
+    # one, so removing the objects leaves a usable index behind.
+    condition = (
+        f"current_def IS NULL OR position('{marker}' in current_def) = 0"
+        if marker
+        else "current_def IS NULL OR position('_search_ops' in current_def) > 0"
+    )
+    return (
+        "DO $$\n"
+        "DECLARE current_def text;\n"
+        "BEGIN\n"
+        "    SELECT indexdef INTO current_def FROM pg_indexes\n"
+        f"     WHERE schemaname = current_schema() AND indexname = '{SEARCH_INDEX}';\n"
+        f"    IF {condition} THEN\n"
+        f"        EXECUTE 'DROP INDEX IF EXISTS {SEARCH_INDEX}';\n"
+        f"        EXECUTE 'CREATE INDEX {SEARCH_INDEX} ON search_entries "
+        f"USING {using}';\n"
+        "    END IF;\n"
+        "END\n"
+        "$$;"
+    )
+
+
+def render_guild_search_ddl(opclass: str | None = None) -> str:
+    """Per-table trigger DDL plus the index, applied inside each guild schema.
+
+    ``opclass`` is the operator class the index is built on, or ``None`` for the
+    stock one.
+    """
     blocks = [
         _trigger_block(table, source)
         for table, source in sorted(SEARCH_SOURCES.items())
     ]
+    blocks.append(_index_block(opclass))
     return _HEADER + "\n\n" + "\n\n".join(blocks) + "\n"

@@ -1,16 +1,13 @@
 """Reading the guild search index.
 
-The index is gated in the database by initiative membership, exactly like the
-content tables it mirrors (``search_entries`` carries the same
-``initiative_member_*`` policies as ``documents``). The final gate — per-resource
-sharing — is applied here, and :func:`search_scope_clause` is the ONLY way to
-read the table.
+``search_entries`` carries the same ``initiative_member_*`` policies as the
+content tables it mirrors. Per-resource sharing is applied here, and
+:func:`search_scope_clause` is the ONLY way to read the table.
 
-That single entry point is deliberate. A content table is reached through its own
-tool's endpoints, so a missing sharing clause costs that one tool; the index
-spans every tool, so it would cost all of them at once. Composing the clause here
-rather than at each call site means a query cannot be written without it, and a
-new tool is covered by construction because the legs derive from ``Tool``.
+That single entry point is deliberate: the index spans every tool, so composing
+the clause here rather than at each call site means a query cannot be written
+without it, and a new tool is covered by construction because the legs derive
+from ``Tool``.
 """
 
 from __future__ import annotations
@@ -19,6 +16,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.tools import Tool
+from app.db.schema_provisioning import search_operator_available
 from app.models.tenant.search_entry import SearchEntry
 from app.services.permissions import dac_scope_clause
 
@@ -56,3 +54,16 @@ def search_scope_clause(
             for tool in Tool
         ],
     )
+
+
+def search_match_clause(tsquery: ColumnElement) -> ColumnElement[bool]:
+    """The text-match predicate, using whichever operator this install can index.
+
+    ``public.@@@`` where ``scripts/create-search-operator.sql`` has been run,
+    the stock ``@@`` otherwise. Both return the same rows; only the first can
+    use the index. Going through this one function is what keeps a query from
+    quietly picking the other.
+    """
+    if search_operator_available():
+        return SearchEntry.tsv.op("OPERATOR(public.@@@)", is_comparison=True)(tsquery)
+    return SearchEntry.tsv.op("@@", is_comparison=True)(tsquery)
