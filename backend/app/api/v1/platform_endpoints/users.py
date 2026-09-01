@@ -218,12 +218,6 @@ async def search_users(
         ),
     ),
     user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
-    initiative_id: Optional[int] = Query(
-        default=None,
-        description=(
-            "Restrict to members of one initiative — who a mention in it can reach."
-        ),
-    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:

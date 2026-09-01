@@ -6367,10 +6367,6 @@ export type SearchUsersApiV1GGuildIdUsersSearchGetParams = {
   search?: string | null;
   user_id?: number[] | null;
   /**
-   * Restrict to members of one initiative — who a mention in it can reach.
-   */
-  initiative_id?: number | null;
-  /**
    * @minimum 1
    */
   page?: number;
