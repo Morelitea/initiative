@@ -127,7 +127,7 @@ export function SearchPage() {
   // or a query that has since narrowed. Left alone it reads as "nothing
   // matched", which is the opposite of what happened, so it corrects itself
   // back onto the last page that has results.
-  const total = results.data?.total;
+  const total = settledTotal(results);
   const lastPage = total === undefined ? undefined : Math.max(1, Math.ceil(total / PAGE_SIZE));
   const outOfRange = lastPage !== undefined && page > lastPage;
   useEffect(() => {
@@ -170,11 +170,7 @@ export function SearchPage() {
                 key={category}
                 value={category}
                 // Nothing behind it, and not where the reader already is.
-                disabled={
-                  category !== tab &&
-                  probes[category].isFetched &&
-                  (probes[category].data?.total ?? 0) === 0
-                }
+                disabled={category !== tab && settledTotal(probes[category]) === 0}
               >
                 {t(`search:tabs.${category}`)}
               </TabsTrigger>
@@ -201,6 +197,21 @@ export function SearchPage() {
       )}
     </div>
   );
+}
+
+/**
+ * How many things this query matched, or `undefined` while that isn't known
+ * yet.
+ *
+ * The previous query's results stay on screen while a new one is in flight, so
+ * that a reader typing isn't left staring at an empty page. Their total belongs
+ * to the query that is leaving: it says nothing about how many pages the
+ * arriving one has, or whether its tab holds anything. Anything drawing a
+ * conclusion from a total reads it through here.
+ */
+function settledTotal(query: ReturnType<typeof useGuildSearch>): number | undefined {
+  if (query.isPlaceholderData || !query.isFetched) return undefined;
+  return query.data?.total;
 }
 
 function Loading() {

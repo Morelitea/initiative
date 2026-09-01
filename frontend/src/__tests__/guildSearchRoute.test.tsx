@@ -52,6 +52,23 @@ const withHits = (tools: SearchHit[], tags: SearchHit[]) => {
   });
 };
 
+/**
+ * Every scope still showing the PREVIOUS query's results, the way React Query
+ * keeps them on screen while a new query is in flight. Tools matched one thing
+ * and tags matched nothing — for the query that is leaving.
+ */
+const withStaleAnswer = () => {
+  mocks.search.mockImplementation((params: SearchParams) => {
+    const isTags = params.types?.includes("tag") ?? false;
+    return {
+      data: buildSearchResults(isTags ? [] : [buildSearchHit()], { total: isTags ? 0 : 1 }),
+      isLoading: false,
+      isFetched: true,
+      isPlaceholderData: true,
+    };
+  });
+};
+
 const router = createRouter({ routeTree });
 
 const resolvedRouteId = (pathname: string): string => {
@@ -165,6 +182,19 @@ describe("the guild search page", () => {
     expect(await screen.findByText("Match 20")).toBeInTheDocument();
     await waitFor(() => expect(pageRouter.state.location.search).toMatchObject({ page: 2 }));
     expect(screen.queryByText(/No results for/)).not.toBeInTheDocument();
+  });
+
+  it("draws no conclusion from a total that belongs to the query before it", async () => {
+    // Arriving on page 3 of a fresh query while the previous query's results
+    // are still on screen. That query matched one thing in one tab and nothing
+    // in the other, and neither fact is about this one — so the page must not
+    // be corrected, and the empty tab must not be closed off.
+    withStaleAnswer();
+    const { router: pageRouter } = await renderSearch({ q: "riverside", page: 3 });
+
+    await screen.findByRole("tab", { name: "Tools" });
+    expect(pageRouter.state.location.search).toMatchObject({ page: 3 });
+    expect(screen.getByRole("tab", { name: "Tags" })).toBeEnabled();
   });
 });
 
