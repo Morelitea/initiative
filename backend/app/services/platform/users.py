@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 
 
-from sqlalchemy import func, update
+from sqlalchemy import ColumnElement, func, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -780,6 +780,32 @@ async def hard_delete_user(
     await session.delete(user)
 
     await session.commit()
+
+
+#: How close a typed name has to be to a member's to be worth offering.
+#: Separate from the content-search threshold on purpose: a name is a short
+#: string and a title is a sentence, so the two are tuned against different
+#: things even where the number happens to agree.
+MEMBER_MATCH_THRESHOLD = 0.4
+
+
+def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
+    """How close a member's name is to what was typed, as a rankable number.
+
+    Measured against the closest RUN of the name rather than the whole of it,
+    so a surname matches a member listed by both names. Answers the misspelling
+    that substring matching cannot — and its real work is the ORDER, putting the
+    nearest name at the top of a page rather than whoever sorts first.
+
+    ``shows_names`` is the guild's own setting, so a real name is matched
+    exactly where it is shown and nowhere else.
+    """
+    closest = func.word_similarity(term, User.username)
+    if shows_names:
+        closest = func.greatest(
+            closest, func.word_similarity(term, func.coalesce(User.full_name, ""))
+        )
+    return closest
 
 
 def visible_to_other_people():

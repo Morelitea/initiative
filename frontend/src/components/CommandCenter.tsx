@@ -45,7 +45,7 @@ import {
   categoryEntityTypes,
   DEFAULT_SEARCH_CATEGORY,
   hitIcon,
-  SEARCH_CATEGORIES,
+  INDEX_SEARCH_CATEGORIES,
   type SearchCategory,
   searchHitPath,
 } from "@/lib/searchResults";
@@ -113,8 +113,8 @@ export function CommandCenter() {
       if (!target?.hasAttribute("cmdk-input")) return;
       event.preventDefault();
       setScope((current) => {
-        const next = SEARCH_CATEGORIES.indexOf(current) + 1;
-        return SEARCH_CATEGORIES[next % SEARCH_CATEGORIES.length];
+        const next = INDEX_SEARCH_CATEGORIES.indexOf(current) + 1;
+        return INDEX_SEARCH_CATEGORIES[next % INDEX_SEARCH_CATEGORIES.length];
       });
     };
     document.addEventListener("keydown", handleTab);
@@ -158,7 +158,8 @@ export function CommandCenter() {
   // back — tasks, documents, queue items, events, tags — ranked together.
   const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
     enabled: open && !!user && isSearching,
-    types: categoryEntityTypes(scope),
+    // Never null: the palette's scopes are the ones the index answers for.
+    types: categoryEntityTypes(scope) ?? undefined,
     staleTime: 30_000,
   });
   // Browsing (palette just opened): the user's own not-done tasks, most
@@ -287,7 +288,7 @@ export function CommandCenter() {
           role="tablist"
           aria-label={t("search:title")}
         >
-          {SEARCH_CATEGORIES.map((category) => (
+          {INDEX_SEARCH_CATEGORIES.map((category) => (
             <button
               key={category}
               type="button"

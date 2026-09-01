@@ -232,8 +232,7 @@ async def _close_titles(
             )
             rows = (await session.exec(statement)).all()
     except SQLAlchemyError:
-        # Gave up, or this database has no pg_trgm. Either way the reader gets
-        # the empty page they already had.
+        # Gave up. The reader gets the empty page they already had.
         return []
     finally:
         # ``SET LOCAL`` outlives the savepoint when it commits, so it is put

@@ -54,8 +54,12 @@ export const USER_SEARCH_PAGE_SIZE = 25;
 export const USER_ID_LOOKUP_MAX = 100;
 
 export interface UserSearchOptions {
-  /** Case-insensitive substring match on the member's name. */
+  /** Matches a member's name — by what it contains, and by how close it is, so
+   *  a name typed nearly right still finds the person. */
   search?: string;
+  /** Which page of the match to read. Defaults to the first, which is all a
+   *  typeahead ever wants; the search page reads further. */
+  page?: number;
   /** Resolve these specific members instead of browsing the roster — how a
    *  picker turns stored ids back into names/avatars. Narrows the same scoped
    *  set, so an id outside it simply doesn't come back. */
@@ -83,6 +87,7 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
  */
 export const useUserSearch = ({
   search,
+  page,
   userIds,
   pageSize = USER_SEARCH_PAGE_SIZE,
   enabled = true,
@@ -92,7 +97,11 @@ export const useUserSearch = ({
   const guildId = guildIdOverride ?? activeGuildId;
   return useSearchUsersApiV1GGuildIdUsersSearchGet(
     guildId,
-    { ...memberSearchParams(search, userIds), page_size: pageSize },
+    {
+      ...memberSearchParams(search, userIds),
+      page_size: pageSize,
+      ...(page != null ? { page } : {}),
+    },
     {
       query: {
         enabled: enabled && guildId != null,
@@ -125,7 +134,10 @@ export const useInitiativeMemberSearch = (
   return useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet(
     guildId,
     initiativeId as number,
-    { ...memberSearchParams(search, userIds), page_size: pageSize },
+    {
+      ...memberSearchParams(search, userIds),
+      page_size: pageSize,
+    },
     {
       query: {
         enabled: enabled && guildId != null && initiativeId != null,
@@ -157,7 +169,10 @@ export const useProjectMemberSearch = (
   return useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
     guildId,
     projectId as number,
-    { ...memberSearchParams(search, userIds), page_size: pageSize },
+    {
+      ...memberSearchParams(search, userIds),
+      page_size: pageSize,
+    },
     {
       query: {
         enabled: enabled && guildId != null && projectId != null,

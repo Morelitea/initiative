@@ -22,9 +22,12 @@ import { renderPage } from "./helpers/render";
 
 const SEARCH_ROUTE_ID = "/_serverRequired/_authenticated/c/$guildId/search";
 
-const mocks = vi.hoisted(() => ({ search: vi.fn(), suggest: vi.fn() }));
+const mocks = vi.hoisted(() => ({ search: vi.fn(), suggest: vi.fn(), members: vi.fn() }));
+vi.mock("@/hooks/useUsers", () => ({
+  useUserSearch: (options: unknown) => mocks.members(options),
+}));
 vi.mock("@/hooks/useSearch", () => ({
-  useGuildSearch: (params: unknown) => mocks.search(params),
+  useGuildSearch: (params: unknown, options: unknown) => mocks.search(params, options),
   useGuildSearchSuggest: (query: string, options: unknown) => mocks.suggest(query, options),
 }));
 
@@ -133,6 +136,11 @@ const tag = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.suggest.mockReturnValue({ data: [], isLoading: false });
+  mocks.members.mockReturnValue({
+    data: { items: [], total_count: 0, page: 1, page_size: 20, has_next: false, has_prev: false },
+    isLoading: false,
+    isFetched: true,
+  });
   withHits([], []);
 });
 
@@ -254,6 +262,56 @@ describe("the guild search page", () => {
     await screen.findByRole("tab", { name: "Tools" });
     expect(pageRouter.state.location.search).toMatchObject({ page: 3 });
   });
+
+  it("shows the people of this community on their own tab, and asks the roster", async () => {
+    // Members are not in the index — identity is shared across communities,
+    // and the index is per-community — so the tab asks the roster instead.
+    mocks.members.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: 4,
+            username: "thorn-ironforge",
+            discriminator: 22,
+            full_name: "Thorn Ironforge",
+            avatar_url: null,
+            status: "active",
+          },
+        ],
+        total_count: 1,
+        page: 1,
+        page_size: 20,
+        has_next: false,
+        has_prev: false,
+      },
+      isLoading: false,
+      isFetched: true,
+    });
+    await renderSearch({ q: "irnforge", tab: "member" });
+
+    expect(await screen.findByText("Thorn Ironforge")).toBeInTheDocument();
+    expect(mocks.members).toHaveBeenCalledWith(
+      expect.objectContaining({ search: "irnforge", enabled: true })
+    );
+    // ...and the index is not asked on this tab: people are not in it.
+    expect(mocks.search).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false })
+    );
+  });
+
+  it("puts Members second, between what is here and what was said about it", async () => {
+    withHits([project()], []);
+    await renderSearch({ q: "riverside" });
+
+    await screen.findByRole("tab", { name: "Tools" });
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Tools",
+      "Members",
+      "Comments",
+      "Tags",
+    ]);
+  });
 });
 
 describe("the command palette", () => {
@@ -274,6 +332,9 @@ describe("the command palette", () => {
     expect(tools).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Comments" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Tags" })).toBeInTheDocument();
+    // Not Members: the palette is a way to reach one thing, and a person has
+    // no page to be reached at yet.
+    expect(screen.queryByRole("tab", { name: "Members" })).not.toBeInTheDocument();
 
     // Tab from the input moves between slices, so the hands stay on the query.
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });

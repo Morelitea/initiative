@@ -13,6 +13,7 @@
   },
   "tabs": {
     "tool": "Tools",
+    "member": "Members",
     "comment": "Comments",
     "tag": "Tags"
   },

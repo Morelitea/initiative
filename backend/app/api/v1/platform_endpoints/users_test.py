@@ -268,6 +268,82 @@ async def test_search_users_filters_by_name(client: AsyncClient, session: AsyncS
 
 
 @pytest.mark.integration
+async def test_search_users_finds_a_name_typed_nearly_right(
+    client: AsyncClient, session: AsyncSession
+):
+    """Reading a roster is how you learn a colleague's spelling, so requiring
+    it first is the wrong way round. A dropped letter and a transposition both
+    still find the person."""
+    guild = await create_guild(session)
+    caller = await create_user(session, username="asmith", full_name="Alice Smith")
+    target = await create_user(
+        session, username="thorn-ironforge", full_name="Thorn Ironforge"
+    )
+    for user in (caller, target):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    for typed in ("irnforge", "ironfroge"):
+        response = await client.get(
+            f"/api/v1/g/{guild.id}/users/search",
+            headers=get_auth_headers(caller),
+            params={"search": typed},
+        )
+        assert response.status_code == 200, response.text
+        found = [item["username"] for item in response.json()["items"]]
+        assert "thorn-ironforge" in found, f"{typed} found {found}"
+
+
+@pytest.mark.integration
+async def test_search_users_never_reaches_another_guild(
+    client: AsyncClient, session: AsyncSession
+):
+    """Matching a name more loosely must not widen WHOSE names are matched.
+    Only this guild's members are ever searched, exact spelling or not."""
+    guild = await create_guild(session)
+    caller = await create_user(session, username="asmith", full_name="Alice Smith")
+    await create_guild_membership(session, user=caller, guild=guild)
+
+    elsewhere = await create_guild(session)
+    stranger = await create_user(
+        session, username="thorn-ironforge", full_name="Thorn Ironforge"
+    )
+    await create_guild_membership(session, user=stranger, guild=elsewhere)
+
+    for typed in ("ironforge", "irnforge", "thorn"):
+        response = await client.get(
+            f"/api/v1/g/{guild.id}/users/search",
+            headers=get_auth_headers(caller),
+            params={"search": typed},
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["total_count"] == 0, f"{typed} reached {body['items']}"
+
+
+@pytest.mark.integration
+async def test_search_users_matches_real_names_only_where_they_are_shown(
+    client: AsyncClient, session: AsyncSession
+):
+    """A real name is searchable exactly where it is shown. In a guild that
+    hides them, neither the spelling of one nor a near miss at it matches."""
+    guild = await create_guild(session, show_member_names=False)
+    caller = await create_user(session, username="asmith", full_name="Alice Smith")
+    hidden = await create_user(session, username="qzx", full_name="Bartholomew Higgins")
+    for user in (caller, hidden):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    for typed in ("Bartholomew", "Bartholemew", "Higgins"):
+        response = await client.get(
+            f"/api/v1/g/{guild.id}/users/search",
+            headers=get_auth_headers(caller),
+            params={"search": typed},
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["total_count"] == 0, f"{typed} matched a name this guild hides"
+
+
+@pytest.mark.integration
 async def test_search_users_filters_by_user_id(
     client: AsyncClient, session: AsyncSession
 ):

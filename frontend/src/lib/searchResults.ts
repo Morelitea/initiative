@@ -92,10 +92,12 @@ export const TOOL_ENTITY_TYPES: SearchEntityType[] = Object.values(SearchEntityT
 );
 
 /** Which tab a result belongs under. */
-export type SearchCategory = "tool" | "comment" | "tag";
+export type SearchCategory = "tool" | "member" | "comment" | "tag";
 
-/** The tabs, in the order they are shown. */
-export const SEARCH_CATEGORIES: SearchCategory[] = ["tool", "comment", "tag"];
+/** The tabs, in the order they are shown. Members sit second: who is here is
+ *  asked about nearly as often as what is here, and far more often than what
+ *  was said about it. */
+export const SEARCH_CATEGORIES: SearchCategory[] = ["tool", "member", "comment", "tag"];
 
 /** Where a search lands. Tools is where nearly everything a reader is looking
  *  for lives, so it is the tab to open on rather than one more click away. */
@@ -104,12 +106,27 @@ export const DEFAULT_SEARCH_CATEGORY: SearchCategory = "tool";
 export const isSearchCategory = (value: unknown): value is SearchCategory =>
   typeof value === "string" && (SEARCH_CATEGORIES as string[]).includes(value);
 
-/** The `types` param restricting a search to one category. */
-export const categoryEntityTypes = (category: SearchCategory): SearchEntityType[] => {
+/**
+ * The `types` param restricting a search to one category, or `null` where the
+ * category is not in the index at all.
+ *
+ * Members are people, not content: they live in the shared tables that identity
+ * lives in, not in a community's own schema, so they are asked for from the
+ * roster rather than found in the index. `null` is what says so.
+ */
+export const categoryEntityTypes = (category: SearchCategory): SearchEntityType[] | null => {
+  if (category === "member") return null;
   if (category === "tag") return [TAG_ENTITY_TYPE];
   if (category === "comment") return [COMMENT_ENTITY_TYPE];
   return TOOL_ENTITY_TYPES;
 };
+
+/** The tabs the search index answers for — everything but the people, who are
+ *  read from the roster. Derived, so a category added above joins the right
+ *  one of the two by what it is rather than by being listed twice. */
+export const INDEX_SEARCH_CATEGORIES: SearchCategory[] = SEARCH_CATEGORIES.filter(
+  (category) => categoryEntityTypes(category) !== null
+);
 
 /** The category a hit renders under. */
 export const hitCategory = (target: SearchTarget): SearchCategory => {
