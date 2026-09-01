@@ -17,6 +17,7 @@ path that gives a long document several.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy import MetaData
@@ -45,8 +46,13 @@ class SearchSource:
     entity_type: str
     #: Column holding the row's display title (weighted 'A').
     title: str
-    #: Columns concatenated into the body (weighted 'B'), in order.
+    #: Columns feeding the body (weighted 'B'). Also the columns whose change
+    #: makes the entry stale, so they drive the trigger's WHEN clause.
     body: tuple[str, ...] = ()
+    #: Builds the body from a row alias, for a source whose text is not simply
+    #: its columns concatenated. Takes precedence over ``body``; the columns are
+    #: still declared above so the WHEN clause knows what to watch.
+    body_sql: Callable[[str], str] | None = None
     #: The tool whose sharing governs this row, and the column naming the
     #: resource id to test. ``dac_id=None`` means the row's own ``id``.
     #: ``dac_tool=None`` means the row carries no sharing gate (a tag).
@@ -61,6 +67,75 @@ class SearchSource:
         """Stem for this table's triggers; INSERT/DELETE and UPDATE are split
         (a WHEN clause naming OLD is invalid on INSERT)."""
         return f"search_{self.entity_type}"
+
+
+def _json_text(row: str, path: str, *, column: str = "content") -> str:
+    """Text of every value a jsonpath selects, as one space-joined string.
+
+    ``strict`` so a value reachable by more than one path is taken once —
+    the lax form walks into arrays as well as their elements and would store
+    the same text twice. ``silent`` so a shape that simply lacks the key
+    yields nothing instead of raising.
+    """
+    return (
+        "coalesce((SELECT string_agg(v #>> '{}', ' ') FROM jsonb_path_query("
+        f"{row}.{column}, '{path}', '{{}}'::jsonb, true) v), '')"
+    )
+
+
+def _with_words(expr: str) -> str:
+    """``expr``, plus the same value split on punctuation.
+
+    A URL or a filename is tokenized as a whole — ``www.figma.com`` and
+    ``vendor-contract-2026.pdf`` are each a single lexeme — so the words inside
+    them are not findable on their own. Emitting a split copy alongside makes
+    both work. Used only for these short, punctuation-dense fields; doing it to
+    prose would double what is stored for nothing.
+    """
+    return f"{expr} || ' ' || regexp_replace({expr}, '[^[:alnum:]]+', ' ', 'g')"
+
+
+def _document_text(row: str) -> str:
+    """A document's searchable text, by what kind of document it is.
+
+    ``content`` holds a different shape per type, so there is no single
+    expression. ``native`` and ``whiteboard`` share one: a Lexical text node
+    and an Excalidraw text or label element both keep their text in a field
+    named ``text``, and the recursive path reaches nested cases — a mention, a
+    wikilink, an image caption's own editor state.
+
+    A ``file`` document contributes nothing here: its bytes live in ``uploads``,
+    so its name, description and uploaded filename are all there is to index.
+    """
+    leaves = _json_text(row, "strict $.**.text")
+    cells = (
+        "coalesce((SELECT string_agg(v #>> '{}', ' ') FROM ("
+        f"SELECT v FROM jsonb_path_query({row}.content, 'strict $.**.cells.*', "
+        "'{}'::jsonb, true) v"
+        " UNION ALL "
+        f"SELECT v FROM jsonb_path_query({row}.content, 'strict $.sheets[*].name', "
+        "'{}'::jsonb, true) v) s), '')"
+    )
+    url = _with_words(f"coalesce({row}.content ->> 'url', '')")
+    return (
+        f"(CASE {row}.document_type::text"
+        f" WHEN 'native' THEN {leaves}"
+        f" WHEN 'whiteboard' THEN {leaves}"
+        f" WHEN 'spreadsheet' THEN {cells}"
+        f" WHEN 'smart_link' THEN {url}"
+        " ELSE '' END)"
+        " || ' ' || " + _with_words(f"coalesce({row}.original_filename, '')")
+    )
+
+
+def _body_expr(source: "SearchSource", row: str = ROW) -> str:
+    """Row expression yielding a source's body text."""
+    if source.body_sql is not None:
+        return source.body_sql(row)
+    if not source.body:
+        return ""
+    parts = [f"coalesce({row}.{c}, '')" for c in source.body]
+    return " || ' ' || ".join(parts) if len(parts) > 1 else parts[0]
 
 
 #: table -> how its rows are indexed.
@@ -82,9 +157,8 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
     "documents": SearchSource(
         "document",
         title="name",
-        # ``content`` extraction arrives with the per-document_type extractors;
-        # the uploaded filename is plain text and useful on its own.
-        body=("original_filename",),
+        body=("content", "document_type", "original_filename"),
+        body_sql=_document_text,
         dac_tool=Tool.document,
     ),
     "queues": SearchSource(
@@ -173,14 +247,6 @@ def entity_types(*, default_scope_only: bool = False) -> tuple[str, ...]:
             if s.in_default_scope or not default_scope_only
         )
     )
-
-
-def _text_expr(columns: tuple[str, ...], row: str = ROW) -> str:
-    """Row expression concatenating columns into one text value."""
-    if not columns:
-        return ""
-    parts = [f"coalesce({row}.{c}, '')" for c in columns]
-    return " || ' ' || ".join(parts) if len(parts) > 1 else parts[0]
 
 
 def _quoted(expr: str) -> str:
@@ -342,7 +408,7 @@ def _call_args(table: str, source: SearchSource) -> list[str]:
         f"    '{source.entity_type}',",
         f"    {_quoted(f'{ROW}.id')},",
         f"    {_quoted(f'{ROW}.{source.title}')},",
-        f"    {_quoted(_text_expr(source.body))},",
+        f"    {_quoted(_body_expr(source))},",
         f"    '{source.dac_tool.value if source.dac_tool else ''}',",
         f"    {_quoted(dac_id if source.dac_tool else '')}",
     ]
@@ -472,7 +538,7 @@ def reindex_statement(table: str, source: SearchSource) -> str:
         if source.dac_tool
         else "NULL::integer"
     )
-    body = _text_expr(source.body, row) or "''"
+    body = _body_expr(source, row) or "''"
     live = " AND t.deleted_at IS NULL" if "deleted_at" in columns else ""
     return (
         f"SELECT {row}.id AS id, {WRITE_FUNCTION}("  # noqa: S608 — registry-rendered
