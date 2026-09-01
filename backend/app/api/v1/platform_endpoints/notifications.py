@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import json
 import logging
@@ -33,6 +34,10 @@ logger = logging.getLogger(__name__)
 # Message type for authentication — the same first-frame handshake the guild
 # events, queue, counter and collaboration sockets use.
 MSG_AUTH = 5
+
+# How long an accepted socket may go without sending that frame. Generous
+# against a slow network, short against a socket that will never send one.
+AUTH_TIMEOUT_SECONDS = 10.0
 
 
 @router.get("/", response_model=NotificationListResponse)
@@ -101,19 +106,22 @@ async def websocket_notifications(websocket: WebSocket):
     may send ``{"token": null}`` and be authenticated from the session cookie.
     After that the server sends id envelopes and the client sends nothing.
 
-    Authorization is connect-time only, and that is sufficient here rather than
-    a compromise: the stream says "your inbox changed" and never what changed,
-    so a frame carries nothing a reader could not already ask for. The refetch
-    it provokes goes through the REST endpoints above, which resolve the inbox
-    from ``current_user`` on a freshly validated credential — that request is
-    the gate, not this socket. Content-bearing channels (collaboration,
-    counters, queues) ride the ``stream_authz`` spine with continuous
-    re-authorization instead.
+    Authorization is connect-time only. The stream says "your inbox changed"
+    and never what changed, so the decision that matters is made by the refetch
+    it provokes: the REST endpoints above resolve the inbox from
+    ``current_user`` on a freshly validated credential. Content-bearing
+    channels (collaboration, counters, queues) ride the ``stream_authz`` spine
+    with continuous re-authorization instead.
+
+    A socket that never sends its first frame is closed at
+    ``AUTH_TIMEOUT_SECONDS`` rather than held open indefinitely.
     """
     await websocket.accept()
 
     try:
-        auth_data = await websocket.receive_bytes()
+        auth_data = await asyncio.wait_for(
+            websocket.receive_bytes(), AUTH_TIMEOUT_SECONDS
+        )
         if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
             logger.warning("Notifications WS: expected MSG_AUTH as first message")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -130,6 +138,11 @@ async def websocket_notifications(websocket: WebSocket):
             logger.warning(f"Notifications WS: invalid auth payload: {exc}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+    except asyncio.TimeoutError:
+        logger.warning("Notifications WS: no auth frame within the timeout")
+        with contextlib.suppress(Exception):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
     except WebSocketDisconnect:
         logger.info("Notifications WS: client disconnected before auth")
         return

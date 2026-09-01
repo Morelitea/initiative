@@ -1,16 +1,16 @@
 """The notification bell's push socket — the handshake and its bookkeeping.
 
-The bell no longer polls, so this socket is the only thing standing between a
-notification landing and a user seeing it. What matters here is that it
-registers exactly the sockets it authenticated, and nothing else: an
-unauthenticated socket that ended up in the registry would be handed the
-recipient's "your inbox changed" pokes, and an authenticated one that never
-left it would keep a dead peer in every fan-out.
+The invariant under test: the registry holds exactly the sockets that
+authenticated, for exactly as long as they are connected. A socket joins it
+only after a credential resolves to an active user, and leaves it when the
+connection ends, however it ends.
 
 The socket is driven directly rather than over the wire — the HTTP test client
 here is ``httpx``, which speaks no WebSocket — with a stand-in that records what
 the endpoint did to it.
 """
+
+import asyncio
 
 import pytest
 from fastapi import WebSocketDisconnect
@@ -204,6 +204,26 @@ async def test_no_token_and_no_cookie_is_refused(stream) -> None:
     await websocket_notifications(websocket)
 
     assert websocket.closed_with == WS_POLICY_VIOLATION
+
+
+@pytest.mark.unit
+async def test_a_socket_that_never_sends_its_first_frame_is_closed(
+    stream, monkeypatch
+) -> None:
+    """An accepted socket is not held open waiting for a frame that may never
+    come."""
+    monkeypatch.setattr(notifications_endpoint, "AUTH_TIMEOUT_SECONDS", 0.01)
+    websocket = FakeWebSocket([])
+
+    async def receive_bytes() -> bytes:
+        await asyncio.sleep(60)
+        raise AssertionError("should have timed out")
+
+    monkeypatch.setattr(websocket, "receive_bytes", receive_bytes)
+    await websocket_notifications(websocket)
+
+    assert websocket.closed_with == WS_POLICY_VIOLATION
+    assert websocket.sent == []
 
 
 @pytest.mark.unit

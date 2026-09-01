@@ -20,6 +20,11 @@ import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
 
+// How often the bell asks on its own. The first applies when the push channel
+// is carrying the updates, the second when there is no channel at all.
+const NOTIFICATION_BACKSTOP_INTERVAL_MS = 300_000;
+const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
+
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
 // mapped onto the `/go` resolver on the way out.
@@ -370,11 +375,16 @@ export const NotificationBell = () => {
   const streamConnected = useNotificationStreamConnected();
 
   const notificationsQuery = useNotifications({
-    // The push channel refetches this query the moment the inbox moves, so
-    // there is nothing for a timer to discover. It stays as a floor for the
-    // case the socket can't open at all (a proxy that drops upgrades, an
-    // offline tab) — losing the socket must not mean losing notifications.
-    refetchInterval: streamConnected ? false : 30_000,
+    // The push channel refetches this query the moment the inbox moves, so a
+    // connected tab needs no timer for the common case. It keeps a slow one
+    // anyway: a socket reaches only the process that holds it, so where the API
+    // runs as more than one worker or replica a notification committed
+    // elsewhere signals nothing here, and the backstop bounds how long the
+    // inbox can sit stale. With no socket at all (a proxy that drops upgrades,
+    // an offline tab) it falls back to the original interval.
+    refetchInterval: streamConnected
+      ? NOTIFICATION_BACKSTOP_INTERVAL_MS
+      : NOTIFICATION_POLL_INTERVAL_MS,
     enabled: isEnabled,
   });
 

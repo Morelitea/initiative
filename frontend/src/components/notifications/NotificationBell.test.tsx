@@ -164,7 +164,7 @@ describe("NotificationBell polling fallback", () => {
     streamConnected = false;
   });
 
-  it("does not poll while the push channel is open", async () => {
+  it("stops polling on the fast interval while the push channel is open", async () => {
     streamConnected = true;
     const requests = countInboxRequests();
     renderWithProviders(<NotificationBell />);
@@ -172,8 +172,21 @@ describe("NotificationBell polling fallback", () => {
 
     await vi.advanceTimersByTimeAsync(120_000);
 
-    // The socket refetches this query itself; a timer would only duplicate it.
+    // The socket refetches this query itself; a 30s timer would only duplicate it.
     expect(requests()).toBe(1);
+  });
+
+  it("keeps a slow backstop even while the push channel is open", async () => {
+    streamConnected = true;
+    const requests = countInboxRequests();
+    renderWithProviders(<NotificationBell />);
+    await waitFor(() => expect(requests()).toBe(1));
+
+    await vi.advanceTimersByTimeAsync(301_000);
+
+    // A socket reaches only its own process, so a multi-worker deployment can
+    // commit a notification that signals nothing here. Staleness stays bounded.
+    await waitFor(() => expect(requests()).toBeGreaterThan(1));
   });
 
   it("keeps polling when the push channel cannot connect", async () => {

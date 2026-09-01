@@ -1,15 +1,12 @@
 """The per-user notification signal channel.
 
-These pin the two properties the bell now depends on, having given up its poll:
+These pin the three properties the bell now depends on, having given up its
+fast poll:
 
-* a frame reaches every socket belonging to its recipient and **no** socket
-  belonging to anyone else,
+* a frame reaches every socket belonging to its recipient, and only those,
 * a frame is emitted only after the writing transaction commits — never on
-  flush, and never at all if the transaction rolls back.
-
-They also pin that the frame stays content-free: an id envelope, never a
-notification's payload (which routinely carries titles, names, and guild ids
-the recipient may read but a mis-routed reader may not).
+  flush, and never at all if the transaction rolls back,
+* a frame stays content-free: an id envelope, never a notification's payload.
 """
 
 import asyncio

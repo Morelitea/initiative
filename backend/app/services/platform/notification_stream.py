@@ -10,8 +10,7 @@ while a tab sits inside a guild.
 Like every other realtime channel here, the stream is a **content-free
 invalidation bus**: a frame says "your inbox changed", never what changed. The
 client refetches ``GET /notifications/``, and that request — authenticated and
-scoped to ``current_user`` — is the authorization gate. A frame is therefore
-worthless to anyone who cannot already read the inbox it names.
+scoped to ``current_user`` — is the authorization gate.
 
 Frames are emitted **after the writing transaction commits**, via an
 ``after_commit`` hook on the session that wrote the row. Poking on ``flush``
@@ -47,9 +46,9 @@ class NotificationStream:
     A user may have several (tabs, phone + laptop); every one of them gets the
     frame, because each holds its own React Query cache. Bounded the same way
     the guild presence roll is: these are one process's sockets. Where the API
-    runs as more than one worker a user's tabs may be spread across them, which
-    is why the client keeps a slow poll as a floor whenever its socket is not
-    open.
+    runs as more than one worker or replica, a commit on one of them reaches
+    only the tabs that process holds — which is why the client keeps a slow
+    backstop refetch even while its socket is open.
     """
 
     def __init__(self) -> None:
