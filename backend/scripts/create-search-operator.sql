@@ -1,6 +1,16 @@
 -- Search match operator + GIN operator class (one-time, superuser).
 --
--- Run this ONCE per database, connected to the app database AS A SUPERUSER:
+-- Run this ONCE per database, connected to the app database AS A SUPERUSER.
+--
+-- This file ships inside the published image, so a deployment running from
+-- Docker Hub needs no checkout:
+--
+--   docker compose exec -T initiative \
+--       cat /app/scripts/create-search-operator.sql \
+--     | docker compose exec -T db \
+--       psql -v ON_ERROR_STOP=1 -U initiative -d initiative
+--
+-- From a source checkout:
 --
 --   docker exec -i initiative-db \
 --     psql -v ON_ERROR_STOP=1 -U initiative -d initiative \
