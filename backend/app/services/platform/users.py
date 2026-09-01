@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 
 
-from sqlalchemy import func, update
+from sqlalchemy import ColumnElement, func, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -789,7 +789,7 @@ async def hard_delete_user(
 MEMBER_MATCH_THRESHOLD = 0.4
 
 
-def name_closeness(term: str, *, shows_names: bool):
+def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
     """How close a member's name is to what was typed, as a rankable number.
 
     Measured against the closest RUN of the name rather than the whole of it,

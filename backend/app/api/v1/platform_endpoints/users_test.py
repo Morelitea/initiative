@@ -324,9 +324,8 @@ async def test_search_users_never_reaches_another_guild(
 async def test_search_users_matches_real_names_only_where_they_are_shown(
     client: AsyncClient, session: AsyncSession
 ):
-    """A name is searchable exactly where it is showable — including the
-    close-match leg, which would otherwise be a way to confirm a real name in a
-    guild that does not show them."""
+    """A real name is searchable exactly where it is shown. In a guild that
+    hides them, neither the spelling of one nor a near miss at it matches."""
     guild = await create_guild(session, show_member_names=False)
     caller = await create_user(session, username="asmith", full_name="Alice Smith")
     hidden = await create_user(session, username="qzx", full_name="Bartholomew Higgins")
