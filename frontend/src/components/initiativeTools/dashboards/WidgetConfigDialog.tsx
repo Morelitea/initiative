@@ -52,6 +52,7 @@ import { useDocumentsList } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
+import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
 import { readConditions } from "@/lib/widgets/conditions";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widgets/definition";
@@ -608,6 +609,49 @@ function ParamControl({
 }
 
 /**
+ * One value, typed, in the type its app declared.
+ *
+ * The text is held locally for the same reason the list field holds it: what is
+ * stored is a *parsed* value, and deriving the text back from it fights whoever
+ * is typing. On an `int` parameter every half-finished number — "-", "1." — is
+ * not yet an integer, so the stored value is briefly absent, and a field
+ * rendering that would blank itself under the cursor.
+ */
+function AppParamScalarInput({
+  id,
+  param,
+  value,
+  onChange,
+}: {
+  id: string;
+  param: AppDataParam;
+  value: string;
+  onChange: (next: string | number | boolean | undefined) => void;
+}) {
+  const [text, setText] = useState(value);
+
+  // Follow the binding when something else changes it, but never overwrite what
+  // is being typed with a re-rendering of what it parsed to.
+  useEffect(() => {
+    setText((current) =>
+      asControlValue(asDeclaredType(param, current)) === value ? current : value
+    );
+  }, [value, param]);
+
+  return (
+    <Input
+      id={id}
+      type={param.type === "int" || param.type === "number" ? "number" : "text"}
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+        onChange(asDeclaredType(param, event.target.value));
+      }}
+    />
+  );
+}
+
+/**
  * Several values, typed, where the app could not offer a menu for them.
  *
  * The comma lives here and only here. What goes onto the binding is an array —
@@ -622,12 +666,14 @@ function ParamControl({
  */
 function AppParamListInput({
   id,
+  param,
   values,
   onChange,
 }: {
   id: string;
+  param: AppDataParam;
   values: string[];
-  onChange: (next: string[]) => void;
+  onChange: (next: (string | number | boolean)[]) => void;
 }) {
   const { t } = useTranslation("dashboards");
   const [text, setText] = useState(values.join(", "));
@@ -653,11 +699,16 @@ function AppParamListInput({
         value={text}
         onChange={(event) => {
           setText(event.target.value);
+          // Each entry in the type the app declared: `list` says how many, it
+          // never says what kind, and the proxy checks every one of them.
           onChange(
-            event.target.value
-              .split(",")
-              .map((entry) => entry.trim())
-              .filter(Boolean)
+            asDeclaredList(
+              param,
+              event.target.value
+                .split(",")
+                .map((entry) => entry.trim())
+                .filter(Boolean)
+            )
           );
         }}
       />
@@ -714,7 +765,7 @@ function AppParamControl({
 
   const label = localized(param.label, i18n.language) ?? param.key;
   const value = values[param.key];
-  const shown = value === undefined || value === null ? "" : String(value);
+  const shown = asControlValue(value);
   const controlId = `app-param-${param.key}`;
   const chosen = Array.isArray(value) ? value.map(String) : [];
 
@@ -745,12 +796,13 @@ function AppParamControl({
               value: option.value,
               label: option.label ?? option.value,
             }))}
-            onChange={(next) => onChange(param.key, next)}
+            onChange={(next) => onChange(param.key, asDeclaredList(param, next))}
             placeholder={t("dashboards:config.appParamPlaceholder")}
           />
         ) : (
           <AppParamListInput
             id={controlId}
+            param={param}
             values={chosen}
             onChange={(next) => onChange(param.key, next)}
           />
@@ -763,7 +815,10 @@ function AppParamControl({
     return (
       <div className="space-y-2">
         {heading}
-        <Select value={shown} onValueChange={(next) => onChange(param.key, next)}>
+        <Select
+          value={shown}
+          onValueChange={(next) => onChange(param.key, asDeclaredType(param, next))}
+        >
           <SelectTrigger id={controlId}>
             <SelectValue placeholder={t("dashboards:config.appParamPlaceholder")} />
           </SelectTrigger>
@@ -784,18 +839,11 @@ function AppParamControl({
   return (
     <div className="space-y-2">
       {heading}
-      <Input
+      <AppParamScalarInput
         id={controlId}
-        type={param.type === "int" || param.type === "number" ? "number" : "text"}
+        param={param}
         value={shown}
-        onChange={(event) => {
-          const next = event.target.value;
-          if (param.type === "int" || param.type === "number") {
-            onChange(param.key, next === "" ? undefined : Number(next));
-            return;
-          }
-          onChange(param.key, next);
-        }}
+        onChange={(next) => onChange(param.key, next)}
       />
       {param.options_from && menu.data?.unavailable === "needs-sibling" && (
         <p className="text-muted-foreground text-xs">
