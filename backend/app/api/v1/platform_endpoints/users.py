@@ -357,28 +357,23 @@ async def install_decoration_pack(
 @router.delete("/me/decoration-packs/{pack_id}", response_model=DecorationPack)
 async def remove_decoration_pack(
     pack_id: str,
-    session: UserSessionDep,
     admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> DecorationPack:
     """Give a pack back, taking its decorations out of your library.
 
-    Anything from it that was being worn comes off at the same time — a
-    profile must not go on wearing what the account no longer has.
+    Anything from it that was being worn comes off in the same transaction —
+    a profile must not be left wearing what the account no longer has, and
+    two commits would leave a window where it was.
     """
     pack = _pack_or_404(pack_id)
     await profile_decorations_service.remove_pack(
-        admin_session, user_id=current_user.id, pack=pack
+        admin_session,
+        user_id=current_user.id,
+        pack=pack,
+        worn=profile_decorations_service.user_is_wearing(current_user),
     )
     await admin_session.commit()
-
-    worn = profile_decorations_service.user_is_wearing(current_user)
-    stripped = profile_decorations_service.undress(worn, pack)
-    if stripped != worn:
-        current_user.profile_decorations = stripped.model_dump()
-        current_user.updated_at = datetime.now(timezone.utc)
-        session.add(current_user)
-        await session.commit()
     return _pack_entry(pack, installed=False)
 
 

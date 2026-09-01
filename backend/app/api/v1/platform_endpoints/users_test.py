@@ -23,6 +23,7 @@ from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.profile_packs import PROFILE_PACKS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
+from app.services.platform import profile_decorations as profile_decorations_service
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services.realtime import manager as realtime_manager
 
@@ -1733,3 +1734,70 @@ async def test_an_unknown_pack_is_not_a_pack(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "USER_DECORATION_PACK_NOT_FOUND"
+
+
+@pytest.mark.integration
+async def test_installing_a_pack_survives_two_requests_at_once(
+    session: AsyncSession,
+):
+    """Two installs that cannot see each other's rows.
+
+    The real race is two requests in flight together, neither's insert visible
+    to the other's read. Calling the service twice before anything is flushed
+    reproduces exactly that, deterministically: a read-then-insert would have
+    both conclude the same row was missing and collide on the primary key.
+    """
+    user = await create_user(session)
+    pack = PROFILE_PACKS["ttrpg"]
+
+    await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
+    await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
+    await session.commit()
+
+    held = (
+        await session.exec(
+            select(UserDecoration).where(UserDecoration.user_id == user.id)
+        )
+    ).all()
+    assert sorted(row.decoration_id for row in held) == sorted(pack.decorations)
+
+
+@pytest.mark.integration
+async def test_giving_a_pack_back_is_all_or_nothing(session: AsyncSession):
+    """The library and the profile move together.
+
+    Emptying the library without undressing the profile leaves the account
+    wearing what it does not have, and the next unrelated profile edit is then
+    refused. Rolling back before the commit must leave *both* untouched — if
+    they were two transactions, one of them would already have landed.
+    """
+    user = await create_user(session)
+    # Held before the rollback below, which expires every instance: reading
+    # ``user.id`` afterwards would be a lazy refresh in the wrong place.
+    user_id = user.id
+    pack = PROFILE_PACKS["ttrpg"]
+    await profile_decorations_service.install_pack(session, user_id=user_id, pack=pack)
+    user.profile_decorations = {
+        "banner": "ttrpg.dicetower",
+        "frame": None,
+        "badges": ["ttrpg.d20"],
+    }
+    session.add(user)
+    await session.commit()
+
+    await profile_decorations_service.remove_pack(
+        session,
+        user_id=user_id,
+        pack=pack,
+        worn=profile_decorations_service.user_is_wearing(user),
+    )
+    await session.rollback()
+
+    still_held = (
+        await session.exec(
+            select(UserDecoration).where(UserDecoration.user_id == user_id)
+        )
+    ).all()
+    fresh = (await session.exec(select(User).where(User.id == user_id))).one()
+    assert len(still_held) == len(pack.decorations)
+    assert fresh.profile_decorations["banner"] == "ttrpg.dicetower"

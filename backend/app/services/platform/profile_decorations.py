@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from sqlalchemy import delete
+from datetime import datetime, timezone
+
+from sqlalchemy import delete, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -93,40 +96,50 @@ async def install_pack(
 ) -> None:
     """Put a pack's decorations in this account's library.
 
-    Idempotent: taking a pack you already have changes nothing, which is what
-    a second click on a slow connection should do. Runs on the system engine —
-    the request path reads its library and never writes it.
+    One statement, and it is the insert: reading first and then inserting what
+    was missing is two steps that two requests can interleave, and both would
+    conclude the same row was missing. ``ON CONFLICT DO NOTHING`` lets the
+    primary key settle it instead, so a double click is idempotent rather than
+    a race.
+
+    Runs on the system engine — the request path reads its library and never
+    writes it.
     """
-    held = set(
-        (
-            await session.exec(
-                select(UserDecoration.decoration_id).where(
-                    UserDecoration.user_id == user_id,
-                    UserDecoration.decoration_id.in_(list(pack.decorations)),
-                )
-            )
-        ).all()
+    rows = [
+        {
+            "user_id": user_id,
+            "decoration_id": decoration_id,
+            "kind": kind,
+            "source": pack.id,
+            "acquired_at": datetime.now(timezone.utc),
+        }
+        for decoration_id, kind in pack.decorations.items()
+    ]
+    await session.exec(
+        pg_insert(UserDecoration)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["user_id", "decoration_id"])
     )
-    for decoration_id, kind in pack.decorations.items():
-        if decoration_id in held:
-            continue
-        session.add(
-            UserDecoration(
-                user_id=user_id,
-                decoration_id=decoration_id,
-                kind=kind,
-                source=pack.id,
-            )
-        )
 
 
 async def remove_pack(
-    session: AsyncSession, *, user_id: int, pack: ProfilePack
-) -> None:
-    """Take a pack's decorations back out of this account's library.
+    session: AsyncSession,
+    *,
+    user_id: int,
+    pack: ProfilePack,
+    worn: ProfileDecorations,
+) -> ProfileDecorations:
+    """Take a pack out of a library, and off the profile, in one transaction.
 
-    Scoped to rows this pack granted: a decoration that arrived from somewhere
-    else and happens to share an id is not this pack's to remove.
+    Both halves or neither. A library emptied without the profile being
+    undressed leaves the account wearing what it does not have, which the
+    write path would refuse on the next unrelated edit — so the two are one
+    statement pair the caller commits once, rather than two commits with a
+    window between them.
+
+    The delete is scoped to rows this pack granted: a decoration that arrived
+    from somewhere else and happens to share an id is not this pack's to
+    remove. Returns what the profile is left wearing.
     """
     await session.exec(
         delete(UserDecoration).where(
@@ -134,6 +147,17 @@ async def remove_pack(
             UserDecoration.source == pack.id,
         )
     )
+    stripped = undress(worn, pack)
+    if stripped != worn:
+        await session.exec(
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                profile_decorations=stripped.model_dump(),
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+    return stripped
 
 
 def undress(worn: ProfileDecorations, gone: ProfilePack) -> ProfileDecorations:
