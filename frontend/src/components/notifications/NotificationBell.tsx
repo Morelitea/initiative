@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -18,6 +19,11 @@ import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
+
+// How often the bell asks on its own. The first applies when the push channel
+// is carrying the updates, the second when there is no channel at all.
+const NOTIFICATION_BACKSTOP_INTERVAL_MS = 300_000;
+const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -366,9 +372,19 @@ export const NotificationBell = () => {
   // toast keys (tasks:export.*) are available when clicked from the bell.
   const { t } = useTranslation(["guilds", "tasks"]);
   const isEnabled = Boolean(user);
+  const streamConnected = useNotificationStreamConnected();
 
   const notificationsQuery = useNotifications({
-    refetchInterval: 30_000,
+    // The push channel refetches this query the moment the inbox moves, so a
+    // connected tab needs no timer for the common case. It keeps a slow one
+    // anyway: a socket reaches only the process that holds it, so where the API
+    // runs as more than one worker or replica a notification committed
+    // elsewhere signals nothing here, and the backstop bounds how long the
+    // inbox can sit stale. With no socket at all (a proxy that drops upgrades,
+    // an offline tab) it falls back to the original interval.
+    refetchInterval: streamConnected
+      ? NOTIFICATION_BACKSTOP_INTERVAL_MS
+      : NOTIFICATION_POLL_INTERVAL_MS,
     enabled: isEnabled,
   });
 
