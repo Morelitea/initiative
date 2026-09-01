@@ -666,8 +666,9 @@ export const useInstallDecorationPackApiV1UsersMeDecorationPacksPackIdPost = <
 /**
  * Give a pack back, taking its decorations out of your library.
  *
- * Anything from it that was being worn comes off at the same time — a
- * profile must not go on wearing what the account no longer has.
+ * Anything from it that was being worn comes off in the same transaction —
+ * a profile must not be left wearing what the account no longer has, and
+ * two commits would leave a window where it was.
  * @summary Remove Decoration Pack
  */
 export const removeDecorationPackApiV1UsersMeDecorationPacksPackIdDelete = (
