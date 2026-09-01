@@ -70,6 +70,12 @@ If you're not sure how the pieces fit together yet, start with [How Initiative i
 
     [:octicons-arrow-right-24: Search & shortcuts](search-and-shortcuts.md)
 
+-   :material-at: __Mentions, links & badges__
+
+    Point at other work from a comment or a document — and show what it's doing.
+
+    [:octicons-arrow-right-24: Mentions, links & badges](mentions-links-and-badges.md)
+
 -   :material-bell-outline: __Notifications__
 
     Choose what you're told about, and where.

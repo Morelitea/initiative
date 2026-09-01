@@ -44,6 +44,15 @@ The text editor has the tools you'd expect:
 
 Everything **autosaves** as you type, so there's no "save" button to remember.
 
+Three keys do more than they look:
+
+- `@` mentions a person.
+- `#` links to anything in the initiative.
+- `[[` links to another document — and offers to create one if the name is new.
+- `/` opens the insert menu, which is also where **badges** live: a chip showing a task's status, a counter's value, or when an event is, kept current on its own.
+
+See [Mentions, links & badges](mentions-links-and-badges.md).
+
 ![The document editor](../images/documents/editor.png)
 
 ## Working in a spreadsheet
@@ -81,12 +90,9 @@ Documents are built for collaboration:
 
 Open a document's **Comments** to discuss it without changing the content. You can reply to build a thread, and edit or delete your own comments. The thread sits at the full width of the page, underneath the document — the same place it sits on every other kind of page.
 
-To pull someone (or something) into the conversation, **mention** it by typing `@`:
+To pull someone into the conversation, type `@` and pick them — they'll get a notification. To point at something rather than someone, type `#` and pick any project, task, document, queue, counter, calendar event or dashboard in the initiative.
 
-- `@name` — notify a person.
-- `@task`, `@doc`, `@project` — link directly to a task, document, or project.
-
-Mentioned people get a notification, so it's the right way to say "hey, take a look at this."
+See [Mentions, links & badges](mentions-links-and-badges.md).
 
 ### Reactions
 
@@ -128,4 +134,5 @@ Made a document layout you'll reuse — a meeting-notes format, a project brief?
 
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — control who sees each document.
 - [Tags](tags.md) — organize documents with labels.
+- [Mentions, links & badges](mentions-links-and-badges.md) — refer to other work from inside a document.
 - [Your space](your-space.md) — find all the documents that are yours.
