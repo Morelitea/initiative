@@ -49,13 +49,25 @@ export const SpreadsheetSheetTabs = ({
   onMove,
 }: SpreadsheetSheetTabsProps) => {
   const { t } = useTranslation(["documents", "common"]);
-  const [renaming, setRenaming] = useState<{ id: SheetId; draft: string } | null>(null);
+  // The sheet being renamed and its draft are separate pieces of state on
+  // purpose: the effect below selects the input's text, and it must run
+  // when the rename *starts*, not on every keystroke — a combined
+  // ``{ id, draft }`` object changes identity on each character typed,
+  // which re-selected the whole name and made the next keystroke replace
+  // everything the user had typed so far.
+  const [renamingId, setRenamingId] = useState<SheetId | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
 
+  const startRename = (sheet: SheetMeta) => {
+    setRenamingId(sheet.id);
+    setRenameDraft(sheet.name);
+  };
+
   useEffect(() => {
-    if (renaming) renameInputRef.current?.select();
-  }, [renaming]);
+    if (renamingId) renameInputRef.current?.select();
+  }, [renamingId]);
 
   // Keep the active tab on screen when it changes from elsewhere — a
   // committed cross-sheet formula switches back to the sheet it lives on,
@@ -65,10 +77,10 @@ export const SpreadsheetSheetTabs = ({
   }, [activeSheetId]);
 
   const commitRename = () => {
-    if (!renaming) return;
-    const trimmed = renaming.draft.trim();
-    if (trimmed) onRename(renaming.id, trimmed);
-    setRenaming(null);
+    if (!renamingId) return;
+    const trimmed = renameDraft.trim();
+    if (trimmed) onRename(renamingId, trimmed);
+    setRenamingId(null);
   };
 
   const handleRenameKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -77,7 +89,7 @@ export const SpreadsheetSheetTabs = ({
       commitRename();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setRenaming(null);
+      setRenamingId(null);
     }
   };
 
@@ -106,7 +118,7 @@ export const SpreadsheetSheetTabs = ({
 
       {sheets.map((sheet, index) => {
         const isActive = sheet.id === activeSheetId;
-        const isRenaming = renaming?.id === sheet.id;
+        const isRenaming = renamingId === sheet.id;
         return (
           <div
             key={sheet.id}
@@ -119,12 +131,12 @@ export const SpreadsheetSheetTabs = ({
             {isRenaming ? (
               <input
                 ref={renameInputRef}
-                value={renaming.draft}
+                value={renameDraft}
                 maxLength={MAX_SHEET_NAME_LENGTH}
                 // biome-ignore lint/a11y/noAutofocus: the input replaces the tab the user just chose to rename
                 autoFocus
                 aria-label={t("documents:spreadsheet.sheets.renameLabel")}
-                onChange={(e) => setRenaming({ id: sheet.id, draft: e.target.value })}
+                onChange={(e) => setRenameDraft(e.target.value)}
                 onKeyDown={handleRenameKeyDown}
                 onBlur={commitRename}
                 className="w-28 bg-transparent px-2 py-1 text-sm outline-none ring-1 ring-primary ring-inset"
@@ -136,7 +148,7 @@ export const SpreadsheetSheetTabs = ({
                 aria-selected={isActive}
                 onClick={() => onSelect(sheet.id)}
                 onDoubleClick={() => {
-                  if (!readOnly) setRenaming({ id: sheet.id, draft: sheet.name });
+                  if (!readOnly) startRename(sheet);
                 }}
                 className="max-w-48 truncate px-3 py-1 text-sm"
               >
@@ -156,9 +168,7 @@ export const SpreadsheetSheetTabs = ({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  <DropdownMenuItem
-                    onSelect={() => setRenaming({ id: sheet.id, draft: sheet.name })}
-                  >
+                  <DropdownMenuItem onSelect={() => startRename(sheet)}>
                     {t("documents:spreadsheet.sheets.rename")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onDuplicate(sheet.id)}>

@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Renaming a spreadsheet sheet keeps what you type.** The tab's rename box re-selected the whole name after every keystroke, so each new character wiped out the one before it and the sheet ended up named after the last letter typed. The name is now selected once when the box opens, as intended, and typing behaves normally from there.
+
 - **Open tabs no longer flicker when you switch community.** The recents bar lists tabs from every community you are in, but switching community threw its contents away and fetched them again, blanking the bar for a moment each time. It now stays put — there is nothing about it that a switch changes.
 
 ## [0.64.3] - 2026-08-30
