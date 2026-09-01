@@ -119,6 +119,16 @@ class ConnectionManager:
         """How many distinct users have this guild open on this process."""
         return len(self._present.get(guild_id, {}))
 
+    def is_present(self, guild_id: int, user_id: int) -> bool:
+        """Whether this user has this guild open on this process.
+
+        Same share-of-the-whole caveat as ``present_count``: across several
+        workers this answers for the sockets this one holds, so it can say no
+        about someone another worker is serving. It drives a dot beside a name,
+        which is a hint and not a fact anything depends on.
+        """
+        return user_id in self._present.get(guild_id, {})
+
     def present_counts(self, guild_ids: Iterable[int]) -> Dict[int, int]:
         """``present_count`` for several guilds, for a page of them at a time."""
         return {guild_id: self.present_count(guild_id) for guild_id in guild_ids}

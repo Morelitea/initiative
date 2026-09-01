@@ -1,11 +1,19 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, computed_field, model_validator
+from pydantic import (
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.emoji import validate_emoji
 from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
@@ -163,6 +171,105 @@ class UserSummaryListResponse(SanitizedBaseModel):
     has_prev: bool
 
 
+#: What a decoration id may be made of. An explicit set rather than a pattern:
+#: the id is spliced into the path of a local asset by the client, so the
+#: characters it may contain are worth reading at a glance.
+_DECORATION_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
+
+#: How long one id may be, and how many badges one profile may wear. The badge
+#: cap is a rendering bound — a row of them beside a name, not a wall.
+DECORATION_ID_MAX_LENGTH = 64
+MAX_PROFILE_BADGES = 6
+
+
+def validate_decoration_id(value: str) -> str:
+    """Return ``value`` if it is shaped like a catalog id, else raise.
+
+    A catalog id is a flat, lowercase name — ``core.aurora`` — and this holds
+    it to that vocabulary.
+    """
+    identifier = value.strip()
+    if not identifier:
+        raise ValueError("Decoration id is required")
+    if len(identifier) > DECORATION_ID_MAX_LENGTH:
+        raise ValueError("Decoration id is too long")
+    if not all(char in _DECORATION_ID_CHARS for char in identifier):
+        raise ValueError("Decoration id has characters that are not allowed")
+    return identifier
+
+
+class ProfileDecorations(SanitizedBaseModel):
+    """How a profile is dressed: a banner, a frame, badges beside the name.
+
+    Every value is an **id naming a catalog entry**, never an image. The client
+    resolves an id to artwork it already ships, so a decorated profile takes up
+    none of a guild's upload allowance. An id this deployment's catalog doesn't
+    know simply renders nothing, which is what lets a profile keep wearing
+    something the store stopped offering.
+
+    ``extra="forbid"``: the set of things a profile can wear is this list, and
+    a client sending a key that isn't here is told so rather than having it
+    quietly stored and never rendered.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", json_schema_serialization_defaults_required=True
+    )
+
+    banner: Optional[str] = None
+    frame: Optional[str] = None
+    badges: List[str] = Field(default_factory=list, max_length=MAX_PROFILE_BADGES)
+
+    @field_validator("banner", "frame")
+    @classmethod
+    def _check_single(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else validate_decoration_id(value)
+
+    @field_validator("badges")
+    @classmethod
+    def _check_badges(cls, value: List[str]) -> List[str]:
+        seen: List[str] = []
+        for badge in value:
+            identifier = validate_decoration_id(badge)
+            # Wearing the same badge twice is a duplicate, not a second badge.
+            if identifier not in seen:
+                seen.append(identifier)
+        return seen
+
+
+class UserProfile(GuildNameVisibility):
+    """A person, as the rest of their guild sees them.
+
+    Everything on :class:`UserPublic` — the face and the handle a member is
+    already rendered by everywhere else — plus what a profile adds: the line
+    they wrote about themselves, how they have dressed the page, whether they
+    have the app open, and when they joined this guild.
+
+    Guild-scoped on purpose, because two of those answers are: a real name
+    shows only where the guild shows names, and "here" means here rather than
+    on the platform somewhere.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    username: str
+    discriminator: int
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    status: UserStatus = UserStatus.active
+    custom_status_emoji: Optional[str] = None
+    custom_status_text: Optional[str] = None
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+    #: Whether this member has the guild open right now. Set by the endpoint
+    #: from the realtime connections this process holds.
+    online: bool = False
+    #: When they joined *this* guild, which is not when they made the account.
+    joined_at: datetime
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -179,6 +286,9 @@ class UserRead(UserBase):
     created_at: datetime
     updated_at: datetime
     avatar_url: Optional[str] = None
+    custom_status_emoji: Optional[str] = None
+    custom_status_text: Optional[str] = None
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
@@ -258,6 +368,12 @@ class UserSelfUpdate(SanitizedBaseModel):
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
     avatar_url: Optional[str] = None
+    # Sending ``null`` clears the field; leaving it out leaves it alone.
+    custom_status_emoji: Optional[str] = None
+    custom_status_text: Optional[str] = Field(default=None, max_length=100)
+    # The whole set at once rather than one key at a time: a profile wears a
+    # look, and a partial write would have no way to say "take the frame off".
+    profile_decorations: Optional[ProfileDecorations] = None
     week_starts_on: Optional[int] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
@@ -284,6 +400,25 @@ class UserSelfUpdate(SanitizedBaseModel):
     task_completion_audio_feedback: Optional[bool] = None
     task_completion_haptic_feedback: Optional[bool] = None
     locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
+
+    @field_validator("custom_status_emoji")
+    @classmethod
+    def _check_status_emoji(cls, value: Optional[str]) -> Optional[str]:
+        """Hold the status emoji to the same shape a reaction's is held to.
+
+        An empty string means "take it off", which is how a picker sends a
+        cleared selection.
+        """
+        if value is None or not value.strip():
+            return None
+        return validate_emoji(value)
+
+    @field_validator("custom_status_text")
+    @classmethod
+    def _blank_text_is_none(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class AccountDeletionRequest(SanitizedBaseModel):

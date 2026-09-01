@@ -20,6 +20,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.services.realtime import manager as realtime_manager
 
 from app.testing.factories import (
     create_federated_identity,
@@ -1150,3 +1151,220 @@ async def test_initiative_members_excludes_anonymized(
     ids = {member["id"] for member in response.json()}
     assert departing.id not in ids
     assert survivor.id in ids
+
+
+@pytest.mark.integration
+async def test_member_profile_carries_the_basics(
+    client: AsyncClient, session: AsyncSession
+):
+    """A member's profile: their face, their handle, the line they wrote, the
+    look they picked, and when they joined this guild."""
+    guild = await create_guild(session)
+    caller = await create_user(session)
+    member = await create_user(
+        session,
+        username="tinker",
+        full_name="Tinker Bell",
+        avatar_url="https://example.com/tinker.png",
+        custom_status_emoji="\N{GAME DIE}",
+        custom_status_text="rolling for initiative",
+        profile_decorations={"banner": "core.aurora", "badges": ["core.founder"]},
+    )
+    for user in (caller, member):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == member.id
+    assert body["username"] == "tinker"
+    assert body["full_name"] == "Tinker Bell"
+    assert body["avatar_url"] == "https://example.com/tinker.png"
+    assert body["custom_status_emoji"] == "\N{GAME DIE}"
+    assert body["custom_status_text"] == "rolling for initiative"
+    assert body["profile_decorations"] == {
+        "banner": "core.aurora",
+        "frame": None,
+        "badges": ["core.founder"],
+    }
+    # Nobody holds a socket in this test, so nobody is here.
+    assert body["online"] is False
+    assert body["joined_at"]
+
+
+@pytest.mark.integration
+async def test_member_profile_withholds_the_name_a_guild_does_not_show(
+    client: AsyncClient, session: AsyncSession
+):
+    """A real name renders only where the guild shows names — the handle is
+    what identifies someone everywhere else."""
+    guild = await create_guild(session, show_member_names=False)
+    caller = await create_user(session)
+    member = await create_user(session, username="tinker", full_name="Tinker Bell")
+    for user in (caller, member):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["full_name"] is None
+    assert body["username"] == "tinker"
+
+
+@pytest.mark.integration
+async def test_member_profile_404s_for_someone_outside_the_guild(
+    client: AsyncClient, session: AsyncSession
+):
+    """A profile exists to the caller only through a shared guild."""
+    guild = await create_guild(session)
+    caller = await create_user(session)
+    await create_guild_membership(session, user=caller, guild=guild)
+    stranger = await create_user(session)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/{stranger.id}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "USER_NOT_IN_GUILD"
+
+
+@pytest.mark.integration
+async def test_member_profile_hides_a_suspended_account(
+    client: AsyncClient, session: AsyncSession
+):
+    """A suspended account vanishes from the roster, and from the page the
+    roster leads to."""
+    guild = await create_guild(session)
+    caller = await create_user(session)
+    member = await create_user(session, status=UserStatus.suspended)
+    for user in (caller, member):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
+        headers=get_auth_headers(caller),
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_member_profile_reports_a_member_who_is_here(
+    client: AsyncClient, session: AsyncSession
+):
+    """``online`` reads the realtime connections for *this* guild."""
+    guild = await create_guild(session)
+    caller = await create_user(session)
+    member = await create_user(session)
+    for user in (caller, member):
+        await create_guild_membership(session, user=user, guild=guild)
+
+    socket = object()
+    await realtime_manager.connect(guild.id, [], socket, user_id=member.id)  # type: ignore[arg-type]
+    try:
+        response = await client.get(
+            f"/api/v1/g/{guild.id}/users/{member.id}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await realtime_manager.disconnect(socket)  # type: ignore[arg-type]
+
+    assert response.status_code == 200
+    assert response.json()["online"] is True
+
+
+@pytest.mark.integration
+async def test_member_profile_requires_membership(
+    client: AsyncClient, session: AsyncSession
+):
+    """The guild context is re-validated per request, like every other
+    guild-scoped read."""
+    guild = await create_guild(session)
+    member = await create_user(session)
+    await create_guild_membership(session, user=member, guild=guild)
+    outsider = await create_user(session)
+
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/users/{member.id}/profile",
+        headers=get_auth_headers(outsider),
+    )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_custom_status_and_decorations_round_trip(
+    client: AsyncClient, session: AsyncSession
+):
+    """A person writes their own status and picks their own look."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={
+            "custom_status_emoji": "\N{ROCKET}",
+            "custom_status_text": "shipping",
+            "profile_decorations": {
+                "banner": "core.aurora",
+                "frame": "core.gold",
+                "badges": ["core.founder", "core.founder"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["custom_status_emoji"] == "\N{ROCKET}"
+    assert body["custom_status_text"] == "shipping"
+    # The same badge twice is a duplicate, not a second badge.
+    assert body["profile_decorations"] == {
+        "banner": "core.aurora",
+        "frame": "core.gold",
+        "badges": ["core.founder"],
+    }
+
+    cleared = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"custom_status_emoji": None, "custom_status_text": None},
+    )
+
+    assert cleared.status_code == 200
+    assert cleared.json()["custom_status_emoji"] is None
+    assert cleared.json()["custom_status_text"] is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"custom_status_emoji": "not an emoji"},
+        {"profile_decorations": {"banner": "../../etc/passwd"}},
+        {"profile_decorations": {"hat": "core.aurora"}},
+        {"profile_decorations": {"badges": ["a", "b", "c", "d", "e", "f", "g"]}},
+    ],
+)
+async def test_profile_writes_reject_what_is_not_a_status_or_a_catalog_id(
+    client: AsyncClient, session: AsyncSession, payload: dict
+):
+    """Text where an emoji goes, a path where an id goes, a key nothing wears,
+    and more badges than a profile has room for."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me", headers=get_auth_headers(user), json=payload
+    )
+
+    assert response.status_code == 422

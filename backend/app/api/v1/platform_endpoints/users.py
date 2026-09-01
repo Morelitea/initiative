@@ -58,6 +58,7 @@ from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.user import (
     UsernameClaim,
     UserGuildMember,
+    UserProfile,
     UserRead,
     UserSelfUpdate,
     UserSummary,
@@ -91,6 +92,7 @@ from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import usernames as username_service
 from app.services.platform.guilds import adopt_guild_name_display
+from app.services.realtime import manager as realtime_manager
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.services.platform import user_avatars as user_avatars_service
@@ -283,6 +285,55 @@ async def search_users(
         page_size=page_size,
         has_next=page_has_next(actual_page, page_size, total_count),
         has_prev=actual_page > 1,
+    )
+
+
+@guild_router.get("/{user_id}/profile", response_model=UserProfile)
+async def read_member_profile(
+    user_id: int,
+    session: RLSSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> UserProfile:
+    """One member's profile, as the rest of their guild sees it.
+
+    Guild-scoped, like the roster it is reached from: the membership join is
+    what says a profile exists to the caller, so someone the caller shares no
+    guild with is a 404 rather than a page. It is also what makes the answer
+    correct — a real name renders only where the guild shows names, and
+    "online" means "has this guild open".
+
+    Nothing here is a guild's to write. The account row is the person's own
+    (``users`` UPDATE is own-row on the request path); this reads it.
+    """
+    stmt = (
+        select(User, GuildMembership.joined_at)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(
+            User.id == user_id,
+            GuildMembership.guild_id == guild_context.guild_id,
+            users_service.visible_to_other_people(),
+        )
+    )
+    row = (await session.exec(stmt)).first()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=UserMessages.NOT_IN_GUILD,
+        )
+    user, joined_at = row
+    return UserProfile(
+        id=user.id,
+        username=user.username,
+        discriminator=user.discriminator,
+        full_name=user.full_name,
+        avatar_url=user.avatar_url,
+        status=user.status,
+        custom_status_emoji=user.custom_status_emoji,
+        custom_status_text=user.custom_status_text,
+        profile_decorations=user.profile_decorations or {},
+        online=realtime_manager.is_present(guild_context.guild_id, user.id),
+        joined_at=joined_at,
     )
 
 
@@ -632,6 +683,17 @@ async def update_users_me(
         )
     if "locale" in update_data:
         current_user.locale = update_data["locale"]
+    for field in ("custom_status_emoji", "custom_status_text"):
+        if field in update_data:
+            # Already held to shape by ``UserSelfUpdate``; ``None`` means the
+            # person took it off.
+            setattr(current_user, field, update_data[field])
+    if "profile_decorations" in update_data:
+        # The payload validated it into ``ProfileDecorations``, so what lands
+        # in the column is a known set of keys holding catalog ids and nothing
+        # else. ``None`` is the bare profile.
+        decorations = update_data["profile_decorations"]
+        current_user.profile_decorations = decorations or {}
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
