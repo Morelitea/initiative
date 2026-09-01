@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import {
@@ -83,6 +84,9 @@ function AppLayout() {
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   useRealtimeUpdates();
+  // Personal, cross-guild, and mounted here rather than beside the bell so it
+  // survives the bell unmounting with a collapsed sidebar.
+  useNotificationStream();
   usePushNotifications();
   useBackButton();
 

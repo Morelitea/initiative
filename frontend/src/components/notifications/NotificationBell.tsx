@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -314,9 +315,14 @@ export const NotificationBell = () => {
   // toast keys (tasks:export.*) are available when clicked from the bell.
   const { t } = useTranslation(["guilds", "tasks"]);
   const isEnabled = Boolean(user);
+  const streamConnected = useNotificationStreamConnected();
 
   const notificationsQuery = useNotifications({
-    refetchInterval: 30_000,
+    // The push channel refetches this query the moment the inbox moves, so
+    // there is nothing for a timer to discover. It stays as a floor for the
+    // case the socket can't open at all (a proxy that drops upgrades, an
+    // offline tab) — losing the socket must not mean losing notifications.
+    refetchInterval: streamConnected ? false : 30_000,
     enabled: isEnabled,
   });
 

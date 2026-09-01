@@ -6,6 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import Notification, NotificationType
+from app.services.platform import notification_stream
 
 
 async def create_notification(
@@ -20,6 +21,11 @@ async def create_notification(
     )
     session.add(notification)
     await session.flush()
+    # Every notification in the app is written through here, so this one call
+    # is what puts the recipient's open tabs on the realtime channel instead of
+    # a 30s poll. The frame itself waits for this session's COMMIT (see
+    # ``notification_stream``), so a caller that rolls back pokes nobody.
+    notification_stream.queue_signal(session, user_id, "created")
     return notification
 
 
@@ -69,6 +75,9 @@ async def mark_notification_read(
     if notification.read_at is None:
         notification.read_at = datetime.now(timezone.utc)
         session.add(notification)
+        # The tab that clicked already knows; this is for the user's *other*
+        # tabs and devices, whose badge would otherwise keep the stale count.
+        notification_stream.queue_signal(session, user_id, "read")
         await session.commit()
         await session.refresh(notification)
     return notification
@@ -86,6 +95,7 @@ async def mark_all_notifications_read(
         .values(read_at=now)
     )
     result = await session.exec(stmt)
+    notification_stream.queue_signal(session, user_id, "read")
     await session.commit()
     return result.rowcount or 0
 

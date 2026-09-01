@@ -19,7 +19,12 @@ import type { MutationOpts } from "@/types/mutation";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useNotifications = (options?: { enabled?: boolean; refetchInterval?: number }) => {
+// `refetchInterval: false` turns polling off — what a caller passes once the
+// notification push channel is carrying the updates instead.
+export const useNotifications = (options?: {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+}) => {
   return useQuery<NotificationListResponse>({
     queryKey: getListNotificationsApiV1NotificationsGetQueryKey(),
     queryFn: () => listNotificationsApiV1NotificationsGet(),
