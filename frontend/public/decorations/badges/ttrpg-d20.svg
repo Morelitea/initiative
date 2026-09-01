@@ -1,20 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      shape-rendering="crispEdges" role="presentation">
   <title>d20</title>
-  <!-- The die a tabletop player recognises on sight, drawn at the size it is
-       actually shown. The app's rolling die (components/effects/svg/PixelD20)
-       is a 19x19 grid whose one-pixel facets turn to mush when shrunk to this
-       badge, so this keeps its palette and its silhouette and spends the few
-       pixels available on the facets that say "twenty-sided". -->
-  <circle cx="12" cy="12" r="11" fill="#1E1B4B"/>
-  <!-- Silhouette. -->
-  <path d="M12 2 L20 7 L20 16 L12 21 L4 16 L4 7 Z" fill="#3A2270"/>
-  <!-- Lower facets: the die's shaded side. -->
-  <path d="M4 7 L7 14 L12 20 L5 15.5 Z" fill="#5B21B6"/>
-  <path d="M19 7 L17 14 L12 20 L19 15.5 Z" fill="#4C2F8F"/>
-  <!-- Upper facets. -->
-  <path d="M12 3 L5 7 L7 13 Z" fill="#8B6EDE"/>
-  <path d="M12 3 L19 7 L17 13 Z" fill="#7C5BD0"/>
-  <!-- The face turned up, brightest, the one you would read a number off. -->
-  <path d="M12 4 L17 13 L7 13 Z" fill="#DDD6FE"/>
+  <!-- The die a tabletop player recognises on sight. Drawn on a 48-unit grid,
+       twice the old one, which is what buys the facet edges and the numeral. -->
+  <circle cx="24" cy="24" r="23" fill="#1E1B4B"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#3A2270" stroke-width="2"/>
+  <path d="M24 5 L40 14 L40 33 L24 42 L8 33 L8 14 Z" fill="#3A2270"/>
+  <!-- The shaded lower half. -->
+  <path d="M8 14 L14 29 L24 40 L10 31 Z" fill="#5B21B6"/>
+  <path d="M40 14 L34 29 L24 40 L38 31 Z" fill="#4C2F8F"/>
+  <path d="M14 29 L24 40 L34 29 L24 34 Z" fill="#6D4FC4"/>
+  <!-- Upper facets, catching the light. -->
+  <path d="M24 7 L10 14 L14 27 Z" fill="#8B6EDE"/>
+  <path d="M24 7 L38 14 L34 27 Z" fill="#7C5BD0"/>
+  <!-- The face turned up, and the number you would read off it. -->
+  <path d="M24 9 L35 27 L13 27 Z" fill="#DDD6FE"/>
+  <!-- The twenty, on the face turned up: two digits on a 2-unit stroke, which
+       is the coarsest grid they still read on. -->
+  <g fill="#3A2270">
+    <rect x="16" y="17" width="6" height="2"/>
+    <rect x="20" y="17" width="2" height="4"/>
+    <rect x="16" y="20" width="6" height="2"/>
+    <rect x="16" y="20" width="2" height="5"/>
+    <rect x="16" y="23" width="6" height="2"/>
+    <rect x="26" y="17" width="6" height="2"/>
+    <rect x="26" y="17" width="2" height="8"/>
+    <rect x="30" y="17" width="2" height="8"/>
+    <rect x="26" y="23" width="6" height="2"/>
+  </g>
 </svg>

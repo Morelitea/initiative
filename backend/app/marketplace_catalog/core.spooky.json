@@ -1,0 +1,34 @@
+{
+  "uid": "7VD3XKQ0P6ZBTY",
+  "public_id": "core.spooky",
+  "kind": "profile_pack",
+  "name": "Spooky",
+  "publisher": "Initiative",
+  "description": "Cobwebs, lantern light, and something in the trees.",
+  "long_description": "For the group that keeps October in the calendar all year: horror nights, haunted attractions, ghost-story podcasts, or a campaign that went somewhere dark. The frame is a web with its tenant still patrolling it.",
+  "avatar_url": "/decorations/banners/spooky-hollow.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "spooky.hollow",
+        "slot": "banner",
+        "name": "Hollow"
+      },
+      {
+        "id": "spooky.web",
+        "slot": "frame",
+        "name": "Cobweb"
+      },
+      {
+        "id": "spooky.lantern",
+        "slot": "badge",
+        "name": "Jack-o'-lantern"
+      }
+    ]
+  }
+}

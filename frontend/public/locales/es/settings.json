@@ -79,7 +79,13 @@
     "statusLabel": "Estado",
     "statusPlaceholder": "¿En qué andas?",
     "statusEmojiPlaceholder": "Emoji",
-    "statusHelp": "Aparece en tu perfil, que cualquiera puede abrir."
+    "statusHelp": "Aparece en tu perfil, que cualquiera puede abrir.",
+    "pictureTitle": "Tu foto",
+    "pictureDescription": "Sube una o enlaza una imagen. Se guarda en cuanto la eliges.",
+    "timezoneLabel": "Zona horaria",
+    "timezonePlaceholder": "Selecciona una zona horaria",
+    "timezoneEmpty": "No se encontró ninguna zona horaria.",
+    "timezoneHelp": "Se usa para vencimientos, recordatorios diarios y tareas repetidas. Se tomó de tu navegador al registrarte; corrígela aquí si está mal."
   },
   "security": {
     "devicesTitle": "Dispositivos conectados",
@@ -230,11 +236,7 @@
       "unsupported": "Tu navegador no admite mantener la pantalla activa."
     },
     "completionTitle": "Cuando terminas una tarea",
-    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela.",
-    "timezone": "Zona horaria",
-    "timezoneDescription": "El reloj con el que se calculan vencimientos, recordatorios y repeticiones. Se tomó de tu navegador al registrarte.",
-    "timezonePlaceholder": "Selecciona una zona horaria",
-    "timezoneEmpty": "No se encontró ninguna zona horaria."
+    "completionDescription": "Lo que hace la app en cuanto marcas una tarea. Prueba cada opción antes de quedártela."
   },
   "notifications": {
     "title": "Configuración de notificaciones",
@@ -1134,8 +1136,9 @@
   },
   "account": {
     "identityTitle": "Cómo inicias sesión",
-    "identityDescription": "Tu dirección y tu identificador. Ninguno se cambia aquí.",
+    "identityDescription": "Tu nombre, tu dirección, tu identificador y el reloj con el que vas.",
     "passwordTitle": "Contraseña",
-    "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo."
+    "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
+    "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador."
   }
 }

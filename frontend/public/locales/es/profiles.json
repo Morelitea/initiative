@@ -4,7 +4,6 @@
     "description": "O nadie tiene este perfil, o esa persona no está en esta comunidad.",
     "back": "Volver a la comunidad"
   },
-  "noStatus": "Ahora mismo no hay nada.",
   "presence": {
     "label": "Presencia",
     "online": "En línea",
@@ -19,9 +18,6 @@
     "parchment": "Pergamino",
     "gold": "Dorado",
     "arcane": "Arcano",
-    "founder": "Fundador",
-    "storyteller": "Narrador",
-    "trailblazer": "Pionero",
     "dicetower": "Torre de dados",
     "natural20": "Veinte natural",
     "d20": "d20",
@@ -30,7 +26,17 @@
     "cassette": "Casete",
     "observatory": "Observatorio",
     "orbital": "Orbital",
-    "flask": "Matraz"
+    "flask": "Matraz",
+    "fan": "Fan número uno",
+    "grove": "Arboleda",
+    "overgrown": "Cubierto de musgo",
+    "morel": "Colmenilla",
+    "hollow": "Hondonada",
+    "cobweb": "Telaraña",
+    "lantern": "Calabaza de Halloween",
+    "parade": "Desfile",
+    "spectrum": "Espectro",
+    "prideheart": "Corazón del orgullo"
   },
   "decorationPicker": {
     "heading": "Decoraciones del perfil",
@@ -72,5 +78,19 @@
     "filterLabel": "Buscar en tus packs",
     "noMatch": "Ningún pack con ese nombre.",
     "removeNamed": "Quitar {{name}}"
+  },
+  "status": {
+    "empty": "Cuenta en qué andas",
+    "edit": "Tu estado",
+    "help": "Un emoji, una línea o ambos. Lo ve cualquiera que abra tu perfil.",
+    "placeholder": "¿En qué andas?",
+    "emojiPlaceholder": "Emoji",
+    "save": "Poner estado",
+    "clear": "Quitar",
+    "failed": "No se pudo guardar ese estado."
+  },
+  "guilds": {
+    "title": "Comunidades",
+    "empty": "Ninguna comunidad pública."
   }
 }

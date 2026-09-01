@@ -27,6 +27,7 @@ import type {
   ApiKeyCreateResponse,
   ApiKeyListResponse,
   BodyUploadMyAvatarApiV1UsersMeAvatarPut,
+  CommunityGuildRead,
   DecorationPack,
   DecorationPackListResponse,
   DeletionEligibilityResponse,
@@ -920,6 +921,179 @@ export function useReadUserProfileApiV1UsersHandleProfileGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadUserProfileApiV1UsersHandleProfileGetQueryOptions(handle, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The listed communities one person belongs to.
+ *
+ * A separate read from the profile on purpose: the profile is the public
+ * projection of ``public.users`` and this is not about that row at all. It
+ * also cannot run on the same session — ``guild_memberships`` is scoped to
+ * the caller's own rows on the request path, and the question is about
+ * somebody else — so it takes the system engine, exactly as the directory
+ * does, with the same service-side filters deciding what may appear.
+ *
+ * Only guilds that opted into the directory. One someone is in that did not
+ * is nobody else's business, and does not appear here for anyone.
+ * @summary Read User Communities
+ */
+export const readUserCommunitiesApiV1UsersHandleCommunitiesGet = (
+  handle: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunityGuildRead[]>(
+    { url: `/api/v1/users/${handle}/communities`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryKey = (handle: string) => {
+  return [`/api/v1/users/${handle}/communities`] as const;
+};
+
+export const getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryKey(handle);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+  > = ({ signal }) =>
+    readUserCommunitiesApiV1UsersHandleCommunitiesGet(handle, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: handle !== null && handle !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+>;
+export type ReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
+  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+          TError,
+          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
+  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+          TError,
+          Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
+  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read User Communities
+ */
+
+export function useReadUserCommunitiesApiV1UsersHandleCommunitiesGet<
+  TData = Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  handle: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readUserCommunitiesApiV1UsersHandleCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadUserCommunitiesApiV1UsersHandleCommunitiesGetQueryOptions(
+    handle,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

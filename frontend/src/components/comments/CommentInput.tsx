@@ -43,6 +43,9 @@ interface CommentInputProps {
   cancelLabel?: string;
 }
 
+/** How long the mention popover survives a blur, so a click on it lands. */
+const MENTION_BLUR_GRACE_MS = 200;
+
 export const CommentInput = ({
   value,
   onChange,
@@ -64,6 +67,11 @@ export const CommentInput = ({
   const resolvedSubmitLabel = submitLabel ?? t("postComment");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
+  const blurTimer = useRef<number>(undefined);
+
+  // A blur on the way out leaves a timer behind that would close a popover
+  // belonging to a component that no longer exists.
+  useEffect(() => () => window.clearTimeout(blurTimer.current), []);
   // Pixel anchor (relative to the field) for the popover, at the trigger char.
   const [mentionAnchor, setMentionAnchor] = useState<{ top: number; left: number } | null>(null);
 
@@ -196,10 +204,13 @@ export const CommentInput = ({
             }
           }}
           onBlur={() => {
-            // Delay closing to allow click on popover
-            setTimeout(() => {
+            // Held open a moment so a click on the popover lands before the
+            // blur closes it — and the handle is kept so an unmount can cancel
+            // it. Left to run, it sets state on a component that is gone.
+            window.clearTimeout(blurTimer.current);
+            blurTimer.current = window.setTimeout(() => {
               setMentionTrigger(null);
-            }, 200);
+            }, MENTION_BLUR_GRACE_MS);
           }}
           placeholder={resolvedPlaceholder}
           rows={compact ? 2 : 4}

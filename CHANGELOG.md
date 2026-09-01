@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A profile says which communities someone is in.** Only the ones that opted into the community directory — a community that never listed itself does not appear on anybody's profile, for anyone.
+
+- **Frames and the presence dot follow people around.** The picture beside a comment, the one at the bottom of the sidebar and the one on a profile are drawn by the same component now, so a frame you put on shows wherever you appear at a size it reads at, and the green dot with it.
+
+- **Three more decoration packs: Mushrooms, Spooky and Pride.** Mushrooms is for foragers and anyone who stops a walk to look at a log — the badge is a morel, pitted cap and hollow stem, and the frame is the moss and twigs it came up through. Spooky is cobwebs, lantern light and something in the trees, with a web for a frame and a spider still patrolling it. Pride carries the Progress flag in full on its banner and the heart on its badge. Badges are drawn at twice the detail they were and shown at a size that detail survives.
+
+- **Set your status where you read it.** Your status is a thought bubble on your own profile and at the bottom of the sidebar, and clicking either one opens it: the emoji and the line together, both optional, saved on the spot. No form, and no second place that has to agree with the first. Changing your picture works the same way — click the picture.
+
 - **Search that finds everything in a community, and reads inside it.** ⌘K and a results page of its own reach projects, tasks, documents, queues, counters, calendars, dashboards, tags, comments and people — matching names, descriptions, and the words inside a document, whiteboard or spreadsheet. Results are ranked, show the line that matched, and answer before you finish a word; a misspelling is offered the closest names rather than an empty page. Archived work is kept back unless you switch it on.
 
 - **Point at other work from anywhere you write.** `@` names a person, `#` names anything that exists, and `[[ ]]` names a tool — and offers to make one that doesn't exist yet, in place, without leaving the sentence. All three work in every comment and in text documents. References keep up: rename a task and every sentence mentioning it says the new name, with nobody editing anything. A document's backlinks count them all, not just `[[ ]]` links.
@@ -22,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An initiative's status columns can be read in one request**, instead of asking project by project and stitching the answers together.
 
 ### Changed
+
+- **Your profile page is built like a community's front page.** The banner runs the full width of the content area with your handle on it and your badges in the corner, fading into the page the way a community's does, and your picture sits over the tail of it. What a community's admin chooses there, a decoration declares here.
+
+- **Settings › Profile is now the face, and Account is the account.** The profile tab is the preview card, your look, and your packs, in that order. Your real name and your timezone moved to Account, beside your address and your handle — nothing on the profile tab is private, and nothing on Account is visible to anyone else.
+
+- **Badges are earned, not issued.** The three that shipped with every account are gone; the only one left by default is Initiative's own mark, for being here. Every other badge comes from a pack, which is what makes it a sign of belonging to something.
 
 - **Guilds are now communities.** The name was picked for gaming guilds, and people turned out to be running far more than that. Pages moved from `/g/…` to `/c/…`, and a new install's first community is called "Primary Community".
 
@@ -50,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 
 ### Fixed
+
+- **Your profile said you were offline while you were reading it.** Presence was fed only by the socket a tab opens inside a community, so anyone looking at a profile, their settings, or their own tasks read as offline to everyone. It now follows the notification stream as well, which is open on every page for as long as you are signed in — which is what "has Initiative open" was always meant to mean.
 
 - **Frames sit on the picture, not around it.** Every frame is drawn to one aperture, so the artwork meets the edge exactly instead of floating clear of it or covering the face — Vinyl had been painting over the whole picture.
 

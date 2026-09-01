@@ -2,27 +2,41 @@ import { useParams } from "@tanstack/react-router";
 import { Loader2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
-import { ProfileCard } from "@/components/user/ProfileCard";
+import { UserHandle } from "@/components/UserHandle";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { ProfileBadges } from "@/components/user/ProfileBadges";
+import { ProfileCommunities } from "@/components/user/ProfileCommunities";
+import { ProfileMeta } from "@/components/user/ProfileMeta";
+import { ProfileStatus } from "@/components/user/ProfileStatus";
+import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUsers";
+import { profileBanner } from "@/lib/profileBanner";
 
 /**
  * A person's profile.
+ *
+ * Built like a community's front page, because it is the same kind of page: a
+ * banner running the full width of the content area with the name on it, the
+ * badges in its corner, and the page riding over the tail of the fade. What a
+ * community's admin sets there, a decoration sets here.
  *
  * Public, and the same page whoever opens it: the handle is the name in this
  * product, so nothing here depends on a community deciding whether it renders
  * real names, and "online" is a fact about the person rather than about a
  * place they happen to share with the reader.
  *
- * Read-only for everyone, including its owner: what is on it is written on
- * Settings → Profile, so there is one place a person edits themselves rather
- * than two that have to agree.
+ * Your own status is editable in place; nothing else on it is. The rest is
+ * written on Settings → Profile, so there is one place a person edits
+ * themselves rather than two that have to agree.
  */
 export const UserProfilePage = () => {
   const { t } = useTranslation(["profiles", "common"]);
   const { handle } = useParams({ strict: false }) as { handle: string };
+  const { user } = useAuth();
 
-  const { data: profile, isLoading } = useUserProfile(handle);
+  const { data: profile, isLoading, refetch } = useUserProfile(handle);
 
   if (isLoading) {
     return (
@@ -44,16 +58,52 @@ export const UserProfilePage = () => {
     );
   }
 
+  const banner = profileBanner(profile.profile_decorations);
+  const mine = user?.id === profile.id;
+  const name = <UserHandle user={profile} numberClassName="opacity-70" />;
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <ProfileCard
-        user={profile}
-        decorations={profile.profile_decorations}
+    <div className="space-y-6">
+      {banner ? (
+        <PageBanner
+          banner={banner}
+          title={name}
+          badges={<ProfileBadges decorations={profile.profile_decorations} />}
+        />
+      ) : null}
+
+      {/* The picture sits over the tail of the banner, the way a profile's
+          always has. With no banner there is nothing to sit over, so the row
+          carries the name and the badges itself. */}
+      <div
+        className={
+          banner ? "-mt-14 flex flex-wrap items-end gap-4" : "flex flex-wrap items-end gap-4"
+        }
+      >
+        <ProfileAvatar
+          user={profile}
+          decorations={profile.profile_decorations}
+          online={profile.online}
+          ring
+          className="size-24 sm:size-28"
+        />
+        {banner ? null : (
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
+            <h1 className="font-semibold text-2xl">{name}</h1>
+            <ProfileBadges decorations={profile.profile_decorations} />
+          </div>
+        )}
+      </div>
+
+      <ProfileStatus
         status={profile.custom_status}
-        online={profile.online}
-        joinedAt={profile.joined_at}
-        nameAs="h1"
+        editable={mine}
+        onSaved={() => void refetch()}
       />
+
+      <ProfileMeta online={profile.online} joinedAt={profile.joined_at} />
+
+      <ProfileCommunities handle={handle} />
     </div>
   );
 };

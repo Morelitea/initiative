@@ -79,7 +79,13 @@
     "statusLabel": "Status",
     "statusPlaceholder": "What are you up to?",
     "statusEmojiPlaceholder": "Emoji",
-    "statusHelp": "Shown on your profile, which anyone can open."
+    "statusHelp": "Shown on your profile, which anyone can open.",
+    "pictureTitle": "Your picture",
+    "pictureDescription": "Upload one, or point at an image. It saves the moment you choose it.",
+    "timezoneLabel": "Timezone",
+    "timezonePlaceholder": "Select timezone",
+    "timezoneEmpty": "No timezone found.",
+    "timezoneHelp": "Used for due dates, daily reminders, and repeating tasks. Taken from your browser when you signed up; correct it here if it is wrong."
   },
   "security": {
     "devicesTitle": "Logged in devices",
@@ -230,11 +236,7 @@
       "unsupported": "Your browser does not support keeping the screen awake."
     },
     "completionTitle": "When you finish a task",
-    "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it.",
-    "timezone": "Timezone",
-    "timezoneDescription": "The clock due dates, reminders and repeats are worked out on. Taken from your browser when you signed up.",
-    "timezonePlaceholder": "Select timezone",
-    "timezoneEmpty": "No timezone found."
+    "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it."
   },
   "notifications": {
     "title": "Notification settings",
@@ -1134,8 +1136,9 @@
   },
   "account": {
     "identityTitle": "How you sign in",
-    "identityDescription": "Your address and your handle. Neither can be changed here.",
+    "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
-    "passwordDescription": "Change it here. You will stay signed in on this device."
+    "passwordDescription": "Change it here. You will stay signed in on this device.",
+    "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle."
   }
 }

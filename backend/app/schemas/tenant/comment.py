@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
-from app.schemas.platform.user import GuildNameVisibility
+from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.services.platform import presence
 
 
 class CommentAuthor(GuildNameVisibility):
@@ -16,6 +17,11 @@ class CommentAuthor(GuildNameVisibility):
     An address never reaches a guild, so there is none here; the handle names
     the author, and ``full_name`` arrives only from a guild that shows real
     names.
+
+    It carries what a picture needs to be drawn the way it is drawn everywhere
+    else — the decorations and whether they are around — because a comment is
+    one of the places a person appears at a size where both are legible.
+    Neither is private: the same two are on the public profile.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -25,6 +31,19 @@ class CommentAuthor(GuildNameVisibility):
     discriminator: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+
+    @computed_field(return_type=bool)  # type: ignore[misc]
+    @property
+    def online(self) -> bool:
+        """Whether they have Initiative open, at the moment this was serialized.
+
+        Computed rather than stamped by each endpoint: a comment author is
+        built in nine places, and presence is not a column anything could
+        select. It is a process-local fact, so it is read where the shape is
+        made rather than passed down to it.
+        """
+        return presence.online.is_online(self.id)
 
 
 class CommentBase(SanitizedBaseModel):

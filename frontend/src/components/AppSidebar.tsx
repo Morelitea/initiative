@@ -64,7 +64,7 @@ import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 
 export const AppSidebar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
@@ -636,6 +636,7 @@ export const AppSidebar = () => {
           hasUpdate={Boolean(hasUpdate)}
           isLoadingVersion={isLoadingVersion}
           onLogout={logout}
+          refreshUser={refreshUser}
         />
       </div>
     </Sidebar>

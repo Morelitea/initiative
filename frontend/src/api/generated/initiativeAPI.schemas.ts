@@ -1476,11 +1476,36 @@ export interface ChangelogResponse {
 }
 
 /**
+ * How a profile is dressed: a banner, a frame, badges beside the name.
+ *
+ * Every value is an **id naming a catalog entry**, never an image. The client
+ * resolves an id to artwork it already ships, so a decorated profile takes up
+ * none of a guild's upload allowance. An id this deployment's catalog doesn't
+ * know simply renders nothing, which is what lets a profile keep wearing
+ * something the store stopped offering.
+ *
+ * ``extra="forbid"``: the set of things a profile can wear is this list, and
+ * a client sending a key that isn't here is told so rather than having it
+ * quietly stored and never rendered.
+ */
+export interface ProfileDecorationsOutput {
+  banner: string | null;
+  frame: string | null;
+  /** @maxItems 6 */
+  badges: string[];
+}
+
+/**
  * Who wrote a comment.
  *
  * An address never reaches a guild, so there is none here; the handle names
  * the author, and ``full_name`` arrives only from a guild that shows real
  * names.
+ *
+ * It carries what a picture needs to be drawn the way it is drawn everywhere
+ * else — the decorations and whether they are around — because a comment is
+ * one of the places a person appears at a size where both are legible.
+ * Neither is private: the same two are on the public profile.
  */
 export interface CommentAuthor {
   id: number;
@@ -1488,6 +1513,16 @@ export interface CommentAuthor {
   discriminator: number;
   full_name?: string | null;
   avatar_url?: string | null;
+  profile_decorations?: ProfileDecorationsOutput;
+  /**
+   * Whether they have Initiative open, at the moment this was serialized.
+   *
+   * Computed rather than stamped by each endpoint: a comment author is
+   * built in nine places, and presence is not a column anything could
+   * select. It is a process-local fact, so it is read where the shape is
+   * made rather than passed down to it.
+   */
+  readonly online: boolean;
 }
 
 export interface CommentCreate {
@@ -3823,26 +3858,6 @@ export interface ProfileDecorationsInput {
   frame?: string | null;
   /** @maxItems 6 */
   badges?: string[];
-}
-
-/**
- * How a profile is dressed: a banner, a frame, badges beside the name.
- *
- * Every value is an **id naming a catalog entry**, never an image. The client
- * resolves an id to artwork it already ships, so a decorated profile takes up
- * none of a guild's upload allowance. An id this deployment's catalog doesn't
- * know simply renders nothing, which is what lets a profile keep wearing
- * something the store stopped offering.
- *
- * ``extra="forbid"``: the set of things a profile can wear is this list, and
- * a client sending a key that isn't here is told so rather than having it
- * quietly stored and never rendered.
- */
-export interface ProfileDecorationsOutput {
-  banner: string | null;
-  frame: string | null;
-  /** @maxItems 6 */
-  badges: string[];
 }
 
 export interface ProjectActivityEntry {

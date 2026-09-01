@@ -27,10 +27,10 @@ describe("resolving a decoration", () => {
     const badges = resolveBadges({
       banner: null,
       frame: null,
-      badges: ["core.trailblazer", "thirdparty.unknown", "core.founder"],
+      badges: ["spooky.lantern", "thirdparty.unknown", "core.fan"],
     });
 
-    expect(badges.map((badge) => badge.id)).toEqual(["core.trailblazer", "core.founder"]);
+    expect(badges.map((badge) => badge.id)).toEqual(["spooky.lantern", "core.fan"]);
   });
 
   it("draws nothing for a profile with no decorations at all", () => {

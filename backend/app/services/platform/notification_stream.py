@@ -28,6 +28,8 @@ from typing import Any, Dict, Set
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
 
+from app.services.platform import presence
+
 logger = logging.getLogger(__name__)
 
 # Key under which a session accumulates the users whose inbox it has changed
@@ -61,6 +63,9 @@ class NotificationStream:
         async with self._lock:
             self._sockets.setdefault(user_id, set()).add(websocket)
             self._socket_user[websocket] = user_id
+        # This socket is open wherever they are in the app, including outside
+        # any guild, so it is what "has Initiative open" means.
+        presence.online.arrived(user_id)
 
     async def disconnect(self, websocket: Any) -> None:
         """Drop a socket; the last one drops its user's entry entirely."""
@@ -74,6 +79,7 @@ class NotificationStream:
             sockets.discard(websocket)
             if not sockets:
                 del self._sockets[user_id]
+        presence.online.left(user_id)
 
     async def send(self, user_id: int, message: Dict[str, Any]) -> None:
         """Fan one frame out to every socket this user has open here."""

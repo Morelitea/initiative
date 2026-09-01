@@ -27,6 +27,7 @@ from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.services.platform import notification_stream
 from app.services.realtime import manager as realtime_manager
 
 from app.testing.factories import (
@@ -1173,7 +1174,7 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
         full_name="Tinker Bell",
         avatar_url="https://example.com/tinker.png",
         custom_status={"emoji": "\N{GAME DIE}", "text": "rolling for initiative"},
-        profile_decorations={"banner": "core.aurora", "badges": ["core.founder"]},
+        profile_decorations={"banner": "core.aurora", "badges": ["core.fan"]},
     )
 
     response = await client.get(
@@ -1193,7 +1194,7 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
     assert body["profile_decorations"] == {
         "banner": "core.aurora",
         "frame": None,
-        "badges": ["core.founder"],
+        "badges": ["core.fan"],
     }
     assert body["online"] is False
     assert body["joined_at"]
@@ -1297,6 +1298,63 @@ async def test_profile_says_when_someone_is_online(
         headers=get_auth_headers(caller),
     )
     assert after.json()["online"] is False
+
+
+@pytest.mark.integration
+async def test_profile_says_online_with_no_guild_open(
+    client: AsyncClient, session: AsyncSession
+):
+    """The guild events socket only exists while a tab sits inside a guild, so
+    reading presence from it alone made everyone reading their own profile —
+    or anything else outside a guild — look offline. The notification stream
+    has no guild in its address and is what answers the question."""
+    caller = await create_user(session)
+    subject = await create_user(session)
+
+    socket = object()
+    await notification_stream.stream.connect(subject.id, socket)
+    try:
+        response = await client.get(
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await notification_stream.stream.disconnect(socket)
+
+    assert response.status_code == 200
+    assert response.json()["online"] is True
+
+    after = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+        headers=get_auth_headers(caller),
+    )
+    assert after.json()["online"] is False
+
+
+@pytest.mark.integration
+async def test_profile_stays_online_while_any_socket_is_open(
+    client: AsyncClient, session: AsyncSession
+):
+    """Two channels feed one roll, so closing one tab does not sign the other
+    one out."""
+    caller = await create_user(session)
+    subject = await create_user(session)
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=subject, guild=guild)
+
+    bell, events = object(), object()
+    await notification_stream.stream.connect(subject.id, bell)
+    await realtime_manager.connect(guild.id, [], events, user_id=subject.id)  # type: ignore[arg-type]
+    try:
+        await realtime_manager.disconnect(events)  # type: ignore[arg-type]
+        response = await client.get(
+            f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
+            headers=get_auth_headers(caller),
+        )
+    finally:
+        await notification_stream.stream.disconnect(bell)
+
+    assert response.json()["online"] is True
 
 
 @pytest.mark.integration
@@ -1486,7 +1544,7 @@ async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSe
             "profile_decorations": {
                 "banner": "pack.midnight",
                 "frame": "core.gold",
-                "badges": ["core.founder", "core.founder"],
+                "badges": ["core.fan", "core.fan"],
             }
         },
     )
@@ -1496,7 +1554,7 @@ async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSe
         "banner": "pack.midnight",
         "frame": "core.gold",
         # The same badge twice is a duplicate, not a second badge.
-        "badges": ["core.founder"],
+        "badges": ["core.fan"],
     }
 
 

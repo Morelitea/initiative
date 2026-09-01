@@ -45,5 +45,7 @@ export const DecorationSwatch = ({
     );
   }
 
-  return <img src={decoration.src} alt="" aria-hidden="true" className={cn("size-8", className)} />;
+  return (
+    <img src={decoration.src} alt="" aria-hidden="true" className={cn("size-10", className)} />
+  );
 };

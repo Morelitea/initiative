@@ -65,9 +65,7 @@ type DecorationName =
   | "parchment"
   | "gold"
   | "arcane"
-  | "founder"
-  | "storyteller"
-  | "trailblazer"
+  | "fan"
   | "dicetower"
   | "natural20"
   | "d20"
@@ -76,7 +74,16 @@ type DecorationName =
   | "cassette"
   | "observatory"
   | "orbital"
-  | "flask";
+  | "flask"
+  | "grove"
+  | "overgrown"
+  | "morel"
+  | "hollow"
+  | "cobweb"
+  | "lantern"
+  | "parade"
+  | "spectrum"
+  | "prideheart";
 
 /**
  * A pack is a marketplace listing now, so its name, publisher and description
@@ -88,6 +95,15 @@ type DecorationName =
 export interface Decoration {
   id: string;
   kind: DecorationKind;
+  /**
+   * For a banner, whether the artwork is dark enough to write on in white.
+   *
+   * A community picks its banner's text colour because it picks the picture.
+   * A decoration's artwork ships with the app, so the artwork answers instead
+   * — there is nothing to compute it from at runtime, and every banner but the
+   * parchment one is a night sky.
+   */
+  ink?: "light" | "dark";
   /** Where the artwork is, relative to the app's root. */
   src: string;
   /** Key into the `profiles` namespace for this decoration's name. */
@@ -98,24 +114,26 @@ const entry = (
   id: string,
   kind: DecorationKind,
   file: string,
-  name: DecorationName
+  name: DecorationName,
+  ink: "light" | "dark" = "light"
 ): Decoration => ({
   id,
   kind,
   src: `/decorations/${kind}s/${file}.svg`,
   labelKey: `decorations.${name}`,
+  ...(kind === "banner" ? { ink } : null),
 });
 
 /** The catalog, by id. */
 export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "core.aurora": entry("core.aurora", "banner", "core-aurora", "aurora"),
   "core.ember": entry("core.ember", "banner", "core-ember", "ember"),
-  "core.parchment": entry("core.parchment", "banner", "core-parchment", "parchment"),
+  // The one banner that is not a night sky.
+  "core.parchment": entry("core.parchment", "banner", "core-parchment", "parchment", "dark"),
   "core.gold": entry("core.gold", "frame", "core-gold", "gold"),
   "core.arcane": entry("core.arcane", "frame", "core-arcane", "arcane"),
-  "core.founder": entry("core.founder", "badge", "core-founder", "founder"),
-  "core.storyteller": entry("core.storyteller", "badge", "core-storyteller", "storyteller"),
-  "core.trailblazer": entry("core.trailblazer", "badge", "core-trailblazer", "trailblazer"),
+  // The one badge nobody acquires: Initiative's own mark, for being here.
+  "core.fan": entry("core.fan", "badge", "core-fan", "fan"),
 
   // Tabletop. The badge is the die the app already rolls when you finish
   // something, held still.
@@ -137,6 +155,20 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   ),
   "science.orbital": entry("science.orbital", "frame", "science-orbital", "orbital"),
   "science.flask": entry("science.flask", "badge", "science-flask", "flask"),
+
+  // Foragers, mycologists, and anyone who stops a walk to look at a log.
+  "fungi.grove": entry("fungi.grove", "banner", "fungi-grove", "grove"),
+  "fungi.overgrown": entry("fungi.overgrown", "frame", "fungi-overgrown", "overgrown"),
+  "fungi.morel": entry("fungi.morel", "badge", "fungi-morel", "morel"),
+
+  // The group that keeps October in the calendar all year.
+  "spooky.hollow": entry("spooky.hollow", "banner", "spooky-hollow", "hollow"),
+  "spooky.web": entry("spooky.web", "frame", "spooky-web", "cobweb"),
+  "spooky.lantern": entry("spooky.lantern", "badge", "spooky-lantern", "lantern"),
+
+  "pride.parade": entry("pride.parade", "banner", "pride-parade", "parade"),
+  "pride.spectrum": entry("pride.spectrum", "frame", "pride-spectrum", "spectrum"),
+  "pride.heart": entry("pride.heart", "badge", "pride-heart", "prideheart"),
 };
 
 /** The decoration this id names, if this build has it and it is of that kind. */

@@ -1,19 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      shape-rendering="crispEdges" role="presentation">
   <title>Cassette</title>
-  <!-- A tape: what a band hands you when they want you to hear it. -->
-  <circle cx="12" cy="12" r="11" fill="#160f1e"/>
-  <rect x="3" y="7" width="18" height="11" fill="#f0567a"/>
-  <rect x="4" y="8" width="16" height="9" fill="#2a2032"/>
-  <rect x="5" y="9" width="14" height="4" fill="#ffe9d6"/>
-  <g fill="#c2b6a8">
-    <rect x="6" y="10" width="9" height="1"/>
-    <rect x="6" y="11" width="6" height="1"/>
-  </g>
-  <rect x="6" y="14" width="12" height="3" fill="#14101c"/>
-  <g fill="#ffb057">
-    <rect x="8" y="15" width="2" height="1"/>
-    <rect x="14" y="15" width="2" height="1"/>
-  </g>
-  <rect x="10" y="15" width="4" height="1" fill="#5a4a3a"/>
+  <circle cx="24" cy="24" r="23" fill="#140F1F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#2C2140" stroke-width="2"/>
+  <!-- The shell. -->
+  <rect x="7" y="14" width="34" height="21" fill="#F0567A"/>
+  <rect x="7" y="14" width="34" height="3" fill="#F782A0"/>
+  <rect x="7" y="32" width="34" height="3" fill="#C43C5C"/>
+  <!-- The window, and the tape wound across it. -->
+  <rect x="11" y="18" width="26" height="10" fill="#241A33"/>
+  <rect x="13" y="20" width="22" height="6" fill="#3A2B52"/>
+  <circle cx="18" cy="23" r="4" fill="#140F1F"/>
+  <circle cx="30" cy="23" r="4" fill="#140F1F"/>
+  <circle cx="18" cy="23" r="1.5" fill="#F0567A"/>
+  <circle cx="30" cy="23" r="1.5" fill="#F0567A"/>
+  <!-- The label strip and the two drive holes. -->
+  <rect x="11" y="30" width="26" height="3" fill="#FFE9A3"/>
+  <rect x="16" y="31" width="4" height="1" fill="#C43C5C"/>
+  <rect x="22" y="31" width="8" height="1" fill="#C43C5C"/>
 </svg>
