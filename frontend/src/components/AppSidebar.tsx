@@ -86,7 +86,7 @@ export const AppSidebar = () => {
   const showAdminDashboard = canAccessAdminDashboard(user);
 
   // Determine sidebar mode from route
-  const isGuildRoute = location.pathname.startsWith("/g/");
+  const isGuildRoute = location.pathname.startsWith("/c/");
   // The community directory brings its own: what narrows it belongs beside the
   // cards it narrows, not on the page with them. Only where there is a
   // directory to narrow, though — where the owner runs none, the page says so
@@ -101,7 +101,7 @@ export const AppSidebar = () => {
   // Which project row to highlight. A project is addressed inside its
   // initiative, so the pattern has to carry that segment too.
   const activeProjectId = useMemo(() => {
-    const match = location.pathname.match(/^\/g\/\d+\/i\/\d+\/projects\/(\d+)/);
+    const match = location.pathname.match(/^\/c\/\d+\/i\/\d+\/projects\/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   }, [location.pathname]);
 
@@ -109,7 +109,7 @@ export const AppSidebar = () => {
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   // The guild tree (initiatives/projects/documents/queues/counters/tags) is
-  // only rendered on /g/ routes, and only there does the server-held guild
+  // only rendered on /c/ routes, and only there does the server-held guild
   // context line up with it — on personal pages these guild-scoped queries
   // would 409 (no context) and cache errors that linger as zeroed counts.
   // Gate them all on actually being in the guild UI.

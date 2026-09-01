@@ -62,7 +62,7 @@ describe("GuildContextMenu invite action", () => {
     expect(item).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  it("offers it when the guild has no cap at all", async () => {
+  it("offers it when the community has no cap at all", async () => {
     setup({ max_users: null, member_count: 42 });
 
     await openMenu();
@@ -76,14 +76,14 @@ describe("GuildContextMenu invite action", () => {
 
     await openMenu();
 
-    const item = await screen.findByRole("menuitem", { name: "Invite members (guild full)" });
+    const item = await screen.findByRole("menuitem", { name: "Invite members (community full)" });
     expect(item).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(item);
     expect(mintInvite).not.toHaveBeenCalled();
   });
 
-  it("sends a full guild to the billing portal where one is configured", async () => {
+  it("sends a full community to the billing portal where one is configured", async () => {
     state.billing = { url: "https://billing.example.com" };
     mintHandoff.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
     const tab = { location: { href: "" }, opener: {} as unknown };

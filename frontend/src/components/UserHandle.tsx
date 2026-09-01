@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils";
 import type { DisplayableUser } from "@/lib/userDisplay";
 import { formatDiscriminator, getUserHandle } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 interface UserHandleProps {
   user: DisplayableUser | null | undefined;

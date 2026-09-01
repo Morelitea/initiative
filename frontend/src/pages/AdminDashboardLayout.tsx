@@ -35,7 +35,7 @@ export const AdminDashboardLayout = () => {
       {
         value: "guilds",
         label: t("adminDashboard.tabs.guilds"),
-        path: "/settings/admin/guilds",
+        path: "/settings/admin/communities",
         capabilities: [Capability.guildsManage],
       },
       {

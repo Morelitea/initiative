@@ -236,13 +236,13 @@ async def check_deletion_eligibility(
         for guild_name in last_admin_guilds:
             if admin_context:
                 blockers.append(
-                    f"User is the last admin of guild '{guild_name}'. "
-                    f"Another user must be promoted to admin or the guild must be deleted first."
+                    f"User is the last admin of community '{guild_name}'. "
+                    f"Another user must be promoted to admin or the community must be deleted first."
                 )
             else:
                 blockers.append(
-                    f"You are the last admin of guild '{guild_name}'. "
-                    f"Promote another user to admin or delete the guild before deleting your account."
+                    f"You are the last admin of community '{guild_name}'. "
+                    f"Promote another user to admin or delete the community before deleting your account."
                 )
 
     can_delete = len(blockers) == 0

@@ -4,7 +4,7 @@
  * Touch has one press-and-hold, and the context menu owns it. Wiring a drag
  * sensor to the same gesture meant a long press on a guild started a reorder
  * instead of opening the menu, so the menu was unreachable on a phone. Touch
- * dragging now waits behind an explicit "Reorder guilds" action, and while it
+ * dragging now waits behind an explicit "Reorder communities" action, and while it
  * is on a tap moves the guild rather than switching to it.
  *
  * A guild reached through a temporary access grant is not part of the user's
@@ -64,25 +64,27 @@ const setup = (guilds: GuildEntry[]) => {
 const railButton = (name: string) => screen.findByRole("button", { name: `Switch to ${name}` });
 
 // The flyout repeats every guild the rail shows, so queries against it are
-// scoped to the panel that owns the "Guilds" heading.
+// scoped to the panel that owns the "Communities" heading.
 const openFlyout = async () => {
-  fireEvent.click(await screen.findByRole("button", { name: "Expand guild list" }));
-  const heading = await screen.findByRole("heading", { name: "Guilds" });
+  fireEvent.click(await screen.findByRole("button", { name: "Expand community list" }));
+  const heading = await screen.findByRole("heading", { name: "Communities" });
   const header = heading.parentElement as HTMLElement;
   return { header, panel: header.parentElement as HTMLElement };
 };
 
 describe("GuildSidebar reorder mode", () => {
-  it("offers a reorder action in a member guild's context menu", async () => {
+  it("offers a reorder action in a member community's context menu", async () => {
     const guilds = [entry({ name: "Alpha" }), entry({ name: "Beta" })];
     setup(guilds);
 
     fireEvent.contextMenu(await railButton("Alpha"));
 
-    expect(await screen.findByRole("menuitem", { name: "Reorder guilds" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("menuitem", { name: "Reorder communities" })
+    ).toBeInTheDocument();
   });
 
-  it("does not offer it for a guild held through a temporary grant", async () => {
+  it("does not offer it for a community held through a temporary grant", async () => {
     const guilds = [
       entry({ name: "Alpha" }),
       entry({ name: "Loaner", accessType: "grant", grantExpiresAt: null }),
@@ -93,17 +95,17 @@ describe("GuildSidebar reorder mode", () => {
     const { panel } = await openFlyout();
     fireEvent.contextMenu(within(panel).getByRole("button", { name: "Switch to Loaner" }));
 
-    expect(await screen.findByRole("menuitem", { name: "Copy guild ID" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Reorder guilds" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Copy community ID" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Reorder communities" })).not.toBeInTheDocument();
   });
 
-  it("does not offer it when there is only one guild to order", async () => {
+  it("does not offer it when there is only one community to order", async () => {
     setup([entry({ name: "Alpha" })]);
 
     fireEvent.contextMenu(await railButton("Alpha"));
 
-    expect(await screen.findByRole("menuitem", { name: "Copy guild ID" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Reorder guilds" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "Copy community ID" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Reorder communities" })).not.toBeInTheDocument();
   });
 
   it("turns taps into drags while reordering, and hands them back on Done", async () => {
@@ -111,7 +113,7 @@ describe("GuildSidebar reorder mode", () => {
     const { switchGuild } = setup(guilds);
 
     fireEvent.contextMenu(await railButton("Alpha"));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Reorder guilds" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Reorder communities" }));
 
     const done = await screen.findByRole("button", { name: "Done" });
     fireEvent.click(screen.getByRole("button", { name: "Drag to reorder Beta" }));
@@ -122,7 +124,7 @@ describe("GuildSidebar reorder mode", () => {
     expect(switchGuild).toHaveBeenCalledWith(guilds[1].id);
   });
 
-  it("exposes the same reorder toggle in the expanded guild list", async () => {
+  it("exposes the same reorder toggle in the expanded community list", async () => {
     const guilds = [entry({ name: "Alpha" }), entry({ name: "Beta" })];
     setup(guilds);
 
@@ -130,7 +132,9 @@ describe("GuildSidebar reorder mode", () => {
 
     fireEvent.click(within(header).getByRole("button", { name: "Reorder" }));
 
-    expect(screen.getByText("Drag guilds to reorder them, then tap Done.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Drag communities to reorder them, then tap Done.")
+    ).toBeInTheDocument();
     expect(within(header).getByRole("button", { name: "Done" })).toHaveAttribute(
       "aria-pressed",
       "true"
@@ -145,7 +149,7 @@ describe("GuildSidebar reorder mode", () => {
  * creator straight to the portal to see that plan and add payment details.
  * With no portal configured (the self-hosted default) creation just finishes.
  */
-describe("GuildSidebar guild creation", () => {
+describe("GuildSidebar community creation", () => {
   const createNamedGuild = async (createGuild: ReturnType<typeof vi.fn>) => {
     renderPage(
       () => (
@@ -155,11 +159,11 @@ describe("GuildSidebar guild creation", () => {
       ),
       { guilds: { guilds: [entry({ name: "Alpha" })], activeGuildId: 1, createGuild } }
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Create Guild" }));
-    fireEvent.change(await screen.findByLabelText("Guild name"), {
+    fireEvent.click(await screen.findByRole("button", { name: "Create Community" }));
+    fireEvent.change(await screen.findByLabelText("Community name"), {
       target: { value: "Beta" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create guild" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create community" }));
   };
 
   beforeEach(() => {
@@ -216,14 +220,14 @@ describe("the way into the community directory", () => {
     state.communityDirectory = true;
   });
 
-  it("sits in the rail under the add-a-guild button", async () => {
+  it("sits in the rail under the add-a-community button", async () => {
     setup([entry({ id: 1, name: "Alpha" })]);
 
     const link = await screen.findByRole("link", { name: "Join a community" });
     expect(link).toHaveAttribute("href", "/communities");
   });
 
-  it("is offered even where guilds cannot be created", async () => {
+  it("is offered even where communities cannot be created", async () => {
     // A deployment with guild creation switched off is exactly where joining an
     // existing guild is the only way into one.
     renderPage(
@@ -236,10 +240,10 @@ describe("the way into the community directory", () => {
     );
 
     expect(await screen.findByRole("link", { name: "Join a community" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create guild" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create community" })).not.toBeInTheDocument();
   });
 
-  it("is repeated in the expanded guild list", async () => {
+  it("is repeated in the expanded community list", async () => {
     setup([entry({ id: 1, name: "Alpha" })]);
     const { panel } = await openFlyout();
 

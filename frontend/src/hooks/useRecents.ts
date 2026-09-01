@@ -48,7 +48,7 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
  * call this in a ``useEffect`` once the entity has loaded and access checks
  * have passed.
  *
- * ``guildId`` is the entity's OWN guild — pass the ``/g/{guildId}`` route param,
+ * ``guildId`` is the entity's OWN guild — pass the ``/c/{guildId}`` route param,
  * NOT the active guild. The active guild is shared across tabs (localStorage +
  * storage events), so recording with it tags the view under the wrong guild
  * when another tab is in a different guild; the URL path is per-tab.

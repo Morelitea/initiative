@@ -27,7 +27,7 @@ const INITIATIVE_ID = 7;
 const MANAGER_ID = 42;
 
 /** The auto-join switch, when the reader is offered one at all. */
-const AUTO_JOIN_LABEL = "Add every new guild member automatically";
+const AUTO_JOIN_LABEL = "Add every new community member automatically";
 const autoJoinSwitch = () => screen.queryByLabelText(AUTO_JOIN_LABEL);
 
 /** Records what each PATCH actually sent, so a save can be read field by field. */
@@ -59,7 +59,7 @@ const renderDetails = (role: "admin" | "member" = "admin") =>
   renderPage(InitiativeSettingsDetailsPage, {
     auth: { user: buildUser({ id: MANAGER_ID }) },
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: "/g/$guildId/i/$initiativeId/settings",
+    initialRoute: "/c/$guildId/i/$initiativeId/settings",
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
@@ -125,7 +125,7 @@ describe("InitiativeSettingsDetailsPage", () => {
    * it, and about never assembling a combination the server would refuse.
    */
   describe("auto-join", () => {
-    it("offers the switch to a guild admin on an open initiative", async () => {
+    it("offers the switch to a community admin on an open initiative", async () => {
       stubInitiative({ join_policy: "open" });
 
       renderDetails();
@@ -133,12 +133,14 @@ describe("InitiativeSettingsDetailsPage", () => {
       expect(await screen.findByLabelText(AUTO_JOIN_LABEL)).toBeEnabled();
     });
 
-    it("says people already in the guild are not swept in", async () => {
+    it("says people already in the community are not swept in", async () => {
       stubInitiative({ join_policy: "open" });
 
       renderDetails();
 
-      expect(await screen.findByText(/People already in the guild are not added/)).toBeVisible();
+      expect(
+        await screen.findByText(/People already in the community are not added/)
+      ).toBeVisible();
     });
 
     it("will not let a closed initiative enrol anyone, and says why", async () => {
@@ -160,7 +162,7 @@ describe("InitiativeSettingsDetailsPage", () => {
       expect(autoJoinSwitch()).toBeDisabled();
     });
 
-    it("is not offered to a manager who is not a guild admin", async () => {
+    it("is not offered to a manager who is not a community admin", async () => {
       stubInitiative({ join_policy: "open", members: [managerMembership()] });
 
       // A manager reaches these settings and may set the policy — but the
@@ -230,7 +232,7 @@ describe("InitiativeSettingsDetailsPage", () => {
       await userEvent.click(await screen.findByLabelText(AUTO_JOIN_LABEL));
 
       await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Only guild admins can change auto-join")
+        expect(toast.error).toHaveBeenCalledWith("Only community admins can change auto-join")
       );
     });
 

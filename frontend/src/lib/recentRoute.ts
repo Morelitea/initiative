@@ -19,7 +19,7 @@ export type RecentKey = {
  * (``item.guild_id``), never the guild the viewer happens to be in —
  * per-guild entity ids collide across guilds, so a tab opened under the
  * wrong guild prefix would resolve to a different (or inaccessible) entity.
- * Navigating the link enters that guild via the /g/$guildId layout.
+ * Navigating the link enters that guild via the /c/$guildId layout.
  */
 export function recentRoute(item: RecentItemRead): string {
   return guildPath(
@@ -43,12 +43,12 @@ function parseId(segment: string | undefined): number | null {
  *
  * Two shapes, because a tool entity is addressed inside its initiative but a
  * guild-level one (only calendars have any) is not:
- *   /g/{guildId}/i/{initiativeId}/{toolSegment}/{entityId}/…
- *   /g/{guildId}/{toolSegment}/{entityId}/…
+ *   /c/{guildId}/i/{initiativeId}/{toolSegment}/{entityId}/…
+ *   /c/{guildId}/{toolSegment}/{entityId}/…
  */
 export function getActiveRecentKey(pathname: string): RecentKey | null {
   const parts = pathname.split("/");
-  if (parts[1] !== "g") {
+  if (parts[1] !== "c") {
     return null;
   }
   const guildId = parseId(parts[2]);

@@ -1,6 +1,16 @@
 /**
  * Centralized query-key invalidation helpers.
  *
+ * NAMING — the UI calls these "communities"; the code calls them guilds.
+ * Communities ended up being used far more broadly than the gaming guilds the
+ * name was picked for, so the product renamed them. The rename stopped at the
+ * user-visible strings: the database, the API, the generated client and every
+ * identifier below still say `guild`, because moving those means a schema
+ * migration across every tenant. Treat `guild` in code and `community` in copy
+ * as the same thing. This is deliberate and permanent, not a half-finished
+ * rename -- if you are adding UI, say community; if you are adding a query,
+ * follow the `guild` that is already here.
+ *
  * Orval generates URL-based query keys (e.g. ["/api/v1/tags/"]). This module
  * provides domain-specific helpers that use `predicate`-based matching so a
  * single invalidation call can reach both list and detail keys.

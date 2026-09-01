@@ -16,7 +16,7 @@ const mutate = vi.fn();
 const guildsData = [
   {
     id: 7,
-    name: "Capped Guild",
+    name: "Capped Community",
     member_count: 3,
     tier_name: "Bespoke Plan",
     max_storage_bytes: 10 * GIB,
@@ -27,7 +27,7 @@ const guildsData = [
   },
   {
     id: 8,
-    name: "Open Guild",
+    name: "Open Community",
     member_count: 0,
     tier_name: null,
     max_storage_bytes: null,
@@ -38,7 +38,7 @@ const guildsData = [
   },
   {
     id: 9,
-    name: "Full Guild",
+    name: "Full Community",
     member_count: 12,
     tier_name: "Bespoke Plan",
     max_storage_bytes: null,
@@ -99,19 +99,19 @@ describe("AdminDashboardGuildsPage", () => {
   });
 
   describe("storage limits", () => {
-    it("pre-fills each guild's current cap in GB (blank = unlimited)", async () => {
+    it("pre-fills each community's current cap in GB (blank = unlimited)", async () => {
       renderPage();
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
       expect(screen.getByText("7")).toBeInTheDocument(); // id column
-      expect(storageInput("Capped Guild").value).toBe("10");
-      expect(storageInput("Open Guild").value).toBe("");
+      expect(storageInput("Capped Community").value).toBe("10");
+      expect(storageInput("Open Community").value).toBe("");
     });
 
     it("auto-saves the new cap on blur, converting GB to bytes", async () => {
       renderPage();
 
-      const input = await screen.findByLabelText("Storage limit for Open Guild in GB");
+      const input = await screen.findByLabelText("Storage limit for Open Community in GB");
       fireEvent.change(input, { target: { value: "5" } });
       fireEvent.blur(input);
 
@@ -124,7 +124,7 @@ describe("AdminDashboardGuildsPage", () => {
     it("does not save when the value is left unchanged", async () => {
       renderPage();
 
-      fireEvent.blur(await screen.findByLabelText("Storage limit for Capped Guild in GB"));
+      fireEvent.blur(await screen.findByLabelText("Storage limit for Capped Community in GB"));
 
       expect(mutate).not.toHaveBeenCalled();
     });
@@ -132,7 +132,7 @@ describe("AdminDashboardGuildsPage", () => {
     it("reverts an invalid entry on blur without saving", async () => {
       renderPage();
 
-      const input = storageInput("Open Guild");
+      const input = storageInput("Open Community");
       fireEvent.change(input, { target: { value: "-3" } });
       fireEvent.blur(input);
 
@@ -146,10 +146,10 @@ describe("AdminDashboardGuildsPage", () => {
       renderPage();
 
       // Capped: count 3 with the cap 10 pre-filled in the input.
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(userLimitInput("Capped Guild").value).toBe("10");
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(userLimitInput("Capped Community").value).toBe("10");
       // Unlimited: blank input (placeholder renders "Unlimited").
-      expect(userLimitInput("Open Guild").value).toBe("");
+      expect(userLimitInput("Open Community").value).toBe("");
       // The slash separators render one per row.
       expect(screen.getAllByText("/")).toHaveLength(guildsData.length);
     });
@@ -157,7 +157,7 @@ describe("AdminDashboardGuildsPage", () => {
     it("auto-saves the new user cap on blur", async () => {
       renderPage();
 
-      const input = userLimitInput("Open Guild");
+      const input = userLimitInput("Open Community");
       fireEvent.change(input, { target: { value: "25" } });
       fireEvent.blur(input);
 
@@ -167,7 +167,7 @@ describe("AdminDashboardGuildsPage", () => {
     it("commits on Enter", async () => {
       renderPage();
 
-      const input = userLimitInput("Open Guild");
+      const input = userLimitInput("Open Community");
       input.focus(); // Enter calls blur(), which only fires on the focused element
       fireEvent.change(input, { target: { value: "4" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -178,7 +178,7 @@ describe("AdminDashboardGuildsPage", () => {
     it("clearing the cap saves null (switch back to unlimited)", async () => {
       renderPage();
 
-      const input = userLimitInput("Capped Guild");
+      const input = userLimitInput("Capped Community");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
 
@@ -188,7 +188,7 @@ describe("AdminDashboardGuildsPage", () => {
     it("does not save when the cap is left unchanged", async () => {
       renderPage();
 
-      fireEvent.blur(userLimitInput("Capped Guild"));
+      fireEvent.blur(userLimitInput("Capped Community"));
 
       expect(mutate).not.toHaveBeenCalled();
     });
@@ -203,7 +203,7 @@ describe("AdminDashboardGuildsPage", () => {
     ])("reverts %s without saving", async (_label, value) => {
       renderPage();
 
-      const input = userLimitInput("Capped Guild");
+      const input = userLimitInput("Capped Community");
       fireEvent.change(input, { target: { value } });
       fireEvent.blur(input);
 
@@ -211,34 +211,34 @@ describe("AdminDashboardGuildsPage", () => {
       expect(input.value).toBe("10"); // snapped back to the persisted cap
     });
 
-    it("flags a guild that is over its cap (existing members are never removed)", async () => {
+    it("flags a community that is over its cap (existing members are never removed)", async () => {
       renderPage();
 
       // Full Guild has 12 members against a cap of 10 — the count carries the
       // over-limit hint (and destructive styling), but the cap stays editable.
       expect(
-        await screen.findByTitle("Full Guild has more members than its current limit allows.")
+        await screen.findByTitle("Full Community has more members than its current limit allows.")
       ).toHaveTextContent("12");
-      expect(userLimitInput("Full Guild").value).toBe("10");
+      expect(userLimitInput("Full Community").value).toBe("10");
     });
   });
 
   describe("lifecycle status", () => {
     const statusControl = (guildName: string) => screen.getByLabelText(`Status for ${guildName}`);
 
-    it("shows each guild's current status", async () => {
+    it("shows each community's current status", async () => {
       renderPage();
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(statusControl("Capped Guild")).toHaveTextContent("Active");
-      expect(statusControl("Full Guild")).toHaveTextContent("Suspended");
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(statusControl("Capped Community")).toHaveTextContent("Active");
+      expect(statusControl("Full Community")).toHaveTextContent("Suspended");
     });
 
     it("applies a non-suspend change immediately (no confirm)", async () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(statusControl("Capped Guild"));
+      await user.click(statusControl("Capped Community"));
       await user.click(await screen.findByRole("option", { name: "Read-only" }));
 
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "read_only" } });
@@ -248,36 +248,36 @@ describe("AdminDashboardGuildsPage", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(statusControl("Capped Guild"));
+      await user.click(statusControl("Capped Community"));
       await user.click(await screen.findByRole("option", { name: "Suspended" }));
 
       // Not applied yet — the confirm dialog is shown first.
       expect(mutate).not.toHaveBeenCalled();
-      expect(await screen.findByText("Suspend Capped Guild?")).toBeInTheDocument();
+      expect(await screen.findByText("Suspend Capped Community?")).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Suspend guild" }));
+      await user.click(screen.getByRole("button", { name: "Suspend community" }));
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "suspended" } });
     });
   });
 
-  describe("per-guild sign-in toggle", () => {
+  describe("per-community sign-in toggle", () => {
     const authToggle = (guildName: string) =>
-      screen.getByLabelText(`Per-guild sign-in for ${guildName}`);
+      screen.getByLabelText(`Per-community sign-in for ${guildName}`);
 
     it("is hidden under platform posture", async () => {
       renderPage(); // authScope defaults to "platform"
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(screen.queryByLabelText("Per-guild sign-in for Capped Guild")).toBeNull();
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Per-community sign-in for Capped Community")).toBeNull();
     });
 
-    it("renders each guild's entitlement under guild posture", async () => {
+    it("renders each community's entitlement under community posture", async () => {
       authScope = "guild";
       renderPage();
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(authToggle("Capped Guild")).toHaveAttribute("aria-checked", "false");
-      expect(authToggle("Open Guild")).toHaveAttribute("aria-checked", "true");
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(authToggle("Capped Community")).toHaveAttribute("aria-checked", "false");
+      expect(authToggle("Open Community")).toHaveAttribute("aria-checked", "true");
     });
 
     it("turns the entitlement on", async () => {
@@ -285,7 +285,7 @@ describe("AdminDashboardGuildsPage", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(authToggle("Capped Guild"));
+      await user.click(authToggle("Capped Community"));
       expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { guild_auth_enabled: true } });
     });
 
@@ -294,47 +294,47 @@ describe("AdminDashboardGuildsPage", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(authToggle("Open Guild"));
+      await user.click(authToggle("Open Community"));
       expect(mutate).toHaveBeenCalledWith({ guildId: 8, data: { guild_auth_enabled: false } });
     });
   });
 
   describe("billing column", () => {
-    it("labels each button with the guild's plan, verbatim", async () => {
+    it("labels each button with the community's plan, verbatim", async () => {
       renderPage();
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(screen.getByLabelText("Open billing for Capped Guild")).toHaveTextContent(
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(screen.getByLabelText("Open billing for Capped Community")).toHaveTextContent(
         "Bespoke Plan"
       );
       // No plan named by billing -> neutral label, never an invented tier.
-      expect(screen.getByLabelText("Open billing for Open Guild")).toHaveTextContent("No plan");
+      expect(screen.getByLabelText("Open billing for Open Community")).toHaveTextContent("No plan");
     });
 
     it("is absent when no billing portal is configured", async () => {
       billingConfig = null;
       renderPage();
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(screen.queryByLabelText("Open billing for Capped Guild")).not.toBeInTheDocument();
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Open billing for Capped Community")).not.toBeInTheDocument();
     });
 
     it("is absent when the operator route into the portal is not wired", async () => {
       billingConfig = { url: "https://billing.example.com", operator_handoff: false };
       renderPage();
 
-      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
-      expect(screen.queryByLabelText("Open billing for Capped Guild")).not.toBeInTheDocument();
+      expect(await screen.findByText("Capped Community")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Open billing for Capped Community")).not.toBeInTheDocument();
     });
 
-    it("mints a handoff for that guild and opens the portal with it", async () => {
+    it("mints a handoff for that community and opens the portal with it", async () => {
       const location = { href: "" };
       const tab = { opener: {} as unknown, location, close: vi.fn() };
       const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
       mintHandoff.mockResolvedValue({ handoff_token: "tok-123", expires_in_seconds: 60 });
 
       renderPage();
-      await userEvent.click(await screen.findByLabelText("Open billing for Capped Guild"));
+      await userEvent.click(await screen.findByLabelText("Open billing for Capped Community"));
 
       expect(mintHandoff).toHaveBeenCalledWith(7);
       // The console reads the guild off the session it exchanges, so the URL
@@ -355,7 +355,7 @@ describe("AdminDashboardGuildsPage", () => {
       mintHandoff.mockRejectedValue(new Error("nope"));
 
       renderPage();
-      await userEvent.click(await screen.findByLabelText("Open billing for Capped Guild"));
+      await userEvent.click(await screen.findByLabelText("Open billing for Capped Community"));
 
       expect(tab.close).toHaveBeenCalled();
       expect(tab.location.href).toBe("");

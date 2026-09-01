@@ -35,7 +35,7 @@ export const GuildLoginPage = () => {
   const guildName = providersQuery.data?.guild_name ?? null;
 
   const signIn = (entry: LoginProviderEntry) => {
-    const next = `/g/${guildId}`;
+    const next = `/c/${guildId}`;
     window.location.href = `${entry.login_url}?next=${encodeURIComponent(next)}`;
   };
 

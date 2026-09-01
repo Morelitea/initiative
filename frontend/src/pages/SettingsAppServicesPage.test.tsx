@@ -120,12 +120,12 @@ describe("SettingsAppServicesPage", () => {
       renderAsOperator();
 
       // Scannable on the row...
-      expect(screen.getByText("In every guild")).toBeInTheDocument();
+      expect(screen.getByText("In every community")).toBeInTheDocument();
       expect(screen.getByText("Acts as members")).toBeInTheDocument();
       // ...and spelled out, because a reviewer has to know what they mean.
       expect(
         screen.getByText(
-          "Installed into every guild automatically. Guild admins cannot remove it or turn it off."
+          "Installed into every community automatically. Community admins cannot remove it or turn it off."
         )
       ).toBeInTheDocument();
       expect(

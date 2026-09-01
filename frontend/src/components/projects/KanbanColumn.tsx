@@ -299,7 +299,7 @@ const KanbanCardContent = memo(
       // initiative simply doesn't get one — the click still navigates.
       if (canOpenTask && activeGuildId && task.initiative_id != null) {
         router.preloadRoute({
-          to: "/g/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
+          to: "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
           params: {
             guildId: String(activeGuildId),
             initiativeId: String(task.initiative_id),
@@ -511,7 +511,7 @@ const KanbanTaskCard = ({
   const handlePrefetch = () => {
     if (canOpenTask && activeGuildId && task.initiative_id != null) {
       router.preloadRoute({
-        to: "/g/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
+        to: "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId",
         params: {
           guildId: String(activeGuildId),
           initiativeId: String(task.initiative_id),
