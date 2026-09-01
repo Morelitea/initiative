@@ -12,8 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The statuses an initiative uses can now be read in one request.** Status columns belong to a project, so anything working across a whole initiative had to ask project by project and stitch the answers together. There is now a single read that returns the distinct columns across the projects you can see, each carrying how many of those projects use it — enough for a picker to say a status covers three of your four projects rather than implying it covers them all.
 
 ### Changed
-- **Link to documentation for help not the github page".**
 - **A guild admin's sidebar now lists the initiatives they are in, not every initiative in the guild.** An admin who runs a guild of thirty initiatives had all thirty in their sidebar whether or not they had anything to do with them. The sidebar is now their own workspace. Their authority over the guild is unchanged — they can still open any initiative in it — and Settings › Initiatives has a new "Project managers" column for staffing one, which is also how an admin brings an initiative into their own sidebar: tick yourself. Unticking someone leaves them in the initiative as an ordinary member. The collapsed "Guild admins" list at the bottom of an initiative's own members page is gone with it.
+
+## [0.64.3] - 2026-08-30
+
+- **Link to documentation for help not the github page.**
 
 ## [0.64.2] - 2026-08-29
 
