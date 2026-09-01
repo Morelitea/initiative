@@ -1,0 +1,31 @@
+{
+  "title": "Suche",
+  "placeholder": "{{guildName}} durchsuchen",
+  "seeAll": "Alle anzeigen",
+  "prompt": {
+    "title": "Diese Gilde durchsuchen",
+    "description": "Finde alles über seinen Namen oder über das, was darin steht."
+  },
+  "empty": {
+    "title": "Keine Ergebnisse für „{{query}}“",
+    "description": "Prüfe die Schreibweise oder versuche ein anderes Wort."
+  },
+  "tabs": {
+    "all": "Alle",
+    "tool": "Werkzeuge",
+    "tag": "Tags"
+  },
+  "types": {
+    "project": "Projekt",
+    "task": "Aufgabe",
+    "document": "Dokument",
+    "queue": "Ablauf",
+    "queue_item": "Ablaufelement",
+    "counter_group": "Zählergruppe",
+    "counter": "Zähler",
+    "calendar": "Kalender",
+    "calendar_event": "Termin",
+    "dashboard": "Dashboard",
+    "tag": "Tag"
+  }
+}

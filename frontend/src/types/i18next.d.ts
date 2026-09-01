@@ -24,6 +24,7 @@ import type notifications from "../../public/locales/en/notifications.json";
 import type projects from "../../public/locales/en/projects.json";
 import type properties from "../../public/locales/en/properties.json";
 import type queues from "../../public/locales/en/queues.json";
+import type search from "../../public/locales/en/search.json";
 import type settings from "../../public/locales/en/settings.json";
 import type stats from "../../public/locales/en/stats.json";
 import type tags from "../../public/locales/en/tags.json";
@@ -61,6 +62,7 @@ declare module "i18next" {
       projects: typeof projects;
       properties: typeof properties;
       queues: typeof queues;
+      search: typeof search;
       settings: typeof settings;
       stats: typeof stats;
       tags: typeof tags;

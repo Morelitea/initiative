@@ -1,0 +1,31 @@
+{
+  "title": "Buscar",
+  "placeholder": "Buscar en {{guildName}}",
+  "seeAll": "Ver todo",
+  "prompt": {
+    "title": "Buscar en este gremio",
+    "description": "Encuentra cualquier cosa por su nombre o por lo que contiene."
+  },
+  "empty": {
+    "title": "Sin resultados para «{{query}}»",
+    "description": "Revisa la ortografía o prueba con otra palabra."
+  },
+  "tabs": {
+    "all": "Todo",
+    "tool": "Herramientas",
+    "tag": "Etiquetas"
+  },
+  "types": {
+    "project": "Proyecto",
+    "task": "Tarea",
+    "document": "Documento",
+    "queue": "Cola",
+    "queue_item": "Elemento de cola",
+    "counter_group": "Grupo de contadores",
+    "counter": "Contador",
+    "calendar": "Calendario",
+    "calendar_event": "Evento",
+    "dashboard": "Panel",
+    "tag": "Etiqueta"
+  }
+}
