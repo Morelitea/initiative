@@ -2,8 +2,8 @@
   "page": {
     "title": "Mes statistiques",
     "subtitle": "Suivez votre productivité et vos indicateurs de complétion des tâches",
-    "guildFilterPlaceholder": "Sélectionner un groupe",
-    "allGuilds": "Tous les groupes",
+    "guildFilterPlaceholder": "Sélectionner une communauté",
+    "allGuilds": "Tous les communautés",
     "loading": "Chargement des statistiques\u2026",
     "error": "Échec du chargement des statistiques. Veuillez réessayer plus tard."
   },
@@ -34,9 +34,9 @@
     "completed": "Terminées"
   },
   "guildBreakdown": {
-    "title": "Tâches par groupe",
-    "description": "Répartition des tâches terminées par groupe",
-    "noData": "Aucune donnée de groupe disponible"
+    "title": "Tâches par communauté",
+    "description": "Répartition des tâches terminées par communauté",
+    "noData": "Aucune donnée de communauté disponible"
   },
   "heatmap": {
     "title": "Carte de chaleur d'activité",

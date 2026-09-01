@@ -25,7 +25,7 @@
   },
   "wizard": {
     "titleInitiative": "Exportar iniciativa",
-    "titleGuild": "Exportar gremio",
+    "titleGuild": "Exportar comunidad",
     "back": "Atrás",
     "next": "Siguiente",
     "start": "Iniciar exportación",
@@ -64,11 +64,11 @@
     },
     "progress": {
       "title": "Preparando tu exportación…",
-      "note": "Esto puede tardar un poco. Puedes cerrar este diálogo — la descarga llegará como notificación, y las exportaciones terminadas se pueden volver a descargar desde la configuración del gremio."
+      "note": "Esto puede tardar un poco. Puedes cerrar este diálogo — la descarga llegará como notificación, y las exportaciones terminadas se pueden volver a descargar desde la configuración de la comunidad."
     },
     "done": {
       "title": "Exportación lista",
-      "note": "Tu descarga ha comenzado. Puedes volver a descargarla desde la configuración del gremio hasta que caduque."
+      "note": "Tu descarga ha comenzado. Puedes volver a descargarla desde la configuración de la comunidad hasta que caduque."
     },
     "failed": {
       "title": "La exportación falló",
@@ -76,7 +76,7 @@
     }
   },
   "entry": {
-    "guildTitle": "Exportar este gremio",
+    "guildTitle": "Exportar esta comunidad",
     "guildDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "initiativeTitle": "Exportar esta iniciativa",
     "initiativeDescription": "Descarga los datos de esta iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
@@ -84,7 +84,7 @@
   },
   "table": {
     "title": "Exportaciones recientes",
-    "description": "Las exportaciones terminadas se pueden volver a descargar hasta que caduquen (7 días). Los administradores del gremio ven las exportaciones de todos los miembros.",
+    "description": "Las exportaciones terminadas se pueden volver a descargar hasta que caduquen (7 días). Los administradores de la comunidad ven las exportaciones de todos los miembros.",
     "columns": {
       "export": "Exportación",
       "status": "Estado",
@@ -107,7 +107,7 @@
       "counter-group": "Grupo de contadores",
       "calendar-event": "Calendario",
       "initiative": "Iniciativa",
-      "guild": "Gremio"
+      "guild": "Comunidad"
     },
     "download": "Descargar",
     "empty": "Aún no hay exportaciones.",

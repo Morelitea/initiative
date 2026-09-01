@@ -9,9 +9,9 @@
     "titleLine1": "VOUS LANCER DANS",
     "titleLine2": "L'INITIATIVE",
     "titleAria": "Vous lancer dans l'initiative",
-    "subtitle": "Une application de gestion de projets en guildes, conçue pour les groupes de jeu. Créez votre guilde, invitez votre groupe et conquérez des quêtes ensemble.",
+    "subtitle": "Une application de gestion de projets en communautés, conçue pour les communautés de jeu. Créez votre communauté, invitez votre communauté et conquérez des quêtes ensemble.",
     "ctaStart": "Commencez votre aventure",
-    "ctaSignIn": "Rejoindre votre guilde",
+    "ctaSignIn": "Rejoindre votre communauté",
     "scroll": "Défiler",
     "loading": "Chargement..."
   },
@@ -31,7 +31,7 @@
   "features": {
     "sectionLabel": "Arsenal",
     "title": "Tout ce dont votre groupe a besoin",
-    "description": "Chaque guilde dispose d'un espace de travail privé avec des projets, des tâches et des documents. Que vous gériez une campagne, organisiez des soirées de raid ou administriez une communauté de jeu — gardez tout en un seul endroit.",
+    "description": "Chaque communauté dispose d'un espace de travail privé avec des projets, des tâches et des documents. Que vous gériez une campagne, organisiez des soirées de raid ou administriez une communauté de jeu — gardez tout en un seul endroit.",
     "campaignTitle": "Gestion de campagne",
     "campaignDescription": "Organisez vos campagnes de JDR facilement. Suivez les intrigues, les PNJ et les accroches narratives sur plusieurs sessions.",
     "partyTitle": "Coordination du groupe",
@@ -43,7 +43,7 @@
     "sessionTitle": "Notes de session",
     "sessionDescription": "Documents collaboratifs pour les récapitulatifs de session, les documents remis aux joueurs et les connaissances partagées du groupe.",
     "eventTitle": "Planification d'événements",
-    "eventDescription": "Coordonnez les soirées de jeu, les calendriers de raid et les événements de guilde. Tout le monde reste sur la même longueur d'onde."
+    "eventDescription": "Coordonnez les soirées de jeu, les calendriers de raid et les événements de communauté. Tout le monde reste sur la même longueur d'onde."
   },
   "gallery": {
     "sectionLabel": "Voir en action",
@@ -51,21 +51,21 @@
     "projectAlt": "Vue de gestion de projet",
     "projectCaption": "Organisez les projets avec des tableaux, des listes et des vues personnalisées",
     "documentAlt": "Collaboration sur documents",
-    "documentCaption": "Collaborez sur des documents avec toute votre guilde"
+    "documentCaption": "Collaborez sur des documents avec toute votre communauté"
   },
   "useCases": {
     "sectionLabel": "Votre quête vous attend",
-    "title": "Votre guilde, à votre façon",
-    "description": "Créez une guilde privée pour votre groupe. Invitez des membres, organisez-les en initiatives et gérez des projets ensemble. Tout le monde reste synchronisé, et vos données restent les vôtres.",
+    "title": "Votre communauté, à votre façon",
+    "description": "Créez une communauté privée pour votre communauté. Invitez des membres, organisez-les en initiatives et gérez des projets ensemble. Tout le monde reste synchronisé, et vos données restent les vôtres.",
     "ttrpgName": "Groupes JDR",
     "ttrpgDesc": "Gérez des campagnes, suivez des quêtes et partagez des notes de session avec votre groupe d'aventuriers.",
-    "mmoName": "Guildes MMO",
-    "mmoDesc": "Coordonnez les calendriers de raid, la distribution du butin et les événements de guilde.",
+    "mmoName": "Communautés MMO",
+    "mmoDesc": "Coordonnez les calendriers de raid, la distribution du butin et les événements de communauté.",
     "esportsName": "Équipes esports",
     "esportsDesc": "Suivez les plannings d'entraînement, la préparation aux tournois et les objectifs de l'équipe.",
     "communityName": "Communautés gaming",
     "communityDesc": "Organisez des événements, gérez des projets et gardez votre communauté engagée.",
-    "cta": "Créer votre guilde"
+    "cta": "Créer votre communauté"
   },
   "cta": {
     "title": "Prêt à <1>passer au niveau supérieur</1> ?",

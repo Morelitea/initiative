@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Sélectionner un groupe",
-  "guildSettings": "Paramètres du groupe",
+  "selectGuild": "Sélectionner une communauté",
+  "guildSettings": "Paramètres de la communauté",
   "initiatives": "Initiatives",
   "tags": "Étiquettes",
   "favorites": "Favoris",
@@ -63,10 +63,10 @@
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",
-    "invalidGuildId": "Identifiant de groupe invalide dans le lien.",
-    "noAccess": "Vous n'avez pas accès à ce groupe.",
-    "switchError": "Impossible de changer de groupe pour ce lien.",
-    "redirecting": "Redirection vers le bon groupe…",
+    "invalidGuildId": "Identifiant de communauté invalide dans le lien.",
+    "noAccess": "Vous n'avez pas accès à cette communauté.",
+    "switchError": "Impossible de changer de communauté pour ce lien.",
+    "redirecting": "Redirection vers la bonne communauté…",
     "finalizing": "Finalisation de la redirection…",
     "goHome": "Retourner à l'accueil"
   },

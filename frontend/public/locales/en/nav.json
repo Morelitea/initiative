@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Select a Guild",
-  "guildSettings": "Guild settings",
+  "selectGuild": "Select a Community",
+  "guildSettings": "Community settings",
   "initiatives": "Initiatives",
   "tags": "Tags",
   "favorites": "Favorites",
@@ -67,10 +67,10 @@
   "navigate": {
     "signInRequired": "Please sign in again to follow this link.",
     "missingDestination": "This link is missing destination details.",
-    "invalidGuildId": "Invalid guild id in link.",
-    "noAccess": "You don't have access to this guild.",
-    "switchError": "Unable to switch guild for this link.",
-    "redirecting": "Redirecting you to the right guild…",
+    "invalidGuildId": "Invalid community id in link.",
+    "noAccess": "You don't have access to this community.",
+    "switchError": "Unable to switch community for this link.",
+    "redirecting": "Redirecting you to the right community…",
     "finalizing": "Finalizing redirect…",
     "goHome": "Go back home"
   },

@@ -123,7 +123,7 @@
     "calendarSettings": "Settings for {{name}}"
   },
   "guildScope": {
-    "title": "Guild calendar",
+    "title": "Community calendar",
     "empty": "No calendars yet.",
     "emptyHint": "Add one for holidays, for a recurring meetup, or just for yourself."
   }

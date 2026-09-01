@@ -1,14 +1,14 @@
 {
   "myDocuments": {
     "title": "Meine Dokumente",
-    "subtitle": "Dokumente, die dir in all deinen Gilden gehören.",
+    "subtitle": "Dokumente, die dir in all deinen Communitys gehören.",
     "empty": "Du hast noch keine Dokumente erstellt.",
     "loadError": "Deine Dokumente konnten nicht geladen werden.",
     "searchPlaceholder": "Dokumente suchen...",
-    "filterByGuild": "Nach Gilde filtern",
-    "allGuilds": "Alle Gilden",
-    "noGuilds": "Keine Gilden gefunden",
-    "noGuild": "Keine Gilde",
+    "filterByGuild": "Nach Community filtern",
+    "allGuilds": "Alle Communitys",
+    "noGuilds": "Keine Communitys gefunden",
+    "noGuild": "Keine Community",
     "filters": "Filter",
     "showFilters": "Filter anzeigen",
     "hideFilters": "Filter ausblenden",
@@ -59,7 +59,7 @@
     "tags": "Tags",
     "owner": "Eigentümer",
     "type": "Typ",
-    "guild": "Gilde",
+    "guild": "Community",
     "initiative": "Initiative"
   },
   "type": {
@@ -176,7 +176,7 @@
     "duplicateDocument": "Dokument duplizieren",
     "copyToInitiative": "In Initiative kopieren",
     "dangerTitle": "Gefahrenzone",
-    "dangerDescription": "Gelöschte Dokumente landen im Papierkorb und können vor Ablauf der Aufbewahrungsfrist der Gilde wiederhergestellt werden.",
+    "dangerDescription": "Gelöschte Dokumente landen im Papierkorb und können vor Ablauf der Aufbewahrungsfrist der Community wiederhergestellt werden.",
     "duplicateDialogTitle": "Dokument duplizieren",
     "duplicateDialogDescription": "Erstelle eine Kopie innerhalb derselben Initiative.",
     "duplicateTitleLabel": "Titel",
@@ -254,7 +254,7 @@
   },
   "createWizard": {
     "title": "Dokument hinzufügen",
-    "selectGuild": "Wähle eine Gilde",
+    "selectGuild": "Wähle eine Community",
     "selectInitiative": "Wähle eine Initiative",
     "lastUsed": "Zuletzt verwendet",
     "back": "Zurück",

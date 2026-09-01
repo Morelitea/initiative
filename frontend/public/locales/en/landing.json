@@ -9,9 +9,9 @@
     "titleLine1": "ROLL FOR",
     "titleLine2": "INITIATIVE",
     "titleAria": "Roll for Initiative",
-    "subtitle": "A guild-based project management app built for gaming groups. Create your own guild, invite your party, and conquer quests together.",
+    "subtitle": "A community-based project management app built for gaming groups. Create your own community, invite your party, and conquer quests together.",
     "ctaStart": "Start your adventure",
-    "ctaSignIn": "Sign in to your guild",
+    "ctaSignIn": "Sign in to your community",
     "scroll": "Scroll",
     "loading": "Loading..."
   },
@@ -31,7 +31,7 @@
   "features": {
     "sectionLabel": "Arsenal",
     "title": "Everything your party needs",
-    "description": "Each guild gets a private workspace with projects, tasks, and documents. Whether you are running a campaign, organizing raid nights, or managing a gaming community -- keep everything in one place.",
+    "description": "Each community gets a private workspace with projects, tasks, and documents. Whether you are running a campaign, organizing raid nights, or managing a gaming group -- keep everything in one place.",
     "campaignTitle": "Campaign Management",
     "campaignDescription": "Organize your TTRPG campaigns with ease. Track storylines, NPCs, and plot hooks across multiple sessions.",
     "partyTitle": "Party Coordination",
@@ -43,7 +43,7 @@
     "sessionTitle": "Session Notes",
     "sessionDescription": "Collaborative documents for session recaps, player handouts, and shared party knowledge.",
     "eventTitle": "Event Planning",
-    "eventDescription": "Coordinate game nights, raid schedules, and guild events. Everyone stays on the same page."
+    "eventDescription": "Coordinate game nights, raid schedules, and community events. Everyone stays on the same page."
   },
   "gallery": {
     "sectionLabel": "See it in action",
@@ -51,21 +51,21 @@
     "projectAlt": "Project management view",
     "projectCaption": "Organize projects with boards, lists, and custom views",
     "documentAlt": "Document collaboration",
-    "documentCaption": "Collaborate on documents with your entire guild"
+    "documentCaption": "Collaborate on documents with your entire community"
   },
   "useCases": {
     "sectionLabel": "Your Quest Awaits",
-    "title": "Your guild, your way",
-    "description": "Create a private guild for your group. Invite members, organize into initiatives, and manage projects together. Everyone stays in sync, and your data stays yours.",
+    "title": "Your community, your way",
+    "description": "Create a private community for your group. Invite members, organize into initiatives, and manage projects together. Everyone stays in sync, and your data stays yours.",
     "ttrpgName": "TTRPG Groups",
     "ttrpgDesc": "Manage campaigns, track quests, and share session notes with your adventuring party.",
-    "mmoName": "MMO Guilds",
-    "mmoDesc": "Coordinate raid schedules, loot distribution, and guild events.",
+    "mmoName": "MMO Communities",
+    "mmoDesc": "Coordinate raid schedules, loot distribution, and community events.",
     "esportsName": "Esports Teams",
     "esportsDesc": "Track practice schedules, tournament prep, and team objectives.",
     "communityName": "Gaming Communities",
     "communityDesc": "Organize events, manage projects, and keep your community engaged.",
-    "cta": "Create your guild"
+    "cta": "Create your community"
   },
   "cta": {
     "title": "Ready to <1>level up</1>?",

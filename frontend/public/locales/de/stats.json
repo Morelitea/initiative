@@ -2,8 +2,8 @@
   "page": {
     "title": "Meine Statistiken",
     "subtitle": "Verfolge deine Produktivität und Kennzahlen zur Aufgabenerledigung",
-    "guildFilterPlaceholder": "Gilde auswählen",
-    "allGuilds": "Alle Gilden",
+    "guildFilterPlaceholder": "Community auswählen",
+    "allGuilds": "Alle Communitys",
     "loading": "Statistiken werden geladen…",
     "error": "Statistiken konnten nicht geladen werden. Bitte versuche es später erneut."
   },
@@ -34,9 +34,9 @@
     "completed": "Erledigt"
   },
   "guildBreakdown": {
-    "title": "Aufgaben nach Gilde",
-    "description": "Aufschlüsselung erledigter Aufgaben nach Gilde",
-    "noData": "Keine Gildendaten verfügbar"
+    "title": "Aufgaben nach Community",
+    "description": "Aufschlüsselung erledigter Aufgaben nach Community",
+    "noData": "Keine Community-Daten verfügbar"
   },
   "heatmap": {
     "title": "Aktivitäts-Heatmap",

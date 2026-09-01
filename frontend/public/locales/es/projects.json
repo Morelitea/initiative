@@ -1,6 +1,6 @@
 {
   "title": "Proyectos",
-  "subtitle": "Haz seguimiento de iniciativas y colabora con tu gremio.",
+  "subtitle": "Haz seguimiento de iniciativas y colabora con tu comunidad.",
   "addProject": "Agregar proyecto",
   "loading": "Cargando proyectos…",
   "loadError": "No se pudieron cargar los proyectos.",
@@ -12,15 +12,15 @@
   "accessRestrictedDescription": "No tienes permiso para ver proyectos en esta iniciativa. Contacta a un administrador si crees que esto es un error.",
   "myProjects": {
     "title": "Mis proyectos",
-    "subtitle": "Proyectos a los que tienes acceso en todos tus gremios.",
+    "subtitle": "Proyectos a los que tienes acceso en todos tus comunidades.",
     "empty": "Aún no formas parte de ningún proyecto.",
     "loadError": "No se pudieron cargar tus proyectos.",
     "searchPlaceholder": "Buscar proyectos...",
-    "filterByGuild": "Filtrar por gremio",
-    "allGuilds": "Todos los gremios",
-    "noGuilds": "No hay gremios disponibles",
+    "filterByGuild": "Filtrar por comunidad",
+    "allGuilds": "Todas las comunidades",
+    "noGuilds": "No hay comunidades disponibles",
     "columns": {
-      "guild": "Gremio",
+      "guild": "Comunidad",
       "project": "Proyecto",
       "initiative": "Iniciativa",
       "tasks": "Tareas",

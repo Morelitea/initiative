@@ -13,7 +13,7 @@
     "start": "Import starten",
     "pick": {
       "prompt": "Backup-Datei wählen",
-      "hint": "Eine aus einem Gilden- oder Initiative-Backup von Initiative exportierte .zip.",
+      "hint": "Eine aus einem Community- oder Initiative-Backup von Initiative exportierte .zip.",
       "notZip": "Diese Datei ist kein gültiges Initiative-Backup.",
       "readFailed": "Diese Backup-Datei konnte nicht gelesen werden. Sie ist möglicherweise beschädigt.",
       "tooLarge": "Diese Datei ist größer als das Upload-Limit von {{limit}}.",
@@ -42,7 +42,7 @@
     },
     "progress": {
       "title": "Wird importiert…",
-      "note": "Das kann eine Weile dauern. Du kannst diesen Dialog schließen — du erhältst eine Benachrichtigung, und der Bericht bleibt in den Gilden-Einstellungen verfügbar."
+      "note": "Das kann eine Weile dauern. Du kannst diesen Dialog schließen — du erhältst eine Benachrichtigung, und der Bericht bleibt in den Community-Einstellungen verfügbar."
     },
     "report": {
       "title": "Import abgeschlossen",
@@ -108,7 +108,7 @@
   },
   "dataTab": {
     "importTitle": "Backup importieren",
-    "importDescription": "Ein Initiative- oder Gilden-Backup-Zip wiederherstellen. Jede gesicherte Initiative wird als neue Initiative erstellt — Bestehendes wird nicht verändert.",
+    "importDescription": "Ein Initiative- oder Community-Backup-Zip wiederherstellen. Jede gesicherte Initiative wird als neue Initiative erstellt — Bestehendes wird nicht verändert.",
     "open": "Importieren…"
   }
 }

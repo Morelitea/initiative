@@ -25,7 +25,7 @@
   },
   "wizard": {
     "titleInitiative": "Initiative exportieren",
-    "titleGuild": "Gilde exportieren",
+    "titleGuild": "Community exportieren",
     "back": "Zurück",
     "next": "Weiter",
     "start": "Export starten",
@@ -64,11 +64,11 @@
     },
     "progress": {
       "title": "Dein Export wird vorbereitet…",
-      "note": "Das kann eine Weile dauern. Du kannst diesen Dialog schließen — der Download kommt als Benachrichtigung, und fertige Exporte lassen sich in den Gilden-Einstellungen erneut herunterladen."
+      "note": "Das kann eine Weile dauern. Du kannst diesen Dialog schließen — der Download kommt als Benachrichtigung, und fertige Exporte lassen sich in den Community-Einstellungen erneut herunterladen."
     },
     "done": {
       "title": "Export bereit",
-      "note": "Dein Download hat begonnen. Bis zum Ablauf kannst du ihn in den Gilden-Einstellungen erneut herunterladen."
+      "note": "Dein Download hat begonnen. Bis zum Ablauf kannst du ihn in den Community-Einstellungen erneut herunterladen."
     },
     "failed": {
       "title": "Export fehlgeschlagen",
@@ -76,7 +76,7 @@
     }
   },
   "entry": {
-    "guildTitle": "Diese Gilde exportieren",
+    "guildTitle": "Diese Community exportieren",
     "guildDescription": "Lade die Daten jeder Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
     "initiativeTitle": "Diese Initiative exportieren",
     "initiativeDescription": "Lade die Daten dieser Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
@@ -84,7 +84,7 @@
   },
   "table": {
     "title": "Letzte Exporte",
-    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Gilden-Administratoren sehen die Exporte aller Mitglieder.",
+    "description": "Fertige Exporte können bis zum Ablauf (7 Tage) erneut heruntergeladen werden. Community-Administratoren sehen die Exporte aller Mitglieder.",
     "columns": {
       "export": "Export",
       "status": "Status",
@@ -107,7 +107,7 @@
       "counter-group": "Zählergruppe",
       "calendar-event": "Kalender",
       "initiative": "Initiative",
-      "guild": "Gilde"
+      "guild": "Community"
     },
     "download": "Herunterladen",
     "empty": "Noch keine Exporte.",

@@ -1,14 +1,14 @@
 {
   "myDocuments": {
     "title": "My Documents",
-    "subtitle": "Documents you own across all your guilds.",
+    "subtitle": "Documents you own across all your communities.",
     "empty": "You haven't created any documents yet.",
     "loadError": "Unable to load your documents.",
     "searchPlaceholder": "Search documents...",
-    "filterByGuild": "Filter by guild",
-    "allGuilds": "All guilds",
-    "noGuilds": "No guilds found",
-    "noGuild": "No guild",
+    "filterByGuild": "Filter by community",
+    "allGuilds": "All communities",
+    "noGuilds": "No communities found",
+    "noGuild": "No community",
     "filters": "Filters",
     "showFilters": "Show filters",
     "hideFilters": "Hide filters",
@@ -59,7 +59,7 @@
     "tags": "Tags",
     "owner": "Owner",
     "type": "Type",
-    "guild": "Guild",
+    "guild": "Community",
     "initiative": "Initiative"
   },
   "type": {
@@ -176,7 +176,7 @@
     "duplicateDocument": "Duplicate document",
     "copyToInitiative": "Copy to initiative",
     "dangerTitle": "Danger zone",
-    "dangerDescription": "Deleted documents go to the trash and can be restored before the guild's retention period ends.",
+    "dangerDescription": "Deleted documents go to the trash and can be restored before the community's retention period ends.",
     "duplicateDialogTitle": "Duplicate document",
     "duplicateDialogDescription": "Create a copy inside the same initiative.",
     "duplicateTitleLabel": "Title",
@@ -254,7 +254,7 @@
   },
   "createWizard": {
     "title": "Add Document",
-    "selectGuild": "Select a guild",
+    "selectGuild": "Select a community",
     "selectInitiative": "Select an initiative",
     "lastUsed": "Last used",
     "back": "Back",

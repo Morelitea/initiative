@@ -1,6 +1,6 @@
 {
   "title": "Projects",
-  "subtitle": "Track initiatives and collaborate with your guild.",
+  "subtitle": "Track initiatives and collaborate with your community.",
   "addProject": "Add Project",
   "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
@@ -12,15 +12,15 @@
   "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Contact an administrator if you believe this is an error.",
   "myProjects": {
     "title": "My Projects",
-    "subtitle": "Projects you have access to across all your guilds.",
+    "subtitle": "Projects you have access to across all your communities.",
     "empty": "You're not part of any projects yet.",
     "loadError": "Unable to load your projects.",
     "searchPlaceholder": "Search projects...",
-    "filterByGuild": "Filter by guild",
-    "allGuilds": "All guilds",
-    "noGuilds": "No guilds available",
+    "filterByGuild": "Filter by community",
+    "allGuilds": "All communities",
+    "noGuilds": "No communities available",
     "columns": {
-      "guild": "Guild",
+      "guild": "Community",
       "project": "Project",
       "initiative": "Initiative",
       "tasks": "Tasks",

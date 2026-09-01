@@ -13,7 +13,7 @@
     "start": "Lancer l'import",
     "pick": {
       "prompt": "Choisir un fichier de sauvegarde",
-      "hint": "Un .zip exporté depuis une sauvegarde de guilde ou d'initiative d'Initiative.",
+      "hint": "Un .zip exporté depuis une sauvegarde de communauté ou d'initiative d'Initiative.",
       "notZip": "Ce fichier n'est pas une sauvegarde Initiative valide.",
       "readFailed": "Impossible de lire ce fichier de sauvegarde. Il est peut-être corrompu.",
       "tooLarge": "Ce fichier dépasse la limite de téléversement de {{limit}}.",
@@ -42,7 +42,7 @@
     },
     "progress": {
       "title": "Import en cours…",
-      "note": "Cela peut prendre un moment. Vous pouvez fermer cette fenêtre — vous recevrez une notification, et le rapport reste disponible dans les paramètres de la guilde."
+      "note": "Cela peut prendre un moment. Vous pouvez fermer cette fenêtre — vous recevrez une notification, et le rapport reste disponible dans les paramètres de la communauté."
     },
     "report": {
       "title": "Import terminé",
@@ -108,7 +108,7 @@
   },
   "dataTab": {
     "importTitle": "Importer une sauvegarde",
-    "importDescription": "Restaurez un zip de sauvegarde d'initiative ou de guilde. Chaque initiative sauvegardée est créée comme une nouvelle initiative — rien d'existant n'est modifié.",
+    "importDescription": "Restaurez un zip de sauvegarde d'initiative ou de communauté. Chaque initiative sauvegardée est créée comme une nouvelle initiative — rien d'existant n'est modifié.",
     "open": "Importer…"
   }
 }

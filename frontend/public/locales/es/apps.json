@@ -5,7 +5,7 @@
   "error": "Algo ha fallado con esa aplicación.",
   "manage": {
     "title": "Aplicaciones",
-    "description": "Las aplicaciones añaden algo que comparte todo el gremio. Solo los administradores del gremio pueden añadirlas o quitarlas.",
+    "description": "Las aplicaciones añaden algo que comparte todo la comunidad. Solo los administradores de la comunidad pueden añadirlas o quitarlas.",
     "empty": "Todavía no hay aplicaciones instaladas.",
     "browse": "Explorar aplicaciones",
     "installed": "Añadida el {{date}}",
@@ -15,7 +15,7 @@
     "rename": "Cambiar el nombre",
     "remove": "Quitar",
     "removeTitle": "¿Quitar {{name}}?",
-    "removeBody": "Lo que haya creado pasa a la papelera, desde donde aún puede restaurarse. Se borran todas las credenciales que tenía —las del gremio y las de cada miembro— y se le pide a la aplicación que deje de usarlas.",
+    "removeBody": "Lo que haya creado pasa a la papelera, desde donde aún puede restaurarse. Se borran todas las credenciales que tenía —las de la comunidad y las de cada miembro— y se le pide a la aplicación que deje de usarlas.",
     "removed": "{{name}} quitada.",
     "saved": "Guardado.",
     "needsConfig": "Falta configurarla",
@@ -34,22 +34,22 @@
   },
   "install": {
     "title": "Añadir {{name}}",
-    "description": "Esto añade algo para todo el gremio. Puedes cambiarle el nombre ahora o más tarde.",
+    "description": "Esto añade algo para todo la comunidad. Puedes cambiarle el nombre ahora o más tarde.",
     "name": "Nombre",
-    "action": "Añadir al gremio",
+    "action": "Añadir a la comunidad",
     "done": "{{name}} añadida.",
-    "adminOnly": "Pide a un administrador del gremio que añada esta aplicación.",
+    "adminOnly": "Pide a un administrador de la comunidad que añada esta aplicación.",
     "unknownState": "No se pudo comprobar si esta aplicación ya está añadida."
   },
   "page": {
     "notFound": "Aplicación no encontrada",
-    "notFoundDescription": "Puede que la hayan quitado o desactivado. Los administradores del gremio pueden comprobarlo en los ajustes del gremio.",
+    "notFoundDescription": "Puede que la hayan quitado o desactivado. Los administradores de la comunidad pueden comprobarlo en los ajustes de la comunidad.",
     "noSurface": "{{name}} no tiene nada que mostrar aquí",
     "noSurfaceDescription": "Esta aplicación no tiene una página propia."
   },
   "connections": {
     "none": "Esta aplicación no pide nada que configurar.",
-    "guildScope": "Credencial del gremio",
+    "guildScope": "Credencial de la comunidad",
     "personalScope": "Tu cuenta",
     "set": "Configurada",
     "notSet": "Sin configurar",
@@ -61,8 +61,8 @@
     "saved": "Guardado.",
     "clear": "Borrar",
     "cleared": "Credencial borrada.",
-    "memberSet": "Un administrador del gremio ya la ha configurado.",
-    "memberNotSet": "Un administrador del gremio todavía tiene que configurarla.",
+    "memberSet": "Un administrador de la comunidad ya la ha configurado.",
+    "memberNotSet": "Un administrador de la comunidad todavía tiene que configurarla.",
     "guildFlowExplainer": "Esta se concede en el proveedor en lugar de escribirse. Al conectar se abre su página de instalación, donde eliges la cuenta y qué puede ver esta app.",
     "personalExplainer": "Esta te identifica a ti, así que cada miembro conecta su propia cuenta. Nadie más ve la tuya.",
     "connect": "Conectar",
@@ -72,7 +72,7 @@
     "connectOpened": "Termina de conectar en la pestaña que se acaba de abrir.",
     "connectUnavailable": "Esta aplicación aún no está configurada en este servidor, así que no hay dónde iniciar sesión.",
     "connectedAs": "Conectada como {{account}}",
-    "blocked": "Un administrador del gremio te ha impedido conectar esto.",
+    "blocked": "Un administrador de la comunidad te ha impedido conectar esto.",
     "status": {
       "pending": "Pendiente de terminar",
       "connected": "Conectada",
@@ -99,7 +99,7 @@
     "unblocked": "Bloqueo levantado.",
     "revokeAll": "Revocar a todo el mundo",
     "revokeAllTitle": "¿Revocar la conexión de todos los miembros?",
-    "revokeAllBody": "Se borra la credencial guardada de cada miembro y se le pide a la aplicación que deje de usarla. La aplicación sigue instalada y conserva los ajustes del gremio. Después los miembros pueden volver a conectarse.",
+    "revokeAllBody": "Se borra la credencial guardada de cada miembro y se le pide a la aplicación que deje de usarla. La aplicación sigue instalada y conserva los ajustes de la comunidad. Después los miembros pueden volver a conectarse.",
     "revokedAll": "Todas las conexiones revocadas."
   },
   "showMore": "{{count}} más",
@@ -135,8 +135,8 @@
   "settings": {
     "description": "Configura cómo se conecta esta aplicación.",
     "open": "Ajustes de {{name}}",
-    "adminTitle": "Ajustes del gremio",
-    "adminDescription": "Lo que el gremio controla en esta aplicación. Solo lo ven los administradores del gremio."
+    "adminTitle": "Ajustes de la comunidad",
+    "adminDescription": "Lo que la comunidad controla en esta aplicación. Solo lo ven los administradores de la comunidad."
   },
   "embed": {
     "connecting": "Conectando…",
@@ -154,7 +154,7 @@
     "description": "Esta aplicación ofrece una página dentro de las iniciativas. Elige en cuáles aparece.",
     "all": "Todas las iniciativas",
     "some": "Solo las iniciativas que yo elija",
-    "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de gremio."
+    "none": "No se eligió ninguna iniciativa, así que esta aplicación solo aparece a nivel de comunidad."
   },
   "connected": {
     "connected": {

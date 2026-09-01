@@ -149,7 +149,7 @@
     "all_document": "Toutes les feuilles de calcul",
     "appEndpoint": "Ce qu'il lit",
     "appEndpointPlaceholder": "Choisir une lecture…",
-    "appNotInstalled": "Cette application n'est pas installée dans cette guilde.",
+    "appNotInstalled": "Cette application n'est pas installée dans cette communauté.",
     "appParamPlaceholder": "Choisir…",
     "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus.",
     "appParamListHint": "Séparez les valeurs par des virgules."

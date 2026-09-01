@@ -123,7 +123,7 @@
     "calendarSettings": "Configuración de {{name}}"
   },
   "guildScope": {
-    "title": "Calendario del gremio",
+    "title": "Calendario de la comunidad",
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
   }
