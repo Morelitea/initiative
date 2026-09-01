@@ -4,11 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { DecorationPack, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
-import {
-  useDecorationPacks,
-  useInstallDecorationPack,
-  useRemoveDecorationPack,
-} from "@/hooks/useUsers";
+import { useDecorationPacks, useInstallDecorationPack } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { type Pack, resolveDecoration, resolvePack } from "@/lib/profileDecorations";
@@ -27,14 +23,12 @@ const PackCard = ({
   user,
   busy,
   onInstall,
-  onRemove,
 }: {
   pack: Pack;
   entry: DecorationPack;
   user: UserRead;
   busy: boolean;
   onInstall: () => void;
-  onRemove: () => void;
 }) => {
   const { t } = useTranslation("profiles");
   const banner = resolveDecoration(
@@ -50,7 +44,7 @@ const PackCard = ({
   return (
     <li className="overflow-hidden rounded-lg border bg-card">
       <div
-        className="h-24 w-full bg-muted bg-center bg-cover"
+        className="h-24 w-full bg-center bg-cover bg-muted"
         style={banner ? { backgroundImage: `url(${banner.src})` } : undefined}
       />
       <div className="space-y-3 p-4">
@@ -69,15 +63,10 @@ const PackCard = ({
         </div>
         <p className="text-muted-foreground text-sm">{t(pack.taglineKey)}</p>
         {entry.installed ? (
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 font-medium text-sm">
-              <Check className="size-4" aria-hidden="true" />
-              {t("store.installed")}
-            </span>
-            <Button variant="ghost" size="sm" disabled={busy} onClick={onRemove}>
-              {t("store.remove")}
-            </Button>
-          </div>
+          <p className="flex items-center gap-1.5 py-1.5 font-medium text-sm">
+            <Check className="size-4" aria-hidden="true" />
+            {t("store.installed")}
+          </p>
         ) : (
           <Button size="sm" className="w-full" disabled={busy} onClick={onInstall}>
             {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
@@ -92,22 +81,22 @@ const PackCard = ({
 /**
  * The decoration store.
  *
- * Every pack this build ships. What a pack contains and whether you have it is
- * the server's answer; a pack this build has no artwork for is left out rather
- * than shown as an empty card.
+ * Every pack this build ships, for getting one. A pack already downloaded is
+ * marked rather than offered again — giving one back lives with the packs you
+ * have, so "get" and "give back" are never the same button in the same place.
+ *
+ * What a pack contains and whether you have it is the server's answer; a pack
+ * this build has no artwork for is left out rather than shown as an empty card.
  */
 export const DecorationStore = ({ user }: { user: UserRead }) => {
   const { t } = useTranslation(["profiles", "errors"]);
   const { data, isLoading } = useDecorationPacks();
 
   const onError = (error: unknown) => toast.error(getErrorMessage(error, "profiles:store.failed"));
-  const install = useInstallDecorationPack({ onError });
-  const remove = useRemoveDecorationPack({ onError });
-  const busyPack = install.isPending
-    ? install.variables
-    : remove.isPending
-      ? remove.variables
-      : null;
+  const install = useInstallDecorationPack({
+    onSuccess: () => toast.success(t("profiles:store.got")),
+    onError,
+  });
 
   if (isLoading) {
     return (
@@ -133,9 +122,8 @@ export const DecorationStore = ({ user }: { user: UserRead }) => {
           pack={pack}
           entry={entry}
           user={user}
-          busy={busyPack === pack.id}
+          busy={install.isPending && install.variables === pack.id}
           onInstall={() => install.mutate(pack.id)}
-          onRemove={() => remove.mutate(pack.id)}
         />
       ))}
     </ul>

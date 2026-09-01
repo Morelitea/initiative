@@ -60,13 +60,21 @@
     "description": "Take a pack and its pieces land in your collection, ready to put on. Give it back and they go, along with anything from it you were wearing.",
     "get": "Get this pack",
     "installed": "In your collection",
-    "remove": "Give back",
     "empty": "No packs in this build.",
-    "failed": "That pack could not be changed."
+    "failed": "That pack could not be changed.",
+    "got": "Pack downloaded."
   },
   "look": {
     "save": "Save look",
     "saved": "Look saved.",
-    "failed": "That look could not be saved."
+    "failed": "That look could not be saved.",
+    "title": "Your look"
+  },
+  "myPacks": {
+    "title": "Your packs",
+    "description": "What you have downloaded, and what each one gave you. Give a pack back and its pieces go, along with anything from it you were wearing.",
+    "empty": "You have not downloaded a pack yet. Pick one above and its pieces land here.",
+    "remove": "Give back",
+    "removed": "Pack given back."
   }
 }

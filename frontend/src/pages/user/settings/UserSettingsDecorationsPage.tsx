@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { BadgePicker, SlotPicker } from "@/components/user/DecorationPicker";
 import { DecorationStore } from "@/components/user/DecorationStore";
+import { MyDecorationPacks } from "@/components/user/MyDecorationPacks";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
@@ -23,12 +24,13 @@ interface UserSettingsDecorationsPageProps {
 }
 
 /**
- * Where a profile gets its look: the store on top, what you own underneath.
+ * Where a profile gets its look, in the order it happens: browse a store, see
+ * what you have taken from it, then put it on.
  *
- * The two are one page because they are one task — you take a pack in order to
- * put it on, and the preview at the top is the thing both halves are aiming at.
- * It sits apart from Settings › Profile, which is the account (address, handle,
- * password) rather than the face.
+ * All three are one page because they are one task, and each answers a
+ * different question — what could I have, what do I have, what am I wearing.
+ * It sits apart from Settings › Profile, which is the account (address,
+ * handle, password) rather than the face.
  */
 export const UserSettingsDecorationsPage = ({
   user,
@@ -77,14 +79,25 @@ export const UserSettingsDecorationsPage = ({
         </CardContent>
       </Card>
 
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("profiles:myPacks.title")}</CardTitle>
+          <CardDescription>{t("profiles:myPacks.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MyDecorationPacks />
+        </CardContent>
+      </Card>
+
       <Card className="overflow-hidden pt-0 shadow-sm">
         {/* The profile as it would look, above the controls that change it —
-            the same arrangement the page itself has. */}
+            the same arrangement the profile page itself has. */}
         <div
-          className="h-24 w-full bg-muted bg-center bg-cover sm:h-32"
+          className="h-24 w-full bg-center bg-cover bg-muted sm:h-32"
           style={previewBanner ? { backgroundImage: `url(${previewBanner.src})` } : undefined}
         />
         <CardContent className="space-y-6">
+          <h2 className="sr-only">{t("profiles:look.title")}</h2>
           <div className="-mt-12 flex items-end gap-4">
             <ProfileAvatar
               user={user}

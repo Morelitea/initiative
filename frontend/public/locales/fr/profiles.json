@@ -60,13 +60,21 @@
     "description": "Prenez un pack et ses pièces rejoignent votre collection, prêtes à porter. Rendez-le et elles repartent, avec ce que vous en portiez.",
     "get": "Prendre ce pack",
     "installed": "Dans votre collection",
-    "remove": "Rendre",
     "empty": "Aucun pack dans cette version.",
-    "failed": "Ce pack n'a pas pu être modifié."
+    "failed": "Ce pack n'a pas pu être modifié.",
+    "got": "Pack téléchargé."
   },
   "look": {
     "save": "Enregistrer l'allure",
     "saved": "Allure enregistrée.",
-    "failed": "L'allure n'a pas pu être enregistrée."
+    "failed": "L'allure n'a pas pu être enregistrée.",
+    "title": "Votre allure"
+  },
+  "myPacks": {
+    "title": "Vos packs",
+    "description": "Ce que vous avez téléchargé, et ce que chaque pack vous a donné. Rendez-en un et ses pièces repartent, avec ce que vous en portiez.",
+    "empty": "Vous n'avez encore téléchargé aucun pack. Choisissez-en un ci-dessus et ses pièces arriveront ici.",
+    "remove": "Rendre",
+    "removed": "Pack rendu."
   }
 }

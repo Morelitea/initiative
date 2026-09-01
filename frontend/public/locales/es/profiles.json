@@ -60,13 +60,21 @@
     "description": "Coge un pack y sus piezas pasan a tu colección, listas para ponértelas. Devuélvelo y se van, junto con lo que llevaras puesto de él.",
     "get": "Coger este pack",
     "installed": "En tu colección",
-    "remove": "Devolver",
     "empty": "Esta versión no trae packs.",
-    "failed": "No se pudo cambiar ese pack."
+    "failed": "No se pudo cambiar ese pack.",
+    "got": "Pack descargado."
   },
   "look": {
     "save": "Guardar aspecto",
     "saved": "Aspecto guardado.",
-    "failed": "No se pudo guardar el aspecto."
+    "failed": "No se pudo guardar el aspecto.",
+    "title": "Tu aspecto"
+  },
+  "myPacks": {
+    "title": "Tus packs",
+    "description": "Lo que has descargado y lo que te dio cada pack. Si devuelves uno, sus piezas se van, junto con lo que llevaras puesto de él.",
+    "empty": "Todavía no has descargado ningún pack. Elige uno arriba y sus piezas aparecerán aquí.",
+    "remove": "Devolver",
+    "removed": "Pack devuelto."
   }
 }

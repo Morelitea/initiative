@@ -60,13 +60,21 @@
     "description": "Nimm ein Pack, und seine Teile landen in deiner Sammlung, bereit zum Anlegen. Gib es zurück, und sie verschwinden – samt allem, was du davon getragen hast.",
     "get": "Pack nehmen",
     "installed": "In deiner Sammlung",
-    "remove": "Zurückgeben",
     "empty": "In dieser Version gibt es keine Packs.",
-    "failed": "Dieses Pack konnte nicht geändert werden."
+    "failed": "Dieses Pack konnte nicht geändert werden.",
+    "got": "Pack heruntergeladen."
   },
   "look": {
     "save": "Aussehen speichern",
     "saved": "Aussehen gespeichert.",
-    "failed": "Das Aussehen konnte nicht gespeichert werden."
+    "failed": "Das Aussehen konnte nicht gespeichert werden.",
+    "title": "Dein Aussehen"
+  },
+  "myPacks": {
+    "title": "Deine Packs",
+    "description": "Was du heruntergeladen hast und was jedes Pack dir gebracht hat. Gibst du eines zurück, verschwinden seine Teile – samt allem, was du davon getragen hast.",
+    "empty": "Du hast noch kein Pack heruntergeladen. Wähl oben eines aus, dann landen seine Teile hier.",
+    "remove": "Zurückgeben",
+    "removed": "Pack zurückgegeben."
   }
 }
