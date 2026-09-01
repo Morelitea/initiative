@@ -151,6 +151,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_write', :pw, true), "
     "set_config('app.satisfied_providers', :satp, true), "
     "set_config('app.billing_guild_id', :bgid, true), "
+    "set_config('app.override_initiatives', :ovr, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -171,6 +172,10 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
     billing_guild_id = params.get("billing_guild_id")
+    # Initiatives where the request holds "Full access". Rendered as a comma
+    # list so the policy reads it with one string_to_array; empty when none.
+    override = params.get("override_initiatives") or ()
+    override_csv = ",".join(str(i) for i in sorted({int(i) for i in override}))
 
     # Billing-service path (set_billing_context): assumes the
     # initiative_billing role with only the billing GUC set — no
@@ -187,6 +192,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             "pw": "false",
             "satp": "",
             "bgid": str(int(billing_guild_id)),
+            "ovr": "",
             "sp": _search_path("public"),
             "role": billing_role_name(),
         }
@@ -254,6 +260,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pw": "true" if pam_write else "false",
         "satp": satp,
         "bgid": "",
+        "ovr": override_csv,
         "sp": sp,
         "role": role_target,
     }
@@ -302,6 +309,7 @@ async def set_rls_context(
     platform_role: Optional[str] = None,
     read_only: bool = False,
     satisfied_providers: Optional[Sequence[int] | str] = None,
+    override_initiatives: Optional[Sequence[int]] = None,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -369,6 +377,7 @@ async def set_rls_context(
         "platform_role": platform_role,
         "read_only": read_only,
         "satisfied_providers": satisfied_providers,
+        "override_initiatives": tuple(override_initiatives or ()),
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
@@ -377,6 +386,24 @@ async def set_rls_context(
     # hook has already fired and the new context must land NOW. On a fresh
     # session, the caller's first statement autobegins and the hook applies
     # the stored params; applying here too would just do it twice.
+    if session.in_transaction():
+        await _apply_stored_context(session)
+
+
+async def set_override_initiatives(
+    session: AsyncSession, initiative_ids: Sequence[int]
+) -> None:
+    """Record the initiatives this request holds "Full access" in.
+
+    Set after :func:`set_rls_context`, because the ids are read from the guild
+    schema the routing selects. Stored with the other context parameters so the
+    replay hook carries them onto every later transaction, rather than living
+    only on the connection this call happens to be holding.
+    """
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if params is None:
+        return
+    params["override_initiatives"] = tuple(initiative_ids)
     if session.in_transaction():
         await _apply_stored_context(session)
 
