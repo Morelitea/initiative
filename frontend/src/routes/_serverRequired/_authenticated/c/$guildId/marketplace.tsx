@@ -1,11 +1,12 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import { ListingKind } from "@/api/generated/initiativeAPI.schemas";
+import { COMMUNITY_SHELVES } from "@/lib/marketplace";
 
-/** Which shelf of the marketplace to show. Read off the generated enum rather
- *  than restated here, so a kind added server-side is accepted without an edit.
- *  Anything unrecognized normalizes to dashboards. */
-const KINDS = Object.values(ListingKind);
+/** Which shelf of this community's marketplace to show. The shelves a person
+ *  buys from — profile packs — have their own marketplace and are not here;
+ *  see `@/lib/marketplace`. Anything unrecognized normalizes to dashboards. */
+const KINDS = COMMUNITY_SHELVES;
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId/marketplace")({
   validateSearch: (search: Record<string, unknown>): { kind: ListingKind } => ({

@@ -1897,6 +1897,47 @@ export interface DashboardUpdate {
 }
 
 /**
+ * One decoration an account may wear, and where it came from.
+ *
+ * ``source`` names the marketplace pack that granted it, and is ``None`` for
+ * the ones that ship with the app. The client renders a picker per slot from
+ * these, drawing each id with the artwork it has for it and skipping the ones
+ * it doesn't.
+ */
+export interface OwnedDecoration {
+  id: string;
+  kind: string;
+  name: string | null;
+  source: string | null;
+}
+
+/**
+ * One installable set of decorations, and whether this account has it.
+ *
+ * A marketplace listing, so the words are the listing's — its publisher named
+ * it, and nobody else can. ``uid`` is the identity: it means this pack on
+ * every deployment carrying the catalog, and it is what a granted row records.
+ */
+export interface DecorationPack {
+  uid: string;
+  public_id: string;
+  name: string;
+  publisher: string;
+  description: string;
+  avatar_url: string | null;
+  contents: OwnedDecoration[];
+  installed: boolean;
+}
+
+/**
+ * Every pack this build ships. Small and read all at once — the store is
+ * one page.
+ */
+export interface DecorationPackListResponse {
+  items: DecorationPack[];
+}
+
+/**
  * Response indicating whether user can be deleted and any blockers
  */
 export interface DeletionEligibilityResponse {
@@ -3252,6 +3293,7 @@ export const ListingKind = {
   app: "app",
   auto: "auto",
   dashboard: "dashboard",
+  profile_pack: "profile_pack",
 } as const;
 
 /**
@@ -3619,20 +3661,6 @@ export interface OwnedContentResponse {
   items: OwnedContentItem[];
   counts: OwnedContentResponseCounts;
   total: number;
-}
-
-/**
- * One decoration an account may wear, and where it came from.
- *
- * ``source`` names the marketplace pack that granted it, and is ``None`` for
- * the ones that ship with the app. The client renders a picker per slot from
- * these, drawing each id with the artwork it has for it and skipping the ones
- * it doesn't.
- */
-export interface OwnedDecoration {
-  id: string;
-  kind: string;
-  source: string | null;
 }
 
 /**

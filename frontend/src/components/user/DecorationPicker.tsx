@@ -43,32 +43,55 @@ const Swatch = ({ decoration }: { decoration: Decoration }) => {
 interface TileProps {
   label: string;
   selected: boolean;
-  onClick: () => void;
+  onToggle: () => void;
   children: React.ReactNode;
   /** `radio` for a slot that holds one thing, `checkbox` for the badge row. */
-  role: "radio" | "checkbox";
+  control: "radio" | "checkbox";
+  /** Groups the radios of one slot, so the browser treats them as alternatives. */
+  name?: string;
+  /** A tile past the cap, which stays visible and stops responding. */
+  disabled?: boolean;
 }
 
-const Tile = ({ label, selected, onClick, children, role }: TileProps) => (
-  <button
-    type="button"
-    role={role}
-    aria-checked={selected}
-    aria-label={label}
+/** A checked input needs a change handler; this one is driven by its click. */
+const NO_CHANGE = () => {};
+
+/**
+ * One decoration, as something to turn on.
+ *
+ * A real input rather than a button wearing a role: it arrives with the state,
+ * the keyboard and the grouping already correct, and the artwork is the label.
+ * The input is hidden from sight, not from the page.
+ */
+const Tile = ({ label, selected, onToggle, children, control, name, disabled }: TileProps) => (
+  <label
     title={label}
-    onClick={onClick}
     className={cn(
-      "relative rounded-md border-2 p-1.5 transition-colors",
+      "relative block rounded-md border-2 p-1.5 transition-colors",
+      disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
       selected
         ? "border-primary bg-primary/5"
-        : "border-transparent hover:border-muted-foreground/30"
+        : "border-transparent hover:border-muted-foreground/30",
+      "focus-within:ring-2 focus-within:ring-ring"
     )}
   >
+    <input
+      type={control}
+      name={name}
+      checked={selected}
+      disabled={disabled}
+      // The click, not the change: picking the one already on takes it off, and
+      // a radio reports no change when it is clicked while checked.
+      onClick={onToggle}
+      onChange={NO_CHANGE}
+      aria-label={label}
+      className="sr-only"
+    />
     {children}
     {selected ? (
       <Check className="absolute top-0.5 right-0.5 size-3.5 text-primary" aria-hidden="true" />
     ) : null}
-  </button>
+  </label>
 );
 
 interface SlotPickerProps {
@@ -93,25 +116,23 @@ export const SlotPicker = ({ kind, value, onChange, owned }: SlotPickerProps) =>
   }
 
   return (
-    <div
-      role="radiogroup"
-      aria-label={t(`decorationPicker.${kind}`)}
-      className="flex flex-wrap gap-2"
-    >
+    <fieldset className="flex min-w-0 flex-wrap gap-2">
+      <legend className="sr-only">{t(`decorationPicker.${kind}`)}</legend>
       {choices.map((decoration) => (
         <Tile
           key={decoration.id}
-          role="radio"
+          control="radio"
+          name={`decoration-${kind}`}
           label={t(decoration.labelKey)}
           selected={value === decoration.id}
-          onClick={() => onChange(value === decoration.id ? null : decoration.id)}
+          onToggle={() => onChange(value === decoration.id ? null : decoration.id)}
         >
           <span className={kind === "banner" ? "block w-32" : "block w-12"}>
             <Swatch decoration={decoration} />
           </span>
         </Tile>
       ))}
-    </div>
+    </fieldset>
   );
 };
 
@@ -148,16 +169,18 @@ export const BadgePicker = ({ value, onChange, owned, max }: BadgePickerProps) =
 
   return (
     <div className="space-y-2">
-      <div aria-label={t("decorationPicker.badge")} className="flex flex-wrap gap-2">
+      <fieldset className="flex min-w-0 flex-wrap gap-2">
+        <legend className="sr-only">{t("decorationPicker.badge")}</legend>
         {choices.map((decoration) => {
           const selected = value.includes(decoration.id);
           return (
             <Tile
               key={decoration.id}
-              role="checkbox"
+              control="checkbox"
               label={t(decoration.labelKey)}
               selected={selected}
-              onClick={() => toggle(decoration.id)}
+              disabled={!selected && value.length >= max}
+              onToggle={() => toggle(decoration.id)}
             >
               <span className="block w-10">
                 <Swatch decoration={decoration} />
@@ -165,7 +188,7 @@ export const BadgePicker = ({ value, onChange, owned, max }: BadgePickerProps) =
             </Tile>
           );
         })}
-      </div>
+      </fieldset>
       <p className="text-muted-foreground text-xs">
         {t("decorationPicker.badgeCount", { count: value.length, max })}
       </p>

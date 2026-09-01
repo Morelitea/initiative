@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"
+     shape-rendering="crispEdges" role="presentation">
+  <title>Flask</title>
+  <!-- The thing on the bench, mid-experiment. -->
+  <circle cx="12" cy="12" r="11" fill="#071022"/>
+  <rect x="9" y="4" width="6" height="1" fill="#cfe3ff"/>
+  <path d="M10 5h4v4h1v1h1v1h1v1h1v5h-1v1h-1v1H8v-1H7v-1H6v-5h1v-1h1v-1h1v-1h1z" fill="#24365e"/>
+  <path d="M11 6h2v4h1v1h1v1h1v4h-1v1H8v-1H7v-4h1v-1h1v-1h1z" fill="#0c1428"/>
+  <path d="M8 13h8v4h-1v1H9v-1H8z" fill="#2fa8a0"/>
+  <rect x="8" y="13" width="8" height="1" fill="#7fe9d8"/>
+  <g fill="#a8e9ff">
+    <rect x="10" y="10" width="1" height="1"/>
+    <rect x="13" y="8" width="1" height="1"/>
+    <rect x="11" y="6" width="1" height="1"/>
+  </g>
+  <rect x="11" y="15" width="1" height="1" fill="#7fe9d8"/>
+  <rect x="14" y="16" width="1" height="1" fill="#7fe9d8"/>
+</svg>

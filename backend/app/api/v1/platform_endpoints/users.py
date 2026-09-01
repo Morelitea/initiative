@@ -56,6 +56,9 @@ from app.models.platform.user import User, UserStatus
 from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.user import (
+    DecorationPack,
+    DecorationPackListResponse,
+    OwnedDecoration,
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
@@ -289,6 +292,108 @@ async def list_my_decorations(
             session, current_user.id
         )
     )
+
+
+async def _pack_or_404(
+    session: AsyncSession, uid: str
+) -> profile_decorations_service.Pack:
+    pack = await profile_decorations_service.pack_by_uid(session, uid)
+    if pack is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=UserMessages.DECORATION_PACK_NOT_FOUND,
+        )
+    return pack
+
+
+def _pack_entry(
+    pack: profile_decorations_service.Pack, *, installed: bool
+) -> DecorationPack:
+    listing = pack.listing
+    return DecorationPack(
+        uid=listing.uid,
+        public_id=listing.public_id,
+        name=listing.name,
+        publisher=listing.publisher,
+        description=listing.description,
+        avatar_url=listing.avatar_url,
+        contents=[
+            OwnedDecoration(id=decoration_id, kind=kind, name=None, source=listing.uid)
+            for decoration_id, kind in pack.decorations.items()
+        ],
+        installed=installed,
+    )
+
+
+@router.get("/me/decoration-packs", response_model=DecorationPackListResponse)
+async def list_decoration_packs(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPackListResponse:
+    """The store: every profile pack this deployment offers, and which you have.
+
+    The shelf is the marketplace catalog, so a pack that ships with the build
+    and one published to it read the same here.
+    """
+    installed = await profile_decorations_service.installed_pack_ids(
+        session, current_user.id
+    )
+    packs = await profile_decorations_service.available_packs(session)
+    return DecorationPackListResponse(
+        items=[_pack_entry(pack, installed=pack.uid in installed) for pack in packs]
+    )
+
+
+@router.post("/me/decoration-packs/{uid}", response_model=DecorationPack)
+async def install_decoration_pack(
+    uid: str,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPack:
+    """Take a pack, putting its decorations in your library.
+
+    The catalog is read on the request path; the grant is written on the system
+    engine, because a grant is issued rather than self-served — the request path
+    holds no write verb on ``public.user_decorations``. What makes it the
+    caller's own is that the only account it ever names is theirs.
+    """
+    pack = await _pack_or_404(session, uid)
+    conflicting = await profile_decorations_service.install_pack(
+        admin_session, user_id=current_user.id, pack=pack
+    )
+    if conflicting:
+        # Another pack already gave this library one of these ids. A decoration
+        # id names one thing, so the row belongs to whoever granted it first
+        # and this install would have been a partial one reported as whole.
+        await admin_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.DECORATION_ALREADY_GRANTED,
+        )
+    await admin_session.commit()
+    return _pack_entry(pack, installed=True)
+
+
+@router.delete("/me/decoration-packs/{uid}", response_model=DecorationPack)
+async def remove_decoration_pack(
+    uid: str,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPack:
+    """Give a pack back, taking its decorations out of your library.
+
+    Anything from it that was being worn comes off in the same transaction —
+    a profile must not be left wearing what the account no longer has, and
+    two commits would leave a window where it was.
+    """
+    pack = await _pack_or_404(session, uid)
+    await profile_decorations_service.remove_pack(
+        admin_session, user_id=current_user.id, pack=pack
+    )
+    await admin_session.commit()
+    return _pack_entry(pack, installed=False)
 
 
 @router.get("/{handle}/profile", response_model=UserProfile)
@@ -712,6 +817,14 @@ async def update_users_me(
         decorations = user_in.profile_decorations or ProfileDecorations()
         worn = decorations.worn()
         if worn:
+            # The same row lock giving a pack back takes, and taken before the
+            # library is read: the check and the write then sit in one
+            # serialized window, so the two orderings are the only ones —
+            # either this look is saved and the pack is given back after
+            # (undressing it), or the pack goes first and this is refused.
+            await session.exec(
+                select(User.id).where(User.id == current_user.id).with_for_update()
+            )
             # You wear what you have. The library is the authority for both
             # halves of that — whether the account has the decoration at all,
             # and whether it has it for the slot it is being put in.

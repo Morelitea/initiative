@@ -7,8 +7,15 @@
  * that isn't in it resolves to nothing at all.
  *
  * Everything here ships with the app under `public/decorations/`, so wearing a
- * banner costs a community none of its upload allowance. The store is what will
- * grant ids beyond these; nothing about resolving one changes when it does.
+ * banner costs a community none of its upload allowance. Which of them an
+ * account may wear is the server's answer, not this file's — this only says
+ * what a decoration looks like once it has been granted.
+ *
+ * Banners and frames animate; badges do not. A badge is a small, still mark of
+ * belonging, and a row of them beside a name would be unreadable if each one
+ * moved. The artwork is SVG rather than GIF so it stays crisp at any size,
+ * weighs a few kB, and can hold still for a reader who has asked for less
+ * motion — which it does, via `prefers-reduced-motion` inside each file.
  *
  * An id a deployment doesn't know renders as bare — which is the behaviour that
  * lets a profile keep wearing something the store has stopped offering.
@@ -27,7 +34,23 @@ type DecorationName =
   | "arcane"
   | "founder"
   | "storyteller"
-  | "trailblazer";
+  | "trailblazer"
+  | "dicetower"
+  | "natural20"
+  | "d20"
+  | "soundcheck"
+  | "vinyl"
+  | "cassette"
+  | "observatory"
+  | "orbital"
+  | "flask";
+
+/**
+ * A pack is a marketplace listing now, so its name, publisher and description
+ * come from the catalog — this file only says what its *pieces* look like.
+ * That is why there is no pack table here: a pack published tomorrow needs no
+ * entry, only artwork for the ids it grants.
+ */
 
 export interface Decoration {
   id: string;
@@ -60,6 +83,27 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "core.founder": entry("core.founder", "badge", "core-founder", "founder"),
   "core.storyteller": entry("core.storyteller", "badge", "core-storyteller", "storyteller"),
   "core.trailblazer": entry("core.trailblazer", "badge", "core-trailblazer", "trailblazer"),
+
+  // Tabletop. The badge is the die the app already rolls when you finish
+  // something, held still.
+  "ttrpg.dicetower": entry("ttrpg.dicetower", "banner", "ttrpg-dicetower", "dicetower"),
+  "ttrpg.natural20": entry("ttrpg.natural20", "frame", "ttrpg-natural20", "natural20"),
+  "ttrpg.d20": entry("ttrpg.d20", "badge", "ttrpg-d20", "d20"),
+
+  // Bands, choirs, anyone who books a room and plugs in.
+  "music.soundcheck": entry("music.soundcheck", "banner", "music-soundcheck", "soundcheck"),
+  "music.vinyl": entry("music.vinyl", "frame", "music-vinyl", "vinyl"),
+  "music.cassette": entry("music.cassette", "badge", "music-cassette", "cassette"),
+
+  // Labs, field stations, reading groups with a whiteboard.
+  "science.observatory": entry(
+    "science.observatory",
+    "banner",
+    "science-observatory",
+    "observatory"
+  ),
+  "science.orbital": entry("science.orbital", "frame", "science-orbital", "orbital"),
+  "science.flask": entry("science.flask", "badge", "science-flask", "flask"),
 };
 
 /** The decoration this id names, if this build has it and it is of that kind. */

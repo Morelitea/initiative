@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A marketplace of your own, and decoration packs to fill it.** The marketplace now has two halves: a community's, where admins install dashboards and apps, and yours, where you get things that belong to *you* across every community you are in. The first shelf is decoration packs. Three to start: **Tabletop**, whose badge is the twenty-sided die this app already throws when you finish a task; **Soundcheck**, for bands and anyone who books the room and plugs in; and **Observatory**, for labs, field stations and reading groups with a whiteboard. Banners and frames move — dice land on a natural 20, a meter jumps, a record turns, electrons go round — while badges hold still, because a badge is a mark of belonging and a row of them has to stay readable. Download a pack and its pieces land in your collection; Settings › Profile › Decorations is where you see what you have, put the pieces on, and give a pack back — which also takes off anything from it you were wearing. Mix pieces from different packs however you like.
+
 - **Badges: a chip in a document that keeps itself current.** Type `/` in a document and pick a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip shows what that thing is doing right now — a task moved to Done turns green in every document that mentions it, without anyone editing them. Click one to open what it is about. A chip for something you cannot see falls back to the name it had when it was written, and claims nothing about its state.
 
 - **Name a thing inside a document with `#`.** Typing `#` in a document opens the same picker a comment has, over everything in the initiative — a project, a task, a queue, a counter, a calendar event, a dashboard. Pick one and its name sits in the text as a link that opens it. Naming a kind first (`#task:`) narrows the list, `@` still names a person, and both work as you type. Standard documents only: a whiteboard and a spreadsheet hold shapes and cells rather than prose.
@@ -31,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Set a status.** An emoji, a line about what you are up to, or both, under Settings › Profile — using the same picker the rest of the app uses. It shows on your profile.
 
-- **Dress your profile up.** A profile can wear a banner, a frame around the picture and a row of up to six badges, each picked from what you have: your library starts with the set that ships with Initiative, and marketplace packs will add to it. There is a picker per slot on Settings › Profile, so you can mix pieces from different packs freely. Decorations are chosen, never uploaded, so wearing one costs your community none of its storage.
+- **Dress your profile up.** A profile can wear a banner, a frame around the picture and a row of up to six badges, each picked from what you have: your library starts with the set that ships with Initiative, and decoration packs add to it. There is a picker per slot, so you can mix pieces from different packs freely. Decorations are chosen, never uploaded, so wearing one costs your community none of its storage.
 
 ### Changed
 

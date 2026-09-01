@@ -442,6 +442,10 @@ class UserMessages:
     #: A decoration this account's library does not answer for — one it does
     #: not have, or one it has for a different slot.
     DECORATION_NOT_OWNED = "USER_DECORATION_NOT_OWNED"
+    #: A pack id this build does not ship.
+    DECORATION_PACK_NOT_FOUND = "USER_DECORATION_PACK_NOT_FOUND"
+    #: A decoration this library already holds from a different pack.
+    DECORATION_ALREADY_GRANTED = "USER_DECORATION_ALREADY_GRANTED"
 
 
 class ImportMessages:

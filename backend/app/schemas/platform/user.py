@@ -14,7 +14,12 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.capabilities import Capability, capabilities_for
 from app.core.emoji import validate_emoji
-from app.core.profile_decorations import BADGE, BANNER, FRAME
+from app.core.profile_decorations import (
+    BADGE,
+    BANNER,
+    FRAME,
+    validate_decoration_id,
+)
 from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import UserRole, UserStatus
 from app.core.config import settings
@@ -213,31 +218,9 @@ class CustomStatus(SanitizedBaseModel):
         return None if value is None else (value.strip() or None)
 
 
-#: What a decoration id may be made of. An explicit set rather than a pattern:
-#: the id is spliced into the path of a local asset by the client, so the
-#: characters it may contain are worth reading at a glance.
-_DECORATION_ID_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-_")
-
-#: How long one id may be, and how many badges one profile may wear. The badge
-#: cap is a rendering bound — a row of them beside a name, not a wall.
-DECORATION_ID_MAX_LENGTH = 64
+#: How many badges one profile may wear. A rendering bound — a row of them
+#: beside a name, not a wall.
 MAX_PROFILE_BADGES = 6
-
-
-def validate_decoration_id(value: str) -> str:
-    """Return ``value`` if it is shaped like a catalog id, else raise.
-
-    A catalog id is a flat, lowercase name — ``core.aurora`` — and this holds
-    it to that vocabulary.
-    """
-    identifier = value.strip()
-    if not identifier:
-        raise ValueError("Decoration id is required")
-    if len(identifier) > DECORATION_ID_MAX_LENGTH:
-        raise ValueError("Decoration id is too long")
-    if not all(char in _DECORATION_ID_CHARS for char in identifier):
-        raise ValueError("Decoration id has characters that are not allowed")
-    return identifier
 
 
 class ProfileDecorations(SanitizedBaseModel):
@@ -307,7 +290,42 @@ class OwnedDecoration(SanitizedBaseModel):
 
     id: str
     kind: str
+    #: What its publisher called it. Absent for the set that ships with the
+    #: app, whose names are translated in the client.
+    name: Optional[str] = None
+    #: The listing uid of the pack that granted it, or ``None`` for the set
+    #: that ships with the app.
     source: Optional[str] = None
+
+
+class DecorationPack(SanitizedBaseModel):
+    """One installable set of decorations, and whether this account has it.
+
+    A marketplace listing, so the words are the listing's — its publisher named
+    it, and nobody else can. ``uid`` is the identity: it means this pack on
+    every deployment carrying the catalog, and it is what a granted row records.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    uid: str
+    public_id: str
+    name: str
+    publisher: str
+    description: str
+    #: Artwork for the pack itself, from the listing.
+    avatar_url: Optional[str] = None
+    contents: List[OwnedDecoration]
+    installed: bool = False
+
+
+class DecorationPackListResponse(SanitizedBaseModel):
+    """Every pack this build ships. Small and read all at once — the store is
+    one page."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[DecorationPack]
 
 
 class OwnedDecorationsResponse(SanitizedBaseModel):

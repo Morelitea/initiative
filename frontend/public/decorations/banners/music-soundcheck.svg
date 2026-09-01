@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     shape-rendering="crispEdges" role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Soundcheck</title>
+  <style>
+    /* Twelve bars off a meter. Each has its own tempo, so the row never
+       marches in step — which is the difference between a band and a metronome. */
+    .bar { animation: bounce 1.1s ease-in-out infinite alternate; transform-origin: 50% 100% }
+    @keyframes bounce { from { transform: scaleY(.25) } to { transform: scaleY(1) } }
+    .beam { animation: sweep 6s ease-in-out infinite alternate; transform-origin: 50% 0 }
+    @keyframes sweep { from { transform: rotate(-7deg) } to { transform: rotate(7deg) } }
+    @media (prefers-reduced-motion: reduce) {
+      .bar { animation: none; transform: scaleY(.7) }
+      .beam { animation: none }
+    }
+  </style>
+
+  <rect width="160" height="40" fill="#0a0a14"/>
+  <rect x="0" y="0" width="160" height="40" fill="#111024"/>
+  <rect x="0" y="0" width="66" height="40" fill="#0a0a16" opacity=".9"/>
+
+  <!-- A rig light, swinging just enough to notice. -->
+  <g class="beam">
+    <path d="M118 0 L136 0 L150 28 L104 28 Z" fill="#f0567a" opacity=".07"/>
+    <path d="M124 0 L130 0 L138 24 L116 24 Z" fill="#ff8fa8" opacity=".07"/>
+  </g>
+
+  <!-- Stage lip. -->
+  <rect x="0" y="31" width="160" height="1" fill="#2a2748"/>
+  <rect x="0" y="32" width="160" height="8" fill="#0c0b18"/>
+
+  <!-- The meter. Bars sit on the stage lip and jump off it. -->
+  <g transform="translate(72 31)">
+    <rect class="bar" x="0"  y="-16" width="3" height="16" fill="#f0567a" style="animation-duration:.62s"/>
+    <rect class="bar" x="5"  y="-22" width="3" height="22" fill="#f0567a" style="animation-duration:.83s"/>
+    <rect class="bar" x="10" y="-11" width="3" height="11" fill="#ff8fa8" style="animation-duration:.47s"/>
+    <rect class="bar" x="15" y="-25" width="3" height="25" fill="#ffb057" style="animation-duration:1.05s"/>
+    <rect class="bar" x="20" y="-14" width="3" height="14" fill="#ff8fa8" style="animation-duration:.71s"/>
+    <rect class="bar" x="25" y="-19" width="3" height="19" fill="#f0567a" style="animation-duration:.55s"/>
+    <rect class="bar" x="30" y="-27" width="3" height="27" fill="#ffb057" style="animation-duration:.92s"/>
+    <rect class="bar" x="35" y="-12" width="3" height="12" fill="#ff8fa8" style="animation-duration:.66s"/>
+    <rect class="bar" x="40" y="-20" width="3" height="20" fill="#f0567a" style="animation-duration:1.18s"/>
+    <rect class="bar" x="45" y="-9"  width="3" height="9"  fill="#ff8fa8" style="animation-duration:.5s"/>
+    <rect class="bar" x="50" y="-23" width="3" height="23" fill="#ffb057" style="animation-duration:.78s"/>
+    <rect class="bar" x="55" y="-15" width="3" height="15" fill="#f0567a" style="animation-duration:.6s"/>
+    <rect class="bar" x="60" y="-18" width="3" height="18" fill="#ff8fa8" style="animation-duration:.97s"/>
+    <rect class="bar" x="65" y="-10" width="3" height="10" fill="#f0567a" style="animation-duration:.53s"/>
+    <rect class="bar" x="70" y="-24" width="3" height="24" fill="#ffb057" style="animation-duration:.86s"/>
+    <rect class="bar" x="75" y="-13" width="3" height="13" fill="#ff8fa8" style="animation-duration:.69s"/>
+    <rect class="bar" x="80" y="-21" width="3" height="21" fill="#f0567a" style="animation-duration:1.1s"/>
+  </g>
+
+  <!-- A mic stand at the quiet end, so the left is a scene and not a void. -->
+  <g fill="#2a2748">
+    <rect x="30" y="14" width="1" height="17"/>
+    <rect x="27" y="30" width="7" height="1"/>
+    <rect x="28" y="12" width="5" height="3"/>
+    <rect x="29" y="11" width="3" height="1"/>
+  </g>
+  <rect x="29" y="12" width="1" height="1" fill="#f0567a"/>
+</svg>
