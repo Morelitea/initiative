@@ -19,11 +19,11 @@ In everyday terms, Initiative is built so that:
 
 ### Your group's data is separate from every other group's
 
-Each guild is a sealed space. Another group using the same Initiative server cannot see your projects, documents, or tasks — and you can't see theirs. This separation isn't a setting that could be toggled off by accident: every guild's content lives in its own dedicated area of the database (a separate *schema*), created with the guild and removed with it. The finer layers — which effort, which role, which item — are enforced inside that space by the database as well (more in the technical pages).
+Each community is a sealed space. Another group using the same Initiative server cannot see your projects, documents, or tasks — and you can't see theirs. This separation isn't a setting that could be toggled off by accident: every community's content lives in its own dedicated area of the database (a separate *schema*), created with the community and removed with it. The finer layers — which effort, which role, which item — are enforced inside that space by the database as well (more in the technical pages).
 
 ### Sensitive work stays with the people involved
 
-Inside a guild, an **initiative** is only visible to its members. So a small group can work on something private without the rest of the guild seeing it — a business's finances away from its seasonal staff, a hiring committee's notes away from the rest of the team. And individual projects and documents can be narrowed further still — see [Sharing & access](../sharing/index.md).
+Inside a community, an **initiative** is only visible to its members. So a small group can work on something private without the rest of the community seeing it — a business's finances away from its seasonal staff, a hiring committee's notes away from the rest of the team. And individual projects and documents can be narrowed further still — see [Sharing & access](../sharing/index.md).
 
 This is the layer most groups rely on day to day, and it needs no configuration: someone who isn't in an initiative simply doesn't have it.
 

@@ -18,7 +18,7 @@ You ask for help explicitly — nothing is generated behind your back.
 
 ## Bring your own key (BYOK)
 
-AI features run on an AI provider that someone supplies a key for. Depending on how your server and guild are set up, that key might be provided for you, or you might add your own. The supported providers are:
+AI features run on an AI provider that someone supplies a key for. Depending on how your server and community are set up, that key might be provided for you, or you might add your own. The supported providers are:
 
 | Provider | Notes |
 |---|---|
@@ -35,9 +35,9 @@ To set up your own, open **User settings → AI**, enable AI, choose your **prov
 
 AI settings cascade from the top down, and each level can choose whether to let the level below override it:
 
-1. **Platform** (the server owner) sets defaults and decides whether guilds and users may use their own keys.
-2. **Guild** (a guild admin) can set the guild's own configuration, if the platform allows it.
-3. **You** can set personal settings, if your guild or platform allows it.
+1. **Platform** (the server owner) sets defaults and decides whether communities and users may use their own keys.
+2. **Community** (a community admin) can set the community's own configuration, if the platform allows it.
+3. **You** can set personal settings, if your community or platform allows it.
 
 If you see a message like *"AI settings are managed by your administrator,"* it just means a higher level has set things for you — there's nothing wrong.
 

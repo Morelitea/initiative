@@ -30,7 +30,7 @@ If this is your first time, **Getting started** covers creating your account, fi
 
 -   :material-sitemap-outline: __How Initiative is organized__
 
-    Guilds, initiatives, projects, documents — what they are and how they fit together.
+    Communities, initiatives, projects, documents — what they are and how they fit together.
 
     [:octicons-arrow-right-24: The big picture](concepts/index.md)
 
@@ -73,7 +73,7 @@ Nothing in Initiative is visible to "everyone" by default. Your group's space is
 That means a business owner can keep payroll planning away from the seasonal staff, and an event team can work on next year's programme without the volunteers seeing it — in the same workspace, with no extra setup. [How that works →](sharing/index.md)
 
 ??? techspec "For the technically minded — what Initiative is, briefly"
-    Initiative is a web application you can run yourself. The interface is a single-page web app; it talks to a Python service backed by a PostgreSQL database. Each group ("guild") gets its **own database schema**, so a request in one guild can't address another guild's tables at all; the finer layers inside a guild — which effort, which role, which item — are enforced by the database's own row-level security rather than by the app alone. There's a companion mobile app (iOS and Android) for notifications and on-the-go use. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
+    Initiative is a web application you can run yourself. The interface is a single-page web app; it talks to a Python service backed by a PostgreSQL database. Each group ("community") gets its **own database schema**, so a request in one community can't address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by the app alone. There's a companion mobile app (iOS and Android) for notifications and on-the-go use. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
 
 ## The tools come from people like you
 
@@ -85,8 +85,8 @@ It's curated, not a free-for-all: your marketplace holds what ships with Initiat
 
 Initiative borrows a few everyday words and gives them a specific meaning. The two you'll meet first:
 
-- A **guild** is a workspace — one separate space for one group of people. Your book club and your work team would be two different guilds.
-- An **initiative** is a folder for a big effort inside a guild. It gathers related projects and documents in one place.
+- A **community** is a workspace — one separate space for one group of people. Your book club and your work team would be two different communities.
+- An **initiative** is a folder for a big effort inside a community. It gathers related projects and documents in one place.
 
 There's a full [glossary](reference/glossary.md) if you ever hit a word you don't recognize.
 

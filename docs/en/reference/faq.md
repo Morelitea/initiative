@@ -14,7 +14,7 @@ No. A project is a board, a task is a to-do on it, and that's enough to run real
 
 ### There's a lot here. Where do I actually begin?
 
-Make a guild, open the **Default Initiative** it comes with, and create one project. Add tasks. That's a working setup. Come back for the rest when something feels missing. See [Your first guild](../getting-started/your-first-guild.md).
+Make a community, open the **Default Initiative** it comes with, and create one project. Add tasks. That's a working setup. Come back for the rest when something feels missing. See [Your first community](../getting-started/your-first-community.md).
 
 ### Can I add tools that aren't built in?
 
@@ -26,9 +26,9 @@ Yes — the **marketplace** has ready-made dashboards and apps. Adding one takes
 
 Wait a few minutes and check your spam folder. If it still hasn't arrived, the server may not have email set up — ask your administrator. Reset links also expire after a while, so request a fresh one if yours is old. See [Signing in](../getting-started/signing-in.md).
 
-### I don't see a "Create guild" button.
+### I don't see a "Create community" button.
 
-Some servers turn off guild creation on purpose, so people join through invites instead. Ask an administrator to invite you, or to create a guild for you. See [Your first guild](../getting-started/your-first-guild.md).
+Some servers turn off community creation on purpose, so people join through invites instead. Ask an administrator to invite you, or to create a community for you. See [Your first community](../getting-started/your-first-community.md).
 
 ### My invite link says it's no longer valid.
 
@@ -38,7 +38,7 @@ Invite links can be set to expire or to allow a limited number of uses. Ask whoe
 
 ### I can't find a project or document I know exists.
 
-Two likely reasons: you're in a **different guild** (check the **guild rail** down the far-left edge), or it hasn't been **shared** with you. The fastest way to look is search — press ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](../guides/search-and-shortcuts.md).
+Two likely reasons: you're in a **different community** (check the **community rail** down the far-left edge), or it hasn't been **shared** with you. The fastest way to look is search — press ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](../guides/search-and-shortcuts.md).
 
 ### Why does a link to something give "not found" when I know it's there?
 
@@ -60,7 +60,7 @@ That's expected. Projects can have their own statuses, so a moved task restarts 
 
 ### I deleted something by accident.
 
-Check the **Trash** (in Guild settings, or your personal Trash for your own items). Deleted things wait there for a while before being removed for good. See [Working with guilds](../guides/guilds.md#trash-and-retention).
+Check the **Trash** (in Community settings, or your personal Trash for your own items). Deleted things wait there for a while before being removed for good. See [Working with communities](../guides/communities.md#trash-and-retention).
 
 ## Account and notifications
 
@@ -74,7 +74,7 @@ Tune them per category in **User settings → Notifications** — each has its o
 
 ### How do I leave a group?
 
-On the **guild rail**, open the guild's menu and choose **Leave guild**. If you're the last admin, promote someone else first. See [Working with guilds](../guides/guilds.md#leaving-a-guild).
+On the **community rail**, open the community's menu and choose **Leave community**. If you're the last admin, promote someone else first. See [Working with communities](../guides/communities.md#leaving-a-community).
 
 ### What's the difference between deactivating and deleting my account?
 
@@ -82,9 +82,9 @@ On the **guild rail**, open the guild's menu and choose **Leave guild**. If you'
 
 ## Privacy and data
 
-### Can everyone in my guild see everything in it?
+### Can everyone in my community see everything in it?
 
-No. Being in a guild doesn't give you its contents — an **initiative** is only visible to the people added to it, and individual projects and documents can be narrowed further still. The one exception is a **guild admin**, who can see everything in their own guild. See [Sharing & access](../sharing/index.md).
+No. Being in a community doesn't give you its contents — an **initiative** is only visible to the people added to it, and individual projects and documents can be narrowed further still. The one exception is a **community admin**, who can see everything in their own community. See [Sharing & access](../sharing/index.md).
 
 ### How do I keep something visible to just two or three people?
 
@@ -92,11 +92,11 @@ Put it in an initiative with only those people in it. That's the strongest every
 
 ### Can other groups on the same server see our stuff?
 
-No. Each guild's data is isolated at the database level — other groups can't reach it. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+No. Each community's data is isolated at the database level — other groups can't reach it. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ### Can an administrator read our private initiative?
 
-A **guild admin** can see everything in their own guild — that's part of running it. Platform staff on a hosted service can only get in through **temporary, recorded** access, never a standing back door. See [Platform roles](../admin/platform-roles.md).
+A **community admin** can see everything in their own community — that's part of running it. Platform staff on a hosted service can only get in through **temporary, recorded** access, never a standing back door. See [Platform roles](../admin/platform-roles.md).
 
 ### Where is my data stored?
 
@@ -118,4 +118,4 @@ The database and the uploads — together and regularly — plus keep your `SECR
 
 ### Can I connect our company login?
 
-Yes — Initiative supports single sign-on (OIDC), including mapping your provider's groups to guilds and roles. See [Single sign-on](../admin/single-sign-on.md).
+Yes — Initiative supports single sign-on (OIDC), including mapping your provider's groups to communities and roles. See [Single sign-on](../admin/single-sign-on.md).

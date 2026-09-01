@@ -16,9 +16,9 @@ Open it from **Browse the marketplace** on your dashboards list, or from the **A
 
 | | **Dashboards** | **Apps** |
 |---|---|---|
-| What it adds | A screen of charts, numbers, and timelines | Something the whole guild shares |
-| Where it goes | Into one initiative | Into the guild |
-| Who can add it | Anyone who can create dashboards in that initiative | Guild admins only |
+| What it adds | A screen of charts, numbers, and timelines | Something the whole community shares |
+| Where it goes | Into one initiative | Into the community |
+| Who can add it | Anyone who can create dashboards in that initiative | Community admins only |
 
 Both are browsed the same way: search, open a listing to read what it does, then add it.
 
@@ -45,29 +45,29 @@ When the publisher releases a newer version, the dashboard shows **Version X ava
 
 ## Adding an app
 
-An **app** adds something to the guild as a whole rather than to one effort — a shared surface, extra dashboard widgets, or a connection to a service your group already uses. Because it affects everyone, **only guild admins can add or remove one**.
+An **app** adds something to the community as a whole rather than to one effort — a shared surface, extra dashboard widgets, or a connection to a service your group already uses. Because it affects everyone, **only community admins can add or remove one**.
 
 1. Switch the marketplace to the **Apps** shelf and open a listing.
-2. Choose **Add to guild** and name it.
+2. Choose **Add to community** and name it.
 3. If the app needs setting up, it's marked **Needs setup** — open its settings to finish.
 
 The Apps shelf lists the apps your server actually runs. An app is served by a program the person running your server sets up, so one they haven't set up — or have switched off — isn't offered here at all. If you were expecting a particular app and can't find it, they're the person to ask.
 
-Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Guild settings → Apps**.
+Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Apps**.
 
 ### Setting an app up
 
 Some apps need a credential before they can do anything — an API key, or a sign-in to another service. There are two kinds, and the difference matters:
 
-- **Guild credential** — set once by a guild admin, used for everyone. Good for a shared account the whole group works through.
+- **Community credential** — set once by a community admin, used for everyone. Good for a shared account the whole group works through.
 - **Your account** — each member supplies their own, and it's used only for them. Your credential is yours; other members can't see or use it.
 
 Each connection shows which service it uses and what it's allowed to do there, so you can decide before you supply anything.
 
 ### Turning an app off, and removing it
 
-- **Turn off** hides an app from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay visible in **Guild settings → Apps**, which is where an admin turns them back on.
-- **Remove** takes it out of the guild entirely. Anything it created moves to the **Trash**, where it can still be restored during the retention window. Every credential it held — the guild's and each member's — is deleted, and the app is told to stop using them.
+- **Turn off** hides an app from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay visible in **Community settings → Apps**, which is where an admin turns them back on.
+- **Remove** takes it out of the community entirely. Anything it created moves to the **Trash**, where it can still be restored during the retention window. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.
 
 ## Where listings come from, and what they can reach
 
@@ -82,7 +82,7 @@ Every listing also shows **who published it** — on the card, on its page, and 
 
 Two things stay true whatever you install:
 
-- **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — the same guild, initiative, role, and sharing checks as everywhere else. Two people looking at the same dashboard can correctly see different numbers.
+- **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — the same community, initiative, role, and sharing checks as everywhere else. Two people looking at the same dashboard can correctly see different numbers.
 - **Widgets run in a sandbox.** Marketplace widgets run in an isolated runtime that can only return something to draw. If one misbehaves, that tile shows an error and the rest of the page carries on.
 
 ## Related

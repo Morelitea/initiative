@@ -10,7 +10,7 @@ Single sign-on (SSO) lets people sign in to Initiative with an account they alre
 
 - People don't manage a separate Initiative password.
 - Your existing password policy, multi-factor authentication, and account de-provisioning apply automatically.
-- You can **map groups from your provider** to Initiative guilds and roles, so the right people land in the right place on first sign-in.
+- You can **map groups from your provider** to Initiative communities and roles, so the right people land in the right place on first sign-in.
 
 !!! info "Make sure APP_URL is set and reachable"
     OIDC relies on redirecting back to Initiative at known URLs. Set **`APP_URL`** to your real public address (see [Configuration](configuration.md)) before configuring SSO, or the callback URLs will be wrong.
@@ -53,7 +53,7 @@ Here are quickstarts for the providers self-hosters reach for most.
     3. Save, then copy the generated **Client ID** and **Client secret**.
     4. In Initiative, set **Issuer** to your Pocket ID address (e.g. `https://id.example.com`) and paste the Client ID and secret.
 
-    Because Pocket ID has no passwords, everyone signs in with a passkey — your Initiative sign-ins inherit that automatically. To sort people into guilds, enable groups in Pocket ID and set the **Claim path** to `groups`.
+    Because Pocket ID has no passwords, everyone signs in with a passkey — your Initiative sign-ins inherit that automatically. To sort people into communities, enable groups in Pocket ID and set the **Claim path** to `groups`.
 
 === "Authentik"
 
@@ -85,20 +85,20 @@ Here are quickstarts for the providers self-hosters reach for most.
     - **Google** issuer: `https://accounts.google.com`
     - **Okta** issuer: `https://<your-org>.okta.com`
 
-## Mapping provider groups to guilds and roles
+## Mapping provider groups to communities and roles
 
-This is the powerful part. You can have Initiative read a **claim** from the sign-in token (for example, the user's groups or roles at your provider) and automatically place them into guilds and initiatives.
+This is the powerful part. You can have Initiative read a **claim** from the sign-in token (for example, the user's groups or roles at your provider) and automatically place them into communities and initiatives.
 
 1. Set the **Claim path** — the dot-notation location of the claim in the token (for example, `roles`, or `realm_access.roles` for Keycloak).
 2. Add **mapping rules**. Each rule matches a **claim value** and assigns:
-    - a **target type**: *Guild only*, or *Guild + Initiative*;
-    - the **guild** (and **guild role**: Member or Admin);
+    - a **target type**: *Community only*, or *Community + Initiative*;
+    - the **community** (and **community role**: Member or Admin);
     - optionally the **initiative** and **initiative role**.
 
-So a rule might say: *anyone whose `roles` claim contains `theatre-leads` becomes an **Admin** of the "Riverside Players" guild.* New people from your provider are sorted automatically the first time they sign in.
+So a rule might say: *anyone whose `roles` claim contains `theatre-leads` becomes an **Admin** of the "Riverside Players" community.* New people from your provider are sorted automatically the first time they sign in.
 
 ??? techspec "For the technically minded — how the mapping is evaluated"
-    On each OIDC sign-in, Initiative reads the configured claim path from the ID token, then applies every matching rule to grant the corresponding guild/initiative memberships and roles. PKCE is used in the authorization flow. Mappings are applied idempotently per sign-in, so they reconcile membership rather than duplicating it.
+    On each OIDC sign-in, Initiative reads the configured claim path from the ID token, then applies every matching rule to grant the corresponding community/initiative memberships and roles. PKCE is used in the authorization flow. Mappings are applied idempotently per sign-in, so they reconcile membership rather than duplicating it.
 
 ## Related
 
