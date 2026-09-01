@@ -40,6 +40,15 @@ export type DecorationKind = "banner" | "frame" | "badge";
 const FRAME_APERTURE = 50;
 const FRAME_VIEWBOX = 128;
 
+/**
+ * How wide the artwork runs next to the picture it holds, and how far it hangs
+ * off each side. Both are percentages of the picture's own box.
+ *
+ * The size has to be stated: an absolutely positioned `<img>` whose width is
+ * `auto` is laid out at its intrinsic size no matter what its insets say, so
+ * offsets alone would draw every frame at 128px whatever it surrounds.
+ */
+export const FRAME_SIZE = `${((FRAME_VIEWBOX / (FRAME_APERTURE * 2)) * 100).toFixed(2)}%`;
 export const FRAME_INSET = `${(((1 - FRAME_VIEWBOX / 2 / FRAME_APERTURE) / 2) * 100).toFixed(2)}%`;
 
 /**

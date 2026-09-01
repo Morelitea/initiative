@@ -1,6 +1,6 @@
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { FRAME_INSET, resolveDecoration } from "@/lib/profileDecorations";
+import { FRAME_INSET, FRAME_SIZE, resolveDecoration } from "@/lib/profileDecorations";
 import {
   type AvatarSourceUser,
   type DisplayableUser,
@@ -62,7 +62,7 @@ export const ProfileAvatar = ({
           alt=""
           aria-hidden="true"
           className="pointer-events-none absolute max-w-none"
-          style={{ inset: FRAME_INSET }}
+          style={{ width: FRAME_SIZE, height: FRAME_SIZE, left: FRAME_INSET, top: FRAME_INSET }}
         />
       ) : null}
       {online ? (

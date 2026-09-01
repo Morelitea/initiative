@@ -89,11 +89,7 @@ What you take here is yours rather than your community's. Download a pack in one
 
 Downloading a pack does not put anything on you. It gives you the pieces; you choose which to wear back on **User settings → Profile**, and you can mix pieces from different packs however you like. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
 
-!!! screenshot "Decoration packs"
-    **Show:** the user marketplace with two or three pack cards, each previewing the profile it would make.
-
-    Save as `en/images/marketplace/decoration-packs.png`, then replace this box with:
-    `![Decoration packs](../images/marketplace/decoration-packs.png)`
+![Decoration packs](../images/marketplace/decoration-packs.png)
 
 ## Where listings come from, and what they can reach
 

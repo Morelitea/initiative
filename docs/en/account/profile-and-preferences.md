@@ -14,11 +14,7 @@ You have a page of your own at a link worth sharing — `/u/jordan1234`, your ha
 
 It shows your picture, your handle, whatever status you have set, the badges you are wearing, whether you have Initiative open right now, and when you joined. It is public and the same page whoever opens it, because it belongs to *you* rather than to any one community — so it shows your handle rather than your real name, wherever it is opened from.
 
-!!! screenshot "A profile page"
-    **Show:** someone's profile at `/u/…` — banner, framed picture, handle with badges beside it, a status line, and the online dot.
-
-    Save as `en/images/account/profile-page.png`, then replace this box with:
-    `![A profile page](../images/account/profile-page.png)`
+![A profile page](../images/account/profile-page.png)
 
 ## Profile
 
@@ -30,11 +26,7 @@ The **Profile** tab is everything on that page, with a live preview of it at the
 - **Your packs** — the decoration packs you have downloaded, and the way to remove one.
 - **Your look** — which banner, frame and badges you are wearing.
 
-!!! screenshot "The Profile tab"
-    **Show:** User settings → Profile, with the preview card at the top and the pickers below it.
-
-    Save as `en/images/account/profile-settings.png`, then replace this box with:
-    `![The Profile tab](../images/account/profile-settings.png)`
+![The Profile tab](../images/account/profile-settings.png)
 
 ### Decorations
 
