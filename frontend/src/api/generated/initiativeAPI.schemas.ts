@@ -4207,6 +4207,43 @@ export interface RestoreResponse {
   restored: boolean;
 }
 
+/**
+ * One thing found.
+ *
+ * ``entity_type``/``entity_id`` name what was found. ``tool``/``tool_id`` name
+ * the thing it lives in — a task's project, a calendar event's calendar — which
+ * is what a client needs to build a route to it, and is the entity itself for a
+ * tool's own row.
+ */
+export interface SearchHit {
+  entity_type: string;
+  entity_id: number;
+  title: string;
+  snippet?: string | null;
+  initiative_id?: number | null;
+  tool?: Tool | null;
+  tool_id?: number | null;
+}
+
+export interface SearchResults {
+  items: SearchHit[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * A jump-to target for the command palette: enough to render and route.
+ */
+export interface SearchSuggestion {
+  entity_type: string;
+  entity_id: number;
+  title: string;
+  initiative_id?: number | null;
+  tool?: Tool | null;
+  tool_id?: number | null;
+}
+
 export type StorageBackfillStatusResponseStatus =
   (typeof StorageBackfillStatusResponseStatus)[keyof typeof StorageBackfillStatusResponseStatus];
 
@@ -6171,6 +6208,43 @@ export type GetTagApiV1GGuildIdTagsTagIdGetParams = {
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
+};
+
+export type SearchGuildApiV1GGuildIdSearchGetParams = {
+  /**
+   * What to search for.
+   * @maxLength 1000
+   */
+  q: string;
+  /**
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   */
+  types?: string[] | null;
+  /**
+   * Restrict to one initiative.
+   */
+  initiative_id?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+};
+
+export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
+  /**
+   * What to jump to.
+   * @maxLength 200
+   */
+  q: string;
+  /**
+   * @minimum 1
+   */
+  limit?: number;
 };
 
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {

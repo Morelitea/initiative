@@ -68,6 +68,7 @@ from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
 from app.schemas.tenant.tag import TagSetRequest
 from app.services import rls as rls_service
@@ -303,7 +304,7 @@ async def list_queues(
         )
     )
 
-    name_match = tool_listing.name_search_clause(Queue.name, search)
+    name_match = search_service.tool_search_clause(Tool.queue, Queue.id, search)
     if name_match is not None:
         conditions.append(name_match)
 

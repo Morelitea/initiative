@@ -1,15 +1,14 @@
 """Search and ordering shared by the guild-wide tool lists.
 
 The guild home shows one table for whichever tool is selected, so the six list
-endpoints behind it have to answer the same two questions the same way: a
-substring search on the name, and an order over the three columns that table
-holds in common — name, initiative, last updated.
+endpoints behind it have to order the same way: over the three columns that
+table holds in common — name, initiative, last updated.
 
-Both belong in SQL rather than in whichever page the caller happens to be
-holding. A table that answers "no matches" while the guild holds matches on
-page 4 is worse than no search at all, and a sort that only reaches the twenty
-rows in hand is not a sort of the guild's work — it is a sort of the accident
-of pagination.
+That belongs in SQL rather than in whichever page the caller happens to be
+holding: a sort that only reaches the twenty rows in hand is not a sort of the
+guild's work, it is a sort of the accident of pagination. Searching those lists
+is ``search.tool_search_clause``, which reads the same index the search page
+does.
 
 Each tool keeps its own default order (a project's is the manual one its owner
 dragged into place, a calendar's is by name), so a request that asks for none
@@ -24,17 +23,6 @@ from app.models.tenant.initiative import Initiative
 
 #: What ``sort_by`` accepts on every guild-wide tool list.
 TOOL_SORT_FIELDS = ("name", "initiative", "updated_at")
-
-
-def name_search_clause(name_col, search: Optional[str]):
-    """Case-insensitive substring match on a name, or ``None`` for no search.
-
-    ``autoescape`` so a literal ``%`` or ``_`` in the query is matched as
-    itself rather than as a LIKE wildcard — the documented substring semantics.
-    """
-    if not search or not search.strip():
-        return None
-    return func.lower(name_col).contains(search.strip().lower(), autoescape=True)
 
 
 def apply_tool_order(

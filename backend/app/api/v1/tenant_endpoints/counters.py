@@ -68,6 +68,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
+from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
@@ -274,7 +275,9 @@ async def list_counter_groups(
         )
     )
 
-    name_match = tool_listing.name_search_clause(CounterGroup.name, search)
+    name_match = search_service.tool_search_clause(
+        Tool.counter_group, CounterGroup.id, search
+    )
     if name_match is not None:
         conditions.append(name_match)
 
