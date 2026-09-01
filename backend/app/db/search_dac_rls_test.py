@@ -8,16 +8,23 @@ what comes back is what the database allowed.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 import pytest
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.db.session import set_override_initiatives, set_rls_context
+from app.testing import Actor
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_tag, create_task
 
 pytestmark = pytest.mark.integration
+
+#: The ``acting_user`` fixture: called with role keywords, yields an actor.
+ActingUser = Callable[..., Awaitable[Actor]]
 
 
 async def _unfiltered(
@@ -50,14 +57,18 @@ async def test_a_member_without_a_grant_is_refused_by_the_database(
     assert await _unfiltered(session, a.guild.id, b) == []
 
 
-async def test_the_owner_is_admitted(session, acting_user):
+async def test_the_owner_is_admitted(
+    session: AsyncSession, acting_user: ActingUser
+) -> None:
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="restricted vendor renewal")
 
     assert await _unfiltered(session, a.guild.id, a) == ["restricted vendor renewal"]
 
 
-async def test_a_guild_admin_is_admitted(session, acting_user):
+async def test_a_guild_admin_is_admitted(
+    session: AsyncSession, acting_user: ActingUser
+) -> None:
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     b = await acting_user(
         guild_role=GuildRole.admin,
@@ -72,7 +83,9 @@ async def test_a_guild_admin_is_admitted(session, acting_user):
     ]
 
 
-async def test_full_access_is_carried_into_the_database(session, acting_user):
+async def test_full_access_is_carried_into_the_database(
+    session: AsyncSession, acting_user: ActingUser
+) -> None:
     """The override is computed in Python per request; the policy reads it from
     a session setting. If that plumbing breaks, a full-access member silently
     loses rows they can reach everywhere else."""
@@ -99,7 +112,9 @@ async def test_full_access_is_carried_into_the_database(session, acting_user):
     assert sorted(rows) == ["restricted vendor renewal"]
 
 
-async def test_guild_vocabulary_answers_to_no_sharing(session, acting_user):
+async def test_guild_vocabulary_answers_to_no_sharing(
+    session: AsyncSession, acting_user: ActingUser
+) -> None:
     """A tag carries no sharing identity, so the sharing gate has nothing to
     decide and must not filter it out."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -115,7 +130,9 @@ async def test_guild_vocabulary_answers_to_no_sharing(session, acting_user):
     assert sorted(rows) == ["urgent"]
 
 
-async def test_the_override_setting_defaults_to_empty(session, acting_user):
+async def test_the_override_setting_defaults_to_empty(
+    session: AsyncSession, acting_user: ActingUser
+) -> None:
     """An unset override must read as "no initiatives", not as an error that
     faults the policy for every row."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
