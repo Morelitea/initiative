@@ -242,6 +242,7 @@ export function CommandCenter() {
       { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
       { label: t("pages.myProjects"), path: "/my-projects", icon: ListTodo },
       { label: t("pages.myDocuments"), path: "/my-documents", icon: ScrollText },
+      { label: t("pages.myContacts"), path: "/contacts", icon: Users },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.userSettings"), path: "/profile", icon: UserCog },
       // Tools are browsed across initiatives on the guild home, which names

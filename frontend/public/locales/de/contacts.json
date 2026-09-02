@@ -1,0 +1,22 @@
+{
+  "title": "Meine Kontakte",
+  "favorites": "Favoriten",
+  "searchPlaceholder": "Kontakte durchsuchen",
+  "searchLabel": "Alle auf dieser Seite durchsuchen",
+  "clearSearch": "Suche zurücksetzen",
+  "loadMore": "Mehr anzeigen",
+  "favorite": "{{name}} zu Favoriten hinzufügen",
+  "unfavorite": "{{name}} aus Favoriten entfernen",
+  "alsoIn": "Auch in {{guilds}}",
+  "empty": {
+    "title": "Noch niemand hier",
+    "description": "Tritt einer Community bei, dann erscheinen ihre Mitglieder hier.",
+    "favorites": "Markiere jemanden mit einem Stern, um ihn oben auf dieser Seite zu behalten.",
+    "guild": "Sonst ist noch niemand in dieser Community."
+  },
+  "noMatches": {
+    "title": "Niemand mit diesem Namen",
+    "description": "Versuche einen anderen Namen oder das vollständige Handle.",
+    "section": "Hier keine Treffer."
+  }
+}
