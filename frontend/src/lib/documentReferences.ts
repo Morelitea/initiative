@@ -3,10 +3,10 @@
  *
  * Chips and links are both references, and the page reads them together: a chip
  * asks `task:12:status`, a link asks `task:12`, and one request answers both.
- * Pulled out of the plugin so the walk can be tested without an editor.
+ * Pulled out of the plugin so the walk over a document can be tested.
  */
 
-import type { LexicalNode } from "lexical";
+import type { EditorState, LexicalNode } from "lexical";
 
 import { $isBadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { $isEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
@@ -31,3 +31,7 @@ export const collectReferences = (nodes: Iterable<LexicalNode>): string[] => {
   }
   return [...found].sort();
 };
+
+/** Every reference a document holds, wherever in it they sit. */
+export const documentReferences = (state: EditorState): string[] =>
+  state.read(() => collectReferences(state._nodeMap.values()));

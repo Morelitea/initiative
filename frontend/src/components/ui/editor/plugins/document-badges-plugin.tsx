@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { BadgeState } from "@/api/generated/initiativeAPI.schemas";
 import { BadgeStatesContext, useDocumentBadges } from "@/hooks/useDocumentBadges";
-import { collectReferences } from "@/lib/documentReferences";
+import { documentReferences } from "@/lib/documentReferences";
 
 /**
  * Reads everything the page refers to, once.
@@ -20,12 +20,10 @@ export function DocumentBadgesPlugin({ children }: { children?: ReactNode }): JS
 
   useEffect(() => {
     const collect = () => {
-      editor.getEditorState().read(() => {
-        // Compared as a string so an edit that moves a reference without
-        // changing the set does not start a new request.
-        const next = collectReferences(Object.values(editor.getEditorState()._nodeMap));
-        setRefs((current) => (current.join() === next.join() ? current : next));
-      });
+      // Compared as a string so an edit that moves a reference without
+      // changing the set does not start a new request.
+      const next = documentReferences(editor.getEditorState());
+      setRefs((current) => (current.join() === next.join() ? current : next));
     };
     collect();
     return editor.registerUpdateListener(collect);
