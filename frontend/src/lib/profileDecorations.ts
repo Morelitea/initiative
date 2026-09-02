@@ -247,7 +247,6 @@ type DecorationName =
   | "medicinewheel"
   | "meeple"
   | "mentalhealth"
-  | "meridians"
   | "microphone"
   | "microscope"
   | "mixtape"
@@ -829,7 +828,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "travel.colosseum": entry("travel.colosseum", "frame", "travel-colosseum", "colosseum"),
   "travel.eiffel": entry("travel.eiffel", "frame", "travel-eiffel", "eiffeltower"),
   "travel.goldengate": entry("travel.goldengate", "frame", "travel-goldengate", "goldengate"),
-  "travel.meridians": entry("travel.meridians", "frame", "travel-meridians", "meridians"),
   "travel.torii": entry("travel.torii", "frame", "travel-torii", "torii"),
   "travel.bicycle": entry("travel.bicycle", "trophy", "travel-bicycle", "bicycle"),
   "travel.car": entry("travel.car", "trophy", "travel-car", "car"),
