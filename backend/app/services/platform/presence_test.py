@@ -10,7 +10,11 @@ import pytest
 
 from app.models.platform.user import Presence
 from app.services.platform import presence as presence_module
-from app.services.platform.presence import IDLE_AFTER_SECONDS, OnlineRoll
+from app.services.platform.presence import (
+    IDLE_AFTER_SECONDS,
+    OnlineRoll,
+    monotonic,
+)
 
 
 @pytest.fixture
@@ -54,8 +58,46 @@ def test_appearing_offline_holds_with_a_tab_open() -> None:
 
 
 @pytest.mark.unit
-def test_the_last_socket_takes_the_choice_with_it() -> None:
-    """The column keeps the preference; the roll only holds it while it shows."""
+def test_a_connect_that_started_first_cannot_undo_a_later_choice() -> None:
+    """A socket reads the column somewhere on its way in and can arrive after a
+    change that was made while it was still on its way."""
+    roll = OnlineRoll()
+    roll.arrived(7, Presence.online)
+    read_at = monotonic()  # the connecting socket reads the row here
+
+    roll.chose(7, Presence.offline)  # ...and a write lands before it registers
+    roll.arrived(7, Presence.online, known_at=read_at)
+
+    assert roll.presence_of(7) is Presence.offline
+
+
+@pytest.mark.unit
+def test_a_choice_made_with_nothing_open_survives_the_connect_it_raced() -> None:
+    """The same race, with the write landing while the first tab is still
+    opening — so there is no socket for the write to find."""
+    roll = OnlineRoll()
+    read_at = monotonic()
+
+    roll.chose(7, Presence.offline)
+    roll.arrived(7, Presence.online, known_at=read_at)
+
+    assert roll.presence_of(7) is Presence.offline
+
+
+@pytest.mark.unit
+def test_a_socket_that_read_after_the_change_carries_it() -> None:
+    """The rule is which value is later, not which caller is a socket."""
+    roll = OnlineRoll()
+    roll.chose(7, Presence.offline)
+
+    roll.arrived(7, Presence.busy, known_at=monotonic())
+
+    assert roll.presence_of(7) is Presence.busy
+
+
+@pytest.mark.unit
+def test_closing_the_last_tab_puts_someone_offline() -> None:
+    """Whatever they picked, nothing open is nothing to show."""
     roll = OnlineRoll()
     roll.arrived(7, Presence.busy)
     roll.arrived(7, Presence.busy)
@@ -77,8 +119,9 @@ def test_a_change_is_followed_while_connected() -> None:
 
 
 @pytest.mark.unit
-def test_a_change_by_someone_with_nothing_open_is_ignored() -> None:
-    """They appear offline either way, and their next socket brings the column."""
+def test_a_change_by_someone_with_nothing_open_shows_nothing() -> None:
+    """Recorded, so a connect in flight cannot undo it — but nothing open is
+    still nothing to show."""
     roll = OnlineRoll()
 
     roll.chose(7, Presence.busy)
@@ -89,8 +132,7 @@ def test_a_change_by_someone_with_nothing_open_is_ignored() -> None:
 
 
 @pytest.mark.unit
-def test_the_newest_socket_wins() -> None:
-    """It read the column most recently, so it is the freshest answer."""
+def test_the_socket_that_read_most_recently_wins() -> None:
     roll = OnlineRoll()
     roll.arrived(7, Presence.online)
     roll.arrived(7, Presence.busy)

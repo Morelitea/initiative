@@ -23,7 +23,7 @@ it any more.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Set
+from typing import Any, Dict, Optional, Set
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
@@ -65,8 +65,13 @@ class NotificationStream:
         websocket: Any,
         *,
         chosen_presence: Presence = Presence.online,
+        presence_known_at: Optional[float] = None,
     ) -> None:
-        """Register an already-accepted socket as this user's."""
+        """Register an already-accepted socket as this user's.
+
+        ``presence_known_at`` is when the caller read ``chosen_presence``, so
+        the roll can tell a value read before a change from one read after it.
+        """
         async with self._lock:
             self._sockets.setdefault(user_id, set()).add(websocket)
             self._socket_user[websocket] = user_id
@@ -74,7 +79,7 @@ class NotificationStream:
         # any guild, so it is what "has Initiative open" means. It carries the
         # account's own choice of how to appear along with it, because the roll
         # answers both halves of that question together.
-        presence.online.arrived(user_id, chosen_presence)
+        presence.online.arrived(user_id, chosen_presence, known_at=presence_known_at)
 
     async def disconnect(self, websocket: Any) -> None:
         """Drop a socket; the last one drops its user's entry entirely."""

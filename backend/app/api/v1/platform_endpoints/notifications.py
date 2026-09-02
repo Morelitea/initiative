@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from time import monotonic
 
 from fastapi import (
     APIRouter,
@@ -164,6 +165,9 @@ async def websocket_notifications(websocket: WebSocket):
         # since-dropped guild role would make the auth query error);
         # AsyncSessionLocal skips get_session's per-request reset.
         await session.exec(text(CONNECTION_RESET_SQL))
+        # Taken before the row is read, so it is never later than the value
+        # that read comes back with.
+        presence_known_at = monotonic()
         user = await authenticate_ws_token(token, session)
         if user is None:
             logger.warning("Notifications WS: auth failed")
@@ -173,7 +177,10 @@ async def websocket_notifications(websocket: WebSocket):
         chosen_presence = user.presence
 
     await notification_stream.stream.connect(
-        user_id, websocket, chosen_presence=chosen_presence
+        user_id,
+        websocket,
+        chosen_presence=chosen_presence,
+        presence_known_at=presence_known_at,
     )
     try:
         while True:

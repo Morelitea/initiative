@@ -1,6 +1,7 @@
 import contextlib
 import json
 import logging
+from time import monotonic
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
@@ -111,6 +112,9 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
         # a since-dropped guild role would make every query error) before the auth
         # query — AsyncSessionLocal doesn't run get_session's per-request reset.
         await session.exec(text(CONNECTION_RESET_SQL))
+        # Taken before the row is read, so it is never later than the value
+        # that read comes back with.
+        presence_known_at = monotonic()
         user = await _user_from_token(token, session)
         if user is None:
             logger.warning("Events WebSocket: Auth failed")
@@ -142,6 +146,7 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
         websocket,
         user_id=user.id,
         chosen_presence=user.presence,
+        presence_known_at=presence_known_at,
     )
     logger.info(
         f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"

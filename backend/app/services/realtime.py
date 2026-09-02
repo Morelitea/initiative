@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Set, Tuple
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 from fastapi import WebSocket
 
@@ -67,9 +67,14 @@ class ConnectionManager:
         *,
         user_id: int,
         chosen_presence: Presence = Presence.online,
+        presence_known_at: Optional[float] = None,
     ) -> None:
         """Register an already-accepted socket under each of its initiative rooms,
-        namespaced to ``guild_id``, and mark its user present in that guild."""
+        namespaced to ``guild_id``, and mark its user present in that guild.
+
+        ``presence_known_at`` is when the caller read ``chosen_presence``, so
+        the roll can tell a value read before a change from one read after it.
+        """
         async with self._lock:
             joined = self._socket_rooms.setdefault(websocket, set())
             for initiative_id in initiative_ids:
@@ -79,7 +84,9 @@ class ConnectionManager:
             self._socket_identity[websocket] = (guild_id, user_id)
             present = self._present.setdefault(guild_id, {})
             present[user_id] = present.get(user_id, 0) + 1
-            presence.online.arrived(user_id, chosen_presence)
+            presence.online.arrived(
+                user_id, chosen_presence, known_at=presence_known_at
+            )
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a socket from every room it joined, and from its guild's roll."""
