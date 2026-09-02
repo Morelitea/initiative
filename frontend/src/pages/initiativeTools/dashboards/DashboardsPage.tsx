@@ -78,7 +78,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
     });
   };
 
-  const selection = useGridSelection<(typeof dashboards)[number]>();
+  const selection = useGridSelection<(typeof dashboards)[number]>(dashboards);
 
   return (
     <div className="space-y-6">
@@ -129,7 +129,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
                 key={dashboard.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(dashboard.id)}
-                onToggle={() => selection.toggle(dashboard)}
+                onToggle={(options) => selection.toggle(dashboard, options)}
                 label={dashboard.name}
               >
                 <DashboardCard dashboard={dashboard} />

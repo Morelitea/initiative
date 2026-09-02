@@ -80,7 +80,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     });
   };
 
-  const selection = useGridSelection<(typeof groups)[number]>();
+  const selection = useGridSelection<(typeof groups)[number]>(groups);
 
   const groupImport = useToolImportAction({
     tool: Tool.counter_group,
@@ -138,7 +138,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
                 key={group.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(group.id)}
-                onToggle={() => selection.toggle(group)}
+                onToggle={(options) => selection.toggle(group, options)}
                 label={group.name}
               >
                 <CounterGroupCard group={group} />

@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **My Contacts.** Everyone you share a community with, on one page. Favorites you picked at the top, then each of your communities in the order you dragged them into the rail, as sections you can collapse. Somebody in several of your communities is listed under each of them, and their row shows small icons for the others. Star anyone — including people you share no community with — to keep them at the top; starring is private and tells them nothing. One search box covers the whole page.
 
+- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
+
 - **Nine sports packs.** Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis, martial arts and fencing, each with the ground it is played on for a banner, a frame made of the equipment, and the object itself for a badge — a match ball's panels, a football's lacing, a face-off circle, a baseball's seam, a net, a string bed, a belt tied at the bottom, and a blade bent round to its own guard.
 
 - **A profile says which communities someone is in.** Only the ones that opted into the community directory — a community that never listed itself does not appear on anybody's profile, for anyone.
