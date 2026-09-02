@@ -122,8 +122,16 @@ const trophySvg = (year: number) => `<svg xmlns="http://www.w3.org/2000/svg"
         fill="#E8B84B" letter-spacing="2">GRAD</text>
 </svg>`;
 
+// Parentheses and apostrophes survive `encodeURIComponent`, and both of them
+// end an unquoted CSS `url()` early — which is how half these are drawn.
+const CSS_UNSAFE = /['()]/g;
+const ESCAPED: Record<string, string> = { "'": "%27", "(": "%28", ")": "%29" };
+
 const encode = (svg: string) =>
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/\s+/g, " ").trim())}`;
+  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/\s+/g, " ").trim()).replace(
+    CSS_UNSAFE,
+    (character) => ESCAPED[character]
+  )}`;
 
 /** The artwork for a dated decoration, or nothing if the id does not take a year. */
 export const gradArtwork = (id: string, year?: number | null): string | undefined => {

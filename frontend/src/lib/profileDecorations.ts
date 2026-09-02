@@ -64,7 +64,6 @@ type DecorationName =
   | "ace"
   | "alphabetblocks"
   | "ammonite"
-  | "anniversary"
   | "apple"
   | "arcade"
   | "aurora"
@@ -240,7 +239,6 @@ type DecorationName =
   | "graduationcap"
   | "gradyear"
   | "grove"
-  | "growingup"
   | "guitar"
   | "hamster"
   | "handdrum"
@@ -679,12 +677,10 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "family.booties": entry("family.booties", "trophy", "family-booties", "expecting"),
   "family.engaged": entry("family.engaged", "trophy", "family-engaged", "engaged"),
   "family.married": entry("family.married", "trophy", "family-married", "married"),
-  "family.anniversary": entry("family.anniversary", "trophy", "family-anniversary", "anniversary"),
   "family.parent": entry("family.parent", "trophy", "family-parent", "parent"),
   "family.newhome": entry("family.newhome", "trophy", "family-newhome", "newhome"),
   "family.caregiver": entry("family.caregiver", "trophy", "family-caregiver", "caregiver"),
   "family.nest": entry("family.nest", "trophy", "family-nest", "chosenfamily"),
-  "family.growing": entry("family.growing", "trophy", "family-growing", "growingup"),
   "firstnations.bonenecklace": entry(
     "firstnations.bonenecklace",
     "frame",
