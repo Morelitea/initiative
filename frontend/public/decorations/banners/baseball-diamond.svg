@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Diamond</title>
+  <!-- The infield from above the plate at dusk: dirt, four bases and the mound,
+       all of it centred so the shape survives a phone's crop. -->
+  <style>
+    .seamspin { animation: roll 2.4s linear infinite;
+                transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes roll { to { transform: rotate(-360deg) } }
+    @media (prefers-reduced-motion: reduce) { .seamspin { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#241C42"/>
+      <stop offset="55%" stop-color="#6B4A72"/>
+      <stop offset="100%" stop-color="#E08A4A"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2E6B38"/><stop offset="100%" stop-color="#1C4726"/>
+    </linearGradient>
+    <radialGradient id="dirt" cx=".5" cy=".3" r=".8">
+      <stop offset="0%" stop-color="#C08050"/><stop offset="100%" stop-color="#96603A"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="#241C42"/>
+  <path d="M0 0 L160 0 L160 11 L0 11 Z" fill="url(#dusk)"/>
+  <g fill="#FFE7C2">
+    <circle cx="18" cy="3" r=".3" opacity=".7"/><circle cx="44" cy="2" r=".26" opacity=".6"/>
+    <circle cx="66" cy="4" r=".3" opacity=".65"/><circle cx="106" cy="2.4" r=".28" opacity=".6"/>
+    <circle cx="140" cy="3.4" r=".3" opacity=".7"/>
+  </g>
+  <!-- A light tower, off to one side. -->
+  <g fill="#1A1430">
+    <path d="M126.4 11 L127.4 3.6 L128.6 3.6 L129.6 11 Z"/>
+    <path d="M123.6 3.8 L132.4 3.8 L132.4 .8 L123.6 .8 Z"/>
+  </g>
+  <g fill="#FFF6DC">
+    <rect x="124.4" y="1.4" width="1.5" height="1" rx=".3"/>
+    <rect x="126.6" y="1.4" width="1.5" height="1" rx=".3"/>
+    <rect x="128.8" y="1.4" width="1.5" height="1" rx=".3"/>
+    <rect x="131" y="1.4" width="1" height="1" rx=".3"/>
+  </g>
+  <ellipse cx="128" cy="2" rx="12" ry="7" fill="#FFF1CE" opacity=".1"/>
+  <!-- Outfield wall, then grass. -->
+  <path d="M0 11 L160 11 L160 14.2 L0 14.2 Z" fill="#173A22"/>
+  <path d="M0 11 L160 11 L160 11.7 L0 11.7 Z" fill="#E0B429" opacity=".8"/>
+  <path d="M0 14.2 L160 14.2 L160 40 L0 40 Z" fill="url(#grass)"/>
+  <g stroke="#367B41" stroke-width="1.6" fill="none" opacity=".45">
+    <path d="M0 18 C40 15.6 120 15.6 160 18"/>
+    <path d="M0 24 C40 21 120 21 160 24"/>
+    <path d="M0 31 C40 27.4 120 27.4 160 31"/>
+  </g>
+  <!-- The dirt, and the diamond on it. -->
+  <path d="M80 34.6 C58 34.6 40 29.4 40 23.2 C40 18.6 57.4 15 80 15 C102.6 15 120 18.6 120 23.2
+           C120 29.4 102 34.6 80 34.6 Z" fill="url(#dirt)"/>
+  <path d="M80 17.4 C68 17.4 58.4 19.6 58.4 22.4 C58.4 25.6 68 30 80 30 C92 30 101.6 25.6 101.6 22.4
+           C101.6 19.6 92 17.4 80 17.4 Z" fill="#2E6B38"/>
+  <g fill="none" stroke="#F2F4EE" stroke-width=".7" opacity=".9">
+    <path d="M80 31.6 L59.6 22.6 L80 16.4 L100.4 22.6 Z"/>
+  </g>
+  <g fill="#F7F8F4">
+    <path d="M78.6 16.1 L81.4 16.1 L81.4 17.1 L78.6 17.1 Z"/>
+    <path d="M58.4 22.2 L61 21.3 L61.8 22.2 L59.2 23.1 Z"/>
+    <path d="M99 21.3 L101.6 22.2 L100.8 23.1 L98.2 22.2 Z"/>
+    <path d="M78.4 30.8 L81.6 30.8 L81.6 31.6 L80 32.4 L78.4 31.6 Z"/>
+  </g>
+  <ellipse cx="80" cy="23.4" rx="5" ry="2.2" fill="#B8794A"/>
+  <path d="M78.6 23.1 L81.4 23.1 L81.4 23.8 L78.6 23.8 Z" fill="#F7F8F4"/>
+  <!-- The pitch, on its way. -->
+  <g class="seamspin">
+    <g transform="translate(104 12.4)">
+      <circle cx="0" cy="0" r="3.1" fill="#F7F8F4"/>
+      <circle cx="0" cy="0" r="3.1" fill="none" stroke="#C9CCC2" stroke-width=".3"/>
+      <path d="M-2 -2.4 C-.6 -1 -.6 1 -2 2.4" fill="none" stroke="#C4302B" stroke-width=".5"/>
+      <path d="M2 -2.4 C.6 -1 .6 1 2 2.4" fill="none" stroke="#C4302B" stroke-width=".5"/>
+      <g stroke="#C4302B" stroke-width=".28" stroke-linecap="round">
+        <path d="M-1.9 -1.6 L-1.2 -1.9"/><path d="M-1.5 -.6 L-.8 -.8"/>
+        <path d="M-1.5 .6 L-.8 .8"/><path d="M-1.9 1.6 L-1.2 1.9"/>
+        <path d="M1.9 -1.6 L1.2 -1.9"/><path d="M1.5 -.6 L.8 -.8"/>
+        <path d="M1.5 .6 L.8 .8"/><path d="M1.9 1.6 L1.2 1.9"/>
+      </g>
+    </g>
+  </g>
+  <g stroke="#F7F8F4" stroke-width=".35" opacity=".3" stroke-linecap="round" fill="none">
+    <path d="M112 10.4 C110 11 108.6 11.4 107.4 11.8"/>
+    <path d="M114 13 C112 13.2 110.4 13.4 109 13.6"/>
+  </g>
+</svg>

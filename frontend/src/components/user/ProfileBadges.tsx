@@ -14,8 +14,9 @@ import { resolveBadges } from "@/lib/profileDecorations";
  * They overlap a tray, and a goo filter welds the two into one silhouette —
  * blur the shapes, push the alpha back to a hard edge, then draw the untouched
  * artwork over the result so the badges themselves stay sharp. The same
- * technique the guild tool rail uses (see `GuildToolRail`), at a blur suited to
- * shapes this size.
+ * technique the guild tool rail uses, at the same circle size it uses: a badge
+ * is a thing you collect, and a row of them shown at icon size reads as a row
+ * of icons. See `GuildToolRail`, whose circles these are the size of.
  *
  * The tray is not decoration. Every badge is a dark disc and a banner is
  * usually a night sky, so a row laid straight on one is a row you cannot see;
@@ -41,12 +42,12 @@ export const ProfileBadges = ({
           <filter
             id={filterId}
             colorInterpolationFilters="sRGB"
-            x="-20%"
-            y="-20%"
-            width="140%"
-            height="140%"
+            x="-10%"
+            y="-40%"
+            width="120%"
+            height="180%"
           >
-            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
             <feColorMatrix
               in="blur"
               type="matrix"
@@ -62,14 +63,14 @@ export const ProfileBadges = ({
             welds it to them instead of drawing a panel behind them. */}
         <div
           aria-hidden="true"
-          className="absolute inset-x-1 top-1/2 h-6 -translate-y-1/2 rounded-full bg-card/90"
+          className="absolute inset-x-2 top-1/2 h-10 -translate-y-1/2 rounded-full bg-card/90"
         />
-        <ul className="relative flex flex-wrap items-center gap-0.5 px-1 py-0.5">
+        <ul className="relative flex flex-wrap items-center px-1 py-0.5">
           {badges.map((badge) => {
             const label = t(badge.labelKey);
             return (
               <li key={badge.id}>
-                <img src={badge.src} alt={label} title={label} className="block size-9" />
+                <img src={badge.src} alt={label} title={label} className="block size-16" />
               </li>
             );
           })}

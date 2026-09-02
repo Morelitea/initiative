@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Face-off</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <path d="M64 0.6 A63.4 63.4 0 1 0 64 127.4 A63.4 63.4 0 1 0 64 0.6 Z M64 13.4 A50.6 50.6 0 1 1 64 114.6 A50.6 50.6 0 1 1 64 13.4 Z" fill="#E4F0F8" fill-rule="evenodd"/>
+  <g stroke="#B9D6E8" stroke-width=".9" fill="none" stroke-linecap="round" opacity=".9">
+    <path d="M116 64 Q118.88 70.99 119.75 79.99 M112.59 88.01 Q111.34 95.06 108.08 104.11 M98.26 108.8 Q93.29 113.89 86.33 120.98 M75.28 121.5 Q67.96 123.04 58.64 126.57 M48.06 122.67 Q42.01 117.14 33.95 113.61 M29.54 102.95 Q22.64 98.48 13.73 96.02 M13.82 84.48 Q9.49 76.54 3.16 70.61 M7.74 59.97 Q7.38 50.19 5.02 42.42 M13.46 34.35 Q19.73 27.17 24 22 M30.62 13.18 Q39.45 9.14 46.28 7.1 M57.66 12.39 Q66.62 6.97 73.57 3.55 M81.91 12.85 Q92.1 11.8 100.29 12.75 M104.3 24.54 Q110.66 29.48 115.02 36.41 M119.7 45.79 Q122.63 52.81 123.56 61.82"/>
+  </g>
+  <circle cx="64" cy="64" r="57" fill="none" stroke="#C22B2B" stroke-width="2.4"/>
+  <g stroke="#C22B2B" stroke-width="2" fill="none" stroke-linejoin="round">
+    <path d="M110.25 90.7 L106.65 96.14 L112.24 100.35 M17.75 90.7 L14.85 84.87 L8.4 87.6 M17.75 37.3 L21.35 31.86 L15.76 27.65 M110.25 37.3 L113.15 43.13 L119.6 40.4"/>
+  </g>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#2B5FBF" stroke-width="2"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#2B5FBF" stroke-width="1.6"/>
+  <g transform="translate(64 7)">
+    <path d="M-4.6 -1.4 C-4.6 -2.6 4.6 -2.6 4.6 -1.4 L4.6 1.4 C4.6 2.6 -4.6 2.6 -4.6 1.4 Z"
+          fill="#16181C"/>
+    <ellipse cx="0" cy="-1.4" rx="4.6" ry="1.5" fill="#2A2E35"/>
+    <ellipse cx="0" cy="-1.4" rx="2.4" ry=".8" fill="#16181C"/>
+  </g>
+</svg>

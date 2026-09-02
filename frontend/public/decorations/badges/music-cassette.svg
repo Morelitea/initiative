@@ -1,21 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
-     shape-rendering="crispEdges" role="presentation">
+     role="presentation">
   <title>Cassette</title>
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FA8AA6"/>
+      <stop offset="40%" stop-color="#F0567A"/>
+      <stop offset="100%" stop-color="#B93454"/>
+    </linearGradient>
+    <linearGradient id="tape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A386B"/><stop offset="100%" stop-color="#2A1E42"/>
+    </linearGradient>
+  </defs>
   <circle cx="24" cy="24" r="23" fill="#140F1F"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#2C2140" stroke-width="2"/>
-  <!-- The shell. -->
-  <rect x="7" y="14" width="34" height="21" fill="#F0567A"/>
-  <rect x="7" y="14" width="34" height="3" fill="#F782A0"/>
-  <rect x="7" y="32" width="34" height="3" fill="#C43C5C"/>
-  <!-- The window, and the tape wound across it. -->
-  <rect x="11" y="18" width="26" height="10" fill="#241A33"/>
-  <rect x="13" y="20" width="22" height="6" fill="#3A2B52"/>
-  <circle cx="18" cy="23" r="4" fill="#140F1F"/>
-  <circle cx="30" cy="23" r="4" fill="#140F1F"/>
-  <circle cx="18" cy="23" r="1.5" fill="#F0567A"/>
-  <circle cx="30" cy="23" r="1.5" fill="#F0567A"/>
-  <!-- The label strip and the two drive holes. -->
-  <rect x="11" y="30" width="26" height="3" fill="#FFE9A3"/>
-  <rect x="16" y="31" width="4" height="1" fill="#C43C5C"/>
-  <rect x="22" y="31" width="8" height="1" fill="#C43C5C"/>
+  <rect x="6.5" y="13.5" width="35" height="21.5" rx="2.6" fill="url(#shell)"/>
+  <rect x="6.5" y="13.5" width="35" height="21.5" rx="2.6" fill="none" stroke="#8E2340"
+        stroke-width=".7" opacity=".6"/>
+  <path d="M9 13.9 C18 13.1 30 13.1 39 13.9 C30 14.9 18 14.9 9 13.9 Z" fill="#FFB3C6"
+        opacity=".55"/>
+  <!-- The window, and what is wound behind it. -->
+  <rect x="10.5" y="17.5" width="27" height="10.5" rx="1.8" fill="#241A33"/>
+  <rect x="12" y="19" width="24" height="7.5" rx="1.2" fill="url(#tape)"/>
+  <circle cx="18" cy="22.8" r="4.3" fill="#160F24"/>
+  <circle cx="30" cy="22.8" r="3.1" fill="#160F24"/>
+  <g stroke="#F0567A" stroke-width="1" fill="none">
+    <circle cx="18" cy="22.8" r="1.6"/><circle cx="30" cy="22.8" r="1.6"/>
+  </g>
+  <g stroke="#F0567A" stroke-width=".7" stroke-linecap="round">
+    <path d="M18 21.2 L18 24.4"/><path d="M16.6 22 L19.4 23.6"/><path d="M16.6 23.6 L19.4 22"/>
+    <path d="M30 21.2 L30 24.4"/><path d="M28.6 22 L31.4 23.6"/><path d="M28.6 23.6 L31.4 22"/>
+  </g>
+  <path d="M21.8 22 C24.4 21.2 25.8 21.6 27 22.4" fill="none" stroke="#6B558F"
+        stroke-width=".9" stroke-linecap="round"/>
+  <!-- Label, written on. -->
+  <rect x="10.5" y="29.5" width="27" height="4" rx="1" fill="#FFE9A3"/>
+  <g stroke="#C4776A" stroke-width=".9" stroke-linecap="round">
+    <path d="M12.6 31 L20.4 31"/><path d="M12.6 32.4 L17.4 32.4"/><path d="M22.6 31.7 L34.8 31.7"/>
+  </g>
 </svg>

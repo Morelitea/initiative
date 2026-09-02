@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Fastball</title>
+  <defs>
+    <radialGradient id="hide" cx=".34" cy=".28" r=".85">
+      <stop offset="0%" stop-color="#FFFFFF"/><stop offset="65%" stop-color="#F2F3EE"/>
+      <stop offset="100%" stop-color="#C4C8BC"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#1C4726"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#367B41" stroke-width="2"/>
+  <g stroke="#F2F3EE" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".3">
+    <path d="M6 15.6 C9.4 15 12.6 14.8 15.4 15"/>
+    <path d="M4.6 22.4 C8 21.6 11 21.2 13.6 21.2"/>
+    <path d="M6.4 29 C9.6 28.6 12.4 28.6 14.8 28.8"/>
+  </g>
+  <circle cx="26.4" cy="23.6" r="14.4" fill="url(#hide)"/>
+  <g fill="none" stroke="#C4302B" stroke-width="1.2">
+    <path d="M16.6 13.2 C21.2 17.4 21.2 29.8 16.6 34"/>
+    <path d="M36.2 13.2 C31.6 17.4 31.6 29.8 36.2 34"/>
+  </g>
+  <g stroke="#C4302B" stroke-width=".9" stroke-linecap="round" fill="none">
+    <path d="M17.6 16 L19.9 15"/><path d="M18.6 15.1 L19.5 17.4"/>
+    <path d="M19.2 20 L21.5 19.4"/><path d="M20.3 19.2 L20.7 21.6"/>
+    <path d="M19.2 27.2 L21.5 27.8"/><path d="M20.3 28 L20.7 25.6"/>
+    <path d="M17.6 31.2 L19.9 32.2"/><path d="M18.6 32.1 L19.5 29.8"/>
+    <path d="M35.2 16 L32.9 15"/><path d="M34.2 15.1 L33.3 17.4"/>
+    <path d="M33.6 20 L31.3 19.4"/><path d="M32.5 19.2 L32.1 21.6"/>
+    <path d="M33.6 27.2 L31.3 27.8"/><path d="M32.5 28 L32.1 25.6"/>
+    <path d="M35.2 31.2 L32.9 32.2"/><path d="M34.2 32.1 L33.3 29.8"/>
+  </g>
+  <circle cx="26.4" cy="23.6" r="14.4" fill="none" stroke="#A8AC9E" stroke-width=".7"/>
+  <path d="M17.4 15.4 C19.6 12.8 22.8 11.2 26.2 10.8" fill="none" stroke="#FFFFFF"
+        stroke-width="1.5" opacity=".55" stroke-linecap="round"/>
+</svg>

@@ -4,9 +4,9 @@
   <style>
     /* Twelve bars off a meter. Each has its own tempo, so the row never
        marches in step — which is the difference between a band and a metronome. */
-    .bar { animation: bounce 1.1s ease-in-out infinite alternate; transform-origin: 50% 100% }
+    .bar { animation: bounce 1.1s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100% }
     @keyframes bounce { from { transform: scaleY(.25) } to { transform: scaleY(1) } }
-    .beam { animation: sweep 6s ease-in-out infinite alternate; transform-origin: 50% 0 }
+    .beam { animation: sweep 6s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 0 }
     @keyframes sweep { from { transform: rotate(-7deg) } to { transform: rotate(7deg) } }
     @media (prefers-reduced-motion: reduce) {
       .bar { animation: none; transform: scaleY(.7) }

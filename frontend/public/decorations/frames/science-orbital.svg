@@ -3,7 +3,7 @@
   <title>Orbital</title>
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
   <style>
-    .shell { transform-origin: 64px 64px }
+    .shell { transform-box: view-box; transform-origin: 64px 64px }
     .a { animation: spin 7s linear infinite }
     .b { animation: spin 11s linear infinite reverse }
     @keyframes spin { to { transform: rotate(360deg) } }

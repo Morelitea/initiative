@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Dojo</title>
+  <!-- The alcove at the head of the hall, centred, with the mats running away
+       from it and the belts on their rack down one wall. -->
+  <style>
+    .lamp { animation: warm 6s ease-in-out infinite }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .82 } }
+    .brush { stroke-dasharray: 120; stroke-dashoffset: 0 }
+    @media (prefers-reduced-motion: reduce) { .lamp { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0E2C2"/><stop offset="100%" stop-color="#D9C49A"/>
+    </linearGradient>
+    <linearGradient id="tatami" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C3AC72"/><stop offset="100%" stop-color="#9C8551"/>
+    </linearGradient>
+    <radialGradient id="lantern" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="#FFD79A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="#2E1F13"/>
+  <!-- Shoji, panel by panel. -->
+  <path d="M0 3 L160 3 L160 21 L0 21 Z" fill="url(#paper)"/>
+  <g stroke="#6B4A2A" stroke-width=".7">
+    <path d="M0 8 L160 8"/><path d="M0 13 L160 13"/><path d="M0 17.6 L160 17.6"/>
+  </g>
+  <g stroke="#6B4A2A" stroke-width=".55">
+    <path d="M10 3 L10 21"/><path d="M20 3 L20 21"/><path d="M30 3 L30 21"/>
+    <path d="M40 3 L40 21"/><path d="M50 3 L50 21"/><path d="M110 3 L110 21"/>
+    <path d="M120 3 L120 21"/><path d="M130 3 L130 21"/><path d="M140 3 L140 21"/>
+    <path d="M150 3 L150 21"/>
+  </g>
+  <g stroke="#5A3D22" stroke-width="1.4">
+    <path d="M0 3 L160 3"/><path d="M56 3 L56 21"/><path d="M104 3 L104 21"/>
+  </g>
+  <path d="M0 0 L160 0 L160 3.2 L0 3.2 Z" fill="#4A3119"/>
+  <path d="M0 2.6 L160 2.6 L160 3.2 L0 3.2 Z" fill="#654327"/>
+  <!-- The alcove, and the scroll in it. -->
+  <path d="M57.4 3.6 L102.6 3.6 L102.6 21 L57.4 21 Z" fill="#3A2716"/>
+  <path d="M57.4 3.6 L102.6 3.6 L102.6 4.6 L57.4 4.6 Z" fill="#5A3D22"/>
+  <path d="M72 4.6 L88 4.6 L88 19.6 L72 19.6 Z" fill="#EFE6D0"/>
+  <path d="M71.4 4.2 L88.6 4.2 L88.6 5.2 L71.4 5.2 Z" fill="#7A5B36"/>
+  <path d="M71.4 19.2 L88.6 19.2 L88.6 20.2 L71.4 20.2 Z" fill="#7A5B36"/>
+  <!-- One breath, one circle: thick where the brush landed, thin where it
+       lifted, and open where it left the paper. -->
+  <path d="M78.64 5.39 L79.39 5.29 L80.14 5.28 L80.89 5.36 L81.63 5.52 L82.33 5.76 L83.01 6.08 L83.64 6.48 L84.22 6.95 L84.74 7.48 L85.19 8.06 L85.58 8.69 L85.88 9.36 L86.11 10.06 L86.25 10.78 L86.31 11.51 L86.29 12.24 L86.18 12.96 L85.99 13.66 L85.72 14.33 L85.37 14.96 L84.96 15.55 L84.48 16.09 L83.94 16.56 L83.36 16.97 L82.73 17.31 L82.07 17.57 L81.39 17.75 L80.69 17.85 L79.99 17.87 L79.29 17.81 L78.6 17.67 L77.94 17.45 L77.31 17.16 L76.73 16.79 L76.18 16.37 L75.7 15.88 L75.28 15.34 L74.92 14.76 L74.63 14.15 L74.42 13.51 L74.29 12.85 L74.23 12.18 L74.25 11.51 L74.35 10.86 L74.53 10.22 L74.78 9.61 L75.11 9.04 L75.51 8.54 L75.91 8.83 L75.66 9.36 L75.44 9.89 L75.29 10.44 L75.19 11 L75.16 11.56 L75.19 12.12 L75.29 12.66 L75.44 13.19 L75.66 13.7 L75.93 14.18 L76.25 14.62 L76.61 15.02 L77.02 15.37 L77.46 15.67 L77.94 15.92 L78.43 16.11 L78.94 16.24 L79.47 16.32 L79.99 16.33 L80.51 16.28 L81.02 16.17 L81.51 16.01 L81.98 15.79 L82.42 15.52 L82.82 15.2 L83.18 14.84 L83.49 14.44 L83.76 14.02 L83.98 13.56 L84.14 13.08 L84.24 12.6 L84.29 12.1 L84.28 11.6 L84.21 11.11 L84.09 10.64 L83.91 10.18 L83.68 9.75 L83.41 9.35 L83.09 8.98 L82.74 8.65 L82.35 8.37 L81.93 8.14 L81.49 7.95 L81.03 7.82 L80.56 7.74 L80.09 7.72 L79.62 7.75 L79.16 7.84 Z" fill="#241A12"/>
+  <path d="M79.6 5.8 C77.6 6.1 75.9 7.2 74.9 8.8" fill="none" stroke="#241A12"
+        stroke-width=".4" opacity=".3" stroke-linecap="round"/>
+  <!-- A pair of bokken on their stand, under the scroll. -->
+  <g>
+    <path d="M61.4 17 L61.4 20.4 L62.6 20.4 L62.6 17 Z" fill="#6B4A2A"/>
+    <path d="M67.4 17 L67.4 20.4 L68.6 20.4 L68.6 17 Z" fill="#6B4A2A"/>
+    <path d="M60.4 16.6 C63.4 16.2 66.6 16.2 69.6 16.6 L69.6 17.4 C66.6 17 63.4 17 60.4 17.4 Z"
+          fill="#8A6034"/>
+    <path d="M60.6 18.6 C63.4 18.2 66.6 18.2 69.4 18.6 L69.4 19.4 C66.6 19 63.4 19 60.6 19.4 Z"
+          fill="#8A6034"/>
+    <path d="M57 16.4 C63 15.6 76 15.6 82 16.4 C76 17.2 63 17.2 57 16.4 Z" fill="#C9A063"/>
+    <path d="M57 16.4 C63 15.6 76 15.6 82 16.4" fill="none" stroke="#E0BC85" stroke-width=".3"/>
+    <path d="M57.6 18.4 C63.4 17.8 75.6 17.8 81.4 18.4 C75.6 19.1 63.4 19.1 57.6 18.4 Z"
+          fill="#7A5330"/>
+  </g>
+  <g fill="#3A2716">
+    <path d="M92.4 19.8 C92.4 18 93.6 17 95 17 C96.4 17 97.6 18 97.6 19.8 Z"/>
+  </g>
+  <g stroke="#4F7A3A" stroke-width=".6" fill="none" stroke-linecap="round">
+    <path d="M95 17 C94.6 15 93.6 13.8 92.2 13.2"/>
+    <path d="M95 17 C95.4 14.8 96.4 13.4 98 12.6"/>
+    <path d="M95 17 L95 12.8"/>
+  </g>
+  <!-- The lantern. -->
+  <circle class="lamp" cx="24" cy="9" r="10" fill="url(#lantern)"/>
+  <path d="M24 2.8 L24 4.4" stroke="#4A3119" stroke-width=".5"/>
+  <g class="lamp">
+    <path d="M20.6 6.4 C20.6 5 27.4 5 27.4 6.4 L27.4 11.6 C27.4 13 20.6 13 20.6 11.6 Z"
+          fill="#FFE0A8"/>
+    <g stroke="#C89A55" stroke-width=".35">
+      <path d="M20.7 7.8 L27.3 7.8"/><path d="M20.6 9.4 L27.4 9.4"/><path d="M20.7 11 L27.3 11"/>
+    </g>
+    <path d="M21.6 5.4 L26.4 5.4 L26.4 4.6 L21.6 4.6 Z" fill="#4A3119"/>
+    <path d="M21.6 12.8 L26.4 12.8 L26.4 13.6 L21.6 13.6 Z" fill="#4A3119"/>
+  </g>
+  <!-- The rack, and everything hanging on it. -->
+  <path d="M114 6.6 L150 6.6 L150 7.6 L114 7.6 Z" fill="#5A3D22"/>
+  <g>
+    <path d="M116 7.4 L118 7.4 L118 17.6 L116 17.6 Z" fill="#F2EFE6"/>
+    <path d="M120.6 7.4 L122.6 7.4 L122.6 16.6 L120.6 16.6 Z" fill="#E8C94A"/>
+    <path d="M125.2 7.4 L127.2 7.4 L127.2 17.8 L125.2 17.8 Z" fill="#E08A2C"/>
+    <path d="M129.8 7.4 L131.8 7.4 L131.8 16.4 L129.8 16.4 Z" fill="#4F8A3E"/>
+    <path d="M134.4 7.4 L136.4 7.4 L136.4 17.4 L134.4 17.4 Z" fill="#2F63A8"/>
+    <path d="M139 7.4 L141 7.4 L141 16.8 L139 16.8 Z" fill="#7A4A22"/>
+    <path d="M143.6 7.4 L145.6 7.4 L145.6 18 L143.6 18 Z" fill="#1A1A1E"/>
+    <g fill="#000000" opacity=".14">
+      <path d="M117.2 7.4 L118 7.4 L118 17.6 L117.2 17.6 Z"/>
+      <path d="M126.4 7.4 L127.2 7.4 L127.2 17.8 L126.4 17.8 Z"/>
+      <path d="M135.6 7.4 L136.4 7.4 L136.4 17.4 L135.6 17.4 Z"/>
+      <path d="M144.8 7.4 L145.6 7.4 L145.6 18 L144.8 18 Z"/>
+    </g>
+  </g>
+  <!-- Mats. -->
+  <path d="M0 21 L160 21 L160 40 L0 40 Z" fill="url(#tatami)"/>
+  <g stroke="#3A2716" stroke-width=".9" opacity=".85">
+    <path d="M0 21.4 L160 21.4"/><path d="M0 26.2 L160 26.2"/><path d="M0 32.4 L160 32.4"/>
+    <path d="M26 21 L20 40"/><path d="M62 21 L58 40"/><path d="M98 21 L102 40"/>
+    <path d="M134 21 L140 40"/>
+  </g>
+  <g stroke="#B29A5F" stroke-width=".3" opacity=".5">
+    <path d="M0 23 L160 23"/><path d="M0 24.6 L160 24.6"/><path d="M0 28.4 L160 28.4"/>
+    <path d="M0 30.4 L160 30.4"/><path d="M0 35 L160 35"/><path d="M0 37.6 L160 37.6"/>
+  </g>
+  <path d="M62 21.4 L98 21.4 L110 40 L50 40 Z" fill="#FFE3B0" opacity=".12"/>
+</svg>

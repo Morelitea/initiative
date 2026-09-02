@@ -1,6 +1,9 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { resolveBadges, resolveDecoration } from "./profileDecorations";
+import { DECORATIONS, resolveBadges, resolveDecoration } from "./profileDecorations";
 
 describe("resolving a decoration", () => {
   it("finds the artwork an id names", () => {
@@ -36,5 +39,37 @@ describe("resolving a decoration", () => {
   it("draws nothing for a profile with no decorations at all", () => {
     expect(resolveBadges(null)).toEqual([]);
     expect(resolveDecoration(null, "frame")).toBeUndefined();
+  });
+});
+
+/**
+ * The two ends of a decoration have to meet, and nothing at runtime says so: a
+ * pack's manifest names ids, this catalog maps an id to a file, and the file is
+ * fetched by a browser that reports a missing one as a broken image nobody sees
+ * in review. So both joins are checked here instead.
+ */
+describe("the catalog and what it names", () => {
+  it("ships artwork for every decoration it lists", () => {
+    const missing = Object.values(DECORATIONS)
+      .map((decoration) => decoration.src)
+      .filter((src) => !existsSync(join(process.cwd(), "public", src)));
+
+    expect(missing).toEqual([]);
+  });
+
+  it("draws every decoration the shipped packs grant", () => {
+    const catalog = join(process.cwd(), "..", "backend", "app", "marketplace_catalog");
+    const unknown: string[] = [];
+
+    for (const file of readdirSync(catalog).filter((name) => name.endsWith(".json"))) {
+      const manifest = JSON.parse(readFileSync(join(catalog, file), "utf8"));
+      if (manifest.kind !== "profile_pack") continue;
+      for (const declared of manifest.definition.decorations) {
+        const known = DECORATIONS[declared.id];
+        if (!known || known.kind !== declared.slot) unknown.push(`${file}: ${declared.id}`);
+      }
+    }
+
+    expect(unknown).toEqual([]);
   });
 });
