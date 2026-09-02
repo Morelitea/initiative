@@ -9,8 +9,17 @@
             transform-box: fill-box; transform-origin: 50% 0 }
     @keyframes sway { from { transform: rotate(-2.2deg) } to { transform: rotate(2.2deg) } }
     @media (prefers-reduced-motion: reduce) { .hang { animation: none } }
+    .sheen { animation: sweep 11s ease-in-out infinite }
+    @keyframes sweep { 0%,100% { transform: translateX(-40px) }
+                       50% { transform: translateX(200px) } }
+    @media (prefers-reduced-motion: reduce) { .sheen { animation: none; opacity: 0 } }
   </style>
   <defs>
+    <linearGradient id="gleamband" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
     <linearGradient id="vaneA" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#F6F0E2"/><stop offset="30%" stop-color="#D8CBB0"/>
       <stop offset="64%" stop-color="#6B5238"/><stop offset="100%" stop-color="#33241A"/>
@@ -59,4 +68,5 @@
       <path d="M-5.8 -1.8 C-2.7 -3 2.7 -3 5.8 -1.8" fill="none" stroke="#7A1512" stroke-width=".5"/>
     </g>
   </g>
+  <rect class="sheen" x="0" y="0" width="40" height="40" fill="url(#gleamband)"/>
 </svg>

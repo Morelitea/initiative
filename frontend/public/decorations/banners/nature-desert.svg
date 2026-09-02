@@ -10,8 +10,24 @@
             transform-box: view-box; transform-origin: 80px 40px }
     @keyframes lean { from { transform: skewX(-.5deg) } to { transform: skewX(.5deg) } }
     @media (prefers-reduced-motion: reduce) { .heat, .sway { animation: none } }
+    .heathaze { animation: wobble 16s ease-in-out infinite alternate;
+                transform-box: view-box; transform-origin: 80px 40px }
+    @keyframes wobble { from { transform: translateX(-2px) } to { transform: translateX(2px) } }
+    .sunpulse { animation: beat 9s ease-in-out infinite alternate }
+    @keyframes beat { from { opacity: .75; transform: scale(.97) } to { opacity: 1; transform: scale(1.04) } }
+    @media (prefers-reduced-motion: reduce) { .heathaze, .sunpulse { animation: none } }
+    .hawk { animation: circle 26s ease-in-out infinite;
+            transform-box: view-box; transform-origin: 96px 12px }
+    @keyframes circle { 0% { transform: rotate(0) translateX(0) }
+                        50% { transform: rotate(180deg) translateX(2px) }
+                        100% { transform: rotate(360deg) translateX(0) } }
+    @media (prefers-reduced-motion: reduce) { .hawk { animation: none } }
   </style>
   <defs>
+    <radialGradient id="heatband" cx=".5" cy=".8" r=".6">
+      <stop offset="0%" stop-color="#FFE7B8" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="#FFE7B8" stop-opacity="0"/>
+    </radialGradient>
     <linearGradient id="dsky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#F2B672"/><stop offset="42%" stop-color="#F6D6A0"/>
       <stop offset="100%" stop-color="#EFE0BE"/>
@@ -26,7 +42,7 @@
   </defs>
   <rect width="160" height="40" fill="url(#dsky)"/>
   <circle class="heat" cx="118" cy="11" r="16" fill="url(#sun)"/>
-  <circle cx="118" cy="11" r="4.2" fill="#FFF2CE" opacity=".85"/>
+  <circle class="sunpulse" cx="118" cy="11" r="4.2" fill="#FFF2CE" opacity=".85" style="transform-box: fill-box; transform-origin: 50% 50%"/>
 
   <!-- Mesas, well back. -->
   <g fill="#C08A6E" opacity=".5">
@@ -148,6 +164,13 @@
       <path d="M12 40 C11 37 10 35.6 8.6 34.6"/><path d="M12 40 C12 37 12.6 35.4 13.6 34.4"/>
       <path d="M12 40 C13 37.4 14.6 36 16 35.4"/>
       <path d="M152 40 C151 37.4 150 36 148.8 35.2"/><path d="M152 40 C152.2 37.4 153 36 154 35.2"/>
+    </g>
+  </g>
+  <ellipse class="heathaze" cx="80" cy="31" rx="76" ry="6" fill="url(#heatband)"/>
+  <g class="hawk">
+    <g transform="translate(96 6)" stroke="#4A3A2E" stroke-width=".5" fill="none"
+       stroke-linecap="round" opacity=".7">
+      <path d="M-3.2 0 C-1.8 -1.4 -.6 -1.4 0 0"/><path d="M0 0 C.6 -1.4 1.8 -1.4 3.2 0"/>
     </g>
   </g>
 </svg>

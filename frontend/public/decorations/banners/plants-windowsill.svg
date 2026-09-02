@@ -17,8 +17,29 @@
       100% { transform: translate(6px,-14px); opacity: 0 }
     }
     @media (prefers-reduced-motion: reduce) { .sway, .mote { animation: none } }
+    .leanleft { animation: reach 17s ease-in-out infinite alternate;
+                transform-box: view-box; transform-origin: 80px 40px }
+    @keyframes reach { from { transform: skewX(-.7deg) } to { transform: skewX(.7deg) } }
+    .sunbeam { animation: creep 21s ease-in-out infinite alternate }
+    @keyframes creep { from { transform: translateX(-9px); opacity: .3 }
+                       to { transform: translateX(9px); opacity: .58 } }
+    @media (prefers-reduced-motion: reduce) { .leanleft, .sunbeam { animation: none } }
+    .dust { animation: swim 19s linear infinite }
+    .d2 { animation-delay: -6.4s } .d3 { animation-delay: -12.8s }
+    @keyframes swim { 0% { transform: translate(0,0); opacity: 0 }
+                      25% { opacity: .55 }
+                      100% { transform: translate(-7px,-15px); opacity: 0 } }
+    .drip { animation: bead 11s ease-in infinite }
+    @keyframes bead { 0%,62% { transform: translateY(0); opacity: 0 }
+                      66% { opacity: .8 }
+                      86%,100% { transform: translateY(7px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .dust, .drip { animation: none } }
   </style>
   <defs>
+    <linearGradient id="sillbeam" x1="0" y1="0" x2=".6" y2="1">
+      <stop offset="0%" stop-color="#FFF0C8" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFF0C8" stop-opacity="0"/>
+    </linearGradient>
     <linearGradient id="wallP" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#E4DCCA"/><stop offset="100%" stop-color="#C9BFA6"/>
     </linearGradient>
@@ -127,4 +148,11 @@
     <circle class="mote m2" cx="88" cy="34" r=".28" opacity=".45"/>
     <circle class="mote m3" cx="126" cy="32" r=".3" opacity=".4"/>
   </g>
+  <rect class="sunbeam" x="0" y="0" width="160" height="40" fill="url(#sillbeam)"/>
+  <g fill="#FFF3D2">
+    <circle class="dust" cx="52" cy="26" r=".3" opacity=".5"/>
+    <circle class="dust d2" cx="88" cy="22" r=".26" opacity=".45"/>
+    <circle class="dust d3" cx="116" cy="28" r=".28" opacity=".4"/>
+  </g>
+  <ellipse class="drip" cx="70" cy="30" rx=".5" ry=".8" fill="#BFE0E8" opacity=".8"/>
 </svg>

@@ -1,5 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
      role="presentation">
+  <style>
+    .wind { animation: gust 13s ease-in-out infinite alternate;
+            transform-box: view-box; transform-origin: 64px 64px }
+    @keyframes gust { from { transform: rotate(-1.6deg) } to { transform: rotate(1.6deg) } }
+    @media (prefers-reduced-motion: reduce) { .wind { animation: none } }
+  </style>
+  <g class="wind">
   <title>Pines</title>
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
   <!-- A treeline standing off the edge, none of them the same height. -->
@@ -97,4 +104,5 @@
   </g>
   <circle cx="64" cy="64" r="50.6" fill="none" stroke="#0C161C" stroke-width="1.8"/>
   <circle cx="64" cy="64" r="63.4" fill="none" stroke="#0C161C" stroke-width="1.2"/>
+  </g>
 </svg>

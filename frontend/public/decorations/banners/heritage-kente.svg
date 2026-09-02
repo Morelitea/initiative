@@ -1,6 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <style>
+    .sheen { animation: sweep 14s ease-in-out infinite }
+    @keyframes sweep { 0%,100% { transform: translateX(-46px) }
+                       50% { transform: translateX(206px) } }
+    .weft { animation: settle 11s ease-in-out infinite alternate;
+            transform-box: view-box; transform-origin: 80px 20px }
+    @keyframes settle { from { transform: skewY(-.35deg) scaleY(1) }
+                        to { transform: skewY(.35deg) scaleY(1.012) } }
+    @media (prefers-reduced-motion: reduce) { .sheen, .weft { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="kentesheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity=".2"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <g class="weft">
+  <style>
     .sheen { animation: sweep 15s ease-in-out infinite }
     @keyframes sweep { 0%,100% { transform: translateX(-44.800000000000004px) }
                        50% { transform: translateX(169px) } }
@@ -102,4 +120,6 @@
     <path d="M0 29.1 L160 29.1"/><path d="M0 36.5 L160 36.5"/>
   </g>
   <rect class="sheen" x="0" y="0" width="45" height="40" fill="url(#sheenband)"/>
+  </g>
+  <rect class="sheen" x="0" y="0" width="46" height="40" fill="url(#kentesheen)"/>
 </svg>

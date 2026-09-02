@@ -14,8 +14,33 @@
       100% { transform: translate(3px,-24px); opacity: 0 }
     }
     @media (prefers-reduced-motion: reduce) { .spore { animation: none; opacity: .45 } }
+    .grow { animation: breathe 13s ease-in-out infinite alternate;
+            transform-box: view-box; transform-origin: 80px 40px }
+    @keyframes breathe { from { transform: scaleY(1) } to { transform: scaleY(1.018) } }
+    .spore { animation: waft 15s linear infinite }
+    .p2 { animation-delay: -5s } .p3 { animation-delay: -10s }
+    @keyframes waft { 0% { transform: translate(0,0); opacity: 0 }
+                      25% { opacity: .5 }
+                      100% { transform: translate(9px,-16px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .grow, .spore { animation: none } }
+    .shaft { animation: slant 30s ease-in-out infinite alternate }
+    .sh2 { animation-duration: 38s; animation-delay: -13s }
+    @keyframes slant { from { transform: translateX(-9px); opacity: .12 }
+                       to { transform: translateX(9px); opacity: .3 } }
+    .fly { animation: blink 3.2s ease-in-out infinite alternate }
+    .fy2 { animation-duration: 4.6s; animation-delay: -1.5s }
+    @keyframes blink { from { opacity: 0 } to { opacity: .9 } }
+    .wander { animation: roam 21s ease-in-out infinite alternate }
+    .wa2 { animation-duration: 26s; animation-delay: -8s }
+    @keyframes roam { from { transform: translate(0,0) } to { transform: translate(22px,-7px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .shaft, .fly, .wander { animation: none } }
   </style>
   <defs>
+    <linearGradient id="canopybeam" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#D8F0A8" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#D8F0A8" stop-opacity="0"/>
+    </linearGradient>
     <linearGradient id="canopy" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#0a170f"/>
       <stop offset="70%" stop-color="#14261a"/>
@@ -305,7 +330,20 @@
  >
  </g
  >
-    </svg>
+      <g fill="#C9E8A8">
+    <circle class="spore" cx="52" cy="30" r=".32" opacity=".5"/>
+    <circle class="spore p2" cx="96" cy="32" r=".26" opacity=".45"/>
+    <circle class="spore p3" cx="120" cy="28" r=".3" opacity=".4"/>
+  </g>
+  <g>
+    <path class="shaft" d="M28 0 L44 0 L26 40 L14 40 Z" fill="url(#canopybeam)"/>
+    <path class="shaft sh2" d="M104 0 L118 0 L104 40 L92 40 Z" fill="url(#canopybeam)"/>
+  </g>
+  <g fill="#E8F68A">
+    <g class="wander"><circle class="fly" cx="58" cy="24" r=".6"/></g>
+    <g class="wander wa2"><circle class="fly fy2" cx="104" cy="20" r=".5"/></g>
+  </g>
+</svg>
   </g>
 
   <!-- A fly agaric: the other mushroom everybody can name. -->

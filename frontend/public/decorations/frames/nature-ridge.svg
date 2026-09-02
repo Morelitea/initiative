@@ -1,5 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
      role="presentation">
+  <style>
+    .dayturn { animation: cross 46s linear infinite;
+               transform-box: view-box; transform-origin: 64px 64px }
+    @keyframes cross { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .dayturn { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="ridgesun" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#FFE7B8" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFE7B8" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#FFE7B8" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
   <title>Ridge</title>
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
   <!-- Peaks all the way round, with the snow where the snow sits. -->
@@ -10,4 +23,8 @@
           stroke-dasharray="2 9" opacity=".7"/>
   <circle cx="64" cy="64" r="50.6" fill="none" stroke="#101C26" stroke-width="1.8"/>
   <circle cx="64" cy="64" r="63.4" fill="none" stroke="#101C26" stroke-width="1.2"/>
+  <g class="dayturn">
+    <circle cx="64" cy="64" r="57" fill="none" stroke="url(#ridgesun)" stroke-width="10"
+            stroke-dasharray="70 288" stroke-linecap="round"/>
+  </g>
 </svg>

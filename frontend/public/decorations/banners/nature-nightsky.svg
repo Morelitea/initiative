@@ -16,6 +16,16 @@
                         86%,100% { transform: translate(34px, 20px); opacity: 0 } }
     @media (prefers-reduced-motion: reduce) {
       .tw, .band, .fall { animation: none } .fall { opacity: 0 } }
+    .wheel { animation: turn 220s linear infinite;
+             transform-box: view-box; transform-origin: 80px 20px }
+    @keyframes turn { to { transform: rotate(360deg) } }
+    .fall2 { animation: streak2 17s ease-in infinite }
+    .f3 { animation-duration: 23s; animation-delay: -9s }
+    @keyframes streak2 { 0%,80% { transform: translate(0,0); opacity: 0 }
+                         84% { opacity: 1 }
+                         93%,100% { transform: translate(-30px,22px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) {
+      .wheel, .fall2 { animation: none } .fall2 { opacity: 0 } }
   </style>
   <defs>
     <linearGradient id="deep" x1="0" y1="0" x2="0" y2="1">
@@ -108,5 +118,9 @@
       <path d="M100 33.6 C100.6 31.4 101.4 29.8 102.6 28.6"/>
       <path d="M100 33.6 C100.9 31.8 102.2 30.6 103.6 30"/>
     </g>
+  </g>
+  <g stroke="#FFF6E0" stroke-width=".45" stroke-linecap="round" fill="none">
+    <path class="fall2" d="M96 6 L102 1.6"/>
+    <path class="fall2 f3" d="M34 10 L40 5.6"/>
   </g>
 </svg>

@@ -16,6 +16,11 @@
                        to { transform: translate(190px, -3px) } }
     @media (prefers-reduced-motion: reduce) {
       .surf, .glint, .wash, .gull { animation: none } }
+    .sail { animation: cruise 60s linear infinite }
+    @keyframes cruise { 0% { transform: translateX(-14px); opacity: 0 }
+                        6% { opacity: .55 } 94% { opacity: .55 }
+                        100% { transform: translateX(176px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .sail { animation: none } }
   </style>
   <defs>
     <linearGradient id="bsky" x1="0" y1="0" x2="0" y2="1">
@@ -95,4 +100,11 @@
     <path d="M112 39 C111.2 38.2 111.5 37.4 112.4 37.4 C113.3 37.4 113.6 38.2 112.8 39 Z"/>
   </g>
   <ellipse cx="86" cy="38.6" rx="1.6" ry=".7" fill="#A89478" opacity=".7"/>
+  <g class="sail">
+    <g transform="translate(8 20.2)" fill="#3E5460" opacity=".8">
+      <path d="M0 0 L4.4 0 L3.6 1.2 L.6 1.2 Z"/>
+      <path d="M2.2 -.2 L2.2 -4.4 L4.6 -.2 Z"/>
+      <path d="M1.8 -.4 L1.8 -3.4 L-.2 -.4 Z"/>
+    </g>
+  </g>
 </svg>

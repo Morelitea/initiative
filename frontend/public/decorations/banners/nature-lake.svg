@@ -17,6 +17,15 @@
     .deepen { animation: dusk 34s ease-in-out infinite alternate }
     @keyframes dusk { from { opacity: 0 } to { opacity: .55 } }
     @media (prefers-reduced-motion: reduce) { .ripple, .shimmer { animation: none } }
+    .heron { animation: fly 34s linear infinite }
+    @keyframes fly { 0% { transform: translate(-16px,2px); opacity: 0 }
+                     8% { opacity: .8 } 90% { opacity: .8 }
+                     100% { transform: translate(178px,-4px); opacity: 0 } }
+    .mist { animation: creep 27s ease-in-out infinite alternate }
+    .mi2 { animation-duration: 34s; animation-delay: -11s }
+    @keyframes creep { from { transform: translateX(-10px); opacity: .2 }
+                       to { transform: translateX(10px); opacity: .45 } }
+    @media (prefers-reduced-motion: reduce) { .heron, .mist { animation: none } }
   </style>
   <defs>
     <filter id="wet" x="-20%" y="-120%" width="140%" height="340%">
@@ -81,4 +90,11 @@
   </g>
   <!-- What the light does on the way down. -->
   <rect class="deepen" x="0" y="0" width="160" height="22" fill="url(#lastlight)"/>
+  <g fill="#D8E2F0">
+    <ellipse class="mist" cx="46" cy="23.4" rx="34" ry="1.5" opacity=".3"/>
+    <ellipse class="mist mi2" cx="116" cy="25" rx="30" ry="1.2" opacity=".25"/>
+  </g>
+  <g class="heron" stroke="#2A3450" stroke-width=".55" fill="none" stroke-linecap="round">
+    <path d="M6 12 C7.6 10 9.4 10 11 12"/><path d="M11 12 C12.6 10 14.4 10 16 12"/>
+  </g>
 </svg>

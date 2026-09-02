@@ -81,13 +81,13 @@ type DecorationName =
   | "bunting"
   | "buttons"
   | "bytrain"
-  | "caddies"
   | "campfire"
   | "car"
   | "cassette"
   | "cat"
   | "catnap"
   | "christmaseve"
+  | "christmaslights"
   | "chronicpain"
   | "clapper"
   | "clay"
@@ -262,7 +262,6 @@ type DecorationName =
   | "singingbowl"
   | "skeletons"
   | "snake"
-  | "snowfall"
   | "snowflake"
   | "snowman"
   | "soundcheck"
@@ -682,7 +681,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "spooky.ghost": entry("spooky.ghost", "trophy", "spooky-ghost", "ghost"),
   "spooky.lantern": entry("spooky.lantern", "trophy", "spooky-lantern", "lantern"),
 
-  "tea.caddies": entry("tea.caddies", "banner", "tea-caddies", "caddies"),
   "tea.garden": entry("tea.garden", "banner", "tea-garden", "teagarden"),
   "tea.party": entry("tea.party", "banner", "tea-party", "madteaparty", "dark"),
   "tea.service": entry("tea.service", "banner", "tea-service", "teaservice"),
@@ -717,8 +715,8 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "winter.flurry": entry("winter.flurry", "banner", "winter-flurry", "flurry"),
   "winter.hearth": entry("winter.hearth", "banner", "winter-hearth", "hearth"),
+  "winter.lights": entry("winter.lights", "banner", "winter-lights", "christmaslights"),
   "winter.santa": entry("winter.santa", "banner", "winter-santa", "christmaseve"),
-  "winter.snowfall": entry("winter.snowfall", "banner", "winter-snowfall", "snowfall"),
   "winter.icicles": entry("winter.icicles", "frame", "winter-icicles", "icicles"),
   "winter.poinsettia": entry("winter.poinsettia", "frame", "winter-poinsettia", "poinsettia"),
   "winter.wreath": entry("winter.wreath", "frame", "winter-wreath", "wreath"),

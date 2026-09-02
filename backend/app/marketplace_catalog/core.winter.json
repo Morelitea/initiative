@@ -5,20 +5,15 @@
   "name": "Winter",
   "publisher": "Initiative",
   "description": "Snow coming down, and a fire that is going nowhere.",
-  "long_description": "A house with the lights on and somebody built out front, a hearth with the stockings up, snow falling all the way down the frame, and a sleigh crossing the moon. A holly wreath, a rim of icicles or a poinsettia to frame you, and a snowflake, a snowman, a bauble and a mug. Put it up early. Leave it up late.",
-  "avatar_url": "/decorations/banners/winter-snowfall.svg",
+  "long_description": "Snow falling the length of the frame, a sleigh crossing the moon with the stars blinking over it, a hearth with the stockings up and a fire actually burning, and a string of lights going on and off along the boughs. A holly wreath, a rim of icicles or a poinsettia to frame you, and a snowflake, a snowman, a bauble and a mug. Put it up early. Leave it up late.",
+  "avatar_url": "/decorations/banners/winter-lights.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "Snow that falls, a poinsettia, and Christmas Eve.",
+  "version": "1.2.0",
+  "release_notes": "Lights on the boughs; the outdoor scene retired.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
     "decorations": [
-      {
-        "id": "winter.snowfall",
-        "slot": "banner",
-        "name": "Snowfall"
-      },
       {
         "id": "winter.hearth",
         "slot": "banner",
@@ -67,7 +62,12 @@
       {
         "id": "winter.santa",
         "slot": "banner",
-        "name": "Christmas Eve"
+        "name": "Santa sleigh"
+      },
+      {
+        "id": "winter.lights",
+        "slot": "banner",
+        "name": "Christmas lights"
       }
     ]
   }
