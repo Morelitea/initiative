@@ -22,6 +22,7 @@
  */
 
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
+import { DATED_DECORATIONS, gradArtwork } from "@/lib/gradArtwork";
 
 export type DecorationKind = "banner" | "frame" | "trophy";
 
@@ -236,7 +237,9 @@ type DecorationName =
   | "gold"
   | "goldengate"
   | "goodplacetoread"
+  | "grad"
   | "graduationcap"
+  | "gradyear"
   | "grove"
   | "growingup"
   | "guitar"
@@ -437,6 +440,14 @@ export interface Decoration {
    * file at `src` is what it looks like in its default colours.
    */
   tint?: 1 | 2;
+  /**
+   * Whether the artwork carries a year the wearer picked.
+   *
+   * Like `tint`, this marks a decoration that is drawn rather than fetched —
+   * `src` holds this year's, which is what an unset year should look like, and
+   * anything that knows the wearer's year asks `decorationSrc` for theirs.
+   */
+  dated?: true;
 }
 
 /** Where each slot's artwork lives, since one of them does not just take an s. */
@@ -459,6 +470,7 @@ const entry = (
   labelKey: `decorations.${name}`,
   ...(kind === "banner" ? { ink } : null),
   ...(id in DEFAULT_TINTS ? { tint: DEFAULT_TINTS[id].length as 1 | 2 } : null),
+  ...(DATED_DECORATIONS.has(id) ? { dated: true as const, src: gradArtwork(id) as string } : null),
 });
 
 /**
@@ -606,6 +618,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   ),
   "firstnations.weave": entry("firstnations.weave", "banner", "firstnations-weave", "weave"),
   "education.classroom": entry("education.classroom", "banner", "education-classroom", "classroom"),
+  "education.gradbanner": entry("education.gradbanner", "banner", "education-gradbanner", "grad"),
   "education.lab": entry("education.lab", "banner", "education-lab", "sciencelab"),
   "education.commencement": entry(
     "education.commencement",
@@ -629,6 +642,12 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "education.apple": entry("education.apple", "trophy", "education-apple", "apple"),
   "education.blocks": entry("education.blocks", "trophy", "education-blocks", "alphabetblocks"),
   "education.bus": entry("education.bus", "trophy", "education-bus", "schoolbus"),
+  "education.gradtrophy": entry(
+    "education.gradtrophy",
+    "trophy",
+    "education-gradtrophy",
+    "gradyear"
+  ),
   "education.pencil": entry("education.pencil", "trophy", "education-pencil", "pencil"),
   "education.abacus": entry("education.abacus", "trophy", "education-abacus", "abacus"),
   "education.protractor": entry(
@@ -1022,6 +1041,15 @@ export const resolveDecoration = (
   const found = DECORATIONS[id];
   return found?.kind === kind ? found : undefined;
 };
+
+/**
+ * Where to fetch a decoration's artwork, for a wearer whose year is known.
+ *
+ * Every decoration but the two dated ones ignores the year and hands back the
+ * file it always had, so a caller with no year to give loses nothing by asking.
+ */
+export const decorationSrc = (decoration: Decoration, year?: number | null): string =>
+  (decoration.dated ? gradArtwork(decoration.id, year) : undefined) ?? decoration.src;
 
 /** The trophies a profile is wearing that this build can draw, in the order worn. */
 export const resolveTrophies = (

@@ -14,7 +14,7 @@ import { ProfilePicture } from "@/components/user/ProfilePicture";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
 import { ProfileTrophies } from "@/components/user/ProfileTrophies";
 import { presenceLabelKey } from "@/lib/presence";
-import { resolveDecoration } from "@/lib/profileDecorations";
+import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
 import type { AvatarSourceUser, DisplayableUser } from "@/lib/userDisplay";
 
 interface ProfilePreviewProps {
@@ -62,7 +62,11 @@ export const ProfilePreview = ({
           to read in it out of the reading order, and lets it crop at any width. */}
       <div
         className="h-28 w-full bg-center bg-cover bg-muted sm:h-36"
-        style={banner ? { backgroundImage: `url(${banner.src})` } : undefined}
+        style={
+          banner
+            ? { backgroundImage: `url(${decorationSrc(banner, decorations.grad_year)})` }
+            : undefined
+        }
       />
       <CardContent className="space-y-4 pt-4">
         {/* The status above the picture, the same way the page has it: the

@@ -200,7 +200,9 @@
     "gold": "Gilded",
     "goldengate": "Golden Gate",
     "goodplacetoread": "A good place to read",
+    "grad": "Grad",
     "graduationcap": "Graduation cap",
+    "gradyear": "Grad year",
     "grove": "Grove",
     "growingup": "Growing up",
     "guitar": "Electric guitar",
@@ -370,17 +372,18 @@
     "yorick": "Yorick"
   },
   "decorationPicker": {
-    "heading": "Profile decorations",
-    "help": "Pick from what you have. Packs from the marketplace add more.",
     "banner": "Banner",
-    "frame": "Frame",
-    "trophy": "Trophies",
-    "empty": "Nothing here yet.",
-    "trophyCount": "{{count}} of {{max}} worn",
     "colour": "Colour",
     "colour1": "Left",
     "colour2": "Right",
-    "resetColour": "Reset"
+    "empty": "Nothing here yet.",
+    "frame": "Frame",
+    "heading": "Profile decorations",
+    "help": "Pick from what you have. Packs from the marketplace add more.",
+    "resetColour": "Reset",
+    "trophy": "Trophies",
+    "trophyCount": "{{count}} of {{max}} worn",
+    "year": "Year"
   },
   "store": {
     "title": "Decoration packs",

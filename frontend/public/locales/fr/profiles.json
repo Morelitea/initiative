@@ -200,7 +200,9 @@
     "gold": "Doré",
     "goldengate": "Golden Gate",
     "goodplacetoread": "Un bon coin pour lire",
+    "grad": "Promo",
     "graduationcap": "Chapeau de diplômé",
+    "gradyear": "Année de promo",
     "grove": "Bosquet",
     "growingup": "Ça pousse",
     "guitar": "Guitare électrique",
@@ -370,17 +372,18 @@
     "yorick": "Yorick"
   },
   "decorationPicker": {
-    "heading": "Décorations du profil",
-    "help": "Choisissez parmi ce que vous avez. Les packs de la boutique en ajoutent.",
     "banner": "Bannière",
-    "frame": "Cadre",
-    "trophy": "Trophées",
-    "empty": "Rien ici pour l'instant.",
-    "trophyCount": "{{count}} sur {{max}} portés",
     "colour": "Couleur",
     "colour1": "Gauche",
     "colour2": "Droite",
-    "resetColour": "Réinitialiser"
+    "empty": "Rien ici pour l'instant.",
+    "frame": "Cadre",
+    "heading": "Décorations du profil",
+    "help": "Choisissez parmi ce que vous avez. Les packs de la boutique en ajoutent.",
+    "resetColour": "Réinitialiser",
+    "trophy": "Trophées",
+    "trophyCount": "{{count}} sur {{max}} portés",
+    "year": "Année"
   },
   "store": {
     "title": "Packs de décoration",

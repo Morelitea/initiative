@@ -22,6 +22,8 @@ another one every time the app ships a new default.
 
 from __future__ import annotations
 
+from datetime import date
+
 #: What a decoration id may be made of. An explicit set rather than a pattern:
 #: the id is spliced into the path of a local asset by the client, so the
 #: characters it may contain are worth reading at a glance.
@@ -67,6 +69,24 @@ TINTABLE_FRAMES: dict[str, int] = {
 
 #: How many colours any frame may take. The bound the write path checks.
 MAX_FRAME_TINTS = 2
+
+#: The decorations that carry a year the wearer picked. The artwork is drawn by
+#: the client with the year written into it, so this list is only what the write
+#: path needs: which ids make ``grad_year`` mean something.
+DATED_DECORATIONS: frozenset[str] = frozenset(
+    {"education.gradbanner", "education.gradtrophy"}
+)
+
+#: How far back a year may go. Old enough for anybody still working.
+MIN_GRAD_YEAR = 1900
+
+#: How far ahead. Somebody part-way through a degree knows when they finish.
+GRAD_YEARS_AHEAD = 10
+
+
+def max_grad_year() -> int:
+    """The latest year that may be worn, which moves with the calendar."""
+    return date.today().year + GRAD_YEARS_AHEAD
 
 
 def validate_tint(value: str) -> str:

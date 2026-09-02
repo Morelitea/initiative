@@ -1195,6 +1195,7 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
     assert body["profile_decorations"] == {
         "banner": "core.aurora",
         "frame_tint": [],
+        "grad_year": None,
         "frame": None,
         "trophies": ["core.fan"],
     }
@@ -1707,6 +1708,7 @@ async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSe
         "banner": "pack.midnight",
         "frame": "core.gold",
         "frame_tint": [],
+        "grad_year": None,
         # The same trophy twice is a duplicate, not a second trophy.
         "trophies": ["core.fan"],
     }

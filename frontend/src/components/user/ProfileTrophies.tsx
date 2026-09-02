@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
-import { resolveTrophies } from "@/lib/profileDecorations";
+import { decorationSrc, resolveTrophies } from "@/lib/profileDecorations";
 import { cn } from "@/lib/utils";
 
 /**
@@ -91,7 +91,11 @@ export const ProfileTrophies = ({
             const label = t(trophy.labelKey);
             return (
               <li key={trophy.id} className="flex w-20 flex-col items-center pt-5 text-center">
-                <img src={trophy.src} alt="" className="block size-16" />
+                <img
+                  src={decorationSrc(trophy, decorations?.grad_year)}
+                  alt=""
+                  className="block size-16"
+                />
                 <span className="z-5 -mt-3 w-full text-wrap px-1 font-medium text-muted-foreground text-xs">
                   {label}
                 </span>

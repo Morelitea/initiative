@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { OwnedDecoration } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { DecorationSwatch } from "@/components/user/DecorationSwatch";
+import { currentYear, MIN_GRAD_YEAR, maxGradYear } from "@/lib/gradArtwork";
 import {
   DEFAULT_TINTS,
   type Decoration,
@@ -79,6 +80,37 @@ const Tile = ({ label, selected, onToggle, children, control, name, disabled }: 
   </label>
 );
 
+/**
+ * The year on a decoration that carries one.
+ *
+ * A plain number field: the year is four digits and every platform already
+ * knows how to type four digits. It arrives filled in with this one, because
+ * that is the year almost everybody setting it means.
+ */
+const YearPicker = ({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (year: number) => void;
+}) => {
+  const { t } = useTranslation("profiles");
+  return (
+    <label className="flex items-center gap-2 text-muted-foreground text-xs">
+      {t("decorationPicker.year")}
+      <input
+        type="number"
+        inputMode="numeric"
+        min={MIN_GRAD_YEAR}
+        max={maxGradYear()}
+        value={value ?? currentYear()}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-24 rounded-md border border-input bg-transparent px-2 py-1 text-foreground text-sm"
+      />
+    </label>
+  );
+};
+
 interface SlotPickerProps {
   kind: Extract<DecorationKind, "banner" | "frame">;
   value: string | null;
@@ -87,6 +119,9 @@ interface SlotPickerProps {
   /** The colours picked for a tintable frame, and how to change them. */
   tint?: string[];
   onTint?: (colours: string[]) => void;
+  /** The year picked for a decoration that carries one, and how to change it. */
+  year?: number | null;
+  onYear?: (year: number) => void;
 }
 
 /**
@@ -155,7 +190,16 @@ const TintPicker = ({
  * Picking the tile that is already on takes it off, so "none" needs no tile of
  * its own and there is one way to end up bare.
  */
-export const SlotPicker = ({ kind, value, onChange, owned, tint, onTint }: SlotPickerProps) => {
+export const SlotPicker = ({
+  kind,
+  value,
+  onChange,
+  owned,
+  tint,
+  onTint,
+  year,
+  onYear,
+}: SlotPickerProps) => {
   const { t } = useTranslation("profiles");
   const choices = wearable(owned, kind);
   const worn = choices.find((decoration) => decoration.id === value);
@@ -181,6 +225,7 @@ export const SlotPicker = ({ kind, value, onChange, owned, tint, onTint }: SlotP
               <DecorationSwatch
                 decoration={decoration}
                 tint={value === decoration.id ? tint : undefined}
+                year={year}
               />
             </span>
           </Tile>
@@ -191,6 +236,7 @@ export const SlotPicker = ({ kind, value, onChange, owned, tint, onTint }: SlotP
       {worn?.tint && onTint ? (
         <TintPicker decoration={worn} value={tint ?? []} onChange={onTint} />
       ) : null}
+      {worn?.dated && onYear ? <YearPicker value={year ?? null} onChange={onYear} /> : null}
     </div>
   );
 };
@@ -201,6 +247,9 @@ interface TrophyPickerProps {
   owned: OwnedDecoration[] | undefined;
   /** Mirrors ``MAX_PROFILE_BADGES`` on the server. */
   max: number;
+  /** The year picked for a decoration that carries one, and how to change it. */
+  year?: number | null;
+  onYear?: (year: number) => void;
 }
 
 /**
@@ -210,7 +259,7 @@ interface TrophyPickerProps {
  * the cap the unpicked tiles stop responding rather than silently dropping the
  * oldest — what is worn is the reader's choice, not the picker's.
  */
-export const TrophyPicker = ({ value, onChange, owned, max }: TrophyPickerProps) => {
+export const TrophyPicker = ({ value, onChange, owned, max, year, onYear }: TrophyPickerProps) => {
   const { t } = useTranslation("profiles");
   const choices = wearable(owned, "trophy");
 
@@ -241,7 +290,7 @@ export const TrophyPicker = ({ value, onChange, owned, max }: TrophyPickerProps)
               disabled={!selected && value.length >= max}
               onToggle={() => toggle(decoration.id)}
             >
-              <DecorationSwatch decoration={decoration} />
+              <DecorationSwatch decoration={decoration} year={year} />
             </Tile>
           );
         })}
@@ -249,6 +298,9 @@ export const TrophyPicker = ({ value, onChange, owned, max }: TrophyPickerProps)
       <p className="text-muted-foreground text-xs">
         {t("decorationPicker.trophyCount", { count: value.length, max })}
       </p>
+      {choices.some((decoration) => decoration.dated && value.includes(decoration.id)) && onYear ? (
+        <YearPicker value={year ?? null} onChange={onYear} />
+      ) : null}
     </div>
   );
 };

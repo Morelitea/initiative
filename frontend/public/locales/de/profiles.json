@@ -200,7 +200,9 @@
     "gold": "Vergoldet",
     "goldengate": "Golden Gate",
     "goodplacetoread": "Ein guter Leseplatz",
+    "grad": "Abschluss",
     "graduationcap": "Absolventenhut",
+    "gradyear": "Abschlussjahr",
     "grove": "Hain",
     "growingup": "Größer werden",
     "guitar": "E-Gitarre",
@@ -370,17 +372,18 @@
     "yorick": "Yorick"
   },
   "decorationPicker": {
-    "heading": "Profil-Dekorationen",
-    "help": "Wähle aus dem, was du hast. Packs aus dem Marktplatz bringen mehr.",
     "banner": "Banner",
-    "frame": "Rahmen",
-    "trophy": "Trophäen",
-    "empty": "Hier ist noch nichts.",
-    "trophyCount": "{{count}} von {{max}} getragen",
     "colour": "Farbe",
     "colour1": "Links",
     "colour2": "Rechts",
-    "resetColour": "Zurücksetzen"
+    "empty": "Hier ist noch nichts.",
+    "frame": "Rahmen",
+    "heading": "Profil-Dekorationen",
+    "help": "Wähle aus dem, was du hast. Packs aus dem Marktplatz bringen mehr.",
+    "resetColour": "Zurücksetzen",
+    "trophy": "Trophäen",
+    "trophyCount": "{{count}} von {{max}} getragen",
+    "year": "Jahr"
   },
   "store": {
     "title": "Dekorationspacks",

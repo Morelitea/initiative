@@ -12,6 +12,7 @@ import { ProfilePreview } from "@/components/user/ProfilePreview";
 import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { currentYear, DATED_DECORATIONS } from "@/lib/gradArtwork";
 
 /** Mirrors ``MAX_PROFILE_TROPHIES`` on the server. */
 const MAX_TROPHIES = 6;
@@ -44,6 +45,9 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const [frame, setFrame] = useState(user.profile_decorations.frame ?? null);
   const [trophies, setTrophies] = useState<string[]>(user.profile_decorations.trophies ?? []);
   const [frameTint, setFrameTint] = useState<string[]>(user.profile_decorations.frame_tint ?? []);
+  const [gradYear, setGradYear] = useState<number | null>(
+    user.profile_decorations.grad_year ?? null
+  );
 
   // Removing a pack takes its pieces off server-side, so the pickers follow the
   // saved look when it changes underneath them — but only then. Following the
@@ -56,6 +60,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     setFrame(user.profile_decorations.frame ?? null);
     setTrophies(user.profile_decorations.trophies ?? []);
     setFrameTint(user.profile_decorations.frame_tint ?? []);
+    setGradYear(user.profile_decorations.grad_year ?? null);
   }
 
   const saveLook = useUpdateCurrentUser({
@@ -81,13 +86,21 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   // A colour belongs to the frame it was picked for, so it goes wherever that
   // frame goes — including away.
   const wornTint = wornFrame ? frameTint : [];
+  // Same rule for the year: it belongs to whatever is wearing it, so it goes
+  // when nothing is. Unset while something dated is on means this year, which
+  // is what the picker is showing.
+  const wearingDated =
+    DATED_DECORATIONS.has(wornBanner ?? "") ||
+    wornTrophies.some((trophy) => DATED_DECORATIONS.has(trophy));
+  const wornYear = wearingDated ? (gradYear ?? currentYear()) : null;
 
   const saved = user.profile_decorations;
   const changed =
     wornBanner !== (saved.banner ?? null) ||
     wornFrame !== (saved.frame ?? null) ||
     wornTrophies.join() !== (saved.trophies ?? []).join() ||
-    wornTint.join() !== (saved.frame_tint ?? []).join();
+    wornTint.join() !== (saved.frame_tint ?? []).join() ||
+    wornYear !== (saved.grad_year ?? null);
 
   return (
     <div className="space-y-6">
@@ -98,6 +111,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           frame: wornFrame,
           trophies: wornTrophies,
           frame_tint: wornTint,
+          grad_year: wornYear,
         }}
         status={user.custom_status}
         presence={user.presence}
@@ -119,6 +133,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   frame: wornFrame,
                   trophies: wornTrophies,
                   frame_tint: wornTint,
+                  grad_year: wornYear,
                 },
               } as UserSelfUpdate)
             }
@@ -136,6 +151,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             value={wornBanner}
             onChange={setBanner}
             owned={library?.items}
+            year={wornYear}
+            onYear={setGradYear}
           />
         </div>
         <div className="space-y-2">
@@ -166,6 +183,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             onChange={setTrophies}
             owned={library?.items}
             max={MAX_TROPHIES}
+            year={wornYear}
+            onYear={setGradYear}
           />
         </div>
       </SettingsSection>

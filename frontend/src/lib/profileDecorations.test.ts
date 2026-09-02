@@ -52,6 +52,9 @@ describe("the catalog and what it names", () => {
   it("ships artwork for every decoration it lists", () => {
     const missing = Object.values(DECORATIONS)
       .map((decoration) => decoration.src)
+      // A dated decoration is drawn in the client with the wearer's year
+      // written into it, so its artwork is a data URI rather than a file.
+      .filter((src) => !src.startsWith("data:"))
       .filter((src) => !existsSync(join(process.cwd(), "public", src)));
 
     expect(missing).toEqual([]);

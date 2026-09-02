@@ -200,7 +200,9 @@
     "gold": "Dorado",
     "goldengate": "Golden Gate",
     "goodplacetoread": "Un buen sitio para leer",
+    "grad": "Promoción",
     "graduationcap": "Birrete de graduación",
+    "gradyear": "Año de promoción",
     "grove": "Arboleda",
     "growingup": "Creciendo",
     "guitar": "Guitarra eléctrica",
@@ -370,17 +372,18 @@
     "yorick": "Yorick"
   },
   "decorationPicker": {
-    "heading": "Decoraciones del perfil",
-    "help": "Elige entre lo que tienes. Los packs del mercado añaden más.",
     "banner": "Cabecera",
-    "frame": "Marco",
-    "trophy": "Trofeos",
-    "empty": "Aquí todavía no hay nada.",
-    "trophyCount": "{{count}} de {{max}} puestas",
     "colour": "Color",
     "colour1": "Izquierda",
     "colour2": "Derecha",
-    "resetColour": "Restablecer"
+    "empty": "Aquí todavía no hay nada.",
+    "frame": "Marco",
+    "heading": "Decoraciones del perfil",
+    "help": "Elige entre lo que tienes. Los packs del mercado añaden más.",
+    "resetColour": "Restablecer",
+    "trophy": "Trofeos",
+    "trophyCount": "{{count}} de {{max}} puestas",
+    "year": "Año"
   },
   "store": {
     "title": "Packs de decoración",

@@ -1588,6 +1588,7 @@ export interface ProfileDecorationsOutput {
   frame_tint: string[];
   /** @maxItems 6 */
   trophies: string[];
+  grad_year: number | null;
 }
 
 /**
@@ -4019,6 +4020,7 @@ export interface ProfileDecorationsInput {
   frame_tint?: string[];
   /** @maxItems 6 */
   trophies?: string[];
+  grad_year?: number | null;
 }
 
 export interface ProjectActivityEntry {

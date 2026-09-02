@@ -1,5 +1,5 @@
 import { TintedFrame } from "@/components/user/TintedFrame";
-import { type Decoration, FRAME_APERTURE_INSET } from "@/lib/profileDecorations";
+import { type Decoration, decorationSrc, FRAME_APERTURE_INSET } from "@/lib/profileDecorations";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,18 +16,23 @@ import { cn } from "@/lib/utils";
 export const DecorationSwatch = ({
   decoration,
   tint,
+  year,
   className,
 }: {
   decoration: Decoration;
   /** For a frame whose colours are the wearer's: the ones they have picked. */
   tint?: readonly string[] | null;
+  /** For a decoration that carries a year: the one they have picked. */
+  year?: number | null;
   className?: string;
 }) => {
+  const src = decorationSrc(decoration, year);
+
   if (decoration.kind === "banner") {
     return (
       <span
         className={cn("block h-10 w-full rounded-sm bg-center bg-cover", className)}
-        style={{ backgroundImage: `url(${decoration.src})` }}
+        style={{ backgroundImage: `url(${src})` }}
       />
     );
   }
@@ -42,18 +47,11 @@ export const DecorationSwatch = ({
         {decoration.tint ? (
           <TintedFrame decoration={decoration} tint={tint} className="absolute inset-0 size-full" />
         ) : (
-          <img
-            src={decoration.src}
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 size-full"
-          />
+          <img src={src} alt="" aria-hidden="true" className="absolute inset-0 size-full" />
         )}
       </span>
     );
   }
 
-  return (
-    <img src={decoration.src} alt="" aria-hidden="true" className={cn("size-10", className)} />
-  );
+  return <img src={src} alt="" aria-hidden="true" className={cn("size-10", className)} />;
 };

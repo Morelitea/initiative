@@ -21,7 +21,7 @@ import type {
   ProfileDecorationsOutput,
 } from "@/api/generated/initiativeAPI.schemas";
 import { DARK_TEXT, LIGHT_TEXT } from "@/lib/contrastColor";
-import { resolveDecoration } from "@/lib/profileDecorations";
+import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
 
 export const profileBanner = (
   decorations: ProfileDecorationsOutput | null | undefined
@@ -29,7 +29,7 @@ export const profileBanner = (
   const banner = resolveDecoration(decorations?.banner, "banner");
   if (!banner) return null;
   return {
-    image_url: banner.src,
+    image_url: decorationSrc(banner, decorations?.grad_year),
     color: "",
     text_color: banner.ink === "dark" ? DARK_TEXT : LIGHT_TEXT,
     text_align: "left",

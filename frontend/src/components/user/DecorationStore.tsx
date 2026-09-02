@@ -14,7 +14,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { resolveDecoration } from "@/lib/profileDecorations";
+import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
 
 /**
  * One pack, shown as the profile it would make.
@@ -100,14 +100,20 @@ const PackCard = ({
           <div className="flex items-center gap-3">
             <ProfileAvatar
               user={user}
-              decorations={{ banner: null, frame_tint: [], frame: frameId, trophies: [] }}
+              decorations={{
+                banner: null,
+                frame_tint: [],
+                frame: frameId,
+                trophies: [],
+                grad_year: null,
+              }}
               className="-mt-14 size-16 shrink-0 rounded-full ring-4 ring-card"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h3 className="truncate font-semibold">{entry.name}</h3>
                 {trophy ? (
-                  <img src={trophy.src} alt="" aria-hidden="true" className="size-7" />
+                  <img src={decorationSrc(trophy)} alt="" aria-hidden="true" className="size-7" />
                 ) : null}
               </div>
               <p className="text-muted-foreground text-xs">{t("store.pieces", { count })}</p>

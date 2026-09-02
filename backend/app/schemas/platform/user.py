@@ -15,11 +15,14 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 from app.core.capabilities import Capability, capabilities_for
 from app.core.emoji import validate_emoji
 from app.core.profile_decorations import (
+    DATED_DECORATIONS,
     MAX_FRAME_TINTS,
+    MIN_GRAD_YEAR,
     TINTABLE_FRAMES,
     TROPHY,
     BANNER,
     FRAME,
+    max_grad_year,
     validate_decoration_id,
     validate_tint,
 )
@@ -255,6 +258,11 @@ class ProfileDecorations(SanitizedBaseModel):
     #: dropped on write — for any frame that is not tintable.
     frame_tint: List[str] = Field(default_factory=list, max_length=MAX_FRAME_TINTS)
     trophies: List[str] = Field(default_factory=list, max_length=MAX_PROFILE_TROPHIES)
+    #: The year on a decoration that carries one. Kept beside them for the same
+    #: reason a tint is kept beside its frame: the id names what was granted,
+    #: and the year is the wearer's. The client draws it. Ignored — and dropped
+    #: on write — unless something worn takes a year.
+    grad_year: Optional[int] = None
 
     @field_validator("banner", "frame")
     @classmethod
@@ -277,6 +285,27 @@ class ProfileDecorations(SanitizedBaseModel):
         takes = TINTABLE_FRAMES.get(self.frame or "", 0)
         if len(self.frame_tint) > takes:
             object.__setattr__(self, "frame_tint", self.frame_tint[:takes])
+        return self
+
+    @field_validator("grad_year")
+    @classmethod
+    def _check_grad_year(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        if not MIN_GRAD_YEAR <= value <= max_grad_year():
+            raise ValueError(
+                f"Year must be between {MIN_GRAD_YEAR} and {max_grad_year()}"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _year_only_what_takes_it(self) -> "ProfileDecorations":
+        """Drop a year nothing worn would draw, the way a stray tint is dropped."""
+        if self.grad_year is None:
+            return self
+        worn = {self.banner, self.frame, *self.trophies}
+        if not (worn & DATED_DECORATIONS):
+            object.__setattr__(self, "grad_year", None)
         return self
 
     @field_validator("trophies")
