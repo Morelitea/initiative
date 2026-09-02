@@ -93,7 +93,8 @@
       "dismissalsRequired": "Veces que hay que confirmarlo",
       "dismissalsRequiredHint": "Cuántas veces hay que cerrarlo antes de que deje de aparecer. Déjalo en 1 salvo que perdérselo cueste caro.",
       "triggerRoute": "Mostrar en la página (opcional)",
-      "triggerRouteHint": "Déjalo vacío para mostrarlo enseguida. Un patrón de ruta lo retiene hasta que alguien abra una página que encaje — * es una parte de la ruta, ** es el resto."
+      "triggerRouteHint": "Déjalo vacío para mostrarlo enseguida. Un patrón de ruta lo retiene hasta que alguien abra una página que encaje — * es una parte de la ruta, ** es el resto.",
+      "audienceAccounts": "Cuentas a las que va dirigido"
     },
     "startsPage": "Empezar una página nueva",
     "triggerErrors": {
@@ -101,6 +102,16 @@
       "whitespace": "Un patrón de ruta no puede contener espacios.",
       "wildcardSegment": "* y ** representan una parte entera de la ruta, así que no pueden ir pegados a otros caracteres.",
       "doubleStarNotLast": "** representa el resto de la ruta, así que no puede ir nada después."
+    },
+    "accounts": {
+      "everyone": "Todo el mundo",
+      "existing": "Cuentas que ya existían al publicarlo",
+      "new": "Cuentas creadas desde entonces"
+    },
+    "accountsHint": {
+      "everyone": "Lo ve cualquiera dentro del público de arriba.",
+      "existing": "Para un cambio que se vivió — quien llegó después no se entera.",
+      "new": "Para quien acaba de llegar — un consejo de bienvenida, caduco para el resto."
     }
   },
   "archive": {

@@ -147,6 +147,18 @@ async def lifespan(app: FastAPI):
     from app.db.secret_key_rotation import maybe_rotate_at_startup
 
     await maybe_rotate_at_startup()
+    # Note what this deployment is running, and what it was running before.
+    # An announcement meant for people upgrading past some release has no way
+    # to know that from a publication date; this pair is how it finds out.
+    try:
+        async with AdminSessionLocal() as version_session:
+            previous = await app_settings_service.record_running_version(
+                version_session, version=__version__
+            )
+        if previous and previous != __version__:
+            logger.info("upgraded from %s to %s", previous, __version__)
+    except Exception:  # pragma: no cover - never hold up boot for bookkeeping
+        logger.exception("could not record the running version")
     # First-owner bootstrap (FIRST_OWNER_EMAIL / FIRST_OWNER_PASSWORD): create
     # the owner and their guild on first boot so a self-hosted instance is
     # usable straight from `docker run` with two env vars.

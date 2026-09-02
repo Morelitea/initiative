@@ -12,6 +12,9 @@ consequences of living in source control:
 
 * their key is ``builtin:<slug>`` rather than ``db:<id>``, so a read receipt
   survives a database that never held the announcement in the first place;
+* they can be conditioned on the upgrade that brought them
+  (``only_upgrading_from_below``), which an authored notice has no use for —
+  it is written on a deployment that is already running;
 * they cannot be edited or deleted from the admin surface — the way to retire
   one is to remove it here and ship that;
 * their pictures are static assets shipped with the SPA
@@ -61,6 +64,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from app.models.platform.announcement import (
+    AnnouncementAudienceAccounts,
     AnnouncementCategory,
     builtin_announcement_key,
 )
@@ -87,6 +91,14 @@ class BuiltinAnnouncement:
     #: Hold it until the reader opens a matching page, instead of queueing it
     #: on sight — in-context help rather than news.
     trigger_route: str | None = None
+    #: Which accounts it is for, measured against ``published_at``.
+    audience_accounts: AnnouncementAudienceAccounts = (
+        AnnouncementAudienceAccounts.everyone
+    )
+    #: Only tell a deployment that upgraded *into* this from below the given
+    #: version. A fresh install has no previous version and so is never told:
+    #: it was never on the behaviour the notice is about.
+    only_upgrading_from_below: str | None = None
 
     @property
     def key(self) -> str:
@@ -118,6 +130,11 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
         # admin who skims past it will conclude their initiatives are gone.
         guild_admins_only=True,
         dismissals_required=2,
+        # Their sidebar is what changed, so this is for the people who had one
+        # before the change — not for somebody signing up next month, and not
+        # for a deployment that was never on the old behaviour.
+        audience_accounts=AnnouncementAudienceAccounts.existing,
+        only_upgrading_from_below="0.65.0",
         # Only inside a community. The notice is about the community sidebar,
         # and that sidebar is not on screen when someone lands on their own
         # task list at sign-in — a notice about a thing you cannot see is just

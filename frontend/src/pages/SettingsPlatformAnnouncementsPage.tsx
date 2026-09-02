@@ -119,6 +119,10 @@ export const SettingsPlatformAnnouncementsPage = () => {
                         role: t(`admin.roles.${announcement.min_platform_role ?? "member"}`),
                       })}
                       {announcement.guild_admins_only ? ` · ${t("admin.guildAdminsOnly")}` : ""}
+                      {announcement.audience_accounts &&
+                      announcement.audience_accounts !== "everyone"
+                        ? ` · ${t(`admin.accounts.${announcement.audience_accounts}`)}`
+                        : ""}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">

@@ -93,7 +93,8 @@
       "dismissalsRequired": "Times to acknowledge",
       "dismissalsRequiredHint": "How many times someone has to dismiss it before it stops coming back. Keep it at 1 unless missing it would hurt.",
       "triggerRoute": "Show on page (optional)",
-      "triggerRouteHint": "Leave empty to show it right away. A path pattern holds it until someone opens a matching page — * is one part of the path, ** is the rest."
+      "triggerRouteHint": "Leave empty to show it right away. A path pattern holds it until someone opens a matching page — * is one part of the path, ** is the rest.",
+      "audienceAccounts": "Accounts this is for"
     },
     "startsPage": "Start a new page",
     "triggerErrors": {
@@ -101,6 +102,16 @@
       "whitespace": "A path pattern can't contain spaces.",
       "wildcardSegment": "* and ** stand for a whole part of the path, so they can't be joined to other characters.",
       "doubleStarNotLast": "** matches the rest of the path, so nothing can come after it."
+    },
+    "accounts": {
+      "everyone": "Everyone",
+      "existing": "Accounts that existed when it was published",
+      "new": "Accounts made since it was published"
+    },
+    "accountsHint": {
+      "everyone": "Anyone in the audience above is shown it.",
+      "existing": "For a change people lived through — somebody who joined afterwards is not told.",
+      "new": "For somebody just arriving — an onboarding tip, stale for everyone else."
     }
   },
   "archive": {

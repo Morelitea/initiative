@@ -373,6 +373,23 @@ export const UserRole = {
 } as const;
 
 /**
+ * Which accounts a notice is for, measured against its publication.
+ *
+ * A breaking change is about a *transition*: somebody who signed up
+ * afterwards never lived on the old behaviour and has nothing to act on.
+ * The inverse is just as useful — an onboarding tip is for the people who
+ * have just arrived, and stale for everyone else.
+ */
+export type AnnouncementAudienceAccounts =
+  (typeof AnnouncementAudienceAccounts)[keyof typeof AnnouncementAudienceAccounts];
+
+export const AnnouncementAudienceAccounts = {
+  everyone: "everyone",
+  existing: "existing",
+  new: "new",
+} as const;
+
+/**
  * Everything about an announcement, for the people who write them.
  */
 export interface AnnouncementAdminRead {
@@ -389,6 +406,7 @@ export interface AnnouncementAdminRead {
   id?: number | null;
   min_platform_role?: UserRole;
   guild_admins_only?: boolean;
+  audience_accounts?: AnnouncementAudienceAccounts;
   expires_at?: string | null;
   created_by?: number | null;
   created_at?: string | null;
@@ -440,6 +458,7 @@ export interface AnnouncementUpdate {
   sections?: AnnouncementSection[] | null;
   min_platform_role?: UserRole | null;
   guild_admins_only?: boolean | null;
+  audience_accounts?: AnnouncementAudienceAccounts | null;
   published_at?: string | null;
   expires_at?: string | null;
   dismissals_required?: number | null;
@@ -462,6 +481,7 @@ export interface AnnouncementWrite {
   sections?: AnnouncementSection[];
   min_platform_role?: UserRole;
   guild_admins_only?: boolean;
+  audience_accounts?: AnnouncementAudienceAccounts;
   published_at?: string | null;
   expires_at?: string | null;
   /**
