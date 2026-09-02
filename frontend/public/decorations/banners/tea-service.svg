@@ -1,135 +1,135 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Tea service</title>
-  <!-- A pot that has been sitting long enough, and the light through the
-       window it was carried past. -->
+  <!-- The pot has been sitting exactly long enough. -->
   <style>
-    .steam { animation: curl 6s ease-in-out infinite }
-    .s2 { animation-delay: -2s } .s3 { animation-delay: -4s }
-    @keyframes curl {
-      0%   { transform: translate(0,0) scaleX(1); opacity: 0 }
-      20%  { opacity: .55 }
-      100% { transform: translate(2px,-11px) scaleX(1.5); opacity: 0 }
-    }
-    .steam { transform-box: fill-box; transform-origin: 50% 100% }
-    @media (prefers-reduced-motion: reduce) { .steam { animation: none; opacity: .3 } }
+    .curl { animation: rise 7s ease-out infinite }
+    .c2 { animation-delay: -2.3s } .c3 { animation-delay: -4.6s }
+    .c4 { animation-delay: -3.4s; animation-duration: 6s }
+    @keyframes rise { 0% { transform: translate(0,0) scale(.5); opacity: 0 }
+                      22% { opacity: .55 }
+                      100% { transform: translate(3px,-11px) scale(1.5); opacity: 0 } }
+    .warm { animation: glow 9s ease-in-out infinite alternate }
+    @keyframes glow { from { opacity: .5 } to { opacity: .85 } }
+    @media (prefers-reduced-motion: reduce) { .curl, .warm { animation: none } }
   </style>
   <defs>
-    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3E3226"/><stop offset="100%" stop-color="#57452F"/>
+    <linearGradient id="teawall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3A2A1E"/><stop offset="100%" stop-color="#5A4230"/>
     </linearGradient>
-    <linearGradient id="cloth" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#D9C9A6"/><stop offset="100%" stop-color="#B9A67F"/>
+    <linearGradient id="teatable" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A8834E"/><stop offset="100%" stop-color="#7A5A32"/>
     </linearGradient>
-    <radialGradient id="daylight" cx=".5" cy=".5" r=".5">
-      <stop offset="0%" stop-color="#FFF3D2" stop-opacity=".45"/>
+    <linearGradient id="china" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/><stop offset="46%" stop-color="#F2EDE2"/>
+      <stop offset="100%" stop-color="#C9C0AE"/>
+    </linearGradient>
+    <linearGradient id="brew" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C98A3A"/><stop offset="100%" stop-color="#8A5420"/>
+    </linearGradient>
+    <radialGradient id="daylight" cx=".78" cy=".22" r=".7">
+      <stop offset="0%" stop-color="#FFF3D2" stop-opacity=".55"/>
       <stop offset="100%" stop-color="#FFF3D2" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="glaze" x1=".2" y1="0" x2=".9" y2="1">
-      <stop offset="0%" stop-color="#F2EDE2"/><stop offset="55%" stop-color="#D9D0BE"/>
-      <stop offset="100%" stop-color="#A99C86"/>
-    </linearGradient>
-    <radialGradient id="brew" cx=".4" cy=".3" r=".8">
-      <stop offset="0%" stop-color="#C8823A"/><stop offset="100%" stop-color="#8A4E18"/>
-    </radialGradient>
   </defs>
-  <rect width="160" height="40" fill="url(#wall)"/>
-  <!-- The window, and what comes through it. -->
+  <rect width="160" height="40" fill="url(#teawall)"/>
+  <ellipse class="warm" cx="124" cy="6" rx="52" ry="24" fill="url(#daylight)"/>
+
+  <!-- A window, in its reveal, with the morning outside it. -->
   <g>
-    <path d="M112 2 L146 2 L146 24 L112 24 Z" fill="#8FA88C"/>
-    <path d="M112 2 L146 2 L146 24 L112 24 Z" fill="#EEF6E8" opacity=".55"/>
-    <g stroke="#5A4A32" stroke-width="1.2" fill="none">
-      <path d="M112 2 L146 2 L146 24 L112 24 Z"/><path d="M129 2 L129 24"/><path d="M112 13 L146 13"/>
+    <path d="M112 0 L150 0 L150 20 L112 20 Z" fill="#2A1E14"/>
+    <path d="M114 0 L148 0 L148 18 L114 18 Z" fill="#BBD2C4"/>
+    <path d="M114 0 L148 0 L148 18 L114 18 Z" fill="url(#daylight)" opacity=".6"/>
+    <g fill="#96B49E" opacity=".8">
+      <ellipse cx="124" cy="7" rx="9" ry="4.4"/><ellipse cx="141" cy="11" rx="8" ry="4"/>
     </g>
-    <g fill="#7A9878" opacity=".55">
-      <ellipse cx="120" cy="8" rx="5" ry="3.4"/><ellipse cx="138" cy="18" rx="6" ry="4"/>
-      <ellipse cx="136" cy="7" rx="4" ry="2.6"/>
+    <g stroke="#2A1E14" stroke-width="1.4" fill="none">
+      <path d="M131 0 L131 18"/><path d="M114 9 L148 9"/>
+      <path d="M114 0 L148 0 L148 18 L114 18 Z"/>
     </g>
+    <path d="M110 18 L152 18 L152 20.4 L110 20.4 Z" fill="#4A3524"/>
+    <path d="M110 18 L152 18 L152 18.7 L110 18.7 Z" fill="#6B5038"/>
   </g>
-  <ellipse cx="104" cy="22" rx="46" ry="18" fill="url(#daylight)"/>
-  <!-- The table. -->
-  <path d="M0 24 C24 22.6 60 22 80 22 C100 22 136 22.6 160 24 L160 40 L0 40 Z" fill="url(#cloth)"/>
-  <g stroke="#A08D68" stroke-width=".4" opacity=".5">
-    <path d="M0 28 C30 26.6 130 26.6 160 28"/><path d="M0 33 C30 31.2 130 31.2 160 33"/>
-    <path d="M40 24 L36 40"/><path d="M120 24 L124 40"/>
+
+  <!-- The table, and the runner down it. -->
+  <path d="M0 26 L160 26 L160 40 L0 40 Z" fill="url(#teatable)"/>
+  <path d="M0 26 L160 26 L160 26.8 L0 26.8 Z" fill="#C4A070"/>
+  <g stroke="#6B4E2C" stroke-width=".35" opacity=".45" fill="none">
+    <path d="M0 31 L160 31"/><path d="M0 35.4 L160 35.4"/>
   </g>
-  <!-- Loose leaves, and a strainer somebody put down. -->
-  <g fill="#4A6B3C" opacity=".85">
-    <path d="M28 30 C30 28.4 33 28.6 34 30 C32.6 31.4 29.6 31.4 28 30 Z"/>
-    <path d="M35 32.6 C36.6 31.4 39 31.6 39.8 32.8 C38.6 33.8 36.2 33.7 35 32.6 Z"/>
-    <path d="M24 33.6 C25.4 32.4 27.6 32.6 28.4 33.8 C27.2 34.7 25 34.6 24 33.6 Z"/>
+  <path d="M8 27.6 L152 27.6 L152 40 L8 40 Z" fill="#E6DCC4" opacity=".55"/>
+  <g stroke="#C9BB9A" stroke-width=".4" opacity=".7" fill="none">
+    <path d="M11 27.6 L11 40"/><path d="M149 27.6 L149 40"/>
   </g>
+
+  <!-- The pot: belly, lid, a handle that is attached and a spout that pours. -->
   <g>
-    <ellipse cx="46" cy="31.6" rx="5" ry="2" fill="#B9B2A2"/>
-    <ellipse cx="46" cy="31" rx="5" ry="2" fill="#D8D2C4"/>
-    <ellipse cx="46" cy="31" rx="3.6" ry="1.3" fill="#8A8474"/>
-    <path d="M51 31 L56.4 30.2" stroke="#B9B2A2" stroke-width="1.1" stroke-linecap="round"/>
+    <ellipse cx="72" cy="33.6" rx="15" ry="1.6" fill="#6B4E2C" opacity=".35"/>
+    <!-- Spout, from the belly up and out. -->
+    <path d="M84 22.4 C89 21.4 92.6 18.6 94.4 14.6 L96.8 15.6 C95.4 20.4 91.4 24.2 86 25.6 Z"
+          fill="url(#china)"/>
+    <path d="M84 22.4 C89 21.4 92.6 18.6 94.4 14.6 L95.4 15 C93.6 19.4 89.6 22.8 84.6 24 Z"
+          fill="#D8D0BE"/>
+    <!-- Handle, joined at the shoulder and the belly. -->
+    <path d="M60 19.4 C54 18.6 50 21 50 25 C50 28.6 53.4 31 58.4 30.8 L58.4 28.6
+             C55 28.6 52.8 27.2 52.8 25 C52.8 22.6 55.4 21.2 59.6 21.8 Z"
+          fill="url(#china)"/>
+    <!-- Belly. -->
+    <path d="M60 20.4 C64 18.4 80 18.4 84 20.4 C88.4 22.6 88.4 30 84 32.2
+             C79.4 34.4 64.6 34.4 60 32.2 C55.6 30 55.6 22.6 60 20.4 Z"
+          fill="url(#china)"/>
+    <path d="M62 21.4 C64.6 20.2 68 19.8 70.4 20 C66 21.6 63.2 25.4 63 30.4
+             C61.4 29.2 60.4 27.4 60.4 25.4 C60.4 23.8 61 22.4 62 21.4 Z"
+          fill="#FFFFFF" opacity=".55"/>
+    <ellipse cx="72" cy="20.4" rx="12" ry="2.2" fill="#E8E2D4"/>
+    <path d="M64 20 C64 17.2 80 17.2 80 20 C80 21.4 64 21.4 64 20 Z" fill="url(#china)"/>
+    <ellipse cx="72" cy="17.4" rx="1.5" ry="1.2" fill="#E8E2D4"/>
+    <path d="M71.4 16.8 L72.6 16.8 L72.6 15.4 L71.4 15.4 Z" fill="#D8D0BE"/>
+    <path d="M60 27.2 C66 28.6 78 28.6 84 27.2" stroke="#C4BBA6" stroke-width=".5"
+          fill="none" opacity=".8"/>
   </g>
-  <!-- The pot, and what is coming off it. -->
-  <g>
-    <ellipse cx="80" cy="32.4" rx="13" ry="2.2" fill="#8A7A5E" opacity=".4"/>
-    <!-- Handle, behind the body. -->
-    <path d="M67.6 23.6 C62.6 22.6 59.6 24.4 59.6 27.4 C59.6 30.2 62 32 66 31.8"
-          fill="none" stroke="#C4B9A4" stroke-width="2.6" stroke-linecap="round"/>
-    <path d="M67.6 23.6 C62.6 22.6 59.6 24.4 59.6 27.4" fill="none" stroke="#EFE9DC"
-          stroke-width="1" stroke-linecap="round" opacity=".7"/>
-    <!-- Spout, rising to a lip. -->
-    <path d="M92 25.6 C96 24.6 99.4 22.6 101.4 20 L104 21.6 C102 25.4 98 28.4 93 29.6 Z"
-          fill="url(#glaze)"/>
-    <path d="M92.4 26.4 C96 25.4 99.2 23.6 101.2 21.2" fill="none" stroke="#FBF7EE"
-          stroke-width=".8" opacity=".6"/>
-    <!-- Body. -->
-    <path d="M80 21.4 C88.4 21.4 94.6 25 94.6 29 C94.6 32.4 88.4 34.6 80 34.6
-             C71.6 34.6 65.4 32.4 65.4 29 C65.4 25 71.6 21.4 80 21.4 Z"
-          fill="url(#glaze)"/>
-    <path d="M80 21.4 C88.4 21.4 94.6 25 94.6 29 C94.6 31 92.4 32.6 89 33.6
-             C90.6 32.4 91.4 30.8 91.4 29 C91.4 25.6 87.4 22.6 81.6 21.5 Z"
-          fill="#A99C86" opacity=".5"/>
-    <!-- Foot. -->
-    <path d="M72 33.8 C74.6 34.8 85.4 34.8 88 33.8 L87 35.6 C84 36.4 76 36.4 73 35.6 Z"
-          fill="#B4A88E"/>
-    <!-- Lid, and the knob on it. -->
-    <path d="M71.6 22.6 C71.6 19.6 75.4 17.6 80 17.6 C84.6 17.6 88.4 19.6 88.4 22.6
-             C84.6 23.8 75.4 23.8 71.6 22.6 Z" fill="#E4DCCA"/>
-    <path d="M71.6 22.6 C75.4 23.8 84.6 23.8 88.4 22.6 C88.4 23.6 84.6 24.4 80 24.4
-             C75.4 24.4 71.6 23.6 71.6 22.6 Z" fill="#C4B9A4"/>
-    <ellipse cx="80" cy="17.2" rx="1.9" ry="1.2" fill="#B4A88E"/>
-    <ellipse cx="80" cy="16.6" rx="1.9" ry="1.2" fill="#EFE9DC"/>
-    <!-- The line round the belly, and the light down one side. -->
-    <path d="M67.6 27.6 C72 29.4 88 29.4 92.4 27.6" fill="none" stroke="#B4A88E"
-          stroke-width=".5" opacity=".6"/>
-    <path d="M70.4 25.6 C72.6 23.6 76 22.6 79.4 22.6" fill="none" stroke="#FFFFFF"
-          stroke-width="1.4" opacity=".5" stroke-linecap="round"/>
+  <g fill="#E8E2D4">
+    <ellipse class="curl" cx="72" cy="15" rx="1.4" ry="1.1" opacity=".35"/>
+    <ellipse class="curl c2" cx="74" cy="15" rx="1.1" ry=".9" opacity=".3"/>
+    <ellipse class="curl c3" cx="70.6" cy="15" rx="1.2" ry="1" opacity=".28"/>
   </g>
-  <g fill="none" stroke="#FFF3D2" stroke-width="1.1" stroke-linecap="round">
-    <path class="steam" d="M78 16.6 C76.4 14.8 79 13.4 77.6 11.4"/>
-    <path class="steam s2" d="M82 16.6 C83.6 14.8 81 13.4 82.4 11.4"/>
-    <path class="steam s3" d="M80 15.6 C78.6 13.6 81 12.2 79.8 10.2"/>
+
+  <!-- A cup, poured, with its saucer under it. -->
+  <g transform="translate(106 0)">
+    <ellipse cx="0" cy="33.4" rx="8" ry="1.9" fill="#E8E2D4"/>
+    <ellipse cx="0" cy="33.2" rx="6.2" ry="1.4" fill="#D8D0BE"/>
+    <path d="M-5.4 26.6 L5.4 26.6 L4.4 32.4 C4.4 33.2 -4.4 33.2 -4.4 32.4 Z"
+          fill="url(#china)"/>
+    <path d="M-5.4 26.6 L-1.4 26.6 L-2.4 32.8 C-3.4 32.8 -4.2 33 -4.4 32.4 Z"
+          fill="#FFFFFF" opacity=".5"/>
+    <ellipse cx="0" cy="26.6" rx="5.4" ry="1.5" fill="#E8E2D4"/>
+    <ellipse cx="0" cy="26.7" rx="4.4" ry="1.1" fill="url(#brew)"/>
+    <ellipse cx="-1.4" cy="26.4" rx="1.6" ry=".5" fill="#E8A75A" opacity=".55"/>
+    <path d="M5 27.8 C7.8 27.8 9 29 9 30.2 C9 31.4 7.8 32.4 5.4 32.4"
+          fill="none" stroke="#E8E2D4" stroke-width="1.4"/>
   </g>
-  <!-- Two cups, one poured. -->
-  <g>
-    <ellipse cx="104" cy="33.6" rx="7" ry="2" fill="#C4B9A4"/>
-    <path d="M98.6 31 C98.6 34.4 100.6 35.6 104 35.6 C107.4 35.6 109.4 34.4 109.4 31 Z"
-          fill="url(#glaze)"/>
-    <ellipse cx="104" cy="31" rx="5.4" ry="1.6" fill="#EFE9DC"/>
-    <ellipse cx="104" cy="31" rx="4.2" ry="1.1" fill="url(#brew)"/>
-    <path d="M109.4 31.6 C111.6 31.6 112.6 32.4 112.6 33.2 C112.6 34 111.6 34.6 110.2 34.6"
-          fill="none" stroke="#D9D0BE" stroke-width="1.1"/>
+  <g fill="#E8E2D4">
+    <ellipse class="curl c4" cx="105" cy="24.4" rx="1.1" ry=".9" opacity=".3"/>
+    <ellipse class="curl c2" cx="107.4" cy="24.4" rx=".9" ry=".75" opacity=".26"/>
   </g>
-  <g>
-    <ellipse cx="128" cy="35.6" rx="6" ry="1.8" fill="#C4B9A4"/>
-    <path d="M123.4 33.4 C123.4 36.2 125.2 37.2 128 37.2 C130.8 37.2 132.6 36.2 132.6 33.4 Z"
-          fill="url(#glaze)"/>
-    <ellipse cx="128" cy="33.4" rx="4.6" ry="1.4" fill="#EFE9DC"/>
-    <ellipse cx="128" cy="33.4" rx="3.4" ry=".9" fill="url(#brew)"/>
+
+  <!-- The strainer, resting on its dish, and a caddy spoon. -->
+  <g transform="translate(36 0)">
+    <ellipse cx="0" cy="30.6" rx="5.4" ry="1.6" fill="#E8E2D4"/>
+    <path d="M-4 29.6 C-4 27.4 4 27.4 4 29.6 C4 31 -4 31 -4 29.6 Z" fill="#C4BBA6"/>
+    <ellipse cx="0" cy="29" rx="4" ry="1.2" fill="#8A8274"/>
+    <g stroke="#B4AC9E" stroke-width=".25" opacity=".8">
+      <path d="M-3 28.8 L3 28.8"/><path d="M-3.4 29.4 L3.4 29.4"/>
+    </g>
+    <path d="M4 29.2 L9.4 28.4 L9.4 29.4 L4 30 Z" fill="#C4BBA6"/>
   </g>
-  <!-- A sprig, for the pot that has not been made yet. -->
-  <g stroke="#4A6B3C" stroke-width=".7" fill="none" stroke-linecap="round">
-    <path d="M12 34 C14 31 16.4 29.4 19 28.6"/>
+  <g transform="translate(56 0)">
+    <path d="M-3.4 34.4 C-3.4 32.6 3.4 32.6 3.4 34.4 C3.4 35.8 -3.4 35.8 -3.4 34.4 Z"
+          fill="#B58A5E"/>
+    <path d="M-3 34 C-1 33.2 2 33.2 3 34 C1.4 34.6 -1.4 34.6 -3 34 Z" fill="#4A3520"/>
+    <path d="M3.2 33.8 L9.6 32.4 L10 33.4 L3.6 34.8 Z" fill="#8A6034"/>
   </g>
-  <g fill="#5C8049">
-    <path d="M14 32.4 C13 30.8 13.6 29.4 15 29 C15.6 30.4 15.2 31.8 14 32.4 Z"/>
-    <path d="M16.4 30.6 C15.6 29 16.4 27.6 17.8 27.4 C18.2 28.8 17.6 30.2 16.4 30.6 Z"/>
-    <path d="M12.6 34.6 C11.4 33.2 11.8 31.6 13.2 31 C13.8 32.4 13.6 33.8 12.6 34.6 Z"/>
-  </g>
+
+  <!-- Loose leaf, where it always ends up. -->
+  <g><g transform="translate(16 31.4) rotate(-14) scale(1.0)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(22.6 32.6) rotate(26) scale(0.85)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(30 31) rotate(-32) scale(0.95)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(36.4 33) rotate(12) scale(0.8)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(44 31.8) rotate(-8) scale(0.9)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(127 32.4) rotate(18) scale(0.9)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(134 31.2) rotate(-24) scale(0.85)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g><g transform="translate(141 33) rotate(8) scale(0.8)"><path d="M0 0 C2.4 -1.1 5.2 -1.4 7.4 -.5 C5.6 1.4 2.6 2.1 0 0 Z" fill="#3E7A38"/><path d="M.4 .1 C2.6 -.4 4.8 -.6 6.8 -.4" stroke="#26512A" stroke-width=".22" fill="none" opacity=".7"/></g></g>
 </svg>

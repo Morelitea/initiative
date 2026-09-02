@@ -72,4 +72,22 @@ describe("the catalog and what it names", () => {
 
     expect(unknown).toEqual([]);
   });
+
+  it("ships the picture every pack puts on its card", () => {
+    // A pack's avatar is a path in the manifest rather than an id, so nothing
+    // else here checks it — and a decoration leaving the pack is exactly when
+    // it goes stale.
+    const catalog = join(process.cwd(), "..", "backend", "app", "marketplace_catalog");
+    const missing: string[] = [];
+
+    for (const file of readdirSync(catalog).filter((name) => name.endsWith(".json"))) {
+      const manifest = JSON.parse(readFileSync(join(catalog, file), "utf8"));
+      if (manifest.kind !== "profile_pack" || !manifest.avatar_url) continue;
+      if (!existsSync(join(process.cwd(), "public", manifest.avatar_url))) {
+        missing.push(`${file}: ${manifest.avatar_url}`);
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
 });

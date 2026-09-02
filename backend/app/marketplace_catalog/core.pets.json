@@ -6,10 +6,10 @@
   "publisher": "Initiative",
   "description": "Two portraits, and everyone else who lives here.",
   "long_description": "A cat whose eyes have found you in the dark, and a dog being very good about something. A collar to frame you, and a trophy each for cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — plus a paw print, for whoever else it is.",
-  "avatar_url": "/decorations/banners/pets-sunbeam.svg",
+  "avatar_url": "/decorations/banners/pets-catnap.svg",
   "images": [],
-  "version": "1.2.0",
-  "release_notes": "Two portraits, and the room full of pets retired.",
+  "version": "1.3.0",
+  "release_notes": "The paw print leads the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -18,6 +18,11 @@
         "id": "pets.collar",
         "slot": "frame",
         "name": "Collar"
+      },
+      {
+        "id": "pets.paw",
+        "slot": "trophy",
+        "name": "Paw print"
       },
       {
         "id": "pets.cat",
@@ -58,11 +63,6 @@
         "id": "pets.hamster",
         "slot": "trophy",
         "name": "Hamster"
-      },
-      {
-        "id": "pets.paw",
-        "slot": "trophy",
-        "name": "Paw print"
       },
       {
         "id": "pets.catnap",
