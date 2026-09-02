@@ -36,4 +36,25 @@ describe("SelectableGridItem", () => {
     await user.keyboard("{/Shift}");
     expect(onToggle).toHaveBeenLastCalledWith({ extend: true });
   });
+
+  it("extends from the keyboard too, where the overlay is the only stop", async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    render(
+      <SelectableGridItem active selected={false} onToggle={onToggle} label="Card">
+        <span>Card</span>
+      </SelectableGridItem>
+    );
+
+    screen.getByRole("button", { name: "Card" }).focus();
+
+    await user.keyboard("{Enter}");
+    expect(onToggle).toHaveBeenLastCalledWith({ extend: false });
+
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    expect(onToggle).toHaveBeenLastCalledWith({ extend: true });
+
+    await user.keyboard("{Shift>} {/Shift}");
+    expect(onToggle).toHaveBeenLastCalledWith({ extend: true });
+  });
 });
