@@ -480,6 +480,8 @@
   "GUILD_COMMUNITY_ADULT_CONTENT": "Eine als 18+ markierte Community kann nicht im Community-Verzeichnis eingetragen werden.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Diese Community hat nur für eine Person Platz und kann deshalb nicht im Community-Verzeichnis eingetragen werden.",
   "COMMUNITY_DIRECTORY_DISABLED": "Diese Instanz betreibt kein Community-Verzeichnis.",
+  "GUILD_AGE_CONFIRMATION_REQUIRED": "Bestätige vor dem Beitritt zu einer Community, dass du mindestens 13 Jahre alt bist.",
+  "USER_AGE_NOT_CONFIRMED": "Setze das Häkchen, um dein Alter zu bestätigen.",
   "IMAGE_EMPTY": "Dieses Bild war leer.",
   "IMAGE_TOO_LARGE": "Dieses Bild ist zu groß.",
   "IMAGE_INVALID": "Diese Datei ist kein PNG-, JPEG-, WebP- oder GIF-Bild.",

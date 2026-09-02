@@ -220,6 +220,16 @@ class User(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    #: When this account said it belongs to somebody at least 13 years old.
+    #: NULL means it never has. A timestamp rather than a flag because the
+    #: record of *when* is the point: it is what a deployment running a
+    #: community directory keeps for every account in a listed guild.
+    #: Whether it is asked for at all is the platform owner's switch
+    #: (``AppSetting.community_age_gate_enabled``).
+    age_confirmed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
     timezone: str = Field(
         default="UTC",
         sa_column=Column(String(64), nullable=False, server_default="UTC"),

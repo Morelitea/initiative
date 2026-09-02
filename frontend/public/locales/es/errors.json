@@ -480,6 +480,8 @@
   "GUILD_COMMUNITY_ADULT_CONTENT": "Una comunidad marcada como +18 no puede publicarse en el directorio de comunidades.",
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Esta comunidad solo tiene sitio para una persona, así que no puede publicarse en el directorio de comunidades.",
   "COMMUNITY_DIRECTORY_DISABLED": "Esta instalación no ofrece un directorio de comunidades.",
+  "GUILD_AGE_CONFIRMATION_REQUIRED": "Confirma que tienes 13 años o más antes de unirte a una comunidad.",
+  "USER_AGE_NOT_CONFIRMED": "Marca la casilla para confirmar tu edad.",
   "IMAGE_EMPTY": "Esa imagen estaba vacía.",
   "IMAGE_TOO_LARGE": "Esa imagen es demasiado grande.",
   "IMAGE_INVALID": "Ese archivo no es una imagen PNG, JPEG, WebP o GIF.",

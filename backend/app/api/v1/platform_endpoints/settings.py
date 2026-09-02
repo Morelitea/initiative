@@ -206,13 +206,21 @@ async def update_community_settings(
     Switching it off hides the directory and refuses new listings; it does not
     clear the opt-in a guild already made, so switching it back on restores the
     same set of listed guilds.
+
+    ``age_gate_enabled`` is the second switch: whether an account must confirm
+    it belongs to somebody 13 or older before it takes a place in a listed
+    guild. Turning it off is the owner asserting that every account on this
+    deployment already belongs to an adult, which is why it is a deliberate
+    write and not a side effect of the first — omitting it leaves it alone.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
         community_directory_enabled=payload.community_directory_enabled,
+        community_age_gate_enabled=payload.age_gate_enabled,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
+        age_gate_enabled=settings_obj.community_age_gate_enabled,
     )
 
 

@@ -9,6 +9,7 @@ import { AnnouncementCenter } from "@/components/announcements/AnnouncementCente
 import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
+import { ConfirmAge } from "@/components/ConfirmAge";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
 import { Galaxy } from "@/components/icons/Galaxy";
@@ -108,6 +109,14 @@ function AppLayout() {
   // here, before anything else: it is how everyone else will see them.
   if (!loading && user && !user.username_chosen) {
     return <ChooseHandle />;
+  }
+
+  // Already in a community the whole deployment can browse, without having
+  // said how old they are. Every way into a listed guild that had nobody at a
+  // keyboard to ask lands here — and so does anyone who was already a member
+  // when their guild listed itself.
+  if (!loading && user && user.age_confirmation_required) {
+    return <ConfirmAge />;
   }
 
   // Now we can have conditional returns

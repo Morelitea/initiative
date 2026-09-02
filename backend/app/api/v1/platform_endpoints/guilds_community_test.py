@@ -1124,3 +1124,214 @@ async def test_a_profile_names_no_communities_where_the_directory_is_off(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# The age gate: who is asked, who is not, and what the answer is worth.
+# ---------------------------------------------------------------------------
+
+
+async def test_join_refuses_an_account_that_has_not_confirmed_its_age(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session, email="minor@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_AGE_CONFIRMATION_REQUIRED"
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == user.id,
+            )
+        )
+    ).one_or_none()
+    assert membership is None
+
+
+async def test_confirming_age_lets_the_same_account_join(
+    client: AsyncClient, session: AsyncSession
+):
+    """The whole loop: refused, tick the box, join."""
+    user = await create_user(session, email="joiner@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    headers = get_auth_headers(user)
+
+    refused = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+    assert refused.status_code == 403
+
+    confirmed = await client.post(
+        "/api/v1/users/me/age-confirmation", json={"confirmed": True}, headers=headers
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["age_confirmed_at"] is not None
+
+    joined = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+    assert joined.status_code == 200
+    assert joined.json()["id"] == guild.id
+
+
+async def test_join_allows_an_unconfirmed_account_when_the_gate_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """An owner who asserts every account here is an adult is not asking."""
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True, community_age_gate_enabled=False
+    )
+    user = await create_user(session, email="adult@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+
+
+async def test_unconfirmed_member_of_a_listed_guild_is_asked_on_next_read(
+    client: AsyncClient, session: AsyncSession
+):
+    """The catch-all: a membership that arrived without anyone to ask.
+
+    Written straight to the table the way a group sync or an admin would, so
+    the join endpoint's refusal is not what is under test here.
+    """
+    user = await create_user(session, email="synced@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    session.add(
+        GuildMembership(guild_id=guild.id, user_id=user.id, role=GuildRole.member)
+    )
+    await session.commit()
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(user))
+
+    assert response.status_code == 200
+    assert response.json()["age_confirmation_required"] is True
+
+
+async def test_unlisted_guild_asks_nobody_their_age(
+    client: AsyncClient, session: AsyncSession
+):
+    """A private guild is not a public community, so the gate never applies."""
+    user = await create_user(
+        session, email="private@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Just Us")
+    await create_guild_membership(session, user=user, guild=guild)
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(user))
+
+    assert response.status_code == 200
+    assert response.json()["age_confirmation_required"] is False
+
+
+async def test_listing_a_guild_asks_the_members_it_already_had(
+    client: AsyncClient, session: AsyncSession
+):
+    """The gate is asked, not stored: it follows the guild onto the shelf."""
+    user = await create_user(session, email="early@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await create_guild_membership(session, user=user, guild=guild)
+    headers = get_auth_headers(user)
+
+    before = await client.get("/api/v1/users/me", headers=headers)
+    assert before.json()["age_confirmation_required"] is False
+
+    await _list_as_community(session, guild)
+
+    after = await client.get("/api/v1/users/me", headers=headers)
+    assert after.json()["age_confirmation_required"] is True
+
+
+async def test_confirmation_clears_the_standing_gate(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(
+        session, email="answers@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await create_guild_membership(session, user=user, guild=guild)
+    headers = get_auth_headers(user)
+
+    assert (await client.get("/api/v1/users/me", headers=headers)).json()[
+        "age_confirmation_required"
+    ] is True
+
+    await client.post(
+        "/api/v1/users/me/age-confirmation", json={"confirmed": True}, headers=headers
+    )
+
+    assert (await client.get("/api/v1/users/me", headers=headers)).json()[
+        "age_confirmation_required"
+    ] is False
+
+
+async def test_an_unticked_box_confirms_nothing(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(
+        session, email="declines@example.com", age_confirmed_at=None
+    )
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"confirmed": False},
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_AGE_NOT_CONFIRMED"
+    await session.refresh(user)
+    assert user.age_confirmed_at is None
+
+
+async def test_confirming_twice_keeps_the_first_answer(
+    client: AsyncClient, session: AsyncSession
+):
+    """The record is when they first said it, not when they last clicked."""
+    user = await create_user(
+        session, email="repeats@example.com", age_confirmed_at=None
+    )
+    headers = get_auth_headers(user)
+
+    first = await client.post(
+        "/api/v1/users/me/age-confirmation", json={"confirmed": True}, headers=headers
+    )
+    second = await client.post(
+        "/api/v1/users/me/age-confirmation", json={"confirmed": True}, headers=headers
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["age_confirmed_at"] == second.json()["age_confirmed_at"]
+
+
+async def test_directory_off_asks_nobody(client: AsyncClient, session: AsyncSession):
+    """With no directory there is no listed guild for anyone to be asked about."""
+    user = await create_user(
+        session, email="nowhere@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await create_guild_membership(session, user=user, guild=guild)
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False
+    )
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(user))
+
+    assert response.json()["age_confirmation_required"] is False

@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Say how you're around, or don't.** A dot under your picture in the sidebar opens the four states: online, idle, busy, or offline. Offline means offline — nobody sees you as here, whatever you have open. Idle sets itself once nothing has been touched for a while, and you can also pick it outright to say you have stepped away. The same dot on your profile card in Settings › Profile opens the same menu.
 
+- **Communities ask their members' age.** Where a deployment runs a community directory, taking a place in a listed community now means confirming you are 13 or older. The directory's Join button asks first, so ticking the box is what joins; anyone who arrived another way — an invite, a group sync, an admin adding them, or a community that listed itself after they were already in it — is asked once on their next visit. The answer is kept on the account, so the second community you join asks nothing. Platform owners can switch the question off under Settings › Admin › Community by confirming every account on the deployment belongs to someone 18 or older.
+
 ### Changed
 
 - **Guilds are now communities.** The name was picked for gaming guilds, and people turned out to be running far more than that. Pages moved from `/g/…` to `/c/…`, and a new install's first community is called "Primary Community".

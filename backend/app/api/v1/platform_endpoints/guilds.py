@@ -362,6 +362,12 @@ async def join_community_guild(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc
+    except guilds_service.AgeConfirmationRequiredError as exc:
+        # The one thing the caller can fix by answering, so it is its own code:
+        # the SPA ticks the box and repeats the request.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except guilds_service.GuildCapacityError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)

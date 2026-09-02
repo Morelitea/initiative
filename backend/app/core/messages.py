@@ -74,6 +74,10 @@ class GuildMessages:
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.
     COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
+    # The caller has not said they are 13 or older, and the guild they asked to
+    # join is listed in the directory. The deployment's own switch decides
+    # whether this is ever raised at all.
+    AGE_CONFIRMATION_REQUIRED = "GUILD_AGE_CONFIRMATION_REQUIRED"
     # A guild icon or banner rendition that is not one. Each names the rule it
     # broke, so the settings page can say what to do about it rather than
     # "that didn't work".
@@ -414,6 +418,9 @@ class UserMessages:
     API_KEY_READ_ONLY = "USER_API_KEY_READ_ONLY"
     API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_GUILD_FORBIDDEN"
     USERNAME_ALREADY_CHOSEN = "USERNAME_ALREADY_CHOSEN"
+    #: Sent an age confirmation with the box unticked. The confirmation is the
+    #: account saying something about itself, so declining is not a write.
+    AGE_NOT_CONFIRMED = "USER_AGE_NOT_CONFIRMED"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"

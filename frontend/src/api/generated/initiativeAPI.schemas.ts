@@ -327,6 +327,17 @@ export interface AdminUsernameUpdate {
 }
 
 /**
+ * An account saying it belongs to somebody at least 13 years old.
+ *
+ * A body rather than a bare POST because the box has to be ticked: an
+ * unticked one is a request that arrives, and is refused, rather than one
+ * that is never sent.
+ */
+export interface AgeConfirmation {
+  confirmed: boolean;
+}
+
+/**
  * What kind of news this is — drives the icon and accent, nothing else.
  */
 export type AnnouncementCategory = (typeof AnnouncementCategory)[keyof typeof AnnouncementCategory];
@@ -560,6 +571,7 @@ export interface AppConfig {
   billing?: BillingConfig | null;
   max_upload_bytes: number;
   community_directory_enabled: boolean;
+  community_age_gate_enabled: boolean;
 }
 
 export type AppDataParamLabel = { [key: string]: string };
@@ -1784,10 +1796,12 @@ export interface CommunityGuildPage {
  */
 export interface CommunitySettingsResponse {
   community_directory_enabled: boolean;
+  age_gate_enabled: boolean;
 }
 
 export interface CommunitySettingsUpdate {
   community_directory_enabled: boolean;
+  age_gate_enabled?: boolean | null;
 }
 
 /**
@@ -5371,6 +5385,8 @@ export interface UserRead {
   username: string;
   discriminator: number;
   username_chosen: boolean;
+  age_confirmed_at: string | null;
+  age_confirmation_required: boolean;
   status: UserStatus;
   email_verified: boolean;
   created_at: string;

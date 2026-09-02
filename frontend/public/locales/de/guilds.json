@@ -411,7 +411,9 @@
       "certifyHate": "Hassrede, Belästigung oder Drohungen",
       "certifyDuty": "Du bist Admin dieser Community, also liegt die Durchsetzung bei dir. Von dir wird erwartet, dass du auf solche Inhalte achtest und sie entfernst. Eine Community, die das nicht mehr erfüllt, wird aus dem Verzeichnis entfernt.",
       "confirm": "Community eintragen"
-    }
+    },
+    "ageGateBody": "Communities hier kann jede angemeldete Person finden. Beim ersten Beitritt wird daher einmal nach deinem Alter gefragt – danach nie wieder.",
+    "ageGateConfirm": "Bestätigen und beitreten"
   },
   "nameDisplay": {
     "title": "Wie Mitglieder benannt werden",
