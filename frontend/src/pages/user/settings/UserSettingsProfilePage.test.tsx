@@ -45,7 +45,7 @@ beforeEach(() => {
     data: {
       items: [
         buildOwnedDecoration({ id: "ttrpg.d20", kind: "trophy" }),
-        buildOwnedDecoration({ id: "fungi.morel", kind: "trophy" }),
+        buildOwnedDecoration({ id: "plants.morel", kind: "trophy" }),
         buildOwnedDecoration({ id: "core.aurora", kind: "banner" }),
       ],
     },
