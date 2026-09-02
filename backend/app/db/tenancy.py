@@ -71,6 +71,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # What one account may dress its profile in beyond what ships with the
         # app. Personal and cross-guild, like the row it hangs off.
         "user_decorations",
+        # Who one account has starred on My Contacts. Personal, cross-guild
+        # and one-directional: the list is the holder's, and it may name
+        # people they share no guild with.
+        "profile_favorites",
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.

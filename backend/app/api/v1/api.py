@@ -61,6 +61,7 @@ from app.api.v1.platform_endpoints import (
     auth_providers,
     billing,
     config,
+    contacts,
     guild_auth_providers,
     guilds,
     marketplace,
@@ -254,4 +255,5 @@ me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
+me_router.include_router(contacts.me_router, tags=["contacts"])
 api_router.include_router(me_router)
