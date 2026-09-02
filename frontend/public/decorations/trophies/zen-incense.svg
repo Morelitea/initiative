@@ -3,13 +3,6 @@
   <title>Incense</title>
   <circle cx="24" cy="24" r="23" fill="#1E2A28"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA86A" stroke-width="2"/>
-  <style>
-    .curl { animation: up 8s ease-in-out infinite }
-    .c2 { animation-delay: -3s }
-    @keyframes up { 0% { transform: translate(0,0); opacity: 0 } 25% { opacity: .55 }
-                    100% { transform: translate(3px,-13px); opacity: 0 } }
-    @media (prefers-reduced-motion: reduce) { .curl { animation: none; opacity: .35 } }
-  </style>
   <ellipse cx="24" cy="37" rx="12" ry="3.4" fill="#5A5044"/>
   <ellipse cx="24" cy="35.6" rx="12" ry="3.4" fill="#8A7A5E"/>
   <ellipse cx="24" cy="35.4" rx="8.6" ry="2.2" fill="#5A5044"/>
@@ -20,6 +13,6 @@
   <path d="M23.4 12 L24.6 12 L24.6 15 L23.4 15 Z" fill="#C4302B"/>
   <circle cx="24" cy="11.4" r="1.2" fill="#FF9C2A"/>
   <g fill="none" stroke="#E8E2D6" stroke-width="1.2" stroke-linecap="round">
-    <path class="curl" d="M24 10 C21.6 7 25 5 22.6 2"/>
-    <path class="curl c2" d="M25 9 C27.4 6.4 24.6 4 26.6 1.4"/>
+    <path d="M24 10 C21.6 7 25 5 22.6 2"/>
+    <path d="M25 9 C27.4 6.4 24.6 4 26.6 1.4"/>
   </g></svg>

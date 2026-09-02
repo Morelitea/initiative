@@ -5,10 +5,10 @@
   "name": "Drama",
   "publisher": "Initiative",
   "description": "The curtain runs in, holds, and goes out again.",
-  "long_description": "Three houses to play: a lit stage, a wooden O, and an amphitheatre with the sun on it. Velvet or a laurel to frame you, and trophies out of the plays nobody owns any more — the two masks, Yorick, a balcony, a dagger, and a handbag.",
+  "long_description": "Three houses to play: a lit stage where the curtain really does close, a wooden O, and an amphitheatre with the sun on it. Velvet or a laurel to frame you, and trophies out of the plays nobody owns any more — the two masks, Yorick, a balcony and a dagger.",
   "avatar_url": "/decorations/banners/drama-stage.svg",
   "images": [],
-  "version": "1.1.0",
+  "version": "1.3.0",
   "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
@@ -58,11 +58,6 @@
         "id": "drama.dagger",
         "slot": "trophy",
         "name": "Dagger"
-      },
-      {
-        "id": "drama.handbag",
-        "slot": "trophy",
-        "name": "The handbag"
       }
     ]
   }

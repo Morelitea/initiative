@@ -3,22 +3,27 @@
   <title>Cocoa</title>
   <circle cx="24" cy="24" r="23" fill="#0E1A2E"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA6C4" stroke-width="2"/>
-  <style>
-    .steam { animation: curl 5s ease-in-out infinite; transform-box: fill-box;
-             transform-origin: 50% 100% }
-    .s2 { animation-delay: -2s }
-    @keyframes curl { 0% { transform: translate(0,0); opacity: 0 } 25% { opacity: .7 }
-                      100% { transform: translate(1.5px,-8px); opacity: 0 } }
-    @media (prefers-reduced-motion: reduce) { .steam { animation: none; opacity: .4 } }
-  </style>
+  <defs>
+    <radialGradient id="dusk4" cx=".5" cy=".35" r=".62">
+      <stop offset="0%" stop-color="#1E3352"/><stop offset="100%" stop-color="#0A1526"/>
+    </radialGradient>
+    <linearGradient id="mugside" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8E1F1B"/><stop offset="26%" stop-color="#E0554E"/>
+      <stop offset="62%" stop-color="#C4302B"/><stop offset="100%" stop-color="#7A1210"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="19" fill="url(#dusk4)"/>
+  <ellipse cx="24" cy="37.4" rx="12" ry="2" fill="#0A1526" opacity=".5"/>
   <g fill="none" stroke="#EFE9DC" stroke-width="1.5" stroke-linecap="round">
-    <path class="steam" d="M20.4 17 C17.6 14 22 11.4 19.6 8"/>
-    <path class="steam s2" d="M27.6 17 C30.4 14 26 11.4 28.4 8"/>
+    <path d="M20.4 17 C17.6 14 22 11.4 19.6 8"/>
+    <path d="M27.6 17 C30.4 14 26 11.4 28.4 8"/>
   </g>
-  <path d="M12.6 21 C12.6 32 16.6 36 24 36 C31.4 36 35.4 32 35.4 21 Z" fill="#C4302B"/>
-  <path d="M12.6 21 C12.6 32 16.6 36 24 36 C24 30 24 25 24 21 Z" fill="#E0554E"/>
+  <path d="M12.6 21 C12.6 32 16.6 36 24 36 C31.4 36 35.4 32 35.4 21 Z" fill="url(#mugside)"/>
+  <path d="M14.6 22 C14.8 30 17 33.6 20.6 34.8 C17.4 32.6 16.2 28.4 16.2 22 Z"
+        fill="#FFFFFF" opacity=".22"/>
   <ellipse cx="24" cy="21" rx="11.4" ry="3.4" fill="#EFE9DC"/>
   <ellipse cx="24" cy="21.2" rx="9.4" ry="2.6" fill="#5E3A1A"/>
+  <ellipse cx="21.4" cy="20.6" rx="4.6" ry="1.2" fill="#8A5A2E" opacity=".55"/>
   <g fill="#F6F1E6">
     <circle cx="21" cy="20.6" r="2"/><circle cx="26" cy="21.4" r="2.2"/>
     <circle cx="24" cy="19.4" r="1.6"/>

@@ -4,6 +4,9 @@
   <circle cx="24" cy="24" r="23" fill="#0E1A2E"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA6C4" stroke-width="2"/>
   <defs>
+    <radialGradient id="dusk3" cx=".5" cy=".35" r=".62">
+      <stop offset="0%" stop-color="#1E3352"/><stop offset="100%" stop-color="#0A1526"/>
+    </radialGradient>
     <radialGradient id="glass2" cx=".35" cy=".3" r=".85">
       <stop offset="0%" stop-color="#E85A52"/><stop offset="60%" stop-color="#C0221E"/>
       <stop offset="100%" stop-color="#7A1210"/>
@@ -15,7 +18,15 @@
   <g stroke="#8A9098" stroke-width=".5">
     <path d="M20.8 9 L27.2 9"/><path d="M20.8 10.8 L27.2 10.8"/>
   </g>
+  <circle cx="24" cy="24" r="19" fill="url(#dusk3)"/>
+  <ellipse cx="24" cy="42" rx="10" ry="1.8" fill="#0A1526" opacity=".5"/>
   <circle cx="24" cy="27" r="14.4" fill="url(#glass2)"/>
+  <path d="M24 41.4 C31.2 41.4 36 36.4 37.4 30 C36.6 37 31 41.4 24 41.4 Z" fill="#5E0E0C"
+        opacity=".55"/>
+  <ellipse cx="18.6" cy="20.4" rx="4.6" ry="3.2" fill="#FFFFFF" opacity=".32"
+           transform="rotate(-30 18.6 20.4)"/>
+  <ellipse cx="30.4" cy="35.6" rx="3.4" ry="1.6" fill="#FF9E96" opacity=".22"
+           transform="rotate(-24 30.4 35.6)"/>
   <g fill="none" stroke="#F6D98A" stroke-width="1.4" opacity=".85">
     <path d="M10.6 22.6 C16 25 32 25 37.4 22.6"/>
     <path d="M9.8 31.4 C15.4 29 32.6 29 38.2 31.4"/>

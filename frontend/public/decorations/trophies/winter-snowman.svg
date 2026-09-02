@@ -3,9 +3,24 @@
   <title>Snowman</title>
   <circle cx="24" cy="24" r="23" fill="#0E1A2E"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA6C4" stroke-width="2"/>
-  <circle cx="24" cy="34" r="9.6" fill="#F2FAFE"/>
-  <circle cx="24" cy="22.6" r="7" fill="#F6FCFF"/>
-  <circle cx="24" cy="13.4" r="5.2" fill="#FBFEFF"/>
+  <defs>
+    <radialGradient id="ball" cx=".34" cy=".28" r=".82">
+      <stop offset="0%" stop-color="#FFFFFF"/><stop offset="58%" stop-color="#E4F1F9"/>
+      <stop offset="100%" stop-color="#A8C6DC"/>
+    </radialGradient>
+    <radialGradient id="dusk2" cx=".5" cy=".35" r=".62">
+      <stop offset="0%" stop-color="#1E3352"/><stop offset="100%" stop-color="#0A1526"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="19" fill="url(#dusk2)"/>
+  <ellipse cx="24" cy="42.4" rx="12" ry="2.2" fill="#0A1526" opacity=".55"/>
+  <circle cx="24" cy="34" r="9.6" fill="url(#ball)"/>
+  <circle cx="24" cy="22.6" r="7" fill="url(#ball)"/>
+  <circle cx="24" cy="13.4" r="5.2" fill="url(#ball)"/>
+  <g fill="#7FA6C4" opacity=".28">
+    <path d="M31 30.4 C33.6 33.4 33 38 30 41 C33.2 39.4 34.4 34.4 33 30.4 Z"/>
+    <path d="M29.4 18.4 C31.4 20.6 31 24 28.8 26.4 C31.4 25.2 32.2 21.4 31 18.4 Z"/>
+  </g>
   <path d="M18.8 13.4 C18.8 10.6 21 8.4 24 8.4 C27 8.4 29.2 10.6 29.2 13.4
            C27 12 21 12 18.8 13.4 Z" fill="#EAF6FC"/>
   <g fill="#1E2126">

@@ -1,101 +1,222 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Landmarks</title>
-  <!-- Everywhere at once, at the hour they all turn their lights on. -->
+  <!-- Everywhere at once, at the hour they all turn their lights on. The
+       buildings are archetypes — a lattice tower, a shell roof, a stepped
+       pagoda — rather than any particular architect's. -->
   <style>
     .lit { animation: warm 6s ease-in-out infinite }
-    .l2 { animation-delay: -2s } .l3 { animation-delay: -4s }
-    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .78 } }
-    .fly { animation: cross 26s linear infinite }
+    .l2 { animation-delay: -2s } .l3 { animation-delay: -4s } .l4 { animation-delay: -3s }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .74 } }
+    .beacon { animation: blink 2.4s steps(1, end) infinite }
+    @keyframes blink { 0%,45% { opacity: 1 } 46%,100% { opacity: .15 } }
+    .fly { animation: cross 30s linear infinite }
     @keyframes cross {
-      0% { transform: translate(-30px,4px); opacity: 0 }
-      8% { opacity: .9 }
-      92% { opacity: .9 }
-      100% { transform: translate(190px,-6px); opacity: 0 }
+      0% { transform: translate(-34px,5px) }
+      100% { transform: translate(196px,-7px) }
     }
-    @media (prefers-reduced-motion: reduce) { .lit, .fly { animation: none } }
+    .trail { animation: fade 30s linear infinite }
+    @keyframes fade { 0%,4% { opacity: 0 } 12%,88% { opacity: .3 } 96%,100% { opacity: 0 } }
+    .ripple { animation: lap 9s ease-in-out infinite alternate }
+    @keyframes lap { from { transform: translateX(-2px) } to { transform: translateX(2px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .lit, .beacon, .fly, .trail, .ripple { animation: none } }
   </style>
   <defs>
     <linearGradient id="evening" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#141A38"/>
-      <stop offset="55%" stop-color="#3C3566"/>
-      <stop offset="100%" stop-color="#C87A5A"/>
+      <stop offset="0%" stop-color="#0E1430"/><stop offset="42%" stop-color="#3C3566"/>
+      <stop offset="72%" stop-color="#8A5A72"/><stop offset="100%" stop-color="#E0906A"/>
     </linearGradient>
     <linearGradient id="stone" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2A2440"/><stop offset="100%" stop-color="#181430"/>
+      <stop offset="0%" stop-color="#332A50"/><stop offset="100%" stop-color="#171232"/>
+    </linearGradient>
+    <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#241C42"/><stop offset="100%" stop-color="#100C24"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3A3560"/><stop offset="100%" stop-color="#141032"/>
     </linearGradient>
   </defs>
   <rect width="160" height="40" fill="url(#evening)"/>
-  <circle cx="118" cy="12" r="5" fill="#FFE0A8" opacity=".85"/>
-  <circle cx="118" cy="12" r="11" fill="#FFE0A8" opacity=".12"/>
+  <circle cx="120" cy="14" r="4.6" fill="#FFE0A8" opacity=".9"/>
+  <circle cx="120" cy="14" r="11" fill="#FFE0A8" opacity=".13"/>
+  <circle cx="120" cy="14" r="19" fill="#FFE0A8" opacity=".05"/>
   <g fill="#FFF3D2">
     <circle cx="14" cy="4" r=".3" opacity=".7"/><circle cx="38" cy="2.6" r=".26" opacity=".6"/>
-    <circle cx="62" cy="5" r=".3" opacity=".65"/><circle cx="90" cy="3" r=".28" opacity=".6"/>
+    <circle cx="62" cy="5" r=".3" opacity=".65"/><circle cx="94" cy="3" r=".28" opacity=".6"/>
     <circle cx="140" cy="4.4" r=".3" opacity=".7"/><circle cx="152" cy="8" r=".26" opacity=".55"/>
+    <circle cx="26" cy="7.4" r=".24" opacity=".5"/><circle cx="106" cy="6.4" r=".24" opacity=".5"/>
   </g>
-  <!-- A tower, a wall, a dome, an opera house, a pyramid and a gate. -->
+
+  <!-- Hills, and a wall that follows them. -->
+  <path d="M18 30 C26 21 34 25 42 19.6 C48 15.6 54 19 60 21 L60 30 Z" fill="#221B3E"
+        opacity=".85"/>
   <g fill="url(#stone)">
-    <!-- Pyramids. -->
-    <path d="M6 30 L18 12 L30 30 Z"/>
-    <path d="M26 30 L34 18.6 L42 30 Z"/>
-    <!-- A stepped tower with a long span beside it. -->
-    <path d="M52 30 L54.6 14.4 L56.4 14.4 L59 30 Z"/>
-    <path d="M53.4 21 L57.6 21 L58 23 L53 23 Z"/>
-    <path d="M55.1 14.4 L55.9 8 L56.1 8 L56.9 14.4 Z"/>
-    <!-- A domed capitol. -->
-    <path d="M68 30 L68 22.6 L92 22.6 L92 30 Z"/>
-    <path d="M72 22.6 C72 15 88 15 88 22.6 Z"/>
-    <path d="M79.4 15.4 L80.6 15.4 L80.6 11.6 L79.4 11.6 Z"/>
-    <circle cx="80" cy="11" r="1.1"/>
-    <!-- A minaret and an onion dome. -->
-    <path d="M98 30 L98 20 C98 16.6 106 16.6 106 20 L106 30 Z"/>
-    <path d="M98 20 C98 14.6 106 14.6 106 20 Z"/>
-    <path d="M101.4 12.6 C99.4 10.6 100.4 8.6 102 7 C103.6 8.6 104.6 10.6 102.6 12.6 Z"/>
-    <path d="M101.6 12.6 L102.4 12.6 L102.4 16.4 L101.6 16.4 Z"/>
-    <!-- A shell roof. -->
-    <path d="M118 30 C118 24 124 21 130 21 C130 25 128 28 126 30 Z"/>
-    <path d="M126 30 C126 25.4 130 22.6 134.6 22.6 C134.6 26 133 28.6 131.4 30 Z"/>
-    <!-- A pagoda. -->
-    <path d="M142 30 L142 26 L154 26 L154 30 Z"/>
-    <path d="M140 26 L156 26 L152 23 L144 23 Z"/>
-    <path d="M141.4 22.6 L154.6 22.6 L151.4 20 L144.6 20 Z"/>
-    <path d="M143 19.6 L153 19.6 L150.4 17 L145.6 17 Z"/>
-    <path d="M147.6 17 L148.4 17 L148.4 14.4 L147.6 14.4 Z"/>
+    <path d="M20 27.4 C27 20.4 34 24 41.4 18.6 C47.4 14.4 53 18 59 20.2 L59 22.2
+             C53 20 47.4 16.4 41.4 20.6 C34 26 27 22.4 20 29.4 Z"/>
+    <path d="M25.4 24.4 L28.4 24.4 L28.4 20.4 L25.4 20.4 Z"/>
+    <path d="M40 21.4 L43 21.4 L43 17 L40 17 Z"/>
+    <path d="M53.6 19.6 L56.6 19.6 L56.6 15.6 L53.6 15.6 Z"/>
   </g>
-  <!-- The one in the middle, lit, because a picture needs a middle. -->
+  <g fill="#4A3E6E" opacity=".7">
+    <path d="M25.4 20.4 L26.2 20.4 L26.2 19.4 L27 19.4 L27 20.4 L27.8 20.4 L27.8 19.4
+             L28.4 19.4 L28.4 20.4 Z"/>
+    <path d="M40 17 L40.8 17 L40.8 16 L41.6 16 L41.6 17 L42.4 17 L42.4 16 L43 16 L43 17 Z"/>
+  </g>
+
+  <!-- Pyramids, and the lion in front of them. -->
+  <g fill="url(#stone)">
+    <path d="M0 30 L11 11 L22 30 Z"/>
+    <path d="M17 30 L24.4 17.4 L31.8 30 Z"/>
+  </g>
+  <path d="M11 11 L22 30 L11 30 Z" fill="#100C24" opacity=".55"/>
+  <path d="M24.4 17.4 L31.8 30 L24.4 30 Z" fill="#100C24" opacity=".5"/>
+  <g fill="#1B1536">
+    <path d="M4 30 L4 26.4 C4 25.4 4.8 24.8 5.8 24.8 L7 24.8 L7 22.6
+             C7 21.8 7.6 21.2 8.4 21.2 C9.2 21.2 9.8 21.8 9.8 22.6 L9.8 25.4
+             C10.6 26 11 27 11 28 L11 30 Z"/>
+    <path d="M7.4 22.4 L8 21 L8.8 22.4 Z"/>
+  </g>
+
+  <!-- A temple: eight columns and a pediment. -->
+  <g fill="url(#stone)">
+    <path d="M46 30 L64 30 L64 28.4 L46 28.4 Z"/>
+    <path d="M47 28.4 L63 28.4 L63 27.4 L47 27.4 Z"/>
+    <path d="M46.4 21.6 L63.6 21.6 L63.6 23 L46.4 23 Z"/>
+    <path d="M47.6 21.6 L55 17.4 L62.4 21.6 Z"/>
+  </g>
+  <g fill="#4A3E6E" opacity=".75">
+    <path d="M48.6 27.4 L50 27.4 L50 23 L48.6 23 Z"/><path d="M52 27.4 L53.4 27.4 L53.4 23 L52 23 Z"/>
+    <path d="M55.4 27.4 L56.8 27.4 L56.8 23 L55.4 23 Z"/><path d="M58.8 27.4 L60.2 27.4 L60.2 23 L58.8 23 Z"/>
+  </g>
+  <path d="M49.6 21 L55 18 L60.4 21 Z" fill="#4A3E6E" opacity=".5"/>
+
+  <!-- The lattice tower, which is the middle of the picture. -->
   <g>
-    <path d="M74 30 L76.6 30 L80 12 L83.4 30 L86 30 L80 4 Z" fill="#241E3E" opacity="0"/>
+    <path d="M70.70 30.00 L71.35 29.00 L71.98 28.00 L72.58 27.00 L73.16 26.00 L73.71 25.00 L74.24 24.00 L74.74 23.00 L75.21 22.00 L75.66 21.00 L76.08 20.00 L76.48 19.00 L76.85 18.00 L77.19 17.00 L77.51 16.00 L77.80 15.00 L78.06 14.00 L78.29 13.00 L78.50 12.00 L78.67 11.00 L78.82 10.00 L78.94 9.00 L79.03 8.00 L79.08 7.00 L79.10 6.00 L80.90 6.00 L89.30 30.00"
+          fill="none" stroke="#2A2148" stroke-width="0"/>
+    <path d="M70.70 30.00 L71.35 29.00 L71.98 28.00 L72.58 27.00 L73.16 26.00 L73.71 25.00 L74.24 24.00 L74.74 23.00 L75.21 22.00 L75.66 21.00 L76.08 20.00 L76.48 19.00 L76.85 18.00 L77.19 17.00 L77.51 16.00 L77.80 15.00 L78.06 14.00 L78.29 13.00 L78.50 12.00 L78.67 11.00 L78.82 10.00 L78.94 9.00 L79.03 8.00 L79.08 7.00 L79.10 6.00 L80.90 6.00 80.90 6.00 L80.92 7.00 L80.97 8.00 L81.06 9.00 L81.18 10.00 L81.33 11.00 L81.50 12.00 L81.71 13.00 L81.94 14.00 L82.20 15.00 L82.49 16.00 L82.81 17.00 L83.15 18.00 L83.52 19.00 L83.92 20.00 L84.34 21.00 L84.79 22.00 L85.26 23.00 L85.76 24.00 L86.29 25.00 L86.84 26.00 L87.42 27.00 L88.02 28.00 L88.65 29.00 L89.30 30.00 Z"
+          fill="url(#stone)"/>
+    <g stroke="#4A3E6E" stroke-width=".3" opacity=".55" fill="none">
+      <path d="M71.44 30.00 L87.38 28.00"/><path d="M88.56 30.00 L72.62 28.00"/><path d="M72.62 28.00 L86.29 26.00"/><path d="M87.38 28.00 L73.71 26.00"/><path d="M73.71 26.00 L85.30 24.00"/><path d="M86.29 26.00 L74.70 24.00"/><path d="M74.70 24.00 L84.40 22.00"/><path d="M85.30 24.00 L75.60 22.00"/><path d="M75.60 22.00 L83.60 20.00"/><path d="M84.40 22.00 L76.40 20.00"/><path d="M76.40 20.00 L82.90 18.00"/><path d="M83.60 20.00 L77.10 18.00"/><path d="M77.10 18.00 L82.29 16.00"/><path d="M82.90 18.00 L77.71 16.00"/><path d="M77.71 16.00 L81.79 14.00"/><path d="M82.29 16.00 L78.21 14.00"/><path d="M78.21 14.00 L81.38 12.00"/><path d="M81.79 14.00 L78.62 12.00"/><path d="M78.62 12.00 L81.08 10.00"/><path d="M81.38 12.00 L78.92 10.00"/><path d="M78.92 10.00 L80.90 8.00"/><path d="M81.08 10.00 L79.10 8.00"/>
+    </g>
+    <!-- Its arch, and the two decks. -->
+    <path d="M71.6 30 C74 25.6 86 25.6 88.4 30 L84.6 30 C83 27.6 77 27.6 75.4 30 Z"
+          fill="#171232"/>
+    <path d="M73.2 22.4 L86.8 22.4 L86.8 23.8 L73.2 23.8 Z" fill="#241C42"/>
+    <path d="M76.4 14.6 L83.6 14.6 L83.6 15.8 L76.4 15.8 Z" fill="#241C42"/>
+    <path d="M79.2 6 L80.8 6 L80.8 2.6 L79.2 2.6 Z" fill="#241C42"/>
   </g>
+  <circle class="beacon" cx="80" cy="2.2" r=".8" fill="#FF6B5A"/>
+
+  <!-- A basilica, with its colonnade coming round. -->
+  <g fill="url(#stone)">
+    <path d="M96 30 L96 24.6 L116 24.6 L116 30 Z"/>
+    <path d="M100 24.6 C100 16.4 112 16.4 112 24.6 Z"/>
+    <path d="M104.4 17.4 C104.4 14.6 107.6 14.6 107.6 17.4 Z"/>
+    <path d="M105.6 14.8 L106.4 14.8 L106.4 11.6 L105.6 11.6 Z"/>
+    <path d="M104.8 12.4 L107.2 12.4 L107.2 13 L104.8 13 Z"/>
+  </g>
+  <g fill="#4A3E6E" opacity=".65">
+    <path d="M97 29.4 L98 29.4 L98 25.4 L97 25.4 Z"/><path d="M100 29.4 L101 29.4 L101 25.4 L100 25.4 Z"/>
+    <path d="M103 29.4 L104 29.4 L104 25.4 L103 25.4 Z"/><path d="M108 29.4 L109 29.4 L109 25.4 L108 25.4 Z"/>
+    <path d="M111 29.4 L112 29.4 L112 25.4 L111 25.4 Z"/><path d="M114 29.4 L115 29.4 L115 25.4 L114 25.4 Z"/>
+  </g>
+  <path d="M101.4 23.4 C101.4 17.6 110.6 17.6 110.6 23.4 Z" fill="#4A3E6E" opacity=".35"/>
+
+  <!-- A shell roof, on the water. -->
+  <g fill="url(#near)">
+    <path d="M118 30 C118 23.4 124.4 20 130.4 20 C130.4 24.6 128.2 28 126 30 Z"/>
+    <path d="M125.6 30 C125.6 24.8 130.4 21.6 135.4 21.6 C135.4 25.6 133.4 28.6 131.4 30 Z"/>
+    <path d="M132 30 C132 26.4 135.6 24 139.4 24 C139.4 26.8 138 28.8 136.4 30 Z"/>
+  </g>
+  <g fill="#4A3E6E" opacity=".45">
+    <path d="M119.4 30 C119.4 24.4 124.6 21.4 129.4 21.4 C129.2 22.4 129 23.2 128.6 24
+             C124.6 24.6 121.4 27 120.6 30 Z"/>
+    <path d="M126.8 30 C127 25.6 130.8 23 134.4 22.8 C134.2 23.6 134 24.4 133.6 25
+             C130.6 25.6 128.4 27.6 127.8 30 Z"/>
+  </g>
+
+  <!-- A pagoda, and the gate that stands in the shallows. -->
+  <g fill="url(#stone)">
+    <path d="M144 30 L144 26.4 L154 26.4 L154 30 Z"/>
+    <path d="M141.6 26.4 L156.4 26.4 C154.4 24.6 152.6 23.6 152 23.4 L146 23.4
+             C145.4 23.6 143.6 24.6 141.6 26.4 Z"/>
+    <path d="M142.6 22.8 L155.4 22.8 C153.6 21.2 152 20.4 151.4 20.2 L146.6 20.2
+             C146 20.4 144.4 21.2 142.6 22.8 Z"/>
+    <path d="M144 19.6 L154 19.6 C152.6 18.2 151.4 17.6 150.8 17.4 L147.2 17.4
+             C146.6 17.6 145.4 18.2 144 19.6 Z"/>
+    <path d="M148.6 17 L149.4 17 L149.4 14.4 L148.6 14.4 Z"/>
+    <circle cx="149" cy="13.8" r=".9"/>
+  </g>
+
+
+  <!-- The ground, and the water in front of it. -->
+  <path d="M0 30 L160 30 L160 32.4 L0 32.4 Z" fill="#100C24"/>
+  <path d="M0 32.4 L160 32.4 L160 40 L0 40 Z" fill="url(#water)"/>
+  <!-- What the tower and the moon leave on it. -->
+  <g opacity=".28">
+    <path d="M76 32.4 L84 32.4 L82.4 40 L77.6 40 Z" fill="#6E5AA8"/>
+    <path d="M117.6 32.4 L122.4 32.4 L124 40 L116 40 Z" fill="#FFD79A"/>
+  </g>
+  <g class="ripple" stroke="#5E6EA8" stroke-width=".4" fill="none" opacity=".45">
+    <path d="M-4 34.6 C10 34 24 35 38 34.4 C52 33.8 66 34.8 80 34.2
+             C94 33.6 108 34.6 122 34 C136 33.4 150 34.4 164 33.8"/>
+    <path d="M-4 37 C12 36.4 28 37.4 44 36.8 C60 36.2 76 37.2 92 36.6
+             C108 36 124 37 140 36.4 C150 36 158 36.4 164 36.2"/>
+    <path d="M-4 39 C14 38.4 32 39.4 50 38.8 C68 38.2 86 39.2 104 38.6
+             C122 38 140 39 164 38.4"/>
+  </g>
+
+  <!-- A gate, standing out in the shallows. -->
+  <g fill="#A83A32">
+    <path d="M139.4 36.4 L141 36.4 L141 27.4 L139.4 27.4 Z"/>
+    <path d="M151 36.4 L152.6 36.4 L152.6 27.4 L151 27.4 Z"/>
+    <path d="M136.6 26.8 C142 25.6 150 25.6 155.4 26.8 L155.4 28 C150 26.8 142 26.8 136.6 28 Z"/>
+    <path d="M138.4 29.6 L153.6 29.6 L153.6 30.6 L138.4 30.6 Z"/>
+  </g>
+  <path d="M139.4 36.4 L141 36.4 L141 40 L139.4 40 Z" fill="#A83A32" opacity=".3"/>
+  <path d="M151 36.4 L152.6 36.4 L152.6 40 L151 40 Z" fill="#A83A32" opacity=".3"/>
+
+  <!-- Lit windows, up and down the skyline. -->
   <g class="lit" fill="#FFD79A">
-    <rect x="17" y="27" width=".7" height="1" rx=".2"/><rect x="21" y="27.6" width=".7" height="1" rx=".2"/>
-    <rect x="34" y="27.4" width=".7" height="1" rx=".2"/>
+    <rect x="26.2" y="22.4" width=".7" height="1" rx=".2"/>
+    <rect x="41.2" y="19" width=".7" height="1" rx=".2"/>
+    <rect x="54.8" y="17.6" width=".7" height="1" rx=".2"/>
+    <rect x="97.4" y="26.4" width=".8" height="1.2" rx=".25"/>
+    <rect x="113.4" y="26.4" width=".8" height="1.2" rx=".25"/>
   </g>
   <g class="lit l2" fill="#FFD79A">
-    <rect x="55.2" y="18.6" width=".8" height="1" rx=".2"/>
-    <rect x="70" y="25" width=".8" height="1.4" rx=".25"/><rect x="74" y="25" width=".8" height="1.4" rx=".25"/>
-    <rect x="85" y="25" width=".8" height="1.4" rx=".25"/><rect x="89" y="25" width=".8" height="1.4" rx=".25"/>
+    <rect x="75.4" y="22.6" width=".8" height="1" rx=".25"/>
+    <rect x="83.8" y="22.6" width=".8" height="1" rx=".25"/>
+    <rect x="79.6" y="14.8" width=".8" height="1" rx=".25"/>
+    <rect x="145.4" y="27.4" width=".8" height="1.2" rx=".25"/>
   </g>
   <g class="lit l3" fill="#FFD79A">
-    <rect x="100" y="24" width=".8" height="1.4" rx=".25"/><rect x="103.4" y="24" width=".8" height="1.4" rx=".25"/>
-    <rect x="145" y="27.4" width=".8" height="1.2" rx=".25"/><rect x="150" y="27.4" width=".8" height="1.2" rx=".25"/>
+    <rect x="104.6" y="26.4" width=".8" height="1.2" rx=".25"/>
+    <rect x="151.4" y="27.4" width=".8" height="1.2" rx=".25"/>
+    <rect x="49.2" y="24.4" width=".7" height="1" rx=".2"/>
   </g>
-  <!-- Ground, and the water in front of it. -->
-  <path d="M0 30 L160 30 L160 33 L0 33 Z" fill="#120F26"/>
-  <path d="M0 33 L160 33 L160 40 L0 40 Z" fill="#1B2748"/>
-  <g stroke="#3E5A8C" stroke-width=".4" fill="none" opacity=".5">
-    <path d="M4 35 C14 34.4 24 35.4 34 34.8"/><path d="M50 37 C60 36.4 70 37.4 80 36.8"/>
-    <path d="M96 34.6 C106 34 116 35 126 34.4"/><path d="M132 38 C142 37.4 152 38.4 160 37.8"/>
+  <g class="lit l4" fill="#FFD79A">
+    <rect x="59.2" y="24.4" width=".7" height="1" rx=".2"/>
+    <rect x="122.6" y="27.6" width=".7" height="1" rx=".2"/>
   </g>
-  <g fill="#FFD79A" opacity=".22">
-    <path d="M117 33 L119 33 L120.4 40 L115.6 40 Z"/>
+
+  <!-- Something crossing, high up: nose forward, wings swept back, fin at the
+       tail where a fin goes. -->
+  <g class="trail">
+    <path d="M-26 9.4 L-8 9.4" stroke="#E8EEF8" stroke-width=".55" stroke-linecap="round"
+          fill="none" opacity=".5"/>
   </g>
-  <!-- Something crossing, high up. -->
   <g class="fly">
-    <g transform="translate(-6 8) scale(.55)">
-      <path d="M0 0 L14 -1.4 L20 0 L14 1.4 Z" fill="#E8EEF8"/>
-      <path d="M6 -.8 L1 -7 L3.4 -7 L10 -1 Z" fill="#E8EEF8"/>
-      <path d="M6 .8 L1 7 L3.4 7 L10 1 Z" fill="#C8D2E2"/>
-      <path d="M17.4 -.6 L14.4 -4 L15.8 -4 L18.6 -.4 Z" fill="#E8EEF8"/>
+    <g transform="translate(0 8) scale(.5)">
+      <path d="M22 0 C19.6 -1.5 13 -1.9 3 -1.7 L.4 -1 L.4 1 L3 1.7
+               C13 1.9 19.6 1.5 22 0 Z" fill="#E8EEF8"/>
+      <path d="M13.4 -1.1 L4.4 -9 L1.6 -9 L7.6 -1 Z" fill="#E8EEF8"/>
+      <path d="M13.4 1.1 L4.4 9 L1.6 9 L7.6 1 Z" fill="#C8D2E2"/>
+      <path d="M2.6 -1.4 L-1 -5.6 L-2.4 -5.6 L-.4 -1.2 Z" fill="#E8EEF8"/>
+      <path d="M2.6 1.4 L-1 5.6 L-2.4 5.6 L-.4 1.2 Z" fill="#C8D2E2"/>
+      <path d="M1.4 -1 L-2.2 -1 L-2.2 1 L1.4 1 Z" fill="#D8E0EE"/>
     </g>
   </g>
 </svg>

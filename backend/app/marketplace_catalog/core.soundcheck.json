@@ -5,11 +5,11 @@
   "name": "Soundcheck",
   "publisher": "Initiative",
   "description": "A stage before the doors open, and everything you play on it.",
-  "long_description": "A meter jumping, a field at night, and a line of music with the place being played lit as it goes past. A record that turns to frame you, then nine to wear: guitar, keys, sax, violin, mic, headphones, drums, turntable, and the cassette a band hands you when they really want you to hear it.",
+  "long_description": "A meter jumping, a field at night, and a line of music with the place being played lit as it goes past. A record that turns to frame you, then eight to wear: guitar, keys, sax, violin, mic, drums, turntable, and the cassette a band hands you when they really want you to hear it.",
   "avatar_url": "/decorations/banners/music-soundcheck.svg",
   "images": [],
-  "version": "1.2.0",
-  "release_notes": "Sheet music that plays itself, and the turntable has moved in.",
+  "version": "1.4.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -58,11 +58,6 @@
         "id": "music.mic",
         "slot": "trophy",
         "name": "Microphone"
-      },
-      {
-        "id": "music.headphones",
-        "slot": "trophy",
-        "name": "Headphones"
       },
       {
         "id": "music.drums",

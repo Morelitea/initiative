@@ -9,6 +9,13 @@
     @keyframes slide { from { transform: translateX(0) } to { transform: translateX(-40px) } }
     .shimmer { animation: glimmer 6s ease-in-out infinite alternate }
     @keyframes glimmer { from { opacity: .3 } to { opacity: .68 } }
+    /* The sun goes down over about half a minute, and comes back up. */
+    .sink { animation: setting 34s ease-in-out infinite alternate }
+    @keyframes setting { from { transform: translateY(0) } to { transform: translateY(4.4px) } }
+    .rise { animation: rising 34s ease-in-out infinite alternate }
+    @keyframes rising { from { transform: translateY(0) } to { transform: translateY(-4.4px) } }
+    .deepen { animation: dusk 34s ease-in-out infinite alternate }
+    @keyframes dusk { from { opacity: 0 } to { opacity: .55 } }
     @media (prefers-reduced-motion: reduce) { .ripple, .shimmer { animation: none } }
   </style>
   <defs>
@@ -19,9 +26,17 @@
       <stop offset="0%" stop-color="#F6C98E"/><stop offset="55%" stop-color="#C88A7E"/>
       <stop offset="100%" stop-color="#5A5E8C"/>
     </linearGradient>
+    <linearGradient id="lastlight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3A2A5E" stop-opacity=".7"/>
+      <stop offset="55%" stop-color="#C4563A" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#E8843A" stop-opacity=".7"/>
+    </linearGradient>
   </defs>
   <rect width="160" height="40" fill="url(#calm)"/>
-  <circle cx="80" cy="15" r="5.4" fill="#FFE7B8" opacity=".9"/>
+  <g class="sink">
+    <circle cx="80" cy="15" r="13" fill="#FFD79A" opacity=".18"/>
+    <circle cx="80" cy="15" r="5.4" fill="#FFE7B8" opacity=".9"/>
+  </g>
   <path d="M0 20 L24 8 L42 18 L58 6 L80 20 L100 9 L120 19 L138 7 L160 20 L160 22 L0 22 Z"
         fill="#3A4A62"/>
   <g fill="#F2F8FC" opacity=".9">
@@ -31,8 +46,10 @@
   <path d="M0 22 L160 22 L160 40 L0 40 Z" fill="#2E3E62"/>
   <path d="M0 24 L24 36 L42 26 L58 38 L80 24 L100 35 L120 25 L138 37 L160 24 L160 22 L0 22 Z"
         fill="#3A4A62" opacity=".5"/>
-  <ellipse cx="80" cy="30" rx="3.4" ry="8.6" fill="#FFE7B8" opacity=".22"
-           filter="url(#wet)"/>
+  <g class="rise">
+    <ellipse cx="80" cy="30" rx="3.4" ry="8.6" fill="#FFE7B8" opacity=".22"
+             filter="url(#wet)"/>
+  </g>
   <g stroke="#8FA8C8" stroke-width=".5" fill="none" opacity=".5">
     <path d="M6 27 C20 26.4 34 27.4 48 26.8"/><path d="M60 31 C74 30.4 88 31.4 102 30.8"/>
     <path d="M110 25.6 C124 25 138 26 152 25.4"/><path d="M20 35 C34 34.4 48 35.4 62 34.8"/>
@@ -62,4 +79,6 @@
     <ellipse cx="80" cy="32" rx="5" ry=".28"/><ellipse cx="80" cy="34.6" rx="7" ry=".34"/>
     <ellipse cx="80" cy="37.2" rx="5.4" ry=".3"/>
   </g>
+  <!-- What the light does on the way down. -->
+  <rect class="deepen" x="0" y="0" width="160" height="22" fill="url(#lastlight)"/>
 </svg>

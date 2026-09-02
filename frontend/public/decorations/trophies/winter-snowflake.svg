@@ -1,19 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      role="presentation">
   <title>Snowflake</title>
+  <!-- Six arms, each branching the same way at the same places, which is the
+       only reason a snowflake looks like one. -->
+  <defs>
+    <radialGradient id="night" cx=".5" cy=".38" r=".62">
+      <stop offset="0%" stop-color="#1E3352"/><stop offset="100%" stop-color="#0A1526"/>
+    </radialGradient>
+    <linearGradient id="ice" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/><stop offset="45%" stop-color="#DCEEF8"/>
+      <stop offset="100%" stop-color="#9EC2DC"/>
+    </linearGradient>
+    <filter id="frost" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
+  </defs>
   <circle cx="24" cy="24" r="23" fill="#0E1A2E"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA6C4" stroke-width="2"/>
-  <g stroke="#DDEEF8" stroke-width="2" stroke-linecap="round" fill="none">
-    <path d="M24 6 L24 42"/><path d="M8.4 15 L39.6 33"/><path d="M8.4 33 L39.6 15"/>
+  <circle cx="24" cy="24" r="19" fill="url(#night)"/>
+
+  <g transform="translate(24 24)">
+    <!-- The halo it throws on the dark. -->
+    <g filter="url(#frost)" stroke="#8FC4E8" stroke-width="2.6" fill="#8FC4E8"
+       stroke-linecap="round" stroke-linejoin="round" opacity=".5">
+      <g transform="rotate(0)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(60)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(120)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(180)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(240)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(300)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g>
+      <path d="M0.00 -4.20 L3.64 -2.10 L3.64 2.10 L0.00 4.20 L-3.64 2.10 L-3.64 -2.10 Z"/>
+    </g>
+    <!-- The crystal. -->
+    <g stroke="url(#ice)" stroke-width="1.5" fill="none" stroke-linecap="round"
+       stroke-linejoin="round">
+      <g transform="rotate(0)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(60)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(120)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(180)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(240)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g><g transform="rotate(300)"><path d="M0 0 L0 -17.4"/><path d="M0 -5.0 L-4.68 -7.70"/><path d="M-2.57 -6.49 L-4.48 -7.59"/><path d="M0 -5.0 L4.68 -7.70"/><path d="M2.57 -6.49 L4.48 -7.59"/><path d="M0 -8.4 L-3.81 -10.60"/><path d="M-2.10 -9.61 L-3.65 -10.51"/><path d="M0 -8.4 L3.81 -10.60"/><path d="M2.10 -9.61 L3.65 -10.51"/><path d="M0 -11.6 L-2.94 -13.30"/><path d="M-1.62 -12.54 L-2.83 -13.23"/><path d="M0 -11.6 L2.94 -13.30"/><path d="M1.62 -12.54 L2.83 -13.23"/><path d="M0 -14.4 L-2.08 -15.60"/><path d="M0 -14.4 L2.08 -15.60"/><path d="M0.00 -19.30 L1.65 -18.35 L1.65 -16.45 L0.00 -15.50 L-1.65 -16.45 L-1.65 -18.35 Z"/></g>
+    </g>
+    <path d="M0.00 -4.20 L3.64 -2.10 L3.64 2.10 L0.00 4.20 L-3.64 2.10 L-3.64 -2.10 Z" fill="url(#ice)"/>
+    <path d="M0.00 -4.20 L3.64 -2.10 L3.64 2.10 L0.00 4.20 L-3.64 2.10 L-3.64 -2.10 Z" fill="none" stroke="#7FA6C4" stroke-width=".45" opacity=".8"/>
+    <path d="M0.00 -2.20 L1.91 -1.10 L1.91 1.10 L0.00 2.20 L-1.91 1.10 L-1.91 -1.10 Z" fill="#FFFFFF" opacity=".9"/>
+    <!-- One facet catching the light. -->
+    <g stroke="#FFFFFF" stroke-width=".55" opacity=".75" fill="none" stroke-linecap="round">
+      <path d="M-1.1 -3.6 L-1.1 -14.4"/>
+      <path d="M-.9 -5 L-4.2 -6.9"/><path d="M-.9 -8.4 L-3.6 -10"/>
+    </g>
   </g>
-  <g stroke="#DDEEF8" stroke-width="1.4" stroke-linecap="round" fill="none">
-    <path d="M24 11.4 L19.6 15"/><path d="M24 11.4 L28.4 15"/>
-    <path d="M24 36.6 L19.6 33"/><path d="M24 36.6 L28.4 33"/>
-    <path d="M13.2 17.8 L13.6 23.4"/><path d="M13.2 17.8 L18.6 17"/>
-    <path d="M34.8 30.2 L34.4 24.6"/><path d="M34.8 30.2 L29.4 31"/>
-    <path d="M13.2 30.2 L13.6 24.6"/><path d="M13.2 30.2 L18.6 31"/>
-    <path d="M34.8 17.8 L34.4 23.4"/><path d="M34.8 17.8 L29.4 17"/>
-    <path d="M24 19.4 L20.6 21.4"/><path d="M24 19.4 L27.4 21.4"/>
-    <path d="M24 28.6 L20.6 26.6"/><path d="M24 28.6 L27.4 26.6"/>
-  </g>
-  <circle cx="24" cy="24" r="2.4" fill="#F2FAFE"/></svg>
+</svg>

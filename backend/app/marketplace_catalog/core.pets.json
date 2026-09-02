@@ -4,21 +4,16 @@
   "kind": "profile_pack",
   "name": "Pets",
   "publisher": "Initiative",
-  "description": "Everyone who lives here, and the best hour of the day.",
-  "long_description": "A room where all of them have found their own patch of sun, a cat asleep on the good blanket, and a dog who has seen the ball. A collar to frame you, and a trophy each for cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — plus a paw print, for whoever else it is.",
+  "description": "Two portraits, and everyone else who lives here.",
+  "long_description": "A cat whose eyes have found you in the dark, and a dog being very good about something. A collar to frame you, and a trophy each for cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — plus a paw print, for whoever else it is.",
   "avatar_url": "/decorations/banners/pets-sunbeam.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "A cat asleep, a dog mid-fetch, and a paw print for whoever else lives there.",
+  "version": "1.2.0",
+  "release_notes": "Two portraits, and the room full of pets retired.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
     "decorations": [
-      {
-        "id": "pets.sunbeam",
-        "slot": "banner",
-        "name": "Sunbeam"
-      },
       {
         "id": "pets.collar",
         "slot": "frame",
@@ -72,12 +67,12 @@
       {
         "id": "pets.catnap",
         "slot": "banner",
-        "name": "Catnap"
+        "name": "After dark"
       },
       {
         "id": "pets.fetch",
         "slot": "banner",
-        "name": "Fetch"
+        "name": "Good dog"
       }
     ]
   }

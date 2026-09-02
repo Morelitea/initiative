@@ -5,7 +5,7 @@ profile decorations under `frontend/public/decorations/` are not our drawings.
 They are used as published rather than redrawn, and they keep their own terms.
 Each file also carries its credit in an SVG `<metadata>` element.
 
-## Creative Commons Attribution-ShareAlike 4.0
+## Creative Commons Attribution-ShareAlike
 
 - **`trophies/heritage-fist.svg`** — the raised fist is
   [BLM Fist](https://commons.wikimedia.org/wiki/File:BLM_Fist.svg) by
@@ -14,10 +14,29 @@ Each file also carries its credit in an SVG `<metadata>` element.
   and placed on a disc; the outline is unchanged. This one file is distributed
   under CC BY-SA 4.0, not the AGPL.
 
+- **`trophies/pets-paw.svg`** — the print is
+  [Paw-print](https://commons.wikimedia.org/wiki/File:Paw-print.svg) by
+  **Mistman123**, from Wikimedia Commons, licensed
+  [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Recoloured
+  and placed on a disc; the outline is unchanged. This one file is distributed
+  under CC BY-SA 3.0, not the AGPL.
+
 ## Public domain
 
 These carry no conditions; they are listed so the drawings are credited to the
 people who made them.
+
+- **`banners/books-desk.svg`** — the writer is *Thinking Woman* by **j4p4n**,
+  from [Openclipart](https://openclipart.org/), released to the public domain.
+  Baked to a banner-sized image; the room, the light and the shelves are ours.
+- **`banners/books-shelf.svg`** — the shelf of books is a public-domain line
+  drawing supplied for this pack. Baked to a banner-sized image; the paper it
+  sits on, the colour in the bindings and the light are ours.
+- **`banners/pets-catnap.svg`** — a crop of a public-domain drawing of a cat,
+  re-encoded at banner size. The original is fifteen thousand paths and five
+  megabytes, which is not a thing to send anybody for a profile banner.
+- **`banners/pets-fetch.svg`** — a public-domain drawing of a dog, on the black
+  it was drawn on, baked to a banner-sized image.
 
 - **`trophies/firstnations-handprint.svg`** — the hand is
   [Red hand](https://commons.wikimedia.org/wiki/File:Red_hand.svg) by

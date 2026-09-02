@@ -3,12 +3,6 @@
   <title>Projector</title>
   <circle cx="24" cy="24" r="23" fill="#1A1622"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#D8443A" stroke-width="2"/>
-  <style>
-    .spool { animation: turn 4s linear infinite; transform-box: fill-box;
-             transform-origin: 50% 50% }
-    @media (prefers-reduced-motion: reduce) { .spool { animation: none } }
-    @keyframes turn { to { transform: rotate(360deg) } }
-  </style>
   <!-- The beam it throws. -->
   <path d="M11 24 L4 17.4 L4 30.6 Z" fill="#FFF6D8" opacity=".45"/>
   <path d="M36 22 L44 15.6 L44 32.4 L36 26 Z" fill="#FFF6D8" opacity=".22"/>
@@ -21,7 +15,7 @@
   <circle cx="41.4" cy="26" r="1.2" fill="#D8F0F8"/>
   <path d="M14 32.2 L14 35.4 M31 32.2 L31 35.4" stroke="#3A3644" stroke-width="2"/>
   <path d="M10 35.4 L35 35.4" stroke="#2A2632" stroke-width="2" stroke-linecap="round"/>
-  <g class="spool">
+  <g>
     <circle cx="16" cy="14" r="6.4" fill="#2A2632" stroke="#5E5A6C" stroke-width="1.1"/>
     <circle cx="16" cy="14" r="1.5" fill="#5E5A6C"/>
     <g fill="#5E5A6C">
@@ -29,7 +23,7 @@
       <circle cx="12.7" cy="15.9" r="1.1"/>
     </g>
   </g>
-  <g class="spool" style="animation-duration: 5.6s">
+  <g>
     <circle cx="31" cy="14.6" r="4.8" fill="#2A2632" stroke="#5E5A6C" stroke-width="1"/>
     <circle cx="31" cy="14.6" r="1.2" fill="#5E5A6C"/>
     <g fill="#5E5A6C">

@@ -61,7 +61,6 @@ export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWB
 /** Every decoration this build ships, by the name its label is keyed under. */
 type DecorationName =
   | "ace"
-  | "afropick"
   | "ammonite"
   | "amphitheatre"
   | "arcade"
@@ -170,9 +169,7 @@ type DecorationName =
   | "grove"
   | "guitar"
   | "hamster"
-  | "handbag"
   | "handprint"
-  | "headphones"
   | "hearth"
   | "helix"
   | "hollow"
@@ -217,6 +214,7 @@ type DecorationName =
   | "notebook"
   | "observatory"
   | "orbital"
+  | "overgrown"
   | "pages"
   | "panafrican"
   | "panafricanflag"
@@ -224,7 +222,6 @@ type DecorationName =
   | "parade"
   | "parchment"
   | "pawprint"
-  | "peaks"
   | "pigskin"
   | "pines"
   | "piste"
@@ -272,7 +269,6 @@ type DecorationName =
   | "streetparty"
   | "strings"
   | "succulent"
-  | "sunbeam"
   | "swish"
   | "teabag"
   | "teacup"
@@ -379,8 +375,8 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "baseball.stitching": entry("baseball.stitching", "frame", "baseball-stitching", "stitching"),
   "baseball.fastball": entry("baseball.fastball", "trophy", "baseball-fastball", "fastball"),
 
-  "books.desk": entry("books.desk", "banner", "books-desk", "writingdesk"),
-  "books.shelf": entry("books.shelf", "banner", "books-shelf", "bookshelf"),
+  "books.desk": entry("books.desk", "banner", "books-desk", "writingdesk", "dark"),
+  "books.shelf": entry("books.shelf", "banner", "books-shelf", "bookshelf", "dark"),
   "books.stacks": entry("books.stacks", "banner", "books-stacks", "stacks"),
   "books.pages": entry("books.pages", "frame", "books-pages", "pages"),
   "books.spines": entry("books.spines", "frame", "books-spines", "spines"),
@@ -454,7 +450,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "drama.laurel": entry("drama.laurel", "frame", "drama-laurel", "laurel"),
   "drama.balcony": entry("drama.balcony", "trophy", "drama-balcony", "balcony"),
   "drama.dagger": entry("drama.dagger", "trophy", "drama-dagger", "dagger"),
-  "drama.handbag": entry("drama.handbag", "trophy", "drama-handbag", "handbag"),
   "drama.masks": entry("drama.masks", "trophy", "drama-masks", "masks"),
   "drama.skull": entry("drama.skull", "trophy", "drama-skull", "yorick"),
 
@@ -557,7 +552,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "heritage.crown": entry("heritage.crown", "trophy", "heritage-crown", "crown"),
   "heritage.fist": entry("heritage.fist", "trophy", "heritage-fist", "fist"),
   "heritage.flag": entry("heritage.flag", "trophy", "heritage-panafrican", "panafricanflag"),
-  "heritage.pick": entry("heritage.pick", "trophy", "heritage-pick", "afropick"),
 
   "hockey.rink": entry("hockey.rink", "banner", "hockey-rink", "rink"),
   "hockey.faceoff": entry("hockey.faceoff", "frame", "hockey-faceoff", "faceoff"),
@@ -575,7 +569,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "music.cassette": entry("music.cassette", "trophy", "music-cassette", "cassette"),
   "music.drums": entry("music.drums", "trophy", "music-drums", "drums"),
   "music.guitar": entry("music.guitar", "trophy", "music-guitar", "guitar"),
-  "music.headphones": entry("music.headphones", "trophy", "music-headphones", "headphones"),
   "music.keys": entry("music.keys", "trophy", "music-keys", "keys"),
   "music.mic": entry("music.mic", "trophy", "music-mic", "microphone"),
   "music.sax": entry("music.sax", "trophy", "music-sax", "saxophone"),
@@ -583,9 +576,9 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "music.violin": entry("music.violin", "trophy", "music-violin", "violin"),
 
   "nature.beach": entry("nature.beach", "banner", "nature-beach", "beach"),
+  "nature.desert": entry("nature.desert", "banner", "nature-desert", "desert"),
   "nature.lake": entry("nature.lake", "banner", "nature-lake", "lake"),
   "nature.nightsky": entry("nature.nightsky", "banner", "nature-nightsky", "nightsky"),
-  "nature.peaks": entry("nature.peaks", "banner", "nature-peaks", "peaks"),
   "nature.pines": entry("nature.pines", "frame", "nature-pines", "pines"),
   "nature.ridge": entry("nature.ridge", "frame", "nature-ridge", "ridge"),
   "nature.campfire": entry("nature.campfire", "trophy", "nature-campfire", "campfire"),
@@ -594,7 +587,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "pets.catnap": entry("pets.catnap", "banner", "pets-catnap", "catnap"),
   "pets.fetch": entry("pets.fetch", "banner", "pets-fetch", "fetch"),
-  "pets.sunbeam": entry("pets.sunbeam", "banner", "pets-sunbeam", "sunbeam"),
   "pets.collar": entry("pets.collar", "frame", "pets-collar", "collar"),
   "pets.bunny": entry("pets.bunny", "trophy", "pets-bunny", "rabbit"),
   "pets.cat": entry("pets.cat", "trophy", "pets-cat", "cat"),
@@ -607,8 +599,8 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "pets.snake": entry("pets.snake", "trophy", "pets-snake", "snake"),
 
   // Foragers, houseplant keepers, and anyone who stops a walk to look at a log.
-  "plants.desert": entry("plants.desert", "banner", "plants-desert", "desert"),
   "plants.grove": entry("plants.grove", "banner", "plants-grove", "grove"),
+  "plants.overgrown": entry("plants.overgrown", "banner", "plants-overgrown", "overgrown"),
   "plants.windowsill": entry("plants.windowsill", "banner", "plants-windowsill", "windowsill"),
   "plants.nest": entry("plants.nest", "frame", "plants-nest", "nest"),
   "plants.rosette": entry("plants.rosette", "frame", "plants-rosette", "rosette"),

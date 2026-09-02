@@ -9,7 +9,18 @@
                       100% { transform: translateY(-6px); opacity: 0 } }
     .blink { animation: tick 2.6s steps(1,end) infinite }
     @keyframes tick { 0%,50% { opacity: 1 } 51%,100% { opacity: .25 } }
-    @media (prefers-reduced-motion: reduce) { .bub, .blink { animation: none } }
+    /* The trace, running off the left of its own screen and round again. */
+    .trace { animation: sweep 3.2s linear infinite }
+    @keyframes sweep { from { transform: translateX(0) } to { transform: translateX(-11px) } }
+    .readout { animation: scroll 5.5s linear infinite }
+    @keyframes scroll { from { transform: translateY(0) } to { transform: translateY(-6px) } }
+    .boil { animation: roll 3.2s ease-in infinite }
+    .o2 { animation-delay: -1.1s } .o3 { animation-delay: -2.2s } .o4 { animation-delay: -.6s }
+    @keyframes roll { 0% { transform: translateY(0) scale(.4); opacity: 0 }
+                      30% { opacity: .85 }
+                      100% { transform: translateY(-7px) scale(1.15); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) {
+      .bub, .blink, .trace, .readout, .boil { animation: none } }
   </style>
   <defs>
     <linearGradient id="labwall" x1="0" y1="0" x2="0" y2="1">
@@ -26,11 +37,23 @@
   <g>
     <path d="M6 12 L12 12 L12 5 L6 5 Z" fill="#8FC7EE" opacity=".4"/>
     <path d="M6.6 11.4 L11.4 11.4 L11.4 8 L6.6 8 Z" fill="#2F6EA8"/>
+    <g fill="#9FE2FF">
+      <circle class="boil" cx="8.2" cy="10.6" r=".42"/>
+      <circle class="boil o3" cx="9.8" cy="11" r=".34"/>
+    </g>
     <path d="M16 12 L22 12 L22 6.6 L16 6.6 Z" fill="#8FC7EE" opacity=".4"/>
     <path d="M16.6 11.4 L21.4 11.4 L21.4 9 L16.6 9 Z" fill="#4EBE8A"/>
+    <g fill="#A8F0C8">
+      <circle class="boil o2" cx="18.2" cy="10.8" r=".38"/>
+      <circle class="boil o4" cx="19.9" cy="11" r=".3"/>
+    </g>
     <path d="M26 12 L34 12 L34 4 L26 4 Z" fill="#1E2A44"/>
-    <g stroke="#7FD4FF" stroke-width=".5" opacity=".8">
-      <path d="M27.4 6 L32.6 6"/><path d="M27.4 8 L32.6 8"/><path d="M27.4 10 L30.6 10"/>
+    <clipPath id="wallScreen"><rect x="26" y="4" width="8" height="8"/></clipPath>
+    <g clip-path="url(#wallScreen)">
+      <g class="readout" stroke="#7FD4FF" stroke-width=".5" opacity=".8">
+        <path d="M27.4 6 L32.6 6"/><path d="M27.4 8 L32.6 8"/><path d="M27.4 10 L30.6 10"/>
+        <path d="M27.4 12 L32.6 12"/><path d="M27.4 14 L31.4 14"/><path d="M27.4 16 L32.6 16"/>
+      </g>
     </g>
   </g>
   <!-- Microscope. -->
@@ -65,6 +88,12 @@
     <path d="M-6.4 -1 C-3.4 0 3.4 0 6.4 -1 C6.8 .4 6.4 2 5 3 C3.4 4 -3.4 4 -5 3
              C-6.4 2 -6.8 .4 -6.4 -1 Z" fill="#4EBE8A"/>
     <path d="M-5 -12 L5 -12 L5 -13.6 L-5 -13.6 Z" fill="#9CC8EE"/>
+    <g fill="#A8F0C8">
+      <circle class="boil" cx="-2.4" cy="1.4" r=".75"/>
+      <circle class="boil o2" cx="1.8" cy="2.2" r=".6"/>
+      <circle class="boil o3" cx="0" cy=".6" r=".5"/>
+      <circle class="boil o4" cx="3.4" cy="1" r=".42"/>
+    </g>
   </g>
   <!-- Petri dishes, and a reader with a light on it. -->
   <g>
@@ -77,8 +106,12 @@
     <path d="M142 26 L156 26 L156 16 C156 15 155.4 14.4 154.4 14.4 L143.6 14.4
              C142.6 14.4 142 15 142 16 Z" fill="#1E2A44"/>
     <path d="M143.6 16 L154.4 16 L154.4 21 L143.6 21 Z" fill="#0E1830"/>
-    <g stroke="#7FD4FF" stroke-width=".6">
-      <path d="M145 19.6 C146.4 17 148 20.6 149.4 18 C150.8 15.4 152 19.6 153.4 18"/>
+    <clipPath id="scope"><rect x="143.6" y="16" width="10.8" height="5"/></clipPath>
+    <g clip-path="url(#scope)">
+      <path class="trace" d="M143 19.6 C144.4 17 146 20.6 147.4 18 C148.8 15.4 150 19.6 151.4 18
+                             C152.8 16.4 154 20.6 155.4 18 C156.8 15.4 158 19.6 159.4 18
+                             C160.8 16.4 162 20.6 163.4 18"
+            fill="none" stroke="#7FD4FF" stroke-width=".6"/>
     </g>
     <circle class="blink" cx="145" cy="23.6" r="1" fill="#4CE08A"/>
   </g>

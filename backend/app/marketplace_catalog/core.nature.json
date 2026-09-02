@@ -5,20 +5,15 @@
   "name": "Nature",
   "publisher": "Initiative",
   "description": "Four places to be, none of them here.",
-  "long_description": "First light on the tops. A lake still enough to hold them upside down. A tide coming in all afternoon. The whole galaxy over the desert. A treeline or a ridge to frame you, and a mountain, a campfire and a tent for the weekends that start at a trailhead.",
+  "long_description": "A lake going gold as the sun drops into it, a tide coming in all afternoon, a desert with the saguaro out, and the whole galaxy over that same desert once the light goes. A treeline or a ridge to frame you, and a mountain, a campfire and a tent for the weekends that start at a trailhead.",
   "avatar_url": "/decorations/banners/nature-peaks.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "A beach and a desert night sky, and everything moves now.",
+  "version": "1.4.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
     "decorations": [
-      {
-        "id": "nature.peaks",
-        "slot": "banner",
-        "name": "Peaks"
-      },
       {
         "id": "nature.lake",
         "slot": "banner",
@@ -58,6 +53,11 @@
         "id": "nature.nightsky",
         "slot": "banner",
         "name": "Night sky"
+      },
+      {
+        "id": "nature.desert",
+        "slot": "banner",
+        "name": "Desert"
       }
     ]
   }

@@ -1,18 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      role="presentation">
   <title>Turntable</title>
-  <style>
-    .spin { animation: turn 3.6s linear infinite;
-            transform-box: fill-box; transform-origin: 50% 50% }
-    @keyframes turn { to { transform: rotate(360deg) } }
-    @media (prefers-reduced-motion: reduce) { .spin { animation: none } }
-  </style>
   <circle cx="24" cy="24" r="23" fill="#1E140C"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B21C" stroke-width="2"/>
   <rect x="5.6" y="9" width="36.8" height="30" rx="2.6" fill="#2E2A26"/>
   <rect x="5.6" y="9" width="36.8" height="30" rx="2.6" fill="none" stroke="#4E4842"
         stroke-width=".8"/>
-  <g class="spin">
+  <g>
     <circle cx="21.6" cy="23.4" r="12.4" fill="#12100E"/>
     <g fill="none" stroke="#3A3632" stroke-width=".55">
       <circle cx="21.6" cy="23.4" r="10.4"/><circle cx="21.6" cy="23.4" r="8.6"/>

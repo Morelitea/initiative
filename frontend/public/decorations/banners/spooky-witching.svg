@@ -24,8 +24,19 @@
     @keyframes curl { 0% { transform: translate(0,0) scale(.6); opacity: 0 }
                       25% { opacity: .35 }
                       100% { transform: translate(4px,-13px) scale(1.5); opacity: 0 } }
+    /* Up for a look, down again, over and over. */
+    .peek { animation: peek 8s ease-in-out infinite }
+    @keyframes peek { 0%,8% { transform: translateY(11px) }
+                      26%,52% { transform: translateY(-.4px) }
+                      70%,100% { transform: translateY(11px) } }
+    .wheel { animation: turn 150s linear infinite;
+             transform-box: view-box; transform-origin: 80px 18px }
+    @keyframes turn { to { transform: rotate(360deg) } }
+    .gleam { animation: pass 11s ease-in-out infinite }
+    @keyframes pass { 0%,100% { transform: translateX(-46px) }
+                      50% { transform: translateX(206px) } }
     @media (prefers-reduced-motion: reduce) {
-      .bub, .flame, .hang, .fume { animation: none } }
+      .bub, .flame, .hang, .fume, .peek, .wheel, .gleam { animation: none } }
   </style>
   <defs>
     <linearGradient id="wnight" x1="0" y1="0" x2="0" y2="1">
@@ -44,6 +55,30 @@
     </radialGradient>
   </defs>
   <rect width="160" height="40" fill="url(#wnight)"/>
+  <!-- On the wall behind everything, turning about as fast as an hour hand. -->
+  <defs>
+    <mask id="sheen">
+      <rect x="0" y="0" width="160" height="40" fill="#000"/>
+      <g class="gleam"><rect x="0" y="0" width="46" height="40" fill="url(#sheenband)"/></g>
+    </mask>
+    <linearGradient id="sheenband" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#000"/><stop offset="50%" stop-color="#fff"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+  </defs>
+  <g class="wheel">
+    <g fill="none" stroke="#6E4AA8" stroke-width=".7" opacity=".2" stroke-linejoin="round">
+      <path d="M80.00 2.50 L89.11 30.54 L65.26 13.21 L94.74 13.21 L70.89 30.54 Z"/>
+      <circle cx="80" cy="18" r="15.5"/>
+      <circle cx="80" cy="18" r="17.3"/>
+    </g>
+    <g fill="none" stroke="#C9A0F2" stroke-width=".9" mask="url(#sheen)"
+       stroke-linejoin="round">
+      <path d="M80.00 2.50 L89.11 30.54 L65.26 13.21 L94.74 13.21 L70.89 30.54 Z"/>
+      <circle cx="80" cy="18" r="15.5"/>
+      <circle cx="80" cy="18" r="17.3"/>
+    </g>
+  </g>
   <ellipse cx="80" cy="24" rx="66" ry="20" fill="url(#lamplight)"/>
 
   <!-- Drying overhead. -->
@@ -113,15 +148,33 @@
     </g>
   </g>
 
-  <!-- The cat, who has been here the whole time. -->
-  <g fill="#04020A" transform="translate(28 34)">
-    <ellipse cx="0" cy="-2" rx="4.2" ry="2.4"/>
-    <circle cx="-3.4" cy="-4.4" r="2.2"/>
-    <path d="M-5 -6 C-5.2 -7.4 -4.8 -8 -4 -7.8 C-3.8 -7 -4.2 -6.4 -5 -6 Z"/>
-    <path d="M-2 -6.2 C-1.6 -7.6 -2.2 -8.2 -3 -7.9 C-3 -7.1 -2.7 -6.5 -2 -6.2 Z"/>
-    <path d="M3.8 -2.6 C6 -3.4 7 -2.2 6.6 -.4" fill="none" stroke="#04020A" stroke-width="1"/>
-  </g>
-  <g fill="#8AE83A">
-    <circle cx="24.9" cy="29.5" r=".38"/><circle cx="23.4" cy="29.7" r=".38"/>
+  <!-- The cat, checking whether anything has been left unattended. -->
+  <clipPath id="overBench"><rect x="0" y="0" width="160" height="34"/></clipPath>
+  <g clip-path="url(#overBench)">
+    <g class="peek">
+      <g transform="translate(28 34)">
+        <g fill="#04020A">
+          <path d="M-5.4 0 C-5.6 -3.2 -3.4 -5.4 0 -5.4 C3.4 -5.4 5.6 -3.2 5.4 0 Z"/>
+          <path d="M-5.2 -3.4 C-5.6 -5.4 -5.2 -6.4 -4.4 -6.6 C-3.4 -6 -2.8 -5 -2.6 -4.2 Z"/>
+          <path d="M5.2 -3.4 C5.6 -5.4 5.2 -6.4 4.4 -6.6 C3.4 -6 2.8 -5 2.6 -4.2 Z"/>
+          <!-- Two paws hooked over the edge. -->
+          <path d="M-4.6 -.6 C-4.6 -1.6 -3.6 -2.2 -2.6 -2.2 C-1.6 -2.2 -.8 -1.6 -.8 -.6 Z"/>
+          <path d="M.8 -.6 C.8 -1.6 1.6 -2.2 2.6 -2.2 C3.6 -2.2 4.6 -1.6 4.6 -.6 Z"/>
+        </g>
+        <g fill="#8AE83A">
+          <ellipse cx="-2.1" cy="-2.9" rx=".55" ry=".72"/>
+          <ellipse cx="2.1" cy="-2.9" rx=".55" ry=".72"/>
+        </g>
+        <g fill="#2A1C10">
+          <ellipse cx="-2.1" cy="-2.9" rx=".2" ry=".62"/>
+          <ellipse cx="2.1" cy="-2.9" rx=".2" ry=".62"/>
+        </g>
+        <path d="M-.7 -1.5 L.7 -1.5 L0 -.9 Z" fill="#5E3A44"/>
+        <g stroke="#2A1C10" stroke-width=".22" opacity=".55">
+          <path d="M-1.8 -1.2 L-5.8 -1.8"/><path d="M-1.8 -.7 L-5.6 -.4"/>
+          <path d="M1.8 -1.2 L5.8 -1.8"/><path d="M1.8 -.7 L5.6 -.4"/>
+        </g>
+      </g>
+    </g>
   </g>
 </svg>

@@ -1,16 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      role="presentation">
   <title>Flask</title>
-  <style>
-    .rise { animation: up 4.5s ease-in infinite }
-    .r2 { animation-delay: -1.5s } .r3 { animation-delay: -3s }
-    @keyframes up {
-      0%   { transform: translateY(0);     opacity: 0 }
-      25%  { opacity: .85 }
-      100% { transform: translateY(-9px);  opacity: 0 }
-    }
-    @media (prefers-reduced-motion: reduce) { .rise { animation: none; opacity: .6 } }
-  </style>
   <defs>
     <linearGradient id="brew" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#3E8CC8"/>
@@ -43,9 +33,9 @@
     <path d="M16.4 26.6 C19.2 27.7 28.8 27.7 31.6 26.6" fill="none" stroke="#7FD4FF"
           stroke-width="1"/>
     <g fill="#9FE2FF">
-      <circle class="rise" cx="20.4" cy="34.4" r="1.15"/>
-      <circle class="rise r2" cx="26.6" cy="35.4" r=".85"/>
-      <circle class="rise r3" cx="23.4" cy="33.6" r=".65"/>
+      <circle cx="20.4" cy="34.4" r="1.15"/>
+      <circle cx="26.6" cy="35.4" r=".85"/>
+      <circle cx="23.4" cy="33.6" r=".65"/>
     </g>
   </g>
   <path d="M20.6 10 L20.6 18.2 C20.6 18.9 20.4 19.5 20.1 20.1 L13.1 33.7
