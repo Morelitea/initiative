@@ -101,10 +101,15 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
  * Mount once, at the authenticated app shell.
  */
 export const useNotificationStream = () => {
-  const { token, user } = useAuth();
+  const { token, user, refreshUser } = useAuth();
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const authFailureCountRef = useRef(0);
+  // Held in a ref so a new `refreshUser` identity does not tear the socket
+  // down and rebuild it: the handler wants the current one, not the one that
+  // existed when we connected.
+  const refreshUserRef = useRef(refreshUser);
+  refreshUserRef.current = refreshUser;
 
   useEffect(() => {
     if (!user) {
@@ -143,16 +148,23 @@ export const useNotificationStream = () => {
         sendAuthMessage(websocket, token);
         authFailureCountRef.current = 0;
         setConnected(true);
-        // The socket was down for some interval — anything that arrived in it
-        // was never signalled, so catch up once on the way back up.
+        // The socket was down for some interval — anything that happened in it
+        // was never signalled, so catch up once on the way back up. Both
+        // channels, since either could have moved while we were away.
         void invalidateNotifications();
+        void refreshUserRef.current?.();
       };
 
       websocket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data) as { resource?: string };
+          // Two channels over one socket. A frame carries nothing but which
+          // one it is; what it means is a refetch, and the refetch is where
+          // anything is actually decided.
           if (payload.resource === "notification") {
             void invalidateNotifications();
+          } else if (payload.resource === "account") {
+            void refreshUserRef.current?.();
           }
         } catch {
           // ignore malformed frames

@@ -283,9 +283,18 @@ async def lifespan(app: FastAPI):
 
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
+    # The per-user signal channel's cross-worker bus. Starting it is
+    # fire-and-forget by design: it maintains its own connection in the
+    # background and a deployment that cannot reach it still delivers every
+    # frame to the sockets this process holds.
+    from app.services.platform import user_stream_bus
+
+    await user_stream_bus.start()
+
     try:
         yield
     finally:
+        await user_stream_bus.stop()
         # Shutdown: cancel the background notification tasks.
         tasks = getattr(app.state, "notification_tasks", [])
         for task in tasks:

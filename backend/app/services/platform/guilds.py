@@ -7,7 +7,7 @@ import secrets
 
 from sqlalchemy import Integer, bindparam, func, or_, text
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlmodel import select, delete
+from sqlmodel import col, select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.role_context import set_guild_shows_member_names
@@ -28,6 +28,8 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
 from app.services.platform import billing_ping
+
+from app.services.platform import account_stream
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +236,11 @@ async def ensure_membership(
     )
     session.add(membership)
     await session.flush()
+    # Belonging somewhere new can change what this account is asked for — a
+    # listed community asks its members their age — and the person may have
+    # had nothing to do with arriving here. Their open tabs re-read the
+    # account once this commits.
+    account_stream.queue_account_signal(session, user_id, "membership")
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
@@ -777,6 +784,11 @@ async def update_guild(
             await assert_community_directory_enabled(session)
         guild.is_community = is_community
         updated = True
+        # Listing a community — or taking it back off the shelf — changes what
+        # is asked of everybody already in it, none of whom did anything. The
+        # one fan-out this channel has, and it is addressed to the members who
+        # are actually here rather than to the whole roster.
+        await _signal_members_present(session, guild_id=guild.id)
     if categories_provided:
         normalized = normalize_categories(categories)
         if guild.categories != normalized:
@@ -1056,6 +1068,32 @@ async def redeem_invite_for_user(
     session.add(invite)
     guild = await get_guild(session, guild_id=invite.guild_id)
     return guild
+
+
+async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> None:
+    """Poke this guild's members whose tabs this worker is holding.
+
+    A guild may have thousands of members and almost none of them are at a
+    keyboard right now, so the roster is narrowed to the sockets this process
+    has before anything is queued: the cost is the people who are here, not the
+    people who exist. Everyone else re-reads their account when they next
+    arrive, which is the same moment they would have seen the change anyway.
+
+    Other workers' members are reached by their own listeners off the bus, so
+    what looks process-local here is not.
+    """
+    from app.services.platform.user_stream import stream as user_sockets
+
+    here = user_sockets.connected_users()
+    if not here:
+        return
+    rows = await session.exec(
+        select(GuildMembership.user_id).where(
+            GuildMembership.guild_id == guild_id,
+            col(GuildMembership.user_id).in_(here),
+        )
+    )
+    account_stream.queue_for_members(session, rows.all(), "community")
 
 
 async def assert_community_directory_enabled(session: AsyncSession) -> None:
@@ -1438,6 +1476,9 @@ async def remove_user_from_guild(
     # which pings only on a genuine insert (a no-op remove of a non-member
     # must not nudge billing).
     if result.rowcount:
+        # Same reason as the insert side: what is asked of this account can
+        # change with where it belongs, and leaving is not always their doing.
+        account_stream.queue_account_signal(session, user_id, "membership")
         billing_ping.notify_membership_changed(guild_id)
 
 

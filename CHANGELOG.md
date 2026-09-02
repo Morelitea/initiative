@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Communities ask their members' age.** Where a deployment runs a community directory, taking a place in a listed community now means confirming you are 13 or older. The directory's Join button asks first, so ticking the box is what joins; anyone who arrived another way — an invite, a group sync, an admin adding them, or a community that listed itself after they were already in it — is asked once on their next visit. The answer is kept on the account, so the second community you join asks nothing. Platform owners can switch the question off under Settings › Admin › Community by confirming every account on the deployment belongs to someone 18 or older.
 
+- **Your account keeps up with itself.** A tab used to read your account once, when it opened, and never again — so being added to a community by an admin or a group sign-in sync, or a community listing itself while you were already in it, went unnoticed until you reloaded. Those now reach an open tab as they happen. Nothing about the change travels: the tab is told only that something moved and reads your account back the normal way, so what it can see is exactly what it could always ask for. Deployments running more than one server process get this too, over the database they already have — no extra service to install.
+
 ### Changed
 
 - **Guilds are now communities.** The name was picked for gaming guilds, and people turned out to be running far more than that. Pages moved from `/g/…` to `/c/…`, and a new install's first community is called "Primary Community".

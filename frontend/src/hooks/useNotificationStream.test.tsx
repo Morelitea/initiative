@@ -114,6 +114,34 @@ describe("useNotificationStream", () => {
     expect(invalidateNotifications).toHaveBeenCalledTimes(1);
   });
 
+  it("re-reads the account when the server says its standing changed", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latest();
+    socket.open();
+    // The catch-up on connect pokes both; this test is about the frame.
+    refreshUser.mockClear();
+    invalidateNotifications.mockClear();
+
+    socket.receive({ resource: "account", action: "membership", ids: {} });
+
+    expect(refreshUser).toHaveBeenCalledTimes(1);
+    // Two channels over one socket: neither answers for the other.
+    expect(invalidateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("catches up on both channels after the socket was down", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+
+    latest().open();
+
+    // Anything that happened while it was down was never signalled, and that
+    // includes being added to a community.
+    expect(refreshUser).toHaveBeenCalledTimes(1);
+    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores frames for other resources and malformed ones", () => {
     renderWithProviders(<Probe />);
     const socket = latest();

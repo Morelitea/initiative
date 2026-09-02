@@ -25,7 +25,7 @@ from app.schemas.platform.notification import (
     NotificationRead,
 )
 from app.core.messages import NotificationMessages
-from app.services.platform import notification_stream, presence
+from app.services.platform import presence, user_stream
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
 
@@ -176,7 +176,7 @@ async def websocket_notifications(websocket: WebSocket):
         user_id = user.id
         chosen_presence = user.presence
 
-    await notification_stream.stream.connect(
+    await user_stream.stream.connect(
         user_id,
         websocket,
         chosen_presence=chosen_presence,
@@ -201,4 +201,4 @@ async def websocket_notifications(websocket: WebSocket):
         # Unconditional, including cancellation (a BaseException, so past both
         # excepts above) — a registry entry left behind would keep sending to a
         # dead socket until the first write failed.
-        await notification_stream.stream.disconnect(websocket)
+        await user_stream.stream.disconnect(websocket)

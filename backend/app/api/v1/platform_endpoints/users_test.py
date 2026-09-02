@@ -28,7 +28,7 @@ from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
-from app.services.platform import notification_stream
+from app.services.platform import user_stream
 from app.services.realtime import manager as realtime_manager
 
 from app.testing.factories import (
@@ -1314,14 +1314,14 @@ async def test_profile_says_online_with_no_guild_open(
     subject = await create_user(session)
 
     socket = object()
-    await notification_stream.stream.connect(subject.id, socket)
+    await user_stream.stream.connect(subject.id, socket)
     try:
         response = await client.get(
             f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/profile",
             headers=get_auth_headers(caller),
         )
     finally:
-        await notification_stream.stream.disconnect(socket)
+        await user_stream.stream.disconnect(socket)
 
     assert response.status_code == 200
     assert response.json()["presence"] == "online"
@@ -1345,7 +1345,7 @@ async def test_profile_stays_online_while_any_socket_is_open(
     await create_guild_membership(session, user=subject, guild=guild)
 
     bell, events = object(), object()
-    await notification_stream.stream.connect(subject.id, bell)
+    await user_stream.stream.connect(subject.id, bell)
     await realtime_manager.connect(guild.id, [], events, user_id=subject.id)  # type: ignore[arg-type]
     try:
         await realtime_manager.disconnect(events)  # type: ignore[arg-type]
@@ -1354,7 +1354,7 @@ async def test_profile_stays_online_while_any_socket_is_open(
             headers=get_auth_headers(caller),
         )
     finally:
-        await notification_stream.stream.disconnect(bell)
+        await user_stream.stream.disconnect(bell)
 
     assert response.json()["presence"] == "online"
 
@@ -1369,7 +1369,7 @@ async def test_profile_shows_what_someone_picked(
     subject = await create_user(session)
 
     socket = object()
-    await notification_stream.stream.connect(
+    await user_stream.stream.connect(
         subject.id, socket, chosen_presence=Presence(chosen)
     )
     try:
@@ -1378,7 +1378,7 @@ async def test_profile_shows_what_someone_picked(
             headers=get_auth_headers(caller),
         )
     finally:
-        await notification_stream.stream.disconnect(socket)
+        await user_stream.stream.disconnect(socket)
 
     assert response.json()["presence"] == chosen
 
@@ -1392,7 +1392,7 @@ async def test_profile_shows_offline_for_someone_who_picked_it(
     subject = await create_user(session)
 
     socket = object()
-    await notification_stream.stream.connect(
+    await user_stream.stream.connect(
         subject.id, socket, chosen_presence=Presence.offline
     )
     try:
@@ -1401,7 +1401,7 @@ async def test_profile_shows_offline_for_someone_who_picked_it(
             headers=get_auth_headers(caller),
         )
     finally:
-        await notification_stream.stream.disconnect(socket)
+        await user_stream.stream.disconnect(socket)
 
     assert response.json()["presence"] == "offline"
 
@@ -1418,7 +1418,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(
     )
 
     socket = object()
-    await notification_stream.stream.connect(subject.id, socket)
+    await user_stream.stream.connect(subject.id, socket)
     try:
         assert (await client.get(profile_url, headers=get_auth_headers(caller))).json()[
             "presence"
@@ -1436,7 +1436,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(
             "presence"
         ] == "offline"
     finally:
-        await notification_stream.stream.disconnect(socket)
+        await user_stream.stream.disconnect(socket)
 
 
 @pytest.mark.integration
@@ -1456,7 +1456,7 @@ async def test_presence_outlives_the_socket_that_set_it(
 
     await session.refresh(subject)
     socket = object()
-    await notification_stream.stream.connect(
+    await user_stream.stream.connect(
         subject.id, socket, chosen_presence=subject.presence
     )
     try:
@@ -1465,7 +1465,7 @@ async def test_presence_outlives_the_socket_that_set_it(
             headers=get_auth_headers(caller),
         )
     finally:
-        await notification_stream.stream.disconnect(socket)
+        await user_stream.stream.disconnect(socket)
 
     assert response.json()["presence"] == "busy"
 
