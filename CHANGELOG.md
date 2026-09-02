@@ -81,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Giving a decoration pack back leaves a look that still works.** Its banner and frame come off — back to a bare profile, which is what they were before you had them — and its badge leaves the row. A piece that also ships with the app, or that you had picked but not yet saved, is handled too: what the pickers show is what the library still answers for, so there is no way to be left wearing something you no longer have.
+
 - **Decorations that spin, spin where they are.** The observatory's shells, the vinyl record, the spectrum frame and the soundcheck meter all turned around a point that was not on the artwork, so they wandered across the banner instead of rotating in place. Each one now says which box its centre is measured in.
 
 - **Your profile said you were offline while you were reading it.** Presence was fed only by the socket a tab opens inside a community, so anyone looking at a profile, their settings, or their own tasks read as offline to everyone. It now follows the notification stream as well, which is open on every page for as long as you are signed in — which is what "has Initiative open" was always meant to mean.

@@ -2145,6 +2145,49 @@ async def test_giving_back_an_older_pack_undresses_what_it_gave(session: AsyncSe
 
 
 @pytest.mark.integration
+async def test_giving_a_pack_back_keeps_what_ships_with_the_app(
+    session: AsyncSession,
+):
+    """A pack may include a decoration that also ships. Handing the pack back
+    does not take that one off — it was never the pack's to take."""
+    user = await create_user(session)
+    user_id = user.id
+    listing = await create_marketplace_listing(
+        session,
+        uid="PACKSHPS000001",
+        public_id="test.ships",
+        kind="profile_pack",
+        definition={
+            "schema_version": 1,
+            "kind": "profile_pack",
+            "decorations": [
+                {"id": "sh.banner", "slot": "banner", "name": "A banner"},
+                {"id": "core.gold", "slot": "frame", "name": "The default frame"},
+            ],
+        },
+    )
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
+    await profile_decorations_service.install_pack(session, user_id=user_id, pack=pack)
+    user.profile_decorations = {
+        "banner": "sh.banner",
+        "frame": "core.gold",
+        "badges": [],
+    }
+    session.add(user)
+    await session.commit()
+
+    await profile_decorations_service.remove_pack(session, user_id=user_id, pack=pack)
+    await session.commit()
+
+    fresh = (await session.exec(select(User).where(User.id == user_id))).one()
+    # The pack's own banner comes off; a slot emptied is the default a bare
+    # profile has always had.
+    assert fresh.profile_decorations["banner"] is None
+    # The frame stays: every account has it, pack or no pack.
+    assert fresh.profile_decorations["frame"] == "core.gold"
+
+
+@pytest.mark.integration
 async def test_a_pack_claiming_another_packs_decoration_is_refused(
     client: AsyncClient, session: AsyncSession
 ):

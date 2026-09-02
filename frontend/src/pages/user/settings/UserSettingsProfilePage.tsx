@@ -64,17 +64,30 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     onError: (error: unknown) => toast.error(getErrorMessage(error, "profiles:look.failed")),
   });
 
+  // Giving a pack back takes its pieces out of the library, and off the saved
+  // look — but a piece picked here and not yet saved is in neither, so nothing
+  // above would drop it. The pickers show what the library still answers for,
+  // which is also what the write path accepts. Held back until the library has
+  // loaded, or a slow read would undress everything on the way past.
+  const ownedIds = library ? new Set(library.items.map((item) => item.id)) : null;
+  const stillOwned = (id: string | null) => (id && (!ownedIds || ownedIds.has(id)) ? id : null);
+  // An emptied slot is the default a bare profile has always had; a badge just
+  // leaves the row.
+  const wornBanner = stillOwned(banner);
+  const wornFrame = stillOwned(frame);
+  const wornBadges = ownedIds ? badges.filter((badge) => ownedIds.has(badge)) : badges;
+
   const saved = user.profile_decorations;
   const changed =
-    banner !== (saved.banner ?? null) ||
-    frame !== (saved.frame ?? null) ||
-    badges.join() !== (saved.badges ?? []).join();
+    wornBanner !== (saved.banner ?? null) ||
+    wornFrame !== (saved.frame ?? null) ||
+    wornBadges.join() !== (saved.badges ?? []).join();
 
   return (
     <div className="space-y-6">
       <ProfilePreview
         user={user}
-        decorations={{ banner, frame, badges }}
+        decorations={{ banner: wornBanner, frame: wornFrame, badges: wornBadges }}
         status={user.custom_status}
         presence={user.presence}
         joinedAt={user.created_at}
@@ -89,7 +102,13 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <Button
             disabled={!changed || saveLook.isPending}
             onClick={() =>
-              saveLook.mutate({ profile_decorations: { banner, frame, badges } } as UserSelfUpdate)
+              saveLook.mutate({
+                profile_decorations: {
+                  banner: wornBanner,
+                  frame: wornFrame,
+                  badges: wornBadges,
+                },
+              } as UserSelfUpdate)
             }
           >
             {saveLook.isPending ? t("common:submitting") : t("profiles:look.save")}
@@ -100,20 +119,25 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <Label className="text-muted-foreground text-xs">
             {t("profiles:decorationPicker.banner")}
           </Label>
-          <SlotPicker kind="banner" value={banner} onChange={setBanner} owned={library?.items} />
+          <SlotPicker
+            kind="banner"
+            value={wornBanner}
+            onChange={setBanner}
+            owned={library?.items}
+          />
         </div>
         <div className="space-y-2">
           <Label className="text-muted-foreground text-xs">
             {t("profiles:decorationPicker.frame")}
           </Label>
-          <SlotPicker kind="frame" value={frame} onChange={setFrame} owned={library?.items} />
+          <SlotPicker kind="frame" value={wornFrame} onChange={setFrame} owned={library?.items} />
         </div>
         <div className="space-y-2">
           <Label className="text-muted-foreground text-xs">
             {t("profiles:decorationPicker.badge")}
           </Label>
           <BadgePicker
-            value={badges}
+            value={wornBadges}
             onChange={setBadges}
             owned={library?.items}
             max={MAX_BADGES}
