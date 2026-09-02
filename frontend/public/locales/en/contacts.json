@@ -1,13 +1,26 @@
 {
   "title": "My Contacts",
+  "subtitle": "Everyone you share a community with, plus anyone you starred.",
   "favorites": "Favorites",
   "searchPlaceholder": "Search contacts",
   "searchLabel": "Search everyone on this page",
   "clearSearch": "Clear search",
-  "loadMore": "Show more",
+  "loading": "Loading your contacts…",
+  "columns": {
+    "person": "Person",
+    "name": "Name",
+    "alsoIn": "Also in"
+  },
+  "peopleCount_one": "{{count}} person",
+  "peopleCount_other": "{{count}} people",
+  "pagerLabel": "Pages of {{section}}",
   "favorite": "Add {{name}} to favorites",
   "unfavorite": "Remove {{name}} from favorites",
   "alsoIn": "Also in {{guilds}}",
+  "searching": {
+    "title": "Searching every community",
+    "description": "Each community keeps its own member list, so a search visits them one at a time. Long lists take a few seconds."
+  },
   "empty": {
     "title": "Nobody here yet",
     "description": "Join a community and the people in it show up here.",

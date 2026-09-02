@@ -1,13 +1,26 @@
 {
   "title": "Mes contacts",
+  "subtitle": "Toutes les personnes avec qui vous partagez une communauté, ainsi que vos favoris.",
   "favorites": "Favoris",
   "searchPlaceholder": "Rechercher des contacts",
   "searchLabel": "Rechercher parmi tout le monde sur cette page",
   "clearSearch": "Effacer la recherche",
-  "loadMore": "Afficher plus",
+  "loading": "Chargement de vos contacts…",
+  "columns": {
+    "person": "Personne",
+    "name": "Nom",
+    "alsoIn": "Aussi dans"
+  },
+  "peopleCount_one": "{{count}} personne",
+  "peopleCount_other": "{{count}} personnes",
+  "pagerLabel": "Pages de {{section}}",
   "favorite": "Ajouter {{name}} aux favoris",
   "unfavorite": "Retirer {{name}} des favoris",
   "alsoIn": "Aussi dans {{guilds}}",
+  "searching": {
+    "title": "Recherche dans toutes les communautés",
+    "description": "Chaque communauté tient sa propre liste de membres : la recherche les parcourt une par une. Avec de longues listes, cela prend quelques secondes."
+  },
   "empty": {
     "title": "Personne pour l'instant",
     "description": "Rejoignez une communauté et ses membres apparaîtront ici.",

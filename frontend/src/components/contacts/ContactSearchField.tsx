@@ -43,7 +43,9 @@ export const ContactSearchField = ({ value, onChange }: ContactSearchFieldProps)
         onChange={(event) => setDraft(event.target.value)}
         placeholder={t("searchPlaceholder")}
         aria-label={t("searchLabel")}
-        className="pr-9 pl-9"
+        // The field carries its own clear button; the one the browser draws
+        // for a search input would sit beside it saying the same thing.
+        className="pr-9 pl-9 [&::-webkit-search-cancel-button]:appearance-none"
       />
       {draft ? (
         <Button

@@ -327,11 +327,7 @@
     "noTemplatesTitle": "No templates yet",
     "noTemplatesDescription": "Mark any document as a template in its settings to reuse it later.",
     "startWriting": "Start writing",
-    "filterPlaceholder": "Filter by title…",
-    "perPage": "Per page:",
-    "previous": "Previous",
-    "next": "Next",
-    "rangeOf": "{{start}}–{{end}} of {{total}}"
+    "filterPlaceholder": "Filter by title…"
   },
   "references": {
     "gone": "Deleted",
