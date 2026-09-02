@@ -5,11 +5,11 @@
   "name": "Pets",
   "publisher": "Initiative",
   "description": "For people who will show you the photos unprompted.",
-  "long_description": "A cat whose eyes have found you in the dark, a dog being very good about something, and a horse with an opinion. A collar to frame you, and a trophy each for cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — plus a paw print, for whoever else it is.",
+  "long_description": "A cat whose eyes have found you in the dark, a dog being very good about something, and a horse with an opinion. A collar, or ears — cat ears that turn with a tail up the side, or a pair that flop — and a trophy each for cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — plus a paw print, for whoever else it is.",
   "avatar_url": "/decorations/banners/pets-catnap.svg",
   "images": [],
-  "version": "1.4.0",
-  "release_notes": "A horse with an opinion.",
+  "version": "1.5.0",
+  "release_notes": "Ears.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -78,6 +78,16 @@
         "id": "pets.paddock",
         "slot": "banner",
         "name": "Paddock"
+      },
+      {
+        "id": "pets.catears",
+        "slot": "frame",
+        "name": "Cat ears"
+      },
+      {
+        "id": "pets.dogears",
+        "slot": "frame",
+        "name": "Dog ears"
       }
     ]
   }

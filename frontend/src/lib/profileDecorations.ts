@@ -70,6 +70,7 @@ type DecorationName =
   | "bat"
   | "bauble"
   | "beach"
+  | "beadedrosette"
   | "beadwork"
   | "benzene"
   | "bi"
@@ -87,6 +88,7 @@ type DecorationName =
   | "car"
   | "cassette"
   | "cat"
+  | "catears"
   | "catnap"
   | "christmaseve"
   | "christmaslights"
@@ -115,6 +117,7 @@ type DecorationName =
   | "dividers"
   | "dna"
   | "dog"
+  | "dogears"
   | "drivein"
   | "drums"
   | "eiffeltower"
@@ -218,6 +221,7 @@ type DecorationName =
   | "grove"
   | "guitar"
   | "hamster"
+  | "handdrum"
   | "handprint"
   | "headphones"
   | "hearth"
@@ -291,11 +295,13 @@ type DecorationName =
   | "projector"
   | "puck"
   | "quill"
+  | "quillwork"
   | "rabbit"
   | "rakedsand"
   | "rakelines"
   | "rat"
   | "reel"
+  | "ribbonwork"
   | "ridge"
   | "rink"
   | "rockhammer"
@@ -552,6 +558,25 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "pottery"
   ),
   "firstnations.weave": entry("firstnations.weave", "banner", "firstnations-weave", "weave"),
+  "firstnations.drum": entry("firstnations.drum", "frame", "firstnations-drum", "handdrum"),
+  "firstnations.quillwork": entry(
+    "firstnations.quillwork",
+    "frame",
+    "firstnations-quillwork",
+    "quillwork"
+  ),
+  "firstnations.ribbonwork": entry(
+    "firstnations.ribbonwork",
+    "frame",
+    "firstnations-ribbonwork",
+    "ribbonwork"
+  ),
+  "firstnations.rosette": entry(
+    "firstnations.rosette",
+    "frame",
+    "firstnations-rosette",
+    "beadedrosette"
+  ),
   "firstnations.wheel": entry(
     "firstnations.wheel",
     "frame",
@@ -730,7 +755,9 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "pets.catnap": entry("pets.catnap", "banner", "pets-catnap", "catnap"),
   "pets.fetch": entry("pets.fetch", "banner", "pets-fetch", "fetch"),
   "pets.paddock": entry("pets.paddock", "banner", "pets-paddock", "paddock"),
+  "pets.catears": entry("pets.catears", "frame", "pets-catears", "catears"),
   "pets.collar": entry("pets.collar", "frame", "pets-collar", "collar"),
+  "pets.dogears": entry("pets.dogears", "frame", "pets-dogears", "dogears"),
   "pets.bunny": entry("pets.bunny", "trophy", "pets-bunny", "rabbit"),
   "pets.cat": entry("pets.cat", "trophy", "pets-cat", "cat"),
   "pets.dog": entry("pets.dog", "trophy", "pets-dog", "dog"),

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Dog ears</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: the ears hang over the sides of the picture, off a band of
+       fur across the top, and swing a little. -->
+  <defs>
+    <linearGradient id="dgFur" x1=".15" y1="0" x2=".85" y2="1">
+      <stop offset="0%" stop-color="#D3A063"/><stop offset="52%" stop-color="#A9743C"/>
+      <stop offset="100%" stop-color="#71481F"/>
+    </linearGradient>
+    <linearGradient id="dgFurR" x1=".85" y1="0" x2=".15" y2="1">
+      <stop offset="0%" stop-color="#D3A063"/><stop offset="52%" stop-color="#A9743C"/>
+      <stop offset="100%" stop-color="#71481F"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .flopL { animation: dgSwing 3.1s ease-in-out infinite alternate;
+             transform-box: view-box; transform-origin: 34px 28px }
+    .flopR { animation: dgSwing 3.7s ease-in-out infinite alternate-reverse;
+             transform-box: view-box; transform-origin: 94px 28px }
+    @keyframes dgSwing { from { transform: rotate(-3.5deg) } to { transform: rotate(3.5deg) } }
+    @media (prefers-reduced-motion: reduce) { .flopL, .flopR { animation: none } }
+  </style>
+
+  <g class="flopL">
+    <path d="M42.4 23.4 A46 46 0 0 0 20.8 48.3 C8 58 3.6 78 8 94.5
+             C11.4 107 23 111.5 31 105 C39.4 98 39 81 36.6 67
+             C34.2 52.6 36 33.6 42.4 23.4 Z" fill="url(#dgFur)"/>
+    <path d="M33 40 C22 50 16 68 18 86 C19.4 98 25 104 30 102
+             C35.6 96 35.4 82 33.6 69 C32 56 32 47 33 40 Z" fill="#71481F" opacity=".35"/>
+    <path d="M12 88 C15 100 24 105 30 101 C25 107 14 104 12 88 Z" fill="#E8C9A0" opacity=".5"/>
+  </g>
+  <g class="flopR">
+    <path d="M85.6 23.4 A46 46 0 0 1 107.2 48.3 C120 58 124.4 78 120 94.5
+             C116.6 107 105 111.5 97 105 C88.6 98 89 81 91.4 67
+             C93.8 52.6 92 33.6 85.6 23.4 Z" fill="url(#dgFurR)"/>
+    <path d="M95 40 C106 50 112 68 110 86 C108.6 98 103 104 98 102
+             C92.4 96 92.6 82 94.4 69 C96 56 96 47 95 40 Z" fill="#71481F" opacity=".35"/>
+    <path d="M116 88 C113 100 104 105 98 101 C103 107 114 104 116 88 Z" fill="#E8C9A0"
+          opacity=".5"/>
+  </g>
+
+  <path d="M42.4 23.4 A46 46 0 0 1 85.6 23.4 C82 15.4 76 9.6 64 9.6
+           C52 9.6 46 15.4 42.4 23.4 Z" fill="url(#dgFur)"/>
+  <path d="M46 18.4 C52 13.6 58 11.8 64 11.8 C70 11.8 76 13.6 82 18.4
+           C76 15.6 70 14.4 64 14.4 C58 14.4 52 15.6 46 18.4 Z" fill="#E8C9A0" opacity=".45"/>
+</svg>

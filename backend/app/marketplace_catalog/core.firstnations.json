@@ -5,11 +5,11 @@
   "name": "First Nations",
   "publisher": "Initiative",
   "description": "Native, First Nations, and still here.",
-  "long_description": "For Native and Indigenous groups and the relatives who stand with them. Stepped weaving, an eight-pointed star quilt, Northwest Coast formline, painted parfleche, pottery banding and Woodlands floral beadwork for banners; the four directions round your picture; and trophies for an eagle feather, the medicine wheel, and the red hand that stands for MMIW. Two-Spirit gets its own banner and trophy: two feathers bound at the quill, hanging over the six colours. Every design here is original work in the tradition's own structure — no crest, no seal, and no nation's, family's or weaver's own pattern.",
+  "long_description": "For Native and Indigenous groups and the relatives who stand with them. Stepped weaving, an eight-pointed star quilt, Northwest Coast formline, painted parfleche, pottery banding and Woodlands floral beadwork for banners; the four directions, a beaded rosette, a quill wrap, a drum hoop or bands of ribbon round your picture; and trophies for an eagle feather, the medicine wheel, and the red hand that stands for MMIW. Two-Spirit gets its own banner and trophy: two feathers bound at the quill, hanging over the six colours. Every design here is original work in the tradition's own structure — no crest, no seal, and no nation's, family's or weaver's own pattern.",
   "avatar_url": "/decorations/banners/firstnations-weave.svg",
   "images": [],
-  "version": "1.5.0",
-  "release_notes": "The red hand is labelled MMIW.",
+  "version": "1.6.0",
+  "release_notes": "Four more frames.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -73,6 +73,26 @@
         "id": "firstnations.beadwork",
         "slot": "banner",
         "name": "Beadwork"
+      },
+      {
+        "id": "firstnations.rosette",
+        "slot": "frame",
+        "name": "Beaded rosette"
+      },
+      {
+        "id": "firstnations.quillwork",
+        "slot": "frame",
+        "name": "Quillwork"
+      },
+      {
+        "id": "firstnations.drum",
+        "slot": "frame",
+        "name": "Hand drum"
+      },
+      {
+        "id": "firstnations.ribbonwork",
+        "slot": "frame",
+        "name": "Ribbon work"
       }
     ]
   }

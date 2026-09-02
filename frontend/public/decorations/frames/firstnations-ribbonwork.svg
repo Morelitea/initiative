@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Ribbon work</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       Bands of ribbon laid one inside the next, with the notched applique
+       between them. The shine travels the way it does on satin. -->
+  <style>
+    .satin { animation: rbTurn 24s linear infinite;
+             transform-box: view-box; transform-origin: 64px 64px }
+    @keyframes rbTurn { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .satin { animation: none } }
+  </style>
+  <circle cx="64" cy="64" r="52.30" fill="none" stroke="#C43A78" stroke-width="3.40"/><circle cx="64" cy="64" r="55.60" fill="none" stroke="#E8A020" stroke-width="3.20"/><circle cx="64" cy="64" r="58.90" fill="none" stroke="#2FA8A0" stroke-width="3.40"/><circle cx="64" cy="64" r="62.30" fill="none" stroke="#6B4A9E" stroke-width="3.40"/>
+  <g fill="#F4EFE4" opacity=".95"><path d="M121.1 60.6 L124.4 64.0 L121.1 67.4 Z"/><path d="M120.0 75.5 L122.3 79.6 L118.3 82.1 Z"/><path d="M115.1 89.6 L116.3 94.2 L111.8 95.5 Z"/><path d="M106.8 102.0 L106.7 106.7 L102.0 106.8 Z"/><path d="M95.5 111.8 L94.2 116.3 L89.6 115.1 Z"/><path d="M82.1 118.3 L79.6 122.3 L75.5 120.0 Z"/><path d="M67.4 121.1 L64.0 124.4 L60.6 121.1 Z"/><path d="M52.5 120.0 L48.4 122.3 L45.9 118.3 Z"/><path d="M38.4 115.1 L33.8 116.3 L32.5 111.8 Z"/><path d="M26.0 106.8 L21.3 106.7 L21.2 102.0 Z"/><path d="M16.2 95.5 L11.7 94.2 L12.9 89.6 Z"/><path d="M9.7 82.1 L5.7 79.6 L8.0 75.5 Z"/><path d="M6.9 67.4 L3.6 64.0 L6.9 60.6 Z"/><path d="M8.0 52.5 L5.7 48.4 L9.7 45.9 Z"/><path d="M12.9 38.4 L11.7 33.8 L16.2 32.5 Z"/><path d="M21.2 26.0 L21.3 21.3 L26.0 21.2 Z"/><path d="M32.5 16.2 L33.8 11.7 L38.4 12.9 Z"/><path d="M45.9 9.7 L48.4 5.7 L52.5 8.0 Z"/><path d="M60.6 6.9 L64.0 3.6 L67.4 6.9 Z"/><path d="M75.5 8.0 L79.6 5.7 L82.1 9.7 Z"/><path d="M89.6 12.9 L94.2 11.7 L95.5 16.2 Z"/><path d="M102.0 21.2 L106.7 21.3 L106.8 26.0 Z"/><path d="M111.8 32.5 L116.3 33.8 L115.1 38.4 Z"/><path d="M118.3 45.9 L122.3 48.4 L120.0 52.5 Z"/></g>
+  <g class="satin" fill="none" stroke-linecap="round"><path d="M12.0 58.5 A52.30 52.30 0 0 1 56.7 12.2" stroke="#FFFFFF" stroke-width="1.09" opacity=".3"/><path d="M8.7 58.2 A55.60 55.60 0 0 1 56.3 8.9" stroke="#FFFFFF" stroke-width="1.02" opacity=".3"/><path d="M5.4 57.8 A58.90 58.90 0 0 1 55.8 5.7" stroke="#FFFFFF" stroke-width="1.09" opacity=".3"/><path d="M2.0 57.5 A62.30 62.30 0 0 1 55.3 2.3" stroke="#FFFFFF" stroke-width="1.09" opacity=".3"/></g>
+  <g fill="none" stroke="#2A2438" opacity=".5">
+    <circle cx="64" cy="64" r="50.6" stroke-width="1.2"/>
+    <circle cx="64" cy="64" r="64" stroke-width="1.2"/>
+  </g>
+</svg>

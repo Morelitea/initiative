@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Cat ears</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: the ears sit on the picture rather than round it, and the
+       tail comes up the side. One ear turns on its own, the way they do. -->
+  <defs>
+    <linearGradient id="ctFur" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#8E8880"/><stop offset="55%" stop-color="#6E6862"/>
+      <stop offset="100%" stop-color="#4A4642"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .earL { animation: ctTwitchL 6.5s ease-in-out infinite;
+            transform-box: view-box; transform-origin: 35px 28px }
+    .earR { animation: ctTwitchR 8.2s ease-in-out infinite;
+            transform-box: view-box; transform-origin: 93px 28px }
+    @keyframes ctTwitchL {
+      0%, 74%, 100% { transform: rotate(0deg) }
+      79% { transform: rotate(-7deg) } 84% { transform: rotate(2deg) }
+      89% { transform: rotate(-3deg) }
+    }
+    @keyframes ctTwitchR {
+      0%, 62%, 100% { transform: rotate(0deg) }
+      67% { transform: rotate(8deg) } 73% { transform: rotate(-2deg) }
+      79% { transform: rotate(3deg) }
+    }
+    .tail { animation: ctFlick 5.4s ease-in-out infinite alternate;
+            transform-box: view-box; transform-origin: 98px 120px }
+    @keyframes ctFlick { from { transform: rotate(-5deg) } to { transform: rotate(7deg) } }
+    @media (prefers-reduced-motion: reduce) {
+      .earL, .earR, .tail { animation: none } }
+  </style>
+
+  <g class="tail">
+    <path d="M90 127 C115 127 128.5 108 125 86 C121.6 68 109 60 99 66
+             C110 66 117.6 76 118.4 89 C119.4 108 106 117 90 117 Z" fill="url(#ctFur)"/>
+    <path d="M120 76 C123 82 124.4 88 124.2 94 C122 90 121 84 120 80 Z" fill="#4A4642"
+          opacity=".6"/>
+  </g>
+
+  <g fill="url(#ctFur)"><path d="M24.6 42.2 L20.7 37.0 L27.1 38.2 Z"/><path d="M28.1 36.9 L24.9 31.2 L31.1 33.3 Z"/><path d="M32.2 32.2 L29.9 26.1 L35.7 29.0 Z"/><path d="M36.9 28.1 L35.5 21.7 L40.8 25.4 Z"/><path d="M42.2 24.6 L41.6 18.2 L46.4 22.6 Z"/><path d="M100.9 38.2 L107.3 37.0 L103.4 42.2 Z"/><path d="M96.9 33.3 L103.1 31.2 L99.9 36.9 Z"/><path d="M92.3 29.0 L98.1 26.1 L95.8 32.2 Z"/><path d="M87.2 25.4 L92.5 21.7 L91.1 28.1 Z"/><path d="M81.6 22.6 L86.4 18.2 L85.8 24.6 Z"/></g>
+  <g class="earL">
+    <path d="M23.4 42.4 A46 46 0 0 1 51.3 19.8 L16.2 4.9 Z" fill="url(#ctFur)"/>
+    <path d="M26.9 36.0 A46.5 46.5 0 0 1 44.3 21.9 L21.8 11.9 Z" fill="#E3A0AC"/>
+    <path d="M26.9 36.0 A46.5 46.5 0 0 1 44.3 21.9 L21.8 11.9 Z" fill="#4A4642" opacity=".18"/>
+    <path d="M16.2 4.9 L23.2 15.9" stroke="#3E3A36"
+          stroke-width="1.4" fill="none" opacity=".35"/>
+  </g>
+  <g class="earR">
+    <path d="M104.6 42.4 A46 46 0 0 0 76.7 19.8 L111.8 4.9 Z" fill="url(#ctFur)"/>
+    <path d="M108.0 48.9 A46.5 46.5 0 0 0 69.7 17.8 L106.2 11.9 Z" fill="#E3A0AC"/>
+    <path d="M108.0 48.9 A46.5 46.5 0 0 0 69.7 17.8 L106.2 11.9 Z" fill="#4A4642" opacity=".18"/>
+    <path d="M111.8 4.9 L104.8 15.9" stroke="#3E3A36"
+          stroke-width="1.4" fill="none" opacity=".35"/>
+  </g>
+</svg>
