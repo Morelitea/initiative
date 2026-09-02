@@ -83,7 +83,34 @@ type DecorationName =
   | "lantern"
   | "parade"
   | "spectrum"
-  | "prideheart";
+  | "prideheart"
+  | "floodlights"
+  | "panels"
+  | "matchball"
+  | "endzone"
+  | "laces"
+  | "pigskin"
+  | "rink"
+  | "faceoff"
+  | "puck"
+  | "diamond"
+  | "stitching"
+  | "fastball"
+  | "beach"
+  | "net"
+  | "spike"
+  | "clay"
+  | "strings"
+  | "ace"
+  | "dojo"
+  | "blackbelt"
+  | "beltknot"
+  | "piste"
+  | "blade"
+  | "engarde"
+  | "court"
+  | "seams"
+  | "swish";
 
 /**
  * A pack is a marketplace listing now, so its name, publisher and description
@@ -169,6 +196,46 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "pride.parade": entry("pride.parade", "banner", "pride-parade", "parade"),
   "pride.spectrum": entry("pride.spectrum", "frame", "pride-spectrum", "spectrum"),
   "pride.heart": entry("pride.heart", "badge", "pride-heart", "prideheart"),
+
+  // Clubs, leagues, five-a-side regulars, and the group chat that only wakes
+  // up on a matchday. Eight sports, one shape each: the field it is played on,
+  // a frame made of the equipment, and the object itself.
+  "soccer.floodlights": entry("soccer.floodlights", "banner", "soccer-floodlights", "floodlights"),
+  "soccer.panels": entry("soccer.panels", "frame", "soccer-panels", "panels"),
+  "soccer.matchball": entry("soccer.matchball", "badge", "soccer-matchball", "matchball"),
+
+  "hoops.court": entry("hoops.court", "banner", "hoops-court", "court"),
+  "hoops.seams": entry("hoops.seams", "frame", "hoops-seams", "seams"),
+  "hoops.swish": entry("hoops.swish", "badge", "hoops-swish", "swish"),
+
+  "gridiron.endzone": entry("gridiron.endzone", "banner", "gridiron-endzone", "endzone"),
+  "gridiron.laces": entry("gridiron.laces", "frame", "gridiron-laces", "laces"),
+  "gridiron.pigskin": entry("gridiron.pigskin", "badge", "gridiron-pigskin", "pigskin"),
+
+  "hockey.rink": entry("hockey.rink", "banner", "hockey-rink", "rink"),
+  "hockey.faceoff": entry("hockey.faceoff", "frame", "hockey-faceoff", "faceoff"),
+  "hockey.puck": entry("hockey.puck", "badge", "hockey-puck", "puck"),
+
+  "baseball.diamond": entry("baseball.diamond", "banner", "baseball-diamond", "diamond"),
+  "baseball.stitching": entry("baseball.stitching", "frame", "baseball-stitching", "stitching"),
+  "baseball.fastball": entry("baseball.fastball", "badge", "baseball-fastball", "fastball"),
+
+  "volleyball.beach": entry("volleyball.beach", "banner", "volleyball-beach", "beach"),
+  "volleyball.net": entry("volleyball.net", "frame", "volleyball-net", "net"),
+  "volleyball.spike": entry("volleyball.spike", "badge", "volleyball-spike", "spike"),
+
+  // The one court that is not green or blue, which is what makes it read.
+  "tennis.clay": entry("tennis.clay", "banner", "tennis-clay", "clay", "dark"),
+  "tennis.strings": entry("tennis.strings", "frame", "tennis-strings", "strings"),
+  "tennis.ace": entry("tennis.ace", "badge", "tennis-ace", "ace"),
+
+  "dojo.hall": entry("dojo.hall", "banner", "dojo-hall", "dojo"),
+  "dojo.blackbelt": entry("dojo.blackbelt", "frame", "dojo-blackbelt", "blackbelt"),
+  "dojo.beltknot": entry("dojo.beltknot", "badge", "dojo-beltknot", "beltknot"),
+
+  "fencing.piste": entry("fencing.piste", "banner", "fencing-piste", "piste"),
+  "fencing.blade": entry("fencing.blade", "frame", "fencing-blade", "blade"),
+  "fencing.engarde": entry("fencing.engarde", "badge", "fencing-engarde", "engarde"),
 };
 
 /** The decoration this id names, if this build has it and it is of that kind. */

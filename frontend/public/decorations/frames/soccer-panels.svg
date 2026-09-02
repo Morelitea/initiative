@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Panels</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       The ball, unwrapped: the ring is the leather and the black pentagons sit
+       on it where they sit on the ball, one seam between each pair. -->
+  <path d="M64 0 A64 64 0 1 0 64 128 A64 64 0 1 0 64 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z"
+        fill="#F4F6F1" fill-rule="evenodd"/>
+  <path d="M64 0 A64 64 0 1 0 64 128 A64 64 0 1 0 64 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z"
+        fill="#0B2A15" fill-opacity=".12" fill-rule="evenodd"/>
+  <g fill="#171C18"><path d="M56.6 7 L61.71 -0.04 L69.99 2.65 L69.99 11.35 L61.71 14.04 Z"/><path d="M91.52 13.54 L99.79 10.85 L104.9 17.89 L99.79 24.92 L91.52 22.24 Z"/><path d="M115.92 39.35 L124.2 42.04 L124.2 50.74 L115.92 53.42 L110.81 46.39 Z"/><path d="M120.5 74.58 L125.61 81.61 L120.5 88.65 L112.22 85.96 L112.22 77.26 Z"/><path d="M103.49 105.76 L103.49 114.46 L95.22 117.15 L90.1 110.11 L95.22 103.08 Z"/><path d="M71.4 121 L66.29 128.04 L58.01 125.35 L58.01 116.65 L66.29 113.96 Z"/><path d="M36.48 114.46 L28.21 117.15 L23.1 110.11 L28.21 103.08 L36.48 105.76 Z"/><path d="M12.08 88.65 L3.8 85.96 L3.8 77.26 L12.08 74.58 L17.19 81.61 Z"/><path d="M7.5 53.42 L2.39 46.39 L7.5 39.35 L15.78 42.04 L15.78 50.74 Z"/><path d="M24.51 22.24 L24.51 13.54 L32.78 10.85 L37.9 17.89 L32.78 24.92 Z"/></g>
+  <g stroke="#171C18" stroke-width="1.4" stroke-linecap="round" opacity=".8">
+    <path d="M79.61 15.97 L83.62 3.61 M104.86 34.32 L115.37 26.68 M114.5 64 L127.5 64 M104.86 93.68 L115.37 101.32 M79.61 112.03 L83.62 124.39 M48.39 112.03 L44.38 124.39 M23.14 93.68 L12.63 101.32 M13.5 64 L0.5 64 M23.14 34.32 L12.63 26.68 M48.39 15.97 L44.38 3.61"/>
+  </g>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#C3CDBE" stroke-width="1.2"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#C3CDBE" stroke-width="1.2"/>
+</svg>

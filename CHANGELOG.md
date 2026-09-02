@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Nine sports packs.** Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis, martial arts and fencing, each with the ground it is played on for a banner, a frame made of the equipment, and the object itself for a badge — a match ball's panels, a football's lacing, a face-off circle, a baseball's seam, a net, a string bed, a belt tied at the bottom, and a blade bent round to its own guard.
+
 - **A profile says which communities someone is in.** Only the ones that opted into the community directory — a community that never listed itself does not appear on anybody's profile, for anyone.
 
 - **Frames and the presence dot follow people around.** The picture beside a comment, the one at the bottom of the sidebar and the one on a profile are drawn by the same component now, so a frame you put on shows wherever you appear at a size it reads at, and the green dot with it.
@@ -30,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An initiative's status columns can be read in one request**, instead of asking project by project and stitching the answers together.
 
 ### Changed
+
+- **The Spooky and Observatory packs are drawn rather than pixelled.** Spooky is a hollow between two dead trees lit by two things and nothing else — a moon that rims everything in silver and a lantern that rims the near side of everything in orange — with a graveyard, railings, a raven on a branch and a web with its tenant on the other side. Observatory is a dome with its shutter open and the barrel out of it, aimed at a ringed planet, under a shell diagram joined up in stars. Both are composed for where a banner is actually cropped: dead centre on a phone, and above the fade on every screen.
+
+- **Badges are shown at the size a tool is shown at.** A badge is a thing you collect, and a row of them at icon size reads as a row of icons — so they are drawn at the guild tool rail's circle size, welded to their tray by the same filter it uses. The number-one-fan badge is a prize rosette now, with the app's mark in the medallion and "#1 FAN" on the ribbon, which is what a number one comes on.
 
 - **The mushrooms grow properly now.** The Mushrooms pack was drawn on a pixel grid, which a mushroom does not have — a cap is a dome and a stem is a taper. It is all curves, and it is a forest floor rather than the same mushroom three times: a morel, a fly agaric, a cluster of little brown ones, and bracket fungus on a fallen log.
 
@@ -70,6 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 
 ### Fixed
+
+- **Decorations that spin, spin where they are.** The observatory's shells, the vinyl record, the spectrum frame and the soundcheck meter all turned around a point that was not on the artwork, so they wandered across the banner instead of rotating in place. Each one now says which box its centre is measured in.
 
 - **Your profile said you were offline while you were reading it.** Presence was fed only by the socket a tab opens inside a community, so anyone looking at a profile, their settings, or their own tasks read as offline to everyone. It now follows the notification stream as well, which is open on every page for as long as you are signed in — which is what "has Initiative open" was always meant to mean.
 

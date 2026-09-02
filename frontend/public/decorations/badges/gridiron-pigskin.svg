@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Pigskin</title>
+  <defs>
+    <radialGradient id="leather" cx=".32" cy=".28" r=".85">
+      <stop offset="0%" stop-color="#A0672F"/><stop offset="60%" stop-color="#7B4423"/>
+      <stop offset="100%" stop-color="#4E2A11"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#123822"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#1E5231" stroke-width="2"/>
+  <g transform="translate(24 24) rotate(-26)">
+    <path d="M-16 0 C-11.6 -8.4 11.6 -8.4 16 0 C11.6 8.4 -11.6 8.4 -16 0 Z" fill="url(#leather)"/>
+    <path d="M-16 0 C-11.6 -8.4 11.6 -8.4 16 0 C11.6 8.4 -11.6 8.4 -16 0 Z" fill="none"
+          stroke="#3A1E0C" stroke-width=".7"/>
+    <path d="M-13.4 -2 C-8 -6 8 -6 13.4 -2" fill="none" stroke="#B47B41" stroke-width=".7"
+          opacity=".55"/>
+    <g stroke="#F4EFE6" stroke-width="1.4" fill="none" stroke-linecap="round">
+      <path d="M-11.4 -4.6 C-12.8 -2.8 -12.8 2.8 -11.4 4.6"/>
+      <path d="M11.4 -4.6 C12.8 -2.8 12.8 2.8 11.4 4.6"/>
+    </g>
+    <g stroke="#F4EFE6" stroke-width="1" fill="none" stroke-linecap="round">
+      <path d="M-4.6 0 L4.6 0"/>
+      <path d="M-3.4 -1.6 L-3.4 1.6"/><path d="M-1.2 -1.8 L-1.2 1.8"/>
+      <path d="M1.2 -1.8 L1.2 1.8"/><path d="M3.4 -1.6 L3.4 1.6"/>
+    </g>
+    <path d="M-9.6 -3.4 C-6.6 -5.4 -1.6 -6.2 2.6 -5.8" fill="none" stroke="#D5A469"
+          stroke-width="1.1" opacity=".45" stroke-linecap="round"/>
+  </g>
+</svg>

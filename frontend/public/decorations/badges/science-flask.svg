@@ -1,20 +1,60 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
-     shape-rendering="crispEdges" role="presentation">
+     role="presentation">
   <title>Flask</title>
+  <style>
+    .rise { animation: up 4.5s ease-in infinite }
+    .r2 { animation-delay: -1.5s } .r3 { animation-delay: -3s }
+    @keyframes up {
+      0%   { transform: translateY(0);     opacity: 0 }
+      25%  { opacity: .85 }
+      100% { transform: translateY(-9px);  opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) { .rise { animation: none; opacity: .6 } }
+  </style>
+  <defs>
+    <linearGradient id="brew" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3E8CC8"/>
+      <stop offset="100%" stop-color="#17457A"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#EAF8FF" stop-opacity=".34"/>
+      <stop offset="45%" stop-color="#CFE9FF" stop-opacity=".1"/>
+      <stop offset="100%" stop-color="#8FC7EE" stop-opacity=".2"/>
+    </linearGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#7FD4FF" stop-opacity=".35"/>
+      <stop offset="100%" stop-color="#7FD4FF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="inside">
+      <path d="M20.6 10 L20.6 18.2 C20.6 18.9 20.4 19.5 20.1 20.1 L13.1 33.7
+               C12.2 35.5 13.4 37.5 15.5 37.5 L32.5 37.5 C34.6 37.5 35.8 35.5 34.9 33.7
+               L27.9 20.1 C27.6 19.5 27.4 18.9 27.4 18.2 L27.4 10 Z"/>
+    </clipPath>
+  </defs>
   <circle cx="24" cy="24" r="23" fill="#050914"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
-  <!-- Neck and shoulders. -->
-  <rect x="20" y="8" width="8" height="3" fill="#CFE9FF"/>
-  <rect x="21" y="11" width="6" height="8" fill="#8FC7EE"/>
-  <!-- The body, a cone. -->
-  <path d="M21 19 L14 36 L34 36 L27 19 Z" fill="#8FC7EE"/>
-  <!-- What is in it, and the meniscus. -->
-  <path d="M17 28 L15 35 L33 35 L31 28 Z" fill="#2F6EA8"/>
-  <rect x="17" y="27" width="14" height="1" fill="#7FD4FF"/>
-  <!-- Bubbles rising, and the highlight down the glass. -->
-  <rect x="20" y="31" width="2" height="2" fill="#7FD4FF"/>
-  <rect x="26" y="30" width="2" height="2" fill="#7FD4FF"/>
-  <rect x="23" y="33" width="2" height="2" fill="#7FD4FF"/>
-  <rect x="22" y="12" width="1" height="6" fill="#EAF8FF"/>
-  <path d="M22 20 L18 30 L20 30 L24 20 Z" fill="#CFE9FF" fill-opacity=".5"/>
+  <ellipse cx="24" cy="30" r="0" rx="15" ry="10" fill="url(#halo)"/>
+  <path d="M20.6 10 L20.6 18.2 C20.6 18.9 20.4 19.5 20.1 20.1 L13.1 33.7
+           C12.2 35.5 13.4 37.5 15.5 37.5 L32.5 37.5 C34.6 37.5 35.8 35.5 34.9 33.7
+           L27.9 20.1 C27.6 19.5 27.4 18.9 27.4 18.2 L27.4 10 Z" fill="url(#glass)"/>
+  <g clip-path="url(#inside)">
+    <path d="M16.4 26.6 C19.2 27.7 28.8 27.7 31.6 26.6 L36 36 L36 39 L12 39 L12 36 Z"
+          fill="url(#brew)"/>
+    <path d="M16.4 26.6 C19.2 27.7 28.8 27.7 31.6 26.6" fill="none" stroke="#7FD4FF"
+          stroke-width="1"/>
+    <g fill="#9FE2FF">
+      <circle class="rise" cx="20.4" cy="34.4" r="1.15"/>
+      <circle class="rise r2" cx="26.6" cy="35.4" r=".85"/>
+      <circle class="rise r3" cx="23.4" cy="33.6" r=".65"/>
+    </g>
+  </g>
+  <path d="M20.6 10 L20.6 18.2 C20.6 18.9 20.4 19.5 20.1 20.1 L13.1 33.7
+           C12.2 35.5 13.4 37.5 15.5 37.5 L32.5 37.5 C34.6 37.5 35.8 35.5 34.9 33.7
+           L27.9 20.1 C27.6 19.5 27.4 18.9 27.4 18.2 L27.4 10 Z"
+        fill="none" stroke="#9CC8EE" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M19.2 9.4 C19.2 8.2 28.8 8.2 28.8 9.4 C28.8 10.6 19.2 10.6 19.2 9.4 Z"
+        fill="#CFE9FF"/>
+  <path d="M22.4 11.4 L22.4 18.4 C22.4 19.2 22.2 19.8 21.9 20.4 L17.2 29.6"
+        fill="none" stroke="#EAF8FF" stroke-width="1.1" stroke-opacity=".45"
+        stroke-linecap="round"/>
 </svg>

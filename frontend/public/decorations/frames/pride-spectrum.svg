@@ -3,7 +3,7 @@
   <title>Spectrum</title>
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
   <style>
-    .turn { animation: spin 24s linear infinite; transform-origin: 64px 64px }
+    .turn { animation: spin 24s linear infinite; transform-box: view-box; transform-origin: 64px 64px }
     @keyframes spin { to { transform: rotate(360deg) } }
     @media (prefers-reduced-motion: reduce) { .turn { animation: none } }
   </style>

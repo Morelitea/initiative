@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Blade</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- One blade, bent all the way round until it meets its own bell guard. -->
+  <defs>
+    <linearGradient id="bladeSteel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EEF2F8"/><stop offset="45%" stop-color="#AEB7C6"/>
+      <stop offset="100%" stop-color="#5F6979"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 1.6 A62.4 62.4 0 1 0 64 126.4 A62.4 62.4 0 1 0 64 1.6 Z M64 11.4 A52.6 52.6 0 1 1 64 116.6 A52.6 52.6 0 1 1 64 11.4 Z" fill="url(#bladeSteel)" fill-rule="evenodd"/>
+  <path d="M64 5.6 A58.4 58.4 0 1 0 64 122.4 A58.4 58.4 0 1 0 64 5.6 Z M64 7.4 A56.6 56.6 0 1 1 64 120.6 A56.6 56.6 0 1 1 64 7.4 Z" fill="#F4F8FF" fill-opacity=".55" fill-rule="evenodd"/>
+  <circle cx="64" cy="64" r="52.6" fill="none" stroke="#39414E" stroke-width="1.2"/>
+  <circle cx="64" cy="64" r="62.4" fill="none" stroke="#39414E" stroke-width="1.2"/>
+  <g stroke="#8892A2" stroke-width=".6" opacity=".5" fill="none">
+    <circle cx="64" cy="64" r="54.6"/><circle cx="64" cy="64" r="60.4"/>
+  </g>
+  <!-- Bell guard, grip and pommel, at the foot of it. -->
+  <g>
+    <path d="M46 112 C46 104 82 104 82 112 C82 121 46 121 46 112 Z" fill="#C0C8D4"/>
+    <path d="M46 112 C46 104 82 104 82 112" fill="none" stroke="#8A93A2" stroke-width="1.2"/>
+    <path d="M49.6 110.8 C52 106.4 76 106.4 78.4 110.8 C76 113.4 52 113.4 49.6 110.8 Z"
+          fill="#DCE3EC" opacity=".7"/>
+    <path d="M58 117.4 L70 117.4 C71.4 117.4 71.4 124 70 124 L58 124 C56.6 124 56.6 117.4 58 117.4 Z"
+          fill="#2A303B"/>
+    <ellipse cx="64" cy="126" rx="4.4" ry="2.2" fill="#8E97A6"/>
+  </g>
+</svg>

@@ -4,7 +4,7 @@
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
        The record is an annulus, not a disc — the picture plays the label. -->
   <style>
-    .disc { animation: spin 6s linear infinite; transform-origin: 64px 64px }
+    .disc { animation: spin 6s linear infinite; transform-box: view-box; transform-origin: 64px 64px }
     @keyframes spin { to { transform: rotate(360deg) } }
     @media (prefers-reduced-motion: reduce) { .disc { animation: none } }
   </style>
