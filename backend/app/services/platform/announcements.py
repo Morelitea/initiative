@@ -25,6 +25,7 @@ matching lives there because the routes do.
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional, Sequence
 
@@ -59,7 +60,14 @@ from app.schemas.platform.announcement import (
 #: How long an uploaded picture nothing points at is kept before the pruner
 #: takes it. Long enough to survive an editing session that uploads a
 #: screenshot and saves the announcement an hour later.
+logger = logging.getLogger(__name__)
+
 ORPHAN_IMAGE_GRACE = timedelta(days=1)
+
+#: How often the janitor sweeps. Authoring is rare, so pruning only when the
+#: next announcement is written would leave an abandoned editor's bytes for as
+#: long as nobody writes another one — which could be forever.
+IMAGE_PURGE_POLL_SECONDS = 3600
 
 
 class AnnouncementImageError(Exception):
@@ -199,10 +207,10 @@ async def list_for_user(
     rows = (
         await session.exec(
             select(Announcement).where(
-                Announcement.published_at.is_not(None),  # ty: ignore[unresolved-attribute]
+                Announcement.published_at.is_not(None),
                 Announcement.published_at <= now,
                 or_(
-                    Announcement.expires_at.is_(None),  # ty: ignore[unresolved-attribute]
+                    Announcement.expires_at.is_(None),
                     Announcement.expires_at > now,
                 ),
             )
@@ -337,11 +345,12 @@ async def record_receipt(
     await session.exec(statement)
 
     receipt = await session.get(AnnouncementReadReceipt, (user_id, key))
-    if receipt is not None:
-        # The upsert wrote behind the identity map's back; read the row as the
-        # database now has it.
-        await session.refresh(receipt)
-    return receipt  # ty: ignore[invalid-return-type]
+    # The upsert either inserted the row or updated it, so it is there.
+    assert receipt is not None
+    # It wrote behind the identity map's back; read the row as the database
+    # now has it.
+    await session.refresh(receipt)
+    return receipt
 
 
 async def dismissals_required_for(session: AsyncSession, *, key: str) -> int:
@@ -505,6 +514,22 @@ async def read_image(
     session: AsyncSession, *, sha256: str
 ) -> Optional[AnnouncementImage]:
     return await session.get(AnnouncementImage, sha256)
+
+
+async def process_announcement_image_purge() -> None:
+    """One sweep of the orphan janitor. Idempotent, and usually finds nothing.
+
+    The write paths prune as they go, but they only run when somebody is
+    writing. This is what collects after an editor that uploaded a screenshot
+    and was then closed.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        removed = await prune_unreferenced_images(session)
+        if removed:
+            await session.commit()
+            logger.info("pruned %s unreferenced announcement image(s)", removed)
 
 
 async def prune_unreferenced_images(

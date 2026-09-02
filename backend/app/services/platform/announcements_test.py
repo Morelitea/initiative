@@ -425,6 +425,25 @@ async def test_re_uploading_an_old_orphan_survives_the_next_sweep(session):
 
 
 @pytest.mark.integration
+async def test_the_janitor_sweeps_what_no_write_would_have(session):
+    """An editor that uploaded and was closed leaves bytes no save will reach."""
+    author = await create_user(session, role=UserRole.owner)
+    abandoned = await service.store_image(
+        session, data=_png(padding=9), user_id=author.id
+    )
+    abandoned.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    session.add(abandoned)
+    await session.commit()
+
+    await service.process_announcement_image_purge()
+
+    # The janitor ran on its own session; expire this one's view of the row so
+    # the assertion reads the database rather than the identity map.
+    session.expunge_all()
+    assert await session.get(AnnouncementImage, abandoned.sha256) is None
+
+
+@pytest.mark.integration
 async def test_the_pruner_leaves_a_freshly_uploaded_picture_alone(session):
     author = await create_user(session, role=UserRole.owner)
     image = await service.store_image(session, data=_png(padding=3), user_id=author.id)

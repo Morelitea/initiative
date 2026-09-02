@@ -399,6 +399,7 @@ async def test_re_uploading_the_same_picture_still_serves_it(
 
     # Old enough for the sweep to consider it, and referenced by nothing.
     image = await session.get(AnnouncementImage, first.json()["sha256"])
+    assert image is not None
     image.created_at = datetime.now(timezone.utc) - timedelta(days=30)
     session.add(image)
     await session.commit()
