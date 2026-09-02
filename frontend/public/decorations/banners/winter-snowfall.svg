@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Snowfall</title>
+  <!-- It has been coming down since before anybody woke up. -->
+  <style>
+    .fall { animation: down 12s linear infinite }
+    .f2 { animation-duration: 16s; animation-delay: -6s }
+    .f3 { animation-duration: 9s; animation-delay: -3s }
+    @keyframes down { from { transform: translateY(-14px) } to { transform: translateY(46px) } }
+    .lit { animation: warm 6s ease-in-out infinite }
+    .l2 { animation-delay: -2s }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .75 } }
+    @media (prefers-reduced-motion: reduce) { .fall, .lit { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="wsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#141C36"/><stop offset="100%" stop-color="#3A4A72"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#wsky)"/>
+  <circle cx="130" cy="8" r="5" fill="#F2F8FC" opacity=".85"/>
+  <circle cx="130" cy="8" r="12" fill="#F2F8FC" opacity=".1"/>
+  <!-- Firs, holding snow. -->
+  <g fill="#16301E">
+    <path d="M18 30 L26 12 L34 30 Z"/><path d="M20 24 L26 12 L32 24 Z"/>
+    <path d="M40 30 L46 16 L52 30 Z"/>
+    <path d="M108 30 L116 10 L124 30 Z"/><path d="M110 23 L116 10 L122 23 Z"/>
+    <path d="M136 30 L142 17 L148 30 Z"/>
+  </g>
+  <g fill="#E8F2FA">
+    <path d="M26 12 L30.4 22 L28 21.4 L26 22.6 L24 21.4 L21.6 22 Z"/>
+    <path d="M46 16 L49.4 23.6 L47.4 23 L46 24 L44.6 23 L42.6 23.6 Z"/>
+    <path d="M116 10 L120.4 21 L118 20.4 L116 21.6 L114 20.4 L111.6 21 Z"/>
+    <path d="M142 17 L145.4 24.4 L143.4 23.8 L142 24.8 L140.6 23.8 L138.6 24.4 Z"/>
+  </g>
+  <!-- A house with the lights on. -->
+  <g>
+    <path d="M62 30 L62 20 L94 20 L94 30 Z" fill="#2E2A3E"/>
+    <path d="M58 20.6 L78 11 L98 20.6 Z" fill="#3A3550"/>
+    <path d="M58 20.6 L78 11 L98 20.6 L98 21.8 L58 21.8 Z" fill="#E8F2FA"/>
+    <path d="M76 30 L76 24 C76 22.6 77.4 22 78.6 22 C80 22 81.4 22.6 81.4 24 L81.4 30 Z"
+          fill="#1E1A2E"/>
+    <g fill="#FFD79A">
+      <rect class="lit" x="65" y="23" width="5" height="4" rx=".6"/>
+      <rect class="lit l2" x="86" y="23" width="5" height="4" rx=".6"/>
+    </g>
+    <path d="M84 11 L88 11 L88 6 L84 6 Z" fill="#2E2A3E"/>
+  </g>
+  <!-- Snow on the ground, drifted. -->
+  <path d="M0 30 C22 27.6 46 31 70 29 C96 26.8 120 30.4 144 28.6 C152 28 156 28.6 160 28.4
+           L160 40 L0 40 Z" fill="#E8F2FA"/>
+  <path d="M0 34 C24 32 52 35 78 33.4 C104 31.8 130 34.6 160 33 L160 40 L0 40 Z"
+        fill="#FBFEFF"/>
+  <g fill="#C9DCEA" opacity=".6">
+    <ellipse cx="30" cy="36" rx="10" ry="1.4"/><ellipse cx="112" cy="37" rx="12" ry="1.6"/>
+  </g>
+  <!-- What is coming down. -->
+  <g fill="#F2F8FC">
+    <g class="fall">
+      <circle cx="12" cy="6" r=".7"/><circle cx="38" cy="14" r=".6"/><circle cx="66" cy="4" r=".7"/>
+      <circle cx="92" cy="16" r=".6"/><circle cx="124" cy="6" r=".7"/><circle cx="152" cy="12" r=".6"/>
+    </g>
+    <g class="fall f2" opacity=".75">
+      <circle cx="24" cy="18" r=".55"/><circle cx="52" cy="2" r=".5"/><circle cx="80" cy="10" r=".55"/>
+      <circle cx="106" cy="20" r=".5"/><circle cx="138" cy="2" r=".55"/>
+    </g>
+    <g class="fall f3" opacity=".6">
+      <circle cx="6" cy="12" r=".45"/><circle cx="46" cy="8" r=".4"/><circle cx="74" cy="20" r=".45"/>
+      <circle cx="100" cy="4" r=".4"/><circle cx="132" cy="16" r=".45"/><circle cx="158" cy="6" r=".4"/>
+    </g>
+  </g></svg>

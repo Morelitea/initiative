@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Writing desk</title>
+  <!-- The hour it actually gets done, which is late. -->
+  <style>
+    .glow { animation: warm 7s ease-in-out infinite }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .84 } }
+    .mote { animation: rise 14s linear infinite }
+    .m2 { animation-delay: -4.6s } .m3 { animation-delay: -9.2s }
+    @keyframes rise { 0% { transform: translate(0,0); opacity: 0 } 25% { opacity: .5 }
+                      100% { transform: translate(-3px,-15px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .glow, .mote { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="night2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#141020"/><stop offset="100%" stop-color="#241C30"/>
+    </linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6B4526"/><stop offset="100%" stop-color="#452A14"/>
+    </linearGradient>
+    <radialGradient id="lampP" cx=".5" cy=".2" r=".9">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="#FFD79A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#night2)"/>
+  <path d="M18 2 L54 2 L54 22 L18 22 Z" fill="#0E0A18"/>
+  <g stroke="#3A3450" stroke-width="1.2" fill="none">
+    <path d="M18 2 L54 2 L54 22 L18 22 Z"/><path d="M36 2 L36 22"/>
+  </g>
+  <g fill="#E8E2F0" opacity=".5">
+    <circle cx="26" cy="7" r=".4"/><circle cx="45" cy="10" r=".35"/><circle cx="30" cy="15" r=".3"/>
+  </g>
+  <path d="M0 24 L160 24 L160 40 L0 40 Z" fill="url(#desk)"/>
+  <ellipse cx="96" cy="26" rx="58" ry="14" fill="url(#lampP)"/>
+  <!-- Lamp. -->
+  <g>
+    <path d="M118 24 L126 24 L125 20 L119 20 Z" fill="#2A2438"/>
+    <path d="M121.4 20 L122.6 20 L122.6 12 L121.4 12 Z" fill="#3A3450"/>
+    <path d="M122 12 C122 12 130 12 132 16" fill="none" stroke="#3A3450" stroke-width="1.4"/>
+    <path d="M128 16 L138 16 L136 21.6 L130 21.6 Z" fill="#2E5B4A"/>
+    <path class="glow" d="M129.6 21.6 L136.4 21.6 L136.4 22.4 L129.6 22.4 Z" fill="#FFE0A8"/>
+    <ellipse class="glow" cx="133" cy="24" rx="12" ry="3.4" fill="#FFD79A" opacity=".22"/>
+  </g>
+  <!-- Typewriter. -->
+  <g transform="translate(76 12)">
+    <path d="M-14 12 L14 12 L14 14 L-14 14 Z" fill="#1A1620"/>
+    <path d="M-13 5 L13 5 C14 5 14.6 5.6 14.6 6.6 L14.6 11.4 C14.6 12.4 14 13 13 13
+             L-13 13 C-14 13 -14.6 12.4 -14.6 11.4 L-14.6 6.6 C-14.6 5.6 -14 5 -13 5 Z"
+          fill="#3A3630"/>
+    <g fill="#E8E2D6">
+      <rect x="-10.6" y="7" width="2.6" height="1.8" rx=".6"/>
+      <rect x="-6.6" y="7" width="2.6" height="1.8" rx=".6"/>
+      <rect x="-2.6" y="7" width="2.6" height="1.8" rx=".6"/>
+      <rect x="1.4" y="7" width="2.6" height="1.8" rx=".6"/>
+      <rect x="5.4" y="7" width="2.6" height="1.8" rx=".6"/>
+      <rect x="-8.6" y="10" width="2.6" height="1.8" rx=".6"/>
+      <rect x="-4.6" y="10" width="2.6" height="1.8" rx=".6"/>
+      <rect x="-.6" y="10" width="2.6" height="1.8" rx=".6"/>
+      <rect x="3.4" y="10" width="2.6" height="1.8" rx=".6"/>
+    </g>
+    <path d="M-11 5 L11 5 L10 -1 L-10 -1 Z" fill="#2A2622"/>
+    <path d="M-12 -1 L12 -1 C13 -1 13.4 -.4 13.4 .4 C13.4 1.2 13 1.8 12 1.8
+             L-12 1.8 C-13 1.8 -13.4 1.2 -13.4 .4 C-13.4 -.4 -13 -1 -12 -1 Z" fill="#4E4842"/>
+    <path d="M-8 -1 L8 -1 L8 -11 C8 -11.8 7.4 -12.4 6.6 -12.4 L-6.6 -12.4
+             C-7.4 -12.4 -8 -11.8 -8 -11 Z" fill="#F2EDE0"/>
+    <g stroke="#C9BFA6" stroke-width=".55">
+      <path d="M-5.4 -9 L5.4 -9"/><path d="M-5.4 -6.4 L5.4 -6.4"/><path d="M-5.4 -3.8 L2.4 -3.8"/>
+    </g>
+  </g>
+  <!-- Paper, a mug and a pile that is not going to be read tonight. -->
+  <g>
+    <path d="M18 34 L40 34 L38 26 L20 26 Z" fill="#F2EDE0" transform="rotate(-6 29 30)"/>
+    <path d="M22 32 L38 32 L37 27.4 L23 27.4 Z" fill="#E4DCCA" transform="rotate(-6 30 30)"/>
+    <g stroke="#C9BFA6" stroke-width=".5" transform="rotate(-6 29 30)">
+      <path d="M21.4 28.6 L37 28.6"/><path d="M21.6 30 L36.6 30"/><path d="M22 31.4 L34 31.4"/>
+    </g>
+  </g>
+  <g>
+    <path d="M100 36 L110 36 L109 28.6 L101 28.6 Z" fill="#8C3B34"/>
+    <ellipse cx="105" cy="28.6" rx="4" ry="1.1" fill="#5E241F"/>
+    <path d="M110 30 C112.4 30 113.6 31 113.6 32.2 C113.6 33.4 112.4 34.4 110.4 34.4"
+          fill="none" stroke="#8C3B34" stroke-width="1.2"/>
+  </g>
+  <g>
+    <path d="M140 30 L156 30 L156 32.4 L140 32.4 Z" fill="#2F5C6E"/>
+    <path d="M141 27.6 L155 27.6 L155 30 L141 30 Z" fill="#C08A3E"/>
+    <path d="M142 25.4 L154 25.4 L154 27.6 L142 27.6 Z" fill="#4A6B3C"/>
+  </g>
+  <g fill="#FFE7C2">
+    <circle class="mote" cx="112" cy="26" r=".3" opacity=".5"/>
+    <circle class="mote m2" cx="128" cy="28" r=".26" opacity=".45"/>
+    <circle class="mote m3" cx="94" cy="24" r=".28" opacity=".4"/>
+  </g></svg>

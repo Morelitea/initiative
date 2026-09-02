@@ -44,10 +44,10 @@ describe("a frame whose colours are the wearer's", () => {
   });
 
   it("leaves every other frame as the file it is", () => {
-    const { container } = wearing("core.arcane", ["#abcdef"]);
+    const { container } = wearing("spooky.web", ["#abcdef"]);
 
     expect(
-      container.querySelector('img[src="/decorations/frames/core-arcane.svg"]')
+      container.querySelector('img[src="/decorations/frames/spooky-web.svg"]')
     ).not.toBeNull();
   });
 });

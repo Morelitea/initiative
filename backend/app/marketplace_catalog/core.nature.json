@@ -1,0 +1,54 @@
+{
+  "uid": "D4XKM9WT2BQ7RH",
+  "public_id": "core.nature",
+  "kind": "profile_pack",
+  "name": "Nature",
+  "publisher": "Initiative",
+  "description": "Peaks at first light, and a lake still enough to hold them.",
+  "long_description": "For walkers, climbers, campers and anybody whose weekend starts at a trailhead. Two banners, a treeline and a ridge for frames, and a mountain, a campfire and a tent to wear.",
+  "avatar_url": "/decorations/banners/nature-peaks.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "nature.peaks",
+        "slot": "banner",
+        "name": "Peaks"
+      },
+      {
+        "id": "nature.lake",
+        "slot": "banner",
+        "name": "Lake"
+      },
+      {
+        "id": "nature.pines",
+        "slot": "frame",
+        "name": "Pines"
+      },
+      {
+        "id": "nature.ridge",
+        "slot": "frame",
+        "name": "Ridge"
+      },
+      {
+        "id": "nature.mountain",
+        "slot": "trophy",
+        "name": "Mountain"
+      },
+      {
+        "id": "nature.campfire",
+        "slot": "trophy",
+        "name": "Campfire"
+      },
+      {
+        "id": "nature.tent",
+        "slot": "trophy",
+        "name": "Tent"
+      }
+    ]
+  }
+}

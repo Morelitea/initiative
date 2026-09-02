@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Ammonite</title>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+  <defs>
+    <linearGradient id="fossil" x1=".2" y1="0" x2=".9" y2="1">
+      <stop offset="0%" stop-color="#C9B896"/><stop offset="55%" stop-color="#9E8A66"/>
+      <stop offset="100%" stop-color="#6E5C40"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="16" fill="url(#fossil)"/>
+  <path d="M24 8 C32.8 8 40 15.2 40 24 C40 31 34.4 36.4 27.6 36.4 C22.4 36.4 18.4 32.4 18.4 27.6
+           C18.4 24 21 21.4 24.4 21.4 C26.8 21.4 28.6 23.2 28.6 25.4"
+        fill="none" stroke="#4A3E2A" stroke-width="1.4"/>
+  <g stroke="#4A3E2A" stroke-width="1.1" fill="none">
+    <path d="M24 8 L24 21.4"/><path d="M36.6 15.4 L27.6 22.6"/>
+    <path d="M40 24 L28.6 25.4"/><path d="M36.6 32.6 L27.6 27.4"/>
+    <path d="M27.6 36.4 L24.6 28.4"/><path d="M18.4 27.6 L23 26.6"/>
+    <path d="M12 18 C15.6 12.6 19.4 9.6 24 8"/>
+    <path d="M9.6 26 C10.6 21 12.4 17 15 14"/>
+  </g>
+  <circle cx="24" cy="24" r="16" fill="none" stroke="#4A3E2A" stroke-width="1.6"/>
+  <path d="M13.4 14.6 C16.4 11.4 20 9.4 24 8.6" fill="none" stroke="#E8DCC0"
+        stroke-width="1.4" opacity=".45" stroke-linecap="round"/></svg>

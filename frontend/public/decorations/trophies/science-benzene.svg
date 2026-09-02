@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Benzene</title>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+  <g fill="none" stroke="#7FD4FF" stroke-width="2.4" stroke-linejoin="round">
+    <path d="M24 10 L36.12 17 L36.12 31 L24 38 L11.88 31 L11.88 17 Z"/>
+  </g>
+  <circle cx="24" cy="24" r="8" fill="none" stroke="#A8E9FF" stroke-width="1.8"/>
+  <g fill="#EAF8FF">
+    <circle cx="24" cy="10" r="2.2"/><circle cx="36.12" cy="17" r="2.2"/><circle cx="36.12" cy="31" r="2.2"/><circle cx="24" cy="38" r="2.2"/><circle cx="11.88" cy="31" r="2.2"/><circle cx="11.88" cy="17" r="2.2"/>
+  </g></svg>

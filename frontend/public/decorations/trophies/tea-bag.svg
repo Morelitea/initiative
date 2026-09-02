@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Tea bag</title>
+  <circle cx="24" cy="24" r="23" fill="#3E3226"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#8A6034" stroke-width="2"/>
+  <path d="M18 8 L18 20 C18 21 18.6 21.6 19.6 21.6 L28.4 21.6 C29.4 21.6 30 21 30 20
+           L30 8 L24 8 Z" fill="none" stroke="#C9BFA6" stroke-width="0"/>
+  <path d="M13.6 22.4 L34.4 22.4 C35.6 22.4 36.4 23.4 36 24.6 L31.4 39.4
+           C31 40.6 30 41.4 28.8 41.4 L19.2 41.4 C18 41.4 17 40.6 16.6 39.4
+           L12 24.6 C11.6 23.4 12.4 22.4 13.6 22.4 Z" fill="#E4DCCA"/>
+  <path d="M13.6 22.4 L34.4 22.4 C35.6 22.4 36.4 23.4 36 24.6 L35.4 26.6
+           L12.6 26.6 L12 24.6 C11.6 23.4 12.4 22.4 13.6 22.4 Z" fill="#F2EDE0"/>
+  <g fill="#8A6034" opacity=".45">
+    <ellipse cx="20" cy="32" rx="2.4" ry="1.6" transform="rotate(-24 20 32)"/>
+    <ellipse cx="27" cy="34.6" rx="2.6" ry="1.7" transform="rotate(18 27 34.6)"/>
+    <ellipse cx="23.4" cy="37.6" rx="2.2" ry="1.5" transform="rotate(-8 23.4 37.6)"/>
+    <ellipse cx="28.4" cy="29.4" rx="2" ry="1.3" transform="rotate(34 28.4 29.4)"/>
+  </g>
+  <path d="M24 22.4 C24 17.6 25.6 13.6 28.6 10.6" fill="none" stroke="#C9BFA6"
+        stroke-width="1" stroke-linecap="round"/>
+  <path d="M27 6.6 L34.6 6.6 C35.4 6.6 36 7.2 36 8 L36 12 C36 12.8 35.4 13.4 34.6 13.4
+           L27 13.4 C26.2 13.4 25.6 12.8 25.6 12 L25.6 8 C25.6 7.2 26.2 6.6 27 6.6 Z"
+        fill="#B4562F"/>
+  <g stroke="#F2EDE0" stroke-width=".9" stroke-linecap="round">
+    <path d="M28.4 9 L33.2 9"/><path d="M28.4 11.4 L31.4 11.4"/>
+  </g></svg>

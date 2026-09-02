@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Quill and ink</title>
+  <circle cx="24" cy="24" r="23" fill="#2C1D0F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#6B4526" stroke-width="2"/>
+  <defs>
+    <linearGradient id="plume" x1=".2" y1="0" x2=".9" y2="1">
+      <stop offset="0%" stop-color="#F6F1E6"/><stop offset="60%" stop-color="#D8CFBA"/>
+      <stop offset="100%" stop-color="#A99C86"/>
+    </linearGradient>
+  </defs>
+  <path d="M14 40 C11 40 9.4 38.6 9.4 36 L9.4 30 C9.4 28.6 10.4 27.6 12 27.6
+           L24 27.6 C25.6 27.6 26.6 28.6 26.6 30 L26.6 36 C26.6 38.6 25 40 22 40 Z"
+        fill="#2A3040"/>
+  <path d="M9.4 30 C9.4 28.6 10.4 27.6 12 27.6 L24 27.6 C25.6 27.6 26.6 28.6 26.6 30
+           C26.6 31.4 23 32.4 18 32.4 C13 32.4 9.4 31.4 9.4 30 Z" fill="#3E4658"/>
+  <ellipse cx="18" cy="30" rx="6.4" ry="1.6" fill="#111A2E"/>
+  <g transform="rotate(-24 26 22)">
+    <path d="M26 34 C26.6 25.4 29 17 33.6 9.4 C37 14.6 38.4 21 37.6 27.4
+             C36.8 33.6 33.6 38.4 29 40.6 C27.4 39 26.4 36.8 26 34 Z" fill="url(#plume)"/>
+    <g stroke="#B4A88E" stroke-width=".45" opacity=".7">
+      <path d="M32 13.6 L28.4 20"/><path d="M34.4 16.4 L29 24"/><path d="M35.6 20.6 L29.4 28.4"/>
+      <path d="M36 25 L29.4 32.6"/><path d="M35 29.4 L29.6 36.4"/>
+    </g>
+    <path d="M33.6 9.4 C31 17.4 28.6 26.6 28.4 36.4" fill="none" stroke="#8A7F6A"
+          stroke-width=".8"/>
+    <path d="M28.4 36.4 L26.6 41.4 L25 39.4 Z" fill="#5A544A"/>
+    <path d="M26.6 41.4 L25.8 43.4 L25.2 40.6 Z" fill="#111A2E"/>
+  </g></svg>

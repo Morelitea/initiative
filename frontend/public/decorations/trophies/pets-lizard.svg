@@ -1,31 +1,56 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      role="presentation">
   <title>Lizard</title>
+  <!-- From above, the way one sits on a branch: head, body, four legs with toes
+       on them, and a tail that curls back round. -->
+  <defs>
+    <linearGradient id="scale" x1=".2" y1="0" x2=".9" y2="1">
+      <stop offset="0%" stop-color="#8FBE6E"/><stop offset="55%" stop-color="#5C8A4A"/>
+      <stop offset="100%" stop-color="#3A6030"/>
+    </linearGradient>
+  </defs>
   <circle cx="24" cy="24" r="23" fill="#1E2A1C"/>
-  <circle cx="24" cy="24" r="21" fill="none" stroke="#7EA85E" stroke-width="2"/>
-  <path d="M39.4 33.6 C36 33 33.4 31.6 31.6 29.6 C29.4 27.2 27 26 24 26
-           C20 26 17 24.4 15 21.4 C12.6 17.6 13.6 12.6 17.4 10.4 C20.4 8.6 24.4 9.4 26.4 12
-           C28 14.2 27.6 17 25.6 18.4 C24 19.6 21.8 19.2 20.8 17.6" fill="none"
-        stroke="#5C8049" stroke-width="6" stroke-linecap="round"/>
-  <ellipse cx="18.4" cy="14.4" rx="6.6" ry="5.4" fill="#6E9455" transform="rotate(-24 18.4 14.4)"/>
-  <ellipse cx="26" cy="24.6" rx="7.6" ry="5.6" fill="#6E9455" transform="rotate(18 26 24.6)"/>
-  <g fill="#3E5C30">
-    <ellipse cx="23" cy="22.6" rx="1.4" ry="1"/><ellipse cx="27.4" cy="26.6" rx="1.4" ry="1"/>
-    <ellipse cx="19.4" cy="26" rx="1.2" ry=".9"/><ellipse cx="30" cy="22.6" rx="1.2" ry=".9"/>
-    <ellipse cx="16.6" cy="16" rx="1.2" ry=".9"/>
-  </g>
-  <g stroke="#5C8049" stroke-width="2.6" stroke-linecap="round" fill="none">
-    <path d="M22 20.4 L17.4 24.6 L13.4 24"/>
-    <path d="M29 20.6 L33 17.4 L36.6 18.6"/>
-    <path d="M21.4 29 L18 33.4 L13.6 34"/>
-    <path d="M30 29 L33.4 32.6 L37 32.6"/>
-  </g>
-  <g transform="translate(16 12.6) rotate(-30)">
-    <ellipse cx="0" cy="0" rx="5.6" ry="4.2" fill="#7EA85E"/>
-    <circle cx="1.6" cy="-1.9" r="1.4" fill="#F2C230"/>
-    <circle cx="1.6" cy="-1.9" r=".6" fill="#1E2A1C"/>
-    <path d="M-4.4 1.6 C-5.6 2 -6.4 1.8 -7 1.2 C-6 .8 -5.2 .8 -4.4 1 Z" fill="#C4302B"/>
-    <g fill="#5C8049">
-      <ellipse cx="-1.4" cy="-2.4" rx="1.4" ry=".9"/><ellipse cx="-3.4" cy="-.4" rx="1.2" ry=".8"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#5C8049" stroke-width="2"/>
+  <g transform="rotate(-18 24 24)">
+    <!-- Tail, curling away behind. -->
+    <path d="M31 26 C36 27.4 40 30 41 33.6 C41.8 36.6 40 39 37 39.2
+             C34.6 39.4 33 38 33.2 36.2 C33.4 34.8 34.6 34 35.8 34.4
+             C36.6 34.7 36.9 35.4 36.6 36" fill="none" stroke="url(#scale)"
+          stroke-width="4.2" stroke-linecap="round"/>
+    <!-- Four legs, elbows out. -->
+    <g stroke="#4E7E42" stroke-width="2.8" stroke-linecap="round" fill="none">
+      <path d="M17.6 20 L12.6 15.6"/><path d="M17.6 28 L12.6 32.4"/>
+      <path d="M28.4 20.6 L33.4 16.6"/><path d="M28.4 27.6 L33.4 31.4"/>
     </g>
-  </g></svg>
+    <g stroke="#4E7E42" stroke-width="1.1" stroke-linecap="round" fill="none">
+      <path d="M12.6 15.6 L10.4 13.6"/><path d="M12.6 15.6 L10.6 16"/>
+      <path d="M12.6 15.6 L12.4 13.2"/>
+      <path d="M12.6 32.4 L10.4 34.4"/><path d="M12.6 32.4 L10.6 32"/>
+      <path d="M12.6 32.4 L12.4 34.8"/>
+      <path d="M33.4 16.6 L35.6 14.6"/><path d="M33.4 16.6 L35.4 16.2"/>
+      <path d="M33.4 16.6 L33.6 14.2"/>
+      <path d="M33.4 31.4 L35.6 33.4"/><path d="M33.4 31.4 L35.4 31"/>
+      <path d="M33.4 31.4 L33.6 33.8"/>
+    </g>
+    <!-- Body. -->
+    <ellipse cx="23" cy="24" rx="9" ry="5.6" fill="url(#scale)"/>
+    <!-- Head, wider at the jaw than the snout. -->
+    <path d="M14.6 24 C14.6 20.6 12 18.6 9 18.6 C6 18.6 4 20.6 4 24
+             C4 27.4 6 29.4 9 29.4 C12 29.4 14.6 27.4 14.6 24 Z" fill="url(#scale)"/>
+    <!-- Scale texture, and the ridge down the back. -->
+    <g fill="#4E7E42" opacity=".55">
+      <ellipse cx="20" cy="21.6" rx="1.5" ry="1"/><ellipse cx="24" cy="20.8" rx="1.5" ry="1"/>
+      <ellipse cx="28" cy="22" rx="1.4" ry=".9"/><ellipse cx="21" cy="26.6" rx="1.4" ry=".9"/>
+      <ellipse cx="25.4" cy="27" rx="1.4" ry=".9"/><ellipse cx="29" cy="25.6" rx="1.2" ry=".8"/>
+    </g>
+    <path d="M15 24 C19 23.2 27 23.2 31.4 24" fill="none" stroke="#3A6030" stroke-width=".7"
+          opacity=".6"/>
+    <!-- Eye, and the mouth line. -->
+    <circle cx="8" cy="21.4" r="2" fill="#F2C230"/>
+    <circle cx="8" cy="21.4" r=".9" fill="#1E2A1C"/>
+    <path d="M4.4 25.6 C6.4 26.8 9.4 27 12 26.2" fill="none" stroke="#2E4A24"
+          stroke-width=".7" stroke-linecap="round"/>
+    <path d="M4 24.4 C2.6 24.6 1.6 25.2 1 26" fill="none" stroke="#C4302B" stroke-width=".9"
+          stroke-linecap="round"/>
+  </g>
+</svg>

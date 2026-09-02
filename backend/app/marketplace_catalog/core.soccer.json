@@ -1,6 +1,6 @@
 {
   "uid": "7CSHFFZ80HQYHE",
-  "public_id": "core.sports",
+  "public_id": "core.soccer",
   "kind": "profile_pack",
   "name": "Sports",
   "publisher": "Initiative",
@@ -8,8 +8,8 @@
   "long_description": "Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis and fencing. Each brings the ground it is played on for a banner, a frame made of the equipment — a match ball's panels, a football's lacing, a face-off circle, a baseball's seam, a net, a string bed, a blade bent round to its own guard — and the object itself for a trophy.",
   "avatar_url": "/decorations/banners/soccer-floodlights.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",

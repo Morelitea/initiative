@@ -8,8 +8,8 @@
   "long_description": "For companies, am-dram, drama clubs, backstage crews and front of house — the curtain, the footlights and the two faces.",
   "avatar_url": "/decorations/banners/drama-stage.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -28,6 +28,41 @@
         "id": "drama.masks",
         "slot": "trophy",
         "name": "Masks"
+      },
+      {
+        "id": "drama.playhouse",
+        "slot": "banner",
+        "name": "The wooden O"
+      },
+      {
+        "id": "drama.amphitheatre",
+        "slot": "banner",
+        "name": "Amphitheatre"
+      },
+      {
+        "id": "drama.laurel",
+        "slot": "frame",
+        "name": "Laurel"
+      },
+      {
+        "id": "drama.skull",
+        "slot": "trophy",
+        "name": "Yorick"
+      },
+      {
+        "id": "drama.balcony",
+        "slot": "trophy",
+        "name": "Balcony"
+      },
+      {
+        "id": "drama.dagger",
+        "slot": "trophy",
+        "name": "Dagger"
+      },
+      {
+        "id": "drama.handbag",
+        "slot": "trophy",
+        "name": "The handbag"
       }
     ]
   }

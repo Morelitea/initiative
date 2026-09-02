@@ -8,8 +8,8 @@
   "long_description": "The Progress flag on a banner and the six colours round the picture, plus a banner, a frame and a heart each for non-binary, trans, lesbian, gay, bisexual, asexual and polyamorous. Wear one, or change it whenever you like.",
   "avatar_url": "/decorations/banners/pride-parade.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.2.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",

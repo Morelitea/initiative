@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Desert</title>
+  <!-- A shelf of things that would rather you forgot to water them. -->
+  <style>
+    .shine { animation: warm 10s ease-in-out infinite alternate }
+    @keyframes warm { from { opacity: .35 } to { opacity: .6 } }
+    @media (prefers-reduced-motion: reduce) { .shine { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="adobe" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0D9B8"/><stop offset="100%" stop-color="#D8B489"/>
+    </linearGradient>
+    <linearGradient id="pot2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#E8E2D6"/><stop offset="60%" stop-color="#C9C1B0"/>
+      <stop offset="100%" stop-color="#9E9686"/>
+    </linearGradient>
+    <radialGradient id="glow2" cx=".5" cy=".3" r=".8">
+      <stop offset="0%" stop-color="#FFE7B8" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#FFE7B8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#adobe)"/>
+  <ellipse class="shine" cx="80" cy="8" rx="80" ry="26" fill="url(#glow2)"/>
+  <!-- The shelf. -->
+  <path d="M0 27.4 L160 27.4 L160 30 L0 30 Z" fill="#B58A5E"/>
+  <path d="M0 27.4 L160 27.4 L160 28.2 L0 28.2 Z" fill="#D8AE7E"/>
+
+  <!-- A barrel cactus. -->
+  <g>
+    <path d="M18 27.4 L34 27.4 L32.6 21 L19.4 21 Z" fill="url(#pot2)"/>
+    <path d="M17.4 22 L34.6 22 L34.6 20 L17.4 20 Z" fill="#E8E2D6"/>
+    <ellipse cx="26" cy="14" rx="6.4" ry="7" fill="#5C8A4A"/>
+    <g stroke="#3E6633" stroke-width=".6" fill="none">
+      <path d="M22 8.6 C21 11.6 21 16.6 22.4 19.6"/><path d="M26 7 L26 21"/>
+      <path d="M30 8.6 C31 11.6 31 16.6 29.6 19.6"/>
+    </g>
+    <g stroke="#E8E2D6" stroke-width=".45" stroke-linecap="round">
+      <path d="M20 11 L18.4 10"/><path d="M19.8 15 L18 15"/><path d="M20.4 18.4 L18.8 19.4"/>
+      <path d="M32 11 L33.6 10"/><path d="M32.2 15 L34 15"/><path d="M31.6 18.4 L33.2 19.4"/>
+      <path d="M26 7 L26 5.4"/>
+    </g>
+    <path d="M26 6.4 C27.6 5 29.4 5 30.4 6.4 C29.4 7.6 27.6 7.6 26 6.4 Z" fill="#E8A33A"/>
+  </g>
+
+  <!-- A rosette, seen from above. -->
+  <g transform="translate(64 20)">
+    <path d="M-9 7.4 L9 7.4 L7.6 1.6 L-7.6 1.6 Z" fill="url(#pot2)"/>
+    <path d="M-9.6 2.4 L9.6 2.4 L9.6 .4 L-9.6 .4 Z" fill="#E8E2D6"/>
+    <g fill="#7FA86A">
+      <ellipse cx="0" cy="-6.6" rx="2.6" ry="4.6"/>
+      <ellipse cx="-5.6" cy="-4.4" rx="2.6" ry="4.6" transform="rotate(-52 -5.6 -4.4)"/>
+      <ellipse cx="5.6" cy="-4.4" rx="2.6" ry="4.6" transform="rotate(52 5.6 -4.4)"/>
+      <ellipse cx="-7.6" cy="1" rx="2.4" ry="4.2" transform="rotate(-90 -7.6 1)"/>
+      <ellipse cx="7.6" cy="1" rx="2.4" ry="4.2" transform="rotate(90 7.6 1)"/>
+    </g>
+    <g fill="#9FC488">
+      <ellipse cx="0" cy="-3.6" rx="2" ry="3.4"/>
+      <ellipse cx="-3.6" cy="-1.4" rx="2" ry="3.4" transform="rotate(-58 -3.6 -1.4)"/>
+      <ellipse cx="3.6" cy="-1.4" rx="2" ry="3.4" transform="rotate(58 3.6 -1.4)"/>
+    </g>
+    <ellipse cx="0" cy="-1.6" rx="1.6" ry="2.2" fill="#C4DCA8"/>
+    <g fill="#E0A0A8" opacity=".7">
+      <ellipse cx="0" cy="-9.6" rx="1.6" ry="1"/>
+      <ellipse cx="-8" cy="-6.4" rx="1.4" ry=".9" transform="rotate(-52 -8 -6.4)"/>
+      <ellipse cx="8" cy="-6.4" rx="1.4" ry=".9" transform="rotate(52 8 -6.4)"/>
+    </g>
+  </g>
+
+  <!-- A tall one, and a jade. -->
+  <g>
+    <path d="M100 27.4 L112 27.4 L111 22 L101 22 Z" fill="url(#pot2)"/>
+    <path d="M99.4 22.8 L112.6 22.8 L112.6 21 L99.4 21 Z" fill="#E8E2D6"/>
+    <path d="M104.4 21 C104.4 12 105 6.6 106 4 C107 6.6 107.6 12 107.6 21 Z" fill="#4E7E42"/>
+    <path d="M104.4 14 C102 13.4 100.6 11.4 100.6 8.6 C102.6 9.4 104 11 104.4 13 Z" fill="#5C8A4A"/>
+    <path d="M107.6 17 C110 16.4 111.4 14.4 111.4 11.6 C109.4 12.4 108 14 107.6 16 Z" fill="#5C8A4A"/>
+    <g stroke="#E8E2D6" stroke-width=".4" stroke-linecap="round" opacity=".8">
+      <path d="M106 5.4 L106 3.6"/><path d="M104.6 9 L103.4 8"/><path d="M107.4 12 L108.6 11"/>
+    </g>
+  </g>
+  <g transform="translate(136 21.4)">
+    <path d="M-7.6 6 L7.6 6 L6.6 1 L-6.6 1 Z" fill="#B58A5E"/>
+    <path d="M-8 1.6 L8 1.6 L8 0 L-8 0 Z" fill="#C99A6A"/>
+    <g stroke="#4E7E42" stroke-width="1.2" fill="none" stroke-linecap="round">
+      <path d="M0 0 L0 -6"/><path d="M0 -3.4 L-3.4 -6.4"/><path d="M0 -4.6 L3.4 -7.4"/>
+    </g>
+    <g fill="#6E9C58">
+      <ellipse cx="0" cy="-7.4" rx="2" ry="1.5"/>
+      <ellipse cx="-4.4" cy="-7.4" rx="2" ry="1.5"/>
+      <ellipse cx="4.4" cy="-8.4" rx="2" ry="1.5"/>
+      <ellipse cx="-2.4" cy="-9.6" rx="1.8" ry="1.3"/>
+      <ellipse cx="2" cy="-10.4" rx="1.8" ry="1.3"/>
+    </g>
+    <g fill="#C4DCA8" opacity=".5">
+      <ellipse cx="-.6" cy="-7.8" rx=".8" ry=".5"/><ellipse cx="3.8" cy="-8.8" rx=".8" ry=".5"/>
+    </g>
+  </g>
+  <!-- Grit, spilled. -->
+  <g fill="#B58A5E" opacity=".5">
+    <circle cx="46" cy="29" r=".4"/><circle cx="52" cy="29.4" r=".3"/>
+    <circle cx="88" cy="29.2" r=".35"/><circle cx="120" cy="29" r=".3"/>
+    <circle cx="124" cy="29.4" r=".4"/>
+  </g>
+</svg>

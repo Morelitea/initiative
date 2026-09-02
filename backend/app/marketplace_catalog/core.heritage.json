@@ -8,8 +8,8 @@
   "long_description": "For Black communities and the people in them: cloth woven the way strip looms weave it, a ring of cowrie shells, and trophies for the raised fist, Sankofa and the pick. Original work in these traditions rather than a copy of any named pattern.",
   "avatar_url": "/decorations/banners/heritage-kente.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -30,14 +30,39 @@
         "name": "Raised fist"
       },
       {
-        "id": "heritage.sankofa",
-        "slot": "trophy",
-        "name": "Sankofa"
-      },
-      {
         "id": "heritage.pick",
         "slot": "trophy",
         "name": "Afro pick"
+      },
+      {
+        "id": "heritage.cookout",
+        "slot": "banner",
+        "name": "Cookout"
+      },
+      {
+        "id": "heritage.panafrican",
+        "slot": "frame",
+        "name": "Pan-African"
+      },
+      {
+        "id": "heritage.flag",
+        "slot": "trophy",
+        "name": "Pan-African flag"
+      },
+      {
+        "id": "heritage.turntable",
+        "slot": "trophy",
+        "name": "Turntable"
+      },
+      {
+        "id": "heritage.trumpet",
+        "slot": "trophy",
+        "name": "Trumpet"
+      },
+      {
+        "id": "heritage.crown",
+        "slot": "trophy",
+        "name": "Crown"
       }
     ]
   }

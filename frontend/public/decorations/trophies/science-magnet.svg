@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Magnet</title>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+  <path d="M12 34 C12 22 17.4 14 24 14 C30.6 14 36 22 36 34 L28 34 C28 26.6 26.4 22.6 24 22.6
+           C21.6 22.6 20 26.6 20 34 Z" fill="#8A9098"/>
+  <path d="M12 34 L20 34 L20 41.4 L12 41.4 Z" fill="#C0221E"/>
+  <path d="M28 34 L36 34 L36 41.4 L28 41.4 Z" fill="#3C7CD6"/>
+  <path d="M12 34 C12 22 17.4 14 24 14 C24 14 24 22.6 24 22.6 C21.6 22.6 20 26.6 20 34 Z"
+        fill="#C4CAD2" opacity=".4"/>
+  <g stroke="#7FD4FF" stroke-width="1.2" fill="none" opacity=".65" stroke-linecap="round">
+    <path d="M16 10.6 C20 6.6 28 6.6 32 10.6"/>
+    <path d="M12.6 6.6 C18 1.4 30 1.4 35.4 6.6"/>
+  </g></svg>

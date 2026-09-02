@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Bauble</title>
+  <circle cx="24" cy="24" r="23" fill="#0E1A2E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA6C4" stroke-width="2"/>
+  <defs>
+    <radialGradient id="glass2" cx=".35" cy=".3" r=".85">
+      <stop offset="0%" stop-color="#E85A52"/><stop offset="60%" stop-color="#C0221E"/>
+      <stop offset="100%" stop-color="#7A1210"/>
+    </radialGradient>
+  </defs>
+  <path d="M24 8 L24 3" stroke="#8A9098" stroke-width="1"/>
+  <path d="M20.6 12.4 L27.4 12.4 L27.4 8 C27.4 7 26.6 6.4 25.6 6.4 L22.4 6.4
+           C21.4 6.4 20.6 7 20.6 8 Z" fill="#C4CAD2"/>
+  <g stroke="#8A9098" stroke-width=".5">
+    <path d="M20.8 9 L27.2 9"/><path d="M20.8 10.8 L27.2 10.8"/>
+  </g>
+  <circle cx="24" cy="27" r="14.4" fill="url(#glass2)"/>
+  <g fill="none" stroke="#F6D98A" stroke-width="1.4" opacity=".85">
+    <path d="M10.6 22.6 C16 25 32 25 37.4 22.6"/>
+    <path d="M9.8 31.4 C15.4 29 32.6 29 38.2 31.4"/>
+  </g>
+  <g fill="#F6D98A" opacity=".85">
+    <circle cx="16" cy="27" r="1.4"/><circle cx="24" cy="27" r="1.6"/><circle cx="32" cy="27" r="1.4"/>
+  </g>
+  <path d="M14.6 20 C16.6 17 19.6 15.4 23 15" fill="none" stroke="#FFFFFF"
+        stroke-width="2" opacity=".4" stroke-linecap="round"/></svg>

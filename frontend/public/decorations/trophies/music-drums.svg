@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Drum kit</title>
+  <circle cx="24" cy="24" r="23" fill="#140F1F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#F0567A" stroke-width="2"/>
+  <ellipse cx="24" cy="34" rx="12" ry="4" fill="#8E2340"/>
+  <path d="M12 30.4 C12 33 17.4 35 24 35 C30.6 35 36 33 36 30.4 L36 34
+           C36 36.6 30.6 38.6 24 38.6 C17.4 38.6 12 36.6 12 34 Z" fill="#C4302B"/>
+  <ellipse cx="24" cy="30.4" rx="12" ry="4" fill="#F2EDE0"/>
+  <ellipse cx="24" cy="30.4" rx="9" ry="2.8" fill="#E4DCCA"/>
+  <ellipse cx="14" cy="22" rx="7" ry="2.6" fill="#F2EDE0"/>
+  <path d="M7 22 C7 23.6 10 25 14 25 C18 25 21 23.6 21 22 L21 25.6
+           C21 27.2 18 28.6 14 28.6 C10 28.6 7 27.2 7 25.6 Z" fill="#C4302B"/>
+  <ellipse cx="34" cy="22" rx="6.4" ry="2.4" fill="#F2EDE0"/>
+  <path d="M27.6 22 C27.6 23.4 30.4 24.6 34 24.6 C37.6 24.6 40.4 23.4 40.4 22 L40.4 25.4
+           C40.4 26.8 37.6 28 34 28 C30.4 28 27.6 26.8 27.6 25.4 Z" fill="#C4302B"/>
+  <g stroke="#8A9098" stroke-width="1" stroke-linecap="round">
+    <path d="M40 14 L40 30"/><path d="M8 12 L8 30"/>
+  </g>
+  <ellipse cx="40" cy="13.6" rx="7" ry="1.6" fill="#E8B21C"/>
+  <ellipse cx="8" cy="11.6" rx="7.6" ry="1.8" fill="#E8B21C"/>
+  <ellipse cx="8" cy="11.2" rx="7.6" ry="1.8" fill="#F6D98A"/></svg>

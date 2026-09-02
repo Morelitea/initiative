@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Dagger</title>
+  <circle cx="24" cy="24" r="23" fill="#2A0D14"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#8E1B28" stroke-width="2"/>
+  <defs>
+    <linearGradient id="steelD" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8E97A6"/><stop offset="45%" stop-color="#EEF2F8"/>
+      <stop offset="100%" stop-color="#6E7889"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(14 24 24)">
+    <path d="M24 3 L28.4 12 L28.4 27 L19.6 27 L19.6 12 Z" fill="url(#steelD)"/>
+    <path d="M24 3 L24 27" stroke="#B8C0CE" stroke-width=".7" opacity=".8"/>
+    <path d="M14.4 27 L33.6 27 C34.6 27 35.2 27.6 35.2 28.6 C35.2 29.6 34.6 30.2 33.6 30.2
+             L14.4 30.2 C13.4 30.2 12.8 29.6 12.8 28.6 C12.8 27.6 13.4 27 14.4 27 Z"
+          fill="#C9A063"/>
+    <path d="M21.4 30.2 L26.6 30.2 L26.6 40 C26.6 41 25.4 41.6 24 41.6
+             C22.6 41.6 21.4 41 21.4 40 Z" fill="#5E3A1A"/>
+    <g stroke="#8A6034" stroke-width=".7">
+      <path d="M21.6 33 L26.4 33"/><path d="M21.6 36 L26.4 36"/>
+    </g>
+    <ellipse cx="24" cy="42" rx="2.8" ry="2" fill="#C9A063"/>
+  </g>
+  <g fill="#8E1B28" opacity=".7">
+    <path d="M31 7.6 C32 9.6 32 11.6 31 13.4 C30 11.6 30 9.6 31 7.6 Z"/>
+    <circle cx="34" cy="16.4" r="1.1"/>
+  </g></svg>
