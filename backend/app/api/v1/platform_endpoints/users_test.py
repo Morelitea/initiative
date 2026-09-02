@@ -23,6 +23,7 @@ from app.models.platform.user import Presence, User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
+from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
@@ -1517,6 +1518,31 @@ async def test_custom_status_round_trips_as_one_object(
 
     assert cleared.status_code == 200
     assert cleared.json()["custom_status"] == {"emoji": None, "text": None}
+
+
+@pytest.mark.integration
+async def test_custom_status_holds_the_line_to_its_length(
+    client: AsyncClient, session: AsyncSession
+):
+    """A status is a line, so the longest one it takes is a short one."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    at_the_bound = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"custom_status": {"text": "x" * STATUS_TEXT_MAX_LENGTH}},
+    )
+
+    assert at_the_bound.status_code == 200
+
+    over_it = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"custom_status": {"text": "x" * (STATUS_TEXT_MAX_LENGTH + 1)}},
+    )
+
+    assert over_it.status_code == 422
 
 
 @pytest.mark.integration

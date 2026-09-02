@@ -13,7 +13,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { cn } from "@/lib/utils";
 
 /** Mirrors ``STATUS_TEXT_MAX_LENGTH`` on the server. */
-const STATUS_MAX_LENGTH = 100;
+const STATUS_MAX_LENGTH = 40;
 
 const isEmpty = (status: CustomStatusOutput) => !status.emoji && !status.text;
 
@@ -41,20 +41,32 @@ const Bubble = ({
   className?: string;
 }) => {
   const { t } = useTranslation("profiles");
+  // Offset from the left edge so it reads as coming from the picture rather
+  // than from the corner of the box, and set on a diagonal so the pair points
+  // at the face instead of running flat beside the bubble. The near dot tucks
+  // into the bubble's edge — the bubble is positioned, so it paints over what
+  // it covers — because a tail that clears the body reads as three loose
+  // circles rather than one thought.
   const dots = (
-    // Offset from the left edge so it reads as coming from the picture rather
-    // than from the corner of the box.
-    <span aria-hidden="true" className="flex items-center gap-1 pl-5">
-      <span className="block size-2 rounded-full border bg-card" />
-      <span className="block size-1 rounded-full border bg-card" />
+    <span
+      aria-hidden="true"
+      className={cn("flex items-center gap-0.5 pl-4", tail === "down" ? "-mt-1" : "-mb-1")}
+    >
+      <span
+        className={cn(
+          "block size-1.5 rounded-full border bg-card",
+          tail === "down" ? "translate-y-1" : "-translate-y-1"
+        )}
+      />
+      <span className="block size-2.5 rounded-full border bg-card" />
     </span>
   );
   return (
     <span className={cn("inline-block max-w-full text-left", className)}>
-      {tail === "up" ? <span className="mb-0.5 block">{dots}</span> : null}
+      {tail === "up" ? dots : null}
       <span
         className={cn(
-          "flex max-w-full items-center gap-2 rounded-[1.25rem] border bg-card px-3.5 py-2",
+          "relative flex max-w-full items-center gap-2 rounded-[1.25rem] border bg-card px-3.5 py-2",
           muted && "text-muted-foreground"
         )}
       >
@@ -67,7 +79,7 @@ const Bubble = ({
         )}
         <span className="min-w-0 break-words">{status.text || t("status.empty")}</span>
       </span>
-      {tail === "down" ? <span className="mt-0.5 block">{dots}</span> : null}
+      {tail === "down" ? dots : null}
     </span>
   );
 };

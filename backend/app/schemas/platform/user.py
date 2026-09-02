@@ -180,8 +180,11 @@ class UserSummaryListResponse(SanitizedBaseModel):
     has_prev: bool
 
 
-#: How long the line beside the emoji may run.
-STATUS_TEXT_MAX_LENGTH = 100
+#: How long the line beside the emoji may run. Short on purpose: the bubble is
+#: read in a sidebar column and over a picture, so a status is a line, not a
+#: paragraph. Mirrored by the CHECK constraint in migration 20260902_0212 and
+#: by ``STATUS_MAX_LENGTH`` in ``frontend/src/components/user/ProfileStatus``.
+STATUS_TEXT_MAX_LENGTH = 40
 
 
 class CustomStatus(SanitizedBaseModel):
