@@ -135,10 +135,16 @@ async def test_guild_entries_hidden_from_non_member(
 
 
 @pytest.mark.integration
-async def test_guild_entries_guild_admin_sees_all(
+async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A guild admin sees content of an initiative they are not a member of."""
+    """Both legs of the aggregate answer the same question.
+
+    Events and task markers sit side by side on one calendar, and it spans
+    initiatives — so both follow what has been shared with the reader, a guild
+    admin included. A response where one leg reached further than the other
+    would be a calendar of markers for work whose events are absent.
+    """
     member = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
@@ -157,8 +163,8 @@ async def test_guild_entries_guild_admin_sees_all(
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert event.id in {e["id"] for e in body["events"]}
-    assert task.id in {t["id"] for t in body["tasks"]}
+    assert event.id not in {e["id"] for e in body["events"]}
+    assert task.id not in {t["id"] for t in body["tasks"]}
 
 
 @pytest.mark.integration

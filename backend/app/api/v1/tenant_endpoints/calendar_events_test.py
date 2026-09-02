@@ -587,12 +587,15 @@ async def test_my_calendar_events_filters_events_without_calendar_grant(
 
 
 @pytest.mark.integration
-async def test_my_calendar_events_admin_sees_events_outside_their_initiatives(
+async def test_my_calendar_events_leaves_out_what_was_never_shared(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A guild admin sees events in initiatives they were never added to (the
-    admin leg of initiative_access fires under their guild role). The /me DAC
-    filter must not re-hide them."""
+    """A guild admin's own calendar is what has been shared with them.
+
+    The /me aggregate spans initiatives, so it answers what reaches the reader
+    rather than what their standing could reach — an admin's authority over the
+    initiative is untouched, and asking for it by name still returns the event.
+    """
     admin = await acting_user(guild_role=GuildRole.admin)
     # `other` owns the initiative; the admin is NOT a member of it.
     other = await acting_user(
@@ -606,7 +609,16 @@ async def test_my_calendar_events_admin_sees_events_outside_their_initiatives(
         "/api/v1/me/calendar-events", headers=get_auth_headers(admin.user)
     )
     assert resp.status_code == 200
-    assert event.id in {item["id"] for item in resp.json()["items"]}
+    assert event.id not in {item["id"] for item in resp.json()["items"]}
+
+    # Named directly, the initiative answers in full — this moved navigation,
+    # not authority.
+    within = await client.get(
+        f"/api/v1/g/{admin.guild.id}/calendar-events/?initiative_id={initiative.id}",
+        headers=get_auth_headers(admin.user),
+    )
+    assert within.status_code == 200, within.text
+    assert event.id in {item["id"] for item in within.json()["items"]}
 
 
 async def _switch_calendars_on(session: AsyncSession, initiative) -> None:

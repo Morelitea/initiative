@@ -812,13 +812,15 @@ async def test_counter_group_counts_by_initiative(
     await create_counter_group(session, other_initiative, admin.user)
     await create_counter_group(session, disabled_initiative, admin.user)
 
-    # Guild admin: every group in counters-enabled initiatives, grouped.
+    # Guild admin: the counts span initiatives, so they count what reaches the
+    # reader — the admin's own group in each, not the member's beside it. The
+    # disabled initiative is absent either way.
     response = await client.get(
         admin.g("/counter-groups/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {
-        str(admin.initiative.id): 2,
+        str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
 
