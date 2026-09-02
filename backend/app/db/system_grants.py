@@ -124,6 +124,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # system engine. The request path only reads its own (SELECT), so every
     # write verb lives here.
     "user_decorations": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # My Contacts stars. The request path owns every write under its own-row
+    # policies; the system engine reads and deletes only for erasure, which has
+    # to clear an anonymized account off other people's lists too — the row
+    # survives the husk, so the FK cascade never fires for it.
+    "profile_favorites": frozenset({"SELECT", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -233,6 +238,9 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # A library belongs to a signed-in account, and the bare pre-routing login
     # role serves nobody in particular.
     "user_decorations": None,
+    # A contacts list belongs to a signed-in account, and the bare pre-routing
+    # login role serves nobody in particular.
+    "profile_favorites": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

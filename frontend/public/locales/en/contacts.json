@@ -1,0 +1,22 @@
+{
+  "title": "My Contacts",
+  "favorites": "Favorites",
+  "searchPlaceholder": "Search contacts",
+  "searchLabel": "Search everyone on this page",
+  "clearSearch": "Clear search",
+  "loadMore": "Show more",
+  "favorite": "Add {{name}} to favorites",
+  "unfavorite": "Remove {{name}} from favorites",
+  "alsoIn": "Also in {{guilds}}",
+  "empty": {
+    "title": "Nobody here yet",
+    "description": "Join a community and the people in it show up here.",
+    "favorites": "Star anyone to keep them at the top of this page.",
+    "guild": "Nobody else is in this community yet."
+  },
+  "noMatches": {
+    "title": "Nobody by that name",
+    "description": "Try a different name, or the whole handle.",
+    "section": "No matches here."
+  }
+}

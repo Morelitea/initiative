@@ -1,0 +1,22 @@
+{
+  "title": "Mes contacts",
+  "favorites": "Favoris",
+  "searchPlaceholder": "Rechercher des contacts",
+  "searchLabel": "Rechercher parmi tout le monde sur cette page",
+  "clearSearch": "Effacer la recherche",
+  "loadMore": "Afficher plus",
+  "favorite": "Ajouter {{name}} aux favoris",
+  "unfavorite": "Retirer {{name}} des favoris",
+  "alsoIn": "Aussi dans {{guilds}}",
+  "empty": {
+    "title": "Personne pour l'instant",
+    "description": "Rejoignez une communauté et ses membres apparaîtront ici.",
+    "favorites": "Mettez quelqu'un en favori pour le garder en haut de cette page.",
+    "guild": "Personne d'autre dans cette communauté pour l'instant."
+  },
+  "noMatches": {
+    "title": "Personne de ce nom",
+    "description": "Essayez un autre nom, ou l'identifiant complet.",
+    "section": "Aucun résultat ici."
+  }
+}

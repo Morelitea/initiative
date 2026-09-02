@@ -21,6 +21,7 @@ import { Route as ServerRequiredWelcomeRouteImport } from './routes/_serverRequi
 import { Route as AppsConnectedRouteImport } from './routes/apps.connected'
 import { Route as ServerRequiredAuthenticatedIndexRouteImport } from './routes/_serverRequired/_authenticated/index'
 import { Route as ServerRequiredAuthenticatedCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/communities'
+import { Route as ServerRequiredAuthenticatedContactsRouteImport } from './routes/_serverRequired/_authenticated/contacts'
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
@@ -206,6 +207,12 @@ const ServerRequiredAuthenticatedCommunitiesRoute =
   ServerRequiredAuthenticatedCommunitiesRouteImport.update({
     id: '/communities',
     path: '/communities',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedContactsRoute =
+  ServerRequiredAuthenticatedContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedCreatedTasksRoute =
@@ -1116,6 +1123,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
+  '/contacts': typeof ServerRequiredAuthenticatedContactsRoute
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -1250,6 +1258,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
+  '/contacts': typeof ServerRequiredAuthenticatedContactsRoute
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -1372,6 +1381,7 @@ export interface FileRoutesById {
   '/_serverRequired/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
   '/_serverRequired/_authenticated/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
+  '/_serverRequired/_authenticated/contacts': typeof ServerRequiredAuthenticatedContactsRoute
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -1509,6 +1519,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/apps/connected'
     | '/communities'
+    | '/contacts'
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
@@ -1643,6 +1654,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/apps/connected'
     | '/communities'
+    | '/contacts'
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
@@ -1764,6 +1776,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/welcome'
     | '/apps/connected'
     | '/_serverRequired/_authenticated/communities'
+    | '/_serverRequired/_authenticated/contacts'
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
@@ -1979,6 +1992,13 @@ declare module '@tanstack/react-router' {
       path: '/communities'
       fullPath: '/communities'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCommunitiesRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/contacts': {
+      id: '/_serverRequired/_authenticated/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedContactsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/created-tasks': {
@@ -3332,6 +3352,7 @@ const ServerRequiredAuthenticatedCGuildIdRouteWithChildren =
 
 interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedCommunitiesRoute: typeof ServerRequiredAuthenticatedCommunitiesRoute
+  ServerRequiredAuthenticatedContactsRoute: typeof ServerRequiredAuthenticatedContactsRoute
   ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
@@ -3354,6 +3375,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
   {
     ServerRequiredAuthenticatedCommunitiesRoute:
       ServerRequiredAuthenticatedCommunitiesRoute,
+    ServerRequiredAuthenticatedContactsRoute:
+      ServerRequiredAuthenticatedContactsRoute,
     ServerRequiredAuthenticatedCreatedTasksRoute:
       ServerRequiredAuthenticatedCreatedTasksRoute,
     ServerRequiredAuthenticatedDocumentsRoute:

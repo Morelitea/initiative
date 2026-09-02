@@ -1707,6 +1707,48 @@ export interface CommunitySettingsUpdate {
   community_directory_enabled: boolean;
 }
 
+/**
+ * One person, on one row of the page.
+ *
+ * Inherits ``UserSummary``'s guild-name visibility: ``full_name`` survives
+ * only where the guild this row was read under renders real names, which the
+ * cross-guild loop sets per guild.
+ */
+export interface ContactRead {
+  id: number;
+  username: string;
+  discriminator: number;
+  full_name: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+  presence: Presence;
+  shared_guild_ids: number[];
+}
+
+/**
+ * One guild's roster, as one accordion section.
+ */
+export interface ContactGuildSection {
+  guild_id: number;
+  guild_name: string;
+  icon_url: string | null;
+  total_count: number;
+  items: ContactRead[];
+  has_next: boolean;
+}
+
+/**
+ * Every guild section, in the reader's own rail order.
+ *
+ * Paginated *within* each section rather than across a merged list: the
+ * response is grouped, so a flat offset would not mean anything.
+ */
+export interface ContactSectionsResponse {
+  sections: ContactGuildSection[];
+  page: number;
+  page_size: number;
+}
+
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];
 
 export const CounterViewMode = {
@@ -2431,6 +2473,17 @@ export interface FCMConfigResponse {
   application_id: string | null;
   api_key: string | null;
   sender_id: string | null;
+}
+
+/**
+ * The starred section.
+ *
+ * Not part of the guild aggregate: a favorite may be someone the reader
+ * shares no guild with, so it cannot come from a walk of their guilds.
+ */
+export interface FavoriteContactsResponse {
+  items: ContactRead[];
+  total_count: number;
 }
 
 /**
@@ -6669,4 +6722,28 @@ export type GetUserStatsApiV1MeStatsGetParams = {
    * @maximum 365
    */
   days?: number;
+};
+
+export type ListContactSectionsApiV1MeContactsGetParams = {
+  /**
+   * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
+   */
+  search?: string | null;
+  guild_ids?: number[] | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListFavoriteContactsApiV1MeContactsFavoritesGetParams = {
+  /**
+   * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
+   */
+  search?: string | null;
 };
