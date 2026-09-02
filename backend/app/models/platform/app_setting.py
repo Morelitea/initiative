@@ -26,6 +26,20 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(String(20), nullable=False, server_default="#60a5fa"),
     )
 
+    # What this deployment is running, and what it was running before that.
+    # A notice that only matters to somebody upgrading past a given release has
+    # no way to know that from a publication date — a fresh install of 0.70 was
+    # never on 0.64. The pair is rolled forward at boot: when the running
+    # version differs from ``last_seen_version``, the old value becomes
+    # ``previous_version``. Both are NULL on a fresh install, which is exactly
+    # what "never upgraded from anything" looks like.
+    last_seen_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
+    previous_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
+
     smtp_host: Optional[str] = Field(
         default=None, sa_column=Column(String(255), nullable=True)
     )

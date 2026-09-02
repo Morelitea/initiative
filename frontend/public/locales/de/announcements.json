@@ -93,7 +93,8 @@
       "dismissalsRequired": "Wie oft bestätigen",
       "dismissalsRequiredHint": "Wie oft jemand sie schließen muss, bis sie nicht mehr erscheint. Belasse es bei 1, außer es täte weh, sie zu verpassen.",
       "triggerRoute": "Auf Seite zeigen (optional)",
-      "triggerRouteHint": "Leer lassen, um sie sofort zu zeigen. Ein Pfadmuster hält sie zurück, bis jemand eine passende Seite öffnet — * ist ein Pfadteil, ** ist der Rest."
+      "triggerRouteHint": "Leer lassen, um sie sofort zu zeigen. Ein Pfadmuster hält sie zurück, bis jemand eine passende Seite öffnet — * ist ein Pfadteil, ** ist der Rest.",
+      "audienceAccounts": "Für welche Konten"
     },
     "startsPage": "Neue Seite beginnen",
     "triggerErrors": {
@@ -101,6 +102,16 @@
       "whitespace": "Ein Pfadmuster darf keine Leerzeichen enthalten.",
       "wildcardSegment": "* und ** stehen für einen ganzen Pfadteil und dürfen nicht mit anderen Zeichen zusammenstehen.",
       "doubleStarNotLast": "** steht für den Rest des Pfades, danach darf nichts mehr kommen."
+    },
+    "accounts": {
+      "everyone": "Alle",
+      "existing": "Konten, die es bei Veröffentlichung schon gab",
+      "new": "Konten, die seither erstellt wurden"
+    },
+    "accountsHint": {
+      "everyone": "Alle im oben gewählten Kreis sehen sie.",
+      "existing": "Für eine Änderung, die man miterlebt hat — wer später dazukam, erfährt nichts davon.",
+      "new": "Für Neuankömmlinge — ein Einstiegstipp, für alle anderen veraltet."
     }
   },
   "archive": {

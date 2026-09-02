@@ -14,7 +14,10 @@ from typing import Optional
 
 from pydantic import Field, field_validator
 
-from app.models.platform.announcement import AnnouncementCategory
+from app.models.platform.announcement import (
+    AnnouncementAudienceAccounts,
+    AnnouncementCategory,
+)
 from app.models.platform.user import UserRole
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
@@ -130,6 +133,9 @@ class AnnouncementAdminRead(AnnouncementRead):
     id: Optional[int] = None
     min_platform_role: UserRole = UserRole.member
     guild_admins_only: bool = False
+    audience_accounts: AnnouncementAudienceAccounts = (
+        AnnouncementAudienceAccounts.everyone
+    )
     expires_at: Optional[datetime] = None
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
@@ -148,6 +154,9 @@ class AnnouncementWrite(SanitizedBaseModel):
     sections: list[AnnouncementSection] = Field(default_factory=list)
     min_platform_role: UserRole = UserRole.member
     guild_admins_only: bool = False
+    audience_accounts: AnnouncementAudienceAccounts = (
+        AnnouncementAudienceAccounts.everyone
+    )
     published_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     dismissals_required: int = Field(default=1, ge=1, le=MAX_DISMISSALS_REQUIRED)
@@ -181,6 +190,7 @@ class AnnouncementUpdate(SanitizedBaseModel):
     sections: Optional[list[AnnouncementSection]] = None
     min_platform_role: Optional[UserRole] = None
     guild_admins_only: Optional[bool] = None
+    audience_accounts: Optional[AnnouncementAudienceAccounts] = None
     published_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     dismissals_required: Optional[int] = Field(

@@ -40,4 +40,30 @@ def get_min_native_version() -> str:
         return "0.0.0"
 
 
+def _parts(version: str) -> tuple[int, int, int]:
+    """``"0.64.3"`` -> ``(0, 64, 3)``. Anything unparseable sorts as ``0.0.0``.
+
+    Tolerant on purpose: a version read back from a database was written by an
+    older build, and a pre-release suffix ("1.2.3-rc1") should compare on the
+    numbers rather than raise.
+    """
+    numbers: list[int] = []
+    for piece in version.strip().lstrip("v").split(".")[:3]:
+        digits = ""
+        for char in piece:
+            if not char.isdigit():
+                break
+            digits += char
+        numbers.append(int(digits) if digits else 0)
+    while len(numbers) < 3:
+        numbers.append(0)
+    return (numbers[0], numbers[1], numbers[2])
+
+
+def compare_versions(left: str, right: str) -> int:
+    """-1, 0 or 1 — the sign of ``left - right`` read as semver."""
+    a, b = _parts(left), _parts(right)
+    return (a > b) - (a < b)
+
+
 __version__ = get_version()

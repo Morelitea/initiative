@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import builtin_announcements as builtins_module
 from app.core.builtin_announcements import BuiltinAnnouncement
 from app.models.platform.announcement import (
+    AnnouncementAudienceAccounts,
     AnnouncementCategory,
     AnnouncementImage,
     AnnouncementReadReceipt,
@@ -25,6 +26,7 @@ from app.schemas.platform.announcement import (
     AnnouncementWrite,
 )
 from app.services.platform import announcements as service
+from app.services.platform import app_settings as app_settings_service
 from app.testing.factories import create_guild, create_guild_membership, create_user
 
 
@@ -144,6 +146,131 @@ async def test_guild_admins_only_needs_an_admin_membership_somewhere(session):
 
     assert await service.list_for_user(session, user=plain) == []
     assert len(await service.list_for_user(session, user=admin)) == 1
+
+
+@pytest.mark.integration
+async def test_a_notice_for_existing_accounts_skips_the_ones_made_since(session):
+    """A breaking change is about a transition somebody has to have made."""
+    author = await create_user(session, role=UserRole.owner)
+    published = datetime.now(timezone.utc) - timedelta(days=7)
+
+    was_here = await create_user(session)
+    was_here.created_at = published - timedelta(days=30)
+    arrived_since = await create_user(session)
+    arrived_since.created_at = published + timedelta(days=1)
+    session.add(was_here)
+    session.add(arrived_since)
+    await session.commit()
+
+    await _publish(
+        session,
+        author,
+        published_at=published,
+        audience_accounts=AnnouncementAudienceAccounts.existing,
+    )
+
+    assert len(await service.list_for_user(session, user=was_here)) == 1
+    assert await service.list_for_user(session, user=arrived_since) == []
+
+
+@pytest.mark.integration
+async def test_a_notice_for_new_accounts_is_the_other_way_round(session):
+    """The same line, read from the other side: an onboarding tip."""
+    author = await create_user(session, role=UserRole.owner)
+    published = datetime.now(timezone.utc) - timedelta(days=7)
+
+    was_here = await create_user(session)
+    was_here.created_at = published - timedelta(days=30)
+    arrived_since = await create_user(session)
+    arrived_since.created_at = published + timedelta(days=1)
+    session.add(was_here)
+    session.add(arrived_since)
+    await session.commit()
+
+    await _publish(
+        session,
+        author,
+        published_at=published,
+        audience_accounts=AnnouncementAudienceAccounts.new,
+    )
+
+    assert await service.list_for_user(session, user=was_here) == []
+    assert len(await service.list_for_user(session, user=arrived_since)) == 1
+
+
+@pytest.mark.integration
+async def test_everyone_is_still_everyone(session):
+    author = await create_user(session, role=UserRole.owner)
+    reader = await create_user(session)
+    reader.created_at = datetime.now(timezone.utc) + timedelta(days=1)
+    session.add(reader)
+    await session.commit()
+    await _publish(session, author)
+
+    assert len(await service.list_for_user(session, user=reader)) == 1
+
+
+@pytest.mark.integration
+async def test_a_builtin_with_a_floor_skips_a_fresh_install(session, monkeypatch):
+    """No previous version is the answer, not a missing one."""
+    reader = await create_user(session)
+    builtin = BuiltinAnnouncement(
+        slug="test-upgrade-floor",
+        title="Something moved in 0.65",
+        category=AnnouncementCategory.breaking,
+        published_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        sections=(AnnouncementSection(body="It moved."),),
+        only_upgrading_from_below="0.65.0",
+    )
+    monkeypatch.setattr(builtins_module, "BUILTIN_ANNOUNCEMENTS", (builtin,))
+    monkeypatch.setattr(service, "BUILTIN_ANNOUNCEMENTS", (builtin,))
+
+    # Fresh install: nothing was ever running before this.
+    assert await service.list_for_user(session, user=reader) == []
+
+    # Upgraded from below the floor: this deployment is who it is for.
+    await app_settings_service.record_running_version(session, version="0.64.3")
+    await app_settings_service.record_running_version(session, version="0.70.0")
+    assert len(await service.list_for_user(session, user=reader)) == 1
+
+
+@pytest.mark.integration
+async def test_a_builtin_with_a_floor_skips_a_deployment_already_past_it(
+    session, monkeypatch
+):
+    reader = await create_user(session)
+    builtin = BuiltinAnnouncement(
+        slug="test-upgrade-floor-past",
+        title="Something moved in 0.65",
+        category=AnnouncementCategory.breaking,
+        published_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        sections=(AnnouncementSection(body="It moved."),),
+        only_upgrading_from_below="0.65.0",
+    )
+    monkeypatch.setattr(builtins_module, "BUILTIN_ANNOUNCEMENTS", (builtin,))
+    monkeypatch.setattr(service, "BUILTIN_ANNOUNCEMENTS", (builtin,))
+
+    await app_settings_service.record_running_version(session, version="0.66.0")
+    await app_settings_service.record_running_version(session, version="0.70.0")
+
+    assert await service.list_for_user(session, user=reader) == []
+
+
+@pytest.mark.integration
+async def test_the_version_pair_only_moves_when_the_version_does(session):
+    assert (
+        await app_settings_service.record_running_version(session, version="0.64.0")
+        is None
+    )
+    # Restarting on the same version is not an upgrade.
+    assert (
+        await app_settings_service.record_running_version(session, version="0.64.0")
+        is None
+    )
+    assert (
+        await app_settings_service.record_running_version(session, version="0.65.0")
+    ) == "0.64.0"
+    assert await app_settings_service.previous_running_version(session) == "0.64.0"
 
 
 @pytest.mark.integration

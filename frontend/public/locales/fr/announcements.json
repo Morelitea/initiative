@@ -93,7 +93,8 @@
       "dismissalsRequired": "Nombre de confirmations",
       "dismissalsRequiredHint": "Combien de fois il faut la fermer avant qu'elle cesse de revenir. Laissez 1 sauf si la manquer coûte cher.",
       "triggerRoute": "Afficher sur la page (facultatif)",
-      "triggerRouteHint": "Laissez vide pour l'afficher tout de suite. Un motif de chemin la retient jusqu'à l'ouverture d'une page correspondante — * est une partie du chemin, ** est le reste."
+      "triggerRouteHint": "Laissez vide pour l'afficher tout de suite. Un motif de chemin la retient jusqu'à l'ouverture d'une page correspondante — * est une partie du chemin, ** est le reste.",
+      "audienceAccounts": "Comptes concernés"
     },
     "startsPage": "Commencer une nouvelle page",
     "triggerErrors": {
@@ -101,6 +102,16 @@
       "whitespace": "Un motif de chemin ne peut pas contenir d'espaces.",
       "wildcardSegment": "* et ** représentent une partie entière du chemin : ils ne peuvent pas être collés à d'autres caractères.",
       "doubleStarNotLast": "** représente le reste du chemin, rien ne peut donc le suivre."
+    },
+    "accounts": {
+      "everyone": "Tout le monde",
+      "existing": "Comptes qui existaient à la publication",
+      "new": "Comptes créés depuis"
+    },
+    "accountsHint": {
+      "everyone": "Toute personne dans le public ci-dessus la voit.",
+      "existing": "Pour un changement vécu — qui est arrivé après n'en entend pas parler.",
+      "new": "Pour qui vient d'arriver — un conseil de démarrage, dépassé pour les autres."
     }
   },
   "archive": {

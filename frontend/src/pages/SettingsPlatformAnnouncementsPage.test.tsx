@@ -154,6 +154,31 @@ describe("SettingsPlatformAnnouncementsPage", () => {
     await waitFor(() => expect(posted).toBe(true));
   });
 
+  it("saves which accounts a notice is for", async () => {
+    const user = userEvent.setup();
+    let posted: Record<string, unknown> | null = null;
+    listResponds([]);
+    server.use(
+      http.post("*/api/v1/announcements/admin", async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...live, ...posted }, { status: 201 });
+      })
+    );
+
+    renderWithProviders(<SettingsPlatformAnnouncementsPage />);
+
+    await user.click(await screen.findByRole("button", { name: /new announcement/i }));
+    await user.type(screen.getByLabelText("Title"), "Your sidebar changed");
+    await user.type(screen.getByPlaceholderText(/section heading/i), "What moved");
+
+    await user.click(screen.getByRole("combobox", { name: /accounts this is for/i }));
+    await user.click(await screen.findByRole("option", { name: /existed when it was published/i }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ audience_accounts: "existing" });
+  });
+
   it("refuses to save an announcement with no sections", async () => {
     const user = userEvent.setup();
     let posted = false;

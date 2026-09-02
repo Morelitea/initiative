@@ -207,6 +207,32 @@ async def test_a_trigger_route_that_is_not_a_path_is_refused(
 
 
 @pytest.mark.integration
+async def test_an_account_made_since_publication_is_not_told_about_it(
+    client: AsyncClient, session: AsyncSession
+):
+    _, author_headers = await _author(session)
+    published = datetime.now(timezone.utc) - timedelta(days=7)
+
+    newcomer = await create_user(session)
+    newcomer.created_at = published + timedelta(days=1)
+    session.add(newcomer)
+    await session.commit()
+
+    created = await client.post(
+        "/api/v1/announcements/admin",
+        headers=author_headers,
+        json=_body(published_at=published.isoformat(), audience_accounts="existing"),
+    )
+    assert created.status_code == 201
+    assert created.json()["audience_accounts"] == "existing"
+
+    listed = await client.get(
+        "/api/v1/announcements", headers=get_auth_headers(newcomer)
+    )
+    assert listed.json()["items"] == []
+
+
+@pytest.mark.integration
 async def test_a_receipt_for_something_that_does_not_exist_is_a_404(
     client: AsyncClient, session: AsyncSession
 ):

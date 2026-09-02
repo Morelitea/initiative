@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   AnnouncementAdminRead,
+  AnnouncementAudienceAccounts,
   AnnouncementCategory,
   AnnouncementSection,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -49,6 +50,9 @@ const CATEGORIES: AnnouncementCategory[] = [
 ];
 
 const PLATFORM_ROLES = ["member", "support", "moderator", "operator", "owner"] as const;
+
+//: Measured against the notice's publication date — see the backend enum.
+const AUDIENCE_ACCOUNTS: AnnouncementAudienceAccounts[] = ["everyone", "existing", "new"];
 type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
 /** ``<input type="datetime-local">`` wants a local "YYYY-MM-DDTHH:mm". */
@@ -86,6 +90,7 @@ interface EditorState {
   category: AnnouncementCategory;
   minPlatformRole: PlatformRole;
   guildAdminsOnly: boolean;
+  audienceAccounts: AnnouncementAudienceAccounts;
   publishedAt: string;
   expiresAt: string;
   dismissalsRequired: number;
@@ -106,6 +111,7 @@ const initialState = (announcement: AnnouncementAdminRead | null): EditorState =
   category: announcement?.category ?? "feature",
   minPlatformRole: (announcement?.min_platform_role ?? "member") as PlatformRole,
   guildAdminsOnly: announcement?.guild_admins_only ?? false,
+  audienceAccounts: announcement?.audience_accounts ?? "everyone",
   publishedAt: toLocalInput(announcement?.published_at),
   expiresAt: toLocalInput(announcement?.expires_at),
   dismissalsRequired: announcement?.dismissals_required ?? 1,
@@ -203,6 +209,7 @@ export const AnnouncementEditorDialog = ({
       sections,
       min_platform_role: state.minPlatformRole,
       guild_admins_only: state.guildAdminsOnly,
+      audience_accounts: state.audienceAccounts,
       published_at: fromLocalInput(state.publishedAt),
       expires_at: fromLocalInput(state.expiresAt),
       dismissals_required: state.dismissalsRequired,
@@ -258,7 +265,7 @@ export const AnnouncementEditorDialog = ({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>{t("admin.fields.category")}</Label>
+                  <Label htmlFor="announcement-category">{t("admin.fields.category")}</Label>
                   <Select
                     value={state.category}
                     onValueChange={(value) =>
@@ -268,7 +275,7 @@ export const AnnouncementEditorDialog = ({
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="announcement-category">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -282,7 +289,7 @@ export const AnnouncementEditorDialog = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t("admin.fields.minRole")}</Label>
+                  <Label htmlFor="announcement-min-role">{t("admin.fields.minRole")}</Label>
                   <Select
                     value={state.minPlatformRole}
                     onValueChange={(value) =>
@@ -292,7 +299,7 @@ export const AnnouncementEditorDialog = ({
                       }))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="announcement-min-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -304,6 +311,35 @@ export const AnnouncementEditorDialog = ({
                     </SelectContent>
                   </Select>
                   <p className="text-muted-foreground text-xs">{t("admin.fields.minRoleHint")}</p>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="announcement-accounts">
+                    {t("admin.fields.audienceAccounts")}
+                  </Label>
+                  <Select
+                    value={state.audienceAccounts}
+                    onValueChange={(value) =>
+                      setState((previous) => ({
+                        ...previous,
+                        audienceAccounts: value as AnnouncementAudienceAccounts,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="announcement-accounts">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AUDIENCE_ACCOUNTS.map((audience) => (
+                        <SelectItem key={audience} value={audience}>
+                          {t(`admin.accounts.${audience}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-muted-foreground text-xs">
+                    {t(`admin.accountsHint.${state.audienceAccounts}`)}
+                  </p>
                 </div>
               </div>
 

@@ -13,6 +13,7 @@ import pathlib
 import pytest
 
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, builtin_by_key
+from app.core.version import compare_versions
 from app.schemas.platform.announcement import (
     IMAGE_PATH_PREFIX,
     MAX_DISMISSALS_REQUIRED,
@@ -60,6 +61,16 @@ def test_every_picture_is_actually_shipped():
             asset = _ASSET_ROOT / url.lstrip("/")
             assert asset.is_file(), f"{announcement.slug}: {url} is not in the repo"
             assert section.image_alt, f"{announcement.slug}: {url} has no alt text"
+
+
+@pytest.mark.unit
+def test_every_upgrade_floor_reads_as_a_version():
+    """A floor that does not parse silently becomes 0.0.0 and tells nobody."""
+    for announcement in BUILTIN_ANNOUNCEMENTS:
+        floor = announcement.only_upgrading_from_below
+        if floor is None:
+            continue
+        assert compare_versions(floor, "0.0.0") > 0, announcement.slug
 
 
 @pytest.mark.unit
