@@ -11,6 +11,9 @@
     @keyframes breathe { from { opacity: .5 } to { opacity: .8 } }
     .fall { animation: streak 9s ease-in infinite }
     .f2 { animation-duration: 13s; animation-delay: -6s }
+    .f4 { animation-duration: 11s; animation-delay: -3s }
+    .f5 { animation-duration: 15s; animation-delay: -11s }
+    .f8 { animation-duration: 19s; animation-delay: -7s }
     @keyframes streak { 0%,72% { transform: translate(0,0); opacity: 0 }
                         76% { opacity: 1 }
                         86%,100% { transform: translate(34px, 20px); opacity: 0 } }
@@ -21,11 +24,19 @@
     @keyframes turn { to { transform: rotate(360deg) } }
     .fall2 { animation: streak2 17s ease-in infinite }
     .f3 { animation-duration: 23s; animation-delay: -9s }
+    .f6 { animation-duration: 21s; animation-delay: -15s }
+    .f7 { animation-duration: 26s; animation-delay: -5s }
+    .f9 { animation-duration: 14s; animation-delay: -12s }
+    /* One that is worth looking up for, rarely. */
+    .bolide { animation: blaze 41s ease-in infinite }
+    @keyframes blaze { 0%,88% { transform: translate(0,0); opacity: 0 }
+                       90.5% { opacity: 1 }
+                       97%,100% { transform: translate(58px,34px); opacity: 0 } }
     @keyframes streak2 { 0%,80% { transform: translate(0,0); opacity: 0 }
                          84% { opacity: 1 }
                          93%,100% { transform: translate(-30px,22px); opacity: 0 } }
     @media (prefers-reduced-motion: reduce) {
-      .wheel, .fall2 { animation: none } .fall2 { opacity: 0 } }
+      .wheel, .fall2, .bolide { animation: none } .fall2, .bolide { opacity: 0 } }
   </style>
   <defs>
     <linearGradient id="deep" x1="0" y1="0" x2="0" y2="1">
@@ -85,10 +96,19 @@
   </g>
   <g fill="#FFFFFF"><circle class="tw t0" cx="22" cy="8" r=".55"/><circle class="tw t1" cx="48" cy="5" r=".55"/><circle class="tw t2" cx="66" cy="12" r=".55"/><circle class="tw t0" cx="94" cy="6" r=".55"/><circle class="tw t1" cx="118" cy="10" r=".55"/><circle class="tw t2" cx="142" cy="7" r=".55"/></g>
 
-  <!-- Two, over the course of an evening. -->
+  <!-- A handful, over the course of an evening. -->
   <g stroke="#FFF6E0" stroke-width=".5" stroke-linecap="round" fill="none">
     <path class="fall" d="M58 4 L52 -.6"/>
     <path class="fall f2" d="M116 8 L110 3.4"/>
+    <path class="fall f4" d="M28 6 L22 1.4"/>
+    <path class="fall f5" d="M92 3 L86 -1.6"/>
+    <path class="fall f8" d="M140 11 L134 6.4"/>
+  </g>
+  <g class="bolide">
+    <path d="M44 3 L28 -7" stroke="#FFFFFF" stroke-width=".85" stroke-linecap="round"
+          fill="none" opacity=".9"/>
+    <circle cx="44" cy="3" r=".7" fill="#FFFFFF"/>
+    <circle cx="44" cy="3" r="1.8" fill="#CFE0FF" opacity=".35"/>
   </g>
 
   <!-- The land, and what stands up out of it. -->
@@ -122,5 +142,8 @@
   <g stroke="#FFF6E0" stroke-width=".45" stroke-linecap="round" fill="none">
     <path class="fall2" d="M96 6 L102 1.6"/>
     <path class="fall2 f3" d="M34 10 L40 5.6"/>
+    <path class="fall2 f6" d="M124 4 L130 -.4"/>
+    <path class="fall2 f7" d="M64 13 L70 8.6"/>
+    <path class="fall2 f9" d="M8 5 L14 .6"/>
   </g>
 </svg>

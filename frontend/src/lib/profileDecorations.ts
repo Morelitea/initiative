@@ -65,6 +65,7 @@ type DecorationName =
   | "arcade"
   | "aurora"
   | "autistic"
+  | "backpack"
   | "balcony"
   | "bat"
   | "bauble"
@@ -721,6 +722,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "nature.nightsky": entry("nature.nightsky", "banner", "nature-nightsky", "nightsky"),
   "nature.pines": entry("nature.pines", "frame", "nature-pines", "pines"),
   "nature.ridge": entry("nature.ridge", "frame", "nature-ridge", "ridge"),
+  "nature.backpack": entry("nature.backpack", "trophy", "nature-backpack", "backpack"),
   "nature.campfire": entry("nature.campfire", "trophy", "nature-campfire", "campfire"),
   "nature.mountain": entry("nature.mountain", "trophy", "nature-mountain", "mountain"),
   "nature.tent": entry("nature.tent", "trophy", "nature-tent", "tent"),

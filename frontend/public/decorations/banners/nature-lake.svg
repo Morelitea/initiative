@@ -10,17 +10,33 @@
     .shimmer { animation: glimmer 6s ease-in-out infinite alternate }
     @keyframes glimmer { from { opacity: .3 } to { opacity: .68 } }
     /* The sun goes down behind the ridge over about a minute, and comes back
-       up. The sky warms as it goes, and the water follows it. */
+       up. Three washes cross-fade over the sky as it drops — gold first, then
+       ember, then night — so the colour of the sky is what tells you how far
+       down it has got. The water takes the last of it. */
     .sink { animation: setting 56s ease-in-out infinite alternate }
     @keyframes setting { from { transform: translateY(-2px) scale(1) }
                          to { transform: translateY(9.5px) scale(1.18) } }
     .rise { animation: rising 56s ease-in-out infinite alternate }
     @keyframes rising { from { transform: translateY(-2px) scaleY(.9); opacity: .5 }
                         to { transform: translateY(-9.5px) scaleY(1.5); opacity: 1 } }
-    .deepen { animation: dusk 56s ease-in-out infinite alternate }
-    @keyframes dusk { from { opacity: 0 } to { opacity: .78 } }
+    .warm { animation: warming 56s ease-in-out infinite alternate }
+    @keyframes warming { 0% { opacity: 0 } 46% { opacity: .7 } 100% { opacity: .26 } }
+    .ember { animation: burning 56s ease-in-out infinite alternate }
+    @keyframes burning { 0% { opacity: 0 } 52% { opacity: .24 } 100% { opacity: .68 } }
+    .night { animation: nightfall 56s ease-in-out infinite alternate }
+    @keyframes nightfall { 0% { opacity: 0 } 58% { opacity: 0 } 100% { opacity: .62 } }
+    .wet { animation: darkening 56s ease-in-out infinite alternate }
+    @keyframes darkening { 0% { opacity: 0 } 100% { opacity: .95 } }
+    .ridge { animation: darkridge 56s ease-in-out infinite alternate }
+    @keyframes darkridge { 0% { fill: #46597A } 54% { fill: #4E4056 } 100% { fill: #241E38 } }
+    .caps { animation: dimcaps 56s ease-in-out infinite alternate }
+    @keyframes dimcaps { 0% { fill: #F2F8FC } 54% { fill: #F6CBA6 } 100% { fill: #8C7290 } }
+    .under { animation: darkunder 56s ease-in-out infinite alternate }
+    @keyframes darkunder { 0% { fill: #3A5A7E } 54% { fill: #45405E } 100% { fill: #1E1C34 } }
+    .sundisc { animation: cooling 56s ease-in-out infinite alternate }
+    @keyframes cooling { 0% { fill: #FFF8E0 } 54% { fill: #FFC066 } 100% { fill: #F05A32 } }
     .lastlight { animation: burn 56s ease-in-out infinite alternate }
-    @keyframes burn { from { opacity: .18 } to { opacity: .5 } }
+    @keyframes burn { from { opacity: .16; fill: #FFD9A0 } to { opacity: .52; fill: #E8482A } }
     @media (prefers-reduced-motion: reduce) { .ripple, .shimmer { animation: none } }
     @keyframes fly { 0% { transform: translate(-16px,2px); opacity: 0 }
                      8% { opacity: .8 } 90% { opacity: .8 }
@@ -33,46 +49,69 @@
              transform-box: fill-box; transform-origin: 50% 90% }
     @keyframes flap { from { transform: scaleY(.42) } to { transform: scaleY(1) } }
     @media (prefers-reduced-motion: reduce) {
-      .mist, .sink, .rise, .deepen { animation: none } }
+      .mist, .sink, .rise, .warm, .ember, .night, .wet, .sundisc,
+      .ridge, .caps, .under { animation: none }
+      .warm { opacity: .82 } .ember { opacity: .24 } .night { opacity: 0 }
+      .wet { opacity: .26 } .ridge { fill: #4E4056 } .caps { fill: #F6CBA6 }
+      .under { fill: #45405E } }
   </style>
   <defs>
     <filter id="wet" x="-20%" y="-120%" width="140%" height="340%">
       <feGaussianBlur stdDeviation=".7"/>
     </filter>
     <linearGradient id="calm" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#F6C98E"/><stop offset="55%" stop-color="#C88A7E"/>
-      <stop offset="100%" stop-color="#5A5E8C"/>
+      <stop offset="0%" stop-color="#6FA8CE"/><stop offset="52%" stop-color="#AFCFDE"/>
+      <stop offset="100%" stop-color="#E2DCC4"/>
     </linearGradient>
-    <linearGradient id="lastlight" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#3A2A5E" stop-opacity=".7"/>
-      <stop offset="55%" stop-color="#C4563A" stop-opacity=".5"/>
-      <stop offset="100%" stop-color="#E8843A" stop-opacity=".7"/>
+    <linearGradient id="goldwash" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8A85C" stop-opacity=".2"/>
+      <stop offset="50%" stop-color="#F4C68C" stop-opacity=".58"/>
+      <stop offset="100%" stop-color="#FBE0AE" stop-opacity=".8"/>
+    </linearGradient>
+    <linearGradient id="emberwash" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7A3A62" stop-opacity=".45"/>
+      <stop offset="46%" stop-color="#CE5A3A" stop-opacity=".6"/>
+      <stop offset="100%" stop-color="#F4863C" stop-opacity=".9"/>
+    </linearGradient>
+    <linearGradient id="nightwash" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#101636" stop-opacity=".95"/>
+      <stop offset="55%" stop-color="#31245A" stop-opacity=".7"/>
+      <stop offset="100%" stop-color="#6E3A58" stop-opacity=".3"/>
+    </linearGradient>
+    <linearGradient id="waterdusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5A3A5E" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="#0A0F26" stop-opacity=".95"/>
     </linearGradient>
   </defs>
   <rect width="160" height="40" fill="url(#calm)"/>
+  <!-- What the light does to the sky on the way down. -->
+  <rect class="warm" x="0" y="0" width="160" height="22" fill="url(#goldwash)" opacity="0"/>
+  <rect class="ember" x="0" y="0" width="160" height="22" fill="url(#emberwash)" opacity="0"/>
+  <rect class="night" x="0" y="0" width="160" height="22" fill="url(#nightwash)" opacity="0"/>
   <g class="sink">
     <circle class="lastlight" cx="80" cy="15" r="15" fill="#FFB86A" opacity=".18"/>
-    <circle cx="80" cy="15" r="5.4" fill="#FFE7B8" opacity=".9"/>
+    <circle class="sundisc" cx="80" cy="15" r="5.4" fill="#FFE7B8" opacity=".9"/>
   </g>
   <path d="M0 20 L24 8 L42 18 L58 6 L80 20 L100 9 L120 19 L138 7 L160 20 L160 22 L0 22 Z"
-        fill="#3A4A62"/>
-  <g fill="#F2F8FC" opacity=".9">
+        class="ridge" fill="#334259"/>
+  <g class="caps" fill="#F2F8FC" opacity=".9">
     <path d="M58 6 L63 11 L60.6 10.4 L58.4 11.6 L56.4 10.4 L54 11.6 Z"/>
     <path d="M138 7 L143 12 L140.6 11.4 L138.4 12.6 L136.4 11.4 L134 12.6 Z"/>
   </g>
-  <path d="M0 22 L160 22 L160 40 L0 40 Z" fill="#2E3E62"/>
+  <path d="M0 22 L160 22 L160 40 L0 40 Z" fill="#4E7296"/>
   <path d="M0 24 L24 36 L42 26 L58 38 L80 24 L100 35 L120 25 L138 37 L160 24 L160 22 L0 22 Z"
-        fill="#3A4A62" opacity=".5"/>
+        class="under" fill="#3A5A7E" opacity=".5"/>
   <g class="rise">
     <ellipse cx="80" cy="30" rx="3.4" ry="8.6" fill="#FFE7B8" opacity=".22"
              filter="url(#wet)"/>
   </g>
-  <g stroke="#8FA8C8" stroke-width=".5" fill="none" opacity=".5">
+  <rect class="wet" x="0" y="22" width="160" height="18" fill="url(#waterdusk)" opacity="0"/>
+  <g stroke="#B4CCE0" stroke-width=".5" fill="none" opacity=".5">
     <path d="M6 27 C20 26.4 34 27.4 48 26.8"/><path d="M60 31 C74 30.4 88 31.4 102 30.8"/>
     <path d="M110 25.6 C124 25 138 26 152 25.4"/><path d="M20 35 C34 34.4 48 35.4 62 34.8"/>
     <path d="M100 37 C114 36.4 128 37.4 142 36.8"/>
   </g>
-  <g fill="#1E2A3E">
+  <g fill="#22303F">
     <path d="M8 22 C8 18.6 9.4 16 11 14.6 C12.6 16 14 18.6 14 22 Z"/>
     <path d="M16 22 C16 19.4 17 17.4 18.2 16.4 C19.4 17.4 20.4 19.4 20.4 22 Z"/>
     <path d="M148 22 C148 18.6 149.4 16 151 14.6 C152.6 16 154 18.6 154 22 Z"/>
@@ -96,8 +135,6 @@
     <ellipse cx="80" cy="32" rx="5" ry=".28"/><ellipse cx="80" cy="34.6" rx="7" ry=".34"/>
     <ellipse cx="80" cy="37.2" rx="5.4" ry=".3"/>
   </g>
-  <!-- What the light does on the way down. -->
-  <rect class="deepen" x="0" y="0" width="160" height="22" fill="url(#lastlight)"/>
   <g fill="#D8E2F0">
     <ellipse class="mist" cx="46" cy="23.4" rx="34" ry="1.5" opacity=".3"/>
     <ellipse class="mist mi2" cx="116" cy="25" rx="30" ry="1.2" opacity=".25"/>
