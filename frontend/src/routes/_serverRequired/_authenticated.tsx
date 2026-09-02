@@ -22,6 +22,7 @@ import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { useAgeGateRefresh } from "@/hooks/useAgeGateRefresh";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
@@ -85,6 +86,8 @@ function AppLayout() {
   const location = useLocation();
   const { updateAvailable, closeDialog } = useVersionCheck();
 
+  // Only listens while this account still owes a confirmation; see the hook.
+  useAgeGateRefresh();
   useRealtimeUpdates();
   // Personal, cross-guild, and mounted here rather than beside the bell so it
   // survives the bell unmounting with a collapsed sidebar.
