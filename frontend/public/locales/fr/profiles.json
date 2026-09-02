@@ -24,7 +24,6 @@
     "label": "A rejoint"
   },
   "decorations": {
-    "abacus": "Boulier",
     "ace": "Asexuel",
     "alphabetblocks": "Cubes de l'alphabet",
     "ammonite": "Ammonite",
@@ -295,7 +294,6 @@
     "pottery": "Poterie peinte",
     "prideheart": "Cœur des fiertés",
     "projector": "Projecteur",
-    "protractor": "Rapporteur",
     "puck": "Palet",
     "quill": "Plume et encre",
     "quillwork": "Broderie de piquants",
@@ -310,7 +308,6 @@
     "rockhammer": "Marteau de géologue",
     "rosette": "Rosette",
     "saxophone": "Saxophone",
-    "schoolbell": "Cloche d'école",
     "schoolbus": "Bus scolaire",
     "sciencelab": "Laboratoire",
     "screening": "Projection",

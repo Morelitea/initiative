@@ -24,7 +24,6 @@
     "label": "Se unió"
   },
   "decorations": {
-    "abacus": "Ábaco",
     "ace": "Asexual",
     "alphabetblocks": "Cubos del abecedario",
     "ammonite": "Amonita",
@@ -295,7 +294,6 @@
     "pottery": "Cerámica pintada",
     "prideheart": "Corazón del orgullo",
     "projector": "Proyector",
-    "protractor": "Transportador",
     "puck": "Disco",
     "quill": "Pluma y tinta",
     "quillwork": "Bordado de púas",
@@ -310,7 +308,6 @@
     "rockhammer": "Martillo de geólogo",
     "rosette": "Roseta",
     "saxophone": "Saxofón",
-    "schoolbell": "Campana escolar",
     "schoolbus": "Autobús escolar",
     "sciencelab": "Laboratorio",
     "screening": "Proyección",

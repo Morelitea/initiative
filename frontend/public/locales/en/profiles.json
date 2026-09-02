@@ -24,7 +24,6 @@
     "label": "Joined"
   },
   "decorations": {
-    "abacus": "Abacus",
     "ace": "Asexual",
     "alphabetblocks": "Alphabet blocks",
     "ammonite": "Ammonite",
@@ -295,7 +294,6 @@
     "pottery": "Painted pottery",
     "prideheart": "Pride heart",
     "projector": "Projector",
-    "protractor": "Protractor",
     "puck": "Puck",
     "quill": "Quill and ink",
     "quillwork": "Quillwork",
@@ -310,7 +308,6 @@
     "rockhammer": "Rock hammer",
     "rosette": "Rosette",
     "saxophone": "Saxophone",
-    "schoolbell": "School bell",
     "schoolbus": "School bus",
     "sciencelab": "Science lab",
     "screening": "Screening",

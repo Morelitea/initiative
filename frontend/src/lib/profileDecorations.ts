@@ -61,7 +61,6 @@ export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWB
 
 /** Every decoration this build ships, by the name its label is keyed under. */
 type DecorationName =
-  | "abacus"
   | "ace"
   | "alphabetblocks"
   | "ammonite"
@@ -332,7 +331,6 @@ type DecorationName =
   | "pottery"
   | "prideheart"
   | "projector"
-  | "protractor"
   | "puck"
   | "quill"
   | "quillwork"
@@ -347,7 +345,6 @@ type DecorationName =
   | "rockhammer"
   | "rosette"
   | "saxophone"
-  | "schoolbell"
   | "schoolbus"
   | "sciencelab"
   | "screening"
@@ -649,17 +646,9 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "gradyear"
   ),
   "education.pencil": entry("education.pencil", "trophy", "education-pencil", "pencil"),
-  "education.abacus": entry("education.abacus", "trophy", "education-abacus", "abacus"),
-  "education.protractor": entry(
-    "education.protractor",
-    "trophy",
-    "education-protractor",
-    "protractor"
-  ),
   "education.bunsen": entry("education.bunsen", "trophy", "education-bunsen", "bunsenburner"),
   "education.diploma": entry("education.diploma", "trophy", "education-diploma", "diploma"),
   "education.cap": entry("education.cap", "trophy", "education-cap", "graduationcap"),
-  "education.bell": entry("education.bell", "trophy", "education-bell", "schoolbell"),
   "faith.skyline": entry("faith.skyline", "banner", "faith-skyline", "skyline"),
   "faith.lights": entry("faith.lights", "banner", "faith-lights", "festivaloflights"),
   "faith.doors": entry("faith.doors", "banner", "faith-doors", "opendoors"),

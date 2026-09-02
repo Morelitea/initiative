@@ -12,10 +12,9 @@
     </linearGradient>
   </defs>
   <style>
-    .ch { fill: none; stroke: #F2F6EE; stroke-width: .9; stroke-linecap: round;
-          stroke-linejoin: round; animation: clWrite 8s ease-in-out infinite }
-    .l1 { animation-delay: -2s } .l2 { animation-delay: -4s } .l3 { animation-delay: -6s }
-    @keyframes clWrite { 0%, 100% { opacity: .15 } 45% { opacity: .95 } }
+    .ch { fill: none; stroke: #F2F6EE; stroke-width: 1.1; stroke-linecap: round;
+          stroke-linejoin: round; animation: clWrite 11s ease-in-out infinite }
+    @keyframes clWrite { 0%, 92%, 100% { opacity: .12 } 34%, 72% { opacity: .95 } }
     .mob { animation: clTurn 14s ease-in-out infinite alternate;
            transform-box: view-box; transform-origin: 150px 0px }
     @keyframes clTurn { from { transform: rotate(-6deg) } to { transform: rotate(6deg) } }
@@ -27,7 +26,7 @@
   <path d="M8 10 L152 10 L152 28 L8 28 Z" fill="url(#clSlate)"/>
   <path d="M8 10 C40 11 60 13 92 11 C120 9.4 140 12 152 10.6 L152 10 L8 10 Z"
         fill="#4A5E52" opacity=".35"/>
-  <g class="ch l0"><path d="M40 16 L46 16 M43 13 L43 19"/></g><g class="ch l1"><path d="M52 13 L52 20 M52 13 C57 13 57 16.6 52 16.6"/></g><g class="ch l2"><path d="M62 20 L66 12 L70 20 M63.6 17 L68.4 17"/></g><g class="ch l3"><path d="M76 14 L84 14 M76 17.4 L84 17.4"/></g><g class="ch l0"><path d="M92 12 C97 10 99 16 94 18 C99 19 97 24 92 22"/></g><g class="ch l1"><path d="M104 12 L110 22 M110 12 L104 22"/></g><g class="ch l2"><path d="M118 22 C121 12 127 12 130 22"/></g><g class="ch l3"><path d="M40 25 C46 22 52 28 58 25 C64 22 70 28 76 25"/></g>
+  <g class="ch" style="animation-delay:0.00s" transform="translate(39.95 22.6) scale(0.9)"><path d="M4.4 -10.2 C0.6 -7.2 0.6 -3 4.4 0.2"/></g><g class="ch" style="animation-delay:0.42s" transform="translate(45.53 22.6) scale(0.9)"><path d="M0.4 -9.2 C3 -10.8 6.4 -9.2 5.4 -6.6 C4.8 -5.2 3.4 -5.6 2.6 -5.5 C4.4 -5.7 6.5 -4.6 6 -2.3 C5.5 -0.2 2 0.9 0 -0.7"/></g><g class="ch" style="animation-delay:0.84s" transform="translate(53.63 22.6) scale(0.9)"><path d="M0.6 -5.2 L6.6 -5.2 M3.6 -8.3 L3.6 -2.1"/></g><g class="ch" style="animation-delay:1.26s" transform="translate(62.99 22.6) scale(0.9)"><path d="M4.9 0.2 L4.9 -10.2 L0.2 -3.2 L6.8 -3.2"/></g><g class="ch" style="animation-delay:1.68s" transform="translate(71.09 22.6) scale(0.9)"><path d="M0.8 -10.2 C4.6 -7.2 4.6 -3 0.8 0.2"/></g><g class="ch" style="animation-delay:2.10s" transform="translate(76.67 22.6) scale(0.9)"><path d="M1 -7.9 L6.2 -2.5 M6.2 -7.9 L1 -2.5"/></g><g class="ch" style="animation-delay:2.52s" transform="translate(86.03 22.6) scale(0.9)"><path d="M5.6 -9.6 C2.6 -10.6 0.6 -8 0.6 -4.6 C0.6 -1.2 2.2 0.6 4 0.3 C5.9 0 6.7 -1.7 6.2 -3.4 C5.7 -5.1 3 -5.6 1 -3.9"/></g><g class="ch" style="animation-delay:2.94s" transform="translate(94.13 22.6) scale(0.9)"><path d="M0.6 -6.7 L6.6 -6.7 M0.6 -3.3 L6.6 -3.3"/></g><g class="ch" style="animation-delay:3.36s" transform="translate(103.85 22.6) scale(0.9)"><path d="M4.9 0.2 L4.9 -10.2 L0.2 -3.2 L6.8 -3.2"/></g><g class="ch" style="animation-delay:3.78s" transform="translate(111.95 22.6) scale(0.9)"><path d="M0.4 -8.8 C1.5 -10.7 5.9 -10.6 6.1 -7.7 C6.3 -5 1.7 -3 0.4 0.2 L6.6 0.2"/></g>
   <path d="M6 30 L154 30 L154 32.4 L6 32.4 Z" fill="#9C6B3E"/>
   <path d="M6 30 L154 30 L154 30.8 L6 30.8 Z" fill="#C79A64"/>
   <g>
