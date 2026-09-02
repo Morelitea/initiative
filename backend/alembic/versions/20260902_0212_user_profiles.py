@@ -6,7 +6,9 @@ Two JSONB columns on ``public.users``:
   to, in their own words. One column rather than two, because it is one thing
   a person sets and one thing every surface that names them renders. Distinct
   from ``users.status``, which is the account's standing and is not theirs to
-  write. Shape lives in ``app.schemas.platform.user.CustomStatus``.
+  write. Shape lives in ``app.schemas.platform.user.CustomStatus``; the line
+  beside the emoji is held to ``STATUS_TEXT_MAX_LENGTH`` characters here too,
+  so the bound is the column's and not only the parser's.
 * ``profile_decorations`` — a banner, a frame and trophies, each held as an
   **id naming a catalog entry** rather than an image. The client resolves an id
   to artwork it already ships, so a decorated profile takes up none of a
@@ -40,6 +42,11 @@ depends_on = None
 
 _COLUMNS = ("custom_status", "profile_decorations")
 
+#: Mirrors ``app.schemas.platform.user.STATUS_TEXT_MAX_LENGTH``. Written out
+#: rather than imported: a migration is what a database was asked for on the
+#: day it ran, and importing the constant would let a later edit change it.
+_STATUS_TEXT_MAX_LENGTH = 40
+
 
 def _request_floors() -> tuple[str, ...]:
     """The request-path floors.
@@ -66,12 +73,20 @@ def upgrade() -> None:
                 server_default=sa.text("'{}'::jsonb"),
             ),
         )
+    # ``->>`` yields NULL for a status with no line in it, which a CHECK
+    # passes — an empty status is the shape every row starts in.
+    op.create_check_constraint(
+        "ck_users_custom_status_text_length",
+        "users",
+        f"char_length(custom_status->>'text') <= {_STATUS_TEXT_MAX_LENGTH}",
+    )
     columns = ", ".join(_COLUMNS)
     for role in _request_floors():
         op.execute(f'GRANT UPDATE ({columns}) ON TABLE public.users TO "{role}"')
 
 
 def downgrade() -> None:
-    # Dropping the columns takes their column-level grants with them.
+    # Dropping the columns takes their column-level grants and the constraint
+    # over them with them.
     for column in _COLUMNS:
         op.drop_column("users", column)

@@ -4,6 +4,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Index,
@@ -106,6 +107,13 @@ class User(SQLModel, table=True):
             text("lower(username)"),
             "discriminator",
             unique=True,
+        ),
+        # The bound on the status line, held where the line is stored as well
+        # as where it is parsed — see
+        # ``app.schemas.platform.user.STATUS_TEXT_MAX_LENGTH``.
+        CheckConstraint(
+            "char_length(custom_status->>'text') <= 40",
+            name="ck_users_custom_status_text_length",
         ),
     )
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
