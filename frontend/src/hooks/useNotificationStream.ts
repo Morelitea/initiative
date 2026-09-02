@@ -23,10 +23,13 @@ const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 // A frame is the only prompt to re-read the account, so a re-read that fails
-// has to try again — there is no poll behind it any more, and the next frame
-// may never come. Bounded, because a tab that cannot reach the server has a
-// bigger problem than a stale account, and a reconnect re-reads anyway.
-const ACCOUNT_RETRY_DELAYS_MS = [2000, 8000] as const;
+// has to keep trying: there is no poll behind it any more, and the next frame
+// may never come for this account. What is bounded is the *rate*, not the
+// number of attempts — giving up would leave the tab holding an account it
+// already knows is wrong, which is the thing this whole channel exists to
+// prevent. Backs off to a slow beat and stays there until one lands.
+const ACCOUNT_RETRY_DELAYS_MS = [2000, 8000, 30_000, 60_000] as const;
+const ACCOUNT_RETRY_MAX_DELAY_MS = 300_000;
 // Three consecutive policy-violation closes means the credential is no good,
 // not that the network blinked — same rule as the guild events socket.
 const MAX_AUTH_FAILURES = 3;
@@ -129,12 +132,10 @@ export const useNotificationStream = () => {
     // Wrapped rather than chained straight off the call: the guard covers a
     // missing function, not a return that is not a promise.
     void Promise.resolve(refreshUserRef.current?.()).catch(() => {
-      const delay = ACCOUNT_RETRY_DELAYS_MS[attempt];
-      if (delay === undefined) {
-        // Out of attempts. The next frame, or the catch-up on reconnect, is
-        // the next chance — both of which arrive on their own.
-        return;
-      }
+      // Past the end of the ramp it stays at the slowest beat rather than
+      // stopping: the account is known to be out of date, and nothing else is
+      // coming to correct it.
+      const delay = ACCOUNT_RETRY_DELAYS_MS[attempt] ?? ACCOUNT_RETRY_MAX_DELAY_MS;
       accountRetryTimerRef.current = window.setTimeout(() => {
         accountRetryTimerRef.current = null;
         refreshAccount(attempt + 1);

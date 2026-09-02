@@ -167,7 +167,7 @@ describe("useNotificationStream", () => {
     }
   });
 
-  it("gives up retrying rather than trying forever", async () => {
+  it("keeps trying at a slow beat rather than giving up", async () => {
     vi.useFakeTimers();
     try {
       const refreshUser = vi.fn().mockResolvedValue(undefined);
@@ -180,12 +180,40 @@ describe("useNotificationStream", () => {
       refreshUser.mockRejectedValue(new Error("offline"));
 
       socket.receive({ resource: "account", action: "membership", ids: {} });
-      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(100_000);
+      // The read, then the ramp: 2s, 8s, 30s, 60s.
+      expect(refreshUser).toHaveBeenCalledTimes(5);
 
-      // The first read plus the two backoffs, and then it stops: a tab that
-      // cannot reach the server has a bigger problem, and reconnecting reads
-      // the account anyway.
-      expect(refreshUser).toHaveBeenCalledTimes(3);
+      // Still going, and now at the slow beat — the account is known to be
+      // wrong and nothing else is coming to fix it.
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(refreshUser).toHaveBeenCalledTimes(6);
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(refreshUser).toHaveBeenCalledTimes(7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops retrying once the hook unmounts", async () => {
+    vi.useFakeTimers();
+    try {
+      const refreshUser = vi.fn().mockResolvedValue(undefined);
+      const { unmount } = renderWithProviders(<Probe />, { auth: { refreshUser } });
+      const socket = latest();
+      socket.open();
+      await vi.advanceTimersByTimeAsync(0);
+      refreshUser.mockClear();
+      refreshUser.mockRejectedValue(new Error("offline"));
+
+      socket.receive({ resource: "account", action: "membership", ids: {} });
+      await vi.advanceTimersByTimeAsync(0);
+      unmount();
+      refreshUser.mockClear();
+
+      await vi.advanceTimersByTimeAsync(600_000);
+
+      expect(refreshUser).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

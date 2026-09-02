@@ -95,6 +95,34 @@ describe("useAuth identity ordering", () => {
     expect(auth.user?.full_name).toBe("Newer");
   });
 
+  it("keeps the newer account when the older read finishes first", async () => {
+    // The other order, and the one a turn-counter gets wrong: the older read
+    // lands first, and must not make the newer answer look stale.
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "At boot" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("At boot"));
+
+    const older = deferred<{ data: unknown }>();
+    const newer = deferred<{ data: unknown }>();
+    get.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+
+    let firstDone: Promise<void>;
+    let secondDone: Promise<void>;
+    act(() => {
+      firstDone = auth.refreshUser();
+      secondDone = auth.refreshUser();
+    });
+
+    await act(async () => {
+      older.resolve({ data: buildUser({ full_name: "Older" }) });
+      await firstDone;
+      newer.resolve({ data: buildUser({ full_name: "Newer" }) });
+      await secondDone;
+    });
+
+    expect(auth.user?.full_name).toBe("Newer");
+  });
+
   it("does not let a read in flight undo a sign-out", async () => {
     get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
     renderAuth();
