@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Meeple</title>
+  <circle cx="24" cy="24" r="23" fill="#120C1E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7A5FA8" stroke-width="2"/>
+  <defs>
+    <linearGradient id="meep" x1=".25" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#F2705E"/><stop offset="55%" stop-color="#D8443A"/>
+      <stop offset="100%" stop-color="#8E1F1B"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="24" cy="41" rx="11" ry="2" fill="#0A0614" opacity=".7"/>
+  <g transform="translate(24 26) scale(1.9)">
+    <path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2
+             C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6
+             C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2
+             C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="url(#meep)"/>
+    <path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6
+             C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z"
+          fill="#FFFFFF" opacity=".26"/>
+  </g>
+</svg>

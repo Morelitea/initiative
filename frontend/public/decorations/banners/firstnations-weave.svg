@@ -1,5 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
+  <style>
+    .sheen { animation: sweep 17s ease-in-out infinite }
+    @keyframes sweep { 0%,100% { transform: translateX(-44.800000000000004px) }
+                       50% { transform: translateX(169px) } }
+    @media (prefers-reduced-motion: reduce) { .sheen { animation: none; opacity: 0 } }
+  </style>
+  <defs>
+    <linearGradient id="sheenband" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
   <title>Weave</title>
   <!-- Stepped diamonds and a zigzag, banded the way a floor loom bands them,
        in the colours natural dyes give. An original arrangement in that
@@ -14,4 +27,5 @@
   <g fill="none" stroke="#00000022" stroke-width=".3">
     <path d="M0 0 L0 40"/><path d="M2 0 L2 40"/><path d="M4 0 L4 40"/><path d="M6 0 L6 40"/><path d="M8 0 L8 40"/><path d="M10 0 L10 40"/><path d="M12 0 L12 40"/><path d="M14 0 L14 40"/><path d="M16 0 L16 40"/><path d="M18 0 L18 40"/><path d="M20 0 L20 40"/><path d="M22 0 L22 40"/><path d="M24 0 L24 40"/><path d="M26 0 L26 40"/><path d="M28 0 L28 40"/><path d="M30 0 L30 40"/><path d="M32 0 L32 40"/><path d="M34 0 L34 40"/><path d="M36 0 L36 40"/><path d="M38 0 L38 40"/><path d="M40 0 L40 40"/><path d="M42 0 L42 40"/><path d="M44 0 L44 40"/><path d="M46 0 L46 40"/><path d="M48 0 L48 40"/><path d="M50 0 L50 40"/><path d="M52 0 L52 40"/><path d="M54 0 L54 40"/><path d="M56 0 L56 40"/><path d="M58 0 L58 40"/><path d="M60 0 L60 40"/><path d="M62 0 L62 40"/><path d="M64 0 L64 40"/><path d="M66 0 L66 40"/><path d="M68 0 L68 40"/><path d="M70 0 L70 40"/><path d="M72 0 L72 40"/><path d="M74 0 L74 40"/><path d="M76 0 L76 40"/><path d="M78 0 L78 40"/><path d="M80 0 L80 40"/><path d="M82 0 L82 40"/><path d="M84 0 L84 40"/><path d="M86 0 L86 40"/><path d="M88 0 L88 40"/><path d="M90 0 L90 40"/><path d="M92 0 L92 40"/><path d="M94 0 L94 40"/><path d="M96 0 L96 40"/><path d="M98 0 L98 40"/><path d="M100 0 L100 40"/><path d="M102 0 L102 40"/><path d="M104 0 L104 40"/><path d="M106 0 L106 40"/><path d="M108 0 L108 40"/><path d="M110 0 L110 40"/><path d="M112 0 L112 40"/><path d="M114 0 L114 40"/><path d="M116 0 L116 40"/><path d="M118 0 L118 40"/><path d="M120 0 L120 40"/><path d="M122 0 L122 40"/><path d="M124 0 L124 40"/><path d="M126 0 L126 40"/><path d="M128 0 L128 40"/><path d="M130 0 L130 40"/><path d="M132 0 L132 40"/><path d="M134 0 L134 40"/><path d="M136 0 L136 40"/><path d="M138 0 L138 40"/><path d="M140 0 L140 40"/><path d="M142 0 L142 40"/><path d="M144 0 L144 40"/><path d="M146 0 L146 40"/><path d="M148 0 L148 40"/><path d="M150 0 L150 40"/><path d="M152 0 L152 40"/><path d="M154 0 L154 40"/><path d="M156 0 L156 40"/><path d="M158 0 L158 40"/><path d="M160 0 L160 40"/>
   </g>
+  <rect class="sheen" x="0" y="0" width="45" height="40" fill="url(#sheenband)"/>
 </svg>

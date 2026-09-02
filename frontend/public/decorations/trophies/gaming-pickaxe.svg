@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Pickaxe</title>
+  <circle cx="24" cy="24" r="23" fill="#120C1E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7A5FA8" stroke-width="2"/>
+  <g transform="rotate(-38 24 24)">
+    <!-- Handle. -->
+    <rect x="22" y="16" width="4" height="24" fill="#8A6034"/>
+    <rect x="22" y="16" width="1.6" height="24" fill="#B58A5E"/>
+    <!-- Head, cut from the same blocks as everything else. -->
+    <g fill="#8A8EA0">
+      <rect x="10" y="10" width="6" height="6"/><rect x="16" y="8" width="6" height="6"/>
+      <rect x="22" y="8" width="4" height="6"/><rect x="26" y="8" width="6" height="6"/>
+      <rect x="32" y="10" width="6" height="6"/>
+    </g>
+    <g fill="#B4B8C8">
+      <rect x="16" y="8" width="6" height="2"/><rect x="26" y="8" width="6" height="2"/>
+      <rect x="22" y="8" width="4" height="2"/>
+    </g>
+    <g fill="#5A5E70">
+      <rect x="10" y="14" width="6" height="2"/><rect x="32" y="14" width="6" height="2"/>
+    </g>
+  </g>
+</svg>

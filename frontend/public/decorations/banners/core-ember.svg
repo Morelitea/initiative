@@ -1,4 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="presentation">
+  <style>
+    .breath { animation: pulse 6.5s ease-in-out infinite alternate }
+    @keyframes pulse { from { opacity: .72 } to { opacity: 1 } }
+    .spark { animation: lift 8s ease-out infinite }
+    .k2 { animation-delay: -2.6s } .k3 { animation-delay: -5.2s }
+    @keyframes lift { 0% { transform: translate(0,0) scale(.5); opacity: 0 }
+                      20% { opacity: .9 }
+                      100% { transform: translate(-26px,-110px) scale(1.3); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .breath, .spark { animation: none } }
+  </style>
   <defs>
     <linearGradient id="coal" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#2b0f0a"/>
@@ -11,7 +21,7 @@
     </radialGradient>
   </defs>
   <rect width="1200" height="300" fill="url(#coal)"/>
-  <rect width="1200" height="300" fill="url(#glow)"/>
+  <rect class="breath" width="1200" height="300" fill="url(#glow)"/>
   <g fill="#fde68a" opacity=".8">
     <circle cx="880" cy="205" r="3"/>
     <circle cx="940" cy="160" r="2"/>
@@ -20,4 +30,9 @@
     <circle cx="760" cy="230" r="1.8"/>
   </g>
   <path d="M0 300 L0 240 C 200 200 340 265 520 235 S 880 195 1200 245 L1200 300 Z" fill="#1c0a06" opacity=".6"/>
+  <g fill="#FDBA74">
+    <circle class="spark" cx="880" cy="215" r="3" opacity=".85"/>
+    <circle class="spark k2" cx="960" cy="225" r="2.4" opacity=".8"/>
+    <circle class="spark k3" cx="800" cy="230" r="2.8" opacity=".75"/>
+  </g>
 </svg>

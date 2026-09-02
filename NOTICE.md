@@ -52,6 +52,14 @@ people who made them.
   painted on it.
 - **`banners/tea-party.svg`** — John Tenniel's *A Mad Tea-Party* (1865), long in
   the public domain, baked to a banner-sized image on paper of about its own age.
+- **`banners/winter-hearth.svg`** — the fireplace is a public-domain drawing
+  from [Openclipart](https://openclipart.org/), baked at banner size; the room
+  around it, the rug and the light that moves are ours.
+- **`banners/drama-showtime.svg`** — a public-domain title card from
+  [Openclipart](https://openclipart.org/). Its searchlights are stretched across
+  the banner and swept; the marquee bulbs are ours.
+- **`banners/pets-paddock.svg`** — a public-domain drawing of a horse, baked at
+  banner size; the field, the fence and the light are ours.
 
 - **`trophies/firstnations-handprint.svg`** — the hand is
   [Red hand](https://commons.wikimedia.org/wiki/File:Red_hand.svg) by

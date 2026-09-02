@@ -1,10 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
+  <style>
+    .sheen { animation: sweep 15s ease-in-out infinite }
+    @keyframes sweep { 0%,100% { transform: translateX(-44.800000000000004px) }
+                       50% { transform: translateX(169px) } }
+    @media (prefers-reduced-motion: reduce) { .sheen { animation: none; opacity: 0 } }
+  </style>
   <title>Kente</title>
   <!-- Strip-woven cloth: narrow bands sewn edge to edge, warp one way and weft
        blocks the other. An original arrangement in the tradition's structure
        and palette, not a copy of any named pattern. -->
   <defs>
+    <linearGradient id="sheenband" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
     <pattern id="warpA" width="8" height="8" patternUnits="userSpaceOnUse">
       <rect width="8" height="8" fill="#0E0C10"/>
       <rect x="0" y="0" width="8" height="1.6" fill="#E8B21C"/>
@@ -90,4 +101,5 @@
     <path d="M0 6.9 L160 6.9"/><path d="M0 14.3 L160 14.3"/><path d="M0 21.7 L160 21.7"/>
     <path d="M0 29.1 L160 29.1"/><path d="M0 36.5 L160 36.5"/>
   </g>
+  <rect class="sheen" x="0" y="0" width="45" height="40" fill="url(#sheenband)"/>
 </svg>

@@ -62,7 +62,6 @@ export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWB
 type DecorationName =
   | "ace"
   | "ammonite"
-  | "amphitheatre"
   | "arcade"
   | "aurora"
   | "autistic"
@@ -75,6 +74,7 @@ type DecorationName =
   | "bicycle"
   | "blade"
   | "blind"
+  | "blocks"
   | "bones"
   | "bookshelf"
   | "braille"
@@ -162,6 +162,7 @@ type DecorationName =
   | "floodlights"
   | "flurry"
   | "fourdirections"
+  | "gamesnight"
   | "garden"
   | "gay"
   | "ghost"
@@ -198,6 +199,8 @@ type DecorationName =
   | "matcha"
   | "matchball"
   | "medicinewheel"
+  | "meeple"
+  | "meeples"
   | "mentalhealth"
   | "meridians"
   | "microphone"
@@ -217,7 +220,9 @@ type DecorationName =
   | "notebook"
   | "observatory"
   | "orbital"
+  | "oreblock"
   | "overgrown"
+  | "paddock"
   | "pages"
   | "panafrican"
   | "panafricanflag"
@@ -225,6 +230,7 @@ type DecorationName =
   | "parade"
   | "parchment"
   | "pawprint"
+  | "pickaxe"
   | "pigskin"
   | "pines"
   | "piste"
@@ -253,6 +259,7 @@ type DecorationName =
   | "servicedog"
   | "sheetmusic"
   | "ship"
+  | "showtime"
   | "singingbowl"
   | "skeletons"
   | "snake"
@@ -445,8 +452,8 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "wheelchair"
   ),
 
-  "drama.amphitheatre": entry("drama.amphitheatre", "banner", "drama-amphitheatre", "amphitheatre"),
   "drama.playhouse": entry("drama.playhouse", "banner", "drama-playhouse", "playhouse"),
+  "drama.showtime": entry("drama.showtime", "banner", "drama-showtime", "showtime"),
   "drama.stage": entry("drama.stage", "banner", "drama-stage", "stage"),
   "drama.curtain": entry("drama.curtain", "frame", "drama-curtain", "curtain"),
   "drama.laurel": entry("drama.laurel", "frame", "drama-laurel", "laurel"),
@@ -540,8 +547,14 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   // Guilds, raid nights, arcades, patch day, and the table.
   "gaming.arcade": entry("gaming.arcade", "banner", "gaming-arcade", "arcade"),
+  "gaming.blocks": entry("gaming.blocks", "banner", "gaming-blocks", "blocks"),
+  "gaming.tabletop": entry("gaming.tabletop", "banner", "gaming-tabletop", "gamesnight"),
   "gaming.buttons": entry("gaming.buttons", "frame", "gaming-buttons", "buttons"),
+  "gaming.meeples": entry("gaming.meeples", "frame", "gaming-meeples", "meeples"),
   "gaming.controller": entry("gaming.controller", "trophy", "gaming-controller", "controller"),
+  "gaming.meeple": entry("gaming.meeple", "trophy", "gaming-meeple", "meeple"),
+  "gaming.ore": entry("gaming.ore", "trophy", "gaming-ore", "oreblock"),
+  "gaming.pickaxe": entry("gaming.pickaxe", "trophy", "gaming-pickaxe", "pickaxe"),
 
   "gridiron.endzone": entry("gridiron.endzone", "banner", "gridiron-endzone", "endzone"),
   "gridiron.laces": entry("gridiron.laces", "frame", "gridiron-laces", "laces"),
@@ -589,6 +602,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "pets.catnap": entry("pets.catnap", "banner", "pets-catnap", "catnap"),
   "pets.fetch": entry("pets.fetch", "banner", "pets-fetch", "fetch"),
+  "pets.paddock": entry("pets.paddock", "banner", "pets-paddock", "paddock"),
   "pets.collar": entry("pets.collar", "frame", "pets-collar", "collar"),
   "pets.bunny": entry("pets.bunny", "trophy", "pets-bunny", "rabbit"),
   "pets.cat": entry("pets.cat", "trophy", "pets-cat", "cat"),

@@ -1,5 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="presentation">
+  <style>
+    .sheen { animation: sweep 19s ease-in-out infinite }
+    @keyframes sweep { 0%,100% { transform: translateX(-336.00000000000006px) }
+                       50% { transform: translateX(1267px) } }
+    @media (prefers-reduced-motion: reduce) { .sheen { animation: none; opacity: 0 } }
+  </style>
   <defs>
+    <linearGradient id="sheenband" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#fff" stop-opacity=".14"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
     <linearGradient id="vellum" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#f5ecd7"/>
       <stop offset="100%" stop-color="#d8c49a"/>
@@ -12,4 +23,5 @@
   <rect width="1200" height="300" fill="url(#rule)"/>
   <rect x="24" y="24" width="1152" height="252" fill="none" stroke="#8a6d3b" stroke-opacity=".35" stroke-width="3"/>
   <rect x="36" y="36" width="1128" height="228" fill="none" stroke="#8a6d3b" stroke-opacity=".2" stroke-width="1"/>
+  <rect class="sheen" x="0" y="0" width="336" height="300" fill="url(#sheenband)"/>
 </svg>

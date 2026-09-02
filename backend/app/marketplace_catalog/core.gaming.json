@@ -5,11 +5,11 @@
   "name": "Gaming",
   "publisher": "Initiative",
   "description": "An arcade at closing time, and a table an hour in.",
-  "long_description": "Video games and tabletop in one pack, because it is mostly the same people. A row of cabinets still lit, and a dice tower doing its work. A pad bent round your picture or a ring of twenty faces, then a controller and a die to wear.",
+  "long_description": "Screens, boards and blocks, because it is mostly the same people. A row of cabinets still lit, a dice tower doing its work, a games night four hours in, and a world built out of one shape. A pad, a twenty or a ring of meeples to frame you, then a controller, a die, a meeple, a pickaxe and a block of ore to wear.",
   "avatar_url": "/decorations/banners/gaming-arcade.svg",
   "images": [],
-  "version": "1.2.0",
-  "release_notes": "More in the pack.",
+  "version": "1.3.0",
+  "release_notes": "Board games and a world made of blocks.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -43,6 +43,36 @@
         "id": "ttrpg.d20",
         "slot": "trophy",
         "name": "d20"
+      },
+      {
+        "id": "gaming.tabletop",
+        "slot": "banner",
+        "name": "Games night"
+      },
+      {
+        "id": "gaming.blocks",
+        "slot": "banner",
+        "name": "Blocks"
+      },
+      {
+        "id": "gaming.meeples",
+        "slot": "frame",
+        "name": "Meeples"
+      },
+      {
+        "id": "gaming.meeple",
+        "slot": "trophy",
+        "name": "Meeple"
+      },
+      {
+        "id": "gaming.pickaxe",
+        "slot": "trophy",
+        "name": "Pickaxe"
+      },
+      {
+        "id": "gaming.ore",
+        "slot": "trophy",
+        "name": "Ore block"
       }
     ]
   }
