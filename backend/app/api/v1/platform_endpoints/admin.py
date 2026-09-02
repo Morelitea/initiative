@@ -45,6 +45,7 @@ from app.core.messages import (
     GuildMessages,
     SettingsMessages,
 )
+from app.services.platform import account_stream
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -597,6 +598,9 @@ async def update_platform_role(
     user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    # What this account may do just changed, and it was not their doing. Their
+    # open tabs re-read it rather than showing a rung they no longer hold.
+    account_stream.queue_account_signal(session, user_id, "role")
     await session.commit()
     await session.refresh(user)
     # Platform user management stays platform-table-only (see reactivate).
