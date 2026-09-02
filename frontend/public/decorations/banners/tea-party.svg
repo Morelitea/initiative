@@ -19,4 +19,18 @@
     <circle class="mote m2" cx="112" cy="13" r=".26" opacity=".4"/>
     <circle class="mote m3" cx="94" cy="22" r=".28" opacity=".35"/>
   </g>
+  <!-- Carroll's line, in the plate's own ink. Part of the picture rather than
+       interface copy, so it stays in the English it was written in. -->
+  <g transform="rotate(-2.4 106 19)">
+    <text x="106" y="17.5" text-anchor="middle" font-family="'Snell Roundhand','Apple Chancery','Segoe Script','Brush Script MT','Lucida Handwriting','Palatino Linotype',Georgia,serif"
+          font-style="italic" font-size="8.2" fill="#33210F" opacity=".88">
+      &#8220;It&#8217;s always tea time&#8221;
+    </text>
+    <text x="106" y="26.5" text-anchor="middle" font-family="'Snell Roundhand','Apple Chancery','Segoe Script','Brush Script MT','Lucida Handwriting','Palatino Linotype',Georgia,serif"
+          font-style="italic" font-size="4.6" fill="#5A4128" opacity=".8">
+      &#8212; the Mad Hatter
+    </text>
+    <path d="M78 20.6 C90 19.4 122 19.4 134 20.6" fill="none" stroke="#8A6A44"
+          stroke-width=".3" opacity=".45"/>
+  </g>
 </svg>

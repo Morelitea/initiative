@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Headphones</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: worn. The band rides over the top of the picture and the two
+       cups sit on its edges where ears would be, so the wearer has them on
+       rather than beside them. They move on the beat. -->
+  <defs>
+    <linearGradient id="hpShell" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#5A6270"/><stop offset="45%" stop-color="#333944"/>
+      <stop offset="100%" stop-color="#1A1D24"/>
+    </linearGradient>
+    <linearGradient id="hpSteel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C3CAD4"/><stop offset="55%" stop-color="#828B98"/>
+      <stop offset="100%" stop-color="#5A626E"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .cup { animation: hpThump 1.1s ease-in-out infinite; transform-box: fill-box;
+           transform-origin: center }
+    .cupR { animation-delay: -.55s }
+    @keyframes hpThump { 0%, 100% { transform: scale(1) } 42% { transform: scale(1.05) } }
+    .ping { animation: hpPing 2.2s ease-out infinite; transform-box: fill-box;
+            transform-origin: center; fill: none; stroke: #E7A94E }
+    .p2 { animation-delay: -.73s } .p3 { animation-delay: -1.46s }
+    @keyframes hpPing {
+      0%   { opacity: .7; transform: scale(.5) }
+      100% { opacity: 0;  transform: scale(1.55) }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cup { animation: none } .ping { animation: none; opacity: .3 }
+    }
+  </style>
+
+  <g fill="none" stroke-linecap="round">
+    <path d="M11 88 C4 104, 10 116, 5 126" stroke="#22262E" stroke-width="3.4"/>
+    <path d="M11 88 C4 104, 10 116, 5 126" stroke="#3D434E" stroke-width="1.8"/>
+  </g>
+  <path d="M2 122 L9 122 L9 128 L2 128 Z" fill="url(#hpSteel)"/>
+
+  <g fill="none" stroke-linecap="round">
+    <path d="M17 62 C17 18, 38 3, 64 3 C90 3, 111 18, 111 62" stroke="#171A21" stroke-width="11"/>
+    <path d="M17 62 C17 18, 38 3, 64 3 C90 3, 111 18, 111 62" stroke="url(#hpShell)" stroke-width="8.4"/>
+    <path d="M22 46 C24 20, 42 8, 64 8 C86 8, 104 20, 106 46" stroke="#6E7887" stroke-width="2.2"
+          opacity=".55"/>
+  </g>
+  <g fill="url(#hpSteel)">
+    <path d="M12.5 50 L21.5 50 L21.5 74 L12.5 74 Z"/>
+    <path d="M106.5 50 L115.5 50 L115.5 74 L106.5 74 Z"/>
+  </g>
+  <g fill="none" stroke="#4E5663" stroke-width=".8" opacity=".8">
+    <path d="M12.5 56 L21.5 56 M12.5 62 L21.5 62 M12.5 68 L21.5 68
+             M106.5 56 L115.5 56 M106.5 62 L115.5 62 M106.5 68 L115.5 68"/>
+  </g>
+
+  <g stroke-width="1.6">
+    <circle class="ping"    cx="17" cy="70" r="18"/>
+    <circle class="ping p2" cx="17" cy="70" r="18"/>
+    <circle class="ping p3" cx="111" cy="70" r="18"/>
+  </g>
+
+  <g class="cup">
+    <rect x="1" y="52" width="32" height="42" rx="14" fill="#12151B"/>
+    <rect x="2.6" y="53.6" width="28.8" height="38.8" rx="12.6" fill="url(#hpShell)"/>
+    <ellipse cx="19" cy="73" rx="10.5" ry="15" fill="#0E1116"/>
+    <ellipse cx="19" cy="73" rx="8" ry="12.4" fill="#242A33"/>
+    <circle cx="12" cy="63" r="2.4" fill="#E7A94E"/>
+  </g>
+  <g class="cup cupR">
+    <rect x="95" y="52" width="32" height="42" rx="14" fill="#12151B"/>
+    <rect x="96.6" y="53.6" width="28.8" height="38.8" rx="12.6" fill="url(#hpShell)"/>
+    <ellipse cx="109" cy="73" rx="10.5" ry="15" fill="#0E1116"/>
+    <ellipse cx="109" cy="73" rx="8" ry="12.4" fill="#242A33"/>
+    <circle cx="116" cy="63" r="2.4" fill="#E7A94E"/>
+  </g>
+</svg>

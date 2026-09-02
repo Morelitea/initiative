@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Golden Gate</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: this is the view from the deck, looking up at one tower. Its
+       two legs stand in front of the picture's edges and the deck runs under
+       it, so the wearer is on the bridge. The bracing is placed above the
+       hairline and below the chin, and the cables sweep outward, because a
+       main cable drawn across the middle of a face is a line through a face. -->
+  <defs>
+    <linearGradient id="ggSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B6D3E4"/><stop offset="58%" stop-color="#DFEBF0"/>
+      <stop offset="100%" stop-color="#F2E6D6"/>
+    </linearGradient>
+    <linearGradient id="ggBay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6C8FA0"/><stop offset="100%" stop-color="#3B5A6D"/>
+    </linearGradient>
+    <linearGradient id="ggOrange" x1=".1" y1="0" x2=".85" y2="1">
+      <stop offset="0%" stop-color="#E07A52"/><stop offset="48%" stop-color="#BE4326"/>
+      <stop offset="100%" stop-color="#7C2617"/>
+    </linearGradient>
+    <clipPath id="ggDonut"><path d="M64 0 A64 64 0 1 0 64 128 A64 64 0 1 0 64 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z" clip-rule="evenodd"/></clipPath>
+  </defs>
+  <style>
+    .fog { animation: ggRoll 15s linear infinite; transform-box: view-box }
+    .f2 { animation-delay: -7.5s }
+    @keyframes ggRoll {
+      0%   { opacity: 0; transform: translateX(-34px) }
+      32%  { opacity: .55 } 68% { opacity: .55 }
+      100% { opacity: 0; transform: translateX(34px) }
+    }
+    @media (prefers-reduced-motion: reduce) { .fog { animation: none; opacity: .32 } }
+  </style>
+
+  <g clip-path="url(#ggDonut)">
+    <rect x="0" y="0" width="128" height="105" fill="url(#ggSky)"/>
+    <rect x="0" y="104" width="128" height="24" fill="url(#ggBay)"/>
+    <g fill="none" stroke="#8FAEBD" stroke-width=".9" opacity=".5">
+      <path d="M4 112 q6 -2 12 0 M30 120 q6 -2 12 0 M86 118 q6 -2 12 0 M108 112 q6 -2 12 0
+               M54 124 q6 -2 12 0 M72 114 q6 -2 12 0"/>
+    </g>
+  </g>
+
+  <g fill="none" stroke="#9E3520" stroke-width=".7" opacity=".85"><path d="M21.1 5.6 L21.1 97M18.2 11.4 L18.2 97M14.6 19.8 L14.6 97M10.0 30.4 L10.0 97M4.6 43.0 L4.6 97M-1.8 57.6 L-1.8 97M-8.9 73.9 L-8.9 97M106.9 5.6 L106.9 97M109.8 11.4 L109.8 97M113.4 19.8 L113.4 97M118.0 30.4 L118.0 97M123.4 43.0 L123.4 97M129.8 57.6 L129.8 97M136.9 73.9 L136.9 97"/></g>
+  <g fill="none" stroke="url(#ggOrange)" stroke-width="3.2" stroke-linecap="round">
+    <path d="M23 3 C11 14, 1 32, -9 60 L-17 92"/><path d="M105 3 C117 14, 127 32, 137 60 L145 92"/>
+  </g>
+
+  <g fill="url(#ggOrange)">
+    <path d="M17 0 L29 0 L28.6 98 L17.4 98 Z"/>
+    <path d="M111 0 L99 0 L99.4 98 L110.6 98 Z"/>
+    <path d="M12 3 L116 3 L116 10 L12 10 Z"/>
+    <path d="M14 26 L114 26 L114 32.5 L14 32.5 Z"/>
+    <path d="M-4 98 L132 98 L132 104 L-4 104 Z"/>
+  </g>
+  <g fill="none" stroke="#8E2F1C" stroke-width=".7" opacity=".45"><path d="M17 10 L29 10 M99 10 L111 10"/><path d="M17 17 L29 17 M99 17 L111 17"/><path d="M17 24 L29 24 M99 24 L111 24"/><path d="M17 31 L29 31 M99 31 L111 31"/><path d="M17 38 L29 38 M99 38 L111 38"/><path d="M17 45 L29 45 M99 45 L111 45"/><path d="M17 52 L29 52 M99 52 L111 52"/><path d="M17 59 L29 59 M99 59 L111 59"/><path d="M17 66 L29 66 M99 66 L111 66"/><path d="M17 73 L29 73 M99 73 L111 73"/><path d="M17 80 L29 80 M99 80 L111 80"/><path d="M17 87 L29 87 M99 87 L111 87"/><path d="M17 94 L29 94 M99 94 L111 94"/></g>
+  <g fill="#8E2F1C" opacity=".7">
+    <path d="M12 8.4 L116 8.4 L116 10 L12 10 Z"/>
+    <path d="M14 31 L114 31 L114 32.5 L14 32.5 Z"/>
+  </g>
+  <g fill="none" stroke="#EE9C76" stroke-width=".9" opacity=".6">
+    <path d="M19.2 0 L19.6 98 M99.8 0 L99.4 98 M12 4.6 L116 4.6"/>
+  </g>
+  <g fill="#6E2113">
+    <path d="M-4 104 L132 104 L132 107 L-4 107 Z"/>
+  </g>
+  <g fill="none" stroke="#9E3520" stroke-width="1" opacity=".8">
+    <path d="M-4 107 L132 107 M0 107 L8 113 M20 107 L28 113
+             M40 107 L48 113 M60 107 L68 113 M80 107 L88 113
+             M100 107 L108 113 M120 107 L128 113"/>
+  </g>
+
+  <g fill="#2E2A28">
+    <path d="M-4 113 L132 113 L132 128 L-4 128 Z"/>
+  </g>
+  <g fill="none" stroke="#F0E2C4" stroke-width="1.6" stroke-linecap="round" opacity=".85">
+    <path d="M2 122 L14 122 M26 122 L38 122 M50 122 L62 122 M74 122 L86 122
+             M98 122 L110 122 M122 122 L128 122"/>
+  </g>
+  <g fill="url(#ggOrange)">
+    <path d="M6 104 L8 104 L8 88 L6 88 Z"/>
+    <path d="M120 104 L122 104 L122 88 L120 88 Z"/>
+    <path d="M44 104 L46 104 L46 92 L44 92 Z"/>
+    <path d="M82 104 L84 104 L84 92 L82 92 Z"/>
+  </g>
+  <g fill="#FFE2A8">
+    <circle cx="7" cy="86.6" r="1.7"/><circle cx="121" cy="86.6" r="1.7"/>
+    <circle cx="45" cy="90.6" r="1.4"/><circle cx="83" cy="90.6" r="1.4"/>
+  </g>
+
+  <g fill="none" stroke="#F7FBFC">
+    <ellipse class="fog" cx="64" cy="70" rx="44" ry="6" stroke-width="7" opacity=".4"/>
+    <ellipse class="fog f2" cx="64" cy="80" rx="52" ry="4" stroke-width="5" opacity=".35"/>
+  </g>
+</svg>

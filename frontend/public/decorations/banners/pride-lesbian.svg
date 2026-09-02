@@ -6,9 +6,9 @@
     .ripple { animation: wave 14s ease-in-out infinite alternate }
     @keyframes wave { from { transform: translateX(-6px) } to { transform: translateX(6px) } }
     @media (prefers-reduced-motion: reduce) { .ripple { animation: none } }
-    .sheen { animation: sweep 11s ease-in-out infinite }
-    @keyframes sweep { 0%,100% { transform: translateX(-40px) }
-                       50% { transform: translateX(200px) } }
+    .sheen { animation: sweep 11s linear infinite }
+    @keyframes sweep { from { transform: translateX(-46px) }
+                       to { transform: translateX(206px) } }
     @media (prefers-reduced-motion: reduce) { .sheen { animation: none; opacity: 0 } }
   </style>
   <defs>

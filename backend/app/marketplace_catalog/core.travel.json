@@ -5,11 +5,11 @@
   "name": "Travel",
   "publisher": "Initiative",
   "description": "For the ones with a list.",
-  "long_description": "Monuments at the hour they light up, and a window seat with the whole country going past. Meridians round your picture, and a trophy for every way of arriving — plane, ship, train, car, bicycle, and the globe you are crossing off.",
+  "long_description": "Monuments at the hour they light up, and a window seat with the whole country going past. Stand under the Eiffel, in a torii, on the Golden Gate or in one bay of the Colosseum — or keep it to meridians — and take a trophy for every way of arriving: plane, ship, train, car, bicycle, and the globe you are crossing off.",
   "avatar_url": "/decorations/banners/travel-landmarks.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "A window seat, with the country going past.",
+  "version": "1.2.0",
+  "release_notes": "Four landmarks to stand in.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -58,6 +58,26 @@
         "id": "travel.trainride",
         "slot": "banner",
         "name": "By train"
+      },
+      {
+        "id": "travel.eiffel",
+        "slot": "frame",
+        "name": "Eiffel Tower"
+      },
+      {
+        "id": "travel.torii",
+        "slot": "frame",
+        "name": "Torii"
+      },
+      {
+        "id": "travel.goldengate",
+        "slot": "frame",
+        "name": "Golden Gate"
+      },
+      {
+        "id": "travel.colosseum",
+        "slot": "frame",
+        "name": "Colosseum"
       }
     ]
   }

@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Torii</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: a gateway. The pillars stand in front of the picture's two
+       edges and the tie beam runs across above a face, so the wearer is
+       standing in the gate rather than next to a picture of one. It stands in
+       water, which is where the ripples come from. -->
+  <defs>
+    <linearGradient id="trSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EBF3F7"/><stop offset="55%" stop-color="#C6DFEC"/>
+      <stop offset="100%" stop-color="#9CC4DA"/>
+    </linearGradient>
+    <linearGradient id="trSea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#79A7C1"/><stop offset="100%" stop-color="#3F6E8C"/>
+    </linearGradient>
+    <linearGradient id="trRed" x1="0" y1="0" x2=".45" y2="1">
+      <stop offset="0%" stop-color="#E2685A"/><stop offset="48%" stop-color="#CE4136"/>
+      <stop offset="100%" stop-color="#8F2822"/>
+    </linearGradient>
+    <clipPath id="trDonut"><path d="M64 0 A64 64 0 1 0 64 128 A64 64 0 1 0 64 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z" clip-rule="evenodd"/></clipPath>
+  </defs>
+  <style>
+    .rp { fill: none; stroke: #E4F2F8; stroke-width: 1.1; stroke-linecap: round;
+          animation: trDrift 9s linear infinite; transform-box: view-box }
+    .r1 { animation-delay: -2.2s } .r2 { animation-delay: -4.5s } .r3 { animation-delay: -6.7s }
+    @keyframes trDrift {
+      0%   { opacity: 0;   transform: translateX(-7px) }
+      35%  { opacity: .65 }
+      100% { opacity: 0;   transform: translateX(7px) }
+    }
+    @media (prefers-reduced-motion: reduce) { .rp { animation: none; opacity: .45 } }
+  </style>
+
+  <g clip-path="url(#trDonut)">
+    <rect x="0" y="0" width="128" height="87" fill="url(#trSky)"/>
+    <rect x="0" y="86" width="128" height="42" fill="url(#trSea)"/>
+    <path d="M0 86 L128 86" stroke="#7FA9C0" stroke-width=".8"/>
+    <g fill="#2E5670" opacity=".3">
+      <path d="M6 116 L24 116 L22 128 L8 128 Z"/><path d="M122 116 L104 116 L106 128 L120 128 Z"/>
+    </g>
+    <path class="rp r0" d="M6 92 q6.5 -2 13 0"/><path class="rp r1" d="M22 100 q5.0 -2 10 0"/><path class="rp r2" d="M2 108 q8.0 -2 16 0"/><path class="rp r3" d="M30 114 q6.0 -2 12 0"/><path class="rp r0" d="M10 120 q9.0 -2 18 0"/><path class="rp r1" d="M48 122 q7.0 -2 14 0"/><path class="rp r2" d="M74 118 q6.0 -2 12 0"/><path class="rp r3" d="M96 112 q7.5 -2 15 0"/><path class="rp r0" d="M112 104 q5.5 -2 11 0"/><path class="rp r1" d="M120 94 q6.0 -2 12 0"/><path class="rp r2" d="M58 126 q5.0 -2 10 0"/><path class="rp r3" d="M88 124 q6.5 -2 13 0"/><path class="rp r0" d="M36 106 q4.5 -2 9 0"/><path class="rp r1" d="M100 122 q5.0 -2 10 0"/>
+  </g>
+
+  <g fill="url(#trRed)">
+    <path d="M5 128 L11 18 L25 18 L23 128 Z"/>
+    <path d="M123 128 L117 18 L103 18 L105 128 Z"/>
+    <path d="M60 20 L68 20 L68 29 L60 29 Z"/>
+    <path d="M-2 28 L130 28 L130 36 L-2 36 Z"/>
+    <path d="M2 11 C24 15.5, 104 15.5, 126 11 L126 18 C104 22.5, 24 22.5, 2 18 Z"/>
+    <path d="M-4 2 C20 7, 108 7, 132 2 L132 10 C108 15, 20 15, -4 10 Z"/>
+  </g>
+  <g fill="#7E241E" opacity=".55">
+    <path d="M-2 34.4 L130 34.4 L130 36 L-2 36 Z"/>
+    <path d="M2 16.6 C24 21.1, 104 21.1, 126 16.6 L126 18 C104 22.5, 24 22.5, 2 18 Z"/>
+    <path d="M-4 8.4 C20 13.4, 108 13.4, 132 8.4 L132 10 C108 15, 20 15, -4 10 Z"/>
+  </g>
+  <g fill="#F2A093" opacity=".5">
+    <path d="M11.6 18 L14 18 L12.4 118 L10 118 Z"/>
+    <path d="M116.4 18 L114 18 L115.6 118 L118 118 Z"/>
+  </g>
+  <g fill="#2F2A28">
+    <path d="M4 114 L24 114 L23.6 128 L4.6 128 Z"/>
+    <path d="M124 114 L104 114 L104.4 128 L123.4 128 Z"/>
+  </g>
+  <g fill="#4A4340">
+    <path d="M4 114 L24 114 L24 116.4 L4 116.4 Z"/>
+    <path d="M124 114 L104 114 L104 116.4 L124 116.4 Z"/>
+  </g>
+</svg>

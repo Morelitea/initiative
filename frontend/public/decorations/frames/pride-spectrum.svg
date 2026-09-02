@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
      role="presentation">
-  <title>Spectrum</title>
+  <title>Pride</title>
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
   <style>
     .turn { animation: spin 24s linear infinite; transform-box: view-box; transform-origin: 64px 64px }

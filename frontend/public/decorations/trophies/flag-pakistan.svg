@@ -9,7 +9,7 @@
   <g clip-path="url(#disc)">
   <rect x="0" y="0" width="48" height="48" fill="#01411C"/>
   <rect x="0" y="0" width="12" height="48" fill="#FFFFFF"/>
-  <path d="M32 13.6 A10.4 10.4 0 1 0 32 34.4 A8.4 8.4 0 1 1 32 13.6 Z" fill="#FFFFFF"/>
+  <path fill-rule="evenodd" fill="#FFFFFF" d="M20.6 24 a9.4 9.4 0 1 0 18.8 0 a9.4 9.4 0 1 0 -18.8 0 Z M23.8 24 a7.9 7.9 0 1 0 15.8 0 a7.9 7.9 0 1 0 -15.8 0 Z"/>
   <path d="M34.6 13.6 L35.5 16.36 L38.4 16.36 L36.05 18.07 L36.95 20.84 L34.6 19.13 L32.25 20.84 L33.15 18.07 L30.8 16.36 L33.7 16.36 Z" fill="#FFFFFF"/>
   </g>
   <circle cx="24" cy="24" r="19" fill="none" stroke="#0E1122" stroke-width="1.4" opacity=".8"/>

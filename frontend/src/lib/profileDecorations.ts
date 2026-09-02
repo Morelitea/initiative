@@ -69,6 +69,7 @@ type DecorationName =
   | "bat"
   | "bauble"
   | "beach"
+  | "beadwork"
   | "benzene"
   | "bi"
   | "bicycle"
@@ -94,10 +95,12 @@ type DecorationName =
   | "cobweb"
   | "cocoa"
   | "collar"
+  | "colosseum"
   | "controller"
   | "court"
   | "cowries"
   | "crown"
+  | "cupoftea"
   | "curtain"
   | "d20"
   | "dagger"
@@ -113,6 +116,7 @@ type DecorationName =
   | "dog"
   | "drivein"
   | "drums"
+  | "eiffeltower"
   | "ember"
   | "endzone"
   | "engarde"
@@ -126,20 +130,38 @@ type DecorationName =
   | "filmstrip"
   | "fist"
   | "fivestripes"
+  | "flagalgeria"
   | "flagargentina"
+  | "flagarmenia"
+  | "flagaustralia"
+  | "flagaustria"
+  | "flagbangladesh"
+  | "flagbelgium"
   | "flagbrazil"
+  | "flagcameroon"
+  | "flagcanada"
+  | "flagchile"
   | "flagchina"
   | "flagcolombia"
   | "flagcuba"
+  | "flagczechia"
+  | "flagdenmark"
+  | "flagdominicanrepublic"
   | "flagegypt"
   | "flagethiopia"
+  | "flagfinland"
   | "flagfrance"
+  | "flaggermany"
   | "flagghana"
   | "flaggreece"
+  | "flagguatemala"
   | "flaghaiti"
+  | "flaghungary"
+  | "flagiceland"
   | "flagindia"
   | "flagindonesia"
   | "flagireland"
+  | "flagisrael"
   | "flagitaly"
   | "flagjamaica"
   | "flagjapan"
@@ -148,19 +170,40 @@ type DecorationName =
   | "flaglebanon"
   | "flagmexico"
   | "flagmorocco"
+  | "flagnetherlands"
   | "flagnigeria"
+  | "flagnorway"
   | "flagpakistan"
+  | "flagpalestine"
+  | "flagpapuanewguinea"
   | "flagperu"
   | "flagphilippines"
   | "flagpoland"
+  | "flagportugal"
+  | "flagpuertorico"
+  | "flagromania"
+  | "flagrussia"
   | "flagsamoa"
+  | "flagsenegal"
+  | "flagsingapore"
+  | "flagsomalia"
   | "flagsouthafrica"
+  | "flagspain"
+  | "flagsudan"
+  | "flagsweden"
+  | "flagswitzerland"
+  | "flagtanzania"
+  | "flagthailand"
+  | "flagtunisia"
   | "flagturkey"
   | "flagukraine"
+  | "flagunitedstates"
+  | "flagvenezuela"
   | "flagvietnam"
   | "flask"
   | "floodlights"
   | "flurry"
+  | "formline"
   | "fourdirections"
   | "gamesnight"
   | "garden"
@@ -169,11 +212,13 @@ type DecorationName =
   | "glasses"
   | "globe"
   | "gold"
+  | "goldengate"
   | "goodplacetoread"
   | "grove"
   | "guitar"
   | "hamster"
   | "handprint"
+  | "headphones"
   | "hearth"
   | "helix"
   | "hollow"
@@ -205,6 +250,7 @@ type DecorationName =
   | "meridians"
   | "microphone"
   | "microscope"
+  | "mixtape"
   | "mobilityaid"
   | "monstera"
   | "morel"
@@ -229,6 +275,7 @@ type DecorationName =
   | "panels"
   | "parade"
   | "parchment"
+  | "parfleche"
   | "pawprint"
   | "pigskin"
   | "pines"
@@ -239,6 +286,7 @@ type DecorationName =
   | "poly"
   | "popcorn"
   | "porcelain"
+  | "pottery"
   | "prideheart"
   | "projector"
   | "puck"
@@ -272,6 +320,7 @@ type DecorationName =
   | "spoon"
   | "stack"
   | "stage"
+  | "stagelights"
   | "stitching"
   | "stones"
   | "streetparty"
@@ -281,12 +330,12 @@ type DecorationName =
   | "teabag"
   | "teacup"
   | "teagarden"
-  | "tealeaves"
   | "teapot"
   | "teaservice"
   | "tennisace"
   | "tent"
   | "ticket"
+  | "torii"
   | "train"
   | "trans"
   | "turntable"
@@ -478,6 +527,30 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "firstnations-twospirit",
     "twospirit"
   ),
+  "firstnations.beadwork": entry(
+    "firstnations.beadwork",
+    "banner",
+    "firstnations-beadwork",
+    "beadwork"
+  ),
+  "firstnations.formline": entry(
+    "firstnations.formline",
+    "banner",
+    "firstnations-formline",
+    "formline"
+  ),
+  "firstnations.parfleche": entry(
+    "firstnations.parfleche",
+    "banner",
+    "firstnations-parfleche",
+    "parfleche"
+  ),
+  "firstnations.pottery": entry(
+    "firstnations.pottery",
+    "banner",
+    "firstnations-pottery",
+    "pottery"
+  ),
   "firstnations.weave": entry("firstnations.weave", "banner", "firstnations-weave", "weave"),
   "firstnations.wheel": entry(
     "firstnations.wheel",
@@ -511,20 +584,43 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   ),
 
   // One roundel per flag, for wherever anybody is from.
+  "flag.algeria": entry("flag.algeria", "trophy", "flag-algeria", "flagalgeria"),
   "flag.argentina": entry("flag.argentina", "trophy", "flag-argentina", "flagargentina"),
+  "flag.armenia": entry("flag.armenia", "trophy", "flag-armenia", "flagarmenia"),
+  "flag.australia": entry("flag.australia", "trophy", "flag-australia", "flagaustralia"),
+  "flag.austria": entry("flag.austria", "trophy", "flag-austria", "flagaustria"),
+  "flag.bangladesh": entry("flag.bangladesh", "trophy", "flag-bangladesh", "flagbangladesh"),
+  "flag.belgium": entry("flag.belgium", "trophy", "flag-belgium", "flagbelgium"),
   "flag.brazil": entry("flag.brazil", "trophy", "flag-brazil", "flagbrazil"),
+  "flag.cameroon": entry("flag.cameroon", "trophy", "flag-cameroon", "flagcameroon"),
+  "flag.canada": entry("flag.canada", "trophy", "flag-canada", "flagcanada"),
+  "flag.chile": entry("flag.chile", "trophy", "flag-chile", "flagchile"),
   "flag.china": entry("flag.china", "trophy", "flag-china", "flagchina"),
   "flag.colombia": entry("flag.colombia", "trophy", "flag-colombia", "flagcolombia"),
   "flag.cuba": entry("flag.cuba", "trophy", "flag-cuba", "flagcuba"),
+  "flag.czechia": entry("flag.czechia", "trophy", "flag-czechia", "flagczechia"),
+  "flag.denmark": entry("flag.denmark", "trophy", "flag-denmark", "flagdenmark"),
+  "flag.dominicanrepublic": entry(
+    "flag.dominicanrepublic",
+    "trophy",
+    "flag-dominicanrepublic",
+    "flagdominicanrepublic"
+  ),
   "flag.egypt": entry("flag.egypt", "trophy", "flag-egypt", "flagegypt"),
   "flag.ethiopia": entry("flag.ethiopia", "trophy", "flag-ethiopia", "flagethiopia"),
+  "flag.finland": entry("flag.finland", "trophy", "flag-finland", "flagfinland"),
   "flag.france": entry("flag.france", "trophy", "flag-france", "flagfrance"),
+  "flag.germany": entry("flag.germany", "trophy", "flag-germany", "flaggermany"),
   "flag.ghana": entry("flag.ghana", "trophy", "flag-ghana", "flagghana"),
   "flag.greece": entry("flag.greece", "trophy", "flag-greece", "flaggreece"),
+  "flag.guatemala": entry("flag.guatemala", "trophy", "flag-guatemala", "flagguatemala"),
   "flag.haiti": entry("flag.haiti", "trophy", "flag-haiti", "flaghaiti"),
+  "flag.hungary": entry("flag.hungary", "trophy", "flag-hungary", "flaghungary"),
+  "flag.iceland": entry("flag.iceland", "trophy", "flag-iceland", "flagiceland"),
   "flag.india": entry("flag.india", "trophy", "flag-india", "flagindia"),
   "flag.indonesia": entry("flag.indonesia", "trophy", "flag-indonesia", "flagindonesia"),
   "flag.ireland": entry("flag.ireland", "trophy", "flag-ireland", "flagireland"),
+  "flag.israel": entry("flag.israel", "trophy", "flag-israel", "flagisrael"),
   "flag.italy": entry("flag.italy", "trophy", "flag-italy", "flagitaly"),
   "flag.jamaica": entry("flag.jamaica", "trophy", "flag-jamaica", "flagjamaica"),
   "flag.japan": entry("flag.japan", "trophy", "flag-japan", "flagjapan"),
@@ -533,15 +629,45 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "flag.lebanon": entry("flag.lebanon", "trophy", "flag-lebanon", "flaglebanon"),
   "flag.mexico": entry("flag.mexico", "trophy", "flag-mexico", "flagmexico"),
   "flag.morocco": entry("flag.morocco", "trophy", "flag-morocco", "flagmorocco"),
+  "flag.netherlands": entry("flag.netherlands", "trophy", "flag-netherlands", "flagnetherlands"),
   "flag.nigeria": entry("flag.nigeria", "trophy", "flag-nigeria", "flagnigeria"),
+  "flag.norway": entry("flag.norway", "trophy", "flag-norway", "flagnorway"),
   "flag.pakistan": entry("flag.pakistan", "trophy", "flag-pakistan", "flagpakistan"),
+  "flag.palestine": entry("flag.palestine", "trophy", "flag-palestine", "flagpalestine"),
+  "flag.papuanewguinea": entry(
+    "flag.papuanewguinea",
+    "trophy",
+    "flag-papuanewguinea",
+    "flagpapuanewguinea"
+  ),
   "flag.peru": entry("flag.peru", "trophy", "flag-peru", "flagperu"),
   "flag.philippines": entry("flag.philippines", "trophy", "flag-philippines", "flagphilippines"),
   "flag.poland": entry("flag.poland", "trophy", "flag-poland", "flagpoland"),
+  "flag.portugal": entry("flag.portugal", "trophy", "flag-portugal", "flagportugal"),
+  "flag.puertorico": entry("flag.puertorico", "trophy", "flag-puertorico", "flagpuertorico"),
+  "flag.romania": entry("flag.romania", "trophy", "flag-romania", "flagromania"),
+  "flag.russia": entry("flag.russia", "trophy", "flag-russia", "flagrussia"),
   "flag.samoa": entry("flag.samoa", "trophy", "flag-samoa", "flagsamoa"),
+  "flag.senegal": entry("flag.senegal", "trophy", "flag-senegal", "flagsenegal"),
+  "flag.singapore": entry("flag.singapore", "trophy", "flag-singapore", "flagsingapore"),
+  "flag.somalia": entry("flag.somalia", "trophy", "flag-somalia", "flagsomalia"),
   "flag.southafrica": entry("flag.southafrica", "trophy", "flag-southafrica", "flagsouthafrica"),
+  "flag.spain": entry("flag.spain", "trophy", "flag-spain", "flagspain"),
+  "flag.sudan": entry("flag.sudan", "trophy", "flag-sudan", "flagsudan"),
+  "flag.sweden": entry("flag.sweden", "trophy", "flag-sweden", "flagsweden"),
+  "flag.switzerland": entry("flag.switzerland", "trophy", "flag-switzerland", "flagswitzerland"),
+  "flag.tanzania": entry("flag.tanzania", "trophy", "flag-tanzania", "flagtanzania"),
+  "flag.thailand": entry("flag.thailand", "trophy", "flag-thailand", "flagthailand"),
+  "flag.tunisia": entry("flag.tunisia", "trophy", "flag-tunisia", "flagtunisia"),
   "flag.turkey": entry("flag.turkey", "trophy", "flag-turkey", "flagturkey"),
   "flag.ukraine": entry("flag.ukraine", "trophy", "flag-ukraine", "flagukraine"),
+  "flag.unitedstates": entry(
+    "flag.unitedstates",
+    "trophy",
+    "flag-unitedstates",
+    "flagunitedstates"
+  ),
+  "flag.venezuela": entry("flag.venezuela", "trophy", "flag-venezuela", "flagvenezuela"),
   "flag.vietnam": entry("flag.vietnam", "trophy", "flag-vietnam", "flagvietnam"),
 
   // Guilds, raid nights, arcades, patch day, and the table.
@@ -577,6 +703,9 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "music.festival": entry("music.festival", "banner", "music-festival", "festival"),
   "music.sheet": entry("music.sheet", "banner", "music-sheet", "sheetmusic", "dark"),
   "music.soundcheck": entry("music.soundcheck", "banner", "music-soundcheck", "soundcheck"),
+  "music.headphones": entry("music.headphones", "frame", "music-headphones", "headphones"),
+  "music.mixtape": entry("music.mixtape", "frame", "music-mixtape", "mixtape"),
+  "music.stagelights": entry("music.stagelights", "frame", "music-stagelights", "stagelights"),
   "music.vinyl": entry("music.vinyl", "frame", "music-vinyl", "vinyl"),
   "music.cassette": entry("music.cassette", "trophy", "music-cassette", "cassette"),
   "music.drums": entry("music.drums", "trophy", "music-drums", "drums"),
@@ -684,8 +813,8 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "tea.garden": entry("tea.garden", "banner", "tea-garden", "teagarden"),
   "tea.party": entry("tea.party", "banner", "tea-party", "madteaparty", "dark"),
   "tea.service": entry("tea.service", "banner", "tea-service", "teaservice"),
-  "tea.leaves": entry("tea.leaves", "frame", "tea-leaves", "tealeaves"),
   "tea.porcelain": entry("tea.porcelain", "frame", "tea-porcelain", "porcelain"),
+  "tea.teacup": entry("tea.teacup", "frame", "tea-teacup", "cupoftea"),
   "tea.bag": entry("tea.bag", "trophy", "tea-bag", "teabag"),
   "tea.cup": entry("tea.cup", "trophy", "tea-cup", "teacup"),
   "tea.matcha": entry("tea.matcha", "trophy", "tea-matcha", "matcha"),
@@ -697,7 +826,11 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "travel.landmarks": entry("travel.landmarks", "banner", "travel-landmarks", "landmarks"),
   "travel.trainride": entry("travel.trainride", "banner", "travel-train", "bytrain"),
+  "travel.colosseum": entry("travel.colosseum", "frame", "travel-colosseum", "colosseum"),
+  "travel.eiffel": entry("travel.eiffel", "frame", "travel-eiffel", "eiffeltower"),
+  "travel.goldengate": entry("travel.goldengate", "frame", "travel-goldengate", "goldengate"),
   "travel.meridians": entry("travel.meridians", "frame", "travel-meridians", "meridians"),
+  "travel.torii": entry("travel.torii", "frame", "travel-torii", "torii"),
   "travel.bicycle": entry("travel.bicycle", "trophy", "travel-bicycle", "bicycle"),
   "travel.car": entry("travel.car", "trophy", "travel-car", "car"),
   "travel.globe": entry("travel.globe", "trophy", "travel-globe", "globe"),
