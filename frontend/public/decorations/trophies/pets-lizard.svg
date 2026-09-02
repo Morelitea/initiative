@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Lizard</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2A1C"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7EA85E" stroke-width="2"/>
+  <path d="M39.4 33.6 C36 33 33.4 31.6 31.6 29.6 C29.4 27.2 27 26 24 26
+           C20 26 17 24.4 15 21.4 C12.6 17.6 13.6 12.6 17.4 10.4 C20.4 8.6 24.4 9.4 26.4 12
+           C28 14.2 27.6 17 25.6 18.4 C24 19.6 21.8 19.2 20.8 17.6" fill="none"
+        stroke="#5C8049" stroke-width="6" stroke-linecap="round"/>
+  <ellipse cx="18.4" cy="14.4" rx="6.6" ry="5.4" fill="#6E9455" transform="rotate(-24 18.4 14.4)"/>
+  <ellipse cx="26" cy="24.6" rx="7.6" ry="5.6" fill="#6E9455" transform="rotate(18 26 24.6)"/>
+  <g fill="#3E5C30">
+    <ellipse cx="23" cy="22.6" rx="1.4" ry="1"/><ellipse cx="27.4" cy="26.6" rx="1.4" ry="1"/>
+    <ellipse cx="19.4" cy="26" rx="1.2" ry=".9"/><ellipse cx="30" cy="22.6" rx="1.2" ry=".9"/>
+    <ellipse cx="16.6" cy="16" rx="1.2" ry=".9"/>
+  </g>
+  <g stroke="#5C8049" stroke-width="2.6" stroke-linecap="round" fill="none">
+    <path d="M22 20.4 L17.4 24.6 L13.4 24"/>
+    <path d="M29 20.6 L33 17.4 L36.6 18.6"/>
+    <path d="M21.4 29 L18 33.4 L13.6 34"/>
+    <path d="M30 29 L33.4 32.6 L37 32.6"/>
+  </g>
+  <g transform="translate(16 12.6) rotate(-30)">
+    <ellipse cx="0" cy="0" rx="5.6" ry="4.2" fill="#7EA85E"/>
+    <circle cx="1.6" cy="-1.9" r="1.4" fill="#F2C230"/>
+    <circle cx="1.6" cy="-1.9" r=".6" fill="#1E2A1C"/>
+    <path d="M-4.4 1.6 C-5.6 2 -6.4 1.8 -7 1.2 C-6 .8 -5.2 .8 -4.4 1 Z" fill="#C4302B"/>
+    <g fill="#5C8049">
+      <ellipse cx="-1.4" cy="-2.4" rx="1.4" ry=".9"/><ellipse cx="-3.4" cy="-.4" rx="1.2" ry=".8"/>
+    </g>
+  </g></svg>

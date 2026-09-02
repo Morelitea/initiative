@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Train</title>
+  <circle cx="24" cy="24" r="23" fill="#1B2748"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#5A79B4" stroke-width="2"/>
+  <g>
+    <path d="M9 32 L39 32 L39 33.6 L9 33.6 Z" fill="#5A5F6B"/>
+    <path d="M11 12.6 L28 12.6 C29.4 12.6 30 13.2 30 14.4 L30 30.4 L9 30.4 L9 14.4
+             C9 13.2 9.6 12.6 11 12.6 Z" fill="#C4302B"/>
+    <path d="M11 12.6 L28 12.6 C29.4 12.6 30 13.2 30 14.4 L30 16 L9 16 L9 14.4
+             C9 13.2 9.6 12.6 11 12.6 Z" fill="#8E211D"/>
+    <path d="M11.6 17.6 L27.4 17.6 L27.4 23 L11.6 23 Z" fill="#E8EEF8"/>
+    <g fill="#2A63A8">
+      <rect x="13" y="18.8" width="4.4" height="3" rx=".5"/>
+      <rect x="21.6" y="18.8" width="4.4" height="3" rx=".5"/>
+    </g>
+    <path d="M30 20 L38 20 C39.2 20 39.8 20.6 39.8 21.6 L39.8 30.4 L30 30.4 Z" fill="#E8B455"/>
+    <g fill="#8E5A18">
+      <rect x="32" y="22.4" width="2.6" height="2.6" rx=".4"/>
+      <rect x="35.6" y="22.4" width="2.6" height="2.6" rx=".4"/>
+    </g>
+    <path d="M9 25 L39.8 25 L39.8 27 L9 27 Z" fill="#3B3F49"/>
+    <circle cx="14" cy="30.4" r="3" fill="#2A2E36"/><circle cx="14" cy="30.4" r="1.2" fill="#8A8F9A"/>
+    <circle cx="24" cy="30.4" r="3" fill="#2A2E36"/><circle cx="24" cy="30.4" r="1.2" fill="#8A8F9A"/>
+    <circle cx="34" cy="30.4" r="2.4" fill="#2A2E36"/><circle cx="34" cy="30.4" r="1" fill="#8A8F9A"/>
+    <path d="M16.6 12.6 L20.4 12.6 L20.4 9 L16.6 9 Z" fill="#3B3F49"/>
+    <path d="M15.6 9 L21.4 9 L21.4 7.6 L15.6 7.6 Z" fill="#3B3F49"/>
+  </g>
+  <g fill="#D8DEE8" opacity=".55">
+    <circle cx="18.6" cy="5.4" r="2"/><circle cx="22.6" cy="3.6" r="1.5"/>
+    <circle cx="26" cy="2.6" r="1.1"/>
+  </g>
+</svg>

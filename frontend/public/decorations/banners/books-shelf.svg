@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Bookshelf</title>
+  <!-- Somebody's shelf, at the hour the lamp is the only light on. -->
+  <style>
+    .glow { animation: warm 7s ease-in-out infinite }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .86 } }
+    .mote { animation: rise 15s linear infinite }
+    .m2 { animation-delay: -5s } .m3 { animation-delay: -10s }
+    @keyframes rise {
+      0% { transform: translate(0,0); opacity: 0 }
+      25% { opacity: .5 }
+      100% { transform: translate(-2px,-16px); opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) { .glow, .mote { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="dim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B1208"/><stop offset="100%" stop-color="#2C1D0F"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6B4526"/><stop offset="100%" stop-color="#4A2E18"/>
+    </linearGradient>
+    <radialGradient id="readlight" cx=".5" cy=".3" r=".8">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".4"/>
+      <stop offset="100%" stop-color="#FFD79A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#dim)"/>
+  <ellipse class="glow" cx="80" cy="20" rx="62" ry="24" fill="url(#readlight)"/>
+  <!-- Two shelves of them, leaning the way they lean. -->
+  <path d="M0 20 L160 20 L160 21.8 L0 21.8 Z" fill="url(#wood)"/>
+  <path d="M0 36 L160 36 L160 38 L0 38 Z" fill="url(#wood)"/>
+  <g>
+    <path d="M4 20 L4 7.4 L8.6 7.4 L8.6 20 Z" fill="#8C3B34"/>
+    <path d="M9.2 20 L9.2 6 L12.4 6 L12.4 20 Z" fill="#2F5C6E"/>
+    <path d="M13 20 L13 8.6 L17.4 8.6 L17.4 20 Z" fill="#C08A3E"/>
+    <path d="M18 20 L18 5.4 L21 5.4 L21 20 Z" fill="#4A6B3C"/>
+    <path d="M21.6 20 L21.6 9 L26.4 9 L26.4 20 Z" fill="#6B4A8C"/>
+    <path d="M27 20 L27 6.6 L30.2 6.6 L30.2 20 Z" fill="#B4562F"/>
+    <g transform="rotate(-12 31 20)">
+      <path d="M31 20 L31 7.6 L35 7.6 L35 20 Z" fill="#356070"/>
+    </g>
+    <path d="M37.4 20 L37.4 8.2 L41 8.2 L41 20 Z" fill="#8C3B34"/>
+    <path d="M41.6 20 L41.6 5.8 L45.4 5.8 L45.4 20 Z" fill="#C7A15C"/>
+    <path d="M46 20 L46 9.4 L49 9.4 L49 20 Z" fill="#4A6B3C"/>
+    <!-- A few laid flat, because the shelf ran out. -->
+    <path d="M52 20 L52 17.6 L68 17.6 L68 20 Z" fill="#2F5C6E"/>
+    <path d="M52.6 17.6 L52.6 15.6 L67.2 15.6 L67.2 17.6 Z" fill="#B4562F"/>
+    <path d="M53.4 15.6 L53.4 13.8 L66 13.8 L66 15.6 Z" fill="#6B4A8C"/>
+    <path d="M96 20 L96 8 L100 8 L100 20 Z" fill="#4A6B3C"/>
+    <path d="M100.6 20 L100.6 6.2 L104.4 6.2 L104.4 20 Z" fill="#8C3B34"/>
+    <path d="M105 20 L105 9.2 L108 9.2 L108 20 Z" fill="#C7A15C"/>
+    <path d="M108.6 20 L108.6 7 L113 7 L113 20 Z" fill="#2F5C6E"/>
+    <path d="M113.6 20 L113.6 8.6 L116.6 8.6 L116.6 20 Z" fill="#B4562F"/>
+    <g transform="rotate(9 118 20)">
+      <path d="M117.2 20 L117.2 6.8 L121.4 6.8 L121.4 20 Z" fill="#6B4A8C"/>
+    </g>
+    <path d="M124 20 L124 8.4 L128.4 8.4 L128.4 20 Z" fill="#356070"/>
+    <path d="M129 20 L129 5.6 L132 5.6 L132 20 Z" fill="#C08A3E"/>
+    <path d="M132.6 20 L132.6 9 L137 9 L137 20 Z" fill="#4A6B3C"/>
+    <path d="M137.6 20 L137.6 7.2 L141 7.2 L141 20 Z" fill="#8C3B34"/>
+    <path d="M141.6 20 L141.6 8.8 L146 8.8 L146 20 Z" fill="#2F5C6E"/>
+    <path d="M146.6 20 L146.6 6.4 L150 6.4 L150 20 Z" fill="#C7A15C"/>
+    <path d="M150.6 20 L150.6 9.4 L155 9.4 L155 20 Z" fill="#6B4A8C"/>
+  </g>
+  <g fill="#F0DCA8" opacity=".45">
+    <path d="M5 9 L7.6 9"/><path d="M5 10.6 L7.6 10.6"/>
+  </g>
+  <g stroke="#F0DCA8" stroke-width=".4" opacity=".4">
+    <path d="M4.8 9.6 L7.8 9.6"/><path d="M9.6 8 L12 8"/><path d="M18.4 7.6 L20.6 7.6"/>
+    <path d="M27.4 8.6 L29.8 8.6"/><path d="M42 8 L45 8"/><path d="M101 8.4 L104 8.4"/>
+    <path d="M129.4 7.8 L131.6 7.8"/><path d="M147 8.6 L149.6 8.6"/>
+  </g>
+  <!-- The lamp, the mug and the one that is open. -->
+  <g>
+    <path d="M78 36 L82 36 L82 27.4 L78 27.4 Z" fill="#3A2716"/>
+    <path d="M79.4 27.4 L80.6 27.4 L80.6 24 L79.4 24 Z" fill="#5A3D22"/>
+    <path d="M73.6 24 C74.6 21 77 19.4 80 19.4 C83 19.4 85.4 21 86.4 24 Z" fill="#2E5B4A"/>
+    <path class="glow" d="M74.6 24 L85.4 24 L85.4 24.8 L74.6 24.8 Z" fill="#FFE0A8"/>
+    <ellipse class="glow" cx="80" cy="26" rx="10" ry="3" fill="#FFD79A" opacity=".2"/>
+  </g>
+  <g>
+    <path d="M58 36 C58 31 62 29.4 66 29.4 C70 29.4 74 31 74 36 Z" fill="#EFE6D0"/>
+    <path d="M66 29.4 C62 29.4 58 31 58 36" fill="none" stroke="#C9BFA6" stroke-width=".5"/>
+    <path d="M66 29.4 L66 36" stroke="#C9BFA6" stroke-width=".5"/>
+    <g stroke="#C9BFA6" stroke-width=".35" opacity=".7">
+      <path d="M60.6 31.6 C62 30.9 64 30.6 65.4 30.7"/>
+      <path d="M60 33 C61.6 32.3 64 32 65.4 32.1"/>
+      <path d="M59.6 34.4 C61.4 33.7 64 33.4 65.4 33.5"/>
+      <path d="M66.6 30.7 C68 30.6 70 30.9 71.4 31.6"/>
+      <path d="M66.6 32.1 C68 32 70.4 32.3 72 33"/>
+      <path d="M66.6 33.5 C68 33.4 70.6 33.7 72.4 34.4"/>
+    </g>
+  </g>
+  <g>
+    <path d="M92 36 L92 30.4 C92 29.6 92.6 29.2 93.4 29.2 L99.6 29.2 C100.4 29.2 101 29.6 101 30.4
+             L101 36 Z" fill="#B4562F"/>
+    <path d="M101 31 C102.6 31 103.6 32 103.6 33 C103.6 34 102.6 35 101 35 Z" fill="none"
+          stroke="#B4562F" stroke-width="1"/>
+    <ellipse cx="96.5" cy="29.4" rx="4.5" ry="1" fill="#7E3A1C"/>
+  </g>
+  <g fill="#FFE7C2">
+    <circle class="mote" cx="70" cy="30" r=".3" opacity=".5"/>
+    <circle class="mote m2" cx="88" cy="32" r=".26" opacity=".45"/>
+    <circle class="mote m3" cx="80" cy="28" r=".28" opacity=".4"/>
+  </g>
+</svg>

@@ -7,7 +7,36 @@
     .swing { animation: sway 2.8s ease-in-out infinite alternate;
              transform-box: fill-box; transform-origin: 50% 0 }
     @keyframes sway { from { transform: rotate(-2.5deg) } to { transform: rotate(2.5deg) } }
-    @media (prefers-reduced-motion: reduce) { .swing { animation: none } }
+    /* Up off the right wing, down through the rim, out of the bottom of the
+       net. */
+    .shot { animation: arc 4.2s ease-in infinite }
+    @keyframes arc {
+      0%   { transform: translate(30px,15px); opacity: 0 }
+      8%   { opacity: 1 }
+      38%  { transform: translate(15px,-6.5px) }
+      56%  { transform: translate(1px,-6px) }
+      68%  { transform: translate(0,0) }
+      80%  { transform: translate(0,6px) }
+      90%  { transform: translate(0,11px); opacity: 1 }
+      96%  { transform: translate(0,14px); opacity: 0 }
+      100% { transform: translate(30px,15px); opacity: 0 }
+    }
+    .rolls { animation: rolling 1.4s linear infinite;
+             transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes rolling { to { transform: rotate(360deg) } }
+    /* The net only moves when something has just gone through it. */
+    .swish { animation: kick 4.2s ease-out infinite;
+             transform-box: fill-box; transform-origin: 50% 0 }
+    @keyframes kick {
+      0%,66% { transform: scaleY(1) rotate(0deg) }
+      72%    { transform: scaleY(1.12) rotate(0deg) }
+      80%    { transform: scaleY(.96) rotate(1.5deg) }
+      88%    { transform: scaleY(1.03) rotate(-1deg) }
+      100%   { transform: scaleY(1) rotate(0deg) }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .swing, .shot, .rolls, .swish { animation: none }
+    }
   </style>
   <defs>
     <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
@@ -64,7 +93,7 @@
   <path d="M69.4 7.4 L90.6 7.4" stroke="#FFFFFF" stroke-width=".4" opacity=".6"/>
   <g class="swing">
     <ellipse cx="80" cy="15" rx="6.2" ry="1.6" fill="none" stroke="#E2620E" stroke-width="1.1"/>
-    <g stroke="#F2F4F0" stroke-width=".38" fill="none" opacity=".9">
+    <g class="swish" stroke="#F2F4F0" stroke-width=".38" fill="none" opacity=".9">
       <path d="M74.2 15.4 C75 17.8 76.4 19.6 80 20.4"/>
       <path d="M77 16.4 C77.4 18.4 78.2 19.8 80 20.4"/>
       <path d="M80 16.6 L80 20.4"/>
@@ -78,7 +107,8 @@
   <g stroke="#F4EFE6" stroke-width=".4" fill="none" stroke-dasharray="1.4 2.2" opacity=".3">
     <path d="M124 26 C118 14 104 8 90 7.6"/>
   </g>
-  <g transform="translate(106 10.6)">
+  <g class="shot">
+    <g class="rolls" transform="translate(80 15.4)">
     <circle cx="0" cy="0" r="3.4" fill="url(#orb)"/>
     <g stroke="#1E1410" stroke-width=".4" fill="none" stroke-linecap="round">
       <path d="M-3.4 0 L3.4 0"/><path d="M0 -3.4 L0 3.4"/>
@@ -87,5 +117,6 @@
     </g>
     <path d="M-2.4 -2 C-1.6 -2.7 -.6 -3.1 .4 -3.2" fill="none" stroke="#FFD3A0"
           stroke-width=".55" opacity=".55" stroke-linecap="round"/>
+    </g>
   </g>
 </svg>

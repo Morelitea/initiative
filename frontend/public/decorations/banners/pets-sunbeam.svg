@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Sunbeam</title>
+  <!-- The good hour of the afternoon, when the light comes across the floor and
+       everyone in the house has found their own patch of it. -->
+  <style>
+    .wheel { animation: spin 2.4s linear infinite;
+             transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    .tail { animation: wag 1.4s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 100% 100% }
+    @keyframes wag { from { transform: rotate(-16deg) } to { transform: rotate(16deg) } }
+    .flick { animation: twitch 5s ease-in-out infinite;
+             transform-box: fill-box; transform-origin: 100% 100% }
+    @keyframes twitch { 0%,82% { transform: rotate(0deg) } 88% { transform: rotate(-13deg) }
+                        94% { transform: rotate(6deg) } 100% { transform: rotate(0deg) } }
+    .mote { animation: drift 13s linear infinite }
+    .m2 { animation-delay: -4.3s } .m3 { animation-delay: -8.6s }
+    @keyframes drift {
+      0% { transform: translate(0,0); opacity: 0 }
+      25% { opacity: .55 }
+      100% { transform: translate(-5px,14px); opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) { .wheel, .tail, .flick, .mote { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="room2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4D3B6"/><stop offset="100%" stop-color="#CDB893"/>
+    </linearGradient>
+    <linearGradient id="floor2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A9764A"/><stop offset="100%" stop-color="#8A5C36"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2=".6" y2="1">
+      <stop offset="0%" stop-color="#FFF3D2" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFF3D2" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#room2)"/>
+  <path d="M0 26 L160 26 L160 40 L0 40 Z" fill="url(#floor2)"/>
+  <g stroke="#7A4F2C" stroke-width=".4" opacity=".5">
+    <path d="M0 30 L160 30"/><path d="M0 34.6 L160 34.6"/>
+    <path d="M34 26 L28 40"/><path d="M92 26 L96 40"/><path d="M132 26 L138 40"/>
+  </g>
+
+  <!-- The window, and the paddock through it. -->
+  <g>
+    <path d="M96 3 L136 3 L136 25 L96 25 Z" fill="#9FC8E4"/>
+    <path d="M96 15 L136 15 L136 25 L96 25 Z" fill="#7FA85C"/>
+    <path d="M96 14.4 C104 13 120 13 136 14.4 L136 16.4 C120 15 104 15 96 16.4 Z" fill="#6B9349"/>
+    <g fill="#E8EEF4" opacity=".7">
+      <ellipse cx="106" cy="7.4" rx="4.4" ry="2.2"/><ellipse cx="126" cy="9.4" rx="5" ry="2.4"/>
+    </g>
+    <!-- One out in the field. -->
+    <g fill="#6B4526">
+      <path d="M114 22.6 C114 19.6 116 18 119 18 L124 18 C126.4 18 127.6 19.4 127.6 21.4
+               L127.6 24 L125.6 24 L125.6 21.6 L116.4 21.6 L116.4 24 L114.4 24 Z"/>
+      <path d="M118.6 18.4 C118 16.4 117 15 115.4 14.2 C116.6 13.6 118 13.8 119.4 14.6
+               C120.4 15.2 121.4 16.2 122 17.6 Z"/>
+      <path d="M115.4 14.2 C114.6 13.2 114.2 12.4 114.2 11.6 C115.2 12 116 12.6 116.6 13.4 Z"/>
+      <path d="M126 18.6 C127 19.6 127.6 20.6 127.6 21.6 L126 21.6 Z"/>
+    </g>
+    <path d="M115.4 14.6 C114.4 13.4 113.6 12.4 113.4 11.4 C114.8 11.8 116 12.6 116.8 13.8 Z"
+          fill="#3E2716"/>
+    <g stroke="#5A3D22" stroke-width="1.6" fill="none">
+      <path d="M96 3 L136 3 L136 25 L96 25 Z"/><path d="M116 3 L116 25"/><path d="M96 14 L136 14"/>
+    </g>
+  </g>
+  <path d="M96 25 L136 25 L160 40 L60 40 Z" fill="url(#beam)"/>
+  <g fill="#FFF3D2">
+    <circle class="mote" cx="120" cy="24" r=".32" opacity=".5"/>
+    <circle class="mote m2" cx="108" cy="28" r=".28" opacity=".45"/>
+    <circle class="mote m3" cx="130" cy="26" r=".3" opacity=".4"/>
+  </g>
+
+  <!-- A cat, in the middle of the patch of sun. -->
+  <g transform="translate(78 27)">
+    <ellipse cx="0" cy="5" rx="12" ry="3" fill="#7A4F2C" opacity=".3"/>
+    <path d="M-11 4 C-11 -1 -6 -3.4 -1 -3.4 C4 -3.4 8 -1.4 8 2 C8 4 6 4.6 2 4.6 L-8 4.6
+             C-10 4.6 -11 4.4 -11 4 Z" fill="#E8A33A"/>
+    <g class="flick">
+      <path d="M8 2.6 C11.4 2 13.6 -.4 14 -3.6 C15.6 -1 15 2.4 12.4 4 C11 4.8 9.4 4.6 8 3.8 Z"
+            fill="#E8A33A"/>
+    </g>
+    <circle cx="-11.4" cy="-.6" r="4.6" fill="#F0B558"/>
+    <path d="M-15 -3.6 L-14.4 -7.4 L-11.6 -4.8 Z" fill="#F0B558"/>
+    <path d="M-7.6 -3.6 L-8.2 -7.4 L-11 -4.8 Z" fill="#F0B558"/>
+    <path d="M-14.4 -4.2 L-14.1 -6.2 L-12.6 -4.8 Z" fill="#E0837A"/>
+    <path d="M-8.2 -4.2 L-8.5 -6.2 L-10 -4.8 Z" fill="#E0837A"/>
+    <g fill="#2E2116">
+      <path d="M-13.6 -1.4 C-13.2 -2 -12.6 -2 -12.2 -1.4 C-12.6 -.9 -13.2 -.9 -13.6 -1.4 Z"/>
+      <path d="M-10.6 -1.4 C-10.2 -2 -9.6 -2 -9.2 -1.4 C-9.6 -.9 -10.2 -.9 -10.6 -1.4 Z"/>
+    </g>
+    <path d="M-11.4 .4 L-10.6 1 L-12.2 1 Z" fill="#E0837A"/>
+    <g stroke="#2E2116" stroke-width=".3" opacity=".55">
+      <path d="M-13.4 .8 L-16.4 .2"/><path d="M-13.4 1.4 L-16.2 1.8"/>
+      <path d="M-9.4 .8 L-6.4 .2"/><path d="M-9.4 1.4 L-6.6 1.8"/>
+    </g>
+    <g stroke="#C4801E" stroke-width="1" opacity=".65">
+      <path d="M-4 -2.4 L-4 3.6"/><path d="M0 -2.2 L0 4.2"/><path d="M4 -1.4 L4 4.4"/>
+    </g>
+  </g>
+
+  <!-- A dog, on the rug. -->
+  <g transform="translate(34 28)">
+    <ellipse cx="0" cy="6" rx="16" ry="3.4" fill="#B4423A" opacity=".55"/>
+    <ellipse cx="0" cy="6" rx="13" ry="2.4" fill="#C9564C" opacity=".55"/>
+    <path d="M-10 4.6 C-10 -.4 -6 -3 -1 -3 C4.6 -3 9 -.6 9 3.4 C9 5 7.6 5.4 4 5.4 L-7.4 5.4
+             C-9.4 5.4 -10 5.2 -10 4.6 Z" fill="#8A6034"/>
+    <g class="tail">
+      <path d="M8.4 2.4 C11.4 1.4 13 -.6 13.4 -3.6 C15 -1.6 14.6 1.6 12.4 3.2
+               C11 4.2 9.6 4 8.4 3.2 Z" fill="#8A6034"/>
+    </g>
+    <circle cx="-10.6" cy="-.6" r="5" fill="#9E6E3C"/>
+    <path d="M-15 -3.4 C-16.6 -1.4 -16.6 2 -15 4 C-13.4 3 -13 .4 -13.6 -2.4 Z" fill="#6E4A24"/>
+    <path d="M-6.2 -3.4 C-4.6 -1.4 -4.6 2 -6.2 4 C-7.8 3 -8.2 .4 -7.6 -2.4 Z" fill="#6E4A24"/>
+    <path d="M-13.6 .6 C-13.6 -.6 -11.4 -1.2 -10.2 -.4 L-10.2 2.4 C-11.6 3.2 -13.6 2.4 -13.6 .6 Z"
+          fill="#C9A063"/>
+    <ellipse cx="-13.4" cy="1" rx="1.4" ry="1.1" fill="#2E2116"/>
+    <g fill="#2E2116">
+      <circle cx="-11.4" cy="-1.6" r=".65"/><circle cx="-8.6" cy="-1.4" r=".65"/>
+    </g>
+    <path d="M-13.4 2.2 C-12.4 3 -11.4 3 -10.6 2.4" fill="none" stroke="#2E2116" stroke-width=".4"/>
+  </g>
+
+  <!-- The hutch, the cage and the tank, along the shelf. -->
+  <g transform="translate(8 8)">
+    <path d="M0 12 L28 12 L28 14 L0 14 Z" fill="#7A5330"/>
+    <path d="M2 12 L2 2 L18 2 L18 12 Z" fill="#C9A063"/>
+    <path d="M2 12 L2 2 L18 2 L18 12 Z" fill="none" stroke="#7A5330" stroke-width="1"/>
+    <g stroke="#7A5330" stroke-width=".5" opacity=".8">
+      <path d="M6 2 L6 12"/><path d="M10 2 L10 12"/><path d="M14 2 L14 12"/>
+    </g>
+    <!-- A rabbit in it. -->
+    <g transform="translate(9.6 8.6)">
+      <ellipse cx="0" cy="1.4" rx="4" ry="2.6" fill="#F2E8D6"/>
+      <circle cx="-3" cy="-.6" r="2.2" fill="#F2E8D6"/>
+      <path d="M-4.4 -2.2 C-5 -4.4 -4.6 -6 -3.8 -6.2 C-3.2 -5.6 -3 -4 -3.4 -2.2 Z" fill="#F2E8D6"/>
+      <path d="M-2.4 -2.2 C-2.4 -4.4 -1.8 -5.8 -1 -5.8 C-.6 -5 -.8 -3.6 -1.6 -2.2 Z" fill="#F2E8D6"/>
+      <circle cx="-3.9" cy="-.8" r=".5" fill="#2E2116"/>
+      <circle cx="3.6" cy="1" r="1.4" fill="#FFFFFF"/>
+    </g>
+  </g>
+  <g transform="translate(44 8)">
+    <path d="M0 12 L20 12 L20 14 L0 14 Z" fill="#7A5330"/>
+    <path d="M1 12 L1 3 L15 3 L15 12 Z" fill="#DCE4EA" opacity=".7"/>
+    <path d="M1 12 L1 3 L15 3 L15 12 Z" fill="none" stroke="#8A929A" stroke-width=".8"/>
+    <g stroke="#8A929A" stroke-width=".4" opacity=".8">
+      <path d="M4 3 L4 12"/><path d="M8 3 L8 12"/><path d="M12 3 L12 12"/>
+    </g>
+    <!-- A wheel, and somebody in it. -->
+    <g class="wheel" transform="translate(8 8)">
+      <circle cx="0" cy="0" r="3.6" fill="none" stroke="#F2B33D" stroke-width="1"/>
+      <g stroke="#F2B33D" stroke-width=".5">
+        <path d="M-3.6 0 L3.6 0"/><path d="M0 -3.6 L0 3.6"/>
+        <path d="M-2.5 -2.5 L2.5 2.5"/><path d="M-2.5 2.5 L2.5 -2.5"/>
+      </g>
+    </g>
+    <g transform="translate(8 10.4)">
+      <ellipse cx="0" cy="0" rx="2.2" ry="1.6" fill="#D8A96A"/>
+      <circle cx="-1.8" cy="-.6" r="1.2" fill="#E8BE85"/>
+      <circle cx="-2.4" cy="-1.4" r=".55" fill="#D8A96A"/>
+      <circle cx="-2.2" cy="-.7" r=".3" fill="#2E2116"/>
+    </g>
+  </g>
+  <g transform="translate(64 12)">
+    <path d="M0 8 L22 8 L22 10 L0 10 Z" fill="#7A5330"/>
+    <path d="M1 8 L1 0 L21 0 L21 8 Z" fill="#BFE0E8" opacity=".45"/>
+    <path d="M1 8 L1 0 L21 0 L21 8 Z" fill="none" stroke="#8A929A" stroke-width=".8"/>
+    <path d="M1.6 6.4 L20.4 6.4 L20.4 7.6 L1.6 7.6 Z" fill="#C9A063"/>
+    <!-- A lizard on the branch, and the branch. -->
+    <path d="M3 6.4 C7 5 13 4.4 19 5" fill="none" stroke="#7A5330" stroke-width="1.2"
+          stroke-linecap="round"/>
+    <g transform="translate(11 4)">
+      <path d="M-5 .6 C-3 -.6 1 -.8 3.4 .2 C4.6 .7 5.4 1 6.4 1.4 C5.4 1.9 4.4 1.9 3.4 1.6
+               C1 2.4 -3 2.2 -5 1.2 Z" fill="#5C8049"/>
+      <circle cx="-5.4" cy=".8" r="1.4" fill="#6E9455"/>
+      <circle cx="-5.9" cy=".4" r=".35" fill="#2E2116"/>
+      <g stroke="#5C8049" stroke-width=".7" stroke-linecap="round">
+        <path d="M-3 1.8 L-3.6 3"/><path d="M1 1.9 L1.6 3.1"/>
+      </g>
+    </g>
+    <!-- And a snake, coiled where it is warm. -->
+    <g transform="translate(16.4 6.4)">
+      <path d="M-3 0 C-3 -1.4 -.6 -1.8 .6 -1 C1.8 -.2 1.4 1.2 0 1.2 C-1 1.2 -1.4 .6 -1 0
+               C-.7 -.4 0 -.4 .2 0" fill="none" stroke="#C97A2A" stroke-width="1.3"
+            stroke-linecap="round"/>
+      <circle cx=".3" cy=".1" r=".22" fill="#2E2116"/>
+    </g>
+  </g>
+  <!-- And a rat, on the floor, going about its business. -->
+  <g transform="translate(112 33)">
+    <ellipse cx="0" cy="2.6" rx="6" ry="1.4" fill="#7A4F2C" opacity=".3"/>
+    <path d="M-5 1.4 C-5 -1 -3 -2.4 -.6 -2.4 C2 -2.4 4 -1.2 4 .6 C4 1.6 3.2 2 1.6 2 L-3.6 2
+             C-4.6 2 -5 1.8 -5 1.4 Z" fill="#9E9AA0"/>
+    <circle cx="-5.4" cy="-.2" r="2.2" fill="#B4B0B6"/>
+    <circle cx="-6.6" cy="-1.6" r="1.1" fill="#D8AEB4"/>
+    <circle cx="-4.4" cy="-1.8" r="1.1" fill="#D8AEB4"/>
+    <circle cx="-6.2" cy="-.4" r=".4" fill="#2E2116"/>
+    <path d="M-7.4 .4 L-7.9 .8 L-7 1 Z" fill="#D8AEB4"/>
+    <path d="M4 .4 C6 .2 7.4 1.2 8 3" fill="none" stroke="#D8AEB4" stroke-width=".8"
+          stroke-linecap="round"/>
+  </g>
+</svg>

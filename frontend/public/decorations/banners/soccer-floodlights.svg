@@ -7,10 +7,18 @@
     .flare { animation: buzz 5s ease-in-out infinite }
     .f2 { animation-delay: -2.4s }
     @keyframes buzz { 0%,100% { opacity: .9 } 45% { opacity: .72 } }
+    /* The ball is rolled from one side to the other and back. How far it
+       turns is how far it went: 76 units of pitch over a 2.9-unit ball is a
+       little over four turns. */
+    .roll { animation: across 9s ease-in-out infinite alternate }
+    @keyframes across { from { transform: translateX(-38px) } to { transform: translateX(38px) } }
+    .turn { animation: spin 9s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(1500deg) } }
     .moth { animation: flutter 7s ease-in-out infinite alternate }
     .m2 { animation-delay: -3.5s }
     @keyframes flutter { from { transform: translate(0,0) } to { transform: translate(3px,-2px) } }
-    @media (prefers-reduced-motion: reduce) { .flare, .moth { animation: none } }
+    @media (prefers-reduced-motion: reduce) { .flare, .moth, .roll, .turn { animation: none } }
   </style>
   <defs>
     <linearGradient id="skyF" x1="0" y1="0" x2="0" y2="1">
@@ -99,16 +107,18 @@
     <ellipse class="moth m2" cx="107" cy="3.4" rx=".3" ry=".2"/>
   </g>
 
-  <!-- The ball, on the spot. -->
-  <ellipse cx="80.2" cy="21.4" rx="3" ry=".9" fill="#061208" opacity=".45"/>
-  <circle cx="80" cy="18.8" r="2.9" fill="#F4F6F1"/>
-  <circle cx="80" cy="18.8" r="2.9" fill="none" stroke="#C3CDBE" stroke-width=".3"/>
-  <path d="M80 17.1 L81.6 18.3 L81 20.2 L79 20.2 L78.4 18.3 Z" fill="#171C18"/>
-  <g stroke="#171C18" stroke-width=".3" fill="none" stroke-linecap="round">
-    <path d="M80 17.1 L80 15.9"/><path d="M81.6 18.3 L82.8 17.9"/>
-    <path d="M81 20.2 L81.9 21.2"/><path d="M79 20.2 L78.1 21.2"/>
-    <path d="M78.4 18.3 L77.2 17.9"/>
+  <!-- The ball, rolled across and back. -->
+  <g class="roll">
+    <ellipse cx="80.2" cy="21.4" rx="3" ry=".9" fill="#061208" opacity=".45"/>
+    <g class="turn">
+      <circle cx="80" cy="18.8" r="2.9" fill="#F4F6F1"/>
+      <circle cx="80" cy="18.8" r="2.9" fill="none" stroke="#C3CDBE" stroke-width=".3"/>
+      <path d="M80 17.1 L81.6 18.3 L81 20.2 L79 20.2 L78.4 18.3 Z" fill="#171C18"/>
+      <g stroke="#171C18" stroke-width=".3" fill="none" stroke-linecap="round">
+        <path d="M80 17.1 L80 15.9"/><path d="M81.6 18.3 L82.8 17.9"/>
+        <path d="M81 20.2 L81.9 21.2"/><path d="M79 20.2 L78.1 21.2"/>
+        <path d="M78.4 18.3 L77.2 17.9"/>
+      </g>
+    </g>
   </g>
-  <path d="M78.2 16.6 C79 16.1 80.4 15.9 81.6 16.2" fill="none" stroke="#FFFFFF"
-        stroke-width=".5" opacity=".55" stroke-linecap="round"/>
 </svg>

@@ -1,0 +1,189 @@
+{
+  "uid": "W3TFH8QN0KCB27",
+  "public_id": "core.multicultural",
+  "kind": "profile_pack",
+  "name": "Multicultural",
+  "publisher": "Initiative",
+  "description": "A street party, and a flag for wherever you are from.",
+  "long_description": "Thirty-two flags as roundels, spanning every inhabited continent, plus the bunting to hang them from. Wear the one you are from, the one you married into, or the one you are homesick for.",
+  "avatar_url": "/decorations/banners/world-street.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "world.street",
+        "slot": "banner",
+        "name": "Street party"
+      },
+      {
+        "id": "world.bunting",
+        "slot": "frame",
+        "name": "Bunting"
+      },
+      {
+        "id": "flag.argentina",
+        "slot": "trophy",
+        "name": "Argentina"
+      },
+      {
+        "id": "flag.brazil",
+        "slot": "trophy",
+        "name": "Brazil"
+      },
+      {
+        "id": "flag.china",
+        "slot": "trophy",
+        "name": "China"
+      },
+      {
+        "id": "flag.colombia",
+        "slot": "trophy",
+        "name": "Colombia"
+      },
+      {
+        "id": "flag.cuba",
+        "slot": "trophy",
+        "name": "Cuba"
+      },
+      {
+        "id": "flag.egypt",
+        "slot": "trophy",
+        "name": "Egypt"
+      },
+      {
+        "id": "flag.ethiopia",
+        "slot": "trophy",
+        "name": "Ethiopia"
+      },
+      {
+        "id": "flag.france",
+        "slot": "trophy",
+        "name": "France"
+      },
+      {
+        "id": "flag.ghana",
+        "slot": "trophy",
+        "name": "Ghana"
+      },
+      {
+        "id": "flag.greece",
+        "slot": "trophy",
+        "name": "Greece"
+      },
+      {
+        "id": "flag.haiti",
+        "slot": "trophy",
+        "name": "Haiti"
+      },
+      {
+        "id": "flag.india",
+        "slot": "trophy",
+        "name": "India"
+      },
+      {
+        "id": "flag.indonesia",
+        "slot": "trophy",
+        "name": "Indonesia"
+      },
+      {
+        "id": "flag.ireland",
+        "slot": "trophy",
+        "name": "Ireland"
+      },
+      {
+        "id": "flag.italy",
+        "slot": "trophy",
+        "name": "Italy"
+      },
+      {
+        "id": "flag.jamaica",
+        "slot": "trophy",
+        "name": "Jamaica"
+      },
+      {
+        "id": "flag.japan",
+        "slot": "trophy",
+        "name": "Japan"
+      },
+      {
+        "id": "flag.kenya",
+        "slot": "trophy",
+        "name": "Kenya"
+      },
+      {
+        "id": "flag.korea",
+        "slot": "trophy",
+        "name": "South Korea"
+      },
+      {
+        "id": "flag.lebanon",
+        "slot": "trophy",
+        "name": "Lebanon"
+      },
+      {
+        "id": "flag.mexico",
+        "slot": "trophy",
+        "name": "Mexico"
+      },
+      {
+        "id": "flag.morocco",
+        "slot": "trophy",
+        "name": "Morocco"
+      },
+      {
+        "id": "flag.nigeria",
+        "slot": "trophy",
+        "name": "Nigeria"
+      },
+      {
+        "id": "flag.pakistan",
+        "slot": "trophy",
+        "name": "Pakistan"
+      },
+      {
+        "id": "flag.peru",
+        "slot": "trophy",
+        "name": "Peru"
+      },
+      {
+        "id": "flag.philippines",
+        "slot": "trophy",
+        "name": "Philippines"
+      },
+      {
+        "id": "flag.poland",
+        "slot": "trophy",
+        "name": "Poland"
+      },
+      {
+        "id": "flag.samoa",
+        "slot": "trophy",
+        "name": "Samoa"
+      },
+      {
+        "id": "flag.southafrica",
+        "slot": "trophy",
+        "name": "South Africa"
+      },
+      {
+        "id": "flag.turkey",
+        "slot": "trophy",
+        "name": "Türkiye"
+      },
+      {
+        "id": "flag.ukraine",
+        "slot": "trophy",
+        "name": "Ukraine"
+      },
+      {
+        "id": "flag.vietnam",
+        "slot": "trophy",
+        "name": "Vietnam"
+      }
+    ]
+  }
+}

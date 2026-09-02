@@ -34,15 +34,17 @@ from app.schemas.platform.user import OwnedDecoration, ProfileDecorations
 _MAX_PACKS = 200
 
 
-async def _granted_names(session: AsyncSession, sources: set[str]) -> dict[str, str]:
-    """``decoration id -> the name its pack gave it``, for these packs.
+async def _granted_names(
+    session: AsyncSession, sources: set[str]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """``decoration id -> its name``, and ``decoration id -> its pack's name``.
 
     A pack from outside this build has no translation here, so the name its
     publisher wrote is the only one there is. One lookup for the packs an
     account holds, rather than one per decoration.
     """
     if not sources:
-        return {}
+        return {}, {}
     listings = [
         listing
         for listing in [
@@ -54,13 +56,15 @@ async def _granted_names(session: AsyncSession, sources: set[str]) -> dict[str, 
         session, [listing.latest_version_id for listing in listings]
     )
     names: dict[str, str] = {}
+    packs: dict[str, str] = {}
     for listing in listings:
         version = versions.get(listing.latest_version_id)
         definition = (version.definition if version is not None else None) or {}
         for entry in definition.get("decorations", []):
             if isinstance(entry, dict) and entry.get("id") and entry.get("name"):
                 names[str(entry["id"])] = str(entry["name"])
-    return names
+                packs[str(entry["id"])] = listing.name
+    return names, packs
 
 
 async def owned_decorations(
@@ -90,7 +94,20 @@ async def owned_decorations(
         )
     ).all()
     granted = [row for row in rows if row.decoration_id not in SHIPPED_DECORATIONS]
-    names = await _granted_names(session, {row.source for row in granted if row.source})
+    names, packs = await _granted_names(
+        session, {row.source for row in granted if row.source}
+    )
+    # By theme, alphabetically, then by what the pack called the piece: a
+    # library is browsed rather than read in the order it was acquired, and
+    # once there are a dozen packs in it the acquisition order is nobody's
+    # order at all. What ships with the app leads, because it is always there.
+    granted.sort(
+        key=lambda row: (
+            packs.get(row.decoration_id, "").casefold(),
+            names.get(row.decoration_id, row.decoration_id).casefold(),
+            row.decoration_id,
+        )
+    )
     owned.extend(
         OwnedDecoration(
             id=row.decoration_id,
@@ -116,7 +133,7 @@ def unwearable(wanted: Iterable[tuple[str, str]], owned: dict[str, str]) -> list
     """Which of these ``(id, slot)`` pairs this library does not answer for.
 
     Both failures land here: an id the account does not have, and one it has
-    in a different slot — a badge cannot be worn as a frame.
+    in a different slot — a trophy cannot be worn as a frame.
     """
     return [
         decoration_id
@@ -352,5 +369,5 @@ def undress(worn: ProfileDecorations, gone: set[str]) -> ProfileDecorations:
     return ProfileDecorations(
         banner=None if worn.banner in gone else worn.banner,
         frame=None if worn.frame in gone else worn.frame,
-        badges=[badge for badge in worn.badges if badge not in gone],
+        trophies=[trophy for trophy in worn.trophies if trophy not in gone],
     )

@@ -1,0 +1,69 @@
+{
+  "uid": "R4NP7XK2WQ9FTB",
+  "public_id": "core.pets",
+  "kind": "profile_pack",
+  "name": "Pets",
+  "publisher": "Initiative",
+  "description": "The good hour of the afternoon, and everyone who lives here.",
+  "long_description": "Cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — a trophy each, a collar for a frame, and a banner of the room they have all found their own patch of sun in.",
+  "avatar_url": "/decorations/banners/pets-sunbeam.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "pets.sunbeam",
+        "slot": "banner",
+        "name": "Sunbeam"
+      },
+      {
+        "id": "pets.collar",
+        "slot": "frame",
+        "name": "Collar"
+      },
+      {
+        "id": "pets.cat",
+        "slot": "trophy",
+        "name": "Cat"
+      },
+      {
+        "id": "pets.dog",
+        "slot": "trophy",
+        "name": "Dog"
+      },
+      {
+        "id": "pets.horse",
+        "slot": "trophy",
+        "name": "Horse"
+      },
+      {
+        "id": "pets.rat",
+        "slot": "trophy",
+        "name": "Rat"
+      },
+      {
+        "id": "pets.bunny",
+        "slot": "trophy",
+        "name": "Rabbit"
+      },
+      {
+        "id": "pets.snake",
+        "slot": "trophy",
+        "name": "Snake"
+      },
+      {
+        "id": "pets.lizard",
+        "slot": "trophy",
+        "name": "Lizard"
+      },
+      {
+        "id": "pets.hamster",
+        "slot": "trophy",
+        "name": "Hamster"
+      }
+    ]
+  }
+}

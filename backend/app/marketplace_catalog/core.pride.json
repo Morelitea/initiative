@@ -4,8 +4,8 @@
   "kind": "profile_pack",
   "name": "Pride",
   "publisher": "Initiative",
-  "description": "The Progress flag, worn where people can see it.",
-  "long_description": "For anyone who wants it said without having to say it. The banner is the Progress flag in full — the six stripes and the chevron — and the badge is the heart, which reads at any size.",
+  "description": "The flags, to fly whichever one is yours.",
+  "long_description": "The Progress flag on a banner and the six colours round the picture, plus a banner, a frame and a heart each for non-binary, trans, lesbian, gay, bisexual, asexual and polyamorous. Wear one, or change it whenever you like.",
   "avatar_url": "/decorations/banners/pride-parade.svg",
   "images": [],
   "version": "1.0.0",
@@ -26,8 +26,113 @@
       },
       {
         "id": "pride.heart",
-        "slot": "badge",
+        "slot": "trophy",
         "name": "Pride heart"
+      },
+      {
+        "id": "pride.nonbinaryflag",
+        "slot": "banner",
+        "name": "Non-binary"
+      },
+      {
+        "id": "pride.nonbinaryring",
+        "slot": "frame",
+        "name": "Non-binary"
+      },
+      {
+        "id": "pride.nonbinaryheart",
+        "slot": "trophy",
+        "name": "Non-binary"
+      },
+      {
+        "id": "pride.transflag",
+        "slot": "banner",
+        "name": "Trans"
+      },
+      {
+        "id": "pride.transring",
+        "slot": "frame",
+        "name": "Trans"
+      },
+      {
+        "id": "pride.transheart",
+        "slot": "trophy",
+        "name": "Trans"
+      },
+      {
+        "id": "pride.lesbianflag",
+        "slot": "banner",
+        "name": "Lesbian"
+      },
+      {
+        "id": "pride.lesbianring",
+        "slot": "frame",
+        "name": "Lesbian"
+      },
+      {
+        "id": "pride.lesbianheart",
+        "slot": "trophy",
+        "name": "Lesbian"
+      },
+      {
+        "id": "pride.gayflag",
+        "slot": "banner",
+        "name": "Gay"
+      },
+      {
+        "id": "pride.gayring",
+        "slot": "frame",
+        "name": "Gay"
+      },
+      {
+        "id": "pride.gayheart",
+        "slot": "trophy",
+        "name": "Gay"
+      },
+      {
+        "id": "pride.biflag",
+        "slot": "banner",
+        "name": "Bisexual"
+      },
+      {
+        "id": "pride.biring",
+        "slot": "frame",
+        "name": "Bisexual"
+      },
+      {
+        "id": "pride.biheart",
+        "slot": "trophy",
+        "name": "Bisexual"
+      },
+      {
+        "id": "pride.aceflag",
+        "slot": "banner",
+        "name": "Asexual"
+      },
+      {
+        "id": "pride.acering",
+        "slot": "frame",
+        "name": "Asexual"
+      },
+      {
+        "id": "pride.aceheart",
+        "slot": "trophy",
+        "name": "Asexual"
+      },
+      {
+        "id": "pride.polyflag",
+        "slot": "banner",
+        "name": "Polyamorous"
+      },
+      {
+        "id": "pride.polyring",
+        "slot": "frame",
+        "name": "Polyamorous"
+      },
+      {
+        "id": "pride.polyheart",
+        "slot": "trophy",
+        "name": "Polyamorous"
       }
     ]
   }

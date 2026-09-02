@@ -2,10 +2,10 @@
  * The profile tab shows you what you are about to be.
  *
  * The card at the top is the same one strangers see, so what is worth pinning
- * is that it is complete — the badges and the status are on it, not only the
+ * is that it is complete — the trophies and the status are on it, not only the
  * picture — and that it follows the drafts below rather than what is saved.
  */
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,7 +34,7 @@ const user = buildUser({
   username: "jordan",
   discriminator: 1234,
   custom_status: { emoji: "🎲", text: "Rolling initiative" },
-  profile_decorations: { banner: null, frame: "core.gold", badges: ["ttrpg.d20"] },
+  profile_decorations: { banner: null, frame: "core.gold", trophies: ["ttrpg.d20"] },
 });
 
 beforeEach(() => {
@@ -44,13 +44,16 @@ beforeEach(() => {
   mocks.library.mockReturnValue({
     data: {
       items: [
-        buildOwnedDecoration({ id: "ttrpg.d20", kind: "badge" }),
-        buildOwnedDecoration({ id: "fungi.morel", kind: "badge" }),
+        buildOwnedDecoration({ id: "ttrpg.d20", kind: "trophy" }),
+        buildOwnedDecoration({ id: "fungi.morel", kind: "trophy" }),
         buildOwnedDecoration({ id: "core.aurora", kind: "banner" }),
       ],
     },
   });
 });
+
+/** The rail under the preview's banner, which is where a trophy is worn. */
+const trophyRail = () => screen.getByRole("list", { name: "Trophies" });
 
 const render = (current: UserRead = user) =>
   renderWithProviders(
@@ -61,10 +64,10 @@ describe("the profile preview", () => {
   it("shows the whole profile, not just the picture", async () => {
     render();
 
-    // The handle, the status and the badge a stranger would see.
+    // The handle, the status and the trophy a stranger would see.
     expect(await screen.findByText("jordan")).toBeInTheDocument();
     expect(screen.getByText("Rolling initiative")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "d20" })).toBeInTheDocument();
+    expect(within(trophyRail()).getByText("d20")).toBeInTheDocument();
   });
 
   it("follows what is picked, before it is saved", async () => {
@@ -72,7 +75,7 @@ describe("the profile preview", () => {
 
     await userEvent.click(await screen.findByRole("checkbox", { name: "Morel" }));
 
-    expect(screen.getByRole("img", { name: "Morel" })).toBeInTheDocument();
+    expect(within(trophyRail()).getByText("Morel")).toBeInTheDocument();
   });
 });
 
@@ -81,7 +84,7 @@ describe("the two halves of the page", () => {
     const { rerender } = render();
 
     await userEvent.click(await screen.findByRole("checkbox", { name: "Morel" }));
-    expect(screen.getByRole("img", { name: "Morel" })).toBeInTheDocument();
+    expect(within(trophyRail()).getByText("Morel")).toBeInTheDocument();
 
     // Saving the name above refetches the account. The look below it is
     // untouched on the server, so the pick has to survive.
@@ -92,18 +95,18 @@ describe("the two halves of the page", () => {
       />
     );
 
-    expect(screen.getByRole("img", { name: "Morel" })).toBeInTheDocument();
+    expect(within(trophyRail()).getByText("Morel")).toBeInTheDocument();
   });
 
   it("drops a decoration the server has taken away", async () => {
     const { rerender } = render();
 
-    await screen.findByRole("img", { name: "d20" });
+    await screen.findByRole("list", { name: "Trophies" });
 
     // Removing a pack strips its pieces server-side; the draft follows.
     rerender(
       <UserSettingsProfilePage
-        user={{ ...user, profile_decorations: { banner: null, frame: null, badges: [] } }}
+        user={{ ...user, profile_decorations: { banner: null, frame: null, trophies: [] } }}
         refreshUser={() => Promise.resolve()}
       />
     );

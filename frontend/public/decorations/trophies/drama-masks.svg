@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Masks</title>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2=".6" y2="1">
+      <stop offset="0%" stop-color="#F0D48A"/><stop offset="100%" stop-color="#B4863A"/>
+    </linearGradient>
+    <linearGradient id="pale" x1="0" y1="0" x2=".6" y2="1">
+      <stop offset="0%" stop-color="#F6F1E6"/><stop offset="100%" stop-color="#BDB3A0"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#2A0D14"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#8E1B28" stroke-width="2"/>
+  <!-- Tragedy, behind. -->
+  <g transform="translate(30.6 25) rotate(9)">
+    <path d="M0 -13 C6.4 -13 9.6 -9 9.6 -2.6 C9.6 5.6 5.4 13 0 13 C-5.4 13 -9.6 5.6 -9.6 -2.6
+             C-9.6 -9 -6.4 -13 0 -13 Z" fill="url(#pale)"/>
+    <path d="M0 -13 C6.4 -13 9.6 -9 9.6 -2.6 C9.6 5.6 5.4 13 0 13 C2.6 9 4 3.4 4 -2.6
+             C4 -8 2.6 -12 0 -13 Z" fill="#9E937E" opacity=".55"/>
+    <g fill="#2A0D14">
+      <path d="M-6.4 -4.6 C-5.4 -6.6 -2.6 -6.6 -1.6 -4.6 C-2.6 -3.4 -5.4 -3.4 -6.4 -4.6 Z"/>
+      <path d="M1.6 -4.6 C2.6 -6.6 5.4 -6.6 6.4 -4.6 C5.4 -3.4 2.6 -3.4 1.6 -4.6 Z"/>
+      <path d="M-4.4 6.4 C-2.6 3.6 2.6 3.6 4.4 6.4 C2.6 8.6 -2.6 8.6 -4.4 6.4 Z"/>
+    </g>
+    <g stroke="#2A0D14" stroke-width=".7" fill="none" stroke-linecap="round">
+      <path d="M-7 -7.4 C-5.6 -8.6 -3 -8.6 -1.6 -7.6"/>
+      <path d="M7 -7.4 C5.6 -8.6 3 -8.6 1.6 -7.6"/>
+    </g>
+  </g>
+  <!-- Comedy, in front. -->
+  <g transform="translate(17.4 23) rotate(-9)">
+    <path d="M0 -13 C6.4 -13 9.6 -9 9.6 -2.6 C9.6 5.6 5.4 13 0 13 C-5.4 13 -9.6 5.6 -9.6 -2.6
+             C-9.6 -9 -6.4 -13 0 -13 Z" fill="url(#gold)"/>
+    <path d="M0 -13 C6.4 -13 9.6 -9 9.6 -2.6 C9.6 5.6 5.4 13 0 13 C2.6 9 4 3.4 4 -2.6
+             C4 -8 2.6 -12 0 -13 Z" fill="#8A6428" opacity=".45"/>
+    <g fill="#2A0D14">
+      <path d="M-6.4 -3.4 C-5.4 -5.8 -2.6 -5.8 -1.6 -3.4 C-2.6 -4.6 -5.4 -4.6 -6.4 -3.4 Z"/>
+      <path d="M1.6 -3.4 C2.6 -5.8 5.4 -5.8 6.4 -3.4 C5.4 -4.6 2.6 -4.6 1.6 -3.4 Z"/>
+      <path d="M-5.4 3.6 C-2.6 4.4 2.6 4.4 5.4 3.6 C4.4 8.4 -4.4 8.4 -5.4 3.6 Z"/>
+    </g>
+    <path d="M-3.6 4.4 C-1.4 4.8 1.4 4.8 3.6 4.4 C2.6 5.4 -2.6 5.4 -3.6 4.4 Z" fill="#F6F1E6"/>
+    <g stroke="#2A0D14" stroke-width=".7" fill="none" stroke-linecap="round">
+      <path d="M-7 -7.6 C-5.4 -6.4 -3 -6.4 -1.6 -7.4"/>
+      <path d="M7 -7.6 C5.4 -6.4 3 -6.4 1.6 -7.4"/>
+    </g>
+  </g>
+</svg>

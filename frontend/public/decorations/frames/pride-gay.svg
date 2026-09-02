@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Gay</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       The flag's stripes, run round the picture instead of across it, in the
+       order they are flown. -->
+  <circle cx="64" cy="64" r="62.12" fill="none" stroke="#078D70" stroke-width="2.66"/><circle cx="64" cy="64" r="59.56" fill="none" stroke="#98E8C1" stroke-width="2.66"/><circle cx="64" cy="64" r="57" fill="none" stroke="#FFFFFF" stroke-width="2.66"/><circle cx="64" cy="64" r="54.44" fill="none" stroke="#7BADE2" stroke-width="2.66"/><circle cx="64" cy="64" r="51.88" fill="none" stroke="#3D1A78" stroke-width="2.66"/>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#14121C" stroke-width="1.8"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#14121C" stroke-width="1.2"
+          stroke-opacity=".5"/>
+</svg>

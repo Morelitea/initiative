@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Polyamorous</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       The flag's stripes, run round the picture instead of across it, in the
+       order they are flown. -->
+  <circle cx="64" cy="64" r="61.27" fill="none" stroke="#0000FF" stroke-width="4.37"/><circle cx="64" cy="64" r="57" fill="none" stroke="#D60270" stroke-width="4.37"/><circle cx="64" cy="64" r="52.73" fill="none" stroke="#7B1FA2" stroke-width="4.37"/>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#14121C" stroke-width="1.8"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#14121C" stroke-width="1.2"
+          stroke-opacity=".5"/>
+  <path d="M46 64 L74 46.4 L74 81.6 Z" fill="#FFFFFF" transform="rotate(-90 64 64)"
+        opacity="0"/>
+  <g transform="translate(64 8.6) scale(.62)">
+    <path d="M0 11 C-9 5 -11 -.4 -11 -3 C-11 -6.8 -7.8 -9.6 -4 -9.6
+             C-2 -9.6 -.8 -8.6 0 -7.2 C.8 -8.6 2 -9.6 4 -9.6
+             C7.8 -9.6 11 -6.8 11 -3 C11 -.4 9 5 0 11 Z" fill="#FCD62B"/>
+    <path d="M0 11 C-9 5 -11 -.4 -11 -3 C-11 -6.8 -7.8 -9.6 -4 -9.6
+             C-2 -9.6 -.8 -8.6 0 -7.2 C.8 -8.6 2 -9.6 4 -9.6
+             C7.8 -9.6 11 -6.8 11 -3 C11 -.4 9 5 0 11 Z" fill="none" stroke="#14121C"
+          stroke-width="1.6"/>
+  </g>
+</svg>

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Controller</title>
+  <style>
+    .led { animation: blink 1.8s steps(1,end) infinite }
+    .l2 { animation-delay: -.9s }
+    @keyframes blink { 0%,50% { opacity: 1 } 51%,100% { opacity: .25 } }
+    @media (prefers-reduced-motion: reduce) { .led { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="pad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A3A6B"/><stop offset="100%" stop-color="#241A32"/>
+    </linearGradient>
+    <radialGradient id="neon" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#B14BE0" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#B14BE0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#120C1E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7A5FA8" stroke-width="2"/>
+  <circle cx="24" cy="26" r="18" fill="url(#neon)"/>
+  <g transform="translate(24 25)">
+    <path d="M-17 -4.6 C-10.4 -6.8 10.4 -6.8 17 -4.6 C20.4 -3.2 21.8 1.8 19.6 4.8
+             C17.8 7.4 13.8 6.8 11 4.6 C8.6 2.8 6.6 2 0 2 C-6.6 2 -8.6 2.8 -11 4.6
+             C-13.8 6.8 -17.8 7.4 -19.6 4.8 C-21.8 1.8 -20.4 -3.2 -17 -4.6 Z"
+          fill="url(#pad)"/>
+    <path d="M-17 -4.6 C-10.4 -6.8 10.4 -6.8 17 -4.6 C17.8 -4.3 18.4 -3.8 19 -3
+             C10.6 -4.9 -10.6 -4.9 -19 -3 C-18.4 -3.8 -17.8 -4.3 -17 -4.6 Z"
+          fill="#6B54A0"/>
+    <g fill="#B9A6E0">
+      <path d="M-12.6 -2.4 L-8.8 -2.4 L-8.8 -.8 L-12.6 -.8 Z"/>
+      <path d="M-11.5 -3.5 L-9.9 -3.5 L-9.9 .3 L-11.5 .3 Z"/>
+    </g>
+    <circle class="led" cx="10" cy="-2.6" r="1.25" fill="#FF5FD2"/>
+    <circle class="led l2" cx="12.8" cy="-.6" r="1.25" fill="#39E8FF"/>
+    <circle cx="7.2" cy="-.6" r="1.25" fill="#4CE08A"/>
+    <circle cx="10" cy="1.4" r="1.25" fill="#FFC83D"/>
+    <circle cx="-3.4" cy="1.4" r="2.1" fill="#1B1626"/>
+    <circle cx="-3.4" cy="1.1" r="1.4" fill="#5A4680"/>
+    <circle cx="3.4" cy="1.4" r="2.1" fill="#1B1626"/>
+    <circle cx="3.4" cy="1.1" r="1.4" fill="#5A4680"/>
+    <path d="M-14 -5.4 C-9 -7.2 -5 -7.4 -2.6 -6.8 L-2.6 -5.6 C-6 -6 -10 -5.8 -14 -4.6 Z"
+          fill="#8E76C4" opacity=".5"/>
+  </g>
+</svg>

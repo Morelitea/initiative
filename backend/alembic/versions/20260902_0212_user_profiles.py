@@ -7,7 +7,7 @@ Two JSONB columns on ``public.users``:
   a person sets and one thing every surface that names them renders. Distinct
   from ``users.status``, which is the account's standing and is not theirs to
   write. Shape lives in ``app.schemas.platform.user.CustomStatus``.
-* ``profile_decorations`` — a banner, a frame and badges, each held as an
+* ``profile_decorations`` — a banner, a frame and trophies, each held as an
   **id naming a catalog entry** rather than an image. The client resolves an id
   to artwork it already ships, so a decorated profile takes up none of a
   guild's upload allowance. An id this deployment doesn't know renders nothing,

@@ -188,7 +188,7 @@ class User(SQLModel, table=True):
         ),
     )
     #: How this person's profile is dressed: a banner, a frame around the
-    #: picture, badges beside the name. Each is an id naming a catalog entry
+    #: picture, trophies under it. Each is an id naming a catalog entry
     #: the client resolves to artwork it already ships — never an upload, so a
     #: decorated profile costs a guild none of its storage. The shape is
     #: ``app.schemas.platform.user.ProfileDecorations``.

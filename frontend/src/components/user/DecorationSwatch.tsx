@@ -1,3 +1,4 @@
+import { TintedFrame } from "@/components/user/TintedFrame";
 import { type Decoration, FRAME_APERTURE_INSET } from "@/lib/profileDecorations";
 import { cn } from "@/lib/utils";
 
@@ -5,7 +6,7 @@ import { cn } from "@/lib/utils";
  * One decoration, drawn the way its slot is worn.
  *
  * The three slots want three different shapes — a banner is a strip, a frame is
- * a ring around a face, a badge is a mark beside a name — and every surface
+ * a ring around a face, a trophy is a mark beside a name — and every surface
  * that lists decorations wants the same three. So they are settled once here,
  * and the picker, the store and the pack list only choose how wide to make it.
  *
@@ -14,9 +15,12 @@ import { cn } from "@/lib/utils";
  */
 export const DecorationSwatch = ({
   decoration,
+  tint,
   className,
 }: {
   decoration: Decoration;
+  /** For a frame whose colours are the wearer's: the ones they have picked. */
+  tint?: readonly string[] | null;
   className?: string;
 }) => {
   if (decoration.kind === "banner") {
@@ -35,12 +39,16 @@ export const DecorationSwatch = ({
           className="absolute rounded-full bg-muted-foreground/20"
           style={{ inset: FRAME_APERTURE_INSET }}
         />
-        <img
-          src={decoration.src}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 size-full"
-        />
+        {decoration.tint ? (
+          <TintedFrame decoration={decoration} tint={tint} className="absolute inset-0 size-full" />
+        ) : (
+          <img
+            src={decoration.src}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 size-full"
+          />
+        )}
       </span>
     );
   }

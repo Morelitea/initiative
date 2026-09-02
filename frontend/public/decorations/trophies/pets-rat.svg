@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Rat</title>
+  <circle cx="24" cy="24" r="23" fill="#2E2116"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#9E9AA0" stroke-width="2"/>
+  <path d="M10 21 C10 15.6 15.6 12 24 12 C32.4 12 38 15.6 38 21 C38 28.6 32 36.6 24 36.6
+           C16 36.6 10 28.6 10 21 Z" fill="#B4B0B6"/>
+  <circle cx="11.6" cy="14.6" r="6" fill="#C6C2C8"/>
+  <circle cx="36.4" cy="14.6" r="6" fill="#C6C2C8"/>
+  <circle cx="11.6" cy="14.6" r="3.6" fill="#D8AEB4"/>
+  <circle cx="36.4" cy="14.6" r="3.6" fill="#D8AEB4"/>
+  <path d="M24 12 C29 12 33 15 34.4 19.6 L26.6 32 C25.6 33.4 22.4 33.4 21.4 32 L13.6 19.6
+           C15 15 19 12 24 12 Z" fill="#C6C2C8"/>
+  <g fill="#2E2116">
+    <circle cx="19.4" cy="21.4" r="1.9"/><circle cx="28.6" cy="21.4" r="1.9"/>
+  </g>
+  <g fill="#FFFFFF"><circle cx="20.1" cy="20.7" r=".7"/><circle cx="29.3" cy="20.7" r=".7"/></g>
+  <path d="M24 30.4 L26 32.6 C25 34 23 34 22 32.6 Z" fill="#D8AEB4"/>
+  <g stroke="#2E2116" stroke-width=".4" opacity=".45">
+    <path d="M21 32 L11.6 30.4"/><path d="M21.4 33.4 L12.6 35"/>
+    <path d="M27 32 L36.4 30.4"/><path d="M26.6 33.4 L35.4 35"/>
+  </g></svg>

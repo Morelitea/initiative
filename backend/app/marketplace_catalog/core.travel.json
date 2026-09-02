@@ -1,0 +1,59 @@
+{
+  "uid": "T9KDR4V7B1XMZ0",
+  "public_id": "core.travel",
+  "kind": "profile_pack",
+  "name": "Travel",
+  "publisher": "Initiative",
+  "description": "Everywhere at once, and the ways you get there.",
+  "long_description": "For the ones with a list. Monuments at the hour they light up, the meridians a globe is ruled with, and trophies for every way of arriving — plane, ship, train, car, bicycle, and the globe itself.",
+  "avatar_url": "/decorations/banners/travel-landmarks.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "travel.landmarks",
+        "slot": "banner",
+        "name": "Landmarks"
+      },
+      {
+        "id": "travel.meridians",
+        "slot": "frame",
+        "name": "Meridians"
+      },
+      {
+        "id": "travel.globe",
+        "slot": "trophy",
+        "name": "Globe"
+      },
+      {
+        "id": "travel.plane",
+        "slot": "trophy",
+        "name": "Aeroplane"
+      },
+      {
+        "id": "travel.ship",
+        "slot": "trophy",
+        "name": "Ship"
+      },
+      {
+        "id": "travel.train",
+        "slot": "trophy",
+        "name": "Train"
+      },
+      {
+        "id": "travel.car",
+        "slot": "trophy",
+        "name": "Car"
+      },
+      {
+        "id": "travel.bicycle",
+        "slot": "trophy",
+        "name": "Bicycle"
+      }
+    ]
+  }
+}

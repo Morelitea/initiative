@@ -6,15 +6,15 @@ import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.sch
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { BadgePicker, SlotPicker } from "@/components/user/DecorationPicker";
+import { SlotPicker, TrophyPicker } from "@/components/user/DecorationPicker";
 import { MyDecorationPacks } from "@/components/user/MyDecorationPacks";
 import { ProfilePreview } from "@/components/user/ProfilePreview";
 import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
-/** Mirrors ``MAX_PROFILE_BADGES`` on the server. */
-const MAX_BADGES = 6;
+/** Mirrors ``MAX_PROFILE_TROPHIES`` on the server. */
+const MAX_TROPHIES = 6;
 
 interface UserSettingsProfilePageProps {
   user: UserRead;
@@ -42,7 +42,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
 
   const [banner, setBanner] = useState(user.profile_decorations.banner ?? null);
   const [frame, setFrame] = useState(user.profile_decorations.frame ?? null);
-  const [badges, setBadges] = useState<string[]>(user.profile_decorations.badges ?? []);
+  const [trophies, setTrophies] = useState<string[]>(user.profile_decorations.trophies ?? []);
+  const [frameTint, setFrameTint] = useState<string[]>(user.profile_decorations.frame_tint ?? []);
 
   // Removing a pack takes its pieces off server-side, so the pickers follow the
   // saved look when it changes underneath them — but only then. Following the
@@ -53,7 +54,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     setSyncedLook(savedLook);
     setBanner(user.profile_decorations.banner ?? null);
     setFrame(user.profile_decorations.frame ?? null);
-    setBadges(user.profile_decorations.badges ?? []);
+    setTrophies(user.profile_decorations.trophies ?? []);
+    setFrameTint(user.profile_decorations.frame_tint ?? []);
   }
 
   const saveLook = useUpdateCurrentUser({
@@ -71,23 +73,32 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   // loaded, or a slow read would undress everything on the way past.
   const ownedIds = library ? new Set(library.items.map((item) => item.id)) : null;
   const stillOwned = (id: string | null) => (id && (!ownedIds || ownedIds.has(id)) ? id : null);
-  // An emptied slot is the default a bare profile has always had; a badge just
+  // An emptied slot is the default a bare profile has always had; a trophy just
   // leaves the row.
   const wornBanner = stillOwned(banner);
   const wornFrame = stillOwned(frame);
-  const wornBadges = ownedIds ? badges.filter((badge) => ownedIds.has(badge)) : badges;
+  const wornTrophies = ownedIds ? trophies.filter((trophy) => ownedIds.has(trophy)) : trophies;
+  // A colour belongs to the frame it was picked for, so it goes wherever that
+  // frame goes — including away.
+  const wornTint = wornFrame ? frameTint : [];
 
   const saved = user.profile_decorations;
   const changed =
     wornBanner !== (saved.banner ?? null) ||
     wornFrame !== (saved.frame ?? null) ||
-    wornBadges.join() !== (saved.badges ?? []).join();
+    wornTrophies.join() !== (saved.trophies ?? []).join() ||
+    wornTint.join() !== (saved.frame_tint ?? []).join();
 
   return (
     <div className="space-y-6">
       <ProfilePreview
         user={user}
-        decorations={{ banner: wornBanner, frame: wornFrame, badges: wornBadges }}
+        decorations={{
+          banner: wornBanner,
+          frame: wornFrame,
+          trophies: wornTrophies,
+          frame_tint: wornTint,
+        }}
         status={user.custom_status}
         presence={user.presence}
         joinedAt={user.created_at}
@@ -106,7 +117,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 profile_decorations: {
                   banner: wornBanner,
                   frame: wornFrame,
-                  badges: wornBadges,
+                  trophies: wornTrophies,
+                  frame_tint: wornTint,
                 },
               } as UserSelfUpdate)
             }
@@ -130,17 +142,30 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <Label className="text-muted-foreground text-xs">
             {t("profiles:decorationPicker.frame")}
           </Label>
-          <SlotPicker kind="frame" value={wornFrame} onChange={setFrame} owned={library?.items} />
+          <SlotPicker
+            kind="frame"
+            value={wornFrame}
+            onChange={(id) => {
+              setFrame(id);
+              // Colours belong to the frame they were picked for; another frame
+              // starts from its own defaults rather than inheriting somebody
+              // else's green.
+              setFrameTint([]);
+            }}
+            owned={library?.items}
+            tint={frameTint}
+            onTint={setFrameTint}
+          />
         </div>
         <div className="space-y-2">
           <Label className="text-muted-foreground text-xs">
-            {t("profiles:decorationPicker.badge")}
+            {t("profiles:decorationPicker.trophy")}
           </Label>
-          <BadgePicker
-            value={wornBadges}
-            onChange={setBadges}
+          <TrophyPicker
+            value={wornTrophies}
+            onChange={setTrophies}
             owned={library?.items}
-            max={MAX_BADGES}
+            max={MAX_TROPHIES}
           />
         </div>
       </SettingsSection>

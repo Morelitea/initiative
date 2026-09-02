@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Sankofa</title>
+  <!-- The bird that looks behind it while it walks on, and the egg it carries.
+       An Akan symbol, drawn plainly. -->
+  <circle cx="24" cy="24" r="23" fill="#1E140C"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B21C" stroke-width="2"/>
+  <g fill="#E8B21C">
+    <!-- Body and legs, facing forward. -->
+    <path d="M13 26.6 C13 21.6 17.6 18 23.4 18 C29.6 18 34 21.4 34 26 C34 29.6 31.4 32.4 27.6 33.4
+             C29 34.6 30 36.4 30.2 38.4 L26.6 38.4 C26.2 36 24.6 34.4 22.4 34.2
+             C17 33.8 13 30.6 13 26.6 Z"/>
+    <path d="M19.4 34 L19.4 38.4 L16 38.4 C16.2 36.4 17.4 34.8 19.4 34 Z"/>
+    <!-- Neck curving back, and the head over the shoulder. -->
+    <path d="M30.4 20.6 C31.6 15.6 29.4 11 25 9.2 C21.4 7.8 17.6 8.6 15.4 11
+             C17.8 9.8 20.6 10 22.8 11.6 C25.8 13.8 26.8 17.6 25.4 21.4 Z"/>
+    <path d="M15.8 10.6 C14.6 10.2 13 10.4 11.6 11.2 C13 11.6 14.2 12 15 12.6 Z"/>
+  </g>
+  <circle cx="17.6" cy="11.2" r=".85" fill="#1E140C"/>
+  <!-- The egg. -->
+  <ellipse cx="14.4" cy="14.8" rx="2.6" ry="3.2" fill="#F2E8D6"
+           transform="rotate(-24 14.4 14.8)"/>
+  <path d="M18 22.6 C21.4 21.6 26.6 21.6 30 22.6" fill="none" stroke="#1E140C"
+        stroke-width=".8" opacity=".5"/>
+</svg>
