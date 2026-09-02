@@ -1,5 +1,13 @@
 import { Capacitor } from "@capacitor/core";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -69,10 +77,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Keep the React user state and the api-client session flag in lockstep so
   // the 401 interceptor always knows whether to treat a 401 as session expiry
   // (non-null user) or as a not-logged-in visitor (null user).
+  // Which answer about the account is the current one.
+  //
+  // Reading the account is not instant and several reads can be in the air at
+  // once — two signals arriving together, a signal beside the catch-up a
+  // reconnect does. Responses come back in whatever order the network gives
+  // them, so the last to *arrive* is not the last to have been *asked for*.
+  //
+  // Two separate things decide whether a read may still be applied, and they
+  // are separate because conflating them loses data either way:
+  //
+  // * `readSeqRef` / `appliedReadRef` — reads are numbered as they are made,
+  //   and one applies only if no later-numbered read has already landed. That
+  //   holds in both orders: a straggler never overwrites a newer answer, and a
+  //   newer answer is never thrown away because an older one happened to land
+  //   first.
+  // * `identityEpochRef` — signing in or out replaces *who* the account is,
+  //   which no read of the previous person may undo. Bumped there and nowhere
+  //   else, so an ordinary read cannot invalidate another read.
+  const readSeqRef = useRef(0);
+  const appliedReadRef = useRef(0);
+  const identityEpochRef = useRef(0);
+
   const setUser = useCallback((nextUser: UserRead | null) => {
     setUserState(nextUser);
     setHasActiveSession(nextUser !== null);
   }, []);
+
+  /** Sign-in / sign-out: a new person, so every read in flight is stale. */
+  const replaceIdentity = useCallback(
+    (nextUser: UserRead | null) => {
+      identityEpochRef.current += 1;
+      setUser(nextUser);
+    },
+    [setUser]
+  );
 
   // Load token on mount for native only (web uses HttpOnly cookie — no localStorage read needed)
   useEffect(() => {
@@ -91,9 +130,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshUser = useCallback(async () => {
+    readSeqRef.current += 1;
+    const readId = readSeqRef.current;
+    const epoch = identityEpochRef.current;
     const response = await apiClient.get<UserRead>("/users/me");
+    if (epoch !== identityEpochRef.current) {
+      // Somebody signed in or out while this was in flight; it is about a
+      // person who is no longer the one here.
+      return;
+    }
+    if (readId <= appliedReadRef.current) {
+      // A read made after this one has already landed, so this is the older
+      // answer whichever order they arrived in.
+      return;
+    }
+    appliedReadRef.current = readId;
     setUser(response.data);
-  }, [setUser]);
+  }, [setUser, replaceIdentity]);
 
   // Bootstrap user on mount — always attempt /users/me.
   // Web: cookie is sent automatically (withCredentials). Native: token was loaded by the effect above.
@@ -104,7 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const response = await apiClient.get<UserRead>("/users/me");
         setUser(response.data);
       } catch {
-        setUser(null);
+        replaceIdentity(null);
         if (isNative) {
           // Clear stale native token
           setTokenState(null);
@@ -118,7 +171,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     void bootstrap();
-  }, [setUser]);
+  }, [setUser, replaceIdentity]);
 
   const login = async ({ email, password, deviceName }: LoginPayload) => {
     try {
@@ -200,10 +253,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       // Web: cookie was already set by the backend redirect — just fetch the user
       const me = await apiClient.get<UserRead>("/users/me");
-      setUser(me.data);
+      replaceIdentity(me.data);
       markJustSignedIn();
     },
-    [setUser]
+    [setUser, replaceIdentity]
   );
 
   const logout = useCallback(async () => {
@@ -223,7 +276,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       // Ignore errors — proceed with local cleanup regardless.
     }
-    setUser(null);
+    replaceIdentity(null);
     setTokenState(null);
     setIsDeviceToken(false);
     setAuthToken(null);
@@ -231,7 +284,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
     queryClient.clear();
-  }, [setUser]);
+  }, [setUser, replaceIdentity]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

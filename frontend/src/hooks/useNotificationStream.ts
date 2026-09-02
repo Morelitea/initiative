@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { invalidateNotifications } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,15 @@ const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as con
 
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
+
+// A frame is the only prompt to re-read the account, so a re-read that fails
+// has to keep trying: there is no poll behind it any more, and the next frame
+// may never come for this account. What is bounded is the *rate*, not the
+// number of attempts — giving up would leave the tab holding an account it
+// already knows is wrong, which is the thing this whole channel exists to
+// prevent. Backs off to a slow beat and stays there until one lands.
+const ACCOUNT_RETRY_DELAYS_MS = [2000, 8000, 30_000, 60_000] as const;
+const ACCOUNT_RETRY_MAX_DELAY_MS = 300_000;
 // Three consecutive policy-violation closes means the credential is no good,
 // not that the network blinked — same rule as the guild events socket.
 const MAX_AUTH_FAILURES = 3;
@@ -101,10 +110,48 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
  * Mount once, at the authenticated app shell.
  */
 export const useNotificationStream = () => {
-  const { token, user } = useAuth();
+  const { token, user, refreshUser } = useAuth();
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const authFailureCountRef = useRef(0);
+  // Held in a ref so a new `refreshUser` identity does not tear the socket
+  // down and rebuild it: the handler wants the current one, not the one that
+  // existed when we connected.
+  const refreshUserRef = useRef(refreshUser);
+  refreshUserRef.current = refreshUser;
+  const accountRetryTimerRef = useRef<number | null>(null);
+
+  // Re-read the account, and keep trying for a short while if it does not
+  // land. One in-flight attempt at a time: a second frame arriving mid-retry
+  // restarts the sequence rather than racing it.
+  const refreshAccount = useCallback((attempt = 0) => {
+    if (accountRetryTimerRef.current !== null) {
+      window.clearTimeout(accountRetryTimerRef.current);
+      accountRetryTimerRef.current = null;
+    }
+    // Wrapped rather than chained straight off the call: the guard covers a
+    // missing function, not a return that is not a promise.
+    void Promise.resolve(refreshUserRef.current?.()).catch(() => {
+      // Past the end of the ramp it stays at the slowest beat rather than
+      // stopping: the account is known to be out of date, and nothing else is
+      // coming to correct it.
+      const delay = ACCOUNT_RETRY_DELAYS_MS[attempt] ?? ACCOUNT_RETRY_MAX_DELAY_MS;
+      accountRetryTimerRef.current = window.setTimeout(() => {
+        accountRetryTimerRef.current = null;
+        refreshAccount(attempt + 1);
+      }, delay);
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (accountRetryTimerRef.current !== null) {
+        window.clearTimeout(accountRetryTimerRef.current);
+        accountRetryTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!user) {
@@ -143,16 +190,23 @@ export const useNotificationStream = () => {
         sendAuthMessage(websocket, token);
         authFailureCountRef.current = 0;
         setConnected(true);
-        // The socket was down for some interval — anything that arrived in it
-        // was never signalled, so catch up once on the way back up.
+        // The socket was down for some interval — anything that happened in it
+        // was never signalled, so catch up once on the way back up. Both
+        // channels, since either could have moved while we were away.
         void invalidateNotifications();
+        refreshAccount();
       };
 
       websocket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data) as { resource?: string };
+          // Two channels over one socket. A frame carries nothing but which
+          // one it is; what it means is a refetch, and the refetch is where
+          // anything is actually decided.
           if (payload.resource === "notification") {
             void invalidateNotifications();
+          } else if (payload.resource === "account") {
+            refreshAccount();
           }
         } catch {
           // ignore malformed frames
@@ -228,5 +282,5 @@ export const useNotificationStream = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, user]);
+  }, [token, user, refreshAccount]);
 };

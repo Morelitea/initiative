@@ -24,8 +24,8 @@ from app.api.v1.platform_endpoints.notifications import (
     websocket_notifications,
 )
 from app.core.security import SESSION_COOKIE_NAME
-from app.services.platform import notification_stream, presence
-from app.services.platform.notification_stream import NotificationStream
+from app.services.platform import presence, user_stream
+from app.services.platform.user_stream import UserStream
 from app.testing import create_user, get_auth_token
 
 WS_POLICY_VIOLATION = 1008
@@ -73,10 +73,10 @@ def _auth_frame(payload: bytes) -> bytes:
 
 
 @pytest.fixture
-def stream(monkeypatch) -> NotificationStream:
+def stream(monkeypatch) -> UserStream:
     """A registry of this test's own, so assertions see only its sockets."""
-    fresh = NotificationStream()
-    monkeypatch.setattr(notification_stream, "stream", fresh)
+    fresh = UserStream()
+    monkeypatch.setattr(user_stream, "stream", fresh)
     return fresh
 
 

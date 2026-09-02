@@ -114,6 +114,111 @@ describe("useNotificationStream", () => {
     expect(invalidateNotifications).toHaveBeenCalledTimes(1);
   });
 
+  it("re-reads the account when the server says its standing changed", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latest();
+    socket.open();
+    // The catch-up on connect pokes both; this test is about the frame.
+    refreshUser.mockClear();
+    invalidateNotifications.mockClear();
+
+    socket.receive({ resource: "account", action: "membership", ids: {} });
+
+    expect(refreshUser).toHaveBeenCalledTimes(1);
+    // Two channels over one socket: neither answers for the other.
+    expect(invalidateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("catches up on both channels after the socket was down", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+
+    latest().open();
+
+    // Anything that happened while it was down was never signalled, and that
+    // includes being added to a community.
+    expect(refreshUser).toHaveBeenCalledTimes(1);
+    expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it("tries the account again when the re-read fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const refreshUser = vi.fn().mockResolvedValue(undefined);
+      renderWithProviders(<Probe />, { auth: { refreshUser } });
+      const socket = latest();
+      socket.open();
+      await vi.advanceTimersByTimeAsync(0);
+      refreshUser.mockClear();
+      // Fail the read this frame triggers, and only that one.
+      refreshUser.mockRejectedValueOnce(new Error("offline"));
+
+      socket.receive({ resource: "account", action: "membership", ids: {} });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(refreshUser).toHaveBeenCalledTimes(1);
+
+      // The frame is the only prompt there is, so a failed read must not be
+      // the end of it — there is no poll behind this any more.
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(refreshUser).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps trying at a slow beat rather than giving up", async () => {
+    vi.useFakeTimers();
+    try {
+      const refreshUser = vi.fn().mockResolvedValue(undefined);
+      renderWithProviders(<Probe />, { auth: { refreshUser } });
+      const socket = latest();
+      socket.open();
+      await vi.advanceTimersByTimeAsync(0);
+      refreshUser.mockClear();
+      // Nothing lands from here on.
+      refreshUser.mockRejectedValue(new Error("offline"));
+
+      socket.receive({ resource: "account", action: "membership", ids: {} });
+      await vi.advanceTimersByTimeAsync(100_000);
+      // The read, then the ramp: 2s, 8s, 30s, 60s.
+      expect(refreshUser).toHaveBeenCalledTimes(5);
+
+      // Still going, and now at the slow beat — the account is known to be
+      // wrong and nothing else is coming to fix it.
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(refreshUser).toHaveBeenCalledTimes(6);
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(refreshUser).toHaveBeenCalledTimes(7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops retrying once the hook unmounts", async () => {
+    vi.useFakeTimers();
+    try {
+      const refreshUser = vi.fn().mockResolvedValue(undefined);
+      const { unmount } = renderWithProviders(<Probe />, { auth: { refreshUser } });
+      const socket = latest();
+      socket.open();
+      await vi.advanceTimersByTimeAsync(0);
+      refreshUser.mockClear();
+      refreshUser.mockRejectedValue(new Error("offline"));
+
+      socket.receive({ resource: "account", action: "membership", ids: {} });
+      await vi.advanceTimersByTimeAsync(0);
+      unmount();
+      refreshUser.mockClear();
+
+      await vi.advanceTimersByTimeAsync(600_000);
+
+      expect(refreshUser).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores frames for other resources and malformed ones", () => {
     renderWithProviders(<Probe />);
     const socket = latest();

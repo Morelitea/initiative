@@ -1,12 +1,12 @@
-"""The per-user notification signal channel.
+"""The inbox's own frames.
 
-These pin the three properties the bell now depends on, having given up its
-fast poll:
+Routing — which socket a frame reaches — belongs to the shared transport and
+is pinned in ``user_stream_test``. What is left here is the inbox's half:
 
-* a frame reaches every socket belonging to its recipient, and only those,
 * a frame is emitted only after the writing transaction commits — never on
   flush, and never at all if the transaction rolls back,
-* a frame stays content-free: an id envelope, never a notification's payload.
+* a frame stays content-free: an envelope, never a notification's payload,
+* the notification service pokes the right person at the right moment.
 """
 
 import asyncio
@@ -15,13 +15,13 @@ import pytest
 from sqlmodel import select
 
 from app.models.platform.notification import Notification, NotificationType
-from app.services.platform import notification_stream
 from app.services.platform import user_notifications
+from app.services.platform import user_stream
 from app.services.platform.notification_stream import (
-    NotificationStream,
     queue_signal,
     signal_user,
 )
+from app.services.platform.user_stream import UserStream
 from app.testing import create_user
 
 
@@ -42,90 +42,18 @@ class BrokenWebSocket(FakeWebSocket):
         raise ConnectionResetError("peer gone")
 
 
-# ---------------------------------------------------------------------------
-# Routing
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-async def test_frame_reaches_every_tab_of_its_recipient() -> None:
-    stream = NotificationStream()
-    laptop, phone = FakeWebSocket(), FakeWebSocket()
-    await stream.connect(7, laptop)
-    await stream.connect(7, phone)
-
-    await stream.send(7, {"resource": "notification"})
-
-    assert laptop.sent == [{"resource": "notification"}]
-    assert phone.sent == [{"resource": "notification"}]
-
-
-@pytest.mark.unit
-async def test_frame_never_reaches_another_user() -> None:
-    stream = NotificationStream()
-    mine, theirs = FakeWebSocket(), FakeWebSocket()
-    await stream.connect(7, mine)
-    await stream.connect(8, theirs)
-
-    await stream.send(7, {"resource": "notification"})
-
-    assert len(mine.sent) == 1
-    assert theirs.sent == []
-
-
-@pytest.mark.unit
-async def test_disconnect_drops_only_that_socket() -> None:
-    stream = NotificationStream()
-    laptop, phone = FakeWebSocket(), FakeWebSocket()
-    await stream.connect(7, laptop)
-    await stream.connect(7, phone)
-
-    await stream.disconnect(laptop)
-    await stream.send(7, {"resource": "notification"})
-
-    assert laptop.sent == []
-    assert len(phone.sent) == 1
-    assert stream.socket_count(7) == 1
-
-
-@pytest.mark.unit
-async def test_last_socket_leaving_empties_the_user() -> None:
-    stream = NotificationStream()
-    tab = FakeWebSocket()
-    await stream.connect(7, tab)
-    await stream.disconnect(tab)
-
-    assert stream.socket_count(7) == 0
-    # Idempotent: a socket the endpoint's ``finally`` already removed.
-    await stream.disconnect(tab)
-    assert stream.socket_count(7) == 0
-
-
-@pytest.mark.unit
-async def test_a_dead_socket_is_dropped_and_does_not_block_the_others() -> None:
-    stream = NotificationStream()
-    dead, alive = BrokenWebSocket(), FakeWebSocket()
-    await stream.connect(7, dead)
-    await stream.connect(7, alive)
-
-    await stream.send(7, {"resource": "notification"})
-
-    assert len(alive.sent) == 1
-    assert stream.socket_count(7) == 1
-
-
 @pytest.mark.unit
 async def test_frame_carries_no_notification_content() -> None:
     """An id envelope, and the inbox needs no ids — so nothing but the shape."""
-    stream = NotificationStream()
+    stream = UserStream()
     tab = FakeWebSocket()
     await stream.connect(7, tab)
-    original = notification_stream.stream
-    notification_stream.stream = stream
+    original = user_stream.stream
+    user_stream.stream = stream
     try:
         await signal_user(7, "created")
     finally:
-        notification_stream.stream = original
+        user_stream.stream = original
 
     frame = tab.sent[0]
     assert frame["resource"] == "notification"
@@ -147,9 +75,14 @@ async def _drain_tasks() -> None:
 
 @pytest.fixture
 def captured_stream(monkeypatch):
-    """Route the module-level stream at a fresh instance for one test."""
-    stream = NotificationStream()
-    monkeypatch.setattr(notification_stream, "stream", stream)
+    """Route the shared registry at a fresh instance for one test.
+
+    Patched on ``user_stream``, which is where the sockets actually live —
+    ``notification_stream.stream`` is a re-export, and rebinding the alias
+    would leave the real registry in place.
+    """
+    stream = UserStream()
+    monkeypatch.setattr(user_stream, "stream", stream)
     return stream
 
 
