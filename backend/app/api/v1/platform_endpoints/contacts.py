@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, get_current_active_user
@@ -129,23 +130,20 @@ async def add_favorite_contact(
             detail=ContactMessages.USER_NOT_FOUND,
         )
 
-    existing = (
-        await session.exec(
-            select(ProfileFavorite).where(
-                ProfileFavorite.user_id == current_user.id,
-                ProfileFavorite.favorite_user_id == user_id,
-            )
+    # Let the primary key decide, rather than reading first and inserting after:
+    # two stars of the same person arriving together both find nothing and both
+    # write, and the second one is what the pair constraint is for. The database
+    # settles it in one statement.
+    await session.exec(
+        pg_insert(ProfileFavorite)
+        .values(
+            user_id=current_user.id,
+            favorite_user_id=user_id,
+            created_at=datetime.now(timezone.utc),
         )
-    ).first()
-    if existing is None:
-        session.add(
-            ProfileFavorite(
-                user_id=current_user.id,
-                favorite_user_id=user_id,
-                created_at=datetime.now(timezone.utc),
-            )
-        )
-        await session.commit()
+        .on_conflict_do_nothing(index_elements=["user_id", "favorite_user_id"])
+    )
+    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import UserStatus
 from app.testing.factories import (
     create_guild,
@@ -372,6 +374,34 @@ async def test_favorite_roundtrip_and_idempotence(
     assert (
         await client.delete(f"{FAVORITES}/{other.id}", headers=headers)
     ).status_code == 204
+
+
+@pytest.mark.integration
+async def test_favorite_survives_the_row_appearing_underneath_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """Two stars of the same person arriving together both find nothing.
+
+    The pair is the primary key and the insert defers to it, so the second one
+    settles as a no-op rather than as a server error.
+    """
+    user = await create_user(session)
+    other = await create_user(session)
+
+    session.add(ProfileFavorite(user_id=user.id, favorite_user_id=other.id))
+    await session.commit()
+
+    response = await client.put(
+        f"{FAVORITES}/{other.id}", headers=get_auth_headers(user)
+    )
+    assert response.status_code == 204
+
+    rows = (
+        await session.exec(
+            select(ProfileFavorite).where(ProfileFavorite.user_id == user.id)
+        )
+    ).all()
+    assert len(rows) == 1
 
 
 @pytest.mark.integration

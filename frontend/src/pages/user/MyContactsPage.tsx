@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2, SearchX, Star, Users } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ContactRead } from "@/api/generated/initiativeAPI.schemas";
@@ -61,6 +61,10 @@ export const MyContactsPage = () => {
     setExtra({});
     setLoadingMore(new Set());
   }
+  // Read by an in-flight load-more when it lands, to tell whether the term it
+  // was asked under is still the one on screen.
+  const searchRef = useRef(search);
+  searchRef.current = search;
 
   const [collapse, setCollapse] = useViewPreference<CollapseState>(
     COLLAPSE_SCOPE,
@@ -93,10 +97,14 @@ export const MyContactsPage = () => {
 
   const loadMore = useCallback(
     async (guildId: number, loadedPages: number) => {
+      const askedFor = search;
       setLoadingMore((prev) => new Set(prev).add(guildId));
       try {
-        const section = await fetchContactPage(guildId, loadedPages + 1, search);
-        if (!section) return;
+        const section = await fetchContactPage(guildId, loadedPages + 1, askedFor);
+        // The term may have moved on while this was in flight. These rows are
+        // the answer to a question nobody is asking now, and appending them
+        // would put people who do not match under a section that is filtered.
+        if (!section || searchRef.current !== askedFor) return;
         setExtra((prev) => {
           const held = prev[guildId];
           return {

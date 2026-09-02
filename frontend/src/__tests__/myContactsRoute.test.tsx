@@ -8,7 +8,7 @@
  * preloads the route's own component.
  */
 import { createRouter } from "@tanstack/react-router";
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -222,6 +222,35 @@ describe("My Contacts", () => {
     // The first page is still there — this appends rather than replaces.
     expect(screen.getByText("aaa")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
+  });
+
+  it("drops a page that lands after the term moved on", async () => {
+    answer([section({ guild_id: 1, items: [contact({ username: "aaa" })], has_next: true })]);
+    let land: (value: ContactGuildSection) => void = () => {};
+    mocks.fetchPage.mockReturnValue(
+      new Promise<ContactGuildSection>((resolve) => {
+        land = resolve;
+      })
+    );
+    await renderContacts();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Show more" }));
+
+    // The reader types while that page is still in flight, so the sections
+    // underneath become a filtered set.
+    answer([section({ guild_id: 1, items: [contact({ username: "match" })] })]);
+    await userEvent.type(
+      screen.getByRole("searchbox", { name: "Search everyone on this page" }),
+      "match"
+    );
+    expect(await screen.findByText("match")).toBeInTheDocument();
+
+    // The old page arrives carrying somebody who does not match the new term.
+    await act(async () => {
+      land(section({ guild_id: 1, items: [contact({ username: "stale" })], has_next: false }));
+    });
+
+    expect(screen.queryByText("stale")).not.toBeInTheDocument();
   });
 
   it("says so when a search matched nobody", async () => {
