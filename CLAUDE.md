@@ -176,6 +176,74 @@ git log --oneline --grep="bump version" -n 1
 - ❌ Do NOT add changelog entries for minor refactoring or internal changes
 - ❌ Do NOT put new changes under an already-released version number
 
+### Announcements
+
+The changelog is the record; an **announcement** is the interruption. It is a
+dialog in front of somebody who did not ask for it, so the bar is "they have to
+act, or they will be confused" — a breaking change, a setting that moved, a
+feature nobody would find. Everything else belongs in the changelog only.
+
+Two sources, one surface:
+
+- **Authored** — written by an operator under Settings › Admin › Announcements
+  (`announcements.manage`, operator and above). Use these for anything specific
+  to one deployment ("we are upgrading on Sunday").
+- **Compiled in** — declared in
+  [`backend/app/core/builtin_announcements.py`](backend/app/core/builtin_announcements.py)
+  and shipped with the release. Use these when *every* deployment needs to hear
+  it and no operator would know to type it.
+
+**Adding a built-in.** One entry in `BUILTIN_ANNOUNCEMENTS`, and nothing else:
+
+```python
+BuiltinAnnouncement(
+    slug="0-65-guild-admin-settings-moved",   # permanent — see below
+    title="Guild settings have moved",
+    category=AnnouncementCategory.breaking,
+    published_at=datetime(2026, 9, 2, tzinfo=timezone.utc),
+    sections=(
+        AnnouncementSection(heading="What changed", body="…", image_url="…"),
+        AnnouncementSection(starts_page=True, heading="What to do", body="…"),
+    ),
+)
+```
+
+- The **slug is permanent**: it is what a reader's dismissal is recorded
+  against (`builtin:<slug>`), so changing it re-shows the notice to everyone who
+  had already dealt with it.
+- **Pictures** are static assets in `frontend/public/announcement-images/`,
+  referenced as `/announcement-images/<file>.png`. A built-in cannot upload
+  anything — there is no database at build time — and
+  `builtin_announcements_test` fails if a referenced file is not in the repo or
+  has no alt text.
+- **Retiring one** is deleting the entry and shipping that. The stale receipts
+  it leaves behind are harmless.
+- `published_at` must be **at or before the release date**, or nobody sees it:
+  a future date reads as scheduled.
+
+**Choosing conditions.** Every one of these narrows the audience; the default
+is "everybody, immediately", which is usually wrong for a notice worth shipping.
+
+| Field | Use it when |
+|---|---|
+| `audience_accounts` | The notice is about a transition. `existing` for a change people lived through; `new` for an onboarding tip; `everyone` (default) for news that stands on its own. |
+| `only_upgrading_from_below` | Built-ins only. Names the release the notice is about, so a fresh install — which was never on the old behaviour — is not told. Read from the deployment's recorded previous version. |
+| `min_platform_role` | The thing that changed is behind a platform rung. (A capability would be more precise; that is not built yet.) |
+| `guild_admins_only` | Only people who administer a community can act on it. |
+| `trigger_route` | It explains a screen. The notice waits for a matching path (`*` one segment, `**` the rest) instead of queueing at sign-in. |
+| `dismissals_required` | Missing it would cost somebody real work. Two or three, never more; it comes back until acknowledged that many times. |
+| `expires_at` | It stops being true on a date. An end date retires it from the archive as well as the queue. |
+
+**Announcement text is not translated.** Sections are markdown written once and
+shown as-is — only the dialog's own chrome goes through i18n. Write in English
+and keep it short.
+
+**Seeing one locally.** The registry is read at import, so a new entry needs the
+backend to reload. It then has to survive its own conditions: a built-in with
+`only_upgrading_from_below` shows nothing on a dev database that has only ever
+run one version, and one for `existing` accounts shows nothing to an account
+created after its `published_at`.
+
 ### Docker Builds with Specific Versions
 
 Build Docker images with version labels:
