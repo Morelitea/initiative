@@ -53,7 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **One emoji picker everywhere**, searchable and in your language.
 
-- **A community admin's sidebar lists the initiatives they're in**, not every initiative in the community.
+- **A community admin sees the initiatives they're in**, not every initiative in the community. That holds in the sidebar and on the community's front page alike: an admin reads the front page the way anyone else does — the initiatives they joined, then the ones on offer. Their authority over the community is unchanged; it simply no longer decides what they navigate. They put an initiative in front of themselves by joining it from the front page — an admin walks straight in rather than asking, whatever the initiative's joining setting — or by taking the project manager role in Settings › Initiatives, which still lists every initiative in the community.
+
+- **Project managers can invite community admins into an initiative.** The invite used to be refused, because an admin can only hold the project manager role there. It now simply gives them that role, so a manager can add an admin without first working out who is one — and the member picker offers them like anybody else.
 
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 

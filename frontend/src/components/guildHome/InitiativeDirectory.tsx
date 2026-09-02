@@ -15,6 +15,11 @@
  *    once you've knocked. Nothing about what you can see moves until a manager
  *    answers, so the card says only that you asked.
  *
+ * A guild admin reads this page the same way anyone else does — their
+ * authority over the guild is unchanged, it just no longer decides what is
+ * listed here. They walk in rather than knock, so a card they are not in
+ * offers Join whatever its policy says.
+ *
  * A manager also sees how many people are waiting at their own door: the count
  * reads zero for everyone who couldn't act on it anyway.
  *
@@ -84,19 +89,22 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   const { isGuildAdmin, permissionsFor } = useInitiativeAccess();
   const guildId = useActiveGuildId();
 
-  // A guild admin's standing reaches every initiative without a membership row,
-  // and the backend sends them the unlisted (private) ones too. Those land in
-  // the "yours" group — they are not on offer, and the admin badge says why the
-  // reader is there. One an admin could still genuinely join stays on offer, so
-  // the group a card is in is exactly the answer to "am I in there already":
-  // the title leads in from one group, the Join button from the other, and no
-  // card carries both.
-  const mine = entries.filter(
-    (entry) => entry.is_member || (isGuildAdmin && entry.join_policy !== InitiativeJoinPolicy.open)
-  );
-  const canEnter = (entry: InitiativeDirectoryEntry) => mine.includes(entry);
-  const joinable = entries.filter((entry) => !canEnter(entry));
+  // One reading for everyone, guild admin included: a card is yours when you
+  // are in it, and on offer when you are not. An admin's authority still
+  // reaches the whole guild — it just no longer decides what this page lists,
+  // so the group a card is in is exactly the answer to "am I in there
+  // already": the title leads in from one group, the Join button from the
+  // other, and no card carries both.
+  const mine = entries.filter((entry) => entry.is_member);
+  const canEnter = (entry: InitiativeDirectoryEntry) => entry.is_member;
+  const joinable = entries.filter((entry) => !entry.is_member);
   const hasEnterable = mine.length > 0;
+
+  // A guild admin walks in rather than knocking: they hold the authority the
+  // request queue exercises, so a card they are not in offers the same one
+  // button whatever its policy.
+  const walksIn = (entry: InitiativeDirectoryEntry) =>
+    isGuildAdmin || entry.join_policy === InitiativeJoinPolicy.open;
 
   // Only a card the reader can enter shows counts and a role — for the rest
   // RLS would answer zero anyway — so nothing is fetched for a directory of
@@ -137,8 +145,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   }
 
   /**
-   * What the reader is here: their role in the initiative, or the guild-admin
-   * standing that reaches it without a membership row. A member whose row
+   * What the reader is here: their role in the initiative. A member whose row
    * carries no role still gets the plain "you're in" mark.
    */
   const renderMembershipBadge = (entry: InitiativeDirectoryEntry) => {
@@ -151,13 +158,6 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
         <Badge variant="secondary" className="shrink-0 gap-1">
           <Check className="h-3 w-3" aria-hidden="true" />
           {roleLabel}
-        </Badge>
-      );
-    }
-    if (isGuildAdmin) {
-      return (
-        <Badge variant="outline" className="shrink-0">
-          {t("initiatives:settings.guildAdminRole")}
         </Badge>
       );
     }
@@ -277,8 +277,8 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
           {canEnter(entry) ? renderToolStats(entry) : null}
         </div>
         {/* Nothing to offer a card you're already in — its title leads there.
-            Otherwise the policy decides: walk in, or ask. */}
-        {canEnter(entry) ? null : entry.join_policy === InitiativeJoinPolicy.open ? (
+            Otherwise: walk in where you may, ask where you must. */}
+        {canEnter(entry) ? null : walksIn(entry) ? (
           <Button
             size="sm"
             disabled={joinInitiative.isPending}

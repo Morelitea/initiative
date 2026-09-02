@@ -31,7 +31,7 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
 from app.schemas.tenant.initiative import (
@@ -154,23 +154,23 @@ async def _guard_guild_admin_role(
     guild_id: int,
     target_user_id: int,
     role: InitiativeRoleModel | None,
-    guild_membership: GuildMembership | None = None,
 ) -> None:
     """Restrict which initiative roles a guild admin may be assigned.
 
     A guild admin already has complete access to every initiative in their
-    guild (see ``role_context.is_request_guild_admin``), so they are implicit
-    full-access members. They may *additionally* hold a manager role — purely
-    for manager-style features like notifications — but must never be assigned a
-    standard member or custom role. This keeps the admin's standing access
-    distinct from per-initiative DAC and is enforced server-side for safety.
+    guild (see ``role_context.is_request_guild_admin``), so their membership
+    row carries a manager role — purely for manager-style features like
+    notifications — and never a standard member or custom one. Every route that
+    *creates* a row settles that itself
+    (:func:`initiatives_service.resolve_membership_role`); this is the backstop
+    for the one route that only ever changes an existing role, where silently
+    substituting would answer a question nobody asked.
     """
     if role is not None and role.is_manager:
         return  # manager role is the one allowed elevation for an admin
-    membership = guild_membership or await guilds_service.get_membership(
+    if await initiatives_service.is_guild_admin_member(
         session, guild_id=guild_id, user_id=target_user_id
-    )
-    if membership and membership.role == GuildRole.admin:
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.GUILD_ADMIN_ROLE_RESTRICTED,
@@ -267,8 +267,10 @@ async def list_initiative_directory(
     Open to every guild member — it lists only what each initiative published
     about itself (name, description, colour, roster size), never its content.
     Initiatives whose policy is ``private`` are listed only to their own
-    members — and to guild admins, whose standing already reaches every
-    initiative in the guild.
+    members, guild admins included: an admin's authority over the guild is
+    unchanged, but the front page shows what they are in and what is on offer,
+    read the same way for everyone. ``/initiatives/?scope=guild`` is the
+    whole-guild listing, and guild settings is where it is managed.
 
     Declared before ``/{initiative_id}`` so the literal path wins the match.
     """
@@ -276,7 +278,6 @@ async def list_initiative_directory(
         session,
         guild_id=guild_context.guild_id,
         user_id=current_user.id,
-        include_unlisted=rls_service.is_guild_admin(guild_context.role),
     )
 
 
@@ -292,6 +293,11 @@ async def join_initiative(
     Idempotent: already being a member is a success, not a conflict. Any other
     join policy answers 403 — the same answer for ``private`` and ``request``,
     so it says only "not by this route".
+
+    A guild admin walks in whatever the policy says, and on the manager role:
+    the queue exists to exercise an authority they already hold, and staffing
+    themselves onto an initiative is how they bring it into their own
+    navigation. It is the same act as ticking themselves in guild settings.
     """
     # A scoped grantee reaches this guild for a window; the membership row this
     # would create has no end date, so joining is for real guild members.
@@ -304,7 +310,9 @@ async def join_initiative(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    if not initiatives_service.is_self_joinable(initiative):
+    if not initiatives_service.is_self_joinable(
+        initiative
+    ) and not rls_service.is_guild_admin(guild_context.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.NOT_JOINABLE,
@@ -400,16 +408,6 @@ async def _resolve_join_request(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
-    if approved:
-        # A guild admin is an implicit full-access member and must never hold a
-        # standard member role; if the requester was promoted while the request
-        # sat in the queue, say so rather than writing the row.
-        await _guard_guild_admin_role(
-            session,
-            guild_id=initiative.guild_id,
-            target_user_id=request.user_id,
-            role=None,
-        )
     try:
         await initiatives_service.resolve_join_request(
             session, request=request, resolver_id=current_user.id, approved=approved
@@ -479,9 +477,9 @@ async def create_join_request(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.NOT_REQUESTABLE,
         )
-    # A guild admin already reaches every initiative in their guild, so there is
-    # nothing here to ask for — and the membership row an approval would write
-    # is one they must never hold (see ``_guard_guild_admin_role``).
+    # A guild admin holds the authority this queue exercises, so they walk in
+    # (``POST /join``, which takes them whatever the policy says) rather than
+    # knocking and waiting for a member to answer.
     if rls_service.is_guild_admin(guild_context.role):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -1332,7 +1330,12 @@ async def add_initiative_member(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
-    """Add a member to an initiative or update their role."""
+    """Add a member to an initiative or update their role.
+
+    Any project manager may bring in any member of the guild, guild admins
+    included — an admin simply lands on the manager role their standing already
+    implies, whatever role the invite named.
+    """
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
@@ -1360,38 +1363,34 @@ async def add_initiative_member(
             detail=InitiativeMessages.USER_NOT_IN_GUILD,
         )
 
-    # Get the role to assign (default to member role if not specified)
-    role_id = payload.role_id
-    if role_id is None:
-        resolved_role = await initiatives_service.get_member_role(
-            session, initiative_id=initiative_id
-        )
-        if not resolved_role:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
-            )
-        role_id = resolved_role.id
-    else:
+    requested_role = None
+    if payload.role_id is not None:
         # Verify role exists and belongs to this initiative
-        resolved_role = await initiatives_service.get_role_by_id(
-            session, role_id=role_id, initiative_id=initiative_id
+        requested_role = await initiatives_service.get_role_by_id(
+            session, role_id=payload.role_id, initiative_id=initiative_id
         )
-        if not resolved_role:
+        if not requested_role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=InitiativeMessages.ROLE_NOT_FOUND,
             )
 
-    # Guild admins are implicit full-access members; they may only be elevated
-    # to a manager role, never assigned a standard member or custom role.
-    await _guard_guild_admin_role(
+    # The role the row actually takes: what was asked for, the built-in member
+    # role when nothing was, or the manager role for a guild admin — whose
+    # standing already reaches the initiative. Settling it here is what lets a
+    # project manager invite an admin without knowing they are one.
+    resolved_role = await initiatives_service.resolve_membership_role(
         session,
-        guild_id=initiative.guild_id,
-        target_user_id=payload.user_id,
-        role=resolved_role,
-        guild_membership=guild_membership,
+        initiative=initiative,
+        user_id=payload.user_id,
+        requested=requested_role,
     )
+    if not resolved_role:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
+        )
+    role_id = resolved_role.id
 
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,

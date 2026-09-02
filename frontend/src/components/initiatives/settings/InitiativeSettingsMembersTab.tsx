@@ -71,15 +71,32 @@ export const InitiativeSettingsMembersTab = ({
       return [];
     }
     const existingIds = new Set(members.map((member) => member.user.id));
-    // Guild admins take the project manager role from the guild settings
-    // initiative table, which is the only initiative role they may hold.
     return usersQuery.data.filter(
-      (candidate) =>
-        !existingIds.has(candidate.id) &&
-        candidate.status !== "anonymized" &&
-        candidate.guild_role !== "admin"
+      (candidate) => !existingIds.has(candidate.id) && candidate.status !== "anonymized"
     );
   }, [usersQuery.data, members]);
+
+  // A guild admin's standing already reaches every initiative, so the only
+  // initiative role their row can hold is the manager one — the server settles
+  // that on the way in. The picker says so up front rather than offering a
+  // choice that would be rewritten.
+  const adminIds = useMemo(
+    () =>
+      new Set(
+        (usersQuery.data ?? [])
+          .filter((candidate) => candidate.guild_role === "admin")
+          .map((candidate) => candidate.id)
+      ),
+    [usersQuery.data]
+  );
+  const managerRole = useMemo(
+    () =>
+      roles?.find((role) => role.is_manager) ??
+      roles?.find((role) => role.name === "project_manager"),
+    [roles]
+  );
+  const addingAdmin = adminIds.has(Number(selectedUserId));
+  const effectiveRoleId = addingAdmin && managerRole ? String(managerRole.id) : selectedRoleId;
 
   const addMember = useAddInitiativeMember({
     onSuccess: () => {
@@ -112,11 +129,11 @@ export const InitiativeSettingsMembersTab = ({
   });
 
   const handleAddMember = () => {
-    if (!selectedUserId || !selectedRoleId) {
+    if (!selectedUserId || !effectiveRoleId) {
       return;
     }
     const userId = Number(selectedUserId);
-    const roleId = Number(selectedRoleId);
+    const roleId = Number(effectiveRoleId);
     if (!Number.isFinite(userId) || !Number.isFinite(roleId)) {
       return;
     }
@@ -166,7 +183,7 @@ export const InitiativeSettingsMembersTab = ({
         header: t("settings.roleColumn"),
         cell: ({ row }) => {
           const member = row.original;
-          if (!canManageMembers || !roles) {
+          if (!canManageMembers || !roles || adminIds.has(member.user.id)) {
             return <Badge variant="outline">{getRoleDisplayName(member)}</Badge>;
           }
           return (
@@ -232,6 +249,7 @@ export const InitiativeSettingsMembersTab = ({
     ];
   }, [
     t,
+    adminIds,
     canManageMembers,
     roles,
     showsNames,
@@ -281,7 +299,11 @@ export const InitiativeSettingsMembersTab = ({
                   disabled={usersQuery.isLoading || availableUsers.length === 0}
                 />
                 {roles && (
-                  <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
+                  <Select
+                    value={effectiveRoleId}
+                    onValueChange={setSelectedRoleId}
+                    disabled={addingAdmin}
+                  >
                     <SelectTrigger className="w-44">
                       <SelectValue placeholder={t("settings.selectRole")} />
                     </SelectTrigger>
@@ -300,7 +322,7 @@ export const InitiativeSettingsMembersTab = ({
                   onClick={handleAddMember}
                   disabled={
                     !selectedUserId ||
-                    !selectedRoleId ||
+                    !effectiveRoleId ||
                     addMember.isPending ||
                     usersQuery.isLoading ||
                     availableUsers.length === 0
