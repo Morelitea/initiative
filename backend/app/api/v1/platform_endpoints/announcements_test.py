@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.announcement import Announcement
+from app.models.platform.announcement import Announcement, AnnouncementImage
 from app.models.platform.user import UserRole
 from app.testing.factories import create_user, get_auth_headers
 
@@ -379,6 +379,39 @@ async def test_uploading_a_picture_returns_a_url_that_serves_it(
     served = await client.get(payload["url"], headers=get_auth_headers(reader))
     assert served.status_code == 200
     assert served.headers["content-type"] == "image/png"
+
+
+@pytest.mark.integration
+async def test_re_uploading_the_same_picture_still_serves_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """The upload path prunes on its way out; what it just returned must live."""
+    _, author_headers = await _author(session)
+    reader = await create_user(session)
+    data = _png(padding=128)
+
+    first = await client.post(
+        "/api/v1/announcements/admin/images",
+        headers=author_headers,
+        files={"file": ("shot.png", data, "image/png")},
+    )
+    assert first.status_code == 201
+
+    # Old enough for the sweep to consider it, and referenced by nothing.
+    image = await session.get(AnnouncementImage, first.json()["sha256"])
+    image.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    session.add(image)
+    await session.commit()
+
+    again = await client.post(
+        "/api/v1/announcements/admin/images",
+        headers=author_headers,
+        files={"file": ("shot.png", data, "image/png")},
+    )
+    assert again.status_code == 201
+
+    served = await client.get(again.json()["url"], headers=get_auth_headers(reader))
+    assert served.status_code == 200
 
 
 @pytest.mark.integration

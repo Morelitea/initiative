@@ -225,6 +225,10 @@ class AnnouncementImage(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("users.id", ondelete="SET NULL")),
     )
+    #: When these bytes were last put here. Uploading the same picture twice
+    #: keeps one row and moves this, because it is what the orphan sweep reads
+    #: to decide whether nobody wants it — and a re-upload is somebody
+    #: wanting it.
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

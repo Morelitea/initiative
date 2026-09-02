@@ -477,6 +477,13 @@ async def store_image(
     digest = hashlib.sha256(data).hexdigest()
     existing = await session.get(AnnouncementImage, digest)
     if existing is not None:
+        # The same bytes are kept once, and re-uploading them is somebody
+        # putting this picture here *now* — so the clock the pruner reads
+        # restarts. Without this, re-using a screenshot older than the grace
+        # period would hand back a URL the very next sweep deletes.
+        existing.created_at = datetime.now(timezone.utc)
+        session.add(existing)
+        await session.flush()
         return existing
 
     image = AnnouncementImage(

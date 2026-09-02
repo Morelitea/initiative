@@ -160,7 +160,10 @@ def upgrade() -> None:
         f"USING (user_id = {_USER_ID}) WITH CHECK (user_id = {_USER_ID})",
         # --- announcement_images ---------------------------------------------
         f"REVOKE ALL ON TABLE public.announcement_images FROM {request_roles}",
-        "GRANT SELECT, INSERT, DELETE ON TABLE public.announcement_images TO app_admin",
+        # UPDATE is the dedupe touch: re-uploading the same bytes keeps one
+        # row and restarts the clock the orphan sweep reads.
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.announcement_images "
+        "TO app_admin",
         f'GRANT SELECT ON TABLE public.announcement_images TO app_guild_base, "{base}"',
         "ALTER TABLE public.announcement_images ENABLE ROW LEVEL SECURITY",
         "ALTER TABLE public.announcement_images FORCE ROW LEVEL SECURITY",

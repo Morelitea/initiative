@@ -403,6 +403,28 @@ async def test_the_pruner_keeps_referenced_pictures_and_drops_the_rest(session):
 
 
 @pytest.mark.integration
+async def test_re_uploading_an_old_orphan_survives_the_next_sweep(session):
+    """Re-using a screenshot is somebody wanting it again, not an orphan.
+
+    The upload path prunes on its way out, so a dedupe that kept the original
+    timestamp would hand back a URL that same sweep had just deleted.
+    """
+    author = await create_user(session, role=UserRole.owner)
+    data = _png(padding=7)
+    first = await service.store_image(session, data=data, user_id=author.id)
+    first.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    session.add(first)
+    await session.commit()
+
+    again = await service.store_image(session, data=data, user_id=author.id)
+    removed = await service.prune_unreferenced_images(session)
+    await session.commit()
+
+    assert removed == 0
+    assert await session.get(AnnouncementImage, again.sha256) is not None
+
+
+@pytest.mark.integration
 async def test_the_pruner_leaves_a_freshly_uploaded_picture_alone(session):
     author = await create_user(session, role=UserRole.owner)
     image = await service.store_image(session, data=_png(padding=3), user_id=author.id)
