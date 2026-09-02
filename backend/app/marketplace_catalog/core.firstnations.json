@@ -5,7 +5,7 @@
   "name": "First Nations",
   "publisher": "Initiative",
   "description": "Weaving, star quilts and formline, with the marks that go with them.",
-  "long_description": "For Native and First Nations communities and the people who stand with them. Three banners — stepped weaving, an eight-pointed star quilt, and an orca built from crescents and trigons — the four directions round the picture, and trophies for the red handprint, an eagle feather and the medicine wheel. The artwork is original work in these design traditions, not a copy of any nation's, family's or weaver's own design.",
+  "long_description": "For Native and First Nations communities and the people who stand with them. Three banners — stepped weaving, an eight-pointed star quilt, and an orca built from crescents and trigons — the four directions round the picture, and trophies for the red handprint, an eagle feather and the medicine wheel, and Two-Spirit — two feathers hanging over the six colours — on a banner and a trophy of its own. The artwork is original work in these design traditions, not a copy of any nation's, family's or weaver's own design.",
   "avatar_url": "/decorations/banners/firstnations-weave.svg",
   "images": [],
   "version": "1.0.0",
@@ -48,6 +48,16 @@
         "id": "firstnations.medicinewheel",
         "slot": "trophy",
         "name": "Medicine wheel"
+      },
+      {
+        "id": "firstnations.twospirit",
+        "slot": "banner",
+        "name": "Two-Spirit"
+      },
+      {
+        "id": "firstnations.twospiritfeathers",
+        "slot": "trophy",
+        "name": "Two-Spirit"
       }
     ]
   }

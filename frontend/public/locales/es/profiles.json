@@ -24,12 +24,13 @@
     "label": "Se unió"
   },
   "decorations": {
-    "ace": "As",
+    "ace": "Asexual",
     "afropick": "Peine afro",
     "arcade": "Recreativa",
     "arcane": "Arcano",
     "aurora": "Aurora",
     "beach": "Playa",
+    "bi": "Bisexual",
     "bicycle": "Bicicleta",
     "blade": "Hoja",
     "bookshelf": "Estantería",
@@ -95,6 +96,7 @@
     "floodlights": "Focos",
     "fourdirections": "Cuatro direcciones",
     "garden": "Jardín",
+    "gay": "Gay",
     "globe": "Globo",
     "gold": "Dorado",
     "grove": "Arboleda",
@@ -107,6 +109,7 @@
     "laces": "Cordones",
     "landmarks": "Monumentos",
     "lantern": "Calabaza de Halloween",
+    "lesbian": "Lesbiana",
     "lizard": "Lagarto",
     "masks": "Máscaras",
     "matchball": "Balón de partido",
@@ -116,6 +119,7 @@
     "morningstar": "Estrella de la mañana",
     "natural20": "Veinte natural",
     "net": "Red",
+    "nonbinary": "No binario",
     "observatory": "Observatorio",
     "orbital": "Orbital",
     "orca": "Orca",
@@ -127,6 +131,7 @@
     "pigskin": "Cuero",
     "piste": "Pista",
     "plane": "Avión",
+    "poly": "Poliamoroso",
     "prideheart": "Corazón del orgullo",
     "puck": "Disco",
     "rabbit": "Conejo",
@@ -153,6 +158,8 @@
     "tealeaves": "Hojas",
     "teaservice": "Juego de té",
     "train": "Tren",
+    "trans": "Trans",
+    "twospirit": "Dos espíritus",
     "vinyl": "Vinilo",
     "weave": "Tejido"
   },
@@ -177,7 +184,11 @@
     "empty": "Esta versión no trae packs.",
     "failed": "No se pudo cambiar ese pack.",
     "got": "Pack descargado.",
-    "manage": "Tus packs"
+    "manage": "Tus packs",
+    "by": "de {{publisher}}",
+    "see": "Ver qué incluye {{name}}",
+    "pieces_one": "{{count}} pieza",
+    "pieces_other": "{{count}} piezas"
   },
   "look": {
     "save": "Guardar aspecto",

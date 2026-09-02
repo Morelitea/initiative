@@ -288,7 +288,9 @@ async def remove_pack(
 
     The delete is scoped to rows this pack granted: a decoration that arrived
     from somewhere else and happens to share an id is not this pack's to
-    remove. Returns what the profile is left wearing.
+    remove. What is taken off the profile is narrower still — only what the
+    library no longer answers for once those rows are gone. Returns what the
+    profile is left wearing.
     """
     worn_raw = (
         await session.exec(
@@ -318,7 +320,28 @@ async def remove_pack(
             UserDecoration.source == pack.uid,
         )
     )
-    stripped = undress(worn, granted)
+    # What comes off is what the account no longer owns, which is not the same
+    # as what this pack granted: a decoration another pack also gave, or one
+    # that ships with the app, is still wearable and would be a look nobody
+    # gave up. Read after the delete, so it is the library as it now stands.
+    remaining = set(
+        (
+            await session.exec(
+                select(UserDecoration.decoration_id).where(
+                    UserDecoration.user_id == user_id
+                )
+            )
+        ).all()
+    )
+    stripped = undress(
+        worn,
+        {
+            decoration_id
+            for decoration_id in granted
+            if decoration_id not in remaining
+            and decoration_id not in SHIPPED_DECORATIONS
+        },
+    )
     if stripped != worn:
         await session.exec(
             update(User)
@@ -334,10 +357,14 @@ async def remove_pack(
 def undress(worn: ProfileDecorations, gone: set[str]) -> ProfileDecorations:
     """The same look with anything in ``gone`` taken off.
 
-    Takes ids rather than a pack. What has to come off is what the account no
-    longer holds, and the granted rows are the record of that; a pack's current
-    definition is a different question, and answers this one wrongly for
-    anybody who installed an earlier version of it.
+    Takes ids rather than a pack, because what has to come off is what the
+    account no longer holds — a question about the whole library, not about
+    one pack's current definition, which answers it wrongly for anybody who
+    installed an earlier version of it.
+
+    A slot that held one of them is left empty, which is the default a bare
+    profile has always had: no banner behind the name, no frame around the
+    picture. A badge simply leaves the row.
     """
     return ProfileDecorations(
         banner=None if worn.banner in gone else worn.banner,

@@ -66,6 +66,7 @@ type DecorationName =
   | "arcane"
   | "aurora"
   | "beach"
+  | "bi"
   | "bicycle"
   | "blade"
   | "bookshelf"
@@ -131,6 +132,7 @@ type DecorationName =
   | "floodlights"
   | "fourdirections"
   | "garden"
+  | "gay"
   | "globe"
   | "gold"
   | "grove"
@@ -143,6 +145,7 @@ type DecorationName =
   | "laces"
   | "landmarks"
   | "lantern"
+  | "lesbian"
   | "lizard"
   | "masks"
   | "matchball"
@@ -152,6 +155,7 @@ type DecorationName =
   | "morningstar"
   | "natural20"
   | "net"
+  | "nonbinary"
   | "observatory"
   | "orbital"
   | "orca"
@@ -163,6 +167,7 @@ type DecorationName =
   | "pigskin"
   | "piste"
   | "plane"
+  | "poly"
   | "prideheart"
   | "puck"
   | "rabbit"
@@ -189,6 +194,8 @@ type DecorationName =
   | "tealeaves"
   | "teaservice"
   | "train"
+  | "trans"
+  | "twospirit"
   | "vinyl"
   | "weave";
 
@@ -296,6 +303,12 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "firstnations-morningstar",
     "morningstar"
   ),
+  "firstnations.twospirit": entry(
+    "firstnations.twospirit",
+    "banner",
+    "firstnations-twospirit",
+    "twospirit"
+  ),
   "firstnations.orca": entry("firstnations.orca", "banner", "firstnations-orca", "orca"),
   "firstnations.weave": entry("firstnations.weave", "banner", "firstnations-weave", "weave"),
   "firstnations.wheel": entry(
@@ -309,6 +322,12 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "trophy",
     "firstnations-feather",
     "feather"
+  ),
+  "firstnations.twospiritfeathers": entry(
+    "firstnations.twospiritfeathers",
+    "trophy",
+    "firstnations-twospirit",
+    "twospirit"
   ),
   "firstnations.handprint": entry(
     "firstnations.handprint",
@@ -402,8 +421,29 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "pets.hamster": entry("pets.hamster", "trophy", "pets-hamster", "hamster"),
 
   "pride.parade": entry("pride.parade", "banner", "pride-parade", "parade"),
+  "pride.polyflag": entry("pride.polyflag", "banner", "pride-poly", "poly"),
+  "pride.aceflag": entry("pride.aceflag", "banner", "pride-ace", "ace"),
+  "pride.biflag": entry("pride.biflag", "banner", "pride-bi", "bi"),
+  "pride.gayflag": entry("pride.gayflag", "banner", "pride-gay", "gay"),
+  "pride.lesbianflag": entry("pride.lesbianflag", "banner", "pride-lesbian", "lesbian"),
+  "pride.transflag": entry("pride.transflag", "banner", "pride-trans", "trans"),
+  "pride.nonbinaryflag": entry("pride.nonbinaryflag", "banner", "pride-nonbinary", "nonbinary"),
   "pride.spectrum": entry("pride.spectrum", "frame", "pride-spectrum", "spectrum"),
+  "pride.polyring": entry("pride.polyring", "frame", "pride-poly", "poly"),
+  "pride.acering": entry("pride.acering", "frame", "pride-ace", "ace"),
+  "pride.biring": entry("pride.biring", "frame", "pride-bi", "bi"),
+  "pride.gayring": entry("pride.gayring", "frame", "pride-gay", "gay"),
+  "pride.lesbianring": entry("pride.lesbianring", "frame", "pride-lesbian", "lesbian"),
+  "pride.transring": entry("pride.transring", "frame", "pride-trans", "trans"),
+  "pride.nonbinaryring": entry("pride.nonbinaryring", "frame", "pride-nonbinary", "nonbinary"),
   "pride.heart": entry("pride.heart", "trophy", "pride-heart", "prideheart"),
+  "pride.polyheart": entry("pride.polyheart", "trophy", "pride-poly", "poly"),
+  "pride.aceheart": entry("pride.aceheart", "trophy", "pride-ace", "ace"),
+  "pride.biheart": entry("pride.biheart", "trophy", "pride-bi", "bi"),
+  "pride.gayheart": entry("pride.gayheart", "trophy", "pride-gay", "gay"),
+  "pride.lesbianheart": entry("pride.lesbianheart", "trophy", "pride-lesbian", "lesbian"),
+  "pride.transheart": entry("pride.transheart", "trophy", "pride-trans", "trans"),
+  "pride.nonbinaryheart": entry("pride.nonbinaryheart", "trophy", "pride-nonbinary", "nonbinary"),
 
   // Labs, field stations, reading groups with a whiteboard.
   "science.observatory": entry(

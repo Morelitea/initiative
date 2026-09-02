@@ -1,11 +1,12 @@
 /**
  * The store offers packs, and taking one is what puts its pieces in reach.
  *
- * What is worth pinning here is the tolerance: the server decides what packs
- * exist, and a build with no artwork for one must leave it out rather than
- * draw an empty card.
+ * What is worth pinning here is the tolerance — the server decides what packs
+ * exist, and a build with no artwork for one must leave it out rather than draw
+ * an empty card — and that a card, which can only show one piece per slot, can
+ * be opened for the rest.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,7 +36,7 @@ const listing = (
   contents: [
     { id: ids[0], kind: "banner", name: "Dice tower", source: uid },
     { id: ids[1], kind: "frame", name: "Natural 20", source: uid },
-    { id: ids[2], kind: "badge", name: "d20", source: uid },
+    { id: ids[2], kind: "trophy", name: "d20", source: uid },
   ],
 });
 
@@ -102,5 +103,27 @@ describe("the decoration store", () => {
     render();
 
     await waitFor(() => expect(screen.getByText("No packs in this build.")).toBeInTheDocument());
+  });
+});
+
+describe("what a pack carries", () => {
+  it("opens the whole of it from the card", async () => {
+    answerWith([ttrpg()]);
+    renderWithProviders(<DecorationStore user={buildUser()} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Tabletop/ }));
+
+    // Every piece, under the slot it goes in — not just the first of each.
+    const contents = await screen.findByRole("dialog");
+    expect(within(contents).getByText("Dice tower")).toBeInTheDocument();
+    expect(within(contents).getByText("Natural 20")).toBeInTheDocument();
+    expect(within(contents).getByText("d20")).toBeInTheDocument();
+  });
+
+  it("says how many pieces are in one before it is opened", async () => {
+    answerWith([ttrpg()]);
+    renderWithProviders(<DecorationStore user={buildUser()} />);
+
+    expect(await screen.findByText("3 pieces")).toBeInTheDocument();
   });
 });

@@ -24,12 +24,13 @@
     "label": "A rejoint"
   },
   "decorations": {
-    "ace": "Ace",
+    "ace": "Asexuel",
     "afropick": "Peigne afro",
     "arcade": "Arcade",
     "arcane": "Arcane",
     "aurora": "Aurore",
     "beach": "Plage",
+    "bi": "Bisexuel",
     "bicycle": "Vélo",
     "blade": "Lame",
     "bookshelf": "Bibliothèque",
@@ -95,6 +96,7 @@
     "floodlights": "Projecteurs",
     "fourdirections": "Quatre directions",
     "garden": "Jardin",
+    "gay": "Gay",
     "globe": "Globe",
     "gold": "Doré",
     "grove": "Bosquet",
@@ -107,6 +109,7 @@
     "laces": "Laçage",
     "landmarks": "Monuments",
     "lantern": "Citrouille d'Halloween",
+    "lesbian": "Lesbienne",
     "lizard": "Lézard",
     "masks": "Masques",
     "matchball": "Ballon de match",
@@ -116,6 +119,7 @@
     "morningstar": "Étoile du matin",
     "natural20": "Vingt naturel",
     "net": "Filet",
+    "nonbinary": "Non-binaire",
     "observatory": "Observatoire",
     "orbital": "Orbitale",
     "orca": "Orque",
@@ -127,6 +131,7 @@
     "pigskin": "Cuir",
     "piste": "Piste",
     "plane": "Avion",
+    "poly": "Polyamoureux",
     "prideheart": "Cœur des fiertés",
     "puck": "Palet",
     "rabbit": "Lapin",
@@ -153,6 +158,8 @@
     "tealeaves": "Feuilles",
     "teaservice": "Service à thé",
     "train": "Train",
+    "trans": "Trans",
+    "twospirit": "Bispirituel",
     "vinyl": "Vinyle",
     "weave": "Tissage"
   },
@@ -177,7 +184,11 @@
     "empty": "Aucun pack dans cette version.",
     "failed": "Ce pack n'a pas pu être modifié.",
     "got": "Pack téléchargé.",
-    "manage": "Vos packs"
+    "manage": "Vos packs",
+    "by": "par {{publisher}}",
+    "see": "Voir ce que contient {{name}}",
+    "pieces_one": "{{count}} pièce",
+    "pieces_other": "{{count}} pièces"
   },
   "look": {
     "save": "Enregistrer l'allure",

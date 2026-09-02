@@ -11,7 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Fourteen more packs, and one of them is everybody's.** Sports gathers eight games under one listing. Pets brings cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters. Multicultural is thirty-two flags drawn as roundels and the bunting to hang them from. Travel has the monuments and every way of arriving — plane, ship, train, car, bicycle. First Nations has stepped weaving, a star quilt and an orca built from crescents and trigons, with the red handprint, an eagle feather and the medicine wheel. Black heritage has strip-woven cloth, cowries, the raised fist, Sankofa and the pick. Then Books, Tea, Drama, Cinema, Zen and Gaming, which now covers the table as well as the screen.
 
+- **The pride pack flies more than one flag.** Non-binary, trans, lesbian, gay, bisexual, asexual and polyamorous each get a banner, a frame and a heart of their own, alongside the Progress flag that was already there. Two-Spirit — two feathers hanging over the six colours — is in the First Nations pack, on a banner and a trophy.
+
+- **A pack card opens.** Click one in the marketplace and you get everything in it, grouped by slot and named — a card can show one banner, one frame and one trophy, and some packs now hold thirty-four pieces. The packs you already have open the same way from their name.
+
 - **Two frames whose colour is yours.** The gilded frame takes a colour and the new split frame takes two, picked in Settings › Profile and drawn from what you chose rather than served as a fixed picture. Only the frames that ship with the app: a pack's artwork is the pack's.
+- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
 
 - **Nine sports packs.** Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis, martial arts and fencing, each with the ground it is played on for a banner, a frame made of the equipment, and the object itself for a badge — a match ball's panels, a football's lacing, a face-off circle, a baseball's seam, a net, a string bed, a belt tied at the bottom, and a blade bent round to its own guard.
 
@@ -96,6 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 
 ### Fixed
+
+- **Giving a decoration pack back leaves a look that still works.** Its banner and frame come off — back to a bare profile, which is what they were before you had them — and its badge leaves the row. A piece that also ships with the app, or that you had picked but not yet saved, is handled too: what the pickers show is what the library still answers for, so there is no way to be left wearing something you no longer have.
 
 - **Decorations that spin, spin where they are.** The observatory's shells, the vinyl record, the spectrum frame and the soundcheck meter all turned around a point that was not on the artwork, so they wandered across the banner instead of rotating in place. Each one now says which box its centre is measured in.
 

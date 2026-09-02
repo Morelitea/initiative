@@ -24,12 +24,13 @@
     "label": "Joined"
   },
   "decorations": {
-    "ace": "Ace",
+    "ace": "Asexual",
     "afropick": "Afro pick",
     "arcade": "Arcade",
     "arcane": "Arcane",
     "aurora": "Aurora",
     "beach": "Beach",
+    "bi": "Bisexual",
     "bicycle": "Bicycle",
     "blade": "Blade",
     "bookshelf": "Bookshelf",
@@ -95,6 +96,7 @@
     "floodlights": "Floodlights",
     "fourdirections": "Four directions",
     "garden": "Garden",
+    "gay": "Gay",
     "globe": "Globe",
     "gold": "Gilded",
     "grove": "Grove",
@@ -107,6 +109,7 @@
     "laces": "Laces",
     "landmarks": "Landmarks",
     "lantern": "Jack-o'-lantern",
+    "lesbian": "Lesbian",
     "lizard": "Lizard",
     "masks": "Masks",
     "matchball": "Match ball",
@@ -116,6 +119,7 @@
     "morningstar": "Morning star",
     "natural20": "Natural 20",
     "net": "Net",
+    "nonbinary": "Non-binary",
     "observatory": "Observatory",
     "orbital": "Orbital",
     "orca": "Orca",
@@ -127,6 +131,7 @@
     "pigskin": "Pigskin",
     "piste": "Piste",
     "plane": "Aeroplane",
+    "poly": "Polyamorous",
     "prideheart": "Pride heart",
     "puck": "Puck",
     "rabbit": "Rabbit",
@@ -153,6 +158,8 @@
     "tealeaves": "Leaves",
     "teaservice": "Tea service",
     "train": "Train",
+    "trans": "Trans",
+    "twospirit": "Two-Spirit",
     "vinyl": "Vinyl",
     "weave": "Weave"
   },
@@ -177,7 +184,11 @@
     "empty": "No packs in this build.",
     "failed": "That pack could not be changed.",
     "got": "Pack downloaded.",
-    "manage": "Your packs"
+    "manage": "Your packs",
+    "by": "by {{publisher}}",
+    "see": "See what {{name}} carries",
+    "pieces_one": "{{count}} piece",
+    "pieces_other": "{{count}} pieces"
   },
   "look": {
     "save": "Save look",

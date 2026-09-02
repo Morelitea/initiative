@@ -13,8 +13,8 @@ import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
-/** Mirrors ``MAX_PROFILE_BADGES`` on the server. */
-const MAX_BADGES = 6;
+/** Mirrors ``MAX_PROFILE_TROPHIES`` on the server. */
+const MAX_TROPHIES = 6;
 
 interface UserSettingsProfilePageProps {
   user: UserRead;
@@ -66,18 +66,39 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     onError: (error: unknown) => toast.error(getErrorMessage(error, "profiles:look.failed")),
   });
 
+  // Giving a pack back takes its pieces out of the library, and off the saved
+  // look — but a piece picked here and not yet saved is in neither, so nothing
+  // above would drop it. The pickers show what the library still answers for,
+  // which is also what the write path accepts. Held back until the library has
+  // loaded, or a slow read would undress everything on the way past.
+  const ownedIds = library ? new Set(library.items.map((item) => item.id)) : null;
+  const stillOwned = (id: string | null) => (id && (!ownedIds || ownedIds.has(id)) ? id : null);
+  // An emptied slot is the default a bare profile has always had; a trophy just
+  // leaves the row.
+  const wornBanner = stillOwned(banner);
+  const wornFrame = stillOwned(frame);
+  const wornTrophies = ownedIds ? trophies.filter((trophy) => ownedIds.has(trophy)) : trophies;
+  // A colour belongs to the frame it was picked for, so it goes wherever that
+  // frame goes — including away.
+  const wornTint = wornFrame ? frameTint : [];
+
   const saved = user.profile_decorations;
   const changed =
-    banner !== (saved.banner ?? null) ||
-    frame !== (saved.frame ?? null) ||
-    trophies.join() !== (saved.trophies ?? []).join() ||
-    frameTint.join() !== (saved.frame_tint ?? []).join();
+    wornBanner !== (saved.banner ?? null) ||
+    wornFrame !== (saved.frame ?? null) ||
+    wornTrophies.join() !== (saved.trophies ?? []).join() ||
+    wornTint.join() !== (saved.frame_tint ?? []).join();
 
   return (
     <div className="space-y-6">
       <ProfilePreview
         user={user}
-        decorations={{ banner, frame, trophies, frame_tint: frameTint }}
+        decorations={{
+          banner: wornBanner,
+          frame: wornFrame,
+          trophies: wornTrophies,
+          frame_tint: wornTint,
+        }}
         status={user.custom_status}
         presence={user.presence}
         joinedAt={user.created_at}
@@ -93,7 +114,12 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             disabled={!changed || saveLook.isPending}
             onClick={() =>
               saveLook.mutate({
-                profile_decorations: { banner, frame, trophies, frame_tint: frameTint },
+                profile_decorations: {
+                  banner: wornBanner,
+                  frame: wornFrame,
+                  trophies: wornTrophies,
+                  frame_tint: wornTint,
+                },
               } as UserSelfUpdate)
             }
           >
@@ -105,7 +131,12 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <Label className="text-muted-foreground text-xs">
             {t("profiles:decorationPicker.banner")}
           </Label>
-          <SlotPicker kind="banner" value={banner} onChange={setBanner} owned={library?.items} />
+          <SlotPicker
+            kind="banner"
+            value={wornBanner}
+            onChange={setBanner}
+            owned={library?.items}
+          />
         </div>
         <div className="space-y-2">
           <Label className="text-muted-foreground text-xs">
@@ -113,12 +144,12 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           </Label>
           <SlotPicker
             kind="frame"
-            value={frame}
+            value={wornFrame}
             onChange={(id) => {
               setFrame(id);
-              // Colours belong to the frame they were picked for; another
-              // frame starts from its own defaults rather than inheriting
-              // somebody else's green.
+              // Colours belong to the frame they were picked for; another frame
+              // starts from its own defaults rather than inheriting somebody
+              // else's green.
               setFrameTint([]);
             }}
             owned={library?.items}
@@ -131,10 +162,10 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
             {t("profiles:decorationPicker.trophy")}
           </Label>
           <TrophyPicker
-            value={trophies}
+            value={wornTrophies}
             onChange={setTrophies}
             owned={library?.items}
-            max={MAX_BADGES}
+            max={MAX_TROPHIES}
           />
         </div>
       </SettingsSection>

@@ -119,7 +119,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     });
   }, [queuesQuery.data, searchQuery, statusFilter]);
 
-  const selection = useGridSelection<(typeof queues)[number]>();
+  const selection = useGridSelection<(typeof queues)[number]>(queues);
 
   const queueImport = useToolImportAction({
     tool: Tool.queue,
@@ -192,7 +192,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
                 key={queue.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(queue.id)}
-                onToggle={() => selection.toggle(queue)}
+                onToggle={(options) => selection.toggle(queue, options)}
                 label={queue.name}
               >
                 <QueueCard queue={queue} />

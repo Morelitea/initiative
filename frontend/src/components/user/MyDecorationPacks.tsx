@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { DecorationSwatch } from "@/components/user/DecorationSwatch";
+import { PackContentsDialog, packPieces } from "@/components/user/PackContents";
 import { useDecorationPacks, useRemoveDecorationPack } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -15,7 +16,7 @@ import { type Decoration, resolveDecoration } from "@/lib/profileDecorations";
 /** Above this many, finding one by eye stops working and the filter appears. */
 const FILTER_THRESHOLD = 8;
 
-/** A pack's pieces, in slot order, skipping any this build cannot draw. */
+/** One of each slot, for the row's thumbnail strip. The rest is a click away. */
 const pieces = (contents: OwnedDecoration[]): Decoration[] =>
   (["banner", "frame", "trophy"] as const)
     .map((kind) => resolveDecoration(contents.find((item) => item.kind === kind)?.id, kind))
@@ -32,6 +33,8 @@ const PackRow = ({
   onRemove: () => void;
 }) => {
   const { t } = useTranslation("profiles");
+  const [open, setOpen] = useState(false);
+  const count = packPieces(entry.contents).length;
   return (
     <li className="flex items-center gap-3 px-3 py-2">
       {/* The pieces at a glance. Small on purpose: this is a list you scan for
@@ -47,7 +50,20 @@ const PackRow = ({
           </li>
         ))}
       </ul>
-      <span className="min-w-0 flex-1 truncate font-medium text-sm">{entry.name}</span>
+      {/* The name opens the whole pack: a row can show three pieces and some
+          of these hold thirty. */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={t("store.see", { name: entry.name })}
+        className="min-w-0 flex-1 truncate rounded-sm text-left font-medium text-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+      >
+        {entry.name}
+        <span className="ml-2 font-normal text-muted-foreground text-xs">
+          {t("store.pieces", { count })}
+        </span>
+      </button>
+      <PackContentsDialog entry={entry} open={open} onOpenChange={setOpen} />
       <Button
         variant="destructive"
         size="sm"
