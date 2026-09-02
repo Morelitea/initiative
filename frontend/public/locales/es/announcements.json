@@ -1,0 +1,119 @@
+{
+  "category": {
+    "release": "Versión",
+    "feature": "Novedad",
+    "breaking": "Cambio incompatible",
+    "maintenance": "Mantenimiento",
+    "security": "Seguridad",
+    "info": "Anuncio"
+  },
+  "dialog": {
+    "gotIt": "Entendido",
+    "next": "Siguiente",
+    "more_one": "{{count}} más",
+    "more_other": "{{count}} más",
+    "back": "Atrás",
+    "continue": "Continuar",
+    "pageOf": "{{current}} de {{total}}",
+    "showsAgain_one": "se mostrará una vez más",
+    "showsAgain_other": "se mostrará {{count}} veces más",
+    "zoomImage": "Ver la imagen a tamaño completo"
+  },
+  "update": {
+    "title": "La versión {{version}} está disponible",
+    "whatsNew": "Novedades",
+    "noDetailedChanges": "No se detallaron cambios para esta versión.",
+    "viewAllChanges": "Ver todos los cambios",
+    "later": "Más tarde",
+    "reloadNow": "Recargar ahora"
+  },
+  "admin": {
+    "title": "Anuncios",
+    "subtitle": "Avisos para quienes usan esta instalación. Cada uno se muestra una vez y se recuerda por persona.",
+    "new": "Nuevo anuncio",
+    "newTitle": "Nuevo anuncio",
+    "editTitle": "Editar anuncio",
+    "editorSubtitle": "Ponle un título y añade una sección por cada cosa que quieras mostrar.",
+    "empty": "Todavía no hay anuncios.",
+    "builtin": "Integrado",
+    "preview": "Vista previa",
+    "untitled": "Anuncio sin título",
+    "saved": "Anuncio guardado",
+    "saveFailed": "No se pudo guardar el anuncio",
+    "deleted": "Anuncio eliminado",
+    "deleteFailed": "No se pudo eliminar el anuncio",
+    "deleteTitle": "¿Eliminar este anuncio?",
+    "deleteDescription": "«{{title}}» se eliminará, junto con el registro de quién lo ha leído.",
+    "needsTitleAndSection": "Un anuncio necesita un título y al menos una sección",
+    "uploadFailed": "No se pudo subir esa imagen",
+    "publishNow": "Publicar ahora",
+    "makeDraft": "Volver a borrador",
+    "addSection": "Añadir sección",
+    "sectionNumber": "Sección {{number}}",
+    "moveUp": "Subir la sección",
+    "moveDown": "Bajar la sección",
+    "removeSection": "Quitar la sección",
+    "addImage": "Añadir imagen",
+    "replaceImage": "Reemplazar imagen",
+    "removeImage": "Quitar imagen",
+    "publishedOn": "Publicado el {{date}}",
+    "notPublished": "Sin publicar",
+    "audience": "{{role}} y superiores",
+    "guildAdminsOnly": "Solo administradores de comunidad",
+    "status": {
+      "draft": "Borrador",
+      "scheduled": "Programado",
+      "live": "Activo",
+      "expired": "Caducado"
+    },
+    "roles": {
+      "member": "Todos",
+      "support": "Soporte",
+      "moderator": "Moderador",
+      "operator": "Operador",
+      "owner": "Propietario"
+    },
+    "fields": {
+      "title": "Título",
+      "titlePlaceholder": "¿Qué ha cambiado?",
+      "category": "Categoría",
+      "minRole": "Rol de plataforma mínimo",
+      "minRoleHint": "Solo lo ven las personas de ese nivel en adelante.",
+      "guildAdminsOnly": "Solo administradores de comunidad",
+      "guildAdminsOnlyHint": "Mostrarlo solo a quienes administran alguna comunidad.",
+      "publishedAt": "Publicar el",
+      "expiresAt": "Dejar de mostrar el",
+      "expiresHint": "Déjalo vacío para seguir mostrándolo. Una fecha de fin también lo quita de la página de anuncios.",
+      "sections": "Secciones",
+      "headingPlaceholder": "Título de la sección (opcional)",
+      "bodyPlaceholder": "Se admite Markdown",
+      "altPlaceholder": "Describe la imagen para lectores de pantalla",
+      "timezoneHint": "Las horas están en tu zona horaria ({{zone}}).",
+      "draftPlaceholder": "Déjalo vacío para mantenerlo como borrador",
+      "dismissalsRequired": "Veces que hay que confirmarlo",
+      "dismissalsRequiredHint": "Cuántas veces hay que cerrarlo antes de que deje de aparecer. Déjalo en 1 salvo que perdérselo cueste caro.",
+      "triggerRoute": "Mostrar en la página (opcional)",
+      "triggerRouteHint": "Déjalo vacío para mostrarlo enseguida. Un patrón de ruta lo retiene hasta que alguien abra una página que encaje — * es una parte de la ruta, ** es el resto."
+    },
+    "startsPage": "Empezar una página nueva",
+    "triggerErrors": {
+      "needsSlash": "Empieza el patrón con / — por ejemplo /c/*/settings.",
+      "whitespace": "Un patrón de ruta no puede contener espacios.",
+      "wildcardSegment": "* y ** representan una parte entera de la ruta, así que no pueden ir pegados a otros caracteres.",
+      "doubleStarNotLast": "** representa el resto de la ruta, así que no puede ir nada después."
+    }
+  },
+  "archive": {
+    "title": "Anuncios",
+    "subtitle": "Todo lo que Initiative ha anunciado, lo más reciente primero.",
+    "empty": "Todavía no se ha anunciado nada.",
+    "read": "Leerlo",
+    "unread": "Sin leer",
+    "readLabel": "Leído",
+    "allCaughtUp": "Estás al día.",
+    "filter": {
+      "all": "Todos ({{count}})",
+      "unread": "Sin leer ({{count}})"
+    }
+  }
+}

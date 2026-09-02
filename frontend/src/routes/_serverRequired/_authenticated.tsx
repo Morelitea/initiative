@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
+import { AnnouncementCenter } from "@/components/announcements/AnnouncementCenter";
+import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
 import { CommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
@@ -19,7 +21,6 @@ import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { VersionDialog } from "@/components/VersionDialog";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
@@ -269,13 +270,14 @@ function AppLayout() {
             <BottomNav />
           </SidebarProvider>
         </div>
-        <VersionDialog
-          mode="update"
+        <UpdateAnnouncementDialog
           open={updateAvailable.show}
-          currentVersion={updateAvailable.version}
-          newVersion={updateAvailable.version}
+          version={updateAvailable.version}
           onClose={closeDialog}
         />
+        {/* Server-side notices queue behind the update prompt: an update is
+            about the page the reader is looking at, so it goes first. */}
+        <AnnouncementCenter enabled={!updateAvailable.show} />
       </div>
     </CreateActionProvider>
   );

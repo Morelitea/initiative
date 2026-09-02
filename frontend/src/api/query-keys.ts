@@ -102,6 +102,11 @@ const invalidateResourceAndMe = (resource: string) =>
     invalidatePersonalPrefix(`/api/v1/me/${resource}`),
   ]);
 
+// ── Announcements (platform) ─────────────────────────────────────────────────
+
+/** Both the reader's queue and the authoring list — one write moves both. */
+export const invalidateAnnouncements = () => invalidatePersonalPrefix("/api/v1/announcements");
+
 // ── Tags (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateAllTags = () => invalidateGuildPrefix("/api/v1/tags");

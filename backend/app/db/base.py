@@ -1,5 +1,10 @@
 """Import all models for Alembic or metadata creation."""
 
+from app.models.platform.announcement import (
+    Announcement,
+    AnnouncementImage,
+    AnnouncementReadReceipt,
+)
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
@@ -90,6 +95,9 @@ from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 
 __all__ = [
+    "Announcement",
+    "AnnouncementImage",
+    "AnnouncementReadReceipt",
     "User",
     "AccessGrant",
     "AuthProvider",

@@ -497,5 +497,10 @@
   "BANNER_TEXT_COLOR_INVALID": "El texto del banner es blanco o negro.",
   "USER_DECORATION_NOT_OWNED": "No tienes esa decoración.",
   "USER_DECORATION_PACK_NOT_FOUND": "No existe ese pack de decoración.",
-  "USER_DECORATION_ALREADY_GRANTED": "Ya tienes esa decoración de otro pack."
+  "USER_DECORATION_ALREADY_GRANTED": "Ya tienes esa decoración de otro pack.",
+  "ANNOUNCEMENT_NOT_FOUND": "Ese anuncio ya no existe.",
+  "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Los anuncios integrados se cambian publicando una versión, no desde aquí.",
+  "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Esa imagen ya no existe.",
+  "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Esa imagen es demasiado grande. Mantenla por debajo de 2 MB.",
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ese archivo no es una imagen compatible (PNG, JPEG, WebP o GIF)."
 }

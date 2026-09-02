@@ -102,7 +102,21 @@ def downgrade() -> None:
         "DROP POLICY IF EXISTS users_profile_read ON public.users",
         f"REVOKE ALL ON TABLE public.users FROM {READER}",
         f"REVOKE USAGE ON SCHEMA public FROM {READER}",
-        f'DROP ROLE IF EXISTS "{READER}"',
+        # The revokes above are this database's whole dependence on the role.
+        # The role itself is cluster-global, so another database may still
+        # grant to it — a second checkout's dev database, or the sibling
+        # databases a parallel test run owns — and DROP ROLE refuses while any
+        # of them does. That is somebody else's grant to give up, not this
+        # downgrade's to force, so the drop is best-effort.
+        f"""
+        DO $$
+        BEGIN
+            DROP ROLE IF EXISTS "{READER}";
+        EXCEPTION WHEN dependent_objects_still_exist THEN
+            NULL;
+        END
+        $$
+        """,
     ]
     for statement in statements:
         op.execute(statement)
