@@ -21,6 +21,10 @@
     "title": "Searching every community",
     "description": "Each community keeps its own member list, so a search visits them one at a time. Long lists take a few seconds."
   },
+  "pageError": {
+    "description": "That page didn't load.",
+    "retry": "Try again"
+  },
   "empty": {
     "title": "Nobody here yet",
     "description": "Join a community and the people in it show up here.",

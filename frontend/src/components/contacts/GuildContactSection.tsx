@@ -45,7 +45,8 @@ export const GuildContactSection = ({
   const prefetch = usePrefetchContactSectionPage();
 
   const loaded = page === 1 ? section : query.data?.sections?.[0];
-  const isLoadingPage = page > 1 && (query.isPending || query.isPlaceholderData);
+  const isLoadingPage = page > 1 && !query.isError && (query.isPending || query.isPlaceholderData);
+  const hasPageError = page > 1 && query.isError;
 
   return (
     <ContactSection
@@ -74,6 +75,8 @@ export const GuildContactSection = ({
       onPageChange={setPage}
       onPrefetchPage={(next) => prefetch(section.guild_id, next, search)}
       isLoadingPage={isLoadingPage}
+      hasPageError={hasPageError}
+      onRetryPage={() => void query.refetch()}
     />
   );
 };

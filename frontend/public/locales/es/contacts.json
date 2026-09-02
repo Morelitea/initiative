@@ -21,6 +21,10 @@
     "title": "Buscando en todas las comunidades",
     "description": "Cada comunidad tiene su propia lista de miembros, así que la búsqueda las visita una por una. Con listas largas tarda unos segundos."
   },
+  "pageError": {
+    "description": "Esa página no se cargó.",
+    "retry": "Reintentar"
+  },
   "empty": {
     "title": "Todavía no hay nadie",
     "description": "Únete a una comunidad y sus miembros aparecerán aquí.",

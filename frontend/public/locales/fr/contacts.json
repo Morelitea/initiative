@@ -21,6 +21,10 @@
     "title": "Recherche dans toutes les communautés",
     "description": "Chaque communauté tient sa propre liste de membres : la recherche les parcourt une par une. Avec de longues listes, cela prend quelques secondes."
   },
+  "pageError": {
+    "description": "Cette page ne s'est pas chargée.",
+    "retry": "Réessayer"
+  },
   "empty": {
     "title": "Personne pour l'instant",
     "description": "Rejoignez une communauté et ses membres apparaîtront ici.",

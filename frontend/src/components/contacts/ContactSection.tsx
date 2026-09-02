@@ -7,6 +7,7 @@ import { ContactRow } from "@/components/contacts/ContactRow";
 import type { ChipGuild } from "@/components/contacts/SharedGuildChip";
 import { PaginationBar } from "@/components/PaginationBar";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 
 interface ContactSectionProps {
   value: string;
@@ -28,6 +29,10 @@ interface ContactSectionProps {
   onPrefetchPage?: (page: number) => void;
   /** The page on screen is on its way; rows stand in until it lands. */
   isLoadingPage?: boolean;
+  /** The page on screen did not arrive. Said plainly — an empty section here
+   *  would claim the community is empty, which is the opposite of true. */
+  hasPageError?: boolean;
+  onRetryPage?: () => void;
 }
 
 /**
@@ -56,6 +61,8 @@ export const ContactSection = ({
   onPageChange,
   onPrefetchPage,
   isLoadingPage,
+  hasPageError,
+  onRetryPage,
 }: ContactSectionProps) => {
   const { t } = useTranslation("contacts");
   const remaining = Math.max(0, Math.min(pageSize, totalCount - (page - 1) * pageSize));
@@ -72,6 +79,15 @@ export const ContactSection = ({
       <AccordionContent className="pb-3">
         {isLoadingPage ? (
           <ContactRowsSkeleton count={Math.max(1, remaining)} />
+        ) : hasPageError ? (
+          <div className="flex flex-wrap items-center gap-3 px-2 pb-2">
+            <p className="text-muted-foreground text-sm">{t("pageError.description")}</p>
+            {onRetryPage ? (
+              <Button type="button" variant="outline" size="sm" onClick={onRetryPage}>
+                {t("pageError.retry")}
+              </Button>
+            ) : null}
+          </div>
         ) : items.length === 0 ? (
           <p className="px-2 pb-2 text-muted-foreground text-sm">{emptyLabel}</p>
         ) : (

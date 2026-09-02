@@ -21,6 +21,10 @@
     "title": "Alle Communitys werden durchsucht",
     "description": "Jede Community führt ihre eigene Mitgliederliste, daher wird eine nach der anderen durchsucht. Bei langen Listen dauert das ein paar Sekunden."
   },
+  "pageError": {
+    "description": "Diese Seite konnte nicht geladen werden.",
+    "retry": "Erneut versuchen"
+  },
   "empty": {
     "title": "Noch niemand hier",
     "description": "Tritt einer Community bei, dann erscheinen ihre Mitglieder hier.",

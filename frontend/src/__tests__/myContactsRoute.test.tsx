@@ -280,6 +280,23 @@ describe("My Contacts", () => {
     expect(screen.getByText("21–25 of 25")).toBeInTheDocument();
   });
 
+  it("says a page failed rather than claiming the community is empty", async () => {
+    answer([section({ guild_id: 1, guild_name: "Big Table", items: people(1), total_count: 25 })]);
+    mocks.sectionPage.mockImplementation((_guildId: number, page: number) =>
+      page === 2
+        ? { data: undefined, isPending: false, isPlaceholderData: false, isError: true }
+        : pendingPage
+    );
+    await renderContacts();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("That page didn't load.")).toBeInTheDocument();
+    // The empty-roster line would say the opposite of what is true.
+    expect(screen.queryByText("Nobody else is in this community yet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
   it("returns a community to its first page under a new term", async () => {
     answer([section({ guild_id: 1, items: people(1), total_count: 25 })]);
     await renderContacts();
