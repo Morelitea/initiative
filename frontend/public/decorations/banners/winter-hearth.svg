@@ -9,7 +9,20 @@
     @keyframes flick { from { transform: scaleY(.84) scaleX(1.08) } to { transform: scaleY(1.12) scaleX(.94) } }
     .glow { animation: breathe 4.6s ease-in-out infinite }
     @keyframes breathe { 0%,100% { opacity: .5 } 50% { opacity: .8 } }
-    @media (prefers-reduced-motion: reduce) { .lick, .glow { animation: none } }
+    .spark { animation: up 5.5s ease-out infinite }
+    .k2 { animation-delay: -1.8s } .k3 { animation-delay: -3.6s } .k4 { animation-delay: -4.6s }
+    @keyframes up { 0% { transform: translate(0,0); opacity: 0 }
+                    18% { opacity: .9 }
+                    100% { transform: translate(-4px,-19px); opacity: 0 } }
+    .hang { animation: sway 7s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 0 }
+    .g1 { animation-duration: 8.4s } .g2 { animation-duration: 6.2s }
+    @keyframes sway { from { transform: rotate(-2.4deg) } to { transform: rotate(2.4deg) } }
+    .tick { animation: tock 2s steps(2, end) infinite;
+            transform-box: fill-box; transform-origin: 50% 100% }
+    @keyframes tock { from { transform: rotate(-9deg) } to { transform: rotate(9deg) } }
+    @media (prefers-reduced-motion: reduce) {
+      .lick, .glow, .spark, .hang, .tick { animation: none } }
   </style>
   <defs>
     <linearGradient id="room3" x1="0" y1="0" x2="0" y2="1">
@@ -53,12 +66,20 @@
            C77.6 33.8 78.4 32.4 80 30.6 Z" fill="#FFF0B8"/>
   <!-- Stockings on the mantel, and something on it. -->
   <g>
-    <path d="M52 17 L58 17 L58 24 C58 26 56 27.4 53 27.4 L50 27.4 L50 24 L52 24 Z"
+    <g transform="translate(54 17)"><g class="hang g1">
+    <path d="M-2 0 L4 0 L4 7 C4 9 2 10.4 -1 10.4 L-4 10.4 L-4 7 L-2 7 Z"
           fill="#C0221E"/>
-    <path d="M51.4 17 L58.6 17 L58.6 19.4 L51.4 19.4 Z" fill="#F2F8FC"/>
-    <path d="M102 17 L108 17 L108 24 C108 26 106 27.4 103 27.4 L100 27.4 L100 24 L102 24 Z"
+    <path d="M-1.4 2.4 L3.4 2.4 L3.4 3.4 L-1.4 3.4 Z" fill="#8E1C18"/>
+    <circle cx="-1.6" cy="8.6" r=".9" fill="#E8C43A"/>
+    </g></g></g>
+
+    <g transform="translate(104 17)"><g class="hang g2">
+    <path d="M-2 0 L4 0 L4 7 C4 9 2 10.4 -1 10.4 L-4 10.4 L-4 7 L-2 7 Z"
           fill="#1B7A3E"/>
-    <path d="M101.4 17 L108.6 17 L108.6 19.4 L101.4 19.4 Z" fill="#F2F8FC"/>
+    <path d="M-1.4 2.4 L3.4 2.4 L3.4 3.4 L-1.4 3.4 Z" fill="#14562C"/>
+    <circle cx="-1.6" cy="8.6" r=".9" fill="#E8C43A"/>
+    </g>
+
   </g>
   <g>
     <path d="M76 14 L84 14 L84 8 C84 7 83.4 6.4 82.4 6.4 L77.6 6.4 C76.6 6.4 76 7 76 8 Z"
@@ -66,10 +87,81 @@
     <circle cx="80" cy="10.4" r="1.6" fill="#3A2A1C"/>
     <path d="M80 10.4 L80 8.4" stroke="#3A2A1C" stroke-width=".6"/>
   </g>
-  <g fill="#1E5E32">
-    <ellipse cx="24" cy="20" rx="9" ry="3.4"/><ellipse cx="136" cy="20" rx="9" ry="3.4"/>
+  <!-- Holly, either side. -->
+  <g>
+    <g transform="translate(24 20)">
+      <path d="M0 0 C-2.6 -1.6 -5 -1.4 -6.6 -.2 C-5.6 -.2 -5 .2 -5.2 .8
+               C-4 .4 -3.2 .6 -2.8 1.4 C-2.2 .6 -1.2 .2 0 0 Z" fill="#1E5E32"/>
+      <path d="M0 0 C2.6 -1.6 5 -1.4 6.6 -.2 C5.6 -.2 5 .2 5.2 .8
+               C4 .4 3.2 .6 2.8 1.4 C2.2 .6 1.2 .2 0 0 Z" fill="#2A7440"/>
+      <path d="M0 .4 C-1 2.4 -.6 4.2 .6 5.2 C.4 4.2 .8 3.6 1.6 3.6
+               C1 2.6 .8 1.6 0 .4 Z" fill="#1E5E32"/>
+      <g fill="#C0221E">
+        <circle cx="-.6" cy="-.4" r="1"/><circle cx="1" cy=".4" r=".9"/>
+        <circle cx="-.2" cy="1.2" r=".8"/>
+      </g>
+    </g>
+    <g transform="translate(136 20)">
+      <path d="M0 0 C-2.6 -1.6 -5 -1.4 -6.6 -.2 C-5.6 -.2 -5 .2 -5.2 .8
+               C-4 .4 -3.2 .6 -2.8 1.4 C-2.2 .6 -1.2 .2 0 0 Z" fill="#2A7440"/>
+      <path d="M0 0 C2.6 -1.6 5 -1.4 6.6 -.2 C5.6 -.2 5 .2 5.2 .8
+               C4 .4 3.2 .6 2.8 1.4 C2.2 .6 1.2 .2 0 0 Z" fill="#1E5E32"/>
+      <path d="M0 .4 C1 2.4 .6 4.2 -.6 5.2 C-.4 4.2 -.8 3.6 -1.6 3.6
+               C-1 2.6 -.8 1.6 0 .4 Z" fill="#1E5E32"/>
+      <g fill="#C0221E">
+        <circle cx=".6" cy="-.4" r="1"/><circle cx="-1" cy=".4" r=".9"/>
+        <circle cx=".2" cy="1.2" r=".8"/>
+      </g>
+    </g>
+  </g>  <!-- Sparks, going where sparks go. -->
+  <g fill="#FFC46A">
+    <circle class="spark" cx="74" cy="30" r=".34" opacity=".8"/>
+    <circle class="spark k2" cx="80" cy="31" r=".28" opacity=".7"/>
+    <circle class="spark k3" cx="86" cy="30.4" r=".3" opacity=".75"/>
+    <circle class="spark k4" cx="78" cy="32" r=".26" opacity=".65"/>
   </g>
-  <g fill="#C0221E">
-    <circle cx="20" cy="20" r="1.2"/><circle cx="28" cy="21" r="1.2"/>
-    <circle cx="132" cy="21" r="1.2"/><circle cx="140" cy="20" r="1.2"/>
-  </g></svg>
+  <!-- Garland along the mantel. -->
+  <g>
+    <path d="M42 14 C56 20 104 20 118 14" fill="none" stroke="#2E6B36" stroke-width="2.4"/>
+    <path d="M42 14 C56 20 104 20 118 14" fill="none" stroke="#3E8446" stroke-width="1.1"
+          stroke-dasharray="2.4 2" opacity=".8"/>
+    <g fill="#C9564C">
+      <circle cx="54" cy="17" r=".8"/><circle cx="68" cy="18.4" r=".8"/>
+      <circle cx="80" cy="18.8" r=".8"/><circle cx="94" cy="18.4" r=".8"/>
+      <circle cx="107" cy="17" r=".8"/>
+    </g>
+  </g>
+  <!-- Two candles, either end.
+       (The clock is on the mantel already.) -->
+  <g transform="translate(50 8.4)">
+    <path d="M-1.1 5.6 L1.1 5.6 L1.1 0 L-1.1 0 Z" fill="#F2EDE0"/>
+    <path d="M-1.1 5.6 L1.1 5.6 L1.1 4.8 L-1.1 4.8 Z" fill="#D8D0BE"/>
+    <path d="M0 0 L0 -1" stroke="#6B5238" stroke-width=".4"/>
+    <path class="lick" d="M0 -1 C-1.1 -2.2 -.8 -3.4 0 -4.4 C.8 -3.4 1.1 -2.2 0 -1 Z"
+          fill="#FFB63A"/>
+  </g>
+  <g transform="translate(110 9.4)">
+    <path d="M-1 4.6 L1 4.6 L1 0 L-1 0 Z" fill="#F2EDE0"/>
+    <path d="M0 0 L0 -1" stroke="#6B5238" stroke-width=".4"/>
+    <path class="lick l2" d="M0 -1 C-1 -2 -.7 -3.1 0 -4 C.7 -3.1 1 -2 0 -1 Z" fill="#FFB63A"/>
+  </g>
+  <!-- The rug, a mug, and the boots that came off at the door. -->
+  <ellipse cx="80" cy="38.4" rx="46" ry="2.6" fill="#7A3E36" opacity=".55"/>
+  <ellipse cx="80" cy="38.4" rx="38" ry="1.9" fill="#9E4E44" opacity=".55"/>
+  <g transform="translate(126 33)">
+    <path d="M-3.4 0 L3.4 0 L2.6 5.4 L-2.6 5.4 Z" fill="#E8E2D6"/>
+    <ellipse cx="0" cy="0" rx="3.4" ry="1" fill="#B4703A"/>
+    <path d="M3.4 1.2 C5.6 1.2 6.6 2.2 6.6 3.4 C6.6 4.6 5.6 5.4 3.6 5.4" fill="none"
+          stroke="#E8E2D6" stroke-width="1.1"/>
+    <g fill="#F2EDE0" opacity=".7">
+      <circle class="spark" cx="0" cy="-1" r=".7"/>
+      <circle class="spark k2" cx="1.4" cy="-1.4" r=".55"/>
+    </g>
+  </g>
+  <g transform="translate(34 34)">
+    <path d="M-4 5.4 L-4 1.4 C-4 .4 -3.2 0 -2.2 0 L-.6 0 C.4 0 1 .6 1 1.6 L1 3.4
+             C1 4.4 2 4.8 3.6 5 C4.8 5.2 5.4 5.4 5.4 5.4 Z" fill="#4A322C"/>
+    <path d="M-4.4 5.4 L5.8 5.4 L5.8 6.4 L-4.4 6.4 Z" fill="#2E211C"/>
+    <path d="M-4 1.4 C-3 .8 -.4 .8 1 1.4" fill="none" stroke="#6B4A40" stroke-width=".5"/>
+  </g>
+</svg>

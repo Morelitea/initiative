@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Nature",
   "publisher": "Initiative",
-  "description": "Peaks at first light, and a lake still enough to hold them.",
-  "long_description": "For walkers, climbers, campers and anybody whose weekend starts at a trailhead. Two banners, a treeline and a ridge for frames, and a mountain, a campfire and a tent to wear.",
+  "description": "Four places to be, none of them here.",
+  "long_description": "First light on the tops. A lake still enough to hold them upside down. A tide coming in all afternoon. The whole galaxy over the desert. A treeline or a ridge to frame you, and a mountain, a campfire and a tent for the weekends that start at a trailhead.",
   "avatar_url": "/decorations/banners/nature-peaks.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "A beach and a desert night sky, and everything moves now.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -48,6 +48,16 @@
         "id": "nature.tent",
         "slot": "trophy",
         "name": "Tent"
+      },
+      {
+        "id": "nature.beach",
+        "slot": "banner",
+        "name": "Beach"
+      },
+      {
+        "id": "nature.nightsky",
+        "slot": "banner",
+        "name": "Night sky"
       }
     ]
   }

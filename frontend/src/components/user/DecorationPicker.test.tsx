@@ -29,7 +29,7 @@ const banners = [
 
 const trophies = [
   buildOwnedDecoration({ id: "ttrpg.d20", kind: "trophy" }),
-  buildOwnedDecoration({ id: "fungi.morel", kind: "trophy" }),
+  buildOwnedDecoration({ id: "plants.morel", kind: "trophy" }),
 ];
 
 describe("a slot that holds one thing", () => {
@@ -94,11 +94,11 @@ describe("a slot that holds one thing", () => {
 describe("the trophy row", () => {
   it("wears them in the order they were picked", async () => {
     const onChange = vi.fn();
-    render(<TrophyPicker value={["fungi.morel"]} onChange={onChange} owned={trophies} max={6} />);
+    render(<TrophyPicker value={["plants.morel"]} onChange={onChange} owned={trophies} max={6} />);
 
     await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 
-    expect(onChange).toHaveBeenCalledWith(["fungi.morel", "ttrpg.d20"]);
+    expect(onChange).toHaveBeenCalledWith(["plants.morel", "ttrpg.d20"]);
   });
 
   it("takes one off when it is picked again", async () => {
@@ -113,7 +113,7 @@ describe("the trophy row", () => {
   it("marks a tile past the cap as unavailable rather than just inert", async () => {
     // Disabled says "not now" to a screen reader; an unresponsive tile says
     // nothing at all.
-    render(<TrophyPicker value={["fungi.morel"]} onChange={vi.fn()} owned={trophies} max={1} />);
+    render(<TrophyPicker value={["plants.morel"]} onChange={vi.fn()} owned={trophies} max={1} />);
 
     expect(screen.getByRole("checkbox", { name: "decorations.d20" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "decorations.morel" })).toBeEnabled();
@@ -123,7 +123,7 @@ describe("the trophy row", () => {
     // What is on is the reader's choice; the picker must not quietly evict the
     // oldest trophy to make room for a new one.
     const onChange = vi.fn();
-    render(<TrophyPicker value={["fungi.morel"]} onChange={onChange} owned={trophies} max={1} />);
+    render(<TrophyPicker value={["plants.morel"]} onChange={onChange} owned={trophies} max={1} />);
 
     await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 

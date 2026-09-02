@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Paw print</title>
+  <circle cx="24" cy="24" r="23" fill="#2A1E14"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8A33A" stroke-width="2"/>
+  <!-- The pad, and four toes above it. -->
+  <path d="M24 39 C18.6 39 14.8 36 14.8 31.8 C14.8 28.4 17.4 25.6 20 24.2
+           C21.4 23.4 22.6 23 24 23 C25.4 23 26.6 23.4 28 24.2
+           C30.6 25.6 33.2 28.4 33.2 31.8 C33.2 36 29.4 39 24 39 Z" fill="#F0B558"/>
+  <ellipse cx="15.4" cy="19.6" rx="3.9" ry="5" transform="rotate(-26 15.4 19.6)" fill="#F0B558"/>
+  <ellipse cx="21.2" cy="15.2" rx="3.6" ry="5.2" transform="rotate(-9 21.2 15.2)" fill="#F0B558"/>
+  <ellipse cx="27.4" cy="15.4" rx="3.6" ry="5.2" transform="rotate(9 27.4 15.4)" fill="#F0B558"/>
+  <ellipse cx="32.9" cy="20" rx="3.9" ry="5" transform="rotate(26 32.9 20)" fill="#F0B558"/>
+  <g fill="#E0837A" opacity=".55">
+    <path d="M24 36.6 C21 36.6 19 34.8 19 32.4 C19 30.4 20.6 28.8 22 28
+             C22.8 27.6 23.4 27.4 24 27.4 C24.6 27.4 25.2 27.6 26 28
+             C27.4 28.8 29 30.4 29 32.4 C29 34.8 27 36.6 24 36.6 Z"/>
+    <ellipse cx="15.4" cy="19.6" rx="2.1" ry="2.8" transform="rotate(-26 15.4 19.6)"/>
+    <ellipse cx="21.2" cy="15.2" rx="1.9" ry="2.9" transform="rotate(-9 21.2 15.2)"/>
+    <ellipse cx="27.4" cy="15.4" rx="1.9" ry="2.9" transform="rotate(9 27.4 15.4)"/>
+    <ellipse cx="32.9" cy="20" rx="2.1" ry="2.8" transform="rotate(26 32.9 20)"/>
+  </g>
+</svg>

@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Cinema",
   "publisher": "Initiative",
-  "description": "The beam, the dust in it, and everybody's head.",
-  "long_description": "For film clubs, festival regulars, the projection booth and anyone who stays for the credits.",
+  "description": "Front of house, back of house, and you stay for the credits.",
+  "long_description": "A marquee with the bulbs chasing, a drive-in on the second feature, and the beam with the dust hanging in it. A reel or a running filmstrip to sit around your face. Then popcorn, a ticket stub, a clapper, a projector and the chair with somebody's name on the back.",
   "avatar_url": "/decorations/banners/cinema-screening.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "A marquee, a drive-in, a filmstrip, and four more to wear.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -28,6 +28,41 @@
         "id": "cinema.clapper",
         "slot": "trophy",
         "name": "Clapperboard"
+      },
+      {
+        "id": "cinema.marquee",
+        "slot": "banner",
+        "name": "Marquee"
+      },
+      {
+        "id": "cinema.drivein",
+        "slot": "banner",
+        "name": "Drive-in"
+      },
+      {
+        "id": "cinema.filmstrip",
+        "slot": "frame",
+        "name": "Filmstrip"
+      },
+      {
+        "id": "cinema.popcorn",
+        "slot": "trophy",
+        "name": "Popcorn"
+      },
+      {
+        "id": "cinema.ticket",
+        "slot": "trophy",
+        "name": "Ticket"
+      },
+      {
+        "id": "cinema.projector",
+        "slot": "trophy",
+        "name": "Projector"
+      },
+      {
+        "id": "cinema.chair",
+        "slot": "trophy",
+        "name": "Director's chair"
       }
     ]
   }

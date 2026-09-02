@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Stage</title>
-  <!-- House lights down, curtain up, and nobody on yet. -->
+  <!-- The house before and after: the curtain runs in, holds, and goes out
+       again, on a loop nobody has to sit through. -->
   <style>
     .spot { animation: wander 11s ease-in-out infinite alternate;
             transform-box: fill-box; transform-origin: 50% 0 }
@@ -16,7 +17,16 @@
       25% { opacity: .5 }
       100% { transform: translate(4px,-18px); opacity: 0 }
     }
-    @media (prefers-reduced-motion: reduce) { .spot, .foot, .dust { animation: none } }
+    .legL { animation: drawL 18s ease-in-out infinite }
+    .legR { animation: drawR 18s ease-in-out infinite }
+    @keyframes drawL { 0%,34% { transform: translateX(0) }
+                       48%,62% { transform: translateX(47px) }
+                       76%,100% { transform: translateX(0) } }
+    @keyframes drawR { 0%,34% { transform: translateX(0) }
+                       48%,62% { transform: translateX(-47px) }
+                       76%,100% { transform: translateX(0) } }
+    @media (prefers-reduced-motion: reduce) {
+      .spot, .foot, .dust, .legL, .legR { animation: none } }
   </style>
   <defs>
     <linearGradient id="velvet" x1="0" y1="0" x2="1" y2="0">
@@ -52,28 +62,30 @@
     <path d="M60 0 L64 0 L64 10 L60 9.9 Z"/><path d="M96 0 L100 0 L100 9.9 L96 10 Z"/>
     <path d="M120 0 L124 0 L124 9.4 L120 9.6 Z"/><path d="M144 0 L148 0 L148 8.4 L144 8.6 Z"/>
   </g>
-  <g>
+  <g class="legL">
     <path d="M0 0 L34 0 C30 10 30 22 34 34 L0 34 Z" fill="url(#velvet)"/>
     <g fill="#3E0810" opacity=".5">
       <path d="M6 0 C4 11 4 22 6 33.4 L10 33.4 C8 22 8 11 10 0 Z"/>
       <path d="M18 0 C15.6 11 15.6 22 18 33.6 L22 33.6 C19.6 22 19.6 11 22 0 Z"/>
       <path d="M28 0 C25.4 11 25.4 22 28 33.8 L31 33.8 C28.6 22 28.6 11 31 0 Z"/>
     </g>
+    <!-- The rope that holds this one back. -->
+    <path d="M28 16 C24 18.6 20 19 16 18.4" fill="none" stroke="#C9A063" stroke-width="1"/>
+    <g fill="#C9A063">
+      <circle cx="15" cy="18.4" r="1.5"/><path d="M13.8 19.6 L16.2 19.6 L15.6 22.6 L14.4 22.6 Z"/>
+    </g>
+  </g>
+  <g class="legR">
     <path d="M160 0 L126 0 C130 10 130 22 126 34 L160 34 Z" fill="url(#velvet)"/>
     <g fill="#3E0810" opacity=".5">
       <path d="M154 0 C156 11 156 22 154 33.4 L150 33.4 C152 22 152 11 150 0 Z"/>
       <path d="M142 0 C144.4 11 144.4 22 142 33.6 L138 33.6 C140.4 22 140.4 11 138 0 Z"/>
       <path d="M132 0 C134.6 11 134.6 22 132 33.8 L129 33.8 C131.4 22 131.4 11 129 0 Z"/>
     </g>
-  </g>
-  <!-- The rope that holds them back. -->
-  <g stroke="#C9A063" stroke-width="1" fill="none">
-    <path d="M28 16 C24 18.6 20 19 16 18.4"/>
-    <path d="M132 16 C136 18.6 140 19 144 18.4"/>
-  </g>
-  <g fill="#C9A063">
-    <circle cx="15" cy="18.4" r="1.5"/><path d="M13.8 19.6 L16.2 19.6 L15.6 22.6 L14.4 22.6 Z"/>
-    <circle cx="145" cy="18.4" r="1.5"/><path d="M143.8 19.6 L146.2 19.6 L145.6 22.6 L144.4 22.6 Z"/>
+    <path d="M132 16 C136 18.6 140 19 144 18.4" fill="none" stroke="#C9A063" stroke-width="1"/>
+    <g fill="#C9A063">
+      <circle cx="145" cy="18.4" r="1.5"/><path d="M143.8 19.6 L146.2 19.6 L145.6 22.6 L144.4 22.6 Z"/>
+    </g>
   </g>
   <!-- Footlights, along the lip. -->
   <path d="M0 26 L160 26 L160 27 L0 27 Z" fill="#8A6034"/>

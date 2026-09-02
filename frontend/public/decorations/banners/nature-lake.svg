@@ -1,8 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Lake</title>
-  <!-- Still enough to hold the whole thing upside down. -->
+  <!-- Still enough to hold the whole thing upside down — nearly. -->
+  <style>
+    .ripple { animation: slide 13s linear infinite }
+    .r2 { animation-duration: 19s; animation-delay: -5s }
+    .r3 { animation-duration: 9s; animation-delay: -3s }
+    @keyframes slide { from { transform: translateX(0) } to { transform: translateX(-40px) } }
+    .shimmer { animation: glimmer 6s ease-in-out infinite alternate }
+    @keyframes glimmer { from { opacity: .3 } to { opacity: .68 } }
+    @media (prefers-reduced-motion: reduce) { .ripple, .shimmer { animation: none } }
+  </style>
   <defs>
+    <filter id="wet" x="-20%" y="-120%" width="140%" height="340%">
+      <feGaussianBlur stdDeviation=".7"/>
+    </filter>
     <linearGradient id="calm" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#F6C98E"/><stop offset="55%" stop-color="#C88A7E"/>
       <stop offset="100%" stop-color="#5A5E8C"/>
@@ -19,7 +31,8 @@
   <path d="M0 22 L160 22 L160 40 L0 40 Z" fill="#2E3E62"/>
   <path d="M0 24 L24 36 L42 26 L58 38 L80 24 L100 35 L120 25 L138 37 L160 24 L160 22 L0 22 Z"
         fill="#3A4A62" opacity=".5"/>
-  <circle cx="80" cy="29" r="5.4" fill="#FFE7B8" opacity=".3"/>
+  <ellipse cx="80" cy="30" rx="3.4" ry="8.6" fill="#FFE7B8" opacity=".22"
+           filter="url(#wet)"/>
   <g stroke="#8FA8C8" stroke-width=".5" fill="none" opacity=".5">
     <path d="M6 27 C20 26.4 34 27.4 48 26.8"/><path d="M60 31 C74 30.4 88 31.4 102 30.8"/>
     <path d="M110 25.6 C124 25 138 26 152 25.4"/><path d="M20 35 C34 34.4 48 35.4 62 34.8"/>
@@ -30,4 +43,23 @@
     <path d="M16 22 C16 19.4 17 17.4 18.2 16.4 C19.4 17.4 20.4 19.4 20.4 22 Z"/>
     <path d="M148 22 C148 18.6 149.4 16 151 14.6 C152.6 16 154 18.6 154 22 Z"/>
   </g>
-  <ellipse cx="34" cy="22.6" rx="8" ry="1" fill="#1E2A3E" opacity=".5"/></svg>
+  <ellipse cx="34" cy="22.6" rx="8" ry="1" fill="#1E2A3E" opacity=".5"/>  <!-- What the surface does to it. -->
+  <g stroke="#F6D8B0" stroke-width=".4" fill="none">
+    <path class="ripple" d="M-40 26 C-30 25.6 -20 26.4 -10 26 C0 25.6 10 26.4 20 26
+                            C30 25.6 40 26.4 50 26 C60 25.6 70 26.4 80 26
+                            C90 25.6 100 26.4 110 26 C120 25.6 130 26.4 140 26
+                            C150 25.6 160 26.4 170 26 C180 25.6 190 26.4 200 26" opacity=".4"/>
+    <path class="ripple r2" d="M-40 30 C-28 29.5 -16 30.5 -4 30 C8 29.5 20 30.5 32 30
+                               C44 29.5 56 30.5 68 30 C80 29.5 92 30.5 104 30
+                               C116 29.5 128 30.5 140 30 C152 29.5 164 30.5 176 30
+                               C188 29.5 200 30.5 212 30" opacity=".34"/>
+    <path class="ripple r3" d="M-40 35 C-26 34.4 -12 35.6 2 35 C16 34.4 30 35.6 44 35
+                               C58 34.4 72 35.6 86 35 C100 34.4 114 35.6 128 35
+                               C142 34.4 156 35.6 170 35 C184 34.4 198 35.6 212 35" opacity=".3"/>
+  </g>
+  <g class="shimmer" fill="#FFE7B8" filter="url(#wet)" opacity=".55">
+    <ellipse cx="80" cy="27.4" rx="4.6" ry=".3"/><ellipse cx="80" cy="29.6" rx="6.4" ry=".32"/>
+    <ellipse cx="80" cy="32" rx="5" ry=".28"/><ellipse cx="80" cy="34.6" rx="7" ry=".34"/>
+    <ellipse cx="80" cy="37.2" rx="5.4" ry=".3"/>
+  </g>
+</svg>

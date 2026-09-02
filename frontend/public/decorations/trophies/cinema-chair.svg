@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Director's chair</title>
+  <circle cx="24" cy="24" r="23" fill="#1A1622"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#D8443A" stroke-width="2"/>
+  <!-- Frame. -->
+  <g stroke="#6B4526" stroke-width="2.1" stroke-linecap="round" fill="none">
+    <path d="M13 12 L13 33"/><path d="M35 12 L35 33"/>
+    <path d="M13 33 L23 39"/><path d="M35 33 L25 39"/>
+    <path d="M13 24 L35 24"/>
+  </g>
+  <!-- Canvas back and seat. -->
+  <path d="M13.6 13.6 L34.4 13.6 L34.4 19.4 L13.6 19.4 Z" fill="#1E3A5C"/>
+  <path d="M13.6 13.6 L34.4 13.6 L34.4 15 L13.6 15 Z" fill="#2E5480"/>
+  <path d="M12.6 24.4 L35.4 24.4 L35.4 27.4 L12.6 27.4 Z" fill="#1E3A5C"/>
+  <path d="M12.6 24.4 L35.4 24.4 L35.4 25.4 L12.6 25.4 Z" fill="#2E5480"/>
+  <g stroke="#6B4526" stroke-width="1.5" fill="none">
+    <path d="M17 27.4 L21 33"/><path d="M31 27.4 L27 33"/>
+  </g>
+  <!-- Somebody's name, on the back of it. -->
+  <g fill="#C9D8E8" opacity=".75">
+    <rect x="17" y="16" width="14" height="1.4" rx=".4"/>
+  </g>
+</svg>

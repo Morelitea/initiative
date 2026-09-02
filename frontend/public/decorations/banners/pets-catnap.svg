@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Catnap</title>
+  <!-- Asleep on the good blanket, and not to be moved. -->
+  <style>
+    .breathe { animation: breath 4.4s ease-in-out infinite alternate;
+               transform-box: fill-box; transform-origin: 50% 100% }
+    @keyframes breath { from { transform: scale(1) } to { transform: scale(1.028, 1.05) } }
+    .eartwitch { animation: tw 6s ease-in-out infinite;
+                 transform-box: fill-box; transform-origin: 50% 100% }
+    @keyframes tw { 0%,84% { transform: rotate(0) } 89% { transform: rotate(-12deg) }
+                    94% { transform: rotate(5deg) } 100% { transform: rotate(0) } }
+    .tailtip { animation: curl 5.2s ease-in-out infinite alternate;
+               transform-box: fill-box; transform-origin: 0% 50% }
+    @keyframes curl { from { transform: rotate(-7deg) } to { transform: rotate(7deg) } }
+    .zzz { animation: rise 5s ease-out infinite }
+    .z2 { animation-delay: -1.7s } .z3 { animation-delay: -3.4s }
+    @keyframes rise { 0% { transform: translate(0,0) scale(.5); opacity: 0 }
+                      25% { opacity: .8 }
+                      100% { transform: translate(6px,-11px) scale(1.15); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) {
+      .breathe, .eartwitch, .tailtip, .zzz { animation: none } .zzz { opacity: .5 } }
+  </style>
+  <defs>
+    <linearGradient id="parlour" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0E2CE"/><stop offset="100%" stop-color="#D8C0A4"/>
+    </linearGradient>
+    <linearGradient id="knit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7EA8B4"/><stop offset="100%" stop-color="#4E7E90"/>
+    </linearGradient>
+    <linearGradient id="tabby" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0B558"/><stop offset="100%" stop-color="#D8913A"/>
+    </linearGradient>
+    <radialGradient id="warmth" cx=".5" cy=".4" r=".6">
+      <stop offset="0%" stop-color="#FFEEC8" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFEEC8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#parlour)"/>
+  <ellipse cx="80" cy="20" rx="66" ry="22" fill="url(#warmth)"/>
+  <!-- Wallpaper, faintly. -->
+  <g fill="#C4A886" opacity=".28">
+    <path d="M20 8 C21.6 5.6 24 5.6 25.6 8 C24 10.4 21.6 10.4 20 8 Z"/>
+    <path d="M52 4 C53.6 1.6 56 1.6 57.6 4 C56 6.4 53.6 6.4 52 4 Z"/>
+    <path d="M118 7 C119.6 4.6 122 4.6 123.6 7 C122 9.4 119.6 9.4 118 7 Z"/>
+    <path d="M144 3 C145.6 .6 148 .6 149.6 3 C148 5.4 145.6 5.4 144 3 Z"/>
+  </g>
+
+  <!-- The blanket. -->
+  <path d="M0 26 C24 23.4 56 24.4 80 24.2 C108 24 136 23.2 160 24.4 L160 40 L0 40 Z"
+        fill="url(#knit)"/>
+  <g stroke="#3E6E80" stroke-width=".5" opacity=".55" fill="none">
+    <path d="M0 29 C26 26.6 58 27.6 84 27.2 C112 26.8 138 26.2 160 27.2"/>
+    <path d="M0 33 C26 30.6 58 31.6 84 31.2 C112 30.8 138 30.2 160 31.2"/>
+    <path d="M0 37 C26 34.6 58 35.6 84 35.2 C112 34.8 138 34.2 160 35.2"/>
+  </g>
+  <g stroke="#6E98A8" stroke-width=".42" opacity=".5" fill="none">
+    <path d="M10 25 L10 40"/><path d="M30 24.6 L30 40"/><path d="M50 24.4 L50 40"/>
+    <path d="M70 24.2 L70 40"/><path d="M90 24.2 L90 40"/><path d="M110 24 L110 40"/>
+    <path d="M130 23.8 L130 40"/><path d="M150 24 L150 40"/>
+  </g>
+
+  <!-- Her. -->
+  <g transform="translate(80 33)">
+    <ellipse cx="0" cy="4" rx="24" ry="3.4" fill="#3E6E80" opacity=".35"/>
+    <g class="breathe">
+      <!-- Curled body. -->
+      <path d="M-21 3.6 C-23 -2 -19 -7.6 -12 -9.6 C-4 -11.8 6 -11 13 -7.6
+               C19.6 -4.4 21.6 .6 19.6 3.6 Z" fill="url(#tabby)"/>
+      <!-- Tabby marks. -->
+      <g fill="#C97E24" opacity=".55">
+        <path d="M-14 -9 C-13.2 -6.6 -13.2 -3.6 -14 -1 L-11.4 -1 C-10.6 -3.8 -10.6 -6.8 -11.4 -9.4 Z"/>
+        <path d="M-6 -10.2 C-5.2 -7.6 -5.2 -4.4 -6 -1.6 L-3.4 -1.6 C-2.6 -4.6 -2.6 -7.8 -3.4 -10.4 Z"/>
+        <path d="M2 -10 C2.8 -7.4 2.8 -4.4 2 -1.6 L4.6 -1.4 C5.4 -4.4 5.4 -7.4 4.6 -10.2 Z"/>
+        <path d="M9.8 -8.4 C10.8 -6.2 11.2 -3.6 10.6 -1 L13 -.6 C13.6 -3.4 13.2 -6.2 12.2 -8.6 Z"/>
+      </g>
+      <!-- Tail, round the front. -->
+      <path d="M19.6 2.6 C21.4 1 22 -1.4 21 -3.4" fill="none" stroke="#D8913A" stroke-width="3.4"
+            stroke-linecap="round"/>
+      <g class="tailtip">
+        <path d="M21 -3.4 C20.2 -5.6 17.6 -6.6 15 -6" fill="none" stroke="#D8913A"
+              stroke-width="3.2" stroke-linecap="round"/>
+      </g>
+      <!-- Head, tucked in. -->
+      <g transform="translate(-15.6 -5.4)">
+        <circle cx="0" cy="0" r="7" fill="#F0B558"/>
+        <g class="eartwitch">
+          <path d="M-6.4 -3.6 L-7 -8.6 L-2.6 -5.8 Z" fill="#F0B558"/>
+          <path d="M-6.1 -4.4 L-6.4 -7.2 L-4 -5.6 Z" fill="#E0837A"/>
+        </g>
+        <path d="M4.2 -5.2 L6.4 -9.4 L7 -4.2 Z" fill="#F0B558"/>
+        <path d="M4.8 -5.4 L6.1 -7.8 L6.4 -4.9 Z" fill="#E0837A"/>
+        <!-- Asleep: two happy arcs. -->
+        <g stroke="#2E2116" stroke-width=".72" fill="none" stroke-linecap="round">
+          <path d="M-3.8 .4 C-3 -.6 -1.8 -.6 -1 .4"/>
+          <path d="M1 .6 C1.8 -.4 3 -.4 3.8 .6"/>
+        </g>
+        <path d="M-.9 2.6 L.9 2.6 L0 3.7 Z" fill="#E0837A"/>
+        <path d="M0 3.7 C0 4.6 -.9 5 -1.6 4.4 M0 3.7 C0 4.6 .9 5 1.6 4.4"
+              fill="none" stroke="#2E2116" stroke-width=".5"/>
+        <g stroke="#2E2116" stroke-width=".28" opacity=".5">
+          <path d="M-2.2 3 L-6.6 2"/><path d="M-2.2 3.8 L-6.4 4.4"/>
+          <path d="M2.2 3 L6.6 2"/><path d="M2.2 3.8 L6.4 4.4"/>
+        </g>
+      </g>
+      <!-- One paw out. -->
+      <path d="M-8 2.6 C-6 1 -3 1 -1.4 2.6 C-1.4 3.4 -2.4 3.8 -4.6 3.8 C-6.8 3.8 -8 3.4 -8 2.6 Z"
+            fill="#F6C87E"/>
+      <g stroke="#D8913A" stroke-width=".4" fill="none">
+        <path d="M-5.8 2 L-5.8 3.6"/><path d="M-4 1.9 L-4 3.7"/><path d="M-2.4 2.1 L-2.4 3.6"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Sleeping on it. -->
+  <g fill="#8A8296" font-family="Georgia, serif" font-weight="700">
+    <text class="zzz" x="98" y="18" font-size="5">z</text>
+    <text class="zzz z2" x="102" y="14" font-size="4">z</text>
+    <text class="zzz z3" x="106" y="11" font-size="3">z</text>
+  </g>
+
+  <!-- The yarn, which is next. -->
+  <g transform="translate(126 34)">
+    <circle cx="0" cy="0" r="4.6" fill="#C9564C"/>
+    <g stroke="#9E3E36" stroke-width=".5" fill="none" opacity=".8">
+      <path d="M-4.4 -1.4 C-1.6 -3.4 2.2 -3.6 4.4 -1.8"/>
+      <path d="M-4.6 1 C-2 -1.4 2.4 -1.6 4.6 .6"/>
+      <path d="M-3 3.4 C-1.4 .8 2 .4 4 2.6"/>
+      <path d="M-1.6 -4.2 C-2.6 -1.6 -2.4 2 -.6 4.4"/>
+    </g>
+    <path d="M4.4 1.4 C7 2.2 8.6 3.6 9.4 5.6" fill="none" stroke="#C9564C" stroke-width=".8"
+          stroke-linecap="round"/>
+  </g>
+</svg>

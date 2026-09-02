@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Travel",
   "publisher": "Initiative",
-  "description": "Everywhere at once, and the ways you get there.",
-  "long_description": "For the ones with a list. Monuments at the hour they light up, the meridians a globe is ruled with, and trophies for every way of arriving — plane, ship, train, car, bicycle, and the globe itself.",
+  "description": "For the ones with a list.",
+  "long_description": "Monuments at the hour they light up, and a window seat with the whole country going past. Meridians round your picture, and a trophy for every way of arriving — plane, ship, train, car, bicycle, and the globe you are crossing off.",
   "avatar_url": "/decorations/banners/travel-landmarks.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "A window seat, with the country going past.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -53,6 +53,11 @@
         "id": "travel.bicycle",
         "slot": "trophy",
         "name": "Bicycle"
+      },
+      {
+        "id": "travel.trainride",
+        "slot": "banner",
+        "name": "By train"
       }
     ]
   }
