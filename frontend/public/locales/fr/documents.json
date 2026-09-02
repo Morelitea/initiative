@@ -3,16 +3,6 @@
     "title_one": "Lié depuis {{count}} document",
     "title_other": "Lié depuis {{count}} documents"
   },
-  "badges": {
-    "counterValue": "Valeur du compteur",
-    "eventWhen": "Date de l'événement",
-    "none": "Aucun",
-    "searchPlaceholder": "Cherchez quelque chose à afficher",
-    "taskAssignee": "Personne assignée",
-    "taskDue": "Date d'échéance",
-    "taskPriority": "Priorité",
-    "taskStatus": "Statut de la tâche"
-  },
   "bulk": {
     "delete": "Supprimer",
     "deleteConfirm_one": "Supprimer {{count}} document ?",
@@ -394,6 +384,27 @@
     "title": "Panneau du document",
     "commentsTab": "Commentaires",
     "summaryTab": "Résumé"
+  },
+  "smartChips": {
+    "aspects": {
+      "assignee": "Personne assignée",
+      "due": "Date d'échéance",
+      "priority": "Priorité",
+      "status": "Statut",
+      "value": "Valeur",
+      "when": "Date"
+    },
+    "counterValue": "Valeur du compteur",
+    "eventWhen": "Date de l'événement",
+    "insert": "Puce intelligente",
+    "none": "Aucun",
+    "openHint": "Cliquez pour ouvrir",
+    "searchPlaceholder": "Cherchez quelque chose à afficher",
+    "taskAssignee": "Personne assignée",
+    "taskDue": "Date d'échéance",
+    "taskPriority": "Priorité",
+    "taskStatus": "Statut de la tâche",
+    "whichFact": "Quelle information la puce doit-elle afficher ?"
   },
   "smartLink": {
     "missingUrl": "Ce lien intelligent n'a pas d'URL.",

@@ -1,6 +1,6 @@
-"""Reading live badge state through the API.
+"""Reading live smart chip state through the API.
 
-A badge stores nothing, so what these assert is that the chip reflects the row
+A chip stores nothing, so what these assert is that the chip reflects the row
 it points at right now — including after the row changes — and that it answers
 under the same gates as the thing it is about.
 """
@@ -13,14 +13,14 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.document_badges import BADGE_KINDS, BadgeKind, kind_value
+from app.core.smart_chips import SMART_CHIP_KINDS, SmartChipKind, kind_value
 from app.models.platform.guild import GuildRole
 from sqlmodel import select
 
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
 from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
 from app.db.reference_targets import referenceable_types
-from app.services.tenant.document_badges import BADGE_SOURCES
+from app.services.tenant.smart_chips import MAX_REFS, SMART_CHIP_SOURCES
 from app.testing import (
     Actor,
     create_calendar,
@@ -59,15 +59,15 @@ async def _move_to(session, task, project, category: TaskStatusCategory) -> None
     await session.commit()
 
 
-async def _badges(client, actor: Actor, *refs: str) -> dict[str, dict]:
+async def _chips(client, actor: Actor, *refs: str) -> dict[str, dict]:
     response = await client.get(
-        actor.g("/document-badges/"), headers=actor.headers, params={"ref": list(refs)}
+        actor.g("/smart-chips/"), headers=actor.headers, params={"ref": list(refs)}
     )
     assert response.status_code == 200, response.text
     return {item["ref"]: item for item in response.json()["items"]}
 
 
-async def test_a_task_badge_shows_the_column_it_sits_in(
+async def test_a_task_chip_shows_the_column_it_sits_in(
     client, session, acting_user: ActingUser
 ) -> None:
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
@@ -78,25 +78,25 @@ async def test_a_task_badge_shows_the_column_it_sits_in(
         status_category=TaskStatusCategory.in_progress,
     )
 
-    body = await _badges(client, a, f"task:{task.id}:status")
+    body = await _chips(client, a, f"task:{task.id}:status")
     assert body[f"task:{task.id}:status"]["text"]
     assert body[f"task:{task.id}:status"]["tone"] == "warn"
 
 
-async def test_moving_the_card_moves_the_badge(
+async def test_moving_the_card_moves_the_chip(
     client, session, acting_user: ActingUser
 ) -> None:
     """The document is not edited and the chip still changes — which is the
-    whole point of a badge over a mention."""
+    whole point of a chip over a mention."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
     ref = f"task:{task.id}:status"
-    before = (await _badges(client, a, ref))[ref]
+    before = (await _chips(client, a, ref))[ref]
     assert before["tone"] != "good"
 
     await _move_to(session, task, a.project, TaskStatusCategory.done)
 
-    after = (await _badges(client, a, ref))[ref]
+    after = (await _chips(client, a, ref))[ref]
     assert after["tone"] == "good"
     assert after["text"] != before["text"]
 
@@ -113,7 +113,7 @@ async def test_a_status_sends_its_own_colour(
     session.add(status)
     await session.commit()
 
-    body = await _badges(client, a, f"task:{task.id}:status")
+    body = await _chips(client, a, f"task:{task.id}:status")
     assert body[f"task:{task.id}:status"]["color"] == "#FF00AA"
 
 
@@ -125,12 +125,12 @@ async def test_a_date_is_late_only_while_the_work_is_not_done(
     task = await create_task(session, a.project, title="Overdue", due_date=yesterday)
 
     ref = f"task:{task.id}:due"
-    assert (await _badges(client, a, ref))[ref]["tone"] == "danger"
+    assert (await _chips(client, a, ref))[ref]["tone"] == "danger"
 
     await _move_to(session, task, a.project, TaskStatusCategory.done)
 
     # Delivered late is delivered, not overdue.
-    assert (await _badges(client, a, ref))[ref]["tone"] == "neutral"
+    assert (await _chips(client, a, ref))[ref]["tone"] == "neutral"
 
 
 async def test_the_date_itself_comes_back_for_the_reader_to_format(
@@ -141,7 +141,7 @@ async def test_the_date_itself_comes_back_for_the_reader_to_format(
     due = datetime.now(timezone.utc) + timedelta(days=3)
     task = await create_task(session, a.project, title="Soon", due_date=due)
 
-    body = await _badges(client, a, f"task:{task.id}:due")
+    body = await _chips(client, a, f"task:{task.id}:due")
     assert body[f"task:{task.id}:due"]["date"] is not None
 
 
@@ -151,7 +151,7 @@ async def test_an_unassigned_task_says_so_rather_than_going_missing(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Nobody's")
 
-    body = await _badges(client, a, f"task:{task.id}:assignee")
+    body = await _chips(client, a, f"task:{task.id}:assignee")
     assert body[f"task:{task.id}:assignee"]["tone"] == "muted"
 
 
@@ -164,7 +164,7 @@ async def test_several_holders_are_named_by_the_first_and_counted(
         session, a.project, title="Shared", assignees=[a.user, second]
     )
 
-    body = await _badges(client, a, f"task:{task.id}:assignee")
+    body = await _chips(client, a, f"task:{task.id}:assignee")
     assert body[f"task:{task.id}:assignee"]["text"].endswith("+1")
 
 
@@ -176,7 +176,7 @@ async def test_a_priority_carries_its_own_urgency(
         session, a.project, title="Now", priority=TaskPriority.urgent
     )
 
-    body = await _badges(client, a, f"task:{task.id}:priority")
+    body = await _chips(client, a, f"task:{task.id}:priority")
     assert body[f"task:{task.id}:priority"]["tone"] == "danger"
 
 
@@ -191,7 +191,7 @@ async def test_a_counter_reads_its_number_and_its_ceiling(
     session.add(counter)
     await session.commit()
 
-    body = await _badges(client, a, f"counter:{counter.id}:value")
+    body = await _chips(client, a, f"counter:{counter.id}:value")
     state = body[f"counter:{counter.id}:value"]
     # Trailing zeros are storage, not something to read.
     assert state["text"] == "7 / 10"
@@ -209,7 +209,7 @@ async def test_a_counter_at_its_ceiling_reads_as_arrived(
     session.add(counter)
     await session.commit()
 
-    body = await _badges(client, a, f"counter:{counter.id}:value")
+    body = await _chips(client, a, f"counter:{counter.id}:value")
     assert body[f"counter:{counter.id}:value"]["tone"] == "good"
 
 
@@ -231,7 +231,7 @@ async def test_an_event_dims_once_it_has_happened(
         start_at=datetime.now(timezone.utc) + timedelta(days=2),
     )
 
-    body = await _badges(
+    body = await _chips(
         client,
         a,
         f"calendar_event:{past.id}:when",
@@ -250,7 +250,7 @@ async def test_a_page_of_chips_is_read_together(
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
 
-    body = await _badges(
+    body = await _chips(
         client,
         a,
         f"task:{task.id}:status",
@@ -263,12 +263,12 @@ async def test_a_page_of_chips_is_read_together(
 async def test_a_reference_naming_nothing_is_simply_absent(
     client, session, acting_user: ActingUser
 ) -> None:
-    """A build that stopped offering a badge leaves references behind in
+    """A build that stopped offering a chip leaves references behind in
     documents; they read as nothing rather than as an error."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
 
-    body = await _badges(
+    body = await _chips(
         client,
         a,
         f"task:{task.id}:status",
@@ -291,22 +291,22 @@ async def test_a_chip_reads_nothing_the_caller_could_not_open(
     task = await create_task(session, owner.project, title="Private work")
 
     outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
-    body = await _badges(client, outsider, f"task:{task.id}:status")
+    body = await _chips(client, outsider, f"task:{task.id}:status")
     assert body == {}
 
 
-def test_every_declared_badge_has_a_reader():
+def test_every_declared_chip_has_a_reader():
     """The vocabulary and the readers are two lists in two layers; this is what
     keeps them the same list. Titles are not here — one reader answers those
     for every kind."""
-    assert set(BADGE_SOURCES) == set(BADGE_KINDS)
+    assert set(SMART_CHIP_SOURCES) == set(SMART_CHIP_KINDS)
 
 
 def test_the_pairs_the_api_declares_are_the_pairs_that_exist():
     """The editor builds its insert menu from this enum, so it must not be able
-    to offer a badge nothing reads."""
-    assert {kind.value for kind in BadgeKind} == {
-        kind_value(entity_type, aspect) for entity_type, aspect in BADGE_KINDS
+    to offer a chip nothing reads."""
+    assert {kind.value for kind in SmartChipKind} == {
+        kind_value(entity_type, aspect) for entity_type, aspect in SMART_CHIP_KINDS
     }
 
 
@@ -315,7 +315,7 @@ async def test_a_chip_stops_at_the_sharing_gate_not_just_the_initiative(
 ) -> None:
     """Being in the initiative is not being given the project.
 
-    A badge is live state, so it answers under every gate the thing itself
+    A chip is live state, so it answers under every gate the thing itself
     answers under — the same reading the search index takes.
     """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
@@ -327,16 +327,16 @@ async def test_a_chip_stops_at_the_sharing_gate_not_just_the_initiative(
     )
     task = await create_task(session, a.project, title="restricted renewal")
 
-    assert (await _badges(client, a, f"task:{task.id}:status")) != {}
-    assert await _badges(client, b, f"task:{task.id}:status") == {}
+    assert (await _chips(client, a, f"task:{task.id}:status")) != {}
+    assert await _chips(client, b, f"task:{task.id}:status") == {}
 
 
-def test_every_badgeable_thing_can_be_gated():
-    """A badge reads live state, so its kind must resolve to a gate. Those are
+def test_every_chippable_thing_can_be_gated():
+    """A chip reads live state, so its kind must resolve to a gate. Those are
     derived from the search registry, so this is what proves the derivation
-    covers everything a badge can be about."""
+    covers everything a chip can be about."""
     referenceable = set(referenceable_types())
-    assert {entity_type for entity_type, _aspect in BADGE_KINDS} <= referenceable
+    assert {entity_type for entity_type, _aspect in SMART_CHIP_KINDS} <= referenceable
 
 
 def test_the_reference_surface_is_everything_indexed_but_a_comment():
@@ -356,7 +356,7 @@ def test_what_can_be_referred_to_and_what_can_be_resolved_are_the_same_set():
 
 
 @pytest.mark.parametrize("aspect", ["status", "assignee", "due", "priority"])
-async def test_no_task_badge_answers_without_the_project(
+async def test_no_task_chip_answers_without_the_project(
     client, session, acting_user: ActingUser, aspect: str
 ) -> None:
     """Walked per aspect: the gate is applied once for the thing, so adding a
@@ -370,13 +370,13 @@ async def test_no_task_badge_answers_without_the_project(
     )
     task = await create_task(session, a.project, title="restricted")
 
-    assert await _badges(client, b, f"task:{task.id}:{aspect}") == {}
+    assert await _chips(client, b, f"task:{task.id}:{aspect}") == {}
 
 
 async def test_a_chip_follows_the_thing_own_sharing_either_way(
     client, session, acting_user: ActingUser
 ) -> None:
-    """The gate is the resource's own sharing, not a rule badges invented.
+    """The gate is the resource's own sharing, not a rule chips invented.
 
     Both of these are made by a factory, which shares a calendar with the
     initiative and leaves a counter group to its owner. Whichever way the
@@ -396,7 +396,7 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
         initiative=a.initiative,
         initiative_role="member",
     )
-    body = await _badges(
+    body = await _chips(
         client,
         b,
         f"counter:{counter.id}:value",
@@ -404,6 +404,55 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
     )
     assert f"counter:{counter.id}:value" not in body
     assert f"calendar_event:{event.id}:when" in body
+
+
+async def test_the_ceiling_is_refused_rather_than_quietly_trimmed(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A page asking about more than one request carries is told so.
+
+    Answering the first ``MAX_REFS`` and dropping the rest would look exactly
+    like a page whose remaining things had all been deleted, which is a worse
+    answer than none: the client batches to this number instead.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Ship it")
+
+    at_the_line = [f"task:{task.id}:status"] * 1 + [
+        f"task:{9000 + i}:status" for i in range(MAX_REFS - 1)
+    ]
+    response = await client.get(
+        a.g("/smart-chips/"), headers=a.headers, params={"ref": at_the_line}
+    )
+    assert response.status_code == 200
+
+    over = [*at_the_line, f"task:{9999}:status"]
+    response = await client.get(
+        a.g("/smart-chips/"), headers=a.headers, params={"ref": over}
+    )
+    assert response.status_code == 422
+
+
+async def test_a_chip_names_what_its_reading_is_about(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A chip answers with the thing's current name beside the fact, so showing
+    a fact costs one reference rather than two — and the name is as live as the
+    reading is."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Old name")
+    ref = f"task:{task.id}:status"
+
+    assert (await _chips(client, a, ref))[ref]["title"] == "Old name"
+
+    task.title = "New name"
+    session.add(task)
+    await session.commit()
+
+    answer = (await _chips(client, a, ref))[ref]
+    assert answer["title"] == "New name"
+    # The reading itself is still the column, not the name.
+    assert answer["text"] != "New name"
 
 
 async def test_a_reference_reads_the_current_name(
@@ -415,13 +464,13 @@ async def test_a_reference_reads_the_current_name(
     task = await create_task(session, a.project, title="Old name")
     ref = f"task:{task.id}"
 
-    assert (await _badges(client, a, ref))[ref]["text"] == "Old name"
+    assert (await _chips(client, a, ref))[ref]["text"] == "Old name"
 
     task.title = "New name"
     session.add(task)
     await session.commit()
 
-    assert (await _badges(client, a, ref))[ref]["text"] == "New name"
+    assert (await _chips(client, a, ref))[ref]["text"] == "New name"
 
 
 async def test_every_kind_answers_with_whatever_it_calls_its_name(
@@ -434,7 +483,7 @@ async def test_every_kind_answers_with_whatever_it_calls_its_name(
     queue = await create_queue(session, a.initiative, a.user)
     item = await create_queue_item(session, queue, label="An item")
 
-    body = await _badges(
+    body = await _chips(
         client,
         a,
         f"task:{task.id}",
@@ -448,7 +497,7 @@ async def test_every_kind_answers_with_whatever_it_calls_its_name(
     assert body[f"queue_item:{item.id}"]["text"] == "An item"
 
 
-async def test_a_title_stops_at_the_same_gate_a_badge_does(
+async def test_a_title_stops_at_the_same_gate_a_chip_does(
     client, session, acting_user: ActingUser
 ) -> None:
     """A name is content. Reading one is gated exactly as reading a status is."""
@@ -461,7 +510,7 @@ async def test_a_title_stops_at_the_same_gate_a_badge_does(
     )
     task = await create_task(session, a.project, title="restricted")
 
-    assert await _badges(client, b, f"task:{task.id}") == {}
+    assert await _chips(client, b, f"task:{task.id}") == {}
 
 
 async def test_a_comment_is_not_something_you_point_at(
@@ -473,4 +522,4 @@ async def test_a_comment_is_not_something_you_point_at(
     task = await create_task(session, a.project, title="Ship it")
     comment = await create_comment(session, a.user, task=task)
 
-    assert await _badges(client, a, f"comment:{comment.id}") == {}
+    assert await _chips(client, a, f"comment:{comment.id}") == {}

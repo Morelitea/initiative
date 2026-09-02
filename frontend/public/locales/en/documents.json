@@ -3,16 +3,6 @@
     "title_one": "Linked from {{count}} document",
     "title_other": "Linked from {{count}} documents"
   },
-  "badges": {
-    "counterValue": "Counter value",
-    "eventWhen": "Event date",
-    "none": "None",
-    "searchPlaceholder": "Search for something to show",
-    "taskAssignee": "Task assignee",
-    "taskDue": "Task due date",
-    "taskPriority": "Task priority",
-    "taskStatus": "Task status"
-  },
   "bulk": {
     "delete": "Delete",
     "deleteConfirm_one": "Delete {{count}} document?",
@@ -394,6 +384,27 @@
     "title": "Document Panel",
     "commentsTab": "Comments",
     "summaryTab": "Summary"
+  },
+  "smartChips": {
+    "aspects": {
+      "assignee": "Assignee",
+      "due": "Due date",
+      "priority": "Priority",
+      "status": "Status",
+      "value": "Value",
+      "when": "Date"
+    },
+    "counterValue": "Counter value",
+    "eventWhen": "Event date",
+    "insert": "Smart chip",
+    "none": "None",
+    "openHint": "Click to open",
+    "searchPlaceholder": "Search for something to show",
+    "taskAssignee": "Task assignee",
+    "taskDue": "Task due date",
+    "taskPriority": "Task priority",
+    "taskStatus": "Task status",
+    "whichFact": "Which fact should the chip show?"
   },
   "smartLink": {
     "missingUrl": "This smart link has no URL.",

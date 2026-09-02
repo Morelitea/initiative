@@ -7,9 +7,9 @@ import remarkGfm from "remark-gfm";
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { useCommentReferences } from "@/components/comments/CommentReferences";
 import { useGuilds } from "@/hooks/useGuilds";
-import { referenceRef } from "@/lib/badges";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
+import { referenceRef } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 

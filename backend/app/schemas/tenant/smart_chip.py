@@ -1,4 +1,4 @@
-"""What a badge shows right now."""
+"""What a smart chip shows right now."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from app.core.document_badges import BadgeAspect, BadgeTone
+from app.core.smart_chips import SmartChipAspect, SmartChipTone
 from app.core.search import SearchEntityType
 
 
-class BadgeState(BaseModel):
+class SmartChipState(BaseModel):
     """One chip's current reading.
 
     ``text`` is always set, so a client that understands nothing else can still
@@ -29,9 +29,14 @@ class BadgeState(BaseModel):
     #: What the reference names.
     entity_type: SearchEntityType
     #: Which fact about it, or absent where this is simply what it is called.
-    aspect: Optional[BadgeAspect] = None
+    aspect: Optional[SmartChipAspect] = None
     text: str
-    tone: BadgeTone
+    #: What the thing is called right now. Sent with every answer so a chip
+    #: showing a fact can also name what the fact is about — the reading goes
+    #: in the sentence, the name goes on the card behind it — without the
+    #: caller spending a second reference on the same row.
+    title: Optional[str] = None
+    tone: SmartChipTone
     #: A colour the thing carries itself — a task status has one. Overrides the
     #: tone where present.
     color: Optional[str] = None
@@ -39,7 +44,7 @@ class BadgeState(BaseModel):
     number: Optional[Decimal] = None
 
 
-class BadgeStateList(BaseModel):
+class SmartChipStateList(BaseModel):
     """The chips that could be read.
 
     A ref that names nothing, or something this caller cannot see, is simply
@@ -49,4 +54,4 @@ class BadgeStateList(BaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    items: List[BadgeState]
+    items: List[SmartChipState]

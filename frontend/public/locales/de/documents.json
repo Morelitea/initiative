@@ -3,16 +3,6 @@
     "title_one": "Verlinkt von {{count}} Dokument",
     "title_other": "Verlinkt von {{count}} Dokumenten"
   },
-  "badges": {
-    "counterValue": "Zählerstand",
-    "eventWhen": "Termindatum",
-    "none": "Keine",
-    "searchPlaceholder": "Suche etwas zum Anzeigen",
-    "taskAssignee": "Zuständige Person",
-    "taskDue": "Fälligkeitsdatum",
-    "taskPriority": "Priorität",
-    "taskStatus": "Aufgabenstatus"
-  },
   "bulk": {
     "delete": "Löschen",
     "deleteConfirm_one": "{{count}} Dokument löschen?",
@@ -394,6 +384,27 @@
     "title": "Dokumentpanel",
     "commentsTab": "Kommentare",
     "summaryTab": "Zusammenfassung"
+  },
+  "smartChips": {
+    "aspects": {
+      "assignee": "Zuständige Person",
+      "due": "Fälligkeitsdatum",
+      "priority": "Priorität",
+      "status": "Status",
+      "value": "Wert",
+      "when": "Datum"
+    },
+    "counterValue": "Zählerstand",
+    "eventWhen": "Termindatum",
+    "insert": "Smart-Chip",
+    "none": "Keine",
+    "openHint": "Zum Öffnen klicken",
+    "searchPlaceholder": "Suche etwas zum Anzeigen",
+    "taskAssignee": "Zuständige Person",
+    "taskDue": "Fälligkeitsdatum",
+    "taskPriority": "Priorität",
+    "taskStatus": "Aufgabenstatus",
+    "whichFact": "Welchen Wert soll der Chip anzeigen?"
   },
   "smartLink": {
     "missingUrl": "Dieser Smart-Link hat keine URL.",

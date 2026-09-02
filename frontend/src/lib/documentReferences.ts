@@ -4,17 +4,21 @@
  * Chips and links are both references, and the page reads them together: a chip
  * asks `task:12:status`, a link asks `task:12`, and one request answers both.
  * Pulled out of the plugin so the walk over a document can be tested.
+ *
+ * One reference per node, deliberately: a chip's answer carries the thing's
+ * current name with it, so naming what a reading is about costs nothing extra
+ * and a long document stays inside what one request will read.
  */
 
 import type { EditorState, LexicalNode } from "lexical";
 
-import { $isBadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { $isEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
-import { referenceRef } from "@/lib/badges";
+import { $isSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
+import { referenceRef } from "@/lib/smartChips";
 
 /** The reference a node needs read, or `null` if it refers to nothing. */
 export const nodeReference = (node: LexicalNode): string | null => {
-  if ($isBadgeNode(node)) return node.getRef();
+  if ($isSmartChipNode(node)) return node.getRef();
   if ($isEntityMentionNode(node)) {
     return referenceRef(node.getEntityType(), node.getEntityId());
   }

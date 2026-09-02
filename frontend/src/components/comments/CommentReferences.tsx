@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
-import { useDocumentBadges } from "@/hooks/useDocumentBadges";
+import { useSmartChipStates } from "@/hooks/useSmartChips";
 import { useUserSearch } from "@/hooks/useUsers";
 import { collectCommentReferences } from "@/lib/commentReferences";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -41,7 +41,7 @@ export function CommentReferences({
 }) {
   const { refs, userIds } = useMemo(() => collectCommentReferences(contents), [contents]);
 
-  const badges = useDocumentBadges(refs, refs.length > 0);
+  const chips = useSmartChipStates(refs, refs.length > 0);
   const people = useUserSearch({
     userIds: userIds.slice(0, MAX_PEOPLE),
     pageSize: MAX_PEOPLE,
@@ -50,7 +50,7 @@ export function CommentReferences({
 
   const value = useMemo<Resolved>(() => {
     const titles = new Map<string, string>();
-    for (const state of badges.data?.items ?? []) {
+    for (const state of chips.data?.items ?? []) {
       if (state.text) titles.set(state.ref, state.text);
     }
     const names = new Map<number, string>();
@@ -60,9 +60,9 @@ export function CommentReferences({
     return {
       titles,
       people: names,
-      ready: (refs.length === 0 || badges.isFetched) && (userIds.length === 0 || people.isFetched),
+      ready: (refs.length === 0 || chips.isFetched) && (userIds.length === 0 || people.isFetched),
     };
-  }, [badges.data, badges.isFetched, people.data, people.isFetched, refs.length, userIds.length]);
+  }, [chips.data, chips.isFetched, people.data, people.isFetched, refs.length, userIds.length]);
 
   return (
     <CommentReferencesContext.Provider value={value}>{children}</CommentReferencesContext.Provider>
