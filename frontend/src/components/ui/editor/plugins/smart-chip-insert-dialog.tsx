@@ -10,7 +10,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
-import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
+import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { Input } from "@/components/ui/input";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuildSearchSuggest } from "@/hooks/useSearch";

@@ -1,53 +1,9 @@
 import type { TFunction } from "i18next";
-import { CalendarClock, CircleDot, Flag, Gauge, User } from "lucide-react";
-import type { JSX } from "react";
 
-import { SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
 import { ComponentPickerOption } from "@/components/ui/editor/plugins/picker/component-picker-option";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
+import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { chipAspect, SMART_CHIP_KINDS } from "@/lib/smartChips";
-
-/**
- * How each chip is offered in the `/` menu.
- *
- * Keyed by the generated pair, so a chip the server adds cannot be silently
- * missing here — `smart-chip-picker-plugin.test.ts` fails if one is.
- */
-export const SMART_CHIP_MENU: Record<
-  SmartChipKind,
-  { labelKey: string; icon: JSX.Element; keywords: string[] }
-> = {
-  [SmartChipKind["task:status"]]: {
-    labelKey: "smartChips.taskStatus",
-    icon: <CircleDot className="size-4" />,
-    keywords: ["status", "task", "state", "column", "chip", "done"],
-  },
-  [SmartChipKind["task:assignee"]]: {
-    labelKey: "smartChips.taskAssignee",
-    icon: <User className="size-4" />,
-    keywords: ["assignee", "task", "who", "owner", "chip"],
-  },
-  [SmartChipKind["task:due"]]: {
-    labelKey: "smartChips.taskDue",
-    icon: <CalendarClock className="size-4" />,
-    keywords: ["due", "task", "date", "deadline", "chip"],
-  },
-  [SmartChipKind["task:priority"]]: {
-    labelKey: "smartChips.taskPriority",
-    icon: <Flag className="size-4" />,
-    keywords: ["priority", "task", "urgent", "chip"],
-  },
-  [SmartChipKind["counter:value"]]: {
-    labelKey: "smartChips.counterValue",
-    icon: <Gauge className="size-4" />,
-    keywords: ["counter", "count", "number", "value", "chip"],
-  },
-  [SmartChipKind["calendar_event:when"]]: {
-    labelKey: "smartChips.eventWhen",
-    icon: <CalendarClock className="size-4" />,
-    keywords: ["event", "when", "date", "calendar", "chip"],
-  },
-};
 
 /**
  * One `/` entry per chip, built from the generated list.

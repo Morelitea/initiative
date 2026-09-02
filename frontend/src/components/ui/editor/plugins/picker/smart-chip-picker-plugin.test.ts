@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
-import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
+import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 
 describe("the insert menu", () => {
   it("offers every chip the server answers", () => {

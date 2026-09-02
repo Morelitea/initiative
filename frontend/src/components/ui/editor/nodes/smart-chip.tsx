@@ -51,9 +51,11 @@ export function SmartChip({ chipKind, entityId, fallback }: SmartChipProps) {
   );
 
   const refType = entityRefTypeFor(entityType);
+  // Something that could not be read has nowhere to go — the same answer
+  // whether it was deleted or was never this reader's to see.
   const reachable = refType !== null && display.live;
   const open = () => {
-    if (!refType) return;
+    if (!refType || !reachable) return;
     void navigate({ to: guildPath(guildId, entityRefRoute(refType, entityId)) });
   };
 
@@ -71,11 +73,13 @@ export function SmartChip({ chipKind, entityId, fallback }: SmartChipProps) {
         <button
           type="button"
           onClick={open}
-          disabled={!refType}
+          // `aria-disabled` rather than `disabled`: a disabled button takes no
+          // pointer events, and the card is what explains why this one is dim.
+          aria-disabled={!reachable}
           className={cn(
             "mx-0.5 inline-flex items-center rounded px-1.5 py-0.5 align-baseline font-medium text-xs",
             display.className,
-            refType ? "cursor-pointer hover:brightness-95" : "cursor-default"
+            reachable ? "cursor-pointer hover:brightness-95" : "cursor-default"
           )}
           // A status carries a colour its project chose, which beats any tone.
           style={
