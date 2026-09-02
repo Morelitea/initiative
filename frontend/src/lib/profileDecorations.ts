@@ -262,7 +262,6 @@ type DecorationName =
   | "split"
   | "spoon"
   | "stack"
-  | "stacks"
   | "stage"
   | "stitching"
   | "stones"
@@ -377,7 +376,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "books.desk": entry("books.desk", "banner", "books-desk", "writingdesk", "dark"),
   "books.shelf": entry("books.shelf", "banner", "books-shelf", "bookshelf", "dark"),
-  "books.stacks": entry("books.stacks", "banner", "books-stacks", "stacks"),
   "books.pages": entry("books.pages", "frame", "books-pages", "pages"),
   "books.spines": entry("books.spines", "frame", "books-spines", "spines"),
   "books.glasses": entry("books.glasses", "trophy", "books-glasses", "glasses"),

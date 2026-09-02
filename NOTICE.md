@@ -37,6 +37,9 @@ people who made them.
   megabytes, which is not a thing to send anybody for a profile banner.
 - **`banners/pets-fetch.svg`** — a public-domain drawing of a dog, on the black
   it was drawn on, baked to a banner-sized image.
+- **`trophies/plants-morel.svg`** — the morel is *Morel* by **platzster**, from
+  [Openclipart](https://openclipart.org/), released to the public domain. Only
+  the disc behind it and its colour are ours.
 
 - **`trophies/firstnations-handprint.svg`** — the hand is
   [Red hand](https://commons.wikimedia.org/wiki/File:Red_hand.svg) by
