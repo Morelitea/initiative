@@ -8,8 +8,8 @@
   "long_description": "For loose leaf, the third cup, the kettle that never quite goes cold, and everyone who has opinions about water temperature.",
   "avatar_url": "/decorations/banners/tea-service.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -28,6 +28,36 @@
         "id": "tea.cup",
         "slot": "trophy",
         "name": "Cup"
+      },
+      {
+        "id": "tea.garden",
+        "slot": "banner",
+        "name": "Tea garden"
+      },
+      {
+        "id": "tea.caddies",
+        "slot": "banner",
+        "name": "Caddies"
+      },
+      {
+        "id": "tea.porcelain",
+        "slot": "frame",
+        "name": "Porcelain"
+      },
+      {
+        "id": "tea.bag",
+        "slot": "trophy",
+        "name": "Tea bag"
+      },
+      {
+        "id": "tea.pot",
+        "slot": "trophy",
+        "name": "Teapot"
+      },
+      {
+        "id": "tea.matcha",
+        "slot": "trophy",
+        "name": "Matcha"
       }
     ]
   }

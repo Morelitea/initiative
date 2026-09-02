@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>The stacks</title>
+  <!-- Down an aisle nobody has walked today. -->
+  <style>
+    .flicker { animation: buzz 8s ease-in-out infinite }
+    @keyframes buzz { 0%,100% { opacity: 1 } 47% { opacity: .82 } 52% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { .flicker { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="aisle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2A1D10"/><stop offset="100%" stop-color="#160F08"/>
+    </linearGradient>
+    <radialGradient id="far" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FFE7B8" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#FFE7B8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#aisle)"/>
+  <ellipse class="flicker" cx="80" cy="20" rx="34" ry="20" fill="url(#far)"/>
+  <path d="M0 40 L64 26 L96 26 L160 40 Z" fill="#4A2E18"/>
+  <path d="M0 0 L64 12 L96 12 L160 0 Z" fill="#241708"/>
+  <path d="M0 6 L64 13.4 L64 26.6 L0 36 Z" fill="#3A2412"/>
+  <path d="M160 6 L96 13.4 L96 26.6 L160 36 Z" fill="#3A2412"/>
+  <g fill="#5A3A1E">
+    <path d="M0 14 L64 17 L64 18.4 L0 16 Z"/><path d="M0 22 L64 22 L64 23.4 L0 24.6 Z"/>
+    <path d="M160 14 L96 17 L96 18.4 L160 16 Z"/><path d="M160 22 L96 22 L96 23.4 L160 24.6 Z"/>
+  </g>
+  <g>
+    <path d="M2 8.6 L62 14.6 L62 17 L2 14 Z" fill="#8C3B34"/>
+    <path d="M10 9.4 L28 11.4 L28 15 L10 13 Z" fill="#2F5C6E"/>
+    <path d="M36 12.4 L52 14 L52 16.4 L36 15 Z" fill="#C08A3E"/>
+    <path d="M2 18.6 L62 19.6 L62 22 L2 22.4 Z" fill="#4A6B3C"/>
+    <path d="M14 19 L30 19.4 L30 22.2 L14 22.2 Z" fill="#6B4A8C"/>
+    <path d="M40 19.6 L58 19.8 L58 21.8 L40 21.9 Z" fill="#B4562F"/>
+    <path d="M2 26 L62 24.6 L62 27 L2 29.4 Z" fill="#356070"/>
+    <path d="M18 25.6 L36 24.9 L36 27.6 L18 28.6 Z" fill="#C7A15C"/>
+    <path d="M158 8.6 L98 14.6 L98 17 L158 14 Z" fill="#4A6B3C"/>
+    <path d="M132 9.4 L114 11.4 L114 15 L132 13 Z" fill="#8C3B34"/>
+    <path d="M104 12.4 L120 14 L120 16.4 L104 15 Z" fill="#6B4A8C"/>
+    <path d="M158 18.6 L98 19.6 L98 22 L158 22.4 Z" fill="#C08A3E"/>
+    <path d="M126 19 L110 19.4 L110 22.2 L126 22.2 Z" fill="#2F5C6E"/>
+    <path d="M158 26 L98 24.6 L98 27 L158 29.4 Z" fill="#B4562F"/>
+    <path d="M140 25.6 L122 24.9 L122 27.6 L140 28.6 Z" fill="#356070"/>
+  </g>
+  <g class="flicker"><path d="M70 10.6 L90 10.6 L90 12 L70 12 Z" fill="#FFE0A8"/></g>
+  <path d="M64 12 L96 12 L96 26 L64 26 Z" fill="#F0D8A0" opacity=".2"/>
+  <path d="M64 26 L96 26 L104 40 L56 40 Z" fill="#FFE7B8" opacity=".13"/>
+  <g stroke="#7A4F2C" stroke-width="1" fill="none">
+    <path d="M112 12.6 L108 30"/><path d="M118 13.4 L116 30"/>
+    <path d="M111.4 15 L117.4 15.4"/><path d="M110.4 19 L117 19.2"/>
+    <path d="M109.4 23 L116.6 23"/><path d="M108.6 27 L116.2 27"/>
+  </g></svg>

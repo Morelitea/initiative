@@ -91,7 +91,6 @@ SHIPPED_DECORATIONS: dict[str, str] = {
     "core.ember": BANNER,
     "core.parchment": BANNER,
     "core.gold": FRAME,
-    "core.arcane": FRAME,
     "core.split": FRAME,
     # One trophy, and it is the app's own rather than any community's: a
     # trophy is a mark of belonging to something, and the thing everyone here

@@ -1729,14 +1729,27 @@ async def test_a_frame_that_takes_no_colour_is_stored_without_one(
     client: AsyncClient, session: AsyncSession
 ):
     """A colour on a frame that cannot take one is state nothing reads and
-    nothing clears, so it is not kept."""
+    nothing clears, so it is not kept. Every frame that ships takes one, so the
+    frame under test is one a pack granted."""
     user = await create_user(session)
+    session.add(
+        UserDecoration(
+            user_id=user.id,
+            decoration_id="pack.ironwork",
+            kind="frame",
+            source="studio.ironwork-pack",
+        )
+    )
+    await session.commit()
 
     response = await client.patch(
         "/api/v1/users/me",
         headers=get_auth_headers(user),
         json={
-            "profile_decorations": {"frame": "core.arcane", "frame_tint": ["#AA0011"]}
+            "profile_decorations": {
+                "frame": "pack.ironwork",
+                "frame_tint": ["#AA0011"],
+            }
         },
     )
 
@@ -1757,6 +1770,55 @@ async def test_a_colour_that_is_not_a_colour_is_refused(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_a_pack_that_grew_gives_the_new_piece_to_whoever_has_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """A pack is not frozen at the moment it was installed: what it carries is
+    the catalog's answer, and a piece added in a later version is in the library
+    on the next read rather than only for whoever installs it after today."""
+    user = await create_user(session)
+    listing = await create_profile_pack(
+        session, uid="PACKGREW000001", public_id="studio.grew", slug="grew"
+    )
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
+    await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
+
+    # The pack publishes a version with one more piece in it.
+    await marketplace_catalog.upsert_listing(
+        session,
+        {
+            "uid": listing.uid,
+            "public_id": listing.public_id,
+            "kind": "profile_pack",
+            "name": listing.name,
+            "publisher": "Studio",
+            "description": listing.description,
+            "version": "2.0.0",
+            "definition": {
+                "schema_version": 1,
+                "kind": "profile_pack",
+                "decorations": [
+                    {"id": "grew.banner", "slot": "banner", "name": "A banner"},
+                    {"id": "grew.frame", "slot": "frame", "name": "A frame"},
+                    {"id": "grew.trophy", "slot": "trophy", "name": "A trophy"},
+                    {"id": "grew.later", "slot": "trophy", "name": "Added later"},
+                ],
+            },
+        },
+        source="builtin",
+    )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    held = {item["id"] for item in response.json()["items"]}
+    assert "grew.later" in held
 
 
 @pytest.mark.integration

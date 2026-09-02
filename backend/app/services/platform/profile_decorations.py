@@ -34,6 +34,52 @@ from app.schemas.platform.user import OwnedDecoration, ProfileDecorations
 _MAX_PACKS = 200
 
 
+async def _as_the_packs_stand(
+    session: AsyncSession, granted: list[UserDecoration]
+) -> list[UserDecoration]:
+    """The granted rows, re-read against what their packs carry today.
+
+    Returned as unsaved ``UserDecoration`` objects rather than written back: the
+    row is the record of a grant and stays as it was, and what a pack contains
+    is the catalog's answer, asked each time. A row whose pack this deployment
+    no longer offers is kept exactly as it is — losing a decoration because a
+    listing was withdrawn is the one thing withdrawal is not supposed to do.
+    """
+    sources = {row.source for row in granted if row.source}
+    if not sources:
+        return granted
+
+    fresh: list[UserDecoration] = []
+    seen: set[str] = set()
+    for source in sorted(sources):
+        pack = await pack_by_uid(session, source)
+        rows = [row for row in granted if row.source == source]
+        if pack is None:
+            fresh.extend(row for row in rows if row.decoration_id not in seen)
+            seen.update(row.decoration_id for row in rows)
+            continue
+        first = rows[0]
+        for decoration_id, kind in sorted(pack.decorations.items()):
+            if decoration_id in seen or decoration_id in SHIPPED_DECORATIONS:
+                continue
+            seen.add(decoration_id)
+            fresh.append(
+                UserDecoration(
+                    user_id=first.user_id,
+                    decoration_id=decoration_id,
+                    kind=kind,
+                    source=source,
+                    acquired_at=first.acquired_at,
+                )
+            )
+    # A row with no pack behind it at all — hand-granted, or from a listing this
+    # build has never seen — is still the account's.
+    fresh.extend(
+        row for row in granted if not row.source and row.decoration_id not in seen
+    )
+    return fresh
+
+
 async def _granted_names(
     session: AsyncSession, sources: set[str]
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -94,6 +140,11 @@ async def owned_decorations(
         )
     ).all()
     granted = [row for row in rows if row.decoration_id not in SHIPPED_DECORATIONS]
+    # A pack that gains a piece gives it to everybody who has the pack. The rows
+    # record *which packs* an account took, and the pack itself says what that
+    # means now — so a piece added in a later version is in the library on the
+    # next read rather than only for whoever installs it after today.
+    granted = await _as_the_packs_stand(session, granted)
     names, packs = await _granted_names(
         session, {row.source for row in granted if row.source}
     )

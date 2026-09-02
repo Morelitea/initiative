@@ -8,8 +8,8 @@
   "long_description": "For reading groups, book clubs, the buy-more-than-you-finish contingent, and anyone whose spare room has become a library.",
   "avatar_url": "/decorations/banners/books-shelf.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -28,6 +28,41 @@
         "id": "books.stack",
         "slot": "trophy",
         "name": "Stack"
+      },
+      {
+        "id": "books.desk",
+        "slot": "banner",
+        "name": "Writing desk"
+      },
+      {
+        "id": "books.stacks",
+        "slot": "banner",
+        "name": "The stacks"
+      },
+      {
+        "id": "books.spines",
+        "slot": "frame",
+        "name": "Spines"
+      },
+      {
+        "id": "books.typewriter",
+        "slot": "trophy",
+        "name": "Typewriter"
+      },
+      {
+        "id": "books.quill",
+        "slot": "trophy",
+        "name": "Quill and ink"
+      },
+      {
+        "id": "books.glasses",
+        "slot": "trophy",
+        "name": "Reading glasses"
+      },
+      {
+        "id": "books.notebook",
+        "slot": "trophy",
+        "name": "Notebook"
       }
     ]
   }

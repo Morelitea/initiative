@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Lake</title>
+  <!-- Still enough to hold the whole thing upside down. -->
+  <defs>
+    <linearGradient id="calm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6C98E"/><stop offset="55%" stop-color="#C88A7E"/>
+      <stop offset="100%" stop-color="#5A5E8C"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#calm)"/>
+  <circle cx="80" cy="15" r="5.4" fill="#FFE7B8" opacity=".9"/>
+  <path d="M0 20 L24 8 L42 18 L58 6 L80 20 L100 9 L120 19 L138 7 L160 20 L160 22 L0 22 Z"
+        fill="#3A4A62"/>
+  <g fill="#F2F8FC" opacity=".9">
+    <path d="M58 6 L63 11 L60.6 10.4 L58.4 11.6 L56.4 10.4 L54 11.6 Z"/>
+    <path d="M138 7 L143 12 L140.6 11.4 L138.4 12.6 L136.4 11.4 L134 12.6 Z"/>
+  </g>
+  <path d="M0 22 L160 22 L160 40 L0 40 Z" fill="#2E3E62"/>
+  <path d="M0 24 L24 36 L42 26 L58 38 L80 24 L100 35 L120 25 L138 37 L160 24 L160 22 L0 22 Z"
+        fill="#3A4A62" opacity=".5"/>
+  <circle cx="80" cy="29" r="5.4" fill="#FFE7B8" opacity=".3"/>
+  <g stroke="#8FA8C8" stroke-width=".5" fill="none" opacity=".5">
+    <path d="M6 27 C20 26.4 34 27.4 48 26.8"/><path d="M60 31 C74 30.4 88 31.4 102 30.8"/>
+    <path d="M110 25.6 C124 25 138 26 152 25.4"/><path d="M20 35 C34 34.4 48 35.4 62 34.8"/>
+    <path d="M100 37 C114 36.4 128 37.4 142 36.8"/>
+  </g>
+  <g fill="#1E2A3E">
+    <path d="M8 22 C8 18.6 9.4 16 11 14.6 C12.6 16 14 18.6 14 22 Z"/>
+    <path d="M16 22 C16 19.4 17 17.4 18.2 16.4 C19.4 17.4 20.4 19.4 20.4 22 Z"/>
+    <path d="M148 22 C148 18.6 149.4 16 151 14.6 C152.6 16 154 18.6 154 22 Z"/>
+  </g>
+  <ellipse cx="34" cy="22.6" rx="8" ry="1" fill="#1E2A3E" opacity=".5"/></svg>

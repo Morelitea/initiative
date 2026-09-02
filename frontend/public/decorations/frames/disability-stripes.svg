@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Five stripes</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- The five bands of the disability pride flag, run round the picture: one
+       for physical, one for neurodivergence, one for what is not visible, one
+       for psychiatric and one for sensory. -->
+  <path d="M64 0.6 A63.4 63.4 0 1 0 64 127.4 A63.4 63.4 0 1 0 64 0.6 Z M64 13.4 A50.6 50.6 0 1 1 64 114.6 A50.6 50.6 0 1 1 64 13.4 Z" fill="#595959" fill-rule="evenodd"/>
+  <circle cx="64" cy="64" r="62.12" fill="none" stroke="#CF7280" stroke-width="2.66"/><circle cx="64" cy="64" r="59.56" fill="none" stroke="#EEDE77" stroke-width="2.66"/><circle cx="64" cy="64" r="57" fill="none" stroke="#E8E8E8" stroke-width="2.66"/><circle cx="64" cy="64" r="54.44" fill="none" stroke="#7BC2E0" stroke-width="2.66"/><circle cx="64" cy="64" r="51.88" fill="none" stroke="#3BB07D" stroke-width="2.66"/>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#3A3A3E" stroke-width="1.8"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#3A3A3E" stroke-width="1.4"/>
+</svg>

@@ -116,7 +116,7 @@ describe("a member's profile", () => {
       buildUserProfile({
         profile_decorations: {
           banner: "core.aurora",
-          frame: "core.arcane",
+          frame: "spooky.web",
           trophies: ["ttrpg.d20", "thirdparty.unknown"],
         },
       })
@@ -131,7 +131,7 @@ describe("a member's profile", () => {
     // The frame is worn over the picture and says nothing, so it is hidden
     // from assistive technology and found by its source instead.
     expect(
-      container.querySelector('img[src="/decorations/frames/core-arcane.svg"]')
+      container.querySelector('img[src="/decorations/frames/spooky-web.svg"]')
     ).not.toBeNull();
     // The banner runs the width of the content area now, the way a
     // community's front page does, so it is a picture rather than a fill.

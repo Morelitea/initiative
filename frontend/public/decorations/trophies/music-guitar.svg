@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Electric guitar</title>
+  <circle cx="24" cy="24" r="23" fill="#140F1F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#F0567A" stroke-width="2"/>
+  <g transform="rotate(-34 24 24)">
+    <path d="M20 24 C14 24 10 27.6 10 32.6 C10 37 13 39.6 17 39.6 C19.6 39.6 21 38.4 22.6 38.4
+             C24.2 38.4 25.6 39.6 28.2 39.6 C32.2 39.6 35.2 37 35.2 32.6
+             C35.2 27.6 31.2 24 25.2 24 Z" fill="#C4302B"/>
+    <path d="M20 24 C14 24 10 27.6 10 32.6 C10 35.6 11.4 37.8 13.6 38.8
+             C13 36.6 13.4 33.4 15 30.6 C16.6 27.6 18.6 25.4 21 24 Z" fill="#E0554E"/>
+    <ellipse cx="22.6" cy="31" rx="3.4" ry="2.6" fill="#2A2622"/>
+    <path d="M18.6 34.6 L27 34.6 L27 37 L18.6 37 Z" fill="#C4CAD2"/>
+    <path d="M21 6 L25 6 L25 24 L21 24 Z" fill="#5E3A1A"/>
+    <path d="M20 2 L26 2 C27 2 27.6 2.6 27.6 3.6 L27.6 6.6 L18.4 6.6 L18.4 3.6
+             C18.4 2.6 19 2 20 2 Z" fill="#3A2210"/>
+    <g stroke="#E8E2D6" stroke-width=".4">
+      <path d="M21.6 6 L21.9 24"/><path d="M22.6 6 L22.8 24"/>
+      <path d="M23.4 6 L23.4 24"/><path d="M24.4 6 L24.1 24"/>
+    </g>
+    <g fill="#C4CAD2">
+      <rect x="18.8" y="3" width="1.4" height="1.2" rx=".4"/>
+      <rect x="18.8" y="5" width="1.4" height="1.2" rx=".4"/>
+      <rect x="25.8" y="3" width="1.4" height="1.2" rx=".4"/>
+      <rect x="25.8" y="5" width="1.4" height="1.2" rx=".4"/>
+    </g>
+  </g></svg>

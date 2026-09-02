@@ -45,32 +45,36 @@
       <path d="M80 8.4 C78.6 5.4 79.4 2.6 81.4 1 C81 3.6 81.6 5.6 82.6 7 Z"/>
       <path d="M82.4 8.4 C82.8 5.4 84.4 3.4 86.6 2.6 C85 4.6 84.4 6.6 84.6 8.4 Z"/>
     </g>
-    <!-- The body: one long crescent, closed. -->
-    <path d="M40 24 C48 15.4 62 11.4 78 11.4 C96 11.4 110 15.4 118 22
-             C112 20 104 19 96 19.4 C104 21.4 110 24.6 114 29
-             C106 25.4 96 23.4 86 23.4 C70 23.4 54 25 40 24 Z" fill="#1E1712"/>
-    <!-- Tail flukes. -->
-    <path d="M114 29 C120 27 126 25.4 132 25 C129 27.6 126 29.4 122.6 30.4
-             C126 31.4 129 33 132 35 C126 34.4 120 32.4 114 29 Z" fill="#1E1712"/>
+    <!-- One body, tapering into one tail stock. -->
+    <path d="M38 22.6 C44 16.4 58 12.4 76 12.4 C94 12.4 108 16.4 116 22
+             C110 24.4 104 26 98 26.6 C86 27.8 72 27.4 58 26.4 C50 25.8 43 24.6 38 22.6 Z"
+          fill="#1E1712"/>
+    <!-- Tail stock and the two flukes it ends in. -->
+    <path d="M116 22 C120 23 124 24.6 127 26.4 C130 24.4 133.6 22.6 137 21.6
+             C135 24.6 132 27 128.4 28.4 C132 29.8 135 32.2 137 35.2
+             C133.6 34.2 130 32.4 127 30.4 C124 32.2 120 33.4 116 34
+             C114 30 114 26 116 22 Z" fill="#1E1712"/>
     <!-- Dorsal fin. -->
-    <path d="M76 11.6 C76.6 6.6 79.4 3.4 84 2 C82.6 5.4 82.6 8.6 83.6 11.6 Z" fill="#1E1712"/>
-    <!-- Pectoral fin, in front. -->
-    <path d="M66 22.6 C64 27 62.6 31 62.6 34.6 C66.6 31.4 70 27.6 72.4 23.4 Z" fill="#1E1712"/>
+    <path d="M74 12.6 C74.6 7.4 77.6 4 82.4 2.6 C81 6 81 9.4 82 12.6 Z" fill="#1E1712"/>
+    <!-- One pectoral, swept back under it. -->
+    <path d="M62 25.4 C60 29.4 58.6 32.6 58.6 35.6 C62.6 33 66 29.6 68.4 25.6 Z"
+          fill="#1E1712"/>
     <!-- The white of the saddle and the eye patch. -->
-    <path d="M86 19.4 C92 19.4 97 20 101 21 C97 22.4 92 23 86 23 C84.6 22 84.6 20.4 86 19.4 Z"
-          fill="#E8DCC4"/>
-    <path d="M52 16.4 C56 14.6 60.6 13.6 65 13.4 C63.4 15.6 61 17.4 58 18.4
-             C55.4 18.4 53.4 17.8 52 16.4 Z" fill="#E8DCC4"/>
+    <path d="M88 21.4 C94 21.2 99 21.6 103 22.4 C99 23.8 94 24.6 88 24.8
+             C86.6 23.8 86.6 22.4 88 21.4 Z" fill="#E8DCC4"/>
+    <path d="M50 17 C54 15.4 58.6 14.6 63 14.4 C61.4 16.6 59 18.4 56 19.2
+             C53.4 19.2 51.4 18.4 50 17 Z" fill="#E8DCC4"/>
     <!-- The eye: an oval inside an oval, which is how an eye is drawn here. -->
-    <ellipse cx="52" cy="19.6" rx="4.6" ry="3" fill="#E8DCC4"
-             transform="rotate(-12 52 19.6)"/>
-    <ellipse cx="52" cy="19.6" rx="2.4" ry="1.6" fill="#1E1712"
-             transform="rotate(-12 52 19.6)"/>
+    <ellipse cx="50" cy="19.6" rx="4.6" ry="3" fill="#E8DCC4"
+             transform="rotate(-12 50 19.6)"/>
+    <ellipse cx="50" cy="19.6" rx="2.4" ry="1.6" fill="#1E1712"
+             transform="rotate(-12 50 19.6)"/>
     <!-- The mouth, as a crescent. -->
-    <path d="M40 24 C44 23 48 22.6 52 22.6 C48 24.4 44 24.6 40 24 Z" fill="#B4231F"/>
-    <!-- Two crescents cut out of the flank, the way the form is opened up. -->
-    <path d="M68 16.6 C72 15.4 76 15.2 79.4 16 C76 17.6 72 18 68 16.6 Z" fill="#B4231F"/>
-    <path d="M92 15.6 C96 14.6 100 14.8 103 16 C99.4 17 95.6 17 92 15.6 Z" fill="#B4231F"/>
-    <path d="M100 27 C103.4 26.4 106.6 26.6 109 27.6 C106 28.6 103 28.4 100 27 Z" fill="#B4231F"/>
+    <path d="M38 22.6 C42 21.6 46 21.2 50 21.2 C46 23 42 23.2 38 22.6 Z" fill="#B4231F"/>
+    <!-- Crescents cut out of the flank, the way the form is opened up. -->
+    <path d="M66 17.6 C70 16.4 74 16.2 77.4 17 C74 18.6 70 19 66 17.6 Z" fill="#B4231F"/>
+    <path d="M92 16.6 C96 15.6 100 15.8 103 17 C99.4 18 95.6 18 92 16.6 Z" fill="#B4231F"/>
+    <path d="M118 27 C121 26.4 124 26.6 126.4 27.6 C123.6 28.6 120.6 28.4 118 27 Z"
+          fill="#B4231F"/>
   </g>
 </svg>

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Turntable</title>
+  <style>
+    .spin { animation: turn 3.6s linear infinite;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes turn { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .spin { animation: none } }
+  </style>
+  <circle cx="24" cy="24" r="23" fill="#1E140C"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B21C" stroke-width="2"/>
+  <rect x="5.6" y="9" width="36.8" height="30" rx="2.6" fill="#2E2A26"/>
+  <rect x="5.6" y="9" width="36.8" height="30" rx="2.6" fill="none" stroke="#4E4842"
+        stroke-width=".8"/>
+  <g class="spin">
+    <circle cx="21.6" cy="23.4" r="12.4" fill="#12100E"/>
+    <g fill="none" stroke="#3A3632" stroke-width=".55">
+      <circle cx="21.6" cy="23.4" r="10.4"/><circle cx="21.6" cy="23.4" r="8.6"/>
+      <circle cx="21.6" cy="23.4" r="6.8"/>
+    </g>
+    <circle cx="21.6" cy="23.4" r="4.6" fill="#C4211C"/>
+    <path d="M17 23.4 A4.6 4.6 0 0 1 26.2 23.4 Z" fill="#E8B21C"/>
+    <circle cx="21.6" cy="23.4" r=".9" fill="#2E2A26"/>
+  </g>
+  <circle cx="21.6" cy="23.4" r="12.4" fill="none" stroke="#4E4842" stroke-width=".6"/>
+  <!-- The arm, down on the record. -->
+  <circle cx="37.4" cy="13.6" r="2.6" fill="#8A857E"/>
+  <circle cx="37.4" cy="13.6" r="1.1" fill="#5A554E"/>
+  <path d="M37.4 13.6 L30.6 26.4" stroke="#B4AFA6" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M31.4 25 L28.6 29 L30.6 30 L32.6 26.4 Z" fill="#E8E2D6"/>
+  <g fill="#1B7A3E">
+    <rect x="8.6" y="32.4" width="3.4" height="3.4" rx=".8"/>
+  </g>
+  <g fill="#C4211C">
+    <rect x="13.6" y="32.4" width="3.4" height="3.4" rx=".8"/>
+  </g>
+  <rect x="34" y="31" width="5.4" height="5.4" rx=".8" fill="#3E3A36"/>
+  <path d="M36.7 32 L36.7 35.4" stroke="#E8B21C" stroke-width="1"/>
+</svg>

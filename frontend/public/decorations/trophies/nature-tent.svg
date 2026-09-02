@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Tent</title>
+  <circle cx="24" cy="24" r="23" fill="#0F1A22"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#4E7A6E" stroke-width="2"/>
+  <path d="M4 38 L44 38 L44 40.6 L4 40.6 Z" fill="#2E4A44"/>
+  <path d="M24 8 L42 38 L6 38 Z" fill="#3E7A5E"/>
+  <path d="M24 8 L42 38 L30 38 L24 20 Z" fill="#2E5E48"/>
+  <path d="M24 20 L34 38 L14 38 Z" fill="#12201E"/>
+  <path d="M24 20 L18 38 L14 38 Z" fill="#4E9074"/>
+  <path d="M24 20 L30 38 L34 38 Z" fill="#356B54"/>
+  <g stroke="#8A9098" stroke-width=".8">
+    <path d="M24 8 L24 4"/><path d="M42 38 L46 34"/><path d="M6 38 L2 34"/>
+  </g>
+  <circle cx="24" cy="4" r="1.4" fill="#F2C230"/>
+  <g fill="#E8730C" opacity=".9">
+    <path d="M9 33 C9 30.6 10 29 11.4 27.6 C12.8 29 13.8 30.6 13.8 33 Z" opacity="0"/>
+  </g></svg>

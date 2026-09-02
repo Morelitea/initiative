@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Stones</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2A28"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA86A" stroke-width="2"/>
+  <ellipse cx="24" cy="40" rx="14" ry="2.6" fill="#0E1614" opacity=".6"/>
+  <ellipse cx="24" cy="37" rx="12" ry="4" fill="#6E7A72"/>
+  <ellipse cx="24" cy="35.6" rx="12" ry="4" fill="#8A968C"/>
+  <ellipse cx="24" cy="29.6" rx="9" ry="3.4" fill="#6E7A72"/>
+  <ellipse cx="24" cy="28.4" rx="9" ry="3.4" fill="#9EAA9E"/>
+  <ellipse cx="24" cy="23.4" rx="6.6" ry="2.8" fill="#6E7A72"/>
+  <ellipse cx="24" cy="22.4" rx="6.6" ry="2.8" fill="#8A968C"/>
+  <ellipse cx="24" cy="18" rx="4.6" ry="2.2" fill="#6E7A72"/>
+  <ellipse cx="24" cy="17.2" rx="4.6" ry="2.2" fill="#AEB8AC"/>
+  <ellipse cx="24" cy="13.4" rx="3" ry="1.6" fill="#6E7A72"/>
+  <ellipse cx="24" cy="12.8" rx="3" ry="1.6" fill="#9EAA9E"/>
+  <g fill="#FFFFFF" opacity=".22">
+    <ellipse cx="19" cy="34.6" rx="3.4" ry="1.2"/><ellipse cx="20.6" cy="27.6" rx="2.6" ry="1"/>
+    <ellipse cx="21.6" cy="21.8" rx="2" ry=".8"/>
+  </g></svg>

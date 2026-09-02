@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Plates</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Loaded round the picture, colour-coded the way plates are. -->
+  <path d="M64 0.6 A63.4 63.4 0 1 0 64 127.4 A63.4 63.4 0 1 0 64 0.6 Z M64 13.4 A50.6 50.6 0 1 1 64 114.6 A50.6 50.6 0 1 1 64 13.4 Z" fill="#1E2126" fill-rule="evenodd"/>
+  <circle cx="64" cy="64" r="57" fill="none" stroke="#4E545C" stroke-width="2.6"/>
+  <g transform="translate(121 64) rotate(90)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#C0221E"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(110.11 97.5) rotate(126)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#1B3FBF"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(81.61 118.21) rotate(162)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#F2C230"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(46.39 118.21) rotate(198)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#1B7A3E"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(17.89 97.5) rotate(234)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#161616"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(7 64) rotate(270)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#C0221E"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(17.89 30.5) rotate(306)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#1B3FBF"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(46.39 9.79) rotate(342)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#F2C230"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(81.61 9.79) rotate(378)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#1B7A3E"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g><g transform="translate(110.11 30.5) rotate(414)">
+    <rect x="-6.4" y="-2.6" width="12.8" height="5.2" rx="1.4" fill="#161616"/>
+    <rect x="-6.4" y="-2.6" width="12.8" height="1.6" rx=".8" fill="#FFFFFF" opacity=".22"/>
+    <rect x="-2" y="-3.4" width="4" height="6.8" rx="1" fill="#8A9098"/>
+  </g>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#12151A" stroke-width="1.8"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#12151A" stroke-width="1.4"/>
+</svg>

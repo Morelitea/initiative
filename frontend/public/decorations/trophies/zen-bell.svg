@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Singing bowl</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2A28"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA86A" stroke-width="2"/>
+  <defs>
+    <linearGradient id="bowl" x1=".2" y1="0" x2=".9" y2="1">
+      <stop offset="0%" stop-color="#E8C878"/><stop offset="50%" stop-color="#C09A3A"/>
+      <stop offset="100%" stop-color="#7E6014"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="24" cy="38.6" rx="13" ry="2.6" fill="#4A3A22"/>
+  <path d="M9.6 26 C9.6 33.4 15.6 38 24 38 C32.4 38 38.4 33.4 38.4 26 Z" fill="url(#bowl)"/>
+  <ellipse cx="24" cy="26" rx="14.4" ry="4.4" fill="#E8C878"/>
+  <ellipse cx="24" cy="26.4" rx="12" ry="3.4" fill="#7E6014"/>
+  <g fill="none" stroke="#8E6E18" stroke-width=".6" opacity=".6">
+    <path d="M11 30 C16 32.4 32 32.4 37 30"/><path d="M13 34 C17 35.8 31 35.8 35 34"/>
+  </g>
+  <path d="M12.6 29 C13.6 25.4 16.6 23 20.6 22.4" fill="none" stroke="#F6E2A8"
+        stroke-width="1.4" opacity=".5" stroke-linecap="round"/>
+  <g transform="rotate(24 34 14)">
+    <path d="M32.6 6 L35.4 6 L35.4 20 L32.6 20 Z" fill="#8A6034"/>
+    <ellipse cx="34" cy="21.4" rx="3" ry="2.4" fill="#C9A063"/>
+  </g>
+  <g fill="none" stroke="#E8C878" stroke-width=".9" opacity=".5">
+    <path d="M6 20 C4 22.6 4 27.4 6 30"/><path d="M42 20 C44 22.6 44 27.4 42 30"/>
+  </g></svg>

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Trail</title>
+  <!-- Out before it is properly light, which is the only way it happens. -->
+  <defs>
+    <linearGradient id="earlysky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#26365E"/><stop offset="55%" stop-color="#C4708A"/>
+      <stop offset="100%" stop-color="#F6C08E"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#earlysky)"/>
+  <circle cx="102" cy="20" r="6" fill="#FFE7B8" opacity=".9"/>
+  <circle cx="102" cy="20" r="13" fill="#FFE7B8" opacity=".16"/>
+  <path d="M0 20 C18 14 34 17.6 52 15 C70 12.4 88 16 106 14 C124 12 142 15 160 13.6
+           L160 22 L0 22 Z" fill="#5A5478" opacity=".6"/>
+  <path d="M0 22 C22 18.6 46 21 70 19.4 C94 17.8 118 20.6 142 19 C150 18.4 156 19 160 18.6
+           L160 26 L0 26 Z" fill="#3A3A5E"/>
+  <g fill="#26264A">
+    <path d="M14 22 C14 18 15.6 15 17.4 13.4 C19.2 15 20.8 18 20.8 22 Z"/>
+    <path d="M28 22.6 C28 19 29.4 16.4 31 15 C32.6 16.4 34 19 34 22.6 Z"/>
+    <path d="M128 21.6 C128 18 129.4 15.4 131 14 C132.6 15.4 134 18 134 21.6 Z"/>
+    <path d="M142 22 C142 18.6 143.2 16.4 144.6 15 C146 16.4 147.2 18.6 147.2 22 Z"/>
+  </g>
+  <path d="M0 26 C24 24 60 26.6 90 25 C118 23.4 140 25.6 160 24.4 L160 40 L0 40 Z"
+        fill="#2E5B34"/>
+  <!-- The path itself, coming towards you. -->
+  <path d="M62 25.6 C58 29 48 33 30 40 L74 40 C82 33.6 86 28.6 86 25.4 Z" fill="#8A6A44"/>
+  <path d="M64 25.8 C61 28.6 54 32.4 42 38 L60 38 C68 32.6 72 28.6 73 25.6 Z" fill="#A07E52"/>
+  <g fill="#6B4E32" opacity=".6">
+    <ellipse cx="52" cy="33" rx="2.6" ry="1"/><ellipse cx="62" cy="30" rx="2" ry=".8"/>
+    <ellipse cx="44" cy="36.6" rx="3" ry="1.1"/>
+  </g>
+  <g fill="#1E3E24">
+    <ellipse cx="16" cy="30" rx="8" ry="3"/><ellipse cx="120" cy="29" rx="9" ry="3.4"/>
+    <ellipse cx="146" cy="32" rx="10" ry="3.6"/>
+  </g>
+  <!-- The runner, small and going away. -->
+  <g transform="translate(76 22)">
+    <circle cx="0" cy="-6" r="1.9" fill="#1E2126"/>
+    <path d="M-1.4 -4 C1 -4 2.4 -2.6 2.4 -.6 L2.4 1.4 L-2 1.4 L-2 -.6 Z" fill="#C0221E"/>
+    <g stroke="#1E2126" stroke-width="1.2" stroke-linecap="round" fill="none">
+      <path d="M-1 1.4 L-2.6 5 L-4.4 6.4"/><path d="M1.4 1.4 L2.6 4.6 L1.4 6.6"/>
+      <path d="M-1.6 -2.6 L-4 -.6"/><path d="M2 -2.6 L4 -4.6"/>
+    </g>
+  </g>
+  <g fill="#FFE7B8" opacity=".28">
+    <ellipse cx="90" cy="27" rx="30" ry="3"/>
+  </g></svg>

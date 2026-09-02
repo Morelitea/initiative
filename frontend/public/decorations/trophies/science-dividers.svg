@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Dividers</title>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+  <circle cx="24" cy="8.6" r="3.4" fill="#8FC7EE"/>
+  <circle cx="24" cy="8.6" r="1.4" fill="#123055"/>
+  <path d="M22.6 11 L25.4 11 L34.6 39.4 L31 40.6 Z" fill="#4A86BE"/>
+  <path d="M22.6 11 L25.4 11 L16.8 39.4 L13.2 40.6 Z" fill="#8FC7EE"/>
+  <path d="M31 40.6 L34.6 39.4 L36.4 44.4 L33 43.4 Z" fill="#CFE9FF"/>
+  <path d="M13.2 40.6 L16.8 39.4 L15 44.4 L11.6 43.4 Z" fill="#CFE9FF"/>
+  <path d="M18.6 26.6 C21.6 28.4 26.4 28.4 29.4 26.6" fill="none" stroke="#CFE9FF"
+        stroke-width="1.4"/>
+  <circle cx="24" cy="27.6" r="1.4" fill="#CFE9FF"/></svg>

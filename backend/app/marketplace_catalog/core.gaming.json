@@ -8,8 +8,8 @@
   "long_description": "Video games and tabletop in one pack, because it is mostly the same people. A dark room lit by a screen and a table an hour into the session; a pad bent round the picture and a ring of shell for a frame; and a controller and a twenty for trophies.",
   "avatar_url": "/decorations/banners/gaming-arcade.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.2.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",

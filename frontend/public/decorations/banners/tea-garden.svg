@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Tea garden</title>
+  <!-- Terraces at the hour the mist has not lifted. -->
+  <style>
+    .drift { animation: roll 22s ease-in-out infinite alternate }
+    .d2 { animation-duration: 28s; animation-delay: -8s }
+    @keyframes roll { from { transform: translateX(-6px) } to { transform: translateX(6px) } }
+    @media (prefers-reduced-motion: reduce) { .drift { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="mistysky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C4D8DC"/><stop offset="100%" stop-color="#EAEFE2"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#mistysky)"/>
+  <path d="M0 16 C20 9 40 13 62 10 C82 7.4 104 12 126 9 C142 7 152 10 160 8.6 L160 22 L0 22 Z"
+        fill="#8FA8A0" opacity=".55"/>
+  <path d="M0 20 C24 14.6 48 18 74 15.4 C98 13 122 17 146 14.6 C152 14 156 14.6 160 14.4
+           L160 26 L0 26 Z" fill="#6E8E72" opacity=".7"/>
+  <path d="M0 24 C26 20 60 22.6 90 20.6 C118 18.8 142 21 160 19.6 L160 24.6
+           C142 26 118 23.8 90 25.6 C60 27.6 26 25 0 29 Z" fill="#3E7A44"/>
+  <path d="M0 29 C26 25 60 27.6 90 25.6 C118 23.8 142 26 160 24.6 L160 30
+           C142 31.4 118 29.2 90 31 C60 33 26 30.4 0 34.4 Z" fill="#4E8E4A"/>
+  <path d="M0 34.4 C26 30.4 60 33 90 31 C118 29.2 142 31.4 160 30 L160 40 L0 40 Z"
+        fill="#356B3A"/>
+  <g stroke="#2E5B34" stroke-width=".5" opacity=".45">
+    <path d="M0 26.6 C26 22.6 60 25.2 90 23.2 C118 21.4 142 23.6 160 22.2"/>
+    <path d="M0 31.6 C26 27.6 60 30.2 90 28.2 C118 26.4 142 28.6 160 27.2"/>
+    <path d="M0 37 C26 33 60 35.6 90 33.6 C118 31.8 142 34 160 32.6"/>
+  </g>
+  <g fill="#2E6B36">
+    <ellipse cx="14" cy="27" rx="4" ry="2"/><ellipse cx="34" cy="25.6" rx="4" ry="2"/>
+    <ellipse cx="56" cy="24.6" rx="4" ry="2"/><ellipse cx="78" cy="23.6" rx="4" ry="2"/>
+    <ellipse cx="100" cy="22.6" rx="4" ry="2"/><ellipse cx="122" cy="22.6" rx="4" ry="2"/>
+    <ellipse cx="144" cy="22" rx="4" ry="2"/>
+    <ellipse cx="8" cy="33" rx="4.6" ry="2.3"/><ellipse cx="32" cy="31.4" rx="4.6" ry="2.3"/>
+    <ellipse cx="58" cy="30.4" rx="4.6" ry="2.3"/><ellipse cx="84" cy="29" rx="4.6" ry="2.3"/>
+    <ellipse cx="110" cy="28" rx="4.6" ry="2.3"/><ellipse cx="136" cy="27.6" rx="4.6" ry="2.3"/>
+  </g>
+  <g fill="#4E8E4A" opacity=".8">
+    <ellipse cx="13" cy="26.4" rx="2.6" ry="1.2"/><ellipse cx="55" cy="24" rx="2.6" ry="1.2"/>
+    <ellipse cx="99" cy="22" rx="2.6" ry="1.2"/><ellipse cx="31" cy="30.8" rx="3" ry="1.4"/>
+    <ellipse cx="83" cy="28.4" rx="3" ry="1.4"/><ellipse cx="135" cy="27" rx="3" ry="1.4"/>
+  </g>
+  <g transform="translate(72 30)">
+    <ellipse cx="0" cy="4" rx="3.4" ry="1" fill="#2A4A2A" opacity=".4"/>
+    <path d="M-2.4 3.6 C-2.4 -.6 -1.4 -3 0 -3 C1.4 -3 2.4 -.6 2.4 3.6 Z" fill="#3A5A8C"/>
+    <circle cx="0" cy="-4.4" r="1.9" fill="#8A6034"/>
+    <path d="M-2.4 -5 C-1.4 -6.6 1.4 -6.6 2.4 -5 C1.4 -5.4 -1.4 -5.4 -2.4 -5 Z" fill="#C9A063"/>
+    <path d="M2 -1.6 C4.4 -1.6 5.4 -.4 5.4 1.6 C5.4 3 4.4 3.6 2.4 3.6 Z" fill="#B58A5E"/>
+  </g>
+  <ellipse class="drift" cx="50" cy="20" rx="46" ry="2.6" fill="#FFFFFF" opacity=".38"/>
+  <ellipse class="drift d2" cx="118" cy="17" rx="40" ry="2.2" fill="#FFFFFF" opacity=".32"/></svg>
