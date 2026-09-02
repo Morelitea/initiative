@@ -6,8 +6,8 @@
   <defs>
     <clipPath id="tsDisc"><circle cx="24" cy="24" r="19"/></clipPath>
     <linearGradient id="vaneT" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#33241A"/><stop offset="36%" stop-color="#6B5238"/>
-      <stop offset="70%" stop-color="#D8CBB0"/><stop offset="100%" stop-color="#F6F0E2"/>
+      <stop offset="0%" stop-color="#F6F0E2"/><stop offset="30%" stop-color="#D8CBB0"/>
+      <stop offset="64%" stop-color="#6B5238"/><stop offset="100%" stop-color="#33241A"/>
     </linearGradient>
     <radialGradient id="tsShade" cx=".5" cy=".5" r=".5">
       <stop offset="0%" stop-color="#000000" stop-opacity=".34"/>
