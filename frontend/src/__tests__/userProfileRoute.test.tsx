@@ -18,15 +18,28 @@ import { renderPage } from "./helpers/render";
 
 const PROFILE_ROUTE_ID = "/_serverRequired/_authenticated/u/$handle";
 
-const mocks = vi.hoisted(() => ({ profile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ profile: vi.fn(), communities: vi.fn() }));
 vi.mock("@/hooks/useUsers", () => ({
   useUserProfile: (handle: string | null) => mocks.profile(handle),
   // The status bubble is a control on your own profile, so it holds a mutation
   // whether or not this one is yours.
   useUpdateCurrentUser: () => ({ mutate: vi.fn(), isPending: false }),
-  // The communities strip is its own read, and shows nothing without one.
-  useUserCommunities: () => ({ data: [] }),
+  // What the tray holds is its own read, and the page waits on nothing for it.
+  useUserCommunities: (handle: string | null) => mocks.communities(handle),
 }));
+
+const community = (overrides: Record<string, unknown> = {}) => ({
+  id: 7,
+  name: "Kobold Press",
+  description: null,
+  icon_url: null,
+  categories: [],
+  member_count: 3,
+  online_count: 1,
+  already_member: true,
+  banner: { image_url: null, color: "", text_color: "#fff", text_align: "center", fade: "none" },
+  ...overrides,
+});
 
 const router = createRouter({ routeTree });
 
@@ -55,6 +68,7 @@ const answerWith = (profile: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   answerWith(buildUserProfile());
+  mocks.communities.mockReturnValue({ data: [] });
 });
 
 describe("a member's profile", () => {
@@ -90,25 +104,53 @@ describe("a member's profile", () => {
     expect(screen.getByText("rolling for initiative")).toBeInTheDocument();
   });
 
-  it("says when someone has Initiative open", async () => {
+  // The badge is on the picture, and says its state in words rather than in
+  // colour alone — so it is found by the name it carries.
+  it("says on the picture itself when someone has Initiative open", async () => {
     answerWith(buildUserProfile({ presence: "online" }));
     await renderProfile();
 
-    expect(await screen.findByText("Online")).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Online" })).toBeInTheDocument();
   });
 
   it("says which state someone is in, not just that they are here", async () => {
     answerWith(buildUserProfile({ presence: "busy" }));
     await renderProfile();
 
-    expect(await screen.findByText("Busy")).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Busy" })).toBeInTheDocument();
   });
 
   it("shows someone who stepped away from the keyboard as idle", async () => {
     answerWith(buildUserProfile({ presence: "idle" }));
     await renderProfile();
 
-    expect(await screen.findByText("Idle")).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Idle" })).toBeInTheDocument();
+  });
+
+  it("badges nobody as offline — an empty corner already says it", async () => {
+    answerWith(buildUserProfile({ presence: "offline" }));
+    await renderProfile();
+
+    await screen.findByRole("heading");
+    expect(screen.queryByRole("img", { name: "Offline" })).not.toBeInTheDocument();
+  });
+
+  it("shelves the communities they are in where a community shelves its tools", async () => {
+    mocks.communities.mockReturnValue({ data: [community()] });
+    await renderProfile();
+
+    expect(await screen.findByRole("link", { name: /Kobold Press/ })).toHaveAttribute(
+      "href",
+      "/c/7"
+    );
+  });
+
+  it("leaves the rail closed for someone in no communities at all", async () => {
+    answerWith(buildUserProfile({ profile_decorations: { trophies: ["ttrpg.d20"] } }));
+    await renderProfile();
+
+    await screen.findByRole("list", { name: "Trophies" });
+    expect(screen.queryByRole("heading", { name: "Communities" })).not.toBeInTheDocument();
   });
 
   it("wears the decorations it can draw, and ignores the ones it cannot", async () => {
@@ -130,9 +172,7 @@ describe("a member's profile", () => {
     expect(rail.querySelector('img[src="/decorations/trophies/ttrpg-d20.svg"]')).not.toBeNull();
     // The frame is worn over the picture and says nothing, so it is hidden
     // from assistive technology and found by its source instead.
-    expect(
-      container.querySelector('img[src="/decorations/frames/spooky-web.svg"]')
-    ).not.toBeNull();
+    expect(container.querySelector('img[src="/decorations/frames/spooky-web.svg"]')).not.toBeNull();
     // The banner runs the width of the content area now, the way a
     // community's front page does, so it is a picture rather than a fill.
     expect(
