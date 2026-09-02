@@ -28,6 +28,7 @@ import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-p
 import { EntityMentionsPlugin } from "@/components/ui/editor/plugins/entity-mentions-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
+import { LegacyNodesPlugin } from "@/components/ui/editor/plugins/legacy-nodes-plugin";
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
@@ -214,6 +215,7 @@ export function Plugins({
         <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />
         <TabIndentationPlugin />
 
+        <LegacyNodesPlugin />
         <MentionsPlugin initiativeId={initiativeId ?? undefined} />
         {supportsEntityMentions && <DocumentBadgesPlugin />}
         {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}

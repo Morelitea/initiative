@@ -1,4 +1,10 @@
-import { createEditor, type LexicalEditor } from "lexical";
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  createEditor,
+  type LexicalEditor,
+} from "lexical";
 import { describe, expect, it } from "vitest";
 
 import { BadgeKind, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
@@ -7,7 +13,7 @@ import {
   $createEntityMentionNode,
   EntityMentionNode,
 } from "@/components/ui/editor/nodes/entity-mention-node";
-import { collectReferences, nodeReference } from "@/lib/documentReferences";
+import { collectReferences, documentReferences, nodeReference } from "@/lib/documentReferences";
 
 function inEditor<T>(fn: () => T): T {
   const editor: LexicalEditor = createEditor({
@@ -73,5 +79,32 @@ describe("what a page asks about", () => {
 
   it("ignores ordinary prose", () => {
     expect(inEditor(() => collectReferences([]))).toEqual([]);
+  });
+});
+
+describe("what a page asks about, read off the page", () => {
+  it("finds the references written into a document", () => {
+    // The plugin asks the editor, not a list handed to it — a walk that comes
+    // back empty leaves every chip and every name showing what it was typed as.
+    const editor: LexicalEditor = createEditor({
+      nodes: [BadgeNode, EntityMentionNode],
+      onError: (error) => {
+        throw error;
+      },
+    });
+    editor.update(
+      () => {
+        const paragraph = $createParagraphNode();
+        paragraph.append(
+          $createTextNode("see "),
+          $createEntityMentionNode(SearchEntityType.task, 12, "Ship it"),
+          $createBadgeNode(BadgeKind["task:status"], 12, "Ship it")
+        );
+        $getRoot().append(paragraph);
+      },
+      { discrete: true }
+    );
+
+    expect(documentReferences(editor.getEditorState())).toEqual(["task:12", "task:12:status"]);
   });
 });
