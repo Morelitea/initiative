@@ -22,7 +22,7 @@ from app.db.query import (
     parse_conditions,
     parse_sort_fields,
 )
-from app.schemas.query import FilterOp, SortDir
+from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -977,6 +977,36 @@ async def _ensure_can_manage(
     return project
 
 
+def _confining_project_id(
+    conditions: list[FilterCondition | FilterGroup],
+) -> Optional[int]:
+    """The single project this request is narrowed to, or ``None``.
+
+    Only a plain top-level equality on one id confines a request to a project.
+    ``project_id != 5`` and ``project_id NOT IN []`` both name a value while
+    leaving the request spanning every other project in the community, so the
+    scope question they ask is the cross-initiative one — and the answer to
+    "which rows may this reader see" must not turn on a value the filter is
+    about to discard.
+
+    Deliberately stricter than :func:`extract_condition_value`, which reports a
+    value for any of those shapes: this one decides access, and the only shape
+    that decides it is the one that actually holds for every row returned.
+    """
+    for cond in conditions:
+        if isinstance(cond, FilterGroup) or cond.field != "project_id":
+            continue
+        if cond.negate or cond.op is not FilterOp.eq:
+            return None
+        if isinstance(cond.value, (list, tuple, set)):
+            return None
+        try:
+            return int(cond.value)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 async def _allowed_project_ids(
     session: SessionDep,
     user: User,
@@ -1353,7 +1383,9 @@ async def _guild_task_query_builder(
         current_user,
         guild_id,
         include_templates=q.project_id is not None,
-        project_id=q.project_id,
+        # Access takes the strict reading, not the one that decides whether
+        # templates join the set.
+        project_id=_confining_project_id(q.user_conditions),
     )
     if allowed_ids is not None:
         if not allowed_ids:

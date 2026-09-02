@@ -150,6 +150,52 @@ async def test_list_tasks_guild_admin_sees_unjoined_project(
 
 
 @pytest.mark.integration
+async def test_a_project_filter_that_narrows_nothing_does_not_widen_access(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Naming a project id is not the same as being confined to that project.
+
+    ``project_id != N`` and ``project_id NOT IN []`` each carry a value while
+    leaving the request spanning every other project in the community, so they
+    take the cross-initiative rule: what has been shared with the reader. The
+    equality above is what asks about a guild admin's standing in one project,
+    and it still answers in full.
+    """
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    hidden = await _create_task(session, owner.project, "Hidden Task")
+
+    # Negated equality: every project EXCEPT the named one.
+    conditions = json.dumps(
+        [
+            {
+                "field": "project_id",
+                "op": "eq",
+                "value": owner.project.id + 1000,
+                "negate": True,
+            }
+        ]
+    )
+    response = await client.get(
+        admin.g(f"/tasks/?conditions={conditions}"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert hidden.id not in {t["id"] for t in response.json()["items"]}
+
+    # An empty NOT IN narrows nothing at all.
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "in_", "value": [], "negate": True}]
+    )
+    response = await client.get(
+        admin.g(f"/tasks/?conditions={conditions}"), headers=admin.headers
+    )
+    assert response.status_code == 200
+    assert hidden.id not in {t["id"] for t in response.json()["items"]}
+
+
+@pytest.mark.integration
 async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test creating a new task."""
     from app.services.tenant import task_statuses as task_statuses_service
