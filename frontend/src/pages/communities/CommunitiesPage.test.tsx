@@ -10,7 +10,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildBanner } from "@/__tests__/factories";
+import { buildBanner, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -27,11 +27,12 @@ vi.mock("@/hooks/useCommunities", () => ({
 
 // Whether this deployment has a directory at all is the platform owner's
 // setting; everything below is about one that does, bar the test that says so.
-const config = vi.hoisted(() => ({ communityDirectory: true }));
+const config = vi.hoisted(() => ({ communityDirectory: true, ageGate: true }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({
     communityDirectoryEnabled: config.communityDirectory,
+    communityAgeGateEnabled: config.ageGate,
     isLoading: false,
   }),
 }));
@@ -49,8 +50,15 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   ...overrides,
 });
 
-const renderDirectory = (search: Record<string, unknown> = {}) =>
-  renderPage(CommunitiesPage, { initialRoute: "/communities", routerSearch: search });
+const renderDirectory = (
+  search: Record<string, unknown> = {},
+  auth?: { user: ReturnType<typeof buildUser> }
+) =>
+  renderPage(CommunitiesPage, {
+    initialRoute: "/communities",
+    routerSearch: search,
+    ...(auth ? { auth } : {}),
+  });
 
 /** The infinite-query shape the page reads: pages of items plus the paging
  *  flags. `total` is how many matched, so it can exceed what is loaded. */
@@ -67,6 +75,7 @@ const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, 
 beforeEach(() => {
   vi.clearAllMocks();
   config.communityDirectory = true;
+  config.ageGate = true;
   directoryFor.mockReturnValue(directoryResult([community()]));
 });
 
@@ -255,6 +264,30 @@ describe("CommunitiesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
     await waitFor(() => expect(join).toHaveBeenCalledWith(1));
+  });
+
+  it("asks an unconfirmed account its age before joining, not after", async () => {
+    join.mockResolvedValue({ id: 1 });
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(await screen.findByText("Confirm your age")).toBeInTheDocument();
+    // Nothing joined on the strength of an unanswered question.
+    expect(join).not.toHaveBeenCalled();
+  });
+
+  it("joins without asking where the deployment does not ask", async () => {
+    config.ageGate = false;
+    join.mockResolvedValue({ id: 1 });
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    await waitFor(() => expect(join).toHaveBeenCalledWith(1));
+    expect(screen.queryByText("Confirm your age")).not.toBeInTheDocument();
   });
 
   it("offers a way in, not a second join, for a guild already joined", async () => {

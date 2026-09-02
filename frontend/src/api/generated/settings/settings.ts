@@ -551,6 +551,12 @@ export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
  * Switching it off hides the directory and refuses new listings; it does not
  * clear the opt-in a guild already made, so switching it back on restores the
  * same set of listed guilds.
+ *
+ * ``age_gate_enabled`` is the second switch: whether an account must confirm
+ * it belongs to somebody 13 or older before it takes a place in a listed
+ * guild. Turning it off is the owner asserting that every account on this
+ * deployment already belongs to an adult, which is why it is a deliberate
+ * write and not a side effect of the first — omitting it leaves it alone.
  * @summary Update Community Settings
  */
 export const updateCommunitySettingsApiV1SettingsCommunityPut = (

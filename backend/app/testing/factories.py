@@ -124,6 +124,10 @@ async def create_user(
         "username": usernames.random_name(),
         "discriminator": usernames.random_discriminator(),
         "username_chosen": True,
+        # Answered, for the same reason the handle is chosen: a test that is
+        # not about the age gate should never meet it. The gate's own tests
+        # pass ``age_confirmed_at=None`` to get an account that has not.
+        "age_confirmed_at": datetime.now(timezone.utc),
         "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,

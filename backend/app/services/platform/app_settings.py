@@ -198,19 +198,38 @@ async def community_directory_enabled(session: AsyncSession) -> bool:
     return bool(settings_row.community_directory_enabled)
 
 
+async def community_age_gate_enabled(session: AsyncSession) -> bool:
+    """Whether an account must confirm its age to belong to a listed guild.
+
+    The one read of the switch, for the same reason
+    :func:`community_directory_enabled` is: the two places that ask — the join
+    that refuses, and the standing check that routes an unconfirmed account to
+    the screen — must agree at every moment.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.community_age_gate_enabled)
+
+
 async def update_community_settings(
     session: AsyncSession,
     *,
     community_directory_enabled: bool,
+    community_age_gate_enabled: bool | None = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
 
     Switching it off leaves every guild's own opt-in exactly as it was: the
     listings simply have nowhere to appear until it is switched back on, so an
     operator flipping this twice does not silently unpublish anybody.
+
+    ``community_age_gate_enabled`` is a second, independent decision and is
+    left alone when omitted: an owner who has asserted that every account here
+    belongs to an adult has not un-asserted it by toggling the directory.
     """
     settings_row = await _ensure_app_settings(session)
     settings_row.community_directory_enabled = bool(community_directory_enabled)
+    if community_age_gate_enabled is not None:
+        settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
     session.add(settings_row)
     await session.commit()
     await session.refresh(settings_row)

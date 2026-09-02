@@ -101,6 +101,10 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     username: `user-${counter}`,
     discriminator: 1000 + counter,
     username_chosen: true,
+    // Answered, like the handle: a test that is not about the age gate should
+    // never meet it. The gate's own tests override these two.
+    age_confirmed_at: "2026-01-01T00:00:00Z",
+    age_confirmation_required: false,
     full_name: `User ${counter}`,
     avatar_url: null,
     role: "member",

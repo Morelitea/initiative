@@ -151,10 +151,15 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     community_directory_enabled: bool
+    age_gate_enabled: bool
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
     community_directory_enabled: bool
+    #: Whether an account must confirm it is 13 or older to belong to a listed
+    #: guild. Omitted leaves it as it was — the two switches are separate
+    #: decisions and the directory one is written far more often.
+    age_gate_enabled: Optional[bool] = None
 
 
 class EmailSettingsResponse(SanitizedBaseModel):

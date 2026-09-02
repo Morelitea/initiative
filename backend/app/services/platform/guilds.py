@@ -55,6 +55,10 @@ class CommunityDirectoryDisabledError(Exception):
     """Raised when the deployment runs no community directory at all."""
 
 
+class AgeConfirmationRequiredError(Exception):
+    """The caller has not confirmed their age and asked to join a listed guild."""
+
+
 class BannerColorError(Exception):
     """Raised when a banner colour is not a ``#rrggbb`` value."""
 
@@ -1140,6 +1144,75 @@ async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> boo
     return bool((await session.exec(statement)).one())
 
 
+async def age_confirmation_outstanding(
+    session: AsyncSession,
+    *,
+    user: User,
+) -> bool:
+    """Whether this account owes the deployment an age confirmation.
+
+    True when the deployment asks for one, the account has not given one, and
+    it belongs to at least one guild that is listed right now. That last clause
+    is why this is asked rather than stored: a guild lists itself long after
+    its members joined, and every member it already had owes the confirmation
+    from that moment — as does anyone a group sync or an admin put there, who
+    was never shown a form to tick.
+
+    Which guilds count is ``community_listing_filters()``, the same list the
+    directory and the join it authorizes ask, so a guild that leaves the shelf
+    stops holding anybody to this in the same instant.
+
+    Reads another shape of the caller's own membership rows, so it wants a
+    session that can see ``guilds`` unfiltered (the system engine) or the
+    caller's own platform-tier session, which is scoped to exactly these rows.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if user.age_confirmed_at is not None:
+        return False
+    settings_row = await app_settings_service.get_app_settings(session)
+    # Two switches, both off-ramps: a deployment with no directory lists no
+    # guild for anyone to be in, and an owner may have asserted that every
+    # account here belongs to an adult.
+    if not (
+        settings_row.community_directory_enabled
+        and settings_row.community_age_gate_enabled
+    ):
+        return False
+    # One row is the whole answer — this is asked on every read of the caller's
+    # own account until they answer, so it stops at the first listed guild
+    # rather than counting them.
+    statement = (
+        select(GuildMembership.guild_id)
+        .join(Guild, Guild.id == GuildMembership.guild_id)
+        .join(
+            GuildAdministration, GuildAdministration.guild_id == Guild.id, isouter=True
+        )
+        .where(GuildMembership.user_id == user.id, *community_listing_filters())
+        .limit(1)
+    )
+    return (await session.exec(statement)).first() is not None
+
+
+async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:
+    """Raise unless this account may take a place in a listed guild.
+
+    The directory's Join button asks first and this backs it, so ticking the
+    box is what joins rather than what is checked afterwards. Every other way
+    into a listed guild — an invite, a group sync, an admin adding somebody —
+    lands the membership and is caught by
+    :func:`age_confirmation_outstanding` instead, which is the enforcement:
+    there is nobody at a keyboard on those paths to answer a question.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if user.age_confirmed_at is not None:
+        return
+    if not await app_settings_service.community_age_gate_enabled(session):
+        return
+    raise AgeConfirmationRequiredError(GuildMessages.AGE_CONFIRMATION_REQUIRED)
+
+
 async def list_profile_communities(
     session: AsyncSession,
     *,
@@ -1282,6 +1355,9 @@ async def join_community_guild(
     # joined by asking for it directly either.
     if not await is_listed_in_directory(session, guild_id=guild_id):
         raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+    # Asked before the seat is taken, so the box is what joins rather than
+    # something checked once they are already in.
+    await assert_age_confirmed(session, user=user)
     # Capacity is enforced inside ensure_membership, which is also where a
     # repeat join short-circuits to the existing membership.
     await ensure_membership(
