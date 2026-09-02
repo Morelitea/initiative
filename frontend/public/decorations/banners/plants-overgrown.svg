@@ -19,7 +19,22 @@
     .wingbeat { animation: flap .42s ease-in-out infinite alternate;
                 transform-box: fill-box; transform-origin: 50% 100% }
     @keyframes flap { from { transform: scaleX(.55) } to { transform: scaleX(1) } }
-    @media (prefers-reduced-motion: reduce) { .flit, .wingbeat { animation: none } }
+    /* Butterflies do not travel in straight lines: one animation carries each
+       along the wall, a second bobs it, and a third works the wings. */
+    .flit { animation-name: cross; animation-timing-function: linear;
+            animation-iteration-count: infinite }
+    @keyframes cross { from { transform: translateX(-16px) }
+                       to { transform: translateX(178px) } }
+    .bob { animation-name: dip; animation-timing-function: ease-in-out;
+           animation-iteration-count: infinite; animation-direction: alternate }
+    @keyframes dip { from { transform: translateY(-3.5px) rotate(-9deg) }
+                     to { transform: translateY(3.5px) rotate(9deg) } }
+    .wing { animation-name: beat; animation-timing-function: ease-in-out;
+            animation-iteration-count: infinite; animation-direction: alternate;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes beat { from { transform: scaleX(.28) } to { transform: scaleX(1) } }
+    @media (prefers-reduced-motion: reduce) {
+      .flit, .bob, .wing { animation: none } }
   </style>
   <defs>
     <linearGradient id="render" x1="0" y1="0" x2="0" y2="1">
@@ -111,13 +126,125 @@
 
   <!-- Morning glory, open while it is still early. -->
   <g><g class="bloom" style="animation-delay: -0.0s"><g transform="translate(23 14.6)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#7B6AD8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#7B6AD8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#7B6AD8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#7B6AD8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#7B6AD8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -1.7s"><g transform="translate(57 9.4)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#5A8EE8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#5A8EE8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#5A8EE8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#5A8EE8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#5A8EE8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -3.1s"><g transform="translate(78 19.2)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#9E6AD8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#9E6AD8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#9E6AD8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#9E6AD8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#9E6AD8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -0.9s"><g transform="translate(99 12.4)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#5A8EE8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#5A8EE8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#5A8EE8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#5A8EE8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#5A8EE8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -2.4s"><g transform="translate(131 17.0)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#7B6AD8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#7B6AD8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#7B6AD8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#7B6AD8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#7B6AD8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -4.0s"><g transform="translate(45 23.4)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#9E6AD8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#9E6AD8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#9E6AD8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#9E6AD8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#9E6AD8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -1.2s"><g transform="translate(112 25.6)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#5A8EE8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#5A8EE8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#5A8EE8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#5A8EE8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#5A8EE8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g><g class="bloom" style="animation-delay: -3.6s"><g transform="translate(89 30.2)"><path d="M0 0 L0.00 -4.40 A4.4 4.4 0 0 1 4.18 -1.36 Z" fill="#7B6AD8"/><path d="M0 0 L4.18 -1.36 A4.4 4.4 0 0 1 2.59 3.56 Z" fill="#7B6AD8"/><path d="M0 0 L2.59 3.56 A4.4 4.4 0 0 1 -2.59 3.56 Z" fill="#7B6AD8"/><path d="M0 0 L-2.59 3.56 A4.4 4.4 0 0 1 -4.18 -1.36 Z" fill="#7B6AD8"/><path d="M0 0 L-4.18 -1.36 A4.4 4.4 0 0 1 -0.00 -4.40 Z" fill="#7B6AD8"/><circle cx="0" cy="0" r="1.9" fill="#F6EBC8"/><circle cx="0" cy="0" r=".8" fill="#E8C43A"/></g></g></g>
-  <g class="flit">
-    <g transform="translate(6 14)">
-      <g class="wingbeat">
-        <path d="M0 0 C-3.4 -3.4 -4.4 -1 -3 1.4 C-1.8 3 -.6 2.2 0 0 Z" fill="#E8A0D8"/>
-        <path d="M0 0 C3.4 -3.4 4.4 -1 3 1.4 C1.8 3 .6 2.2 0 0 Z" fill="#F2B8E4"/>
+  <!-- The wall is in flower, so they came. -->
+  <g class="flit" style="animation-duration:26s;animation-delay:-0.0s">
+    <g class="bob" style="animation-duration:1.9s;animation-delay:-0.0s">
+      <g transform="translate(0 11) scale(1.0)">
+        <g class="wing" style="animation-duration:0.34s;animation-delay:-0.0s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#E8A0D8"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#D486C4"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#E8A0D8"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#D486C4"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#5A3A50" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#5A3A50" stroke-width=".26" fill="none" stroke-linecap="round"/>
       </g>
-      <path d="M0 -.6 L0 2" stroke="#5A3A50" stroke-width=".38" stroke-linecap="round"/>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:34s;animation-delay:-4.2s">
+    <g class="bob" style="animation-duration:2.4s;animation-delay:-4.2s">
+      <g transform="translate(0 19) scale(0.82)">
+        <g class="wing" style="animation-duration:0.41s;animation-delay:-4.2s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#F2C230"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#D8A420"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#F2C230"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#D8A420"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#5A4A18" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#5A4A18" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:30s;animation-delay:-9.5s">
+    <g class="bob" style="animation-duration:2.1s;animation-delay:-9.5s">
+      <g transform="translate(0 7) scale(0.74)">
+        <g class="wing" style="animation-duration:0.38s;animation-delay:-9.5s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#8AC8F0"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#6AA8D8"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#8AC8F0"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#6AA8D8"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#2E4A5A" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#2E4A5A" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:38s;animation-delay:-14.0s">
+    <g class="bob" style="animation-duration:2.7s;animation-delay:-14.0s">
+      <g transform="translate(0 26) scale(0.92)">
+        <g class="wing" style="animation-duration:0.45s;animation-delay:-14.0s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#E8A0D8"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#D486C4"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#E8A0D8"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#D486C4"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#5A3A50" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#5A3A50" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:23s;animation-delay:-18.5s">
+    <g class="bob" style="animation-duration:1.7s;animation-delay:-18.5s">
+      <g transform="translate(0 15) scale(0.68)">
+        <g class="wing" style="animation-duration:0.31s;animation-delay:-18.5s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#F2E07A"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#D8C45A"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#F2E07A"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#D8C45A"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#5A4A18" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#5A4A18" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:42s;animation-delay:-6.8s">
+    <g class="bob" style="animation-duration:3.0s;animation-delay:-6.8s">
+      <g transform="translate(0 31) scale(0.86)">
+        <g class="wing" style="animation-duration:0.48s;animation-delay:-6.8s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#B48AE8"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#9A6ED0"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#B48AE8"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#9A6ED0"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#3E2E52" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#3E2E52" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:28s;animation-delay:-22.0s">
+    <g class="bob" style="animation-duration:2.0s;animation-delay:-22.0s">
+      <g transform="translate(0 4) scale(0.62)">
+        <g class="wing" style="animation-duration:0.36s;animation-delay:-22.0s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#8AC8F0"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#6AA8D8"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#8AC8F0"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#6AA8D8"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#2E4A5A" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#2E4A5A" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <g class="flit" style="animation-duration:32s;animation-delay:-26.5s">
+    <g class="bob" style="animation-duration:2.3s;animation-delay:-26.5s">
+      <g transform="translate(0 23) scale(0.78)">
+        <g class="wing" style="animation-duration:0.43s;animation-delay:-26.5s">
+          <path d="M0 0 C-3.6 -4 -5.2 -1.4 -3.6 1.4 C-2.4 3.4 -.8 2.6 0 0 Z" fill="#F2C230"/>
+          <path d="M0 .4 C-2.8 1.6 -3.4 3.6 -2 4.6 C-.8 5.2 -.2 3.4 0 .4 Z" fill="#D8A420"/>
+          <path d="M0 0 C3.6 -4 5.2 -1.4 3.6 1.4 C2.4 3.4 .8 2.6 0 0 Z" fill="#F2C230"/>
+          <path d="M0 .4 C2.8 1.6 3.4 3.6 2 4.6 C.8 5.2 .2 3.4 0 .4 Z" fill="#D8A420"/>
+        </g>
+        <path d="M0 -1.4 L0 3.4" stroke="#5A4A18" stroke-width=".5" stroke-linecap="round"/>
+        <path d="M0 -1.4 C-.8 -2.6 -1.4 -3 -1.8 -3.2 M0 -1.4 C.8 -2.6 1.4 -3 1.8 -3.2"
+              stroke="#5A4A18" stroke-width=".26" fill="none" stroke-linecap="round"/>
+      </g>
     </g>
   </g>
 </svg>

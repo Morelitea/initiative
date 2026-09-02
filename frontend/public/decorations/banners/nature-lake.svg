@@ -9,15 +9,19 @@
     @keyframes slide { from { transform: translateX(0) } to { transform: translateX(-40px) } }
     .shimmer { animation: glimmer 6s ease-in-out infinite alternate }
     @keyframes glimmer { from { opacity: .3 } to { opacity: .68 } }
-    /* The sun goes down over about half a minute, and comes back up. */
-    .sink { animation: setting 34s ease-in-out infinite alternate }
-    @keyframes setting { from { transform: translateY(0) } to { transform: translateY(4.4px) } }
-    .rise { animation: rising 34s ease-in-out infinite alternate }
-    @keyframes rising { from { transform: translateY(0) } to { transform: translateY(-4.4px) } }
-    .deepen { animation: dusk 34s ease-in-out infinite alternate }
-    @keyframes dusk { from { opacity: 0 } to { opacity: .55 } }
+    /* The sun goes down behind the ridge over about a minute, and comes back
+       up. The sky warms as it goes, and the water follows it. */
+    .sink { animation: setting 56s ease-in-out infinite alternate }
+    @keyframes setting { from { transform: translateY(-2px) scale(1) }
+                         to { transform: translateY(9.5px) scale(1.18) } }
+    .rise { animation: rising 56s ease-in-out infinite alternate }
+    @keyframes rising { from { transform: translateY(-2px) scaleY(.9); opacity: .5 }
+                        to { transform: translateY(-9.5px) scaleY(1.5); opacity: 1 } }
+    .deepen { animation: dusk 56s ease-in-out infinite alternate }
+    @keyframes dusk { from { opacity: 0 } to { opacity: .78 } }
+    .lastlight { animation: burn 56s ease-in-out infinite alternate }
+    @keyframes burn { from { opacity: .18 } to { opacity: .5 } }
     @media (prefers-reduced-motion: reduce) { .ripple, .shimmer { animation: none } }
-    .heron { animation: fly 34s linear infinite }
     @keyframes fly { 0% { transform: translate(-16px,2px); opacity: 0 }
                      8% { opacity: .8 } 90% { opacity: .8 }
                      100% { transform: translate(178px,-4px); opacity: 0 } }
@@ -25,7 +29,11 @@
     .mi2 { animation-duration: 34s; animation-delay: -11s }
     @keyframes creep { from { transform: translateX(-10px); opacity: .2 }
                        to { transform: translateX(10px); opacity: .45 } }
-    @media (prefers-reduced-motion: reduce) { .heron, .mist { animation: none } }
+    .wings { animation: flap 1.1s ease-in-out infinite alternate;
+             transform-box: fill-box; transform-origin: 50% 90% }
+    @keyframes flap { from { transform: scaleY(.42) } to { transform: scaleY(1) } }
+    @media (prefers-reduced-motion: reduce) {
+      .mist, .sink, .rise, .deepen { animation: none } }
   </style>
   <defs>
     <filter id="wet" x="-20%" y="-120%" width="140%" height="340%">
@@ -43,7 +51,7 @@
   </defs>
   <rect width="160" height="40" fill="url(#calm)"/>
   <g class="sink">
-    <circle cx="80" cy="15" r="13" fill="#FFD79A" opacity=".18"/>
+    <circle class="lastlight" cx="80" cy="15" r="15" fill="#FFB86A" opacity=".18"/>
     <circle cx="80" cy="15" r="5.4" fill="#FFE7B8" opacity=".9"/>
   </g>
   <path d="M0 20 L24 8 L42 18 L58 6 L80 20 L100 9 L120 19 L138 7 L160 20 L160 22 L0 22 Z"
@@ -93,8 +101,5 @@
   <g fill="#D8E2F0">
     <ellipse class="mist" cx="46" cy="23.4" rx="34" ry="1.5" opacity=".3"/>
     <ellipse class="mist mi2" cx="116" cy="25" rx="30" ry="1.2" opacity=".25"/>
-  </g>
-  <g class="heron" stroke="#2A3450" stroke-width=".55" fill="none" stroke-linecap="round">
-    <path d="M6 12 C7.6 10 9.4 10 11 12"/><path d="M11 12 C12.6 10 14.4 10 16 12"/>
   </g>
 </svg>

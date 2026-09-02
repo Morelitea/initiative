@@ -4,11 +4,15 @@
   <!-- The sill that got away from somebody: everything has outgrown its pot and
        the trailing one has reached the floor. -->
   <style>
-    .sway { animation: breathe 13s ease-in-out infinite alternate;
-            transform-box: fill-box; transform-origin: 50% 0 }
-    .s2 { animation-duration: 16s; animation-delay: -5s }
-    .s3 { animation-duration: 11s; animation-delay: -3s }
-    @keyframes breathe { from { transform: rotate(-1.4deg) } to { transform: rotate(1.4deg) } }
+    /* A rustle rather than a lean: each plant on its own beat, pivoting where
+       it is actually rooted. */
+    .sway { animation: breathe 3.1s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 100% }
+    .s2 { animation-duration: 2.4s; animation-delay: -1.1s;
+          transform-origin: 50% 0 }
+    .s3 { animation-duration: 3.8s; animation-delay: -2.3s }
+    @keyframes breathe { from { transform: rotate(-3.2deg) scaleY(.994) }
+                         to { transform: rotate(3.2deg) scaleY(1.008) } }
     .mote { animation: float 15s linear infinite }
     .m2 { animation-delay: -5s } .m3 { animation-delay: -10s }
     @keyframes float {
@@ -17,13 +21,20 @@
       100% { transform: translate(6px,-14px); opacity: 0 }
     }
     @media (prefers-reduced-motion: reduce) { .sway, .mote { animation: none } }
+    /* Each plant on its own timing, so the sill does not sway as one object. */
+    .shake { animation-name: rustle; animation-timing-function: ease-in-out;
+             animation-iteration-count: infinite; animation-direction: alternate;
+             transform-box: fill-box; transform-origin: 50% 100% }
+    @keyframes rustle { from { transform: rotate(-2.4deg) scaleY(.99) }
+                        to { transform: rotate(2.4deg) scaleY(1.01) } }
     .leanleft { animation: reach 17s ease-in-out infinite alternate;
                 transform-box: view-box; transform-origin: 80px 40px }
     @keyframes reach { from { transform: skewX(-.7deg) } to { transform: skewX(.7deg) } }
     .sunbeam { animation: creep 21s ease-in-out infinite alternate }
     @keyframes creep { from { transform: translateX(-9px); opacity: .3 }
                        to { transform: translateX(9px); opacity: .58 } }
-    @media (prefers-reduced-motion: reduce) { .leanleft, .sunbeam { animation: none } }
+    @media (prefers-reduced-motion: reduce) {
+      .leanleft, .sunbeam { animation: none } }
     .dust { animation: swim 19s linear infinite }
     .d2 { animation-delay: -6.4s } .d3 { animation-delay: -12.8s }
     @keyframes swim { 0% { transform: translate(0,0); opacity: 0 }

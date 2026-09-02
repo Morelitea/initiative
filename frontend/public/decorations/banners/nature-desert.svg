@@ -16,12 +16,19 @@
     .sunpulse { animation: beat 9s ease-in-out infinite alternate }
     @keyframes beat { from { opacity: .75; transform: scale(.97) } to { opacity: 1; transform: scale(1.04) } }
     @media (prefers-reduced-motion: reduce) { .heathaze, .sunpulse { animation: none } }
-    .hawk { animation: circle 26s ease-in-out infinite;
-            transform-box: view-box; transform-origin: 96px 12px }
-    @keyframes circle { 0% { transform: rotate(0) translateX(0) }
-                        50% { transform: rotate(180deg) translateX(2px) }
-                        100% { transform: rotate(360deg) translateX(0) } }
-    @media (prefers-reduced-motion: reduce) { .hawk { animation: none } }
+    /* One group carries it round the circle; the one inside turns back by the
+       same amount, so the bird travels without spinning on the spot. */
+    .orbit { animation: sweep 34s linear infinite;
+             transform-box: view-box; transform-origin: 104px 11px }
+    @keyframes sweep { to { transform: rotate(360deg) } }
+    .level { animation: hold 34s linear infinite;
+             transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes hold { to { transform: rotate(-360deg) } }
+    .soar { animation: tip 5.5s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes tip { from { transform: rotate(-7deg) } to { transform: rotate(7deg) } }
+    @media (prefers-reduced-motion: reduce) {
+      .orbit, .level, .soar { animation: none } }
   </style>
   <defs>
     <radialGradient id="heatband" cx=".5" cy=".8" r=".6">
@@ -167,10 +174,12 @@
     </g>
   </g>
   <ellipse class="heathaze" cx="80" cy="31" rx="76" ry="6" fill="url(#heatband)"/>
-  <g class="hawk">
-    <g transform="translate(96 6)" stroke="#4A3A2E" stroke-width=".5" fill="none"
-       stroke-linecap="round" opacity=".7">
-      <path d="M-3.2 0 C-1.8 -1.4 -.6 -1.4 0 0"/><path d="M0 0 C.6 -1.4 1.8 -1.4 3.2 0"/>
+  <!-- A hawk, working a thermal. -->
+  <g class="orbit">
+    <g transform="translate(104 5.4)">
+      <g class="level">
+        <g class="soar" opacity=".75"><g transform="scale(0.95)"><path d="M0 -1.9 C.5 -1.5 .7 -.7 .7 .2 C.7 1.1 .45 1.9 0 2.4 C-.45 1.9 -.7 1.1 -.7 .2 C-.7 -.7 -.5 -1.5 0 -1.9 Z" fill="#4A3A2E"/><path d="M0 2 L1.1 3.4 L0 3.1 L-1.1 3.4 Z" fill="#4A3A2E"/><g class="wings"><path d="M-.5 -.5 C-2.4 -1.9 -4.8 -2.6 -7.2 -2.2 C-5 -.9 -2.6 -.1 -.5 .5 Z" fill="#4A3A2E"/><path d="M.5 -.5 C2.4 -1.9 4.8 -2.6 7.2 -2.2 C5 -.9 2.6 -.1 .5 .5 Z" fill="#4A3A2E"/></g></g></g>
+      </g>
     </g>
   </g>
 </svg>
