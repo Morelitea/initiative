@@ -115,3 +115,74 @@ async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
         assert len(tab.sent) == 1
     finally:
         await bus.stop()
+
+
+@pytest.mark.integration
+async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
+    """The fan-out shape: many frames published at once, none lost.
+
+    A connection performs one operation at a time, and the after-commit hook
+    spawns a task per frame — so listing a community publishes a frame per
+    member concurrently. Unserialized, all but the first are refused, and the
+    caller treats a refused send as "no cross-process delivery" and moves on:
+    the frames disappear without a trace. This is the test that sees that.
+    """
+    monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", TEST_DATABASE_URL)
+
+    bus = user_stream_bus.UserStreamBus()
+    await bus.start()
+    try:
+        if not await _wait_for(lambda: bus.running, timeout=10.0):
+            pytest.skip("this address cannot hold a LISTEN (a transaction pooler)")
+
+        results = await asyncio.gather(
+            *[
+                bus.notify(json.dumps({"origin": "another", "user_id": n, "frame": {}}))
+                for n in range(25)
+            ],
+            return_exceptions=True,
+        )
+
+        failures = [r for r in results if isinstance(r, Exception)]
+        assert failures == [], f"{len(failures)} of 25 frames never reached the bus"
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.integration
+async def test_a_community_listing_reaches_every_member_on_another_worker(
+    monkeypatch,
+) -> None:
+    """The fan-out, end to end: each member's socket gets exactly one frame."""
+    stream = UserStream()
+    monkeypatch.setattr(user_stream, "stream", stream)
+    monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", TEST_DATABASE_URL)
+
+    tabs = {}
+    for user_id in range(1, 16):
+        tab = FakeWebSocket()
+        await stream.connect(user_id, tab)
+        tabs[user_id] = tab
+
+    bus = user_stream_bus.UserStreamBus()
+    monkeypatch.setattr(user_stream_bus, "bus", bus)
+    await bus.start()
+    try:
+        if not await _wait_for(lambda: bus.running, timeout=10.0):
+            pytest.skip("this address cannot hold a LISTEN (a transaction pooler)")
+
+        # Published as the after-commit hook does it: one task per member.
+        await asyncio.gather(
+            *[
+                user_stream.publish(
+                    user_id, user_stream.build_frame("account", "community")
+                )
+                for user_id in tabs
+            ]
+        )
+
+        assert await _wait_for(
+            lambda: all(len(tab.sent) == 1 for tab in tabs.values())
+        ), {user_id: len(tab.sent) for user_id, tab in tabs.items()}
+    finally:
+        await bus.stop()

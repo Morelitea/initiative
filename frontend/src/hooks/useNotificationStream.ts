@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { invalidateNotifications } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,12 @@ const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as con
 
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
+
+// A frame is the only prompt to re-read the account, so a re-read that fails
+// has to try again — there is no poll behind it any more, and the next frame
+// may never come. Bounded, because a tab that cannot reach the server has a
+// bigger problem than a stale account, and a reconnect re-reads anyway.
+const ACCOUNT_RETRY_DELAYS_MS = [2000, 8000] as const;
 // Three consecutive policy-violation closes means the credential is no good,
 // not that the network blinked — same rule as the guild events socket.
 const MAX_AUTH_FAILURES = 3;
@@ -110,6 +116,41 @@ export const useNotificationStream = () => {
   // existed when we connected.
   const refreshUserRef = useRef(refreshUser);
   refreshUserRef.current = refreshUser;
+  const accountRetryTimerRef = useRef<number | null>(null);
+
+  // Re-read the account, and keep trying for a short while if it does not
+  // land. One in-flight attempt at a time: a second frame arriving mid-retry
+  // restarts the sequence rather than racing it.
+  const refreshAccount = useCallback((attempt = 0) => {
+    if (accountRetryTimerRef.current !== null) {
+      window.clearTimeout(accountRetryTimerRef.current);
+      accountRetryTimerRef.current = null;
+    }
+    // Wrapped rather than chained straight off the call: the guard covers a
+    // missing function, not a return that is not a promise.
+    void Promise.resolve(refreshUserRef.current?.()).catch(() => {
+      const delay = ACCOUNT_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined) {
+        // Out of attempts. The next frame, or the catch-up on reconnect, is
+        // the next chance — both of which arrive on their own.
+        return;
+      }
+      accountRetryTimerRef.current = window.setTimeout(() => {
+        accountRetryTimerRef.current = null;
+        refreshAccount(attempt + 1);
+      }, delay);
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (accountRetryTimerRef.current !== null) {
+        window.clearTimeout(accountRetryTimerRef.current);
+        accountRetryTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!user) {
@@ -152,7 +193,7 @@ export const useNotificationStream = () => {
         // was never signalled, so catch up once on the way back up. Both
         // channels, since either could have moved while we were away.
         void invalidateNotifications();
-        void refreshUserRef.current?.();
+        refreshAccount();
       };
 
       websocket.onmessage = (event) => {
@@ -164,7 +205,7 @@ export const useNotificationStream = () => {
           if (payload.resource === "notification") {
             void invalidateNotifications();
           } else if (payload.resource === "account") {
-            void refreshUserRef.current?.();
+            refreshAccount();
           }
         } catch {
           // ignore malformed frames
@@ -240,5 +281,5 @@ export const useNotificationStream = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, user]);
+  }, [token, user, refreshAccount]);
 };

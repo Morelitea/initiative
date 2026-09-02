@@ -77,6 +77,11 @@ class UserStreamBus:
         self._connection: Optional[asyncpg.Connection] = None
         self._task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
+        # One statement at a time on the held connection. A connection carries
+        # a single operation, so two overlapping sends raise rather than queue
+        # — and the fan-out path publishes a frame per member at once, which is
+        # exactly where that would bite.
+        self._send_lock = asyncio.Lock()
         self._stopping = False
 
     @property
@@ -111,16 +116,23 @@ class UserStreamBus:
     async def notify(self, payload: str) -> None:
         """Put one frame on the bus for the other workers.
 
+        Serialized: senders wait for each other rather than sharing the
+        connection, because a connection performs one operation at a time and
+        overlapping sends raise instead of queueing. Frames are one small
+        statement each, so the wait is short and the alternative is losing
+        them.
+
         Raises when the bus is not up. The caller treats that as "no
         cross-process delivery this time", never as a failed request — see
         ``user_stream._publish_remote``.
         """
         from app.services.platform.user_stream import CHANNEL
 
-        connection = self._connection
-        if connection is None or connection.is_closed():
-            raise RuntimeError("user stream bus is not connected")
-        await connection.execute("SELECT pg_notify($1, $2)", CHANNEL, payload)
+        async with self._send_lock:
+            connection = self._connection
+            if connection is None or connection.is_closed():
+                raise RuntimeError("user stream bus is not connected")
+            await connection.execute("SELECT pg_notify($1, $2)", CHANNEL, payload)
 
     async def _maintain(self) -> None:
         """Keep a listening connection up, reconnecting with backoff."""

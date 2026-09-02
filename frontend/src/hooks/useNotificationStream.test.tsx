@@ -142,6 +142,55 @@ describe("useNotificationStream", () => {
     expect(invalidateNotifications).toHaveBeenCalledTimes(1);
   });
 
+  it("tries the account again when the re-read fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const refreshUser = vi.fn().mockResolvedValue(undefined);
+      renderWithProviders(<Probe />, { auth: { refreshUser } });
+      const socket = latest();
+      socket.open();
+      await vi.advanceTimersByTimeAsync(0);
+      refreshUser.mockClear();
+      // Fail the read this frame triggers, and only that one.
+      refreshUser.mockRejectedValueOnce(new Error("offline"));
+
+      socket.receive({ resource: "account", action: "membership", ids: {} });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(refreshUser).toHaveBeenCalledTimes(1);
+
+      // The frame is the only prompt there is, so a failed read must not be
+      // the end of it — there is no poll behind this any more.
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(refreshUser).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up retrying rather than trying forever", async () => {
+    vi.useFakeTimers();
+    try {
+      const refreshUser = vi.fn().mockResolvedValue(undefined);
+      renderWithProviders(<Probe />, { auth: { refreshUser } });
+      const socket = latest();
+      socket.open();
+      await vi.advanceTimersByTimeAsync(0);
+      refreshUser.mockClear();
+      // Nothing lands from here on.
+      refreshUser.mockRejectedValue(new Error("offline"));
+
+      socket.receive({ resource: "account", action: "membership", ids: {} });
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      // The first read plus the two backoffs, and then it stops: a tab that
+      // cannot reach the server has a bigger problem, and reconnecting reads
+      // the account anyway.
+      expect(refreshUser).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores frames for other resources and malformed ones", () => {
     renderWithProviders(<Probe />);
     const socket = latest();
