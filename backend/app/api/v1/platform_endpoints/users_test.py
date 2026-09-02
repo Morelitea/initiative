@@ -805,15 +805,15 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
     assert response.content.startswith("\ufeff".encode("utf-8"))
 
     header_row, data_rows = _parse_csv(response.content)
+    # No platform tier and no verification state: both are the platform's
+    # business rather than this guild's.
     assert header_row == [
         "user_id",
         "handle",
         "full_name",
         "guild_role",
-        "platform_role",
         "oidc_managed",
         "status",
-        "email_verified",
         "created_at",
         "initiative_roles",
     ]

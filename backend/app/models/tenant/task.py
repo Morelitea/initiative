@@ -9,7 +9,7 @@ from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import TaskTag
     from app.models.tenant.queue import QueueItemTask
     from app.models.tenant.property import TaskPropertyValue
@@ -168,15 +168,20 @@ class Task(CreatedByMixin, SoftDeleteMixin, table=True):
 
     project: Optional["Project"] = Relationship(back_populates="tasks")
     task_status: Optional[TaskStatus] = Relationship(back_populates="tasks")
-    assignees: List["User"] = Relationship(
-        back_populates="tasks_assigned", link_model=TaskAssignee
+    assignees: List["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "secondary": "task_assignees",
+            "primaryjoin": "Task.id == foreign(TaskAssignee.task_id)",
+            "secondaryjoin": "foreign(TaskAssignee.user_id) == MemberProfile.id",
+            "viewonly": True,
+        }
     )
     # Read-only link to the author (``created_by``) so reads can expose a
-    # ``creator`` summary without a separate roster fetch. ``foreign_keys`` is
-    # explicit because ``assignees`` also relates Task↔User (via TaskAssignee).
-    creator: Optional["User"] = Relationship(
+    # ``creator`` summary without a separate roster fetch. The join is spelled
+    # out because the target is a view, which carries no foreign key.
+    creator: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
-            "foreign_keys": "[Task.created_by]",
+            "primaryjoin": "foreign(Task.created_by) == MemberProfile.id",
             "viewonly": True,
         }
     )

@@ -49,6 +49,7 @@ from app.models.tenant.task import (
 from app.models.tenant.tag import Tag, TaskTag
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment
 from pydantic import BaseModel, ValidationError
 
@@ -78,6 +79,7 @@ from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import filter_presets as filter_presets_service
@@ -740,7 +742,11 @@ async def _set_task_assignees(
         ).all()
     )
 
-    stmt = select(User).where(User.id.in_(tuple(unique_ids))) if unique_ids else None
+    stmt = (
+        select(MemberProfile).where(MemberProfile.id.in_(tuple(unique_ids)))
+        if unique_ids
+        else None
+    )
 
     if stmt is not None:
         result = await session.exec(stmt)
@@ -1899,7 +1905,10 @@ async def create_task(
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
     if project and task.assignees:
-        for assignee in task.assignees:
+        assignees = await accounts_service.load_all(
+            [assignee.id for assignee in task.assignees]
+        )
+        for assignee in assignees:
             await notifications_service.enqueue_task_assignment_event(
                 session,
                 task=task,
@@ -2041,7 +2050,7 @@ async def update_task(
         task, task.task_status.category if task.task_status else None, now=now
     )
 
-    new_assignees: list[User] = []
+    new_assignees: list[MemberProfile] = []
     if assignee_ids is not None:
         existing_assignee_ids = {assignee.id for assignee in task.assignees}
         await _set_task_assignees(session, task, assignee_ids)
@@ -2060,7 +2069,10 @@ async def update_task(
     )
 
     if new_assignees and project:
-        for assignee in new_assignees:
+        newly_assigned = await accounts_service.load_all(
+            [assignee.id for assignee in new_assignees]
+        )
+        for assignee in newly_assigned:
             await notifications_service.enqueue_task_assignment_event(
                 session,
                 task=task,

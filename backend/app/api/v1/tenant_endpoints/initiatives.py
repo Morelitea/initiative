@@ -34,6 +34,7 @@ from app.models.tenant.initiative import (
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
     InitiativeDirectoryEntry,
@@ -58,6 +59,7 @@ from app.schemas.platform.user import (
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
@@ -402,9 +404,7 @@ async def _resolve_join_request(
     request = await _load_pending_join_request(
         session, request_id=request_id, initiative_id=initiative_id
     )
-    requester = (
-        await session.exec(select(User).where(User.id == request.user_id))
-    ).one_or_none()
+    requester = await accounts_service.load_one(request.user_id)
     if requester is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
@@ -510,12 +510,10 @@ async def create_join_request(
         session, initiative_id=initiative_id
     )
     if manager_ids:
-        managers = (
-            await session.exec(select(User).where(User.id.in_(tuple(manager_ids))))
-        ).all()
+        managers = await accounts_service.load_all(list(manager_ids))
         await notifications_service.notify_initiative_join_requested(
             session,
-            list(managers),
+            managers,
             request_id=request_id,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
@@ -1198,7 +1196,7 @@ async def get_initiative_members(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> Sequence[User]:
+) -> Sequence[MemberProfile]:
     """Get all members of an initiative."""
     await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
@@ -1227,13 +1225,13 @@ async def get_initiative_members(
 
     # Get all initiative members
     stmt = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(
             InitiativeMember.initiative_id == initiative_id,
             users_service.visible_to_other_people(),
         )
-        .order_by(User.username, User.discriminator, User.id)
+        .order_by(MemberProfile.username, MemberProfile.discriminator, MemberProfile.id)
     )
     result = await session.exec(stmt)
     return result.all()
@@ -1282,8 +1280,8 @@ async def search_initiative_members(
         )
 
     base = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(
             InitiativeMember.initiative_id == initiative_id,
             users_service.visible_to_other_people(),
@@ -1295,14 +1293,14 @@ async def search_initiative_members(
         matches, closest = users_service.member_match(term, shows_names=shows_names)
         base = base.where(matches)
     if user_id:
-        base = base.where(User.id.in_(user_id))
+        base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
         *users_service.member_order(closest, shows_names=shows_names),
-        User.username.asc(),
-        User.discriminator.asc(),
-        User.id.asc(),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
     )
 
     users, total_count, actual_page = await paginated_query(
@@ -1347,7 +1345,9 @@ async def add_initiative_member(
         guild_role=guild_context.role,
     )
 
-    user_stmt = await session.exec(select(User).where(User.id == payload.user_id))
+    user_stmt = await session.exec(
+        select(MemberProfile).where(MemberProfile.id == payload.user_id)
+    )
     user = user_stmt.one_or_none()
     if not user:
         raise HTTPException(
@@ -1435,10 +1435,10 @@ async def add_initiative_member(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    if created:
+    if created and (recipient := await accounts_service.load_one(user.id)):
         await notifications_service.notify_initiative_membership(
             session,
-            user,
+            recipient,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
             guild_id=initiative.guild_id,

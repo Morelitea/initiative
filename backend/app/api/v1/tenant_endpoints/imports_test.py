@@ -690,7 +690,7 @@ def _minimal_manifest(initiative_id=1, name="Restored", entries=None, assets=Non
         "schema_version": 1,
         "app_version": "0.0.0-test",
         "exported_at": "2026-07-15T00:00:00+00:00",
-        "exported_by_email": "test@example.com",
+        "exported_by_handle": "tester#0001",
         "source_instance_url": None,
         "guild": {"id": 999, "name": "Source Guild"},
         "include_uploads": bool(assets),

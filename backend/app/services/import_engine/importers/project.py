@@ -86,5 +86,5 @@ class ProjectImporter:
                 "assignees": result.assignee_match_count,
             },
             renamed_property_count=result.property_rename_count,
-            unmatched_emails=result.assignee_unmatched_emails,
+            unmatched_handles=result.assignee_unmatched_handles,
         )

@@ -351,8 +351,8 @@ async def _apply_entry(
         return EntryResult(
             **base, status="failed", error=ImportEngineMessages.IMPORT_APPLY_FAILED
         )
-    result.unmatched_emails = sorted(
-        set(result.unmatched_emails) | set(detail.unmatched_emails)
+    result.unmatched_handles = sorted(
+        set(result.unmatched_handles) | set(detail.unmatched_handles)
     )
     return EntryResult(**base, status="created", detail=detail)
 
@@ -374,7 +374,7 @@ async def _apply_file_entry(
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
     from app.services.import_engine.common import (
         ensure_tag,
-        load_initiative_member_emails,
+        load_initiative_member_handles,
     )
     from app.services.import_engine.importers._base import resolve_property_values
 
@@ -433,14 +433,14 @@ async def _apply_file_entry(
                 values = [
                     EnvelopePropertyValue.model_validate(p) for p in entry.properties
                 ]
-                member_emails = await load_initiative_member_emails(
+                member_handles = await load_initiative_member_handles(
                     session, initiative_id=initiative.id
                 )
                 attached = await resolve_property_values(
                     session,
                     initiative_id=initiative.id,
                     values=values,
-                    member_emails=member_emails,
+                    member_handles=member_handles,
                 )
                 for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
                     session.add(

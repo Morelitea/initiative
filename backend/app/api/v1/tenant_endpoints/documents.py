@@ -89,6 +89,7 @@ from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
 from app.services.tenant import search as search_service
 from app.services.tenant import properties as properties_service
@@ -1696,13 +1697,16 @@ async def notify_mentions(
             guild_id=guild_context.guild_id,
         )
     memberships = getattr(initiative, "memberships", []) or []
-    member_map = {
-        membership.user_id: membership.user
-        for membership in memberships
-        if membership.user
+    member_ids = {
+        membership.user_id for membership in memberships if membership.user_id
     }
+    # Who to tell is a question about their account, so it is asked where an
+    # account may be read.
+    recipients = await accounts_service.load(
+        user_id for user_id in mentioned_user_ids if user_id in member_ids
+    )
     for user_id in mentioned_user_ids:
-        mentioned_user = member_map.get(user_id)
+        mentioned_user = recipients.get(user_id)
         if not mentioned_user:
             continue
         await notifications_service.notify_document_mention(

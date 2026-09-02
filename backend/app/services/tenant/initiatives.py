@@ -25,6 +25,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.platform.user import UserInitiativeRole, UserSummary
 from app.schemas.tenant.initiative import (
     InitiativeDirectoryEntry,
@@ -1126,8 +1127,8 @@ async def list_join_requests(
         .scalar_subquery()
     )
     statement = (
-        select(InitiativeJoinRequest, User, prior_denials)
-        .join(User, User.id == InitiativeJoinRequest.user_id)
+        select(InitiativeJoinRequest, MemberProfile, prior_denials)
+        .join(MemberProfile, MemberProfile.id == InitiativeJoinRequest.user_id)
         .where(InitiativeJoinRequest.initiative_id == initiative_id)
         .order_by(
             InitiativeJoinRequest.created_at.desc(), InitiativeJoinRequest.id.desc()

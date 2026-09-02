@@ -54,7 +54,7 @@ describe("EnvelopeImportDialog", () => {
       guildHttp.post("/imports/envelope", async ({ request }) => {
         sent = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
-          { result: { entity_title: "Restored Queue", created: {}, unmatched_emails: [] } },
+          { result: { entity_title: "Restored Queue", created: {}, unmatched_handles: [] } },
           { status: 201 }
         );
       })

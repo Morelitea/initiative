@@ -141,7 +141,7 @@ def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) 
                 if t.priority
                 else "",
                 "due": t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                "assignees": ", ".join(t.assignee_emails),
+                "assignees": ", ".join(t.assignee_handles),
             }
             for t in tasks
         ],

@@ -109,7 +109,10 @@ from app.services.platform import usernames as username_service
 from app.services.platform.guilds import adopt_guild_name_display
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
-from app.models.platform.user_profile_view import user_profiles
+from app.models.platform.user_profile_view import (
+    MemberProfile,
+    user_profiles,
+)
 from app.services.platform import user_avatars as user_avatars_service
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.platform import users as users_service
@@ -197,13 +200,13 @@ async def list_users(
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
     stmt = (
-        select(User, GuildMembership.role, GuildMembership.oidc_managed)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
-        .order_by(User.created_at.asc())
+        .order_by(MemberProfile.created_at.asc())
     )
     result = await session.exec(stmt)
     rows = result.all()
@@ -252,8 +255,8 @@ async def search_users(
     rehydrating stored ids into names/avatars) rather than searching.
     """
     base = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(MemberProfile)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
@@ -266,14 +269,14 @@ async def search_users(
         matches, closest = users_service.member_match(term, shows_names=shows_names)
         base = base.where(matches)
     if user_id:
-        base = base.where(User.id.in_(user_id))
+        base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
         *users_service.member_order(closest, shows_names=shows_names),
-        User.username.asc(),
-        User.discriminator.asc(),
-        User.id.asc(),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
     )
 
     users, total_count, actual_page = await paginated_query(
@@ -505,7 +508,7 @@ async def read_user_communities(
             select(User).where(
                 func.lower(User.username) == name,
                 User.discriminator == discriminator,
-                users_service.visible_to_other_people(),
+                users_service.visible_to_other_people(User.status),
             )
         )
     ).first()
@@ -554,15 +557,16 @@ async def read_user_communities(
     ]
 
 
+#: A guild exports what it knows about its own members. An account's platform
+#: tier and whether it has confirmed its address are the platform's business,
+#: not a guild's, so neither is a column here.
 _GUILD_CSV_HEADERS = [
     "user_id",
     "handle",
     "full_name",
     "guild_role",
-    "platform_role",
     "oidc_managed",
     "status",
-    "email_verified",
     "created_at",
     "initiative_roles",
 ]
@@ -578,13 +582,13 @@ async def export_users_csv(
     restrict the export to a subset. Without `user_id`, all visible members are
     included. Guild-admin only."""
     stmt = (
-        select(User, GuildMembership.role, GuildMembership.oidc_managed)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
-        .order_by(User.created_at.asc())
+        .order_by(MemberProfile.created_at.asc())
     )
     if user_id:
-        stmt = stmt.where(User.id.in_(user_id))
+        stmt = stmt.where(MemberProfile.id.in_(user_id))
     result = await session.exec(stmt)
     rows = result.all()
 
@@ -605,10 +609,8 @@ async def export_users_csv(
                 handle_of(user),
                 (user.full_name or "") if shows_names else "",
                 guild_role.value,
-                user.role.value if hasattr(user.role, "value") else user.role,
                 oidc_managed,
                 user.status.value if hasattr(user.status, "value") else user.status,
-                user.email_verified,
                 user.created_at.isoformat() if user.created_at else "",
                 csv_export.format_initiative_roles(user),
             ]
@@ -1067,7 +1069,7 @@ async def get_my_initiative_members(
     guild_id: Annotated[int, Query()],
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Sequence[User]:
+) -> Sequence[MemberProfile]:
     """List members of an initiative the current user belongs to.
 
     Used by the account-deletion transfer-target picker. ``guild_id`` is
@@ -1095,13 +1097,13 @@ async def get_my_initiative_members(
     # Deactivated users are also excluded: their account is locked and
     # they can't act as an owner until reactivated.
     stmt = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(
             InitiativeMember.initiative_id == initiative_id,
-            User.status == UserStatus.active,
+            MemberProfile.status == UserStatus.active,
         )
-        .order_by(User.full_name, User.id)
+        .order_by(MemberProfile.full_name, MemberProfile.id)
     )
     result = await session.exec(stmt)
     return result.all()
@@ -1412,6 +1414,7 @@ async def transfer_ownership(
 async def delete_user(
     user_id: int,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
@@ -1429,8 +1432,13 @@ async def delete_user(
         guild_role="admin",
     )
 
-    # Use FOR UPDATE to prevent race condition when checking last admin
-    if await users_service.is_last_platform_admin(session, user_id, for_update=True):
+    # A platform question — whether the platform would be left with no config
+    # manager — so it is asked on the system engine rather than through the
+    # guild role this request has assumed. FOR UPDATE to prevent a race with a
+    # concurrent platform-role change.
+    if await users_service.is_last_platform_admin(
+        admin_session, user_id, for_update=True
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.CANNOT_REMOVE_LAST_ADMIN,

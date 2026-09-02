@@ -75,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 
+- **Exports and imports name people by handle.** An export used to write each person's email address as the key for assignees, event attendees and person-typed properties, and an import matched on it. Both use the handle now — `foobar#1234`, the identifier the rest of the app already uses, and the one that is the same in every community. Anything exported before this release will not match its people back on import; re-export and the new file will.
+
+- **A community's member list carries what the community manages.** Handle, name, community role, whether the membership comes from a group sign-in sync, standing, and when they joined. Their platform role and whether they have confirmed their address were in there too, and are not a community's business; both are gone from the list and from the member CSV.
+
 ### Fixed
 
 - **The community calendar shows its calendars** and offers to add one, instead of opening straight onto a grid of events.

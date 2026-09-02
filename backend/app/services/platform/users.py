@@ -13,6 +13,7 @@ from app.core import usernames
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
 from app.services.platform import user_avatars as user_avatars_service
@@ -782,6 +783,11 @@ async def hard_delete_user(
     await session.commit()
 
 
+# The member-lookup helpers below bind to ``MemberProfile`` — the guild
+# projection — because every surface that looks a person up is inside a guild,
+# and a guild-routed session does not read ``public.users``.
+
+
 #: How close a typed name has to be to a member's to be worth offering.
 #: Separate from the content-search threshold on purpose: a name is a short
 #: string and a title is a sentence, so the two are tuned against different
@@ -800,10 +806,11 @@ def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
     ``shows_names`` is the guild's own setting, so a real name is matched
     exactly where it is shown and nowhere else.
     """
-    closest = func.word_similarity(term, User.username)
+    closest = func.word_similarity(term, MemberProfile.username)
     if shows_names:
         closest = func.greatest(
-            closest, func.word_similarity(term, func.coalesce(User.full_name, ""))
+            closest,
+            func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
         )
     return closest
 
@@ -826,14 +833,16 @@ def member_match(
     if number is not None:
         return (
             and_(
-                func.lower(User.username) == name_part.lower(),
-                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
+                func.lower(MemberProfile.username) == name_part.lower(),
+                func.lpad(cast(MemberProfile.discriminator, String), 4, "0").like(
+                    f"{number}%"
+                ),
             ),
             None,
         )
-    matches = User.username.ilike(f"%{name_part}%")
+    matches = MemberProfile.username.ilike(f"%{name_part}%")
     if shows_names:
-        matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
+        matches = or_(matches, MemberProfile.full_name.ilike(f"%{name_part}%"))
     closest = name_closeness(name_part, shows_names=shows_names)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
@@ -844,7 +853,7 @@ def member_order(
     """Nearest first while searching, alphabetical while reading a roster."""
     if closest is not None:
         return (closest.desc(),)
-    return (User.full_name.asc(),) if shows_names else ()
+    return (MemberProfile.full_name.asc(),) if shows_names else ()
 
 
 def visible_to_other_people(status_column=None):
@@ -857,9 +866,10 @@ def visible_to_other_people(status_column=None):
     account from nothing.
 
     A clause rather than a filtered query, so each surface keeps its own
-    joins and its own gates and only borrows the predicate. Pass
-    ``status_column`` to apply it somewhere other than ``users`` itself — the
-    ``user_profiles`` view carries the same column and the same rule.
+    joins and its own gates and only borrows the predicate. It reads the guild
+    projection by default, which is what every surface that lists people reads;
+    pass ``status_column`` to apply it to ``public.users`` or to the
+    ``user_profiles`` view, which carry the same column and the same rule.
     """
-    column = User.status if status_column is None else status_column
+    column = MemberProfile.status if status_column is None else status_column
     return column != UserStatus.suspended

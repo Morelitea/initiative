@@ -17,8 +17,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
-from app.models.tenant.initiative import InitiativeMember
-from app.models.tenant.task import TaskAssignee
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import GuildMembership
@@ -357,39 +355,19 @@ class User(SQLModel, table=True):
 
         return decrypt_field(self.email_encrypted, SALT_EMAIL)
 
-    # Relationships into GUILD-SCOPED tables carry passive_deletes="all": their
-    # rows live in per-guild schemas, so the ORM must never load or cascade
-    # them from the platform context at ``session.delete(user)`` time (the
-    # tables don't exist in ``public``). hard_delete_user cleans them
-    # explicitly, routed into each guild's schema (Phase 1).
-    tasks_assigned: List["Task"] = Relationship(
-        back_populates="assignees",
-        link_model=TaskAssignee,
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
-    # No delete cascade here (unlike guild_memberships): hard_delete_user
-    # removes the guild-schema rows itself, and SQLAlchemy disallows
-    # passive_deletes="all" together with delete-orphan.
-    initiative_memberships: List["InitiativeMember"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
+    # An account has no standing view of guild content. What refers to a person
+    # from inside a guild schema — an assignment, a membership, an ordering, a
+    # favourite — is reached from that content, through ``MemberProfile``, on a
+    # session routed into the guild that holds it. ``hard_delete_user`` clears
+    # those rows itself, guild by guild.
+    #
+    # ``guild_memberships`` is the exception, and stays: it is a ``public``
+    # table, and the cascade here is what removes a deleted account's
+    # memberships.
     guild_memberships: List["GuildMembership"] = Relationship(
-        back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    project_orders: List["ProjectOrder"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
     api_keys: List["UserApiKey"] = Relationship(back_populates="user")
-    favorite_projects: List["ProjectFavorite"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
 
 
-from app.models.tenant.task import Task  # noqa: E402  # isort:skip
-from app.models.tenant.project_order import ProjectOrder  # noqa: E402  # isort:skip
 from app.models.platform.api_key import UserApiKey  # noqa: E402  # isort:skip
-from app.models.tenant.project_activity import ProjectFavorite  # noqa: E402  # isort:skip

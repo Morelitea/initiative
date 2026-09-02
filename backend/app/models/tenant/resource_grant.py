@@ -41,7 +41,7 @@ from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import InitiativeRoleModel
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
 
 
 class ResourceAccessLevel(str, Enum):
@@ -148,9 +148,9 @@ class ResourceGrant(CreatedByMixin, table=True):
             "viewonly": True,
         }
     )
-    user: Optional["User"] = Relationship(
+    user: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
-            "foreign_keys": "ResourceGrant.user_id",
+            "primaryjoin": "foreign(ResourceGrant.user_id) == MemberProfile.id",
             "viewonly": True,
         }
     )

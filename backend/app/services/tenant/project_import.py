@@ -3,7 +3,7 @@
 See plan & ``project_export.py`` for the format. The algorithm:
 
 1. Validate ``schema_version``.
-2. Resolve the target initiative + its guild + member emails.
+2. Resolve the target initiative + its guild + member handles.
 3. Create the ``Project`` (importer is owner; rename on collision).
 4. Bulk-create per-project task statuses; build ``name → id`` map.
 5. Upsert tags by ``(guild_id, name)``; build ``name → id`` map; attach
@@ -53,7 +53,8 @@ from app.services.tenant import task_completion
 from app.services.import_engine.common import (
     decode_property_value,
     ensure_tag,
-    load_initiative_member_emails,
+    load_initiative_member_handles,
+    handle_key,
     resolve_property_definitions,
 )
 
@@ -84,7 +85,7 @@ async def import_project(
             detail=ProjectExportMessages.NO_TASK_STATUSES,
         )
 
-    initiative_member_emails = await load_initiative_member_emails(
+    initiative_member_handles = await load_initiative_member_handles(
         session, initiative_id=target_initiative.id
     )
     target_guild_id = target_initiative.guild_id
@@ -193,7 +194,7 @@ async def import_project(
 
     # 5. Tasks
     assignee_match_count = 0
-    unmatched_emails: set[str] = set()
+    unmatched_handles: set[str] = set()
     for t in envelope.tasks:
         matched = await _import_task(
             session,
@@ -206,8 +207,8 @@ async def import_project(
             default_status_id=default_status_id,
             tag_name_to_id=tag_name_to_id,
             prop_key_to_id=prop_key_to_id,
-            initiative_member_emails=initiative_member_emails,
-            unmatched_email_sink=unmatched_emails,
+            initiative_member_handles=initiative_member_handles,
+            unmatched_handle_sink=unmatched_handles,
         )
         assignee_match_count += matched
 
@@ -223,7 +224,7 @@ async def import_project(
         property_match_count=property_match_count,
         property_rename_count=property_rename_count,
         assignee_match_count=assignee_match_count,
-        assignee_unmatched_emails=sorted(unmatched_emails),
+        assignee_unmatched_handles=sorted(unmatched_handles),
     )
 
 
@@ -261,8 +262,8 @@ async def _import_task(
     default_status_id: int | None,
     tag_name_to_id: dict[str, int],
     prop_key_to_id: dict[tuple[str, PropertyType], int],
-    initiative_member_emails: dict[str, int],
-    unmatched_email_sink: set[str],
+    initiative_member_handles: dict[str, int],
+    unmatched_handle_sink: set[str],
 ) -> int:
     """Insert one task, its subtasks, tags, assignees, and property
     values. Returns the number of distinct assignees matched & linked.
@@ -332,12 +333,12 @@ async def _import_task(
             tag_name_to_id[task_tag.name] = tid
         session.add(TaskTag(task_id=task.id, tag_id=tid))
 
-    # Assignees: match by email against initiative members; drop misses
+    # Assignees: match by handle against initiative members; drop misses
     seen_user_ids: set[int] = set()
-    for email in envelope_task.assignee_emails:
-        uid = initiative_member_emails.get(email)
+    for handle in envelope_task.assignee_handles:
+        uid = initiative_member_handles.get(handle_key(handle))
         if uid is None:
-            unmatched_email_sink.add(email)
+            unmatched_handle_sink.add(handle)
             continue
         if uid in seen_user_ids:
             continue
@@ -350,9 +351,9 @@ async def _import_task(
         if prop_id is None:
             # Defensive: skip values whose property couldn't be resolved
             continue
-        column_kwargs = decode_property_value(pv, initiative_member_emails)
+        column_kwargs = decode_property_value(pv, initiative_member_handles)
         if column_kwargs is None:
-            continue  # user_reference with no matching email — skip silently
+            continue  # user_reference with no matching handle — skip silently
         session.add(
             TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
         )

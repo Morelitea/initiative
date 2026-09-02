@@ -136,15 +136,14 @@ class UserGuildMember(UserPublic):
 
     Carries the membership facts a guild admin manages — guild role, whether
     the membership is OIDC-managed, when the account joined — and none of the
-    account's own: no address, and a name only where the guild shows names. Two
+    account's own: no address, no platform tier, no word on whether the address
+    was ever confirmed, and a name only where the guild shows names. Two
     members are told apart by their handle, which is unique.
     """
 
-    role: UserRole  # Platform role
     guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
     status: UserStatus
-    email_verified: bool
     created_at: datetime
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 

@@ -73,7 +73,7 @@ class ProjectExportPropertyValue(SanitizedBaseModel):
     - date                  → ``value_text`` (ISO 8601 date)
     - datetime              → ``value_text`` (ISO 8601 datetime)
     - multi_select          → ``value_json`` (list[str])
-    - user_reference        → ``value_email``
+    - user_reference        → ``value_handle``
     """
 
     property_name: str
@@ -81,7 +81,7 @@ class ProjectExportPropertyValue(SanitizedBaseModel):
     value_text: Optional[str] = None
     value_number: Optional[float] = None
     value_boolean: Optional[bool] = None
-    value_email: Optional[str] = None
+    value_handle: Optional[str] = None
     value_json: Optional[Any] = None
 
 
@@ -112,7 +112,7 @@ class ProjectExportTask(SanitizedBaseModel):
     # default_factory=list is the canonical trigger. The exporter always
     # emits these, so the field is always present anyway.
     tags: List[ProjectExportTag]
-    assignee_emails: List[str]
+    assignee_handles: List[str]
     subtasks: List[ProjectExportSubtask]
     property_values: List[ProjectExportPropertyValue]
 
@@ -149,7 +149,7 @@ class ProjectExportEnvelope(SanitizedBaseModel):
     schema_version: int = SCHEMA_VERSION
     app_version: str
     exported_at: datetime
-    exported_by_email: Optional[str] = None
+    exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
 
     project: ProjectExportProject
@@ -172,4 +172,4 @@ class ProjectImportResult(SanitizedBaseModel):
     property_match_count: int = 0
     property_rename_count: int = 0
     assignee_match_count: int = 0
-    assignee_unmatched_emails: List[str] = Field(default_factory=list)
+    assignee_unmatched_handles: List[str] = Field(default_factory=list)

@@ -30,6 +30,7 @@ from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.core.user_display import display_name
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.counter import Counter
 from app.models.tenant.task import (
@@ -107,10 +108,10 @@ async def _task_assignee(
     counts the rest rather than growing with the list."""
     rows = (
         await session.exec(
-            select(TaskAssignee.task_id, User)
-            .join(User, User.id == TaskAssignee.user_id)
+            select(TaskAssignee.task_id, MemberProfile)
+            .join(MemberProfile, MemberProfile.id == TaskAssignee.user_id)
             .where(TaskAssignee.task_id.in_(ids))
-            .order_by(TaskAssignee.task_id, User.id)
+            .order_by(TaskAssignee.task_id, MemberProfile.id)
         )
     ).all()
     holders: dict[int, list[User]] = {}

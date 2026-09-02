@@ -44,9 +44,11 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.task import Task
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
 from app.services import notifications
 from app.services import permissions as permissions_service
+from app.services.platform import accounts as accounts_service
 from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
     extract_mentioned_task_ids,
@@ -586,15 +588,22 @@ async def create_comment(
     return comment
 
 
-async def _load_user(session: AsyncSession, user_id: int) -> User | None:
-    """Load a user by ID."""
-    result = await session.exec(select(User).where(User.id == user_id))
-    return result.one_or_none()
+async def _notify_target(user_id: int | None) -> User | None:
+    """Who to tell, with the preferences and address a notice needs.
+
+    On the system engine: an account's notification settings and address are
+    not a guild's to read."""
+    return await accounts_service.load_one(user_id)
+
+
+async def _notify_targets(user_ids: list[int]) -> list[User]:
+    """The same, for the several people one comment can reach."""
+    return await accounts_service.load_all(user_ids)
 
 
 async def _load_task_with_assignees(
     session: AsyncSession, task_id: int, guild_id: int
-) -> tuple[Task, list[User], str] | None:
+) -> tuple[Task, list[MemberProfile], str] | None:
     """Load a task with its assignees and project name."""
     stmt = (
         select(Task, Project, Initiative)
@@ -643,7 +652,7 @@ async def _process_comment_notifications(
 
     # 1. Reply to comment → notify parent comment author
     if parent_comment and parent_comment.created_by != author.id:
-        parent_author = await _load_user(session, parent_comment.created_by)
+        parent_author = await _notify_target(parent_comment.created_by)
         if parent_author:
             await notifications.notify_comment_reply(
                 session,
@@ -666,7 +675,7 @@ async def _process_comment_notifications(
             continue
         if user_id in notified_user_ids:
             continue
-        mentioned_user = await _load_user(session, user_id)
+        mentioned_user = await _notify_target(user_id)
         if not mentioned_user:
             continue
         await notifications.notify_comment_mention(
@@ -692,11 +701,12 @@ async def _process_comment_notifications(
         if not task_data:
             continue
         mentioned_task, assignees, _ = task_data
-        for assignee in assignees:
-            if assignee.id == author.id:
-                continue
-            if assignee.id in notified_user_ids:
-                continue
+        wanted = [
+            assignee.id
+            for assignee in assignees
+            if assignee.id != author.id and assignee.id not in notified_user_ids
+        ]
+        for assignee in await _notify_targets(wanted):
             await notifications.notify_task_mentioned_in_comment(
                 session,
                 assignee=assignee,
@@ -720,11 +730,12 @@ async def _process_comment_notifications(
         )
         if task_with_assignees:
             task, assignees, project_name = task_with_assignees
-            for assignee in assignees:
-                if assignee.id == author.id:
-                    continue
-                if assignee.id in notified_user_ids:
-                    continue
+            wanted = [
+                assignee.id
+                for assignee in assignees
+                if assignee.id != author.id and assignee.id not in notified_user_ids
+            ]
+            for assignee in await _notify_targets(wanted):
                 await notifications.notify_comment_on_task(
                     session,
                     assignee=assignee,
@@ -739,7 +750,7 @@ async def _process_comment_notifications(
 
     # 5. Tool comment → notify the entity's creator (if not already notified)
     if ctx.resource is not None:
-        owner = await _load_user(session, ctx.resource.created_by)
+        owner = await _notify_target(ctx.resource.created_by)
         if owner and owner.id != author.id and owner.id not in notified_user_ids:
             await notifications.notify_comment_on_resource(
                 session,

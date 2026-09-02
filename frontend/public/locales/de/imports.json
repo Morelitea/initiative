@@ -51,7 +51,7 @@
       "initiativesCreated_other": "{{count}} Initiativen erstellt",
       "perTool": "{{created}} erstellt · {{failed}} fehlgeschlagen · {{skipped}} übersprungen",
       "assets": "{{restored}} Dateien wiederhergestellt, {{deduped}} bereits vorhanden",
-      "unmatchedEmails": "Einige Personen konnten nicht per E-Mail zugeordnet werden: {{emails}}",
+      "unmatchedHandles": "Einige Personen konnten nicht über ihr Handle zugeordnet werden: {{handles}}",
       "failedEntries": "Nicht importierte Elemente:",
       "nothing": "Es wurde nichts importiert."
     }
@@ -71,8 +71,8 @@
     "importing": "Wird importiert…",
     "success": "\"{{name}}\" importiert.",
     "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er fertig ist.",
-    "warningUnmatched_one": "{{count}} Person konnte nicht per E-Mail zugeordnet werden: {{emails}}",
-    "warningUnmatched_other": "{{count}} Personen konnten nicht per E-Mail zugeordnet werden: {{emails}}",
+    "warningUnmatched_one": "{{count}} Person konnte nicht über ihr Handle zugeordnet werden: {{handles}}",
+    "warningUnmatched_other": "{{count}} Personen konnten nicht über ihr Handle zugeordnet werden: {{handles}}",
     "error": "Import fehlgeschlagen."
   },
   "entry": {

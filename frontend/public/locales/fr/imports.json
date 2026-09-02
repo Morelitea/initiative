@@ -51,7 +51,7 @@
       "initiativesCreated_other": "{{count}} initiatives créées",
       "perTool": "{{created}} créés · {{failed}} échoués · {{skipped}} ignorés",
       "assets": "{{restored}} fichiers restaurés, {{deduped}} déjà présents",
-      "unmatchedEmails": "Certaines personnes n'ont pas pu être associées par e-mail : {{emails}}",
+      "unmatchedHandles": "Certaines personnes n'ont pas pu être associées par identifiant : {{handles}}",
       "failedEntries": "Éléments non importés :",
       "nothing": "Rien n'a été importé."
     }
@@ -71,8 +71,8 @@
     "importing": "Import en cours…",
     "success": "« {{name}} » importé.",
     "queued": "Import lancé — vous recevrez une notification quand il sera terminé.",
-    "warningUnmatched_one": "{{count}} personne n'a pas pu être associée par e-mail : {{emails}}",
-    "warningUnmatched_other": "{{count}} personnes n'ont pas pu être associées par e-mail : {{emails}}",
+    "warningUnmatched_one": "{{count}} personne n'a pas pu être associée par identifiant : {{handles}}",
+    "warningUnmatched_other": "{{count}} personnes n'ont pas pu être associées par identifiant : {{handles}}",
     "error": "L'import a échoué."
   },
   "entry": {
