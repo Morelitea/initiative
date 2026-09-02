@@ -23,6 +23,7 @@ import type {
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
+  AgeConfirmation,
   ApiKeyCreateRequest,
   ApiKeyCreateResponse,
   ApiKeyListResponse,
@@ -1195,6 +1196,107 @@ export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
 > => {
   return useMutation(
     getClaimMyUsernameApiV1UsersMeUsernamePatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Record that this account belongs to somebody at least 13 years old.
+ *
+ * Asked for by a deployment that runs a community directory, of every account
+ * that belongs to a guild listed in it. The answer is kept on the account
+ * rather than per guild: it is a fact about the person, and the second listed
+ * guild they join asks nothing.
+ *
+ * Saying it again is not an error and does not move the timestamp — the
+ * record is when they first said it. Saying it with the box unticked is
+ * refused, because an unticked box is not a confirmation.
+ * @summary Confirm My Age
+ */
+export const confirmMyAgeApiV1UsersMeAgeConfirmationPost = (
+  ageConfirmation: BodyType<AgeConfirmation>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    {
+      url: `/api/v1/users/me/age-confirmation`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ageConfirmation,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+    TError,
+    { data: BodyType<AgeConfirmation> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+  TError,
+  { data: BodyType<AgeConfirmation> },
+  TContext
+> => {
+  const mutationKey = ["confirmMyAgeApiV1UsersMeAgeConfirmationPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+    { data: BodyType<AgeConfirmation> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return confirmMyAgeApiV1UsersMeAgeConfirmationPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>
+>;
+export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationBody = BodyType<AgeConfirmation>;
+export type ConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Confirm My Age
+ */
+export const useConfirmMyAgeApiV1UsersMeAgeConfirmationPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+      TError,
+      { data: BodyType<AgeConfirmation> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof confirmMyAgeApiV1UsersMeAgeConfirmationPost>>,
+  TError,
+  { data: BodyType<AgeConfirmation> },
+  TContext
+> => {
+  return useMutation(
+    getConfirmMyAgeApiV1UsersMeAgeConfirmationPostMutationOptions(options),
     queryClient
   );
 };

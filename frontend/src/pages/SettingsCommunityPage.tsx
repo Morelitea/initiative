@@ -12,9 +12,11 @@
  * everyone else's.
  */
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
@@ -28,7 +30,10 @@ export const SettingsCommunityPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
-  const { communityDirectoryEnabled, isLoading } = useAppConfig();
+  const { communityDirectoryEnabled, communityAgeGateEnabled, isLoading } = useAppConfig();
+  // Turning the age gate off is an assertion about every account here, not a
+  // preference, so it is confirmed. Turning it back on is not.
+  const [confirmingAgeGateOff, setConfirmingAgeGateOff] = useState(false);
 
   const update = useUpdateCommunitySettings({
     onSuccess: (result) => {
@@ -69,6 +74,45 @@ export const SettingsCommunityPage = () => {
         {/* Turning it back off is not a punishment for the guilds that opted
             in, and saying so up front stops it reading like one. */}
         <p className="text-muted-foreground text-xs">{t("community.reversibleNote")}</p>
+
+        {/* The second switch. Shown regardless of the first, so an owner can
+            settle it before opening the directory rather than discovering it
+            once people are already arriving. */}
+        <div className="space-y-4 border-t pt-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="community-age-gate-enabled"
+              checked={communityAgeGateEnabled}
+              disabled={isLoading || update.isPending}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  update.mutate({
+                    community_directory_enabled: communityDirectoryEnabled,
+                    age_gate_enabled: true,
+                  });
+                  return;
+                }
+                setConfirmingAgeGateOff(true);
+              }}
+            />
+            <Label htmlFor="community-age-gate-enabled">{t("community.ageGateLabel")}</Label>
+          </div>
+          <p className="text-muted-foreground text-sm">{t("community.ageGateHelpText")}</p>
+        </div>
+
+        <ConfirmDialog
+          open={confirmingAgeGateOff}
+          onOpenChange={setConfirmingAgeGateOff}
+          title={t("community.ageGateOffTitle")}
+          description={t("community.ageGateOffBody")}
+          confirmLabel={t("community.ageGateOffConfirm")}
+          onConfirm={() =>
+            update.mutate({
+              community_directory_enabled: communityDirectoryEnabled,
+              age_gate_enabled: false,
+            })
+          }
+        />
       </CardContent>
     </Card>
   );

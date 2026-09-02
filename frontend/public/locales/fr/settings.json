@@ -1118,7 +1118,12 @@
     "enabledToast": "L'annuaire des communautés est activé.",
     "disabledToast": "L'annuaire des communautés est désactivé.",
     "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés."
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
+    "ageGateLabel": "Demander aux membres de confirmer qu'ils ont 13 ans ou plus",
+    "ageGateHelpText": "Tant que ceci est actif, toute personne appartenant à une communauté référencée doit confirmer son âge une fois, et la réponse reste attachée à son compte. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
+    "ageGateOffTitle": "Ne plus demander l'âge des membres ?",
+    "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge, y compris en rejoignant plus tard une communauté référencée.",
+    "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus"
   },
   "audit": {
     "title": "Audit",

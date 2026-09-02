@@ -1118,7 +1118,12 @@
     "enabledToast": "El directorio de comunidades está activado.",
     "disabledToast": "El directorio de comunidades está desactivado.",
     "saveError": "No se pudo cambiar el directorio de comunidades. Inténtalo de nuevo.",
-    "adminOnly": "Necesitas el rol de propietario de la plataforma para ofrecer un directorio de comunidades."
+    "adminOnly": "Necesitas el rol de propietario de la plataforma para ofrecer un directorio de comunidades.",
+    "ageGateLabel": "Pedir a los miembros que confirmen que tienen 13 años o más",
+    "ageGateHelpText": "Mientras esto esté activo, a quien pertenezca a una comunidad listada se le pide una vez que confirme su edad, y la respuesta queda en su cuenta. Desactívalo solo donde ya sepas que todas las cuentas pertenecen a personas adultas.",
+    "ageGateOffTitle": "¿Dejar de preguntar la edad?",
+    "ageGateOffBody": "Desactivarlo afirma que todas las cuentas de esta instalación pertenecen a personas de 18 años o más. No se volverá a pedir a nadie que confirme su edad, ni siquiera a quien se una más adelante a una comunidad listada.",
+    "ageGateOffConfirm": "Aquí todo el mundo tiene 18 o más"
   },
   "audit": {
     "title": "Auditoría",

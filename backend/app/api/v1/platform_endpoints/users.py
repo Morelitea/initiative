@@ -62,6 +62,7 @@ from app.schemas.platform.guild import (
     GuildCategory,
 )
 from app.schemas.platform.user import (
+    AgeConfirmation,
     DecorationPack,
     DecorationPackListResponse,
     OwnedDecoration,
@@ -158,6 +159,12 @@ async def read_users_me(
     # is linked (drives the "SSO account" affordances in the profile UI).
     payload.has_federated_identity = await has_federated_identity(
         session, user_id=current_user.id
+    )
+    # The standing age gate. Costs a query only for an account that has not
+    # confirmed on a deployment that asks — it short-circuits on the column
+    # for everyone else, and stops for good once they answer.
+    payload.age_confirmation_required = (
+        await guilds_service.age_confirmation_outstanding(session, user=current_user)
     )
     return payload
 
@@ -694,6 +701,39 @@ async def claim_my_username(
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
+    return UserRead.model_validate(current_user)
+
+
+@router.post("/me/age-confirmation", response_model=UserRead)
+async def confirm_my_age(
+    payload: AgeConfirmation,
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserRead:
+    """Record that this account belongs to somebody at least 13 years old.
+
+    Asked for by a deployment that runs a community directory, of every account
+    that belongs to a guild listed in it. The answer is kept on the account
+    rather than per guild: it is a fact about the person, and the second listed
+    guild they join asks nothing.
+
+    Saying it again is not an error and does not move the timestamp — the
+    record is when they first said it. Saying it with the box unticked is
+    refused, because an unticked box is not a confirmation.
+    """
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_NOT_CONFIRMED,
+        )
+
+    if current_user.age_confirmed_at is None:
+        current_user.age_confirmed_at = datetime.now(timezone.utc)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+        await session.refresh(current_user)
+
     return UserRead.model_validate(current_user)
 
 

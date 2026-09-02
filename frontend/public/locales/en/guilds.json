@@ -411,7 +411,9 @@
       "certifyHate": "Hate speech, harassment, or threats",
       "certifyDuty": "You are an admin of this community, so this is yours to enforce. You are expected to watch for this content and remove it. A community that stops meeting this is removed from the directory.",
       "confirm": "List this community"
-    }
+    },
+    "ageGateBody": "Communities here can be found by anyone signed in, so joining one asks your age once. You will not be asked again.",
+    "ageGateConfirm": "Confirm and join"
   },
   "nameDisplay": {
     "title": "How members are named",

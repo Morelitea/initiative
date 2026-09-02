@@ -410,6 +410,18 @@ class UserRead(UserBase):
     # Whether this account picked its handle. False routes the SPA to the
     # choose-your-handle screen before anything else.
     username_chosen: bool = False
+    #: When this account said it belongs to somebody 13 or older, ``None``
+    #: where it never has. Read by the directory's Join button, which asks
+    #: before it joins rather than letting the server refuse.
+    age_confirmed_at: Optional[datetime] = None
+    #: Whether it must say so before it can carry on. True only for an account
+    #: that is already in a listed guild without having confirmed — every other
+    #: way in leaves the membership standing and lands here. False routes
+    #: nowhere; true blocks the app on the confirmation screen, the way
+    #: ``username_chosen`` false routes to the handle screen. Populated by the
+    #: self endpoints (``/users/me`` and ``PATCH /users/me``), which is where
+    #: the SPA reads its own account; defaults false elsewhere.
+    age_confirmation_required: bool = False
     status: UserStatus
     email_verified: bool
     created_at: datetime
@@ -483,6 +495,17 @@ class UsernameClaim(SanitizedBaseModel):
     """
 
     username: str = Field(max_length=64)
+
+
+class AgeConfirmation(SanitizedBaseModel):
+    """An account saying it belongs to somebody at least 13 years old.
+
+    A body rather than a bare POST because the box has to be ticked: an
+    unticked one is a request that arrives, and is refused, rather than one
+    that is never sent.
+    """
+
+    confirmed: bool
 
 
 class UserInitiativeRole(SanitizedBaseModel):

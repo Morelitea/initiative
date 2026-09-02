@@ -1118,7 +1118,12 @@
     "enabledToast": "Das Community-Verzeichnis ist aktiv.",
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben."
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
+    "ageGateLabel": "Mitglieder bestätigen lassen, dass sie mindestens 13 sind",
+    "ageGateHelpText": "Solange dies aktiv ist, wird jede Person in einer gelisteten Community einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
+    "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",
+    "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird erneut um eine Altersbestätigung gebeten – auch nicht bei einem späteren Beitritt zu einer gelisteten Community.",
+    "ageGateOffConfirm": "Hier sind alle mindestens 18"
   },
   "audit": {
     "title": "Prüfprotokoll",
