@@ -1,11 +1,11 @@
-"""Reading what a badge currently shows.
+"""Reading what a smart chip currently shows.
 
-A badge stores nothing. The document holds a reference — ``task:12:status`` —
+A chip stores nothing. The document holds a reference — ``task:12:status`` —
 and this reads the row that reference names, every time, so a chip is never
 older than the last request.
 
-One entry per ``(kind, aspect)`` in :data:`BADGE_SOURCES`, and each entry reads
-its whole set of ids in ONE query. A document with thirty task badges makes one
+One entry per ``(kind, aspect)`` in :data:`SMART_CHIP_SOURCES`, and each entry reads
+its whole set of ids in ONE query. A document with thirty task chips makes one
 request, and that request makes one query per aspect it uses — not one per chip.
 
 Every read goes through the session it is handed, which is the request's
@@ -24,7 +24,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.core.document_badges import BadgeAspect, BadgeTone
+from app.core.smart_chips import SmartChipAspect, SmartChipTone
 from app.core.references import REF_SEPARATOR, is_referenceable
 from app.core.search import SearchEntityType
 from app.db import reference_targets
@@ -39,7 +39,7 @@ from app.models.tenant.task import (
     TaskStatus,
     TaskStatusCategory,
 )
-from app.schemas.tenant.document_badge import BadgeState
+from app.schemas.tenant.smart_chip import SmartChipState
 
 #: Ceiling on one request. A document that names more things than this is not a
 #: document, and the cost of a page is bounded either way.
@@ -47,35 +47,37 @@ MAX_REFS = 100
 
 
 @dataclass(frozen=True)
-class BadgeValue:
+class SmartChipValue:
     """What one chip reads, before it is paired back to its reference."""
 
     text: str
-    tone: BadgeTone = BadgeTone.neutral
+    tone: SmartChipTone = SmartChipTone.neutral
     color: Optional[str] = None
     date: Optional[datetime] = None
     number: Optional[Decimal] = None
 
 
 #: A reader takes the ids wanted and answers for the ones it can see.
-Reader = Callable[[AsyncSession, list[int]], Awaitable[dict[int, BadgeValue]]]
+Reader = Callable[[AsyncSession, list[int]], Awaitable[dict[int, SmartChipValue]]]
 
 #: Where a task sits, in the colour its own column carries. ``done`` is the one
 #: category with a meaning every project shares, so it is the one that gets a
 #: tone of its own; the rest are whatever the project called them.
 _STATUS_TONES = {
-    TaskStatusCategory.done: BadgeTone.good,
-    TaskStatusCategory.in_progress: BadgeTone.warn,
+    TaskStatusCategory.done: SmartChipTone.good,
+    TaskStatusCategory.in_progress: SmartChipTone.warn,
 }
 
 _PRIORITY_TONES = {
-    TaskPriority.urgent: BadgeTone.danger,
-    TaskPriority.high: BadgeTone.warn,
-    TaskPriority.low: BadgeTone.muted,
+    TaskPriority.urgent: SmartChipTone.danger,
+    TaskPriority.high: SmartChipTone.warn,
+    TaskPriority.low: SmartChipTone.muted,
 }
 
 
-async def _task_status(session: AsyncSession, ids: list[int]) -> dict[int, BadgeValue]:
+async def _task_status(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
     rows = (
         await session.exec(
             select(Task.id, TaskStatus.name, TaskStatus.color, TaskStatus.category)
@@ -84,9 +86,9 @@ async def _task_status(session: AsyncSession, ids: list[int]) -> dict[int, Badge
         )
     ).all()
     return {
-        task_id: BadgeValue(
+        task_id: SmartChipValue(
             text=name,
-            tone=_STATUS_TONES.get(category, BadgeTone.neutral),
+            tone=_STATUS_TONES.get(category, SmartChipTone.neutral),
             color=color,
         )
         for task_id, name, color, category in rows
@@ -95,7 +97,7 @@ async def _task_status(session: AsyncSession, ids: list[int]) -> dict[int, Badge
 
 async def _task_assignee(
     session: AsyncSession, ids: list[int]
-) -> dict[int, BadgeValue]:
+) -> dict[int, SmartChipValue]:
     """Who holds a task. Several people can, so the chip names the first and
     counts the rest rather than growing with the list."""
     rows = (
@@ -110,22 +112,22 @@ async def _task_assignee(
     for task_id, user in rows:
         holders.setdefault(task_id, []).append(user)
 
-    values: dict[int, BadgeValue] = {}
+    values: dict[int, SmartChipValue] = {}
     for task_id in ids:
         people = holders.get(task_id)
         if not people:
             # Answered, not missing: an unassigned task is a fact worth showing.
-            values[task_id] = BadgeValue(text="", tone=BadgeTone.muted)
+            values[task_id] = SmartChipValue(text="", tone=SmartChipTone.muted)
             continue
         # ``display_name`` reads the guild's own name-visibility setting, so a
-        # badge shows exactly what every other surface here shows.
+        # chip shows exactly what every other surface here shows.
         first = display_name(people[0])
         extra = len(people) - 1
-        values[task_id] = BadgeValue(text=f"{first} +{extra}" if extra else first)
+        values[task_id] = SmartChipValue(text=f"{first} +{extra}" if extra else first)
     return values
 
 
-async def _task_due(session: AsyncSession, ids: list[int]) -> dict[int, BadgeValue]:
+async def _task_due(session: AsyncSession, ids: list[int]) -> dict[int, SmartChipValue]:
     """When a task is due. Late is only late while it is unfinished — a job
     delivered a day after its date is done, not overdue."""
     rows = (
@@ -136,16 +138,16 @@ async def _task_due(session: AsyncSession, ids: list[int]) -> dict[int, BadgeVal
         )
     ).all()
     now = datetime.now(timezone.utc)
-    values: dict[int, BadgeValue] = {}
+    values: dict[int, SmartChipValue] = {}
     for task_id, due, category in rows:
         if due is None:
-            values[task_id] = BadgeValue(text="", tone=BadgeTone.muted)
+            values[task_id] = SmartChipValue(text="", tone=SmartChipTone.muted)
             continue
         moment = due if due.tzinfo else due.replace(tzinfo=timezone.utc)
         late = moment < now and category != TaskStatusCategory.done
-        values[task_id] = BadgeValue(
+        values[task_id] = SmartChipValue(
             text=moment.date().isoformat(),
-            tone=BadgeTone.danger if late else BadgeTone.neutral,
+            tone=SmartChipTone.danger if late else SmartChipTone.neutral,
             date=moment,
         )
     return values
@@ -153,7 +155,7 @@ async def _task_due(session: AsyncSession, ids: list[int]) -> dict[int, BadgeVal
 
 async def _task_priority(
     session: AsyncSession, ids: list[int]
-) -> dict[int, BadgeValue]:
+) -> dict[int, SmartChipValue]:
     rows = (
         await session.exec(
             select(Task.id, Task.priority).where(
@@ -162,9 +164,9 @@ async def _task_priority(
         )
     ).all()
     return {
-        task_id: BadgeValue(
+        task_id: SmartChipValue(
             text=priority.value,
-            tone=_PRIORITY_TONES.get(priority, BadgeTone.neutral),
+            tone=_PRIORITY_TONES.get(priority, SmartChipTone.neutral),
         )
         for task_id, priority in rows
     }
@@ -172,7 +174,7 @@ async def _task_priority(
 
 async def _counter_value(
     session: AsyncSession, ids: list[int]
-) -> dict[int, BadgeValue]:
+) -> dict[int, SmartChipValue]:
     """A counter's reading. Where it has a ceiling the chip says so, because a
     number is worth more against the number it is heading for."""
     rows = (
@@ -182,18 +184,20 @@ async def _counter_value(
             )
         )
     ).all()
-    values: dict[int, BadgeValue] = {}
+    values: dict[int, SmartChipValue] = {}
     for counter_id, count, ceiling in rows:
         reached = ceiling is not None and count >= ceiling
-        values[counter_id] = BadgeValue(
+        values[counter_id] = SmartChipValue(
             text=f"{_plain(count)} / {_plain(ceiling)}" if ceiling else _plain(count),
-            tone=BadgeTone.good if reached else BadgeTone.neutral,
+            tone=SmartChipTone.good if reached else SmartChipTone.neutral,
             number=count,
         )
     return values
 
 
-async def _event_when(session: AsyncSession, ids: list[int]) -> dict[int, BadgeValue]:
+async def _event_when(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
     rows = (
         await session.exec(
             select(CalendarEvent.id, CalendarEvent.start_at).where(
@@ -202,12 +206,12 @@ async def _event_when(session: AsyncSession, ids: list[int]) -> dict[int, BadgeV
         )
     ).all()
     now = datetime.now(timezone.utc)
-    values: dict[int, BadgeValue] = {}
+    values: dict[int, SmartChipValue] = {}
     for event_id, start in rows:
         moment = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
-        values[event_id] = BadgeValue(
+        values[event_id] = SmartChipValue(
             text=moment.date().isoformat(),
-            tone=BadgeTone.muted if moment < now else BadgeTone.neutral,
+            tone=SmartChipTone.muted if moment < now else SmartChipTone.neutral,
             date=moment,
         )
     return values
@@ -219,28 +223,28 @@ def _plain(value: Decimal) -> str:
     return format(trimmed, "f")
 
 
-#: (kind, aspect) -> how to read it. Adding a badge is one entry here: the
+#: (kind, aspect) -> how to read it. Adding a chip is one entry here: the
 #: endpoint, the accepted refs and the menu the editor offers all derive from
 #: this, so none of them is a second list to keep in step.
-BADGE_SOURCES: dict[tuple[SearchEntityType, BadgeAspect], Reader] = {
-    (SearchEntityType.task, BadgeAspect.status): _task_status,
-    (SearchEntityType.task, BadgeAspect.assignee): _task_assignee,
-    (SearchEntityType.task, BadgeAspect.due): _task_due,
-    (SearchEntityType.task, BadgeAspect.priority): _task_priority,
-    (SearchEntityType.counter, BadgeAspect.value): _counter_value,
-    (SearchEntityType.calendar_event, BadgeAspect.when): _event_when,
+SMART_CHIP_SOURCES: dict[tuple[SearchEntityType, SmartChipAspect], Reader] = {
+    (SearchEntityType.task, SmartChipAspect.status): _task_status,
+    (SearchEntityType.task, SmartChipAspect.assignee): _task_assignee,
+    (SearchEntityType.task, SmartChipAspect.due): _task_due,
+    (SearchEntityType.task, SmartChipAspect.priority): _task_priority,
+    (SearchEntityType.counter, SmartChipAspect.value): _counter_value,
+    (SearchEntityType.calendar_event, SmartChipAspect.when): _event_when,
 }
 
 
-def reader_for(entity_type: SearchEntityType, aspect: BadgeAspect) -> Reader:
+def reader_for(entity_type: SearchEntityType, aspect: SmartChipAspect) -> Reader:
     """The reader for one pair. Raises for a pair with none, which
-    ``document_badges_test`` proves cannot happen."""
-    return BADGE_SOURCES[(entity_type, aspect)]
+    ``smart_chips_test`` proves cannot happen."""
+    return SMART_CHIP_SOURCES[(entity_type, aspect)]
 
 
 def parse_ref(
     ref: str,
-) -> Optional[tuple[SearchEntityType, int, Optional[BadgeAspect]]]:
+) -> Optional[tuple[SearchEntityType, int, Optional[SmartChipAspect]]]:
     """``task:12`` or ``task:12:status`` as its parts, or ``None`` for neither.
 
     Two shapes on purpose. A bare reference asks what the thing is called,
@@ -266,17 +270,17 @@ def parse_ref(
     if len(parts) == 2:
         return entity_type, int(raw_id), None
     try:
-        aspect = BadgeAspect(parts[2])
+        aspect = SmartChipAspect(parts[2])
     except ValueError:
         return None
-    if (entity_type, aspect) not in BADGE_SOURCES:
+    if (entity_type, aspect) not in SMART_CHIP_SOURCES:
         return None
     return entity_type, int(raw_id), aspect
 
 
 async def _titles(
     session: AsyncSession, entity_type: SearchEntityType, ids: list[int]
-) -> dict[int, BadgeValue]:
+) -> dict[int, SmartChipValue]:
     """What these things are called right now.
 
     The column is whichever one the kind calls its name — derived, so a queue
@@ -288,7 +292,7 @@ async def _titles(
     rows = (
         await session.exec(select(table.c["id"], title).where(table.c["id"].in_(ids)))
     ).all()
-    return {entity_id: BadgeValue(text=name or "") for entity_id, name in rows}
+    return {entity_id: SmartChipValue(text=name or "") for entity_id, name in rows}
 
 
 async def _visible(
@@ -301,7 +305,7 @@ async def _visible(
     The gate itself is derived: see :mod:`app.db.reference_targets`.
 
     Done here rather than inside each reader on purpose: a reader is never
-    handed an id that did not come back from this, so a badge added later
+    handed an id that did not come back from this, so a chip added later
     cannot forget it.
     """
     seen: dict[SearchEntityType, set[int]] = {}
@@ -315,17 +319,19 @@ async def _visible(
     return seen
 
 
-async def read_badges(
+async def read_smart_chips(
     session: AsyncSession, *, user_id: int, refs: list[str]
-) -> list[BadgeState]:
+) -> list[SmartChipState]:
     """Current state for every reference that resolves, in the order asked.
 
     Grouped by ``(kind, aspect)`` so each reader runs once over its whole set of
     ids. A reference naming something that is gone, or that this caller cannot
     see, is left out of the answer.
     """
-    wanted: dict[tuple[SearchEntityType, Optional[BadgeAspect]], list[int]] = {}
-    parsed: list[tuple[str, tuple[SearchEntityType, Optional[BadgeAspect]], int]] = []
+    wanted: dict[tuple[SearchEntityType, Optional[SmartChipAspect]], list[int]] = {}
+    parsed: list[
+        tuple[str, tuple[SearchEntityType, Optional[SmartChipAspect]], int]
+    ] = []
     for ref in dict.fromkeys(refs[:MAX_REFS]):
         resolved = parse_ref(ref)
         if resolved is None:
@@ -340,7 +346,7 @@ async def read_badges(
     visible = await _visible(session, user_id=user_id, wanted=by_type)
 
     read: dict[
-        tuple[SearchEntityType, Optional[BadgeAspect]], dict[int, BadgeValue]
+        tuple[SearchEntityType, Optional[SmartChipAspect]], dict[int, SmartChipValue]
     ] = {}
     for pair, ids in wanted.items():
         entity_type, aspect = pair
@@ -350,15 +356,17 @@ async def read_badges(
         elif aspect is None:
             read[pair] = await _titles(session, entity_type, allowed)
         else:
-            read[pair] = await BADGE_SOURCES[(entity_type, aspect)](session, allowed)
+            read[pair] = await SMART_CHIP_SOURCES[(entity_type, aspect)](
+                session, allowed
+            )
 
-    states: list[BadgeState] = []
+    states: list[SmartChipState] = []
     for ref, pair, entity_id in parsed:
         value = read.get(pair, {}).get(entity_id)
         if value is None:
             continue
         states.append(
-            BadgeState(
+            SmartChipState(
                 ref=ref,
                 entity_type=pair[0],
                 aspect=pair[1],

@@ -7,17 +7,17 @@ import {
 } from "lexical";
 import { describe, expect, it } from "vitest";
 
-import { BadgeKind, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
-import { $createBadgeNode, BadgeNode } from "@/components/ui/editor/nodes/badge-node";
+import { SearchEntityType, SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
 import {
   $createEntityMentionNode,
   EntityMentionNode,
 } from "@/components/ui/editor/nodes/entity-mention-node";
-import { collectReferences, documentReferences, nodeReference } from "@/lib/documentReferences";
+import { $createSmartChipNode, SmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
+import { collectReferences, documentReferences, nodeReferences } from "@/lib/documentReferences";
 
 function inEditor<T>(fn: () => T): T {
   const editor: LexicalEditor = createEditor({
-    nodes: [BadgeNode, EntityMentionNode],
+    nodes: [SmartChipNode, EntityMentionNode],
     onError: (error) => {
       throw error;
     },
@@ -36,17 +36,22 @@ describe("what a page asks about", () => {
   it("includes the things it links to, not only its chips", () => {
     // The whole point of live names: a reference nobody asks about can only
     // ever show the words it was written with.
-    const ref = inEditor(() =>
-      nodeReference($createEntityMentionNode(SearchEntityType.task, 12, "Ship it"))
+    const refs = inEditor(() =>
+      nodeReferences($createEntityMentionNode(SearchEntityType.task, 12, "Ship it"))
     );
-    expect(ref).toBe("task:12");
+    expect(refs).toEqual(["task:12"]);
   });
 
-  it("includes its chips", () => {
-    const ref = inEditor(() =>
-      nodeReference($createBadgeNode(BadgeKind["task:status"], 12, "Ship it"))
+  it("asks a chip's two questions: the fact, and what it is a fact about", () => {
+    // The reading goes in the sentence; the name goes on the card behind it.
+    const refs = inEditor(() =>
+      nodeReferences($createSmartChipNode(SmartChipKind["task:status"], 12, "Ship it"))
     );
-    expect(ref).toBe("task:12:status");
+    expect(refs.sort()).toEqual(["task:12", "task:12:status"]);
+  });
+
+  it("ignores a node that names nothing", () => {
+    expect(inEditor(() => nodeReferences($createTextNode("plain")))).toEqual([]);
   });
 
   it("asks about a thing once, however many times it is named", () => {
@@ -54,7 +59,7 @@ describe("what a page asks about", () => {
       collectReferences([
         $createEntityMentionNode(SearchEntityType.task, 12, "Ship it"),
         $createEntityMentionNode(SearchEntityType.task, 12, "Ship it"),
-        $createBadgeNode(BadgeKind["task:status"], 12, "Ship it"),
+        $createSmartChipNode(SmartChipKind["task:status"], 12, "Ship it"),
       ])
     );
     // The name and the status are different questions; naming it twice is not.
@@ -84,10 +89,10 @@ describe("what a page asks about", () => {
 
 describe("what a page asks about, read off the page", () => {
   it("finds the references written into a document", () => {
-    // The plugin asks the editor, not a list handed to it — a walk that comes
+    // The scope asks the editor, not a list handed to it — a walk that comes
     // back empty leaves every chip and every name showing what it was typed as.
     const editor: LexicalEditor = createEditor({
-      nodes: [BadgeNode, EntityMentionNode],
+      nodes: [SmartChipNode, EntityMentionNode],
       onError: (error) => {
         throw error;
       },
@@ -98,13 +103,17 @@ describe("what a page asks about, read off the page", () => {
         paragraph.append(
           $createTextNode("see "),
           $createEntityMentionNode(SearchEntityType.task, 12, "Ship it"),
-          $createBadgeNode(BadgeKind["task:status"], 12, "Ship it")
+          $createSmartChipNode(SmartChipKind["counter:value"], 4, "Signups")
         );
         $getRoot().append(paragraph);
       },
       { discrete: true }
     );
 
-    expect(documentReferences(editor.getEditorState())).toEqual(["task:12", "task:12:status"]);
+    expect(documentReferences(editor.getEditorState())).toEqual([
+      "counter:4",
+      "counter:4:value",
+      "task:12",
+    ]);
   });
 });

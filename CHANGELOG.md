@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Point at other work from anywhere you write.** `@` names a person, `#` names anything that exists, and `[[ ]]` names a tool — and offers to make one that doesn't exist yet, in place, without leaving the sentence. All three work in every comment and in text documents. References keep up: rename a task and every sentence mentioning it says the new name, with nobody editing anything. A document's backlinks count them all, not just `[[ ]]` links.
 
-- **Badges: a chip that keeps itself current.** Type `/` in a document and pick a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip shows what that thing is doing right now — move a task to Done and it turns green in every document that mentions it. Click one to open what it's about.
+- **Smart chips: a chip that keeps itself current.** Type `/` in a document, or pick **Smart chip** from the toolbar's insert menu, and choose a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip carries the reading itself — `In progress`, `42 / 100`, `12 Sep` — so it sits in a sentence without repeating what the sentence already says; hover it for what the thing is called now and what kind of thing it is, and click to open it. Move a task to Done and it turns green in every document that mentions it.
 
 - **Comments grew up.** React with an emoji (the author hears about it in a digest, not one ping per thumbs-up), turn comments off per tool under Settings › Advanced, and read them through the MCP server as well as write them.
 

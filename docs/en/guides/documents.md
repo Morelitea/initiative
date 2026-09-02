@@ -48,17 +48,17 @@ A few keys do more than they look:
 
 - `@` mentions a person, and `#` links to anything in the initiative — see [Mentions & links](mentions-and-links.md).
 - `[[` links to another document, and offers to create one if the name is new.
-- `/` opens the insert menu — images, tables, embeds, and [badges](#badges).
+- `/` opens the insert menu — images, tables, embeds, and [smart chips](#smart-chips).
 
 ![The document editor](../images/documents/editor.png)
 
-## Badges
+## Smart chips
 
-A link tells you something exists. A **badge** tells you what it's doing right now.
+A link tells you something exists. A **smart chip** tells you what it's doing right now.
 
-Type `/` in a text document and pick one:
+Type `/` in a text document and pick one, or choose **Smart chip** from the toolbar's insert menu and pick the thing first:
 
-| Badge | Shows |
+| Smart chip | Shows |
 |---|---|
 | Task status | The column the task sits in, in that project's colour |
 | Task assignee | Who's holding it |
@@ -67,19 +67,21 @@ Type `/` in a text document and pick one:
 | Counter value | The current number, against its target where it has one |
 | Event date | When it happens, dimmed once it has |
 
-Then choose which thing the badge is about, and the chip appears in your sentence:
+The chip carries the reading itself, so your sentence keeps its shape:
 
 > Ship the release — **In progress** · **12 Sep**
 
-Move that task to Done and the chip turns green — here, and in every other document that mentions it, without anyone editing a word. Click a badge to open what it's about.
+Hover one to see what it's about: what the thing is called now, what kind of thing it is, and which of its facts you're looking at. Click it to open that thing.
 
-Badges are for text documents. A whiteboard and a spreadsheet hold shapes and cells rather than sentences, so there's nowhere for a chip to sit.
+Move that task to Done and the chip turns green — here, and in every other document that mentions it, without anyone editing a word.
+
+Smart chips are for text documents. A whiteboard and a spreadsheet hold shapes and cells rather than sentences, so there's nowhere for a chip to sit.
 
 !!! note "What other people see"
-    A badge shows what *you* can see. If a document mentions a task in a project that hasn't been shared with you, the chip shows the name it had when it was written and nothing about its state.
+    A chip shows what *you* can see. If a document mentions a task in a project that hasn't been shared with you, the chip shows the name it had when it was written and nothing about its state.
 
 !!! tip "Exports show the words, not the chip"
-    A badge can't keep itself current inside a PDF or a Word file, so an export shows the name the thing had when the badge was written.
+    A chip can't keep itself current inside a PDF or a Word file, so an export shows the name the thing had when the chip was written.
 
 ## Working in a spreadsheet
 

@@ -8,17 +8,24 @@
 
 import type { EditorState, LexicalNode } from "lexical";
 
-import { $isBadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { $isEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
-import { referenceRef } from "@/lib/badges";
+import { $isSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
+import { chipEntityType, referenceRef } from "@/lib/smartChips";
 
-/** The reference a node needs read, or `null` if it refers to nothing. */
-export const nodeReference = (node: LexicalNode): string | null => {
-  if ($isBadgeNode(node)) return node.getRef();
-  if ($isEntityMentionNode(node)) {
-    return referenceRef(node.getEntityType(), node.getEntityId());
+/** The references a node needs read, or empty if it refers to nothing.
+ *
+ * A chip asks two questions about the same thing: the fact it shows, and what
+ * that thing is called — the reading goes in the sentence and the name goes on
+ * the card behind it. Both are the same request. */
+export const nodeReferences = (node: LexicalNode): string[] => {
+  if ($isSmartChipNode(node)) {
+    const kind = node.getChipKind();
+    return [node.getRef(), referenceRef(chipEntityType(kind), node.getEntityId())];
   }
-  return null;
+  if ($isEntityMentionNode(node)) {
+    return [referenceRef(node.getEntityType(), node.getEntityId())];
+  }
+  return [];
 };
 
 /** Every reference in a set of nodes, sorted so the same page asks the same
@@ -26,8 +33,7 @@ export const nodeReference = (node: LexicalNode): string | null => {
 export const collectReferences = (nodes: Iterable<LexicalNode>): string[] => {
   const found = new Set<string>();
   for (const node of nodes) {
-    const ref = nodeReference(node);
-    if (ref) found.add(ref);
+    for (const ref of nodeReferences(node)) found.add(ref);
   }
   return [...found].sort();
 };

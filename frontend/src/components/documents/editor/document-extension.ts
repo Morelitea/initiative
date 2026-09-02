@@ -27,12 +27,12 @@ import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-ex
 import { LayoutExtension } from "@/components/ui/editor/extensions/layout-extension";
 import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/list-max-indent-level-extension";
 import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
-import { BadgeNode } from "@/components/ui/editor/nodes/badge-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
 import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { LEGACY_NODES } from "@/components/ui/editor/nodes/legacy-nodes";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
+import { SmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
 import { validateUrl } from "@/components/ui/editor/utils/url";
 
@@ -81,7 +81,7 @@ export function documentExtension({
       TweetNode,
       YouTubeNode,
       EntityMentionNode,
-      BadgeNode,
+      SmartChipNode,
       ...LEGACY_NODES,
     ],
     theme: editorTheme,

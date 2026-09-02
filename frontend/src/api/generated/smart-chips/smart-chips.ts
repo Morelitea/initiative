@@ -18,10 +18,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  BadgeKind,
-  BadgeStateList,
   HTTPValidationError,
-  ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
+  SmartChipKind,
+  SmartChipStateList,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -45,40 +45,40 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * The badges an editor may offer to insert.
+ * The chips an editor may offer to insert.
  *
- * Asked for rather than assumed, so an editor cannot put a badge in a
+ * Asked for rather than assumed, so an editor cannot put a chip in a
  * document that this server has no reader for — and gains one the day a
  * reader is added, without being told.
  *
  * Titles are not here: every referenceable thing has one, and it is how a
  * reference renders rather than something chosen from a menu.
- * @summary List Badge Kinds
+ * @summary List Smart Chip Kinds
  */
-export const listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet = (
+export const listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet = (
   guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<BadgeKind[]>(
-    { url: `/api/v1/g/${guildId}/document-badges/kinds`, method: "GET", signal },
+  return apiMutator<SmartChipKind[]>(
+    { url: `/api/v1/g/${guildId}/smart-chips/kinds`, method: "GET", signal },
     options
   );
 };
 
-export const getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryKey = (guildId: number) => {
-  return [`/api/v1/g/${guildId}/document-badges/kinds`] as const;
+export const getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/smart-chips/kinds`] as const;
 };
 
-export const getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+export const getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
@@ -89,12 +89,12 @@ export const getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryOptions = 
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+    Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
   > = ({ signal }) =>
-    listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet(guildId, requestOptions, signal);
+    listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -102,36 +102,36 @@ export const getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryOptions = 
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+    Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+export type ListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
 >;
-export type ListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryError =
+export type ListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
-  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
           TError,
-          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
         >,
         "initialData"
       >;
@@ -139,24 +139,24 @@ export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
-  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
           TError,
-          Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>
+          Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>
         >,
         "initialData"
       >;
@@ -164,15 +164,15 @@ export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
-  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
@@ -182,18 +182,18 @@ export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Badge Kinds
+ * @summary List Smart Chip Kinds
  */
 
-export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
-  TData = Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+export function useListSmartChipKindsApiV1GGuildIdSmartChipsKindsGet<
+  TData = Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet>>,
+        Awaited<ReturnType<typeof listSmartChipKindsApiV1GGuildIdSmartChipsKindsGet>>,
         TError,
         TData
       >
@@ -202,7 +202,7 @@ export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGetQueryOptions(
+  const queryOptions = getListSmartChipKindsApiV1GGuildIdSmartChipsKindsGetQueryOptions(
     guildId,
     options
   );
@@ -220,37 +220,37 @@ export function useListBadgeKindsApiV1GGuildIdDocumentBadgesKindsGet<
  * A reference that names something gone, or something this caller may not
  * see, is absent from the answer — the two are the same reply, and the chip
  * falls back to the words the document stored beside it.
- * @summary Read Badges
+ * @summary Read Smart Chips
  */
-export const readBadgesApiV1GGuildIdDocumentBadgesGet = (
+export const readSmartChipsApiV1GGuildIdSmartChipsGet = (
   guildId: number,
-  params?: ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<BadgeStateList>(
-    { url: `/api/v1/g/${guildId}/document-badges/`, method: "GET", params, signal },
+  return apiMutator<SmartChipStateList>(
+    { url: `/api/v1/g/${guildId}/smart-chips/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryKey = (
+export const getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey = (
   guildId: number,
-  params?: ReadBadgesApiV1GGuildIdDocumentBadgesGetParams
+  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams
 ) => {
-  return [`/api/v1/g/${guildId}/document-badges/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/g/${guildId}/smart-chips/`, ...(params ? [params] : [])] as const;
 };
 
-export const getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+export const getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
         TError,
         TData
       >
@@ -261,12 +261,12 @@ export const getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>
+    Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
   > = ({ signal }) =>
-    readBadgesApiV1GGuildIdDocumentBadgesGet(guildId, params, requestOptions, signal);
+    readSmartChipsApiV1GGuildIdSmartChipsGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -274,36 +274,36 @@ export const getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+    Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadBadgesApiV1GGuildIdDocumentBadgesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>
+export type ReadSmartChipsApiV1GGuildIdSmartChipsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
 >;
-export type ReadBadgesApiV1GGuildIdDocumentBadgesGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadSmartChipsApiV1GGuildIdSmartChipsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
-  TData = Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  params: undefined | ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
           TError,
-          Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>
+          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
         >,
         "initialData"
       >;
@@ -311,25 +311,25 @@ export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
-  TData = Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
           TError,
-          Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>
+          Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>
         >,
         "initialData"
       >;
@@ -337,16 +337,16 @@ export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
-  TData = Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
         TError,
         TData
       >
@@ -356,19 +356,19 @@ export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Read Badges
+ * @summary Read Smart Chips
  */
 
-export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
-  TData = Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+export function useReadSmartChipsApiV1GGuildIdSmartChipsGet<
+  TData = Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ReadBadgesApiV1GGuildIdDocumentBadgesGetParams,
+  params?: ReadSmartChipsApiV1GGuildIdSmartChipsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof readBadgesApiV1GGuildIdDocumentBadgesGet>>,
+        Awaited<ReturnType<typeof readSmartChipsApiV1GGuildIdSmartChipsGet>>,
         TError,
         TData
       >
@@ -377,7 +377,7 @@ export function useReadBadgesApiV1GGuildIdDocumentBadgesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadBadgesApiV1GGuildIdDocumentBadgesGetQueryOptions(
+  const queryOptions = getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryOptions(
     guildId,
     params,
     options
