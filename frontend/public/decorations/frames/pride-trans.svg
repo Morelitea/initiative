@@ -2,10 +2,24 @@
      role="presentation">
   <title>Trans</title>
   <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
-       The flag's stripes, run round the picture instead of across it, in the
-       order they are flown. -->
-  <circle cx="64" cy="64" r="62.12" fill="none" stroke="#5BCEFA" stroke-width="2.66"/><circle cx="64" cy="64" r="59.56" fill="none" stroke="#F5A9B8" stroke-width="2.66"/><circle cx="64" cy="64" r="57" fill="none" stroke="#FFFFFF" stroke-width="2.66"/><circle cx="64" cy="64" r="54.44" fill="none" stroke="#F5A9B8" stroke-width="2.66"/><circle cx="64" cy="64" r="51.88" fill="none" stroke="#5BCEFA" stroke-width="2.66"/>
-  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#14121C" stroke-width="1.8"/>
-  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#14121C" stroke-width="1.2"
-          stroke-opacity=".5"/>
+       The flag's colours as 5 equal arcs, turning, the way Spectrum does. -->
+  <style>
+    .turn { animation: spin 24s linear infinite; transform-box: view-box; transform-origin: 64px 64px }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .turn { animation: none } }
+  </style>
+  <defs>
+    <!-- Circumference at r=55 is 2πr ≈ 345.6; a 5th of it is 69.1. -->
+    <circle id="band" cx="64" cy="64" r="55" fill="none" stroke-width="7"
+            stroke-dasharray="69.12 276.46"/>
+  </defs>
+  <circle cx="64" cy="64" r="51" fill="none" stroke="#14121C" stroke-width="3"/>
+  <g class="turn">
+    <use href="#band" stroke="#5BCEFA" stroke-dashoffset="-0.00"/>
+    <use href="#band" stroke="#F5A9B8" stroke-dashoffset="-69.12"/>
+    <use href="#band" stroke="#FFFFFF" stroke-dashoffset="-138.23"/>
+    <use href="#band" stroke="#F5A9B8" stroke-dashoffset="-207.35"/>
+    <use href="#band" stroke="#5BCEFA" stroke-dashoffset="-276.46"/>
+  </g>
+  <circle cx="64" cy="64" r="59" fill="none" stroke="#14121C" stroke-opacity=".35" stroke-width="1"/>
 </svg>

@@ -4,9 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import type { DecorationPack, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { firstOfSlot, PackContentsDialog, packPieces } from "@/components/user/PackContents";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
-import { useDecorationPacks, useInstallDecorationPack } from "@/hooks/useUsers";
+import {
+  useDecorationPacks,
+  useInstallDecorationPack,
+  useRemoveDecorationPack,
+} from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { resolveDecoration } from "@/lib/profileDecorations";
@@ -21,17 +26,23 @@ import { resolveDecoration } from "@/lib/profileDecorations";
  *
  * It can only show one of each slot, though, and a pack can hold thirty-four
  * pieces. So the card is a button, and what it opens is the whole of it.
+ *
+ * A pack already downloaded keeps its card in the same place in the same grid,
+ * and the card offers the way back out — you find a pack here, so this is where
+ * you look to be rid of it.
  */
 const PackCard = ({
   entry,
   user,
   busy,
   onInstall,
+  onRemove,
 }: {
   entry: DecorationPack;
   user: UserRead;
   busy: boolean;
   onInstall: () => void;
+  onRemove: () => void;
 }) => {
   const { t } = useTranslation("profiles");
   const [open, setOpen] = useState(false);
@@ -47,10 +58,25 @@ const PackCard = ({
     </Button>
   );
   const had = (
-    <p className="flex items-center gap-1.5 py-1.5 font-medium text-sm">
-      <Check className="size-4" aria-hidden="true" />
-      {t("store.installed")}
-    </p>
+    <div className="flex items-center justify-between gap-3">
+      <p className="flex min-w-0 items-center gap-1.5 font-medium text-sm">
+        <Check className="size-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">{t("store.installed")}</span>
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0"
+        disabled={busy}
+        onClick={onRemove}
+        // Every card's button says the same word; the name is what tells them
+        // apart when the grid is read out.
+        aria-label={t("myPacks.removeNamed", { name: entry.name })}
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+        {t("myPacks.remove")}
+      </Button>
+    </div>
   );
 
   return (
@@ -101,21 +127,33 @@ const PackCard = ({
 /**
  * The decoration store.
  *
- * Every pack this build ships, for getting one. A pack already downloaded is
- * marked rather than offered again — giving one back lives with the packs you
- * have, so "get" and "give back" are never the same button in the same place.
+ * Every pack this build ships, for getting one — and for giving one back. A
+ * pack already downloaded is marked rather than offered again, and its card
+ * carries the way out, so browsing is enough to change your mind. Removing is
+ * asked about first, because the pieces go with it.
  *
  * What a pack contains and whether you have it is the server's answer; a pack
  * this build has no artwork for is left out rather than shown as an empty card.
  */
 export const DecorationStore = ({ user }: { user: UserRead }) => {
-  const { t } = useTranslation(["profiles", "errors"]);
+  const { t } = useTranslation(["profiles", "common", "errors"]);
   const { data, isLoading } = useDecorationPacks();
+  const [pending, setPending] = useState<DecorationPack | null>(null);
 
   const onError = (error: unknown) => toast.error(getErrorMessage(error, "profiles:store.failed"));
   const install = useInstallDecorationPack({
     onSuccess: () => toast.success(t("profiles:store.got")),
     onError,
+  });
+  const remove = useRemoveDecorationPack({
+    onSuccess: () => {
+      setPending(null);
+      toast.success(t("profiles:myPacks.removed"));
+    },
+    onError: (error: unknown) => {
+      setPending(null);
+      onError(error);
+    },
   });
 
   if (isLoading) {
@@ -140,16 +178,39 @@ export const DecorationStore = ({ user }: { user: UserRead }) => {
   }
 
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {packs.map((entry) => (
-        <PackCard
-          key={entry.uid}
-          entry={entry}
-          user={user}
-          busy={install.isPending && install.variables === entry.uid}
-          onInstall={() => install.mutate(entry.uid)}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {packs.map((entry) => (
+          <PackCard
+            key={entry.uid}
+            entry={entry}
+            user={user}
+            busy={
+              (install.isPending && install.variables === entry.uid) ||
+              (remove.isPending && remove.variables === entry.uid)
+            }
+            onInstall={() => install.mutate(entry.uid)}
+            onRemove={() => setPending(entry)}
+          />
+        ))}
+      </ul>
+
+      <ConfirmDialog
+        open={Boolean(pending)}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+        destructive
+        title={t("profiles:myPacks.confirmTitle", { name: pending?.name ?? "" })}
+        description={t("profiles:myPacks.confirmBody")}
+        confirmLabel={t("profiles:myPacks.remove")}
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("profiles:myPacks.removing")}
+        isLoading={remove.isPending}
+        onConfirm={() => {
+          if (pending) remove.mutate(pending.uid);
+        }}
+      />
+    </>
   );
 };

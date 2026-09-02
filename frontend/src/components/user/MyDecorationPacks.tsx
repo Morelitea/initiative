@@ -90,8 +90,8 @@ const PackRow = ({
  * the list scrolls in place, and a filter appears once scanning by eye stops
  * being realistic.
  *
- * Removing lives only here, so getting a pack and giving one up are never the
- * same button in the same place.
+ * Removing is here too, and on the card in the marketplace: whichever of the
+ * two you happen to be looking at is the one that should be able to do it.
  */
 export const MyDecorationPacks = () => {
   const { t } = useTranslation(["profiles", "common"]);

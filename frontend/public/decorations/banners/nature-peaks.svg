@@ -2,15 +2,26 @@
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Peaks</title>
   <!-- First light on the tops, before it reaches the valley. -->
+  <style>
+    .haze { animation: drift 30s ease-in-out infinite alternate }
+    .h2 { animation-duration: 38s; animation-delay: -12s }
+    @keyframes drift { from { transform: translateX(-7px) } to { transform: translateX(7px) } }
+    .rise { animation: warm 12s ease-in-out infinite alternate }
+    @keyframes warm { from { opacity: .82 } to { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { .haze, .rise { animation: none } }
+  </style>
   <defs>
+    <filter id="soft" x="-30%" y="-200%" width="160%" height="500%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
     <linearGradient id="dawn" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#2E3E6E"/><stop offset="50%" stop-color="#E08A6A"/>
       <stop offset="100%" stop-color="#F6C98E"/>
     </linearGradient>
   </defs>
   <rect width="160" height="40" fill="url(#dawn)"/>
-  <circle cx="112" cy="17" r="5" fill="#FFE7B8" opacity=".9"/>
-  <circle cx="112" cy="17" r="11" fill="#FFE7B8" opacity=".16"/>
+  <circle class="rise" cx="112" cy="17" r="5" fill="#FFE7B8" opacity=".9"/>
+  <circle class="rise" cx="112" cy="17" r="11" fill="#FFE7B8" opacity=".16"/>
   <path d="M0 26 L20 12 L34 22 L46 10 L64 26 Z" fill="#5A6E8C" opacity=".7"/>
   <path d="M96 26 L112 14 L126 24 L140 11 L160 26 Z" fill="#5A6E8C" opacity=".7"/>
   <path d="M0 30 L26 8 L44 22 L58 6 L84 30 Z" fill="#3E5470"/>
@@ -32,4 +43,11 @@
     <path d="M132 29.6 C132 26.4 133.4 24 135 22.6 C136.6 24 138 26.4 138 29.6 Z"/>
     <path d="M144 30.4 C144 27.4 145.2 25.2 146.6 24 C148 25.2 149.2 27.4 149.2 30.4 Z"/>
   </g>
-  <ellipse cx="66" cy="34" rx="46" ry="4" fill="#FFFFFF" opacity=".22"/></svg>
+  <ellipse cx="66" cy="34" rx="46" ry="4" fill="#FFFFFF" opacity=".16"
+           filter="url(#soft)"/>  <!-- Valley cloud, moving the way it does before the sun gets down there. -->
+  <g fill="#F2E4E0" filter="url(#soft)">
+    <ellipse class="haze" cx="46" cy="27.6" rx="34" ry="2.2" opacity=".35"/>
+    <ellipse class="haze h2" cx="116" cy="29.4" rx="40" ry="2.6" opacity=".3"/>
+    <ellipse class="haze h2" cx="80" cy="25.4" rx="24" ry="1.6" opacity=".22"/>
+  </g>
+</svg>

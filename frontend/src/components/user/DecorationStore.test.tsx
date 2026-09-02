@@ -15,11 +15,12 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { DecorationStore } from "./DecorationStore";
 
-const mocks = vi.hoisted(() => ({ packs: vi.fn(), install: vi.fn() }));
+const mocks = vi.hoisted(() => ({ packs: vi.fn(), install: vi.fn(), remove: vi.fn() }));
 
 vi.mock("@/hooks/useUsers", () => ({
   useDecorationPacks: () => mocks.packs(),
   useInstallDecorationPack: (options: unknown) => mocks.install(options),
+  useRemoveDecorationPack: (options: unknown) => mocks.remove(options),
 }));
 
 const listing = (
@@ -46,10 +47,12 @@ const answerWith = (items: unknown[]) =>
   mocks.packs.mockReturnValue({ data: { items }, isLoading: false });
 
 const installMutate = vi.fn();
+const removeMutate = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.install.mockReturnValue({ mutate: installMutate, isPending: false, variables: undefined });
+  mocks.remove.mockReturnValue({ mutate: removeMutate, isPending: false, variables: undefined });
   answerWith([ttrpg()]);
 });
 
@@ -74,14 +77,28 @@ describe("the decoration store", () => {
   });
 
   it("marks a pack already held rather than offering it again", async () => {
-    // Getting and giving back are never the same button in the same place:
-    // the way out lives with the packs you have.
     answerWith([ttrpg(true)]);
     render();
 
     expect(await screen.findByText("In your collection")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Get this pack" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Give back" })).not.toBeInTheDocument();
+  });
+
+  it("gives a pack back from the card it was taken from", async () => {
+    // Browsing is enough to change your mind: you found it here, so this is
+    // where you look to be rid of it.
+    answerWith([ttrpg(true)]);
+    render();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Tabletop" }));
+
+    // Asked first, because the pieces go with it.
+    expect(await screen.findByText("Remove Tabletop?")).toBeInTheDocument();
+    expect(removeMutate).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove pack" }));
+
+    expect(removeMutate).toHaveBeenCalledWith("PACKTABTP00001");
   });
 
   it("leaves out a pack this build has no artwork for", async () => {

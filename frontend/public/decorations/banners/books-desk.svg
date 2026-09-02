@@ -9,7 +9,33 @@
     .m2 { animation-delay: -4.6s } .m3 { animation-delay: -9.2s }
     @keyframes rise { 0% { transform: translate(0,0); opacity: 0 } 25% { opacity: .5 }
                       100% { transform: translate(-3px,-15px); opacity: 0 } }
-    @media (prefers-reduced-motion: reduce) { .glow, .mote { animation: none } }
+    .typed path { animation: 15s steps(14, end) infinite }
+    @keyframes t0 { 0%,4% { stroke-dashoffset: 10.8 }
+                     13%,86% { stroke-dashoffset: 0 }
+                     90%,100% { stroke-dashoffset: 10.8 } }
+    @keyframes t1 { 0%,17% { stroke-dashoffset: 10.8 }
+                     26%,86% { stroke-dashoffset: 0 }
+                     90%,100% { stroke-dashoffset: 10.8 } }
+    @keyframes t2 { 0%,30% { stroke-dashoffset: 10.8 }
+                     39%,86% { stroke-dashoffset: 0 }
+                     90%,100% { stroke-dashoffset: 10.8 } }
+    @keyframes t3 { 0%,43% { stroke-dashoffset: 10.8 }
+                     52%,86% { stroke-dashoffset: 0 }
+                     90%,100% { stroke-dashoffset: 10.8 } }
+    @keyframes t4 { 0%,56% { stroke-dashoffset: 8.0 }
+                     65%,86% { stroke-dashoffset: 0 }
+                     90%,100% { stroke-dashoffset: 8.0 } }
+    .sheet { animation: feed 15s ease-in-out infinite }
+    @keyframes feed { 0%,3% { transform: translateY(0) }
+                     4%,16% { transform: translateY(-0.00px) }
+                     17%,29% { transform: translateY(-1.05px) }
+                     30%,42% { transform: translateY(-2.10px) }
+                     43%,55% { transform: translateY(-3.15px) }
+                     56%,68% { transform: translateY(-4.20px) }
+                     88%,100% { transform: translateY(0) } }
+    @media (prefers-reduced-motion: reduce) {
+      .glow, .mote, .sheet { animation: none }
+      .typed path { animation: none; stroke-dashoffset: 0 } }
   </style>
   <defs>
     <linearGradient id="night2" x1="0" y1="0" x2="0" y2="1">
@@ -24,15 +50,15 @@
     </radialGradient>
   </defs>
   <rect width="160" height="40" fill="url(#night2)"/>
-  <path d="M18 2 L54 2 L54 22 L18 22 Z" fill="#0E0A18"/>
+  <path d="M12 2 L44 2 L44 22 L12 22 Z" fill="#0E0A18"/>
   <g stroke="#3A3450" stroke-width="1.2" fill="none">
-    <path d="M18 2 L54 2 L54 22 L18 22 Z"/><path d="M36 2 L36 22"/>
+    <path d="M12 2 L44 2 L44 22 L12 22 Z"/><path d="M28 2 L28 22"/>
   </g>
   <g fill="#E8E2F0" opacity=".5">
-    <circle cx="26" cy="7" r=".4"/><circle cx="45" cy="10" r=".35"/><circle cx="30" cy="15" r=".3"/>
+    <circle cx="20" cy="7" r=".4"/><circle cx="37" cy="10" r=".35"/><circle cx="24" cy="15" r=".3"/>
   </g>
   <path d="M0 24 L160 24 L160 40 L0 40 Z" fill="url(#desk)"/>
-  <ellipse cx="96" cy="26" rx="58" ry="14" fill="url(#lampP)"/>
+  <ellipse cx="80" cy="26" rx="62" ry="14" fill="url(#lampP)"/>
   <!-- Lamp. -->
   <g>
     <path d="M118 24 L126 24 L125 20 L119 20 Z" fill="#2A2438"/>
@@ -43,7 +69,7 @@
     <ellipse class="glow" cx="133" cy="24" rx="12" ry="3.4" fill="#FFD79A" opacity=".22"/>
   </g>
   <!-- Typewriter. -->
-  <g transform="translate(76 12)">
+  <g transform="translate(80 12)">
     <path d="M-14 12 L14 12 L14 14 L-14 14 Z" fill="#1A1620"/>
     <path d="M-13 5 L13 5 C14 5 14.6 5.6 14.6 6.6 L14.6 11.4 C14.6 12.4 14 13 13 13
              L-13 13 C-14 13 -14.6 12.4 -14.6 11.4 L-14.6 6.6 C-14.6 5.6 -14 5 -13 5 Z"
@@ -62,10 +88,17 @@
     <path d="M-11 5 L11 5 L10 -1 L-10 -1 Z" fill="#2A2622"/>
     <path d="M-12 -1 L12 -1 C13 -1 13.4 -.4 13.4 .4 C13.4 1.2 13 1.8 12 1.8
              L-12 1.8 C-13 1.8 -13.4 1.2 -13.4 .4 C-13.4 -.4 -13 -1 -12 -1 Z" fill="#4E4842"/>
-    <path d="M-8 -1 L8 -1 L8 -11 C8 -11.8 7.4 -12.4 6.6 -12.4 L-6.6 -12.4
-             C-7.4 -12.4 -8 -11.8 -8 -11 Z" fill="#F2EDE0"/>
-    <g stroke="#C9BFA6" stroke-width=".55">
-      <path d="M-5.4 -9 L5.4 -9"/><path d="M-5.4 -6.4 L5.4 -6.4"/><path d="M-5.4 -3.8 L2.4 -3.8"/>
+    <g class="sheet">
+      <path d="M-8 1.2 L8 1.2 L8 -12 C8 -12.8 7.4 -13.4 6.6 -13.4 L-6.6 -13.4
+               C-7.4 -13.4 -8 -12.8 -8 -12 Z" fill="#F2EDE0"/>
+      <!-- Lines, arriving one at a time, the way they actually do. -->
+      <g class="typed" stroke="#4A4234" stroke-width=".62" stroke-linecap="round" fill="none">
+        <path d="M-5.4 -9.4 L5.4 -9.4" stroke-dasharray="10.8" stroke-dashoffset="10.8" style="animation-name: t0"/>
+        <path d="M-5.4 -7.6 L5.4 -7.6" stroke-dasharray="10.8" stroke-dashoffset="10.8" style="animation-name: t1"/>
+        <path d="M-5.4 -5.8 L5.4 -5.8" stroke-dasharray="10.8" stroke-dashoffset="10.8" style="animation-name: t2"/>
+        <path d="M-5.4 -4.0 L5.4 -4.0" stroke-dasharray="10.8" stroke-dashoffset="10.8" style="animation-name: t3"/>
+        <path d="M-5.4 -2.2 L2.6 -2.2" stroke-dasharray="8.0" stroke-dashoffset="8.0" style="animation-name: t4"/>
+      </g>
     </g>
   </g>
   <!-- Paper, a mug and a pile that is not going to be read tonight. -->

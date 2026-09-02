@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Black heritage",
   "publisher": "Initiative",
-  "description": "Strip-woven cloth, cowries, and the marks that carry.",
-  "long_description": "For Black communities and the people in them: cloth woven the way strip looms weave it, a ring of cowrie shells, and trophies for the raised fist, Sankofa and the pick. Original work in these traditions rather than a copy of any named pattern.",
+  "description": "Strip-woven cloth, and the star that pointed north.",
+  "long_description": "Cloth the way a strip loom weaves it, and a night sky with the drinking gourd, the star its lip points to, and a quilt laid out underneath. Cowries or the three colours to frame you; a raised fist, a crown, a pick and the flag to wear. Original work in these traditions, not a copy of any named pattern.",
   "avatar_url": "/decorations/banners/heritage-kente.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "More in the pack.",
+  "version": "1.2.0",
+  "release_notes": "A north star banner in place of the cookout. The turntable moved to Soundcheck.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -35,11 +35,6 @@
         "name": "Afro pick"
       },
       {
-        "id": "heritage.cookout",
-        "slot": "banner",
-        "name": "Cookout"
-      },
-      {
         "id": "heritage.panafrican",
         "slot": "frame",
         "name": "Pan-African"
@@ -50,19 +45,14 @@
         "name": "Pan-African flag"
       },
       {
-        "id": "heritage.turntable",
-        "slot": "trophy",
-        "name": "Turntable"
-      },
-      {
-        "id": "heritage.trumpet",
-        "slot": "trophy",
-        "name": "Trumpet"
-      },
-      {
         "id": "heritage.crown",
         "slot": "trophy",
         "name": "Crown"
+      },
+      {
+        "id": "heritage.northstar",
+        "slot": "banner",
+        "name": "North star"
       }
     ]
   }

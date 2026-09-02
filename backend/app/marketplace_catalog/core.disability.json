@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Disability",
   "publisher": "Initiative",
-  "description": "The flag, the way in, and the marks people carry.",
-  "long_description": "For the disability community and the people in it. The banners are for all of us — the pride flag, and a street where getting in was thought about — and the trophies are particular: neurodivergent, autistic, blind and low vision, deaf and hard of hearing, wheelchair user, chronic pain, diabetes, mental health, service dog, spoon, and mobility aid.",
+  "description": "One flag for all of us. Eleven marks for the particular.",
+  "long_description": "The disability pride flag to fly, five stripes or braille to frame you, and a trophy each for neurodivergent, autistic, blind and low vision, deaf and hard of hearing, wheelchair user, chronic pain, diabetes, mental health, service dog, spoon and mobility aid. Wear the flag, wear yours, wear both.",
   "avatar_url": "/decorations/banners/disability-pride.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "The wheelchair trophy is now the International Symbol of Access.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -18,11 +18,6 @@
         "id": "disability.pride",
         "slot": "banner",
         "name": "Disability pride"
-      },
-      {
-        "id": "disability.access",
-        "slot": "banner",
-        "name": "Access"
       },
       {
         "id": "disability.stripes",

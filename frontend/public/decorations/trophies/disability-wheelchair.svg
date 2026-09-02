@@ -1,20 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
      role="presentation">
   <title>Wheelchair user</title>
+  <!-- The International Symbol of Access, drawn as published on Wikimedia
+       Commons: public domain. Only the disc behind it and its colour are ours. -->
+  <metadata>
+    Symbol: "Wheelchair symbol", https://commons.wikimedia.org/wiki/File:Wheelchair_symbol.svg
+    Public domain. Original design: Susanne Koefoed / Rehabilitation International.
+  </metadata>
   <circle cx="24" cy="24" r="23" fill="#2A2A2E"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#7BC2E0" stroke-width="2"/>
-  <g fill="none" stroke="#F2F4F0" stroke-width="2.4">
-    <circle cx="22" cy="30" r="11"/>
+  <circle cx="24" cy="24" r="19" fill="#1E5AA8"/>
+  <g fill="#F2F4F0" fill-rule="evenodd"
+     transform="translate(10.8554 9.0000) scale(0.054404)">
+    <path d="M161.9882813,98.1240234
+	c24.9628906-2.3046875,44.3574219-23.8110352,44.3574219-48.9658203C206.3457031,22.0830078,184.2626953,0,157.1875,0
+	s-49.1572266,22.0830078-49.1572266,49.1582031c0,8.2568359,2.3037109,16.7055664,6.1445313,23.8105469l17.515625,246.4667969
+	l180.3964844,0.0488281l73.9912109,173.3652344l97.1445313-38.0976563l-15.0429688-35.8203125l-54.3662109,19.625
+	l-71.5908203-165.2802734l-167.7294922,1.1269531l-2.3027344-31.2128906l121.4228516,0.0483398v-46.1831055l-126.0546875-0.0493164
+	L161.9882813,98.1240234z"/>
+    <path d="M343.4199219,451.5908203
+	c-30.4472656,60.1875-94.1748047,99.8398438-162.1503906,99.8398438C81.4296875,551.4306641,0,470.0009766,0,370.1611328
+	c0-70.1005859,42.4853516-135.2436523,105.8818359-164.1210938l4.1025391,53.5375977
+	c-37.4970703,23.628418-60.6123047,66.262207-60.6123047,110.9506836c0,72.4267578,59.0712891,131.4970703,131.4970703,131.4970703
+	c66.2617188,0,122.7646484-50.8515625,130.4697266-116.0869141L343.4199219,451.5908203z"/>
   </g>
-  <g stroke="#7BC2E0" stroke-width=".7" opacity=".7">
-    <path d="M22 19 L22 41"/><path d="M11 30 L33 30"/>
-    <path d="M14.2 22.2 L29.8 37.8"/><path d="M29.8 22.2 L14.2 37.8"/>
-  </g>
-  <circle cx="22" cy="30" r="3" fill="#F2F4F0"/>
-  <!-- The person, leaning into it. -->
-  <circle cx="17.6" cy="10.4" r="4.4" fill="#3BB07D"/>
-  <path d="M20 14.6 C24 15.6 27.4 18.6 29 23 L34.6 21 L36 25 L28.6 27.6
-           C27.4 28 26.4 27.6 25.6 26.4 L23.4 22.4 L23.4 30 L18 30
-           C16 30 15 28.6 15.4 26.6 L17 17.6 C17.4 15.6 18.4 14.4 20 14.6 Z" fill="#3BB07D"/>
-  <path d="M23.4 30 L33 34 C34.6 34.8 35 36.2 34 37.6 C33 39 31.6 39.2 30 38.4
-           L20 33.6" fill="none" stroke="#3BB07D" stroke-width="4" stroke-linecap="round"/></svg>
+</svg>

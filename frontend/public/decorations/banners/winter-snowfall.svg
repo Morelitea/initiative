@@ -10,7 +10,16 @@
     .lit { animation: warm 6s ease-in-out infinite }
     .l2 { animation-delay: -2s }
     @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .75 } }
-    @media (prefers-reduced-motion: reduce) { .fall, .lit { animation: none } }
+    .smoke { animation: curl 9s ease-out infinite }
+    .s2 { animation-delay: -3s } .s3 { animation-delay: -6s }
+    @keyframes curl { 0% { transform: translate(0,0) scale(.5); opacity: 0 }
+                      20% { opacity: .35 }
+                      100% { transform: translate(7px,-11px) scale(1.7); opacity: 0 } }
+    .twinkle { animation: shine 3.2s ease-in-out infinite alternate }
+    .t1 { animation-delay: -.8s } .t2 { animation-delay: -1.6s } .t3 { animation-delay: -2.4s }
+    @keyframes shine { from { opacity: .45 } to { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) {
+      .fall, .lit, .smoke, .twinkle { animation: none } }
   </style>
   <defs>
     <linearGradient id="wsky" x1="0" y1="0" x2="0" y2="1">
@@ -20,6 +29,13 @@
   <rect width="160" height="40" fill="url(#wsky)"/>
   <circle cx="130" cy="8" r="5" fill="#F2F8FC" opacity=".85"/>
   <circle cx="130" cy="8" r="12" fill="#F2F8FC" opacity=".1"/>
+  <circle cx="130" cy="8" r="19" fill="#F2F8FC" opacity=".05"/>
+  <!-- Firs further back, where the snow has taken the colour out. -->
+  <g fill="#26385A" opacity=".7">
+    <path d="M4 28 L10 15 L16 28 Z"/><path d="M54 28 L59 18 L64 28 Z"/>
+    <path d="M92 28 L98 16 L104 28 Z"/><path d="M150 28 L156 16 L160 28 L160 28 Z"/>
+    <path d="M126 28 L131 19 L136 28 Z"/>
+  </g>
   <!-- Firs, holding snow. -->
   <g fill="#16301E">
     <path d="M18 30 L26 12 L34 30 Z"/><path d="M20 24 L26 12 L32 24 Z"/>
@@ -38,13 +54,35 @@
     <path d="M62 30 L62 20 L94 20 L94 30 Z" fill="#2E2A3E"/>
     <path d="M58 20.6 L78 11 L98 20.6 Z" fill="#3A3550"/>
     <path d="M58 20.6 L78 11 L98 20.6 L98 21.8 L58 21.8 Z" fill="#E8F2FA"/>
-    <path d="M76 30 L76 24 C76 22.6 77.4 22 78.6 22 C80 22 81.4 22.6 81.4 24 L81.4 30 Z"
-          fill="#1E1A2E"/>
     <g fill="#FFD79A">
       <rect class="lit" x="65" y="23" width="5" height="4" rx=".6"/>
       <rect class="lit l2" x="86" y="23" width="5" height="4" rx=".6"/>
     </g>
     <path d="M84 11 L88 11 L88 6 L84 6 Z" fill="#2E2A3E"/>
+    <path d="M83.4 6.2 L88.6 6.2 L88.6 5 L83.4 5 Z" fill="#E8F2FA"/>
+    <!-- Something is on in there. -->
+    <g fill="#C4CEDC">
+      <circle class="smoke" cx="86" cy="4" r="1.5" opacity=".3"/>
+      <circle class="smoke s2" cx="86" cy="4" r="1.2" opacity=".26"/>
+      <circle class="smoke s3" cx="86" cy="4" r="1.7" opacity=".22"/>
+    </g>
+    <!-- A door, with a wreath on it. -->
+    <path d="M76 30 L76 24 C76 22.6 77.4 22 78.6 22 C80 22 81.4 22.6 81.4 24 L81.4 30 Z"
+          fill="#5A3D22"/>
+    <circle cx="78.7" cy="25" r="1.9" fill="none" stroke="#2E6B36" stroke-width="1.1"/>
+    <circle cx="78.7" cy="23.1" r=".5" fill="#C9564C"/>
+    <circle cx="80.4" cy="25.8" r=".4" fill="#C9564C"/>
+    <circle cx="77.2" cy="26" r=".4" fill="#C9564C"/>
+    <!-- Lights along the eaves. -->
+    <g>
+      <circle class="twinkle" cx="61" cy="21.6" r=".72" fill="#E8483A"/>
+      <circle class="twinkle t1" cx="66" cy="21.6" r=".72" fill="#E8C43A"/>
+      <circle class="twinkle t2" cx="71" cy="21.6" r=".72" fill="#4EBE6E"/>
+      <circle class="twinkle t3" cx="76" cy="21.6" r=".72" fill="#5A8EE8"/>
+      <circle class="twinkle t1" cx="81" cy="21.6" r=".72" fill="#E8483A"/>
+      <circle class="twinkle t3" cx="86" cy="21.6" r=".72" fill="#E8C43A"/>
+      <circle class="twinkle" cx="91" cy="21.6" r=".72" fill="#4EBE6E"/>
+    </g>
   </g>
   <!-- Snow on the ground, drifted. -->
   <path d="M0 30 C22 27.6 46 31 70 29 C96 26.8 120 30.4 144 28.6 C152 28 156 28.6 160 28.4
@@ -68,4 +106,43 @@
       <circle cx="6" cy="12" r=".45"/><circle cx="46" cy="8" r=".4"/><circle cx="74" cy="20" r=".45"/>
       <circle cx="100" cy="4" r=".4"/><circle cx="132" cy="16" r=".45"/><circle cx="158" cy="6" r=".4"/>
     </g>
-  </g></svg>
+  </g>  <!-- The way in, a fence, and somebody built earlier. -->
+  <!-- Somebody walked out to it and back. -->
+  <g fill="#C4D2E4" opacity=".45">
+    <ellipse cx="82" cy="33.4" rx=".9" ry=".55" transform="rotate(-18 82 33.4)"/>
+    <ellipse cx="85.4" cy="34.6" rx=".9" ry=".55" transform="rotate(-14 85.4 34.6)"/>
+    <ellipse cx="88.4" cy="35.8" rx=".9" ry=".55" transform="rotate(-10 88.4 35.8)"/>
+    <ellipse cx="91.6" cy="37.2" rx=".9" ry=".55" transform="rotate(-8 91.6 37.2)"/>
+    <ellipse cx="94.6" cy="38.4" rx=".9" ry=".55" transform="rotate(-6 94.6 38.4)"/>
+    <ellipse cx="84" cy="32.6" rx=".85" ry=".5" transform="rotate(-20 84 32.6)"/>
+    <ellipse cx="87.4" cy="33.8" rx=".85" ry=".5" transform="rotate(-16 87.4 33.8)"/>
+    <ellipse cx="90.6" cy="35" rx=".85" ry=".5" transform="rotate(-12 90.6 35)"/>
+    <ellipse cx="93.8" cy="36.4" rx=".85" ry=".5" transform="rotate(-9 93.8 36.4)"/>
+  </g>
+  <g stroke="#6E5A44" stroke-width=".9" fill="none" stroke-linecap="round">
+    <path d="M8 34 L8 30.6"/><path d="M16 34.2 L16 30.8"/><path d="M24 34.4 L24 31"/>
+    <path d="M32 34.4 L32 31"/><path d="M40 34.2 L40 30.8"/>
+    <path d="M8 31.6 L40 32"/><path d="M8 33.2 L40 33.6"/>
+    <path d="M120 33.8 L120 30.4"/><path d="M128 34 L128 30.6"/><path d="M136 34 L136 30.6"/>
+    <path d="M144 33.8 L144 30.4"/>
+    <path d="M120 31.2 L144 31.2"/><path d="M120 32.8 L144 32.8"/>
+  </g>
+  <g>
+    <circle cx="104" cy="35.4" r="3.6" fill="#F2F8FC"/>
+    <circle cx="104" cy="30.8" r="2.6" fill="#F2F8FC"/>
+    <circle cx="104" cy="27.2" r="1.9" fill="#F2F8FC"/>
+    <path d="M101.6 26.2 L106.4 26.2 L106.4 25.4 L101.6 25.4 Z" fill="#3A3550"/>
+    <path d="M102.6 25.4 L105.4 25.4 L105.4 23.4 L102.6 23.4 Z" fill="#3A3550"/>
+    <g fill="#2E2A3E">
+      <circle cx="103.3" cy="26.9" r=".3"/><circle cx="104.7" cy="26.9" r=".3"/>
+    </g>
+    <path d="M104 27.6 L105.6 28 L104 28.4 Z" fill="#E8730C"/>
+    <g stroke="#6E5A44" stroke-width=".55" stroke-linecap="round">
+      <path d="M101.6 30.4 L98.4 28.6"/><path d="M106.4 30.4 L109.6 28.6"/>
+    </g>
+    <path d="M101.4 28.6 C102.8 29.4 105.2 29.4 106.6 28.6 L107 30 C105.4 30.8 102.6 30.8 101 30 Z"
+          fill="#C9564C"/>
+    <path d="M106.6 29.6 C108 30.4 108.4 31.8 108 33.4 L106.6 32.8 C106.8 31.8 106.8 30.6 106.4 29.9 Z"
+          fill="#C9564C"/>
+  </g>
+</svg>

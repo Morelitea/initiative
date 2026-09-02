@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Spooky",
   "publisher": "Initiative",
-  "description": "Cobwebs, lantern light, and something in the trees.",
-  "long_description": "For the group that keeps October in the calendar all year: horror nights, haunted attractions, ghost-story podcasts, or a campaign that went somewhere dark. The frame is a web with its tenant still patrolling it.",
+  "description": "For the people who keep October in the calendar all year.",
+  "long_description": "A hollow with something in the trees, an apothecary bench with the burner lit and the cat supervising, and a chorus line of skeletons who have been at it since sundown. A web, a rib cage or wrought iron to frame you; a lantern, a ghost and a bat to wear.",
   "avatar_url": "/decorations/banners/spooky-hollow.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "More in the pack.",
+  "version": "1.2.0",
+  "release_notes": "Skeletons who have been dancing since sundown, and an apothecary bench.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -28,11 +28,6 @@
         "id": "spooky.lantern",
         "slot": "trophy",
         "name": "Jack-o'-lantern"
-      },
-      {
-        "id": "spooky.manor",
-        "slot": "banner",
-        "name": "Manor"
       },
       {
         "id": "spooky.witching",
@@ -58,6 +53,11 @@
         "id": "spooky.bat",
         "slot": "trophy",
         "name": "Bat"
+      },
+      {
+        "id": "spooky.skeletons",
+        "slot": "banner",
+        "name": "Spooky scary skeletons"
       }
     ]
   }

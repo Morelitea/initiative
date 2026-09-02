@@ -60,7 +60,6 @@ export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWB
 
 /** Every decoration this build ships, by the name its label is keyed under. */
 type DecorationName =
-  | "access"
   | "ace"
   | "afropick"
   | "ammonite"
@@ -82,12 +81,13 @@ type DecorationName =
   | "braille"
   | "bunting"
   | "buttons"
-  | "cactus"
+  | "bytrain"
   | "caddies"
   | "campfire"
   | "car"
   | "cassette"
   | "cat"
+  | "catnap"
   | "chronicpain"
   | "clapper"
   | "clay"
@@ -95,7 +95,6 @@ type DecorationName =
   | "cocoa"
   | "collar"
   | "controller"
-  | "cookout"
   | "court"
   | "cowries"
   | "crown"
@@ -107,12 +106,13 @@ type DecorationName =
   | "diabetes"
   | "diamond"
   | "dicetower"
+  | "directorschair"
   | "disabilitypride"
   | "dividers"
   | "dna"
   | "dog"
+  | "drivein"
   | "drums"
-  | "dumbbell"
   | "ember"
   | "endzone"
   | "engarde"
@@ -122,6 +122,8 @@ type DecorationName =
   | "fastball"
   | "feather"
   | "festival"
+  | "fetch"
+  | "filmstrip"
   | "fist"
   | "fivestripes"
   | "flagargentina"
@@ -167,7 +169,6 @@ type DecorationName =
   | "gold"
   | "grove"
   | "guitar"
-  | "gym"
   | "hamster"
   | "handbag"
   | "handprint"
@@ -192,11 +193,10 @@ type DecorationName =
   | "lizard"
   | "lotus"
   | "magnet"
-  | "manor"
+  | "marquee"
   | "masks"
   | "matcha"
   | "matchball"
-  | "medal"
   | "medicinewheel"
   | "mentalhealth"
   | "meridians"
@@ -211,47 +211,49 @@ type DecorationName =
   | "nest"
   | "net"
   | "neurodivergent"
+  | "nightsky"
   | "nonbinary"
+  | "northstar"
   | "notebook"
   | "observatory"
   | "orbital"
-  | "orca"
   | "pages"
   | "panafrican"
   | "panafricanflag"
   | "panels"
   | "parade"
   | "parchment"
+  | "pawprint"
   | "peaks"
   | "pigskin"
   | "pines"
   | "piste"
   | "plane"
-  | "plates"
   | "playhouse"
   | "poly"
+  | "popcorn"
   | "porcelain"
   | "prideheart"
+  | "projector"
   | "puck"
   | "quill"
   | "rabbit"
   | "rakedsand"
   | "rakelines"
   | "rat"
-  | "recordshop"
   | "reel"
   | "ridge"
   | "rink"
-  | "roadbike"
   | "rockhammer"
   | "rosette"
-  | "runningshoe"
   | "saxophone"
   | "screening"
   | "seams"
   | "servicedog"
+  | "sheetmusic"
   | "ship"
   | "singingbowl"
+  | "skeletons"
   | "snake"
   | "snowfall"
   | "snowflake"
@@ -278,12 +280,11 @@ type DecorationName =
   | "tealeaves"
   | "teapot"
   | "teaservice"
+  | "tennisace"
   | "tent"
-  | "track"
-  | "trail"
+  | "ticket"
   | "train"
   | "trans"
-  | "trumpet"
   | "turntable"
   | "twospirit"
   | "typewriter"
@@ -389,12 +390,18 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "books.stack": entry("books.stack", "trophy", "books-stack", "stack"),
   "books.typewriter": entry("books.typewriter", "trophy", "books-typewriter", "typewriter"),
 
+  "cinema.drivein": entry("cinema.drivein", "banner", "cinema-drivein", "drivein"),
+  "cinema.marquee": entry("cinema.marquee", "banner", "cinema-marquee", "marquee"),
   "cinema.screening": entry("cinema.screening", "banner", "cinema-screening", "screening"),
+  "cinema.filmstrip": entry("cinema.filmstrip", "frame", "cinema-filmstrip", "filmstrip"),
   "cinema.reel": entry("cinema.reel", "frame", "cinema-reel", "reel"),
+  "cinema.chair": entry("cinema.chair", "trophy", "cinema-chair", "directorschair"),
   "cinema.clapper": entry("cinema.clapper", "trophy", "cinema-clapper", "clapper"),
+  "cinema.popcorn": entry("cinema.popcorn", "trophy", "cinema-popcorn", "popcorn"),
+  "cinema.projector": entry("cinema.projector", "trophy", "cinema-projector", "projector"),
+  "cinema.ticket": entry("cinema.ticket", "trophy", "cinema-ticket", "ticket"),
 
   // For the community, and for the things people in it are.
-  "disability.access": entry("disability.access", "banner", "disability-access", "access"),
   "disability.pride": entry("disability.pride", "banner", "disability-pride", "disabilitypride"),
   "disability.braille": entry("disability.braille", "frame", "disability-braille", "braille"),
   "disability.stripes": entry("disability.stripes", "frame", "disability-stripes", "fivestripes"),
@@ -462,7 +469,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "firstnations-morningstar",
     "morningstar"
   ),
-  "firstnations.orca": entry("firstnations.orca", "banner", "firstnations-orca", "orca"),
   "firstnations.twospirit": entry(
     "firstnations.twospirit",
     "banner",
@@ -500,15 +506,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "firstnations-twospirit",
     "twospirit"
   ),
-
-  "fitness.gym": entry("fitness.gym", "banner", "fitness-gym", "gym"),
-  "fitness.trail": entry("fitness.trail", "banner", "fitness-trail", "trail"),
-  "fitness.plates": entry("fitness.plates", "frame", "fitness-plates", "plates"),
-  "fitness.track": entry("fitness.track", "frame", "fitness-track", "track"),
-  "fitness.dumbbell": entry("fitness.dumbbell", "trophy", "fitness-dumbbell", "dumbbell"),
-  "fitness.medal": entry("fitness.medal", "trophy", "fitness-medal", "medal"),
-  "fitness.roadbike": entry("fitness.roadbike", "trophy", "fitness-roadbike", "roadbike"),
-  "fitness.shoe": entry("fitness.shoe", "trophy", "fitness-shoe", "runningshoe"),
 
   // One roundel per flag, for wherever anybody is from.
   "flag.argentina": entry("flag.argentina", "trophy", "flag-argentina", "flagargentina"),
@@ -553,16 +550,14 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "gridiron.laces": entry("gridiron.laces", "frame", "gridiron-laces", "laces"),
   "gridiron.pigskin": entry("gridiron.pigskin", "trophy", "gridiron-pigskin", "pigskin"),
 
-  "heritage.cookout": entry("heritage.cookout", "banner", "heritage-cookout", "cookout"),
   "heritage.kente": entry("heritage.kente", "banner", "heritage-kente", "kente"),
+  "heritage.northstar": entry("heritage.northstar", "banner", "heritage-northstar", "northstar"),
   "heritage.cowries": entry("heritage.cowries", "frame", "heritage-cowries", "cowries"),
   "heritage.panafrican": entry("heritage.panafrican", "frame", "heritage-panafrican", "panafrican"),
   "heritage.crown": entry("heritage.crown", "trophy", "heritage-crown", "crown"),
   "heritage.fist": entry("heritage.fist", "trophy", "heritage-fist", "fist"),
   "heritage.flag": entry("heritage.flag", "trophy", "heritage-panafrican", "panafricanflag"),
   "heritage.pick": entry("heritage.pick", "trophy", "heritage-pick", "afropick"),
-  "heritage.trumpet": entry("heritage.trumpet", "trophy", "heritage-trumpet", "trumpet"),
-  "heritage.turntable": entry("heritage.turntable", "trophy", "heritage-turntable", "turntable"),
 
   "hockey.rink": entry("hockey.rink", "banner", "hockey-rink", "rink"),
   "hockey.faceoff": entry("hockey.faceoff", "frame", "hockey-faceoff", "faceoff"),
@@ -574,7 +569,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   // Bands, choirs, anyone who books a room and plugs in.
   "music.festival": entry("music.festival", "banner", "music-festival", "festival"),
-  "music.recordshop": entry("music.recordshop", "banner", "music-recordshop", "recordshop"),
+  "music.sheet": entry("music.sheet", "banner", "music-sheet", "sheetmusic", "dark"),
   "music.soundcheck": entry("music.soundcheck", "banner", "music-soundcheck", "soundcheck"),
   "music.vinyl": entry("music.vinyl", "frame", "music-vinyl", "vinyl"),
   "music.cassette": entry("music.cassette", "trophy", "music-cassette", "cassette"),
@@ -584,9 +579,12 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "music.keys": entry("music.keys", "trophy", "music-keys", "keys"),
   "music.mic": entry("music.mic", "trophy", "music-mic", "microphone"),
   "music.sax": entry("music.sax", "trophy", "music-sax", "saxophone"),
+  "music.turntable": entry("music.turntable", "trophy", "music-turntable", "turntable"),
   "music.violin": entry("music.violin", "trophy", "music-violin", "violin"),
 
+  "nature.beach": entry("nature.beach", "banner", "nature-beach", "beach"),
   "nature.lake": entry("nature.lake", "banner", "nature-lake", "lake"),
+  "nature.nightsky": entry("nature.nightsky", "banner", "nature-nightsky", "nightsky"),
   "nature.peaks": entry("nature.peaks", "banner", "nature-peaks", "peaks"),
   "nature.pines": entry("nature.pines", "frame", "nature-pines", "pines"),
   "nature.ridge": entry("nature.ridge", "frame", "nature-ridge", "ridge"),
@@ -594,6 +592,8 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "nature.mountain": entry("nature.mountain", "trophy", "nature-mountain", "mountain"),
   "nature.tent": entry("nature.tent", "trophy", "nature-tent", "tent"),
 
+  "pets.catnap": entry("pets.catnap", "banner", "pets-catnap", "catnap"),
+  "pets.fetch": entry("pets.fetch", "banner", "pets-fetch", "fetch"),
   "pets.sunbeam": entry("pets.sunbeam", "banner", "pets-sunbeam", "sunbeam"),
   "pets.collar": entry("pets.collar", "frame", "pets-collar", "collar"),
   "pets.bunny": entry("pets.bunny", "trophy", "pets-bunny", "rabbit"),
@@ -602,6 +602,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "pets.hamster": entry("pets.hamster", "trophy", "pets-hamster", "hamster"),
   "pets.horse": entry("pets.horse", "trophy", "pets-horse", "horse"),
   "pets.lizard": entry("pets.lizard", "trophy", "pets-lizard", "lizard"),
+  "pets.paw": entry("pets.paw", "trophy", "pets-paw", "pawprint"),
   "pets.rat": entry("pets.rat", "trophy", "pets-rat", "rat"),
   "pets.snake": entry("pets.snake", "trophy", "pets-snake", "snake"),
 
@@ -612,7 +613,6 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "plants.nest": entry("plants.nest", "frame", "plants-nest", "nest"),
   "plants.rosette": entry("plants.rosette", "frame", "plants-rosette", "rosette"),
   "plants.vines": entry("plants.vines", "frame", "plants-vines", "vines"),
-  "plants.cactus": entry("plants.cactus", "trophy", "plants-cactus", "cactus"),
   "plants.monstera": entry("plants.monstera", "trophy", "plants-monstera", "monstera"),
   "plants.morel": entry("plants.morel", "trophy", "plants-morel", "morel"),
   "plants.succulent": entry("plants.succulent", "trophy", "plants-succulent", "succulent"),
@@ -667,7 +667,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   // The group that keeps October in the calendar all year.
   "spooky.hollow": entry("spooky.hollow", "banner", "spooky-hollow", "hollow"),
-  "spooky.manor": entry("spooky.manor", "banner", "spooky-manor", "manor"),
+  "spooky.skeletons": entry("spooky.skeletons", "banner", "spooky-skeletons", "skeletons"),
   "spooky.witching": entry("spooky.witching", "banner", "spooky-witching", "witchinghour"),
   "spooky.bones": entry("spooky.bones", "frame", "spooky-bones", "bones"),
   "spooky.ironwork": entry("spooky.ironwork", "frame", "spooky-ironwork", "ironwork"),
@@ -688,9 +688,10 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "tennis.clay": entry("tennis.clay", "banner", "tennis-clay", "clay", "dark"),
   "tennis.strings": entry("tennis.strings", "frame", "tennis-strings", "strings"),
-  "tennis.ace": entry("tennis.ace", "trophy", "tennis-ace", "ace"),
+  "tennis.ace": entry("tennis.ace", "trophy", "tennis-ace", "tennisace"),
 
   "travel.landmarks": entry("travel.landmarks", "banner", "travel-landmarks", "landmarks"),
+  "travel.trainride": entry("travel.trainride", "banner", "travel-train", "bytrain"),
   "travel.meridians": entry("travel.meridians", "frame", "travel-meridians", "meridians"),
   "travel.bicycle": entry("travel.bicycle", "trophy", "travel-bicycle", "bicycle"),
   "travel.car": entry("travel.car", "trophy", "travel-car", "car"),

@@ -4,12 +4,12 @@
   "kind": "profile_pack",
   "name": "Plants",
   "publisher": "Initiative",
-  "description": "Morels, moss, and the people who look down.",
-  "long_description": "For foragers, mycologists, and anyone who has ever stopped a walk to photograph something growing on a log. The badge is a morel — pitted cap, hollow stem, the one mushroom you identify by its surface — and the frame is the moss and twigs it came up through.",
+  "description": "Three ways to be a person with too many plants.",
+  "long_description": "A forest floor with the morels up, a windowsill that has frankly got out of hand, and a desert that waters itself. Twigs, vines or a rosette to frame you, and a morel, a monstera and a succulent to wear. No watering, no light levels, no guilt.",
   "avatar_url": "/decorations/banners/plants-grove.svg",
   "images": [],
-  "version": "1.2.0",
-  "release_notes": "More in the pack.",
+  "version": "1.3.0",
+  "release_notes": "A real desert in place of the shelf.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -58,11 +58,6 @@
         "id": "plants.succulent",
         "slot": "trophy",
         "name": "Succulent"
-      },
-      {
-        "id": "plants.cactus",
-        "slot": "trophy",
-        "name": "Cactus"
       }
     ]
   }
