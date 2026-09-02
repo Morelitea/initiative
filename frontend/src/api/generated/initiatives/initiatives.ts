@@ -340,8 +340,10 @@ export const useCreateInitiativeApiV1GGuildIdInitiativesPost = <
  * Open to every guild member — it lists only what each initiative published
  * about itself (name, description, colour, roster size), never its content.
  * Initiatives whose policy is ``private`` are listed only to their own
- * members — and to guild admins, whose standing already reaches every
- * initiative in the guild.
+ * members, guild admins included: an admin's authority over the guild is
+ * unchanged, but the front page shows what they are in and what is on offer,
+ * read the same way for everyone. ``/initiatives/?scope=guild`` is the
+ * whole-guild listing, and guild settings is where it is managed.
  *
  * Declared before ``/{initiative_id}`` so the literal path wins the match.
  * @summary List Initiative Directory
@@ -514,6 +516,11 @@ export function useListInitiativeDirectoryApiV1GGuildIdInitiativesDirectoryGet<
  * Idempotent: already being a member is a success, not a conflict. Any other
  * join policy answers 403 — the same answer for ``private`` and ``request``,
  * so it says only "not by this route".
+ *
+ * A guild admin walks in whatever the policy says, and on the manager role:
+ * the queue exists to exercise an authority they already hold, and staffing
+ * themselves onto an initiative is how they bring it into their own
+ * navigation. It is the same act as ticking themselves in guild settings.
  * @summary Join Initiative
  */
 export const joinInitiativeApiV1GGuildIdInitiativesInitiativeIdJoinPost = (
@@ -2871,6 +2878,10 @@ export function useGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembe
 
 /**
  * Add a member to an initiative or update their role.
+ *
+ * Any project manager may bring in any member of the guild, guild admins
+ * included — an admin simply lands on the manager role their standing already
+ * implies, whatever role the invite named.
  * @summary Add Initiative Member
  */
 export const addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost = (
