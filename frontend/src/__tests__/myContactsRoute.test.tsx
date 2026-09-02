@@ -8,7 +8,7 @@
  * preloads the route's own component.
  */
 import { createRouter } from "@tanstack/react-router";
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -251,6 +251,48 @@ describe("My Contacts", () => {
     });
 
     expect(screen.queryByText("stale")).not.toBeInTheDocument();
+  });
+
+  it("appends a page once when the term changes and changes back", async () => {
+    // The term check alone cannot see this: both requests were asked under the
+    // same term, and the reset in between re-offered the button.
+    answer([section({ guild_id: 1, items: [contact({ username: "aaa" })], has_next: true })]);
+    const landings: Array<(value: ContactGuildSection) => void> = [];
+    mocks.fetchPage.mockImplementation(
+      () =>
+        new Promise<ContactGuildSection>((resolve) => {
+          landings.push(resolve);
+        })
+    );
+    await renderContacts();
+
+    const showMore = () => screen.getByRole("button", { name: "Show more" });
+    const box = () => screen.getByRole("searchbox", { name: "Search everyone on this page" });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Show more" }));
+
+    // Away and back, which resets the section and re-enables the button. The
+    // reads are debounced, so wait for the term to actually land each way.
+    await userEvent.type(box(), "x");
+    await waitFor(() => expect(mocks.sections).toHaveBeenLastCalledWith("x"));
+    await userEvent.clear(box());
+    await waitFor(() => expect(mocks.sections).toHaveBeenLastCalledWith(""));
+
+    await waitFor(() => expect(showMore()).toBeEnabled());
+    await userEvent.click(showMore());
+    expect(landings).toHaveLength(2);
+
+    // Both requests were for the same page, and both land.
+    const page2 = () =>
+      section({ guild_id: 1, items: [contact({ id: 99, username: "second" })], has_next: false });
+    await act(async () => {
+      landings[0](page2());
+    });
+    await act(async () => {
+      landings[1](page2());
+    });
+
+    expect(screen.getAllByText("second")).toHaveLength(1);
   });
 
   it("says so when a search matched nobody", async () => {

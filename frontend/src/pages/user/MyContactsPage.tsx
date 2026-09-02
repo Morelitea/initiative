@@ -107,6 +107,11 @@ export const MyContactsPage = () => {
         if (!section || searchRef.current !== askedFor) return;
         setExtra((prev) => {
           const held = prev[guildId];
+          // Only the page that comes next. A term that changed and changed back
+          // makes an outstanding request look current again while the reset has
+          // already re-offered the button, so the same page can be asked for
+          // twice; whichever lands second finds its page already held.
+          if ((held?.pages ?? 1) !== loadedPages) return prev;
           return {
             ...prev,
             [guildId]: {
