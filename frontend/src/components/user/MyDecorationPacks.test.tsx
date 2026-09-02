@@ -32,7 +32,7 @@ const entry = (uid: string, installed: boolean, { name = "Tabletop", slug = "ttr
   contents: [
     { id: `${slug}.dicetower`, kind: "banner", name: "Dice tower", source: uid },
     { id: `${slug}.natural20`, kind: "frame", name: "Natural 20", source: uid },
-    { id: `${slug}.d20`, kind: "badge", name: "d20", source: uid },
+    { id: `${slug}.d20`, kind: "trophy", name: "d20", source: uid },
   ],
 });
 

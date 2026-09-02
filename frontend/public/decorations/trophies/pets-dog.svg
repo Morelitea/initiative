@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Dog</title>
+  <circle cx="24" cy="24" r="23" fill="#2E2116"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#9E6E3C" stroke-width="2"/>
+  <path d="M11 14 C6.6 17.6 5.6 26 8.6 32.6 C12 31 13.6 25.4 12.6 18.4 Z" fill="#6E4A24"/>
+  <path d="M37 14 C41.4 17.6 42.4 26 39.4 32.6 C36 31 34.4 25.4 35.4 18.4 Z" fill="#6E4A24"/>
+  <path d="M24 9.6 C32 9.6 36.4 15.6 36.4 23 C36.4 31.4 31 38.6 24 38.6 C17 38.6 11.6 31.4 11.6 23
+           C11.6 15.6 16 9.6 24 9.6 Z" fill="#9E6E3C"/>
+  <path d="M24 9.6 C32 9.6 36.4 15.6 36.4 23 C36.4 31.4 31 38.6 24 38.6 C28.4 34.6 30.6 29 30.6 23
+           C30.6 17 28.4 12.6 24 9.6 Z" fill="#8A6034" opacity=".5"/>
+  <path d="M17.4 27 C17.4 23.4 20.4 21.4 24 21.4 C27.6 21.4 30.6 23.4 30.6 27
+           C30.6 31 27.6 33.6 24 33.6 C20.4 33.6 17.4 31 17.4 27 Z" fill="#C9A063"/>
+  <g fill="#2E2116">
+    <circle cx="18.6" cy="19.6" r="1.5"/><circle cx="29.4" cy="19.6" r="1.5"/>
+  </g>
+  <g fill="#F6E8B0"><circle cx="19.2" cy="19" r=".55"/><circle cx="30" cy="19" r=".55"/></g>
+  <ellipse cx="24" cy="26" rx="3" ry="2.2" fill="#2E2116"/>
+  <path d="M24 28.2 L24 30.4" stroke="#2E2116" stroke-width=".9"/>
+  <path d="M24 30.4 C22.4 32.6 19.4 32.2 18.6 29.6" fill="none" stroke="#2E2116"
+        stroke-width=".9" stroke-linecap="round"/>
+  <path d="M24 30.4 C25.6 32.6 28.6 32.2 29.4 29.6" fill="none" stroke="#2E2116"
+        stroke-width=".9" stroke-linecap="round"/>
+  <path d="M22 33.4 C23.4 34.6 24.6 34.6 26 33.4 C25.4 35.4 22.6 35.4 22 33.4 Z" fill="#E0837A"/></svg>

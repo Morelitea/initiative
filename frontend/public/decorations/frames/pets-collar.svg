@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Collar</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       Leather, studded, with the tag that says whose it is. -->
+  <defs>
+    <linearGradient id="hide" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0%" stop-color="#B4423A"/><stop offset="55%" stop-color="#8E2A24"/>
+      <stop offset="100%" stop-color="#5E1A16"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="57" fill="none" stroke="url(#hide)"
+          stroke-width="12.8"/>
+  <circle cx="64" cy="64" r="57" fill="none" stroke="#3E0F0C" stroke-width="1"
+          stroke-dasharray="3 3.4" opacity=".55"/>
+  
+  <circle cx="121" cy="64" r="3" fill="#E8D4AE"/><circle cx="121" cy="63.3" r="1.4" fill="#FBF4E4"/><circle cx="119.06" cy="78.75" r="3" fill="#E8D4AE"/><circle cx="119.06" cy="78.05" r="1.4" fill="#FBF4E4"/><circle cx="113.36" cy="92.5" r="3" fill="#E8D4AE"/><circle cx="113.36" cy="91.8" r="1.4" fill="#FBF4E4"/><circle cx="104.31" cy="104.31" r="3" fill="#E8D4AE"/><circle cx="104.31" cy="103.61" r="1.4" fill="#FBF4E4"/><circle cx="92.5" cy="113.36" r="3" fill="#E8D4AE"/><circle cx="92.5" cy="112.66" r="1.4" fill="#FBF4E4"/><circle cx="78.75" cy="119.06" r="3" fill="#E8D4AE"/><circle cx="78.75" cy="118.36" r="1.4" fill="#FBF4E4"/><circle cx="64" cy="121" r="3" fill="#E8D4AE"/><circle cx="64" cy="120.3" r="1.4" fill="#FBF4E4"/><circle cx="49.25" cy="119.06" r="3" fill="#E8D4AE"/><circle cx="49.25" cy="118.36" r="1.4" fill="#FBF4E4"/><circle cx="35.5" cy="113.36" r="3" fill="#E8D4AE"/><circle cx="35.5" cy="112.66" r="1.4" fill="#FBF4E4"/><circle cx="23.69" cy="104.31" r="3" fill="#E8D4AE"/><circle cx="23.69" cy="103.61" r="1.4" fill="#FBF4E4"/><circle cx="14.64" cy="92.5" r="3" fill="#E8D4AE"/><circle cx="14.64" cy="91.8" r="1.4" fill="#FBF4E4"/><circle cx="8.94" cy="78.75" r="3" fill="#E8D4AE"/><circle cx="8.94" cy="78.05" r="1.4" fill="#FBF4E4"/><circle cx="7" cy="64" r="3" fill="#E8D4AE"/><circle cx="7" cy="63.3" r="1.4" fill="#FBF4E4"/><circle cx="8.94" cy="49.25" r="3" fill="#E8D4AE"/><circle cx="8.94" cy="48.55" r="1.4" fill="#FBF4E4"/><circle cx="14.64" cy="35.5" r="3" fill="#E8D4AE"/><circle cx="14.64" cy="34.8" r="1.4" fill="#FBF4E4"/><circle cx="23.69" cy="23.69" r="3" fill="#E8D4AE"/><circle cx="23.69" cy="22.99" r="1.4" fill="#FBF4E4"/><circle cx="35.5" cy="14.64" r="3" fill="#E8D4AE"/><circle cx="35.5" cy="13.94" r="1.4" fill="#FBF4E4"/><circle cx="49.25" cy="8.94" r="3" fill="#E8D4AE"/><circle cx="49.25" cy="8.24" r="1.4" fill="#FBF4E4"/><circle cx="64" cy="7" r="3" fill="#E8D4AE"/><circle cx="64" cy="6.3" r="1.4" fill="#FBF4E4"/><circle cx="78.75" cy="8.94" r="3" fill="#E8D4AE"/><circle cx="78.75" cy="8.24" r="1.4" fill="#FBF4E4"/><circle cx="92.5" cy="14.64" r="3" fill="#E8D4AE"/><circle cx="92.5" cy="13.94" r="1.4" fill="#FBF4E4"/><circle cx="104.31" cy="23.69" r="3" fill="#E8D4AE"/><circle cx="104.31" cy="22.99" r="1.4" fill="#FBF4E4"/><circle cx="113.36" cy="35.5" r="3" fill="#E8D4AE"/><circle cx="113.36" cy="34.8" r="1.4" fill="#FBF4E4"/><circle cx="119.06" cy="49.25" r="3" fill="#E8D4AE"/><circle cx="119.06" cy="48.55" r="1.4" fill="#FBF4E4"/>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#3E0F0C" stroke-width="1.8"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#3E0F0C" stroke-width="1.4"/>
+  <!-- The tag. -->
+  <g>
+    <circle cx="64" cy="112" r="3" fill="none" stroke="#C9A063" stroke-width="1.4"/>
+    <circle cx="64" cy="121" r="7" fill="#E8C878"/>
+    <circle cx="64" cy="121" r="7" fill="none" stroke="#A8842E" stroke-width="1"/>
+    <circle cx="64" cy="115.6" r="1.4" fill="none" stroke="#A8842E" stroke-width=".9"/>
+    <g stroke="#A8842E" stroke-width="1" stroke-linecap="round">
+      <path d="M60.4 120 L67.6 120"/><path d="M61.4 123 L66.6 123"/>
+    </g>
+  </g>
+</svg>

@@ -6,7 +6,7 @@ import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.sch
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { BadgePicker, SlotPicker } from "@/components/user/DecorationPicker";
+import { SlotPicker, TrophyPicker } from "@/components/user/DecorationPicker";
 import { MyDecorationPacks } from "@/components/user/MyDecorationPacks";
 import { ProfilePreview } from "@/components/user/ProfilePreview";
 import { useMyDecorations, useUpdateCurrentUser } from "@/hooks/useUsers";
@@ -42,7 +42,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
 
   const [banner, setBanner] = useState(user.profile_decorations.banner ?? null);
   const [frame, setFrame] = useState(user.profile_decorations.frame ?? null);
-  const [badges, setBadges] = useState<string[]>(user.profile_decorations.badges ?? []);
+  const [trophies, setTrophies] = useState<string[]>(user.profile_decorations.trophies ?? []);
+  const [frameTint, setFrameTint] = useState<string[]>(user.profile_decorations.frame_tint ?? []);
 
   // Removing a pack takes its pieces off server-side, so the pickers follow the
   // saved look when it changes underneath them — but only then. Following the
@@ -53,7 +54,8 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     setSyncedLook(savedLook);
     setBanner(user.profile_decorations.banner ?? null);
     setFrame(user.profile_decorations.frame ?? null);
-    setBadges(user.profile_decorations.badges ?? []);
+    setTrophies(user.profile_decorations.trophies ?? []);
+    setFrameTint(user.profile_decorations.frame_tint ?? []);
   }
 
   const saveLook = useUpdateCurrentUser({
@@ -68,13 +70,14 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const changed =
     banner !== (saved.banner ?? null) ||
     frame !== (saved.frame ?? null) ||
-    badges.join() !== (saved.badges ?? []).join();
+    trophies.join() !== (saved.trophies ?? []).join() ||
+    frameTint.join() !== (saved.frame_tint ?? []).join();
 
   return (
     <div className="space-y-6">
       <ProfilePreview
         user={user}
-        decorations={{ banner, frame, badges }}
+        decorations={{ banner, frame, trophies, frame_tint: frameTint }}
         status={user.custom_status}
         presence={user.presence}
         joinedAt={user.created_at}
@@ -89,7 +92,9 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <Button
             disabled={!changed || saveLook.isPending}
             onClick={() =>
-              saveLook.mutate({ profile_decorations: { banner, frame, badges } } as UserSelfUpdate)
+              saveLook.mutate({
+                profile_decorations: { banner, frame, trophies, frame_tint: frameTint },
+              } as UserSelfUpdate)
             }
           >
             {saveLook.isPending ? t("common:submitting") : t("profiles:look.save")}
@@ -106,15 +111,28 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <Label className="text-muted-foreground text-xs">
             {t("profiles:decorationPicker.frame")}
           </Label>
-          <SlotPicker kind="frame" value={frame} onChange={setFrame} owned={library?.items} />
+          <SlotPicker
+            kind="frame"
+            value={frame}
+            onChange={(id) => {
+              setFrame(id);
+              // Colours belong to the frame they were picked for; another
+              // frame starts from its own defaults rather than inheriting
+              // somebody else's green.
+              setFrameTint([]);
+            }}
+            owned={library?.items}
+            tint={frameTint}
+            onTint={setFrameTint}
+          />
         </div>
         <div className="space-y-2">
           <Label className="text-muted-foreground text-xs">
-            {t("profiles:decorationPicker.badge")}
+            {t("profiles:decorationPicker.trophy")}
           </Label>
-          <BadgePicker
-            value={badges}
-            onChange={setBadges}
+          <TrophyPicker
+            value={trophies}
+            onChange={setTrophies}
             owned={library?.items}
             max={MAX_BADGES}
           />

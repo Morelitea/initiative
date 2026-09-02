@@ -1476,7 +1476,7 @@ export interface ChangelogResponse {
 }
 
 /**
- * How a profile is dressed: a banner, a frame, badges beside the name.
+ * How a profile is dressed: a banner, a frame, trophies under it.
  *
  * Every value is an **id naming a catalog entry**, never an image. The client
  * resolves an id to artwork it already ships, so a decorated profile takes up
@@ -1491,8 +1491,10 @@ export interface ChangelogResponse {
 export interface ProfileDecorationsOutput {
   banner: string | null;
   frame: string | null;
+  /** @maxItems 2 */
+  frame_tint: string[];
   /** @maxItems 6 */
-  badges: string[];
+  trophies: string[];
 }
 
 /**
@@ -3868,7 +3870,7 @@ export interface PlatformRoleUpdate {
 }
 
 /**
- * How a profile is dressed: a banner, a frame, badges beside the name.
+ * How a profile is dressed: a banner, a frame, trophies under it.
  *
  * Every value is an **id naming a catalog entry**, never an image. The client
  * resolves an id to artwork it already ships, so a decorated profile takes up
@@ -3883,8 +3885,10 @@ export interface PlatformRoleUpdate {
 export interface ProfileDecorationsInput {
   banner?: string | null;
   frame?: string | null;
+  /** @maxItems 2 */
+  frame_tint?: string[];
   /** @maxItems 6 */
-  badges?: string[];
+  trophies?: string[];
 }
 
 export interface ProjectActivityEntry {

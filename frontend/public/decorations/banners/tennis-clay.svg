@@ -3,13 +3,40 @@
   <title>Clay</title>
   <!-- Terracotta, a service line, and the mark the ball just left on it. -->
   <style>
-    .puff { animation: dust 4.5s ease-out infinite }
-    @keyframes dust {
-      0% { transform: scale(.4); opacity: .8 }
-      60%,100% { transform: scale(1.6); opacity: 0 }
+    /* Over the net and back. The clay only puffs on the beat the ball lands. */
+    .rally { animation: over 5.2s linear infinite }
+    @keyframes over {
+      0%   { transform: translate(-30px,7px) }
+      12%  { transform: translate(-20px,-3px) }
+      25%  { transform: translate(-8px,-8px) }
+      37%  { transform: translate(8px,-6px) }
+      50%  { transform: translate(30px,7px) }
+      62%  { transform: translate(20px,-3px) }
+      75%  { transform: translate(8px,-8px) }
+      87%  { transform: translate(-8px,-6px) }
+      100% { transform: translate(-30px,7px) }
     }
-    .puff { transform-box: fill-box; transform-origin: 50% 50% }
-    @media (prefers-reduced-motion: reduce) { .puff { animation: none; opacity: .25 } }
+    .turnball { animation: turning 2.6s linear infinite;
+                transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes turning { to { transform: rotate(360deg) } }
+    .puff { animation: dust 5.2s linear infinite;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes dust {
+      0%   { transform: translateX(-30px) scale(.4); opacity: .75 }
+      14%  { transform: translateX(-30px) scale(1.5); opacity: 0 }
+      49%  { transform: translateX(30px) scale(.4); opacity: 0 }
+      50%  { transform: translateX(30px) scale(.4); opacity: .75 }
+      64%  { transform: translateX(30px) scale(1.5); opacity: 0 }
+      100% { transform: translateX(-30px) scale(.4); opacity: 0 }
+    }
+    .mark { animation: fade 5.2s linear infinite }
+    @keyframes fade {
+      0%,49%   { transform: translateX(-30px); opacity: .55 }
+      50%,100% { transform: translateX(30px); opacity: .55 }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rally, .turnball, .puff, .mark { animation: none; opacity: .3 }
+    }
   </style>
   <defs>
     <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1">
@@ -66,18 +93,20 @@
     <path d="M138 22.4 L138 40" stroke-width=".7"/>
     <path d="M0 36.6 L160 36.6" stroke-width=".9"/>
   </g>
-  <!-- Where it landed. -->
-  <ellipse cx="80" cy="27.8" rx="3.2" ry="1.1" fill="#8C4020" opacity=".55"
+  <!-- Where it landed, and the clay it lifted. -->
+  <ellipse class="mark" cx="80" cy="27.8" rx="3.2" ry="1.1" fill="#8C4020"
            transform="rotate(-8 80 27.8)"/>
-  <ellipse class="puff" cx="80" cy="27.4" rx="4" ry="1.6" fill="#D89A78" opacity=".5"/>
-  <g transform="translate(93 21.6)">
-    <ellipse cx="1.4" cy="6.4" rx="3" ry=".9" fill="#8C4020" opacity=".35"/>
-    <circle cx="0" cy="0" r="4" fill="url(#fuzz)"/>
-    <path d="M-4 -.8 C-1.6 -1.6 1.2 -.6 2.6 1.6 C3.2 2.6 3.6 3.2 4 3.5" fill="none"
-          stroke="#F4F1E8" stroke-width=".7" stroke-linecap="round"/>
-    <path d="M-3 3.2 C-2.2 1.4 -.6 -1.2 1 -2.6 C2.2 -3.6 3.2 -3.9 3.9 -4" fill="none"
-          stroke="#F4F1E8" stroke-width=".7" stroke-linecap="round"/>
-    <path d="M-2.9 -2.2 C-2.2 -3 -1.2 -3.5 -.2 -3.7" fill="none" stroke="#FBFFD0"
-          stroke-width=".7" opacity=".6" stroke-linecap="round"/>
+  <ellipse class="puff" cx="80" cy="27.4" rx="4" ry="1.6" fill="#D89A78"/>
+  <g class="rally">
+    <g class="turnball" transform="translate(80 21.6)">
+      <circle cx="0" cy="0" r="4" fill="url(#fuzz)"/>
+      <g fill="none" stroke="#F7F5EA" stroke-width=".85">
+        <path d="M-2.8 -2.9 C-1.5 -1.7 -1.5 1.7 -2.8 2.9"/>
+        <path d="M2.8 -2.9 C1.5 -1.7 1.5 1.7 2.8 2.9"/>
+      </g>
+      <circle cx="0" cy="0" r="4" fill="none" stroke="#9CAB16" stroke-width=".35"/>
+      <path d="M-2.9 -2.2 C-2.2 -3 -1.2 -3.5 -.2 -3.7" fill="none" stroke="#FBFFD0"
+            stroke-width=".7" opacity=".6" stroke-linecap="round"/>
+    </g>
   </g>
 </svg>

@@ -1,6 +1,7 @@
 import type { Presence, ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PresenceDot } from "@/components/user/PresenceDot";
+import { TintedFrame } from "@/components/user/TintedFrame";
 import { FRAME_INSET, FRAME_SIZE, resolveDecoration } from "@/lib/profileDecorations";
 import {
   type AvatarSourceUser,
@@ -37,7 +38,9 @@ interface ProfileAvatarProps {
  *
  * The frame is artwork with a hole in it and the picture fills the hole. Every
  * frame is drawn to the same aperture, so one inset seats all of them and a
- * frame published later needs no code here. It carries no information, so it is
+ * frame published later needs no code here — including the two whose colours
+ * the wearer picks, which are drawn rather than fetched but cut to the same
+ * hole. It carries no information, so it is
  * hidden from assistive technology; the presence dot is not, and says which
  * state it means in words rather than in colour alone.
  */
@@ -64,13 +67,22 @@ export const ProfileAvatar = ({
         <AvatarFallback userId={user?.id ?? undefined}>{getInitialsForUser(user)}</AvatarFallback>
       </Avatar>
       {frame ? (
-        <img
-          src={frame.src}
-          alt=""
-          aria-hidden="true"
-          className="pointer-events-none absolute max-w-none"
-          style={{ width: FRAME_SIZE, height: FRAME_SIZE, left: FRAME_INSET, top: FRAME_INSET }}
-        />
+        frame.tint ? (
+          <TintedFrame
+            decoration={frame}
+            tint={decorations?.frame_tint}
+            className="pointer-events-none absolute max-w-none"
+            style={{ width: FRAME_SIZE, height: FRAME_SIZE, left: FRAME_INSET, top: FRAME_INSET }}
+          />
+        ) : (
+          <img
+            src={frame.src}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute max-w-none"
+            style={{ width: FRAME_SIZE, height: FRAME_SIZE, left: FRAME_INSET, top: FRAME_INSET }}
+          />
+        )
       ) : null}
       {presence && presence !== "offline" && !hidePresence ? (
         <PresenceDot

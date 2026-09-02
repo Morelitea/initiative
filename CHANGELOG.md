@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Fourteen more packs, and one of them is everybody's.** Sports gathers eight games under one listing. Pets brings cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters. Multicultural is thirty-two flags drawn as roundels and the bunting to hang them from. Travel has the monuments and every way of arriving — plane, ship, train, car, bicycle. First Nations has stepped weaving, a star quilt and an orca built from crescents and trigons, with the red handprint, an eagle feather and the medicine wheel. Black heritage has strip-woven cloth, cowries, the raised fist, Sankofa and the pick. Then Books, Tea, Drama, Cinema, Zen and Gaming, which now covers the table as well as the screen.
+
+- **Two frames whose colour is yours.** The gilded frame takes a colour and the new split frame takes two, picked in Settings › Profile and drawn from what you chose rather than served as a fixed picture. Only the frames that ship with the app: a pack's artwork is the pack's.
+
 - **Nine sports packs.** Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis, martial arts and fencing, each with the ground it is played on for a banner, a frame made of the equipment, and the object itself for a badge — a match ball's panels, a football's lacing, a face-off circle, a baseball's seam, a net, a string bed, a belt tied at the bottom, and a blade bent round to its own guard.
 
 - **A profile says which communities someone is in.** Only the ones that opted into the community directory — a community that never listed itself does not appear on anybody's profile, for anyone.
@@ -34,6 +38,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Say how you're around, or don't.** A dot under your picture in the sidebar opens the four states: online, idle, busy, or offline. Offline means offline — nobody sees you as here, whatever you have open. Idle sets itself once nothing has been touched for a while, and you can also pick it outright to say you have stepped away. The same dot on your profile card in Settings › Profile opens the same menu.
 
 ### Changed
+
+- **Badges are trophies.** The word was doing too much — a badge is also the chip in a document and the count on a tab — so the thing you wear beside your name has its own name now, top to bottom: the API field, the picker, the artwork folder.
+
+- **Trophies sit under the banner, in a rail.** The same rail a community puts its tools in, under the same banner, with each trophy's name printed on the tray under it. A row of small marks in a corner was a row nobody read.
+
+- **Tabletop and Soundcheck are drawn rather than pixelled.** A table an hour into the session — the map out, two dice settled, one still going — and the room before doors, with the meter running the back wall behind the mic. The last two packs still on a grid.
+
+- **The cobweb is spun, and the mushroom frame is a nest.** The web's spokes are uneven and one patch of silk lies over the edge of the picture; the spider has gone. The overgrown frame is loops of twig with ends poking out and moss along the top, which is the side the light reaches.
+
+- **The sports banners play.** The ball rolls across the pitch and back, the kick goes through the uprights, the shot drops through the net, the volley and the rally cross the net and return, and the baseball diamond is seen from the box with one leaving the park.
+
+- **Your library is in alphabetical order.** The pickers listed what ships with the app first and then everything else in the order you acquired it, which stopped being an order at about the fourth pack.
 
 - **The Spooky and Observatory packs are drawn rather than pixelled.** Spooky is a hollow between two dead trees lit by two things and nothing else — a moon that rims everything in silver and a lantern that rims the near side of everything in orange — with a graveyard, railings, a raven on a branch and a web with its tenant on the other side. Observatory is a dome with its shutter open and the barrel out of it, aimed at a ringed planet, under a shell diagram joined up in stars. Both are composed for where a banner is actually cropped: dead centre on a phone, and above the fade on every screen.
 

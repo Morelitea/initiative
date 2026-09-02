@@ -4,7 +4,7 @@
  * What a person may wear is the server's answer, and these render it: one
  * picker per slot, showing what that account has and nothing else. The rules
  * worth pinning are the ones a reader would notice — a slot holds one thing,
- * the badge row holds several up to a cap, and a decoration this build has no
+ * the trophy row holds several up to a cap, and a decoration this build has no
  * artwork for is left out rather than drawn as a blank tile.
  */
 import { render, screen } from "@testing-library/react";
@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildOwnedDecoration } from "@/__tests__/factories";
 
-import { BadgePicker, SlotPicker } from "./DecorationPicker";
+import { SlotPicker, TrophyPicker } from "./DecorationPicker";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -27,9 +27,9 @@ const banners = [
   buildOwnedDecoration({ id: "core.ember", kind: "banner" }),
 ];
 
-const badges = [
-  buildOwnedDecoration({ id: "ttrpg.d20", kind: "badge" }),
-  buildOwnedDecoration({ id: "fungi.morel", kind: "badge" }),
+const trophies = [
+  buildOwnedDecoration({ id: "ttrpg.d20", kind: "trophy" }),
+  buildOwnedDecoration({ id: "fungi.morel", kind: "trophy" }),
 ];
 
 describe("a slot that holds one thing", () => {
@@ -91,10 +91,10 @@ describe("a slot that holds one thing", () => {
   });
 });
 
-describe("the badge row", () => {
+describe("the trophy row", () => {
   it("wears them in the order they were picked", async () => {
     const onChange = vi.fn();
-    render(<BadgePicker value={["fungi.morel"]} onChange={onChange} owned={badges} max={6} />);
+    render(<TrophyPicker value={["fungi.morel"]} onChange={onChange} owned={trophies} max={6} />);
 
     await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 
@@ -103,7 +103,7 @@ describe("the badge row", () => {
 
   it("takes one off when it is picked again", async () => {
     const onChange = vi.fn();
-    render(<BadgePicker value={["ttrpg.d20"]} onChange={onChange} owned={badges} max={6} />);
+    render(<TrophyPicker value={["ttrpg.d20"]} onChange={onChange} owned={trophies} max={6} />);
 
     await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 
@@ -113,7 +113,7 @@ describe("the badge row", () => {
   it("marks a tile past the cap as unavailable rather than just inert", async () => {
     // Disabled says "not now" to a screen reader; an unresponsive tile says
     // nothing at all.
-    render(<BadgePicker value={["fungi.morel"]} onChange={vi.fn()} owned={badges} max={1} />);
+    render(<TrophyPicker value={["fungi.morel"]} onChange={vi.fn()} owned={trophies} max={1} />);
 
     expect(screen.getByRole("checkbox", { name: "decorations.d20" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "decorations.morel" })).toBeEnabled();
@@ -121,9 +121,9 @@ describe("the badge row", () => {
 
   it("stops at the cap rather than dropping what is already worn", async () => {
     // What is on is the reader's choice; the picker must not quietly evict the
-    // oldest badge to make room for a new one.
+    // oldest trophy to make room for a new one.
     const onChange = vi.fn();
-    render(<BadgePicker value={["fungi.morel"]} onChange={onChange} owned={badges} max={1} />);
+    render(<TrophyPicker value={["fungi.morel"]} onChange={onChange} owned={trophies} max={1} />);
 
     await userEvent.click(screen.getByRole("checkbox", { name: "decorations.d20" }));
 

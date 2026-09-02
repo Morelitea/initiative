@@ -17,7 +17,7 @@ const FILTER_THRESHOLD = 8;
 
 /** A pack's pieces, in slot order, skipping any this build cannot draw. */
 const pieces = (contents: OwnedDecoration[]): Decoration[] =>
-  (["banner", "frame", "badge"] as const)
+  (["banner", "frame", "trophy"] as const)
     .map((kind) => resolveDecoration(contents.find((item) => item.kind === kind)?.id, kind))
     .filter((decoration): decoration is Decoration => Boolean(decoration));
 

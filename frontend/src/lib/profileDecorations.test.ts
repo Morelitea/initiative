@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { DECORATIONS, resolveBadges, resolveDecoration } from "./profileDecorations";
+import { DECORATIONS, resolveDecoration, resolveTrophies } from "./profileDecorations";
 
 describe("resolving a decoration", () => {
   it("finds the artwork an id names", () => {
@@ -26,18 +26,18 @@ describe("resolving a decoration", () => {
     expect(resolveDecoration("../../../etc/passwd", "banner")).toBeUndefined();
   });
 
-  it("keeps the badges it can draw, in the order they are worn", () => {
-    const badges = resolveBadges({
+  it("keeps the trophies it can draw, in the order they are worn", () => {
+    const trophies = resolveTrophies({
       banner: null,
       frame: null,
-      badges: ["spooky.lantern", "thirdparty.unknown", "core.fan"],
+      trophies: ["spooky.lantern", "thirdparty.unknown", "core.fan"],
     });
 
-    expect(badges.map((badge) => badge.id)).toEqual(["spooky.lantern", "core.fan"]);
+    expect(trophies.map((badge) => badge.id)).toEqual(["spooky.lantern", "core.fan"]);
   });
 
   it("draws nothing for a profile with no decorations at all", () => {
-    expect(resolveBadges(null)).toEqual([]);
+    expect(resolveTrophies(null)).toEqual([]);
     expect(resolveDecoration(null, "frame")).toBeUndefined();
   });
 });

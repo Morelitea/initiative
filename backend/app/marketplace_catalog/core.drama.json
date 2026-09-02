@@ -1,0 +1,34 @@
+{
+  "uid": "C2VMB6HX1TFP84",
+  "public_id": "core.drama",
+  "kind": "profile_pack",
+  "name": "Drama",
+  "publisher": "Initiative",
+  "description": "House lights down, and nobody on yet.",
+  "long_description": "For companies, am-dram, drama clubs, backstage crews and front of house — the curtain, the footlights and the two faces.",
+  "avatar_url": "/decorations/banners/drama-stage.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "First release.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "drama.stage",
+        "slot": "banner",
+        "name": "Stage"
+      },
+      {
+        "id": "drama.curtain",
+        "slot": "frame",
+        "name": "Curtain"
+      },
+      {
+        "id": "drama.masks",
+        "slot": "trophy",
+        "name": "Masks"
+      }
+    ]
+  }
+}

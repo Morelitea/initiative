@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Orca</title>
+  <!-- Built from the shape families Coast Salish design works in — the crescent,
+       the trigon and the oval — arranged as an original orca rather than as any
+       family's or nation's crest. -->
+  <style>
+    .swim { animation: pass 18s ease-in-out infinite alternate }
+    @keyframes pass { from { transform: translateX(-7px) } to { transform: translateX(7px) } }
+    .spout { animation: blow 6s ease-out infinite }
+    @keyframes blow {
+      0%,70% { transform: scale(.3) translateY(2px); opacity: 0 }
+      78%    { transform: scale(1) translateY(0); opacity: .8 }
+      100%   { transform: scale(1.5) translateY(-3px); opacity: 0 }
+    }
+    .spout { transform-box: fill-box; transform-origin: 50% 100% }
+    @media (prefers-reduced-motion: reduce) { .swim, .spout { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="waterq" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8DCC4"/><stop offset="100%" stop-color="#C9B99C"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#waterq)"/>
+  <!-- The sea, in crescents. -->
+  <g fill="#1E1712" opacity=".14">
+    <path d="M0 32 C10 28 22 28 32 32 C22 30.4 10 30.4 0 32 Z"/>
+    <path d="M36 35 C46 31 58 31 68 35 C58 33.4 46 33.4 36 35 Z"/>
+    <path d="M92 35 C102 31 114 31 124 35 C114 33.4 102 33.4 92 35 Z"/>
+    <path d="M128 32 C138 28 150 28 160 32 C150 30.4 138 30.4 128 32 Z"/>
+    <path d="M18 38 C28 34 40 34 50 38 C40 36.4 28 36.4 18 38 Z"/>
+    <path d="M110 38 C120 34 132 34 142 38 C132 36.4 120 36.4 110 38 Z"/>
+  </g>
+  <!-- Sun, in the corner, as a ring of trigons. -->
+  <g fill="#B4231F" opacity=".75">
+    <circle cx="20" cy="10" r="4.6"/>
+    <path d="M20 3.4 L21.6 .6 L18.4 .6 Z"/><path d="M26.6 10 L29.4 8.4 L29.4 11.6 Z"/>
+    <path d="M20 16.6 L21.6 19.4 L18.4 19.4 Z"/><path d="M13.4 10 L10.6 8.4 L10.6 11.6 Z"/>
+    <path d="M24.6 5.4 L27 3.6 L25 2 Z"/><path d="M24.6 14.6 L27 16.4 L25 18 Z"/>
+    <path d="M15.4 14.6 L13 16.4 L15 18 Z"/><path d="M15.4 5.4 L13 3.6 L15 2 Z"/>
+  </g>
+  <g class="swim">
+    <!-- The spout. -->
+    <g class="spout" fill="#1E1712" opacity=".55">
+      <path d="M80 8.4 C78.6 5.4 79.4 2.6 81.4 1 C81 3.6 81.6 5.6 82.6 7 Z"/>
+      <path d="M82.4 8.4 C82.8 5.4 84.4 3.4 86.6 2.6 C85 4.6 84.4 6.6 84.6 8.4 Z"/>
+    </g>
+    <!-- The body: one long crescent, closed. -->
+    <path d="M40 24 C48 15.4 62 11.4 78 11.4 C96 11.4 110 15.4 118 22
+             C112 20 104 19 96 19.4 C104 21.4 110 24.6 114 29
+             C106 25.4 96 23.4 86 23.4 C70 23.4 54 25 40 24 Z" fill="#1E1712"/>
+    <!-- Tail flukes. -->
+    <path d="M114 29 C120 27 126 25.4 132 25 C129 27.6 126 29.4 122.6 30.4
+             C126 31.4 129 33 132 35 C126 34.4 120 32.4 114 29 Z" fill="#1E1712"/>
+    <!-- Dorsal fin. -->
+    <path d="M76 11.6 C76.6 6.6 79.4 3.4 84 2 C82.6 5.4 82.6 8.6 83.6 11.6 Z" fill="#1E1712"/>
+    <!-- Pectoral fin, in front. -->
+    <path d="M66 22.6 C64 27 62.6 31 62.6 34.6 C66.6 31.4 70 27.6 72.4 23.4 Z" fill="#1E1712"/>
+    <!-- The white of the saddle and the eye patch. -->
+    <path d="M86 19.4 C92 19.4 97 20 101 21 C97 22.4 92 23 86 23 C84.6 22 84.6 20.4 86 19.4 Z"
+          fill="#E8DCC4"/>
+    <path d="M52 16.4 C56 14.6 60.6 13.6 65 13.4 C63.4 15.6 61 17.4 58 18.4
+             C55.4 18.4 53.4 17.8 52 16.4 Z" fill="#E8DCC4"/>
+    <!-- The eye: an oval inside an oval, which is how an eye is drawn here. -->
+    <ellipse cx="52" cy="19.6" rx="4.6" ry="3" fill="#E8DCC4"
+             transform="rotate(-12 52 19.6)"/>
+    <ellipse cx="52" cy="19.6" rx="2.4" ry="1.6" fill="#1E1712"
+             transform="rotate(-12 52 19.6)"/>
+    <!-- The mouth, as a crescent. -->
+    <path d="M40 24 C44 23 48 22.6 52 22.6 C48 24.4 44 24.6 40 24 Z" fill="#B4231F"/>
+    <!-- Two crescents cut out of the flank, the way the form is opened up. -->
+    <path d="M68 16.6 C72 15.4 76 15.2 79.4 16 C76 17.6 72 18 68 16.6 Z" fill="#B4231F"/>
+    <path d="M92 15.6 C96 14.6 100 14.8 103 16 C99.4 17 95.6 17 92 15.6 Z" fill="#B4231F"/>
+    <path d="M100 27 C103.4 26.4 106.6 26.6 109 27.6 C106 28.6 103 28.4 100 27 Z" fill="#B4231F"/>
+  </g>
+</svg>

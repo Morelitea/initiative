@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Ship</title>
+  <circle cx="24" cy="24" r="23" fill="#1B2748"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#5A79B4" stroke-width="2"/>
+  <g>
+    <path d="M8 30 C10 27.6 14 26.4 24 26.4 C34 26.4 38 27.6 40 30 C38 34.6 33 36.6 24 36.6
+             C15 36.6 10 34.6 8 30 Z" fill="#C4302B"/>
+    <path d="M8 30 C10 27.6 14 26.4 24 26.4 C34 26.4 38 27.6 40 30 C36 31.4 30 32 24 32
+             C18 32 12 31.4 8 30 Z" fill="#E8EEF8"/>
+    <path d="M12 22.6 L36 22.6 L36 26.6 L12 26.6 Z" fill="#EDF2F8"/>
+    <g fill="#2A63A8">
+      <rect x="15" y="24" width="2.4" height="1.8" rx=".4"/>
+      <rect x="19.6" y="24" width="2.4" height="1.8" rx=".4"/>
+      <rect x="24.2" y="24" width="2.4" height="1.8" rx=".4"/>
+      <rect x="28.8" y="24" width="2.4" height="1.8" rx=".4"/>
+    </g>
+    <path d="M18 18.4 L30 18.4 L30 22.6 L18 22.6 Z" fill="#D8DEE8"/>
+    <g fill="#2A63A8">
+      <rect x="20" y="19.8" width="2.2" height="1.6" rx=".4"/>
+      <rect x="25.8" y="19.8" width="2.2" height="1.6" rx=".4"/>
+    </g>
+    <path d="M25.4 12 L28.6 12 L28.6 18.4 L25.4 18.4 Z" fill="#E8B455"/>
+    <path d="M26 12 L26.6 12 L26.6 18.4 L26 18.4 Z" fill="#C4302B" opacity=".5"/>
+    <path d="M22 9.6 L23.2 9.6 L23.2 18.4 L22 18.4 Z" fill="#8A8474"/>
+    <path d="M23.2 10.2 L30 12.6 L23.2 15 Z" fill="#C4302B"/>
+  </g>
+  <g fill="none" stroke="#8FB2E0" stroke-width=".9" opacity=".55" stroke-linecap="round">
+    <path d="M6 35 C9 34.2 12 35 15 34.4"/><path d="M33 35.6 C36 34.8 39 35.6 42 35"/>
+  </g>
+</svg>

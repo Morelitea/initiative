@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Hamster</title>
+  <circle cx="24" cy="24" r="23" fill="#2E2116"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8BE85" stroke-width="2"/>
+  <path d="M9.6 15.6 C9.6 12.6 12 10.6 14.6 11.4 C16.4 12 17.4 14 17 16.4 Z" fill="#D8A96A"/>
+  <path d="M38.4 15.6 C38.4 12.6 36 10.6 33.4 11.4 C31.6 12 30.6 14 31 16.4 Z" fill="#D8A96A"/>
+  <path d="M11.4 15 C11.4 13.4 12.6 12.4 13.9 12.8 C14.8 13.1 15.4 14.1 15.2 15.4 Z" fill="#E0A4AA"/>
+  <path d="M36.6 15 C36.6 13.4 35.4 12.4 34.1 12.8 C33.2 13.1 32.6 14.1 32.8 15.4 Z" fill="#E0A4AA"/>
+  <path d="M24 12 C33 12 39 18.6 39 26.6 C39 34 32.6 39.4 24 39.4 C15.4 39.4 9 34 9 26.6
+           C9 18.6 15 12 24 12 Z" fill="#E8BE85"/>
+  <path d="M24 12 C33 12 39 18.6 39 26.6 C39 34 32.6 39.4 24 39.4 C29 35.6 31.4 31.4 31.4 26.6
+           C31.4 21 29 15.6 24 12 Z" fill="#D8A96A" opacity=".5"/>
+  <path d="M15.4 30.6 C15.4 26.6 19 24 24 24 C29 24 32.6 26.6 32.6 30.6 C32.6 35 29 37.6 24 37.6
+           C19 37.6 15.4 35 15.4 30.6 Z" fill="#F6E4C6"/>
+  <g fill="#2E2116">
+    <circle cx="18.4" cy="23.4" r="2.1"/><circle cx="29.6" cy="23.4" r="2.1"/>
+  </g>
+  <g fill="#FFFFFF"><circle cx="19.2" cy="22.6" r=".8"/><circle cx="30.4" cy="22.6" r=".8"/></g>
+  <path d="M24 27.6 L26 29.2 L22 29.2 Z" fill="#E0A4AA"/>
+  <path d="M24 29.2 L24 30.6" stroke="#2E2116" stroke-width=".7"/>
+  <path d="M24 30.6 C22.6 32 20.8 31.8 20.4 30.2" fill="none" stroke="#2E2116" stroke-width=".7"
+        stroke-linecap="round"/>
+  <path d="M24 30.6 C25.4 32 27.2 31.8 27.6 30.2" fill="none" stroke="#2E2116" stroke-width=".7"
+        stroke-linecap="round"/>
+  <g fill="#FFFFFF">
+    <path d="M21.6 31.8 L23.4 31.8 L23.4 34 L21.6 34 Z"/>
+    <path d="M24.6 31.8 L26.4 31.8 L26.4 34 L24.6 34 Z"/>
+  </g>
+  <g stroke="#2E2116" stroke-width=".4" opacity=".4">
+    <path d="M19.6 30 L11 28.6"/><path d="M19.6 31.6 L11.4 33"/>
+    <path d="M28.4 30 L37 28.6"/><path d="M28.4 31.6 L36.6 33"/>
+  </g></svg>

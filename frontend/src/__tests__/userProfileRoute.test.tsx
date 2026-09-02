@@ -8,7 +8,7 @@
  * through the tree and preloads the route's own component.
  */
 import { createRouter } from "@tanstack/react-router";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { routeTree } from "@/routeTree.gen";
@@ -116,20 +116,23 @@ describe("a member's profile", () => {
       buildUserProfile({
         profile_decorations: {
           banner: "core.aurora",
-          frame: "core.gold",
-          badges: ["ttrpg.d20", "thirdparty.unknown"],
+          frame: "core.arcane",
+          trophies: ["ttrpg.d20", "thirdparty.unknown"],
         },
       })
     );
     const { container } = await renderProfile();
 
-    expect(await screen.findByAltText("d20")).toHaveAttribute(
-      "src",
-      "/decorations/badges/ttrpg-d20.svg"
-    );
+    // The rail prints each trophy's name under it, so the picture itself says
+    // nothing and is found by its source.
+    const rail = await screen.findByRole("list", { name: "Trophies" });
+    expect(within(rail).getByText("d20")).toBeInTheDocument();
+    expect(rail.querySelector('img[src="/decorations/trophies/ttrpg-d20.svg"]')).not.toBeNull();
     // The frame is worn over the picture and says nothing, so it is hidden
     // from assistive technology and found by its source instead.
-    expect(container.querySelector('img[src="/decorations/frames/core-gold.svg"]')).not.toBeNull();
+    expect(
+      container.querySelector('img[src="/decorations/frames/core-arcane.svg"]')
+    ).not.toBeNull();
     // The banner runs the width of the content area now, the way a
     // community's front page does, so it is a picture rather than a fill.
     expect(

@@ -1,7 +1,7 @@
 """What a profile-pack listing is allowed to publish.
 
 A pack is a set of profile decorations sold together — a banner, a frame, the
-badge its community recognises. The listing carries the words (name, publisher,
+trophy its community recognises. The listing carries the words (name, publisher,
 description) like any other; this validates the part that is particular to a
 pack: which decorations it grants, and which slot each one goes in.
 
@@ -29,9 +29,11 @@ from app.services.marketplace.manifest_values import (
 
 __all__ = ["MAX_PACK_DECORATIONS", "normalize_profile_pack_definition"]
 
-#: How many decorations one pack may grant. Generous for a themed set and
-#: small enough that a pack cannot be a way to bulk-load a library.
-MAX_PACK_DECORATIONS = 24
+#: How many decorations one pack may grant. A themed set is usually three or
+#: four; a set whose whole idea is breadth — a flag for every country somebody
+#: in the room is from — is legitimately dozens. Still bounded, so a pack
+#: cannot be a way to bulk-load a library.
+MAX_PACK_DECORATIONS = 64
 
 
 def _decoration(raw: Any, *, index: int, seen: set[str]) -> dict[str, str]:

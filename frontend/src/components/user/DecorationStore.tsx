@@ -13,7 +13,7 @@ import { resolveDecoration } from "@/lib/profileDecorations";
  * One pack, shown as the profile it would make.
  *
  * The card is the profile page in miniature — the banner running, the frame
- * around the reader's own face, the badge beside the name — because that is
+ * around the reader's own face, the trophy beside the name — because that is
  * the only question worth answering here: what would I look like wearing this.
  * A swatch grid could not answer it.
  */
@@ -34,9 +34,9 @@ const PackCard = ({
     "banner"
   );
   const frameId = entry.contents.find((item) => item.kind === "frame")?.id ?? null;
-  const badge = resolveDecoration(
-    entry.contents.find((item) => item.kind === "badge")?.id,
-    "badge"
+  const trophy = resolveDecoration(
+    entry.contents.find((item) => item.kind === "trophy")?.id,
+    "trophy"
   );
 
   return (
@@ -49,13 +49,15 @@ const PackCard = ({
         <div className="-mt-12 flex items-end gap-3">
           <ProfileAvatar
             user={user}
-            decorations={{ banner: null, frame: frameId, badges: [] }}
+            decorations={{ banner: null, frame_tint: [], frame: frameId, trophies: [] }}
             className="size-16 rounded-full ring-4 ring-card"
           />
           <div className="min-w-0 flex-1 pb-1">
             <div className="flex items-center gap-1.5">
               <h3 className="truncate font-semibold">{entry.name}</h3>
-              {badge ? <img src={badge.src} alt="" aria-hidden="true" className="size-7" /> : null}
+              {trophy ? (
+                <img src={trophy.src} alt="" aria-hidden="true" className="size-7" />
+              ) : null}
             </div>
           </div>
         </div>
@@ -109,7 +111,7 @@ export const DecorationStore = ({ user }: { user: UserRead }) => {
   // obliged to have art for everything in it.
   const packs = (data?.items ?? []).filter((entry) =>
     entry.contents.some((item) =>
-      resolveDecoration(item.id, item.kind as "banner" | "frame" | "badge")
+      resolveDecoration(item.id, item.kind as "banner" | "frame" | "trophy")
     )
   );
 

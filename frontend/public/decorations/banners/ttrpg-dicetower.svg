@@ -1,242 +1,172 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
-     shape-rendering="crispEdges" role="presentation" preserveAspectRatio="xMidYMid slice">
+     role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Dice tower</title>
+  <!-- The table an hour into it: the map out, two dice already thrown, and one
+       still going. It lands on twenty, because this is a picture. -->
   <style>
-    /* The roll the app already does when you finish a task: the faces flick
-       past, then it lands on twenty and the sparks come out. The settled
-       twenty is the resting state, so a renderer that never animates — or a
-       reader who asked for less motion — gets the good frame rather than a
-       blank die. */
+    /* The settled twenty is the resting state, so a renderer that never
+       animates — or a reader who asked for less motion — gets the good frame
+       rather than a blank die. */
     .face { opacity: 0 }
     .f20 { opacity: 1 }
-    .f1  { animation: face1 4.5s steps(1, end) infinite }
-    .f2  { animation: face2 4.5s steps(1, end) infinite }
-    .f3  { animation: face3 4.5s steps(1, end) infinite }
-    .f20 { animation: face20 4.5s steps(1, end) infinite }
-    .die { animation: hop 4.5s cubic-bezier(.3,0,.4,1) infinite }
-    .spark { opacity: 0; animation: spark 4.5s ease-out infinite }
-    .s2 { animation-delay: .05s } .s3 { animation-delay: .1s }
-    .s4 { animation-delay: .15s } .s5 { animation-delay: .2s }
-    .mote { animation: drift 9s ease-in-out infinite alternate }
-    .m2 { animation-delay: -3s } .m3 { animation-delay: -6s }
-
-    @keyframes face1  { 0%,6%{opacity:1} 7%,100%{opacity:0} }
-    @keyframes face2  { 0%,6%{opacity:0} 7%,13%{opacity:1} 14%,100%{opacity:0} }
-    @keyframes face3  { 0%,13%{opacity:0} 14%,20%{opacity:1} 21%,100%{opacity:0} }
-    @keyframes face20 { 0%,20%{opacity:0} 21%,100%{opacity:1} }
+    .f1  { animation: face1 4.8s steps(1, end) infinite }
+    .f2  { animation: face2 4.8s steps(1, end) infinite }
+    .f3  { animation: face3 4.8s steps(1, end) infinite }
+    .f20 { animation: face20 4.8s steps(1, end) infinite }
+    @keyframes face1  { 0%,8% { opacity: 1 } 9%,100% { opacity: 0 } }
+    @keyframes face2  { 0%,9% { opacity: 0 } 10%,17% { opacity: 1 } 18%,100% { opacity: 0 } }
+    @keyframes face3  { 0%,18% { opacity: 0 } 19%,26% { opacity: 1 } 27%,100% { opacity: 0 } }
+    @keyframes face20 { 0%,27% { opacity: 0 } 28%,100% { opacity: 1 } }
+    .die { animation: hop 4.8s cubic-bezier(.3,0,.4,1) infinite;
+           transform-box: fill-box; transform-origin: 50% 100% }
     @keyframes hop {
-      0%   { transform: translateY(-7px) }
-      8%   { transform: translateY(0) }
-      13%  { transform: translateY(-2px) }
-      18%  { transform: translateY(0) }
-      100% { transform: translateY(0) }
+      0%   { transform: translate(-15px,-9px) rotate(-40deg) }
+      10%  { transform: translate(-9px,1px) rotate(30deg) }
+      18%  { transform: translate(-4px,-4px) rotate(80deg) }
+      26%  { transform: translate(0,0) rotate(120deg) }
+      31%  { transform: translate(1px,-1.4px) rotate(126deg) }
+      36%,100% { transform: translate(0,0) rotate(122deg) }
     }
-    @keyframes spark {
-      0%,20% { opacity: 0; transform: scale(.4) }
-      28%    { opacity: 1; transform: scale(1) }
-      46%    { opacity: 0; transform: scale(1.6) }
-      100%   { opacity: 0 }
+    .spark { animation: pop 4.8s ease-out infinite;
+             transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes pop {
+      0%,26% { transform: scale(.2); opacity: 0 }
+      30%    { transform: scale(1); opacity: .9 }
+      46%,100% { transform: scale(1.7); opacity: 0 }
     }
-    @keyframes drift { from { transform: translateY(0) } to { transform: translateY(-3px) } }
-
+    .mote { animation: rise 13s linear infinite }
+    .m2 { animation-delay: -4.4s } .m3 { animation-delay: -8.8s }
+    @keyframes rise {
+      0% { transform: translate(0,0); opacity: 0 }
+      25% { opacity: .55 }
+      100% { transform: translate(-3px,-20px); opacity: 0 }
+    }
     @media (prefers-reduced-motion: reduce) {
-      .die, .spark, .mote, .f1, .f2, .f3, .f20 { animation: none }
+      .f1, .f2, .f3, .f20, .die, .spark, .mote { animation: none }
+      .f20 { opacity: 1 }
     }
   </style>
-
-  <!-- The table. Darkest at the left, where a face and a name sit. -->
-  <rect width="160" height="40" fill="#12211c"/>
-  <rect x="0" y="0" width="70" height="40" fill="#0b1310"/>
-  <!-- Stepped rather than blended: a hard edge is the idiom here, and four of
-       them read as shading where one reads as a mistake. -->
-  <rect x="70" y="0" width="5" height="40" fill="#0c1512"/>
-  <rect x="75" y="0" width="5" height="40" fill="#0e1814"/>
-  <rect x="80" y="0" width="5" height="40" fill="#101c17"/>
-  <g fill="#1b3229">
-    <rect x="0" y="27" width="160" height="1"/>
-    <rect x="0" y="34" width="160" height="1"/>
+  <defs>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B0714"/><stop offset="100%" stop-color="#1A1024"/>
+    </linearGradient>
+    <linearGradient id="oak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A2E18"/><stop offset="100%" stop-color="#6B4526"/>
+    </linearGradient>
+    <radialGradient id="lamplight" cx=".5" cy=".2" r=".9">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".38"/>
+      <stop offset="55%" stop-color="#FFB35A" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#FFB35A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="facet" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#F2EEFF"/><stop offset="100%" stop-color="#C6B8F0"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#room)"/>
+  <!-- The table, and the lamp over it. -->
+  <path d="M0 10.6 C24 8.6 56 8 80 8 C104 8 136 8.6 160 10.6 L160 40 L0 40 Z" fill="url(#oak)"/>
+  <g stroke="#5A3820" stroke-width=".55" fill="none" opacity=".6">
+    <path d="M0 15 C30 13.2 130 13.2 160 15"/>
+    <path d="M0 21 C30 18.6 130 18.6 160 21"/>
+    <path d="M0 29 C30 25.8 130 25.8 160 29"/>
+    <path d="M0 36 C30 32.4 130 32.4 160 36"/>
   </g>
-
+  <ellipse cx="112" cy="12" rx="66" ry="26" fill="url(#lamplight)"/>
+  <g>
+    <path d="M112 0 L112 3.4" stroke="#2A1B12" stroke-width=".7"/>
+    <path d="M105 8.4 C105.6 5.4 108 3.4 112 3.4 C116 3.4 118.4 5.4 119 8.4 Z" fill="#33240F"/>
+    <ellipse cx="112" cy="8.4" rx="7" ry="1.4" fill="#FFD79A"/>
+    <ellipse cx="112" cy="8.4" rx="3" ry=".7" fill="#FFF3D2"/>
+  </g>
+  <!-- The map, unrolled, with its hexes and its coast. -->
+  <g>
+    <path d="M6 20.6 C18 19.2 38 19.2 50 20.6 L52 34 C38 35.6 18 35.6 4 34 Z" fill="#E4D3AC"/>
+    <path d="M6 20.6 C18 19.2 38 19.2 50 20.6 L50.4 22.6 C38 21.2 18 21.2 6.4 22.6 Z"
+          fill="#F2E5C6"/>
+    <path d="M4 34 C18 35.6 38 35.6 52 34 L52.6 36.4 C38 38 18 38 3.4 36.4 Z" fill="#C9B589"/>
+    <g fill="none" stroke="#B8A176" stroke-width=".35" opacity=".8">
+      <path d="M12 22.4 L15 21.8 L18 22.4 L18 24.4 L15 25 L12 24.4 Z"/>
+      <path d="M18 25.4 L21 24.8 L24 25.4 L24 27.4 L21 28 L18 27.4 Z"/>
+      <path d="M24 22.6 L27 22 L30 22.6 L30 24.6 L27 25.2 L24 24.6 Z"/>
+      <path d="M30 25.6 L33 25 L36 25.6 L36 27.6 L33 28.2 L30 27.6 Z"/>
+      <path d="M36 22.8 L39 22.2 L42 22.8 L42 24.8 L39 25.4 L36 24.8 Z"/>
+      <path d="M12 28.4 L15 27.8 L18 28.4 L18 30.4 L15 31 L12 30.4 Z"/>
+      <path d="M24 28.6 L27 28 L30 28.6 L30 30.6 L27 31.2 L24 30.6 Z"/>
+      <path d="M36 28.8 L39 28.2 L42 28.8 L42 30.8 L39 31.4 L36 30.8 Z"/>
+    </g>
+    <path d="M8 31 C14 29.4 20 31.4 26 30.6 C32 29.8 38 31.8 46 30.6" fill="none"
+          stroke="#8A6B3E" stroke-width=".6" opacity=".8"/>
+    <g fill="#8A6B3E" opacity=".7">
+      <circle cx="20" cy="26.6" r=".6"/><circle cx="33" cy="23.6" r=".5"/>
+      <circle cx="41" cy="29.4" r=".55"/>
+    </g>
+  </g>
+  <!-- The tower, and the chute the die came out of. -->
+  <g>
+    <path d="M104 26.4 L104 9.6 C104 8.8 104.6 8.4 105.4 8.4 L124.6 8.4 C125.4 8.4 126 8.8 126 9.6
+             L126 26.4 Z" fill="#5A3A1E"/>
+    <path d="M106 25.6 L106 10.4 L118 10.4 L118 25.6 Z" fill="#6E4A2A"/>
+    <path d="M118 25.6 L118 10.4 L124 10.4 L124 25.6 Z" fill="#432810"/>
+    <g stroke="#432810" stroke-width=".4" opacity=".7">
+      <path d="M109 10.4 L109 25.6"/><path d="M113 10.4 L113 25.6"/>
+    </g>
+    <path d="M104 22.6 L118 22.6 L118 26.4 L100 26.4 Z" fill="#3A2210"/>
+    <path d="M104.8 23.4 L117.2 23.4 L117.2 25.6 L101.6 25.6 Z" fill="#1E1208"/>
+    <path d="M104 8.4 L126 8.4 L126 7 L103 7 Z" fill="#7E5732"/>
+  </g>
+  <!-- Two already thrown, sitting still. -->
+  <g transform="translate(64 30)">
+    <path d="M0 -4.4 L4.6 -2 L4.6 2.6 L0 5 L-4.6 2.6 L-4.6 -2 Z" fill="#7E5FCF"/>
+    <path d="M0 -4.4 L4.6 -2 L0 .4 L-4.6 -2 Z" fill="#A98CF0"/>
+    <path d="M0 .4 L4.6 -2 L4.6 2.6 L0 5 Z" fill="#6A4AC0"/>
+    <g fill="#F2EEFF">
+      <circle cx="-2.3" cy="-2.2" r=".45"/><circle cx="2.3" cy="-2.2" r=".45"/>
+      <circle cx="0" cy="-1" r=".45"/>
+      <circle cx="2.4" cy="1.6" r=".45"/><circle cx="2.4" cy="3.2" r=".45"/>
+    </g>
+  </g>
+  <g transform="translate(90 32.4) rotate(12)">
+    <path d="M0 -3.6 L3.4 0 L0 3.6 L-3.4 0 Z" fill="#8B6EDE"/>
+    <path d="M0 -3.6 L3.4 0 L0 3.6 Z" fill="#6A4AC0"/>
+    <circle cx="-.9" cy="0" r=".5" fill="#F2EEFF"/>
+  </g>
+  <!-- And the one that is still going. -->
+  <g class="die">
+    <g transform="translate(80 24)">
+      <path d="M0 -7.6 L6.6 -3.8 L6.6 3.8 L0 7.6 L-6.6 3.8 L-6.6 -3.8 Z" fill="#3A2270"/>
+      <path d="M-6.6 -3.8 L-4.2 2.4 L0 6.8 L-5.2 3.2 Z" fill="#5B21B6"/>
+      <path d="M6.6 -3.8 L4.2 2.4 L0 6.8 L5.2 3.2 Z" fill="#452B85"/>
+      <path d="M0 -6.8 L-5 -3.8 L-3.4 1.6 Z" fill="#A98CF0"/>
+      <path d="M0 -6.8 L5 -3.8 L3.4 1.6 Z" fill="#9276E2"/>
+      <path d="M0 -5.8 L4.4 1.6 L-4.4 1.6 Z" fill="url(#facet)"/>
+      <g fill="none" stroke="#3A2270" stroke-width=".85" stroke-linecap="round"
+         stroke-linejoin="round">
+        <g class="face f1"><path d="M-1.4 -3 L-.2 -3.8 L-.2 .4"/><path d="M-1.6 .4 L1.2 .4"/></g>
+        <g class="face f2">
+          <path d="M-2 -3.2 C-2 -3.9 -1.4 -4.3 -.8 -4.3 C-.2 -4.3 .4 -3.9 .4 -3.2
+                   C.4 -2.2 -2 -1.2 -2.1 .2 L.6 .2"/>
+        </g>
+        <g class="face f3">
+          <path d="M-2 -3.9 C-1.4 -4.4 .4 -4.3 .4 -3.4 C.4 -2.7 -.3 -2.5 -.8 -2.5
+                   C-.3 -2.5 .5 -2.3 .5 -1.5 C.5 -.4 -1.4 -.3 -2 -.8"/>
+        </g>
+        <g class="face f20">
+          <path d="M-3.1 -3.1 C-3.1 -3.8 -2.5 -4.2 -1.9 -4.2 C-1.3 -4.2 -.7 -3.8 -.7 -3.1
+                   C-.7 -2 -3.1 -1.1 -3.2 .3 L-.5 .3"/>
+          <ellipse cx="1.9" cy="-2" rx="1.3" ry="2.2"/>
+        </g>
+      </g>
+    </g>
+  </g>
+  <g class="spark" fill="#FFD79A">
+    <path d="M80 14.4 L80.7 16.4 L82.7 17.1 L80.7 17.8 L80 19.8 L79.3 17.8 L77.3 17.1 L79.3 16.4 Z"/>
+    <circle cx="73" cy="19" r=".7"/><circle cx="87.4" cy="18.4" r=".6"/>
+    <circle cx="76" cy="14.6" r=".5"/><circle cx="85" cy="14" r=".55"/>
+  </g>
   <!-- Dust in the lamplight. -->
-  <g fill="#3f6f5c">
-    <rect class="mote" x="70" y="9" width="1" height="1"/>
-    <rect class="mote m2" x="100" y="5" width="1" height="1"/>
-    <rect class="mote m3" x="152" y="30" width="1" height="1"/>
-  </g>
-
-  <!-- Two already thrown, sitting still: a d6 showing five, and one on edge. -->
-  <g>
-    <rect x="88" y="26" width="9" height="9" fill="#5B21B6"/>
-    <rect x="89" y="27" width="7" height="7" fill="#A78BFA"/>
-    <rect x="89" y="27" width="7" height="1" fill="#DDD6FE"/>
-    <g fill="#1E1B4B">
-      <rect x="90" y="28" width="1" height="1"/><rect x="94" y="28" width="1" height="1"/>
-      <rect x="92" y="30" width="1" height="1"/>
-      <rect x="90" y="32" width="1" height="1"/><rect x="94" y="32" width="1" height="1"/>
-    </g>
-  </g>
-  <g>
-    <rect x="101" y="30" width="7" height="5" fill="#5B21B6"/>
-    <rect x="102" y="31" width="5" height="3" fill="#8B5CF6"/>
-    <rect x="104" y="32" width="1" height="1" fill="#1E1B4B"/>
-  </g>
-
-  <!-- The twenty, mid-roll. -->
-  <g class="die" transform="translate(116 9)">
-    <g>
-      <rect x="8" y="0" width="3" height="1" fill="#5B21B6"/>
-      <rect x="6" y="1" width="2" height="1" fill="#5B21B6"/>
-      <rect x="8" y="1" width="1" height="1" fill="#A78BFA"/>
-      <rect x="9" y="1" width="1" height="1" fill="#5B21B6"/>
-      <rect x="10" y="1" width="1" height="1" fill="#A78BFA"/>
-      <rect x="11" y="1" width="2" height="1" fill="#5B21B6"/>
-      <rect x="4" y="2" width="2" height="1" fill="#5B21B6"/>
-      <rect x="6" y="2" width="2" height="1" fill="#A78BFA"/>
-      <rect x="8" y="2" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="9" y="2" width="1" height="1" fill="#5B21B6"/>
-      <rect x="10" y="2" width="3" height="1" fill="#A78BFA"/>
-      <rect x="13" y="2" width="2" height="1" fill="#5B21B6"/>
-      <rect x="2" y="3" width="2" height="1" fill="#5B21B6"/>
-      <rect x="4" y="3" width="1" height="1" fill="#A78BFA"/>
-      <rect x="5" y="3" width="4" height="1" fill="#DDD6FE"/>
-      <rect x="9" y="3" width="1" height="1" fill="#5B21B6"/>
-      <rect x="10" y="3" width="3" height="1" fill="#DDD6FE"/>
-      <rect x="13" y="3" width="2" height="1" fill="#A78BFA"/>
-      <rect x="15" y="3" width="2" height="1" fill="#5B21B6"/>
-      <rect x="0" y="4" width="2" height="1" fill="#5B21B6"/>
-      <rect x="2" y="4" width="1" height="1" fill="#A78BFA"/>
-      <rect x="3" y="4" width="2" height="1" fill="#DDD6FE"/>
-      <rect x="5" y="4" width="9" height="1" fill="#5B21B6"/>
-      <rect x="14" y="4" width="3" height="1" fill="#DDD6FE"/>
-      <rect x="17" y="4" width="2" height="1" fill="#5B21B6"/>
-      <rect x="0" y="5" width="5" height="1" fill="#5B21B6"/>
-      <rect x="5" y="5" width="3" height="1" fill="#A78BFA"/>
-      <rect x="8" y="5" width="1" height="1" fill="#5B21B6"/>
-      <rect x="9" y="5" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="10" y="5" width="1" height="1" fill="#5B21B6"/>
-      <rect x="11" y="5" width="3" height="1" fill="#A78BFA"/>
-      <rect x="14" y="5" width="5" height="1" fill="#5B21B6"/>
-      <rect x="0" y="6" width="2" height="1" fill="#5B21B6"/>
-      <rect x="2" y="6" width="5" height="1" fill="#A78BFA"/>
-      <rect x="7" y="6" width="1" height="1" fill="#5B21B6"/>
-      <rect x="8" y="6" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="9" y="6" width="2" height="1" fill="#A78BFA"/>
-      <rect x="11" y="6" width="1" height="1" fill="#5B21B6"/>
-      <rect x="12" y="6" width="5" height="1" fill="#A78BFA"/>
-      <rect x="17" y="6" width="2" height="1" fill="#5B21B6"/>
-      <rect x="0" y="7" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="7" width="1" height="1" fill="#A78BFA"/>
-      <rect x="2" y="7" width="1" height="1" fill="#5B21B6"/>
-      <rect x="3" y="7" width="4" height="1" fill="#A78BFA"/>
-      <rect x="7" y="7" width="1" height="1" fill="#5B21B6"/>
-      <rect x="8" y="7" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="9" y="7" width="2" height="1" fill="#A78BFA"/>
-      <rect x="11" y="7" width="1" height="1" fill="#5B21B6"/>
-      <rect x="12" y="7" width="4" height="1" fill="#A78BFA"/>
-      <rect x="16" y="7" width="1" height="1" fill="#5B21B6"/>
-      <rect x="17" y="7" width="1" height="1" fill="#A78BFA"/>
-      <rect x="18" y="7" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="8" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="8" width="1" height="1" fill="#A78BFA"/>
-      <rect x="2" y="8" width="1" height="1" fill="#5B21B6"/>
-      <rect x="3" y="8" width="3" height="1" fill="#A78BFA"/>
-      <rect x="6" y="8" width="1" height="1" fill="#5B21B6"/>
-      <rect x="7" y="8" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="8" y="8" width="4" height="1" fill="#A78BFA"/>
-      <rect x="12" y="8" width="1" height="1" fill="#5B21B6"/>
-      <rect x="13" y="8" width="3" height="1" fill="#A78BFA"/>
-      <rect x="16" y="8" width="1" height="1" fill="#5B21B6"/>
-      <rect x="17" y="8" width="1" height="1" fill="#A78BFA"/>
-      <rect x="18" y="8" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="9" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="9" width="2" height="1" fill="#A78BFA"/>
-      <rect x="3" y="9" width="1" height="1" fill="#5B21B6"/>
-      <rect x="4" y="9" width="2" height="1" fill="#A78BFA"/>
-      <rect x="6" y="9" width="1" height="1" fill="#5B21B6"/>
-      <rect x="7" y="9" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="8" y="9" width="4" height="1" fill="#A78BFA"/>
-      <rect x="12" y="9" width="1" height="1" fill="#5B21B6"/>
-      <rect x="13" y="9" width="2" height="1" fill="#A78BFA"/>
-      <rect x="15" y="9" width="1" height="1" fill="#5B21B6"/>
-      <rect x="16" y="9" width="2" height="1" fill="#A78BFA"/>
-      <rect x="18" y="9" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="10" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="10" width="2" height="1" fill="#A78BFA"/>
-      <rect x="3" y="10" width="1" height="1" fill="#5B21B6"/>
-      <rect x="4" y="10" width="1" height="1" fill="#A78BFA"/>
-      <rect x="5" y="10" width="1" height="1" fill="#5B21B6"/>
-      <rect x="6" y="10" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="7" y="10" width="6" height="1" fill="#A78BFA"/>
-      <rect x="13" y="10" width="1" height="1" fill="#5B21B6"/>
-      <rect x="14" y="10" width="1" height="1" fill="#A78BFA"/>
-      <rect x="15" y="10" width="1" height="1" fill="#5B21B6"/>
-      <rect x="16" y="10" width="2" height="1" fill="#A78BFA"/>
-      <rect x="18" y="10" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="11" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="11" width="3" height="1" fill="#A78BFA"/>
-      <rect x="4" y="11" width="1" height="1" fill="#5B21B6"/>
-      <rect x="5" y="11" width="1" height="1" fill="#DDD6FE"/>
-      <rect x="6" y="11" width="8" height="1" fill="#A78BFA"/>
-      <rect x="14" y="11" width="1" height="1" fill="#5B21B6"/>
-      <rect x="15" y="11" width="3" height="1" fill="#A78BFA"/>
-      <rect x="18" y="11" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="12" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="12" width="3" height="1" fill="#A78BFA"/>
-      <rect x="4" y="12" width="11" height="1" fill="#5B21B6"/>
-      <rect x="15" y="12" width="3" height="1" fill="#A78BFA"/>
-      <rect x="18" y="12" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="13" width="1" height="1" fill="#5B21B6"/>
-      <rect x="1" y="13" width="1" height="1" fill="#A78BFA"/>
-      <rect x="2" y="13" width="2" height="1" fill="#5B21B6"/>
-      <rect x="4" y="13" width="1" height="1" fill="#A78BFA"/>
-      <rect x="5" y="13" width="1" height="1" fill="#5B21B6"/>
-      <rect x="6" y="13" width="7" height="1" fill="#A78BFA"/>
-      <rect x="13" y="13" width="1" height="1" fill="#5B21B6"/>
-      <rect x="14" y="13" width="1" height="1" fill="#A78BFA"/>
-      <rect x="15" y="13" width="2" height="1" fill="#5B21B6"/>
-      <rect x="17" y="13" width="1" height="1" fill="#A78BFA"/>
-      <rect x="18" y="13" width="1" height="1" fill="#5B21B6"/>
-      <rect x="0" y="14" width="2" height="1" fill="#5B21B6"/>
-      <rect x="2" y="14" width="4" height="1" fill="#A78BFA"/>
-      <rect x="6" y="14" width="1" height="1" fill="#5B21B6"/>
-      <rect x="7" y="14" width="5" height="1" fill="#A78BFA"/>
-      <rect x="12" y="14" width="1" height="1" fill="#5B21B6"/>
-      <rect x="13" y="14" width="4" height="1" fill="#A78BFA"/>
-      <rect x="17" y="14" width="2" height="1" fill="#5B21B6"/>
-      <rect x="2" y="15" width="2" height="1" fill="#5B21B6"/>
-      <rect x="4" y="15" width="3" height="1" fill="#A78BFA"/>
-      <rect x="7" y="15" width="1" height="1" fill="#5B21B6"/>
-      <rect x="8" y="15" width="3" height="1" fill="#A78BFA"/>
-      <rect x="11" y="15" width="1" height="1" fill="#5B21B6"/>
-      <rect x="12" y="15" width="3" height="1" fill="#A78BFA"/>
-      <rect x="15" y="15" width="2" height="1" fill="#5B21B6"/>
-      <rect x="4" y="16" width="2" height="1" fill="#5B21B6"/>
-      <rect x="6" y="16" width="2" height="1" fill="#A78BFA"/>
-      <rect x="8" y="16" width="1" height="1" fill="#5B21B6"/>
-      <rect x="9" y="16" width="1" height="1" fill="#A78BFA"/>
-      <rect x="10" y="16" width="1" height="1" fill="#5B21B6"/>
-      <rect x="11" y="16" width="2" height="1" fill="#A78BFA"/>
-      <rect x="13" y="16" width="2" height="1" fill="#5B21B6"/>
-      <rect x="6" y="17" width="2" height="1" fill="#5B21B6"/>
-      <rect x="8" y="17" width="1" height="1" fill="#A78BFA"/>
-      <rect x="9" y="17" width="1" height="1" fill="#5B21B6"/>
-      <rect x="10" y="17" width="1" height="1" fill="#A78BFA"/>
-      <rect x="11" y="17" width="2" height="1" fill="#5B21B6"/>
-      <rect x="8" y="18" width="3" height="1" fill="#5B21B6"/>
-    </g>
-    <g fill="#1E1B4B" font-family="ui-monospace, monospace" font-size="6" font-weight="bold"
-       text-anchor="middle">
-      <text class="face f1"  x="9.5" y="11.4">7</text>
-      <text class="face f2"  x="9.5" y="11.4">4</text>
-      <text class="face f3"  x="9.5" y="11.4">13</text>
-      <text class="face f20" x="9.5" y="11.4">20</text>
-    </g>
-    <g fill="#FDE68A">
-      <rect class="spark"    x="-6" y="7"  width="2" height="2"/>
-      <rect class="spark s2" x="23" y="6"  width="2" height="2"/>
-      <rect class="spark s3" x="8"  y="-6" width="2" height="2"/>
-      <rect class="spark s4" x="-1" y="21" width="2" height="2"/>
-      <rect class="spark s5" x="19" y="20" width="2" height="2"/>
-    </g>
+  <g fill="#FFE7C2">
+    <circle class="mote" cx="98" cy="24" r=".35" opacity=".5"/>
+    <circle class="mote m2" cx="120" cy="28" r=".3" opacity=".45"/>
+    <circle class="mote m3" cx="134" cy="22" r=".32" opacity=".4"/>
   </g>
 </svg>
