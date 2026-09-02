@@ -15,7 +15,7 @@ from sqlmodel import Field, Relationship
 
 from app.core.reactions import REACTION_TARGETS
 from app.models.tenant._mixins import CreatedByMixin
-from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 
 #: The target vocabulary, frozen into the CHECK constraint from the registry so
 #: the column can never hold a kind nothing knows how to authorize.
@@ -75,8 +75,11 @@ class Reaction(CreatedByMixin, table=True):
     )
 
     # The API calls this the reactor; the column is the schema-wide
-    # ``created_by``. Named ``foreign_keys`` so the join survives another user
-    # FK landing on this table.
-    reactor: User = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Reaction.created_by]"},
+    # ``created_by``. The join is spelled out because the target is a view,
+    # which carries no foreign key.
+    reactor: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(Reaction.created_by) == MemberProfile.id",
+            "viewonly": True,
+        },
     )

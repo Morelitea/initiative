@@ -46,6 +46,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document, ProjectDocument
 from app.models.tenant.tag import ProjectTag
 from app.api import resource_access
+from app.core.user_display import handle_of
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
@@ -2226,7 +2227,7 @@ async def build_project_export_for_user(
     """The project-export adapter's build seam: the same access rule and
     envelope as the retired ``GET /{project_id}/export`` route. Cross-row
     references (tags, statuses, properties, assignees) are encoded by string
-    keys (name / email) so the file imports cleanly on another instance.
+    keys (name / handle) so the file imports cleanly on another instance.
     The initiative/guild aggregate export passes ``access="read"`` — its
     deliberate relaxation; standalone exports keep write."""
     project = await _get_project_or_404(project_id, session, guild_id)
@@ -2234,7 +2235,7 @@ async def build_project_export_for_user(
     return await project_export_service.build_project_export(
         session,
         project_id=project.id,
-        exported_by_handle=current_user.email,
+        exported_by_handle=handle_of(current_user),
         source_instance_url=app_settings.APP_URL,
     )
 
