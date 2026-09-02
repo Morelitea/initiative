@@ -24,8 +24,8 @@ import { profileBanner } from "@/lib/profileBanner";
  *
  * Public, and the same page whoever opens it: the handle is the name in this
  * product, so nothing here depends on a community deciding whether it renders
- * real names, and "online" is a fact about the person rather than about a
- * place they happen to share with the reader.
+ * real names, and how they appear is a fact about the person rather than about
+ * a place they happen to share with the reader.
  *
  * Your own status is editable in place; nothing else on it is. The rest is
  * written on Settings → Profile, so there is one place a person edits
@@ -85,7 +85,7 @@ export const UserProfilePage = () => {
           <ProfileAvatar
             user={profile}
             decorations={profile.profile_decorations}
-            online={profile.online}
+            presence={profile.presence}
             ring
             className="size-24 sm:size-28"
           />
@@ -98,7 +98,7 @@ export const UserProfilePage = () => {
         </div>
       </div>
 
-      <ProfileMeta online={profile.online} joinedAt={profile.joined_at} />
+      <ProfileMeta presence={profile.presence} joinedAt={profile.joined_at} />
 
       <ProfileCommunities handle={handle} />
     </div>

@@ -29,9 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **An initiative's status columns can be read in one request**, instead of asking project by project and stitching the answers together.
 
+- **Say how you're around, or don't.** A dot under your picture in the sidebar opens the four states: online, idle, busy, or offline. Offline means offline — nobody sees you as here, whatever you have open. Idle sets itself once nothing has been touched for a while, and you can also pick it outright to say you have stepped away. The same dot on your profile card in Settings › Profile opens the same menu.
+
 ### Changed
 
 - **The mushrooms grow properly now.** The Mushrooms pack was drawn on a pixel grid, which a mushroom does not have — a cap is a dome and a stem is a taper. It is all curves, and it is a forest floor rather than the same mushroom three times: a morel, a fly agaric, a cluster of little brown ones, and bracket fungus on a fallen log.
+
+- **The sidebar's status bubble moved over to make room.** It keeps the left, under the face it is a thought of, and gives up the width it was not using; the presence dot took the space that freed on the right. The picture above no longer carries a dot of its own, because the one below it is the one you can click.
 
 - **Your status is a thought bubble, and it sits with the face thinking it.** Two dots trail from the bubble toward your picture — above the picture on your profile, below it in the sidebar, so they always run the right way.
 

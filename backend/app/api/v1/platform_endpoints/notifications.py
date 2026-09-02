@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from time import monotonic
 
 from fastapi import (
     APIRouter,
@@ -24,7 +25,7 @@ from app.schemas.platform.notification import (
     NotificationRead,
 )
 from app.core.messages import NotificationMessages
-from app.services.platform import notification_stream
+from app.services.platform import notification_stream, presence
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
 
@@ -34,6 +35,11 @@ logger = logging.getLogger(__name__)
 # Message type for authentication — the same first-frame handshake the guild
 # events, queue, counter and collaboration sockets use.
 MSG_AUTH = 5
+
+# "Somebody just did something in this tab." One byte, no payload: it says only
+# that the person is at their keyboard, which is the whole of what idle needs
+# to know. The client throttles it hard, so this is a frame a minute at most.
+MSG_ACTIVE = 6
 
 # How long an accepted socket may go without sending that frame. Generous
 # against a slow network, short against a socket that will never send one.
@@ -104,7 +110,10 @@ async def websocket_notifications(websocket: WebSocket):
     Protocol: the client sends ``MSG_AUTH`` with ``{"token": "..."}`` as its
     first (binary) frame, exactly as on the guild events socket; web sessions
     may send ``{"token": null}`` and be authenticated from the session cookie.
-    After that the server sends id envelopes and the client sends nothing.
+    After that the server sends id envelopes, and the only thing the client
+    sends back is ``MSG_ACTIVE`` — a sign that its person is at the keyboard,
+    which is what keeps them from reading as idle. It names nobody: the socket
+    already knows whose it is.
 
     Authorization is connect-time only. The stream says "your inbox changed"
     and never what changed, so the decision that matters is made by the refetch
@@ -156,19 +165,33 @@ async def websocket_notifications(websocket: WebSocket):
         # since-dropped guild role would make the auth query error);
         # AsyncSessionLocal skips get_session's per-request reset.
         await session.exec(text(CONNECTION_RESET_SQL))
+        # Taken before the row is read, so it is never later than the value
+        # that read comes back with.
+        presence_known_at = monotonic()
         user = await authenticate_ws_token(token, session)
         if user is None:
             logger.warning("Notifications WS: auth failed")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
         user_id = user.id
+        chosen_presence = user.presence
 
-    await notification_stream.stream.connect(user_id, websocket)
+    await notification_stream.stream.connect(
+        user_id,
+        websocket,
+        chosen_presence=chosen_presence,
+        presence_known_at=presence_known_at,
+    )
     try:
         while True:
-            # Nothing is expected from the client; awaiting keeps the socket
-            # open and surfaces the disconnect.
-            await websocket.receive_text()
+            # Awaiting keeps the socket open and surfaces the disconnect; the
+            # one frame the client does send is its person's activity.
+            frame = await websocket.receive()
+            if frame.get("type") == "websocket.disconnect":
+                break
+            data = frame.get("bytes")
+            if data and data[0] == MSG_ACTIVE:
+                presence.online.active(user_id)
     except WebSocketDisconnect:
         pass
     except Exception:

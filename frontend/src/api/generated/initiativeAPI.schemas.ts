@@ -1496,6 +1496,32 @@ export interface ProfileDecorationsOutput {
 }
 
 /**
+ * How a person appears to everyone else.
+ *
+ * Both halves of one idea, which is why it is one enum: what a person picks
+ * for themselves, and what a reader of their name is shown. The picked value
+ * is a standing preference on the account; the shown value is that preference
+ * narrowed by what the process can see — whether they have Initiative open at
+ * all, and whether anyone has touched it lately — which is decided in one
+ * place (``app.services.platform.presence``).
+ *
+ * ``idle`` is the one a person may either pick or be given: left on
+ * ``online``, an account that goes quiet is shown it anyway, and picking it
+ * outright is how someone says they would rather look that way regardless.
+ *
+ * Not to be confused with ``UserStatus`` (the account's standing, which is not
+ * the account holder's to write) or ``custom_status`` (the line they wrote).
+ */
+export type Presence = (typeof Presence)[keyof typeof Presence];
+
+export const Presence = {
+  online: "online",
+  idle: "idle",
+  busy: "busy",
+  offline: "offline",
+} as const;
+
+/**
  * Who wrote a comment.
  *
  * An address never reaches a guild, so there is none here; the handle names
@@ -1503,7 +1529,7 @@ export interface ProfileDecorationsOutput {
  * names.
  *
  * It carries what a picture needs to be drawn the way it is drawn everywhere
- * else — the decorations and whether they are around — because a comment is
+ * else — the decorations and how they are appearing — because a comment is
  * one of the places a person appears at a size where both are legible.
  * Neither is private: the same two are on the public profile.
  */
@@ -1515,14 +1541,15 @@ export interface CommentAuthor {
   avatar_url?: string | null;
   profile_decorations?: ProfileDecorationsOutput;
   /**
-   * Whether they have Initiative open, at the moment this was serialized.
+   * How they appear, at the moment this was serialized.
    *
    * Computed rather than stamped by each endpoint: a comment author is
-   * built in nine places, and presence is not a column anything could
-   * select. It is a process-local fact, so it is read where the shape is
-   * made rather than passed down to it.
+   * built in nine places, and what a reader is shown is not a column
+   * anything could select — it is what the account picked narrowed by which
+   * sockets are open. So it is read where the shape is made rather than
+   * passed down to it.
    */
-  readonly online: boolean;
+  readonly presence: Presence;
 }
 
 export interface CommentCreate {
@@ -5106,7 +5133,7 @@ export interface UserGuildMember {
  *
  * A profile is public. It carries the handle — which is the name in this
  * product, unique and never withheld — the face, the line they wrote, the
- * look they picked, whether they are online, and when they joined. It never
+ * look they picked, how they appear right now, and when they joined. It never
  * carries a real name: ``full_name`` is a guild's business (a guild decides
  * whether it renders names at all), and this shape has no guild in it.
  *
@@ -5122,7 +5149,7 @@ export interface UserProfile {
   status: UserStatus;
   custom_status: CustomStatusOutput;
   profile_decorations: ProfileDecorationsOutput;
-  online: boolean;
+  presence: Presence;
   joined_at: string;
 }
 
@@ -5140,6 +5167,7 @@ export interface UserRead {
   updated_at: string;
   avatar_url: string | null;
   custom_status: CustomStatusOutput;
+  presence: Presence;
   profile_decorations: ProfileDecorationsOutput;
   week_starts_on: number;
   recent_tabs_limit: number;
@@ -5187,6 +5215,7 @@ export interface UserSelfUpdate {
   current_password?: string | null;
   avatar_url?: string | null;
   custom_status?: CustomStatusInput | null;
+  presence?: Presence | null;
   profile_decorations?: ProfileDecorationsInput | null;
   week_starts_on?: number | null;
   recent_tabs_limit?: number | null;

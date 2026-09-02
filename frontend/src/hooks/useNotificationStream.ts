@@ -6,6 +6,18 @@ import { buildApiWsUrl } from "@/lib/wsUrl";
 
 // Message type for authentication (must match the backend's MSG_AUTH).
 const MSG_AUTH = 5;
+// "Somebody just did something here" (the backend's MSG_ACTIVE). One byte, no
+// payload: the socket already knows whose it is.
+const MSG_ACTIVE = 6;
+
+// How often that byte may go out, however busy the keyboard is. The server
+// only needs to know the person was around within its idle window, so once a
+// minute answers that with a frame nobody would notice.
+const ACTIVITY_INTERVAL_MS = 60_000;
+
+// What counts as a sign of someone. Pointer, key and scroll cover being at the
+// machine; a tab coming back to the front covers returning to it.
+const ACTIVITY_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
 
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -53,6 +65,13 @@ export const useNotificationStreamConnected = (): boolean =>
     () => false
   );
 
+const sendActivityMessage = (websocket: WebSocket) => {
+  if (websocket.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  websocket.send(new Uint8Array([MSG_ACTIVE]));
+};
+
 const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
   const payload = JSON.stringify({ token });
   const payloadBytes = new TextEncoder().encode(payload);
@@ -73,6 +92,11 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
  * Every frame is a content-free "your inbox changed"; the response is to
  * invalidate the notification queries and let React Query refetch through the
  * normal REST path, which is the authorization gate.
+ *
+ * It carries one thing the other way: a throttled byte saying its person is at
+ * the keyboard. That is what keeps them from reading as idle — and going quiet
+ * is the whole signal, so a tab left open needs to send nothing for the server
+ * to work out that nobody is at it.
  *
  * Mount once, at the authenticated app shell.
  */
@@ -163,8 +187,37 @@ export const useNotificationStream = () => {
 
     connect();
 
+    // Throttled at the source rather than on a timer: no frame goes out for a
+    // tab nobody is touching, which is exactly the state being reported.
+    let lastReported = 0;
+    const reportActivity = () => {
+      const now = Date.now();
+      if (now - lastReported < ACTIVITY_INTERVAL_MS) {
+        return;
+      }
+      lastReported = now;
+      if (websocketRef.current) {
+        sendActivityMessage(websocketRef.current);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Coming back to the tab is being back, whenever the last click was.
+        lastReported = 0;
+        reportActivity();
+      }
+    };
+    for (const name of ACTIVITY_EVENTS) {
+      window.addEventListener(name, reportActivity, { passive: true });
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       isActive = false;
+      for (const name of ACTIVITY_EVENTS) {
+        window.removeEventListener(name, reportActivity);
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       setConnected(false);
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current);

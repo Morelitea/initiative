@@ -6,8 +6,19 @@
   },
   "presence": {
     "label": "Präsenz",
+    "edit": "Wie du erscheinst",
+    "change": "Präsenz: {{state}}. Ändern, wie du erscheinst.",
+    "failed": "Das konnte nicht gespeichert werden.",
     "online": "Online",
-    "offline": "Offline"
+    "idle": "Inaktiv",
+    "busy": "Beschäftigt",
+    "offline": "Offline",
+    "help": {
+      "online": "Wird angezeigt, solange du Initiative offen hast.",
+      "idle": "Wird von selbst gesetzt, wenn eine Weile nichts passiert ist – oder wähle es, um zu sagen, dass du kurz weg bist.",
+      "busy": "Du bist da und möchtest nicht gestört werden.",
+      "offline": "Niemand sieht dich als anwesend, auch bei geöffnetem Tab."
+    }
   },
   "joined": {
     "label": "Dabei seit"

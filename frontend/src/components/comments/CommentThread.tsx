@@ -122,7 +122,7 @@ export const CommentThread = ({
           <ProfileAvatar
             user={anonymizedAuthor ? { id: null } : (comment.author ?? { id: comment.created_by })}
             decorations={anonymizedAuthor ? null : comment.author?.profile_decorations}
-            online={!anonymizedAuthor && comment.author?.online}
+            presence={anonymizedAuthor ? undefined : comment.author?.presence}
             className="size-9"
           />
           <div className="min-w-0 flex-1">

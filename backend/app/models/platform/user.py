@@ -55,6 +55,39 @@ class UserStatus(str, Enum):
     anonymized = "anonymized"
 
 
+class Presence(str, Enum):
+    """How a person appears to everyone else.
+
+    Both halves of one idea, which is why it is one enum: what a person picks
+    for themselves, and what a reader of their name is shown. The picked value
+    is a standing preference on the account; the shown value is that preference
+    narrowed by what the process can see — whether they have Initiative open at
+    all, and whether anyone has touched it lately — which is decided in one
+    place (``app.services.platform.presence``).
+
+    ``idle`` is the one a person may either pick or be given: left on
+    ``online``, an account that goes quiet is shown it anyway, and picking it
+    outright is how someone says they would rather look that way regardless.
+
+    Not to be confused with ``UserStatus`` (the account's standing, which is not
+    the account holder's to write) or ``custom_status`` (the line they wrote).
+    """
+
+    #: Follow the connection: shown while a tab is open, and not otherwise.
+    online = "online"
+    #: Open, but with no sign of anyone at the keyboard for a while — the
+    #: state for stepping away, whether or not you said so. The one that is
+    #: inferred as well as picked: it is what ``online`` becomes on its own
+    #: after a long enough quiet, and what someone picks to look that way
+    #: whether or not they are.
+    idle = "idle"
+    #: Here, and would rather not be interrupted.
+    busy = "busy"
+    #: Shown to nobody, whether or not a tab is open. Also what a reader is
+    #: told about anyone who has nothing open.
+    offline = "offline"
+
+
 #: The statuses that may hold a session. A suspended account signs in — that is
 #: how its holder reaches their own account, and how they can be told why —
 #: and is stopped at every guild instead.
@@ -142,6 +175,17 @@ class User(SQLModel, table=True):
     custom_status: dict = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    #: How this person wants to appear to everyone else — see ``Presence``.
+    #: A standing preference rather than live state: the live half is which
+    #: sockets are open, which no column could hold.
+    presence: Presence = Field(
+        default=Presence.online,
+        sa_column=Column(
+            SQLEnum(Presence, name="user_presence"),
+            nullable=False,
+            server_default=Presence.online.value,
+        ),
     )
     #: How this person's profile is dressed: a banner, a frame around the
     #: picture, badges beside the name. Each is an id naming a catalog entry

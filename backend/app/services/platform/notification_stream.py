@@ -23,11 +23,12 @@ it any more.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Set
+from typing import Any, Dict, Optional, Set
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
 
+from app.models.platform.user import Presence
 from app.services.platform import presence
 
 logger = logging.getLogger(__name__)
@@ -58,14 +59,27 @@ class NotificationStream:
         self._socket_user: Dict[Any, int] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, user_id: int, websocket: Any) -> None:
-        """Register an already-accepted socket as this user's."""
+    async def connect(
+        self,
+        user_id: int,
+        websocket: Any,
+        *,
+        chosen_presence: Presence = Presence.online,
+        presence_known_at: Optional[float] = None,
+    ) -> None:
+        """Register an already-accepted socket as this user's.
+
+        ``presence_known_at`` is when the caller read ``chosen_presence``, so
+        the roll can tell a value read before a change from one read after it.
+        """
         async with self._lock:
             self._sockets.setdefault(user_id, set()).add(websocket)
             self._socket_user[websocket] = user_id
         # This socket is open wherever they are in the app, including outside
-        # any guild, so it is what "has Initiative open" means.
-        presence.online.arrived(user_id)
+        # any guild, so it is what "has Initiative open" means. It carries the
+        # account's own choice of how to appear along with it, because the roll
+        # answers both halves of that question together.
+        presence.online.arrived(user_id, chosen_presence, known_at=presence_known_at)
 
     async def disconnect(self, websocket: Any) -> None:
         """Drop a socket; the last one drops its user's entry entirely."""

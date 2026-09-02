@@ -91,10 +91,24 @@ describe("a member's profile", () => {
   });
 
   it("says when someone has Initiative open", async () => {
-    answerWith(buildUserProfile({ online: true }));
+    answerWith(buildUserProfile({ presence: "online" }));
     await renderProfile();
 
     expect(await screen.findByText("Online")).toBeInTheDocument();
+  });
+
+  it("says which state someone is in, not just that they are here", async () => {
+    answerWith(buildUserProfile({ presence: "busy" }));
+    await renderProfile();
+
+    expect(await screen.findByText("Busy")).toBeInTheDocument();
+  });
+
+  it("shows someone who stepped away from the keyboard as idle", async () => {
+    answerWith(buildUserProfile({ presence: "idle" }));
+    await renderProfile();
+
+    expect(await screen.findByText("Idle")).toBeInTheDocument();
   });
 
   it("wears the decorations it can draw, and ignores the ones it cannot", async () => {

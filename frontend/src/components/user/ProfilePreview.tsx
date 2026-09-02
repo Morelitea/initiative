@@ -1,13 +1,19 @@
+import { useTranslation } from "react-i18next";
+
 import type {
   CustomStatusOutput,
+  Presence,
   ProfileDecorationsOutput,
 } from "@/api/generated/initiativeAPI.schemas";
 import { UserHandle } from "@/components/UserHandle";
 import { Card, CardContent } from "@/components/ui/card";
+import { PresenceDot } from "@/components/user/PresenceDot";
+import { PresenceMenu } from "@/components/user/PresenceMenu";
 import { ProfileBadges } from "@/components/user/ProfileBadges";
 import { ProfileMeta } from "@/components/user/ProfileMeta";
 import { ProfilePicture } from "@/components/user/ProfilePicture";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
+import { presenceLabelKey } from "@/lib/presence";
 import { resolveDecoration } from "@/lib/profileDecorations";
 import type { AvatarSourceUser, DisplayableUser } from "@/lib/userDisplay";
 
@@ -15,9 +21,11 @@ interface ProfilePreviewProps {
   user: DisplayableUser & AvatarSourceUser;
   decorations: ProfileDecorationsOutput;
   status: CustomStatusOutput;
+  /** What the account is set to appear as. */
+  presence: Presence;
   /** ISO date the account was created. */
   joinedAt: string;
-  /** Re-read the account after the status or the picture is changed here. */
+  /** Re-read the account after anything set from the card is changed. */
   onChanged?: () => Promise<void> | void;
 }
 
@@ -30,18 +38,22 @@ interface ProfilePreviewProps {
  * avatar, badges, status and footer the page draws, so what you see here
  * cannot say something the page does not.
  *
- * The card is also the controls: the picture and the status are both set by
- * clicking them here, because the thing you are looking at is the thing you
- * want to change and a section further down would be a second place to keep
- * in agreement with this one.
+ * The card is also the controls: the picture, the status and the presence dot
+ * are all set by clicking them here, because the thing you are looking at is
+ * the thing you want to change and a section further down would be a second
+ * place to keep in agreement with this one. The dot is the one control that
+ * has to sit outside the picture rather than on it — the picture is a button,
+ * and a button inside a button belongs to neither.
  */
 export const ProfilePreview = ({
   user,
   decorations,
   status,
+  presence,
   joinedAt,
   onChanged,
 }: ProfilePreviewProps) => {
+  const { t } = useTranslation("profiles");
   const banner = resolveDecoration(decorations.banner, "banner");
 
   return (
@@ -58,14 +70,25 @@ export const ProfilePreview = ({
         <div className="-mt-20 space-y-1">
           <ProfileStatus status={status} editable onSaved={onChanged} />
           <div className="flex flex-wrap items-end gap-4">
-            <ProfilePicture
-              user={user}
-              decorations={decorations}
-              online
-              editable
-              onChanged={onChanged}
-              className="size-24 sm:size-28"
-            />
+            <div className="relative">
+              <ProfilePicture
+                user={user}
+                decorations={decorations}
+                hidePresence
+                editable
+                onChanged={onChanged}
+                className="size-24 sm:size-28"
+              />
+              <PresenceMenu presence={presence} onChanged={onChanged}>
+                <button
+                  type="button"
+                  className="absolute right-0 bottom-0 rounded-full ring-2 ring-card transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+                  aria-label={t("presence.change", { state: t(presenceLabelKey(presence)) })}
+                >
+                  <PresenceDot presence={presence} className="size-6 sm:size-7" />
+                </button>
+              </PresenceMenu>
+            </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pb-1">
               <UserHandle user={user} className="font-semibold text-2xl" />
               <ProfileBadges decorations={decorations} />
@@ -73,7 +96,7 @@ export const ProfilePreview = ({
           </div>
         </div>
 
-        <ProfileMeta online joinedAt={joinedAt} />
+        <ProfileMeta presence={presence} joinedAt={joinedAt} />
       </CardContent>
     </Card>
   );

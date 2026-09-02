@@ -25,10 +25,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarFooter } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { PresenceDot } from "@/components/user/PresenceDot";
+import { PresenceMenu } from "@/components/user/PresenceMenu";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
 import { VersionDialog } from "@/components/VersionDialog";
 import { guildPath } from "@/lib/guildUrl";
+import { presenceLabelKey } from "@/lib/presence";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 
 export interface SidebarUserFooterProps {
@@ -43,7 +46,7 @@ export interface SidebarUserFooterProps {
   hasUpdate: boolean;
   isLoadingVersion: boolean;
   onLogout: () => void;
-  /** Re-read the account after the status is set from here. */
+  /** Re-read the account after the status or the presence is set from here. */
   refreshUser: () => Promise<void>;
 }
 
@@ -60,7 +63,7 @@ export const SidebarUserFooter = ({
   onLogout,
   refreshUser,
 }: SidebarUserFooterProps) => {
-  const { t } = useTranslation(["nav"]);
+  const { t } = useTranslation(["nav", "profiles"]);
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
   const displayName = getUserDisplayName(user);
   const handle = getUrlHandle(user);
@@ -84,7 +87,6 @@ export const SidebarUserFooter = ({
                 <ProfileAvatar
                   user={user}
                   decorations={user?.profile_decorations}
-                  online={Boolean(user)}
                   className="size-8 text-xs"
                 />
                 <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left">
@@ -148,18 +150,38 @@ export const SidebarUserFooter = ({
             <ModeToggle />
           </div>
         </div>
-        {/* Set where it is read, the same as on the profile: a status is the
-            thing you change most often, and the sidebar is where you already
-            are when it changes. */}
+        {/* Both set where they are read, the same as on the profile: a status
+            and a presence are the two things you change most often, and the
+            sidebar is where you already are when they change.
+
+            The bubble keeps the left, under the face it is a thought of, and
+            gives up the width it does not need; the dot takes the room that
+            frees on the right, where the bell and the theme toggle already are.
+
+            The dot is here rather than on the picture above, because two of
+            them would be two places saying one thing — and the one you can
+            click is the one worth keeping. */}
         {user ? (
-          <div className="px-2 pb-2">
+          <div className="flex items-start justify-between gap-2 px-2 pb-2">
             <ProfileStatus
               status={user.custom_status}
               editable
               tail="up"
               onSaved={refreshUser}
-              className="block w-full text-xs"
+              className="min-w-0 text-xs"
             />
+            <PresenceMenu presence={user.presence} align="end" onChanged={refreshUser}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mt-2.5 size-7 shrink-0"
+                aria-label={t("profiles:presence.change", {
+                  state: t(`profiles:${presenceLabelKey(user.presence)}`),
+                })}
+              >
+                <PresenceDot presence={user.presence} className="size-3" />
+              </Button>
+            </PresenceMenu>
           </div>
         ) : null}
         <div className="border-t">
