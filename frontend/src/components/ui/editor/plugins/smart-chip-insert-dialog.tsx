@@ -13,9 +13,10 @@ import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-no
 import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { Input } from "@/components/ui/input";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { useGuildRecentSuggestions, useGuildSearchSuggest } from "@/hooks/useSearch";
 import { hitIcon } from "@/lib/searchResults";
 import { CHIP_ENTITY_TYPES, chipEntityType, chipKindsFor } from "@/lib/smartChips";
+import { cn } from "@/lib/utils";
 
 /** How many things the chip picker offers. */
 const LIMIT = 8;
@@ -54,13 +55,32 @@ export function SmartChipInsertDialog({
   // that belongs to none has nothing to offer and should say so.
   const hasInitiative = (initiativeId ?? 0) > 0;
 
-  const { data, isFetching } = useGuildSearchSuggest(debounced, {
+  const searched = debounced.trim().length > 0;
+  const narrowing = {
     types,
     initiative_id: initiativeId ?? undefined,
     template: false,
     limit: LIMIT,
-    enabled: hasInitiative,
+  };
+
+  // Two questions, and a picker asks whichever one it is being used for. Before
+  // anything is typed it is "what could I point at", which the lookup cannot
+  // answer — it matches words, and there are none yet.
+  const suggestions = useGuildRecentSuggestions({
+    ...narrowing,
+    enabled: hasInitiative && !searched,
   });
+  const matches = useGuildSearchSuggest(debounced, {
+    ...narrowing,
+    enabled: hasInitiative && searched,
+  });
+
+  const active = searched ? matches : suggestions;
+  // What came back is the previous query's answer, held so the list does not
+  // empty between keystrokes. It is not an answer to what is typed NOW, so it
+  // is shown but cannot be chosen.
+  const stale = searched && matches.isPlaceholderData;
+  const shown = active.data ?? [];
 
   const insert = (kind: SmartChipKind, suggestion: SearchSuggestion) => {
     activeEditor.update(() => {
@@ -112,15 +132,16 @@ export function SmartChipInsertDialog({
     );
   }
 
-  const results = data ?? [];
-  const searched = debounced.trim().length > 0;
   const emptyMessage = !hasInitiative
     ? t("smartChips.noInitiative")
-    : isFetching
+    : active.isFetching
       ? t("smartChips.searching")
       : searched
         ? t("smartChips.noMatches", { query: debounced })
-        : t("smartChips.typeToSearch");
+        : t("smartChips.nothingYet");
+  // The initiative is only worth explaining where there is one; a document
+  // outside every initiative has already been told the whole story.
+  const showScopeHint = hasInitiative && searched && !active.isFetching;
 
   return (
     <div className="space-y-2">
@@ -133,16 +154,17 @@ export function SmartChipInsertDialog({
       />
       <Command shouldFilter={false}>
         <CommandList>
-          {results.length ? (
-            <CommandGroup>
-              {results.map((suggestion) => {
+          {shown.length ? (
+            <CommandGroup heading={searched ? undefined : t("smartChips.recent")}>
+              {shown.map((suggestion) => {
                 const Icon = hitIcon(suggestion);
                 return (
                   <CommandItem
                     key={`${suggestion.entity_type}:${suggestion.entity_id}`}
                     value={`${suggestion.entity_type}:${suggestion.entity_id}`}
-                    onSelect={() => choose(suggestion)}
-                    className="flex items-center gap-2"
+                    onSelect={() => !stale && choose(suggestion)}
+                    disabled={stale}
+                    className={cn("flex items-center gap-2", stale && "opacity-50")}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{suggestion.title}</span>
@@ -160,7 +182,7 @@ export function SmartChipInsertDialog({
             // a broken dialog rather than as an answer.
             <div className="space-y-1 px-3 py-6 text-center">
               <p className="text-muted-foreground text-sm">{emptyMessage}</p>
-              {searched && !isFetching && (
+              {showScopeHint && (
                 <p className="text-muted-foreground/80 text-xs">{t("smartChips.scopeHint")}</p>
               )}
             </div>

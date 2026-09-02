@@ -7,8 +7,10 @@ import type {
   SuggestGuildApiV1GGuildIdSearchSuggestGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
+  getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey,
   getSearchGuildApiV1GGuildIdSearchGetQueryKey,
   getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryKey,
+  recentGuildApiV1GGuildIdSearchRecentGet,
   searchGuildApiV1GGuildIdSearchGet,
   suggestGuildApiV1GGuildIdSearchSuggestGet,
 } from "@/api/generated/search/search";
@@ -65,6 +67,34 @@ export const useGuildSearchSuggest = (
     queryKey: getSuggestGuildApiV1GGuildIdSearchSuggestGetQueryKey(guildId, params),
     queryFn: () => suggestGuildApiV1GGuildIdSearchSuggestGet(guildId, params),
     placeholderData: keepPreviousData,
+    ...queryOptions,
+  });
+};
+
+/**
+ * What a picker offers before anything has been typed.
+ *
+ * The most recently changed things the caller could name, narrowed the same way
+ * the lookup is — so a picker's suggestions and its search are the same set of
+ * things, and picking from the list can never offer what typing could not find.
+ *
+ * A picker that opens on an empty list teaches nothing: it cannot say what kind
+ * of thing belongs here, or whether there is anything to point at at all.
+ */
+export const useGuildRecentSuggestions = (
+  options?: QueryOpts<SearchSuggestion[]> & SuggestFilters
+) => {
+  const guildId = useActiveGuildId();
+  const { limit, types, initiative_id, template, ...queryOptions } = options ?? {};
+  const params = {
+    ...(limit != null ? { limit } : {}),
+    ...(types ? { types } : {}),
+    ...(initiative_id != null ? { initiative_id } : {}),
+    ...(template != null ? { template } : {}),
+  };
+  return useQuery<SearchSuggestion[]>({
+    queryKey: getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey(guildId, params),
+    queryFn: () => recentGuildApiV1GGuildIdSearchRecentGet(guildId, params),
     ...queryOptions,
   });
 };

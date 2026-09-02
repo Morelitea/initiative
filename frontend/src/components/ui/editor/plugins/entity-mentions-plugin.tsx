@@ -81,7 +81,7 @@ export function EntityMentionsPlugin({
 
   // The one lookup every picker in the app goes through, narrowed to this
   // initiative's live work.
-  const { data, isFetching } = useGuildSearchSuggest(debouncedQuery, {
+  const { data, isFetching, isPlaceholderData } = useGuildSearchSuggest(debouncedQuery, {
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     template: false,
@@ -94,13 +94,19 @@ export function EntityMentionsPlugin({
   // faster than the answer can arrive, though, so what is on screen is held to
   // the kinds asked for now — pressing Enter can only ever insert one of them.
   const wanted = active?.types;
-  const options = useMemo(
+  const shown = useMemo(
     () =>
       (data ?? [])
         .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
         .map((suggestion) => new EntityOption(suggestion)),
     [data, wanted]
   );
+  // What is on screen is the previous query's answer while the next is in
+  // flight. It stays visible so the menu does not blink shut, but it is not an
+  // answer to what has been typed now — so nothing here is offered to the
+  // keyboard, and Enter cannot land on a thing the reader has stopped naming.
+  const stale = isPlaceholderData;
+  const options = useMemo(() => (stale ? [] : shown), [stale, shown]);
 
   const onSelectOption = useCallback(
     (option: EntityOption, nodeToReplace: TextNode | null, closeMenu: () => void) => {
@@ -155,18 +161,19 @@ export function EntityMentionsPlugin({
               <div className="absolute z-10 w-[260px] rounded-md shadow-md">
                 <Command>
                   <CommandList>
-                    {options.length ? (
+                    {shown.length ? (
                       <CommandGroup>
-                        {options.map((option, index) => {
+                        {shown.map((option, index) => {
                           const Icon = hitIcon(option.suggestion);
                           return (
                             <CommandItem
                               key={option.key}
                               value={option.key}
-                              onSelect={() => selectOptionAndCleanUp(option)}
+                              onSelect={() => !stale && selectOptionAndCleanUp(option)}
+                              disabled={stale}
                               className={`flex items-center gap-2 ${
                                 selectedIndex === index ? "bg-accent" : "bg-transparent!"
-                              }`}
+                              } ${stale ? "opacity-50" : ""}`}
                             >
                               <Icon className="h-4 w-4 shrink-0" />
                               <span className="truncate">{option.suggestion.title}</span>

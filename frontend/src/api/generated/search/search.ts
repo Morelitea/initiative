@@ -19,6 +19,7 @@ import type {
 
 import type {
   HTTPValidationError,
+  RecentGuildApiV1GGuildIdSearchRecentGetParams,
   SearchGuildApiV1GGuildIdSearchGetParams,
   SearchResults,
   SearchSuggestion,
@@ -187,6 +188,182 @@ export function useSearchGuildApiV1GGuildIdSearchGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getSearchGuildApiV1GGuildIdSearchGetQueryOptions(guildId, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What a picker offers before anything has been typed.
+ *
+ * The most recently changed things the caller could name, taking the same
+ * ``types``, ``initiative_id`` and ``template`` narrowing as the search — so
+ * what a picker suggests and what it finds are the same set of things.
+ * @summary Recent Guild
+ */
+export const recentGuildApiV1GGuildIdSearchRecentGet = (
+  guildId: number,
+  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SearchSuggestion[]>(
+    { url: `/api/v1/g/${guildId}/search/recent`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey = (
+  guildId: number,
+  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams
+) => {
+  return [`/api/v1/g/${guildId}/search/recent`, ...(params ? [params] : [])] as const;
+};
+
+export const getRecentGuildApiV1GGuildIdSearchRecentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getRecentGuildApiV1GGuildIdSearchRecentGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+  > = ({ signal }) =>
+    recentGuildApiV1GGuildIdSearchRecentGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type RecentGuildApiV1GGuildIdSearchRecentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+>;
+export type RecentGuildApiV1GGuildIdSearchRecentGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useRecentGuildApiV1GGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+          TError,
+          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useRecentGuildApiV1GGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+          TError,
+          Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useRecentGuildApiV1GGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Recent Guild
+ */
+
+export function useRecentGuildApiV1GGuildIdSearchRecentGet<
+  TData = Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: RecentGuildApiV1GGuildIdSearchRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof recentGuildApiV1GGuildIdSearchRecentGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getRecentGuildApiV1GGuildIdSearchRecentGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

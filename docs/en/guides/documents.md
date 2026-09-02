@@ -56,7 +56,7 @@ A few keys do more than they look:
 
 A link tells you something exists. A **smart chip** tells you what it's doing right now.
 
-Type `/` in a text document and pick one, or choose **Smart chip** from the toolbar's insert menu and pick the thing first:
+Type `/` in a text document and pick one, or choose **Smart chip** from the toolbar's insert menu and pick the thing first. Either way the picker opens on the work you edited most recently, so there is usually nothing to type:
 
 | Smart chip | Shows |
 |---|---|

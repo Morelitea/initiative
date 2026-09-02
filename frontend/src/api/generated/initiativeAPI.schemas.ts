@@ -6708,6 +6708,25 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
   offset?: number;
 };
 
+export type RecentGuildApiV1GGuildIdSearchRecentGetParams = {
+  /**
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   */
+  types?: SearchEntityType[] | null;
+  /**
+   * Restrict to one initiative.
+   */
+  initiative_id?: number | null;
+  /**
+   * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
+   */
+  template?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  limit?: number;
+};
+
 export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
   /**
    * What to jump to.

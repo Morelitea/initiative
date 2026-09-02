@@ -499,3 +499,60 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     )
     assert response.status_code == 200, response.text
     assert private_template.id not in {r["entity_id"] for r in response.json()}
+
+
+async def _recent(client, actor: Actor, **params) -> list[dict]:
+    response = await client.get(
+        actor.g("/search/recent"), headers=actor.headers, params=params
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_recent_answers_what_a_picker_opens_with(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A picker opens before anything is typed, which the search cannot answer:
+    it matches words, and there are none yet."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="older")
+    await create_task(session, a.project, title="newer")
+
+    titles = [item["title"] for item in await _recent(client, a, types="task")]
+    assert set(titles) == {"older", "newer"}
+
+
+async def test_recent_takes_the_same_narrowing_the_search_does(
+    client, session, acting_user: ActingUser
+) -> None:
+    """What a picker suggests and what it finds must be the same set of things,
+    or picking from the list offers what typing could not."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await create_task(session, a.project, title="a task")
+    await create_document(session, a.initiative, a.user)
+
+    tasks = await _recent(client, a, types="task")
+    assert {item["entity_type"] for item in tasks} == {"task"}
+
+    elsewhere = await _recent(
+        client, a, types="task", initiative_id=a.initiative.id + 999
+    )
+    assert elsewhere == []
+
+
+async def test_recent_stops_at_the_same_gate_the_search_does(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Suggestions are content, so they answer under the sharing that governs
+    the things themselves."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_task(session, a.project, title="private work")
+
+    assert await _recent(client, a, types="task") != []
+    assert await _recent(client, b, types="task") == []

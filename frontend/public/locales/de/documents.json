@@ -399,7 +399,9 @@
     "noInitiative": "Dieses Dokument gehört zu keiner Initiative, also gibt es noch nichts zum Verweisen.",
     "noMatches": "Nichts in dieser Initiative passt zu „{{query}}“.",
     "none": "Keine",
+    "nothingYet": "In dieser Initiative gibt es noch nichts, worauf verwiesen werden kann.",
     "openHint": "Zum Öffnen klicken",
+    "recent": "Zuletzt bearbeitet",
     "scopeHint": "Hier lässt sich nur die Initiative dieses Dokuments benennen.",
     "searchPlaceholder": "Suche etwas zum Anzeigen",
     "searching": "Suche läuft …",
@@ -407,7 +409,6 @@
     "taskDue": "Fälligkeitsdatum",
     "taskPriority": "Priorität",
     "taskStatus": "Aufgabenstatus",
-    "typeToSearch": "Tippe, um etwas in dieser Initiative zu finden.",
     "whichFact": "Welchen Wert soll der Chip anzeigen?"
   },
   "smartLink": {

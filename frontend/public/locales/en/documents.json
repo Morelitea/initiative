@@ -399,7 +399,9 @@
     "noInitiative": "This document isn’t in an initiative, so there is nothing to point at yet.",
     "noMatches": "Nothing in this initiative matches “{{query}}”.",
     "none": "None",
+    "nothingYet": "Nothing in this initiative to point at yet.",
     "openHint": "Click to open",
+    "recent": "Recently edited",
     "scopeHint": "Only this document’s initiative can be named here.",
     "searchPlaceholder": "Search for something to show",
     "searching": "Searching…",
@@ -407,7 +409,6 @@
     "taskDue": "Task due date",
     "taskPriority": "Task priority",
     "taskStatus": "Task status",
-    "typeToSearch": "Type to find something in this initiative.",
     "whichFact": "Which fact should the chip show?"
   },
   "smartLink": {

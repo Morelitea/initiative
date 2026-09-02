@@ -10,11 +10,12 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
 
 /**
- * What the picker says when it has nothing to offer.
+ * What the picker offers, and what it says when it has nothing.
  *
- * It opens with no query, and the lookup answers nothing for an empty one — so
- * every one of these states used to render as a blank box under a search field,
- * which reads as a broken dialog rather than as an answer.
+ * It opens with no query typed, and the lookup matches words — so it cannot
+ * answer "what could I point at", which is the question someone opening a
+ * picker is actually asking. Recently edited work answers that; the states
+ * below are what is left when even that is empty.
  */
 
 const suggestion = {
@@ -24,6 +25,16 @@ const suggestion = {
   initiative_id: 7,
   tool: "project",
   tool_id: 3,
+};
+
+const recent = { ...suggestion, entity_id: 5, title: "Draft the schedule" };
+
+/** Nothing recent, nothing matching — the empty case for both lookups. */
+const nothing = () => {
+  server.use(
+    guildHttp.get("/search/recent", () => HttpResponse.json([])),
+    guildHttp.get("/search/suggest", () => HttpResponse.json([]))
+  );
 };
 
 const open = (initiativeId: number | null = 7) =>
@@ -41,16 +52,29 @@ const open = (initiativeId: number | null = 7) =>
   );
 
 describe("choosing what a smart chip is about", () => {
-  it("asks for a search rather than showing an empty box", async () => {
-    server.use(guildHttp.get("/search/suggest", () => HttpResponse.json([])));
+  it("offers recently edited work before anything is typed", async () => {
+    server.use(
+      guildHttp.get("/search/recent", () => HttpResponse.json([recent])),
+      guildHttp.get("/search/suggest", () => HttpResponse.json([]))
+    );
 
     open();
 
-    expect(await screen.findByText(/Type to find something/)).toBeInTheDocument();
+    // The picker opens knowing something, rather than as a blank box.
+    expect(await screen.findByText("Draft the schedule")).toBeInTheDocument();
+    expect(screen.getByText(/Recently edited/)).toBeInTheDocument();
+  });
+
+  it("says so when there is nothing to point at yet", async () => {
+    nothing();
+
+    open();
+
+    expect(await screen.findByText(/Nothing in this initiative to point at/)).toBeInTheDocument();
   });
 
   it("says nothing matched, and why the initiative is the limit", async () => {
-    server.use(guildHttp.get("/search/suggest", () => HttpResponse.json([])));
+    nothing();
 
     open();
     await userEvent.type(screen.getByRole("textbox"), "zzz");
@@ -61,17 +85,22 @@ describe("choosing what a smart chip is about", () => {
         timeout: 3000,
       }
     );
-    expect(screen.getByText(/Only this document.s initiative/)).toBeInTheDocument();
+    expect(await screen.findByText(/Only this document.s initiative/)).toBeInTheDocument();
   });
 
   it("says a document outside an initiative has nothing to point at", async () => {
     open(null);
 
     expect(await screen.findByText(/isn.t in an initiative/)).toBeInTheDocument();
+    // The initiative is not worth explaining to a document that has none.
+    expect(screen.queryByText(/Only this document.s initiative/)).not.toBeInTheDocument();
   });
 
   it("lists what the lookup found", async () => {
-    server.use(guildHttp.get("/search/suggest", () => HttpResponse.json([suggestion])));
+    server.use(
+      guildHttp.get("/search/recent", () => HttpResponse.json([recent])),
+      guildHttp.get("/search/suggest", () => HttpResponse.json([suggestion]))
+    );
 
     open();
     await userEvent.type(screen.getByRole("textbox"), "ship");

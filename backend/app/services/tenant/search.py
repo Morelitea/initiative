@@ -384,6 +384,50 @@ async def suggest(
     return [SearchSuggestion.model_validate(r, from_attributes=True) for r in rows]
 
 
+async def recent(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    guild_id: int,
+    filters: Filters = Filters(),
+    limit: int = SUGGEST_LIMIT,
+) -> list[SearchSuggestion]:
+    """The things most recently changed that a picker could offer.
+
+    What a picker shows before anything is typed. :func:`suggest` answers "take
+    me to the thing I am naming"; this answers "what might I be naming", which
+    is the same question a person is asking when they open a picker and have
+    not yet decided.
+
+    Deliberately the same rows, filters and gate as :func:`suggest` — only the
+    ordering differs — so a picker cannot offer something its own search would
+    refuse to find.
+    """
+    limit = max(1, min(limit, SUGGEST_LIMIT))
+    clause = filters.clause() & search_scope_clause(user_id, guild_id=guild_id)
+    rows = (
+        await session.exec(
+            select(
+                SearchEntry.entity_type,
+                SearchEntry.entity_id,
+                SearchEntry.initiative_id,
+                SearchEntry.dac_tool.label("tool"),
+                SearchEntry.dac_id.label("tool_id"),
+                SearchEntry.title,
+            )
+            # One row per thing: the index holds a row per body chunk as well.
+            .where(clause, SearchEntry.chunk_ix == 0)
+            .order_by(
+                SearchEntry.updated_at.desc(),
+                SearchEntry.entity_type,
+                SearchEntry.entity_id,
+            )
+            .limit(limit)
+        )
+    ).all()
+    return [SearchSuggestion.model_validate(r, from_attributes=True) for r in rows]
+
+
 def prefix_tsquery(text: str):
     """A query whose last word matches as a prefix, or ``None`` for no terms.
 
