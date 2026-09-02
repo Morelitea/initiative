@@ -51,6 +51,22 @@ from sqlalchemy import (
 from sqlmodel import Field, Index, SQLModel
 
 
+class AnnouncementAudienceAccounts(str, Enum):
+    """Which accounts a notice is for, measured against its publication.
+
+    A breaking change is about a *transition*: somebody who signed up
+    afterwards never lived on the old behaviour and has nothing to act on.
+    The inverse is just as useful — an onboarding tip is for the people who
+    have just arrived, and stale for everyone else.
+    """
+
+    everyone = "everyone"
+    #: Accounts that already existed when it was published.
+    existing = "existing"
+    #: Accounts made since.
+    new = "new"
+
+
 class AnnouncementCategory(str, Enum):
     """What kind of news this is — drives the icon and accent, nothing else."""
 
@@ -122,6 +138,12 @@ class Announcement(SQLModel, table=True):
     guild_admins_only: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    #: Whether the notice is for accounts that predate it, accounts made since,
+    #: or everyone. Measured against ``published_at``.
+    audience_accounts: str = Field(
+        sa_column=Column(String(16), nullable=False, server_default="everyone"),
+        default=AnnouncementAudienceAccounts.everyone.value,
     )
     #: NULL is a draft. A future timestamp is scheduled; both are invisible to
     #: everyone but the authors, and RLS is what makes that true.

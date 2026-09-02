@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional, Sequence
 
@@ -37,9 +38,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, BuiltinAnnouncement
 from app.core.capabilities import role_rank
 from app.core.image_headers import read_image_header
+from app.core.version import compare_versions
 from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
     ANNOUNCEMENT_IMAGE_CONTENT_TYPES,
+    AnnouncementAudienceAccounts,
     ANNOUNCEMENT_IMAGE_MAX_DIMENSION,
     Announcement,
     AnnouncementImage,
@@ -48,6 +51,7 @@ from app.models.platform.announcement import (
 )
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import User, UserRole
+from app.services.platform import app_settings as app_settings_service
 from app.schemas.platform.announcement import (
     IMAGE_PATH_PREFIX,
     AnnouncementAdminRead,
@@ -77,19 +81,79 @@ class AnnouncementImageError(Exception):
 # --- audience ----------------------------------------------------------------
 
 
-def _audience_matches(
-    *,
-    min_platform_role: UserRole,
-    guild_admins_only: bool,
-    user: User,
-    is_guild_admin: bool,
-) -> bool:
+@dataclass(frozen=True)
+class _Audience:
+    """The conditions one notice carries, gathered from wherever it came from.
+
+    Authored rows and compiled-in notices answer the same questions, so the
+    check reads them through one shape rather than growing a parameter per
+    condition.
+    """
+
+    min_platform_role: UserRole
+    guild_admins_only: bool
+    audience_accounts: AnnouncementAudienceAccounts
+    published_at: Optional[datetime]
+    #: Builtins only: an authored notice is written on a running deployment,
+    #: so "which upgrade brought this" has no meaning for one.
+    only_upgrading_from_below: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _Reader:
+    """Everything about the caller the conditions are measured against."""
+
+    user: User
+    is_guild_admin: bool
+    #: What this deployment was running before its current version, if it ever
+    #: ran anything else. ``None`` on a fresh install.
+    previous_version: Optional[str]
+
+
+def _audience_matches(rule: _Audience, reader: _Reader) -> bool:
     """Whether this reader is in the audience the author chose."""
-    if role_rank(user.role) < role_rank(min_platform_role):
+    if role_rank(reader.user.role) < role_rank(rule.min_platform_role):
         return False
-    if guild_admins_only and not is_guild_admin:
+    if rule.guild_admins_only and not reader.is_guild_admin:
         return False
-    return True
+    if not _account_age_matches(rule, reader.user):
+        return False
+    return _upgrade_matches(rule, reader.previous_version)
+
+
+def _account_age_matches(rule: _Audience, user: User) -> bool:
+    """Whether the account is on the right side of the notice's publication.
+
+    A notice for accounts that predate it is about a change they lived
+    through; one for accounts made since is about arriving. An unpublished
+    notice has no line to be on either side of, so it matches nobody — which
+    only the preview can reach, and previewing a draft against a real audience
+    is not a thing anyone asked for.
+    """
+    if rule.audience_accounts is AnnouncementAudienceAccounts.everyone:
+        return True
+    if rule.published_at is None:
+        return False
+    created = user.created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if rule.audience_accounts is AnnouncementAudienceAccounts.existing:
+        return created < rule.published_at
+    return created >= rule.published_at
+
+
+def _upgrade_matches(rule: _Audience, previous_version: Optional[str]) -> bool:
+    """Whether this deployment upgraded into the notice from below its floor.
+
+    A fresh install has no previous version at all, and that is the answer
+    rather than a missing one: it was never on the behaviour the notice is
+    about, so it is not told about the change.
+    """
+    if rule.only_upgrading_from_below is None:
+        return True
+    if previous_version is None:
+        return False
+    return compare_versions(previous_version, rule.only_upgrading_from_below) < 0
 
 
 async def administers_a_guild(session: AsyncSession, *, user_id: int) -> bool:
@@ -159,6 +223,7 @@ def to_admin_read(announcement: Announcement) -> AnnouncementAdminRead:
         trigger_route=announcement.trigger_route,
         min_platform_role=UserRole(announcement.min_platform_role),
         guild_admins_only=announcement.guild_admins_only,
+        audience_accounts=AnnouncementAudienceAccounts(announcement.audience_accounts),
         expires_at=announcement.expires_at,
         created_by=announcement.created_by,
         created_at=announcement.created_at,
@@ -180,6 +245,7 @@ def builtin_admin_read(builtin: BuiltinAnnouncement) -> AnnouncementAdminRead:
         trigger_route=builtin.trigger_route,
         min_platform_role=builtin.min_platform_role,
         guild_admins_only=builtin.guild_admins_only,
+        audience_accounts=builtin.audience_accounts,
         expires_at=builtin.expires_at,
     )
 
@@ -201,7 +267,11 @@ async def list_for_user(
     it passes.
     """
     now = now or datetime.now(timezone.utc)
-    is_guild_admin = await administers_a_guild(session, user_id=user.id)
+    reader = _Reader(
+        user=user,
+        is_guild_admin=await administers_a_guild(session, user_id=user.id),
+        previous_version=await app_settings_service.previous_running_version(session),
+    )
     receipts = await _receipts(session, user_id=user.id)
 
     rows = (
@@ -219,24 +289,27 @@ async def list_for_user(
 
     items: list[AnnouncementRead] = []
     for row in rows:
-        if not _audience_matches(
+        rule = _Audience(
             min_platform_role=UserRole(row.min_platform_role),
             guild_admins_only=row.guild_admins_only,
-            user=user,
-            is_guild_admin=is_guild_admin,
-        ):
+            audience_accounts=AnnouncementAudienceAccounts(row.audience_accounts),
+            published_at=row.published_at,
+        )
+        if not _audience_matches(rule, reader):
             continue
         items.append(_to_read(row))
 
     for builtin in BUILTIN_ANNOUNCEMENTS:
         if not _is_live(builtin.published_at, builtin.expires_at, now):
             continue
-        if not _audience_matches(
+        rule = _Audience(
             min_platform_role=builtin.min_platform_role,
             guild_admins_only=builtin.guild_admins_only,
-            user=user,
-            is_guild_admin=is_guild_admin,
-        ):
+            audience_accounts=builtin.audience_accounts,
+            published_at=builtin.published_at,
+            only_upgrading_from_below=builtin.only_upgrading_from_below,
+        )
+        if not _audience_matches(rule, reader):
             continue
         items.append(builtin.to_read())
 
@@ -389,6 +462,7 @@ async def create(
         sections=[s.model_dump(mode="json") for s in payload.sections],
         min_platform_role=payload.min_platform_role.value,
         guild_admins_only=payload.guild_admins_only,
+        audience_accounts=payload.audience_accounts.value,
         published_at=payload.published_at,
         expires_at=payload.expires_at,
         dismissals_required=payload.dismissals_required,
@@ -415,6 +489,8 @@ async def update(
         announcement.min_platform_role = payload.min_platform_role.value
     if payload.guild_admins_only is not None:
         announcement.guild_admins_only = payload.guild_admins_only
+    if payload.audience_accounts is not None:
+        announcement.audience_accounts = payload.audience_accounts.value
     if payload.dismissals_required is not None:
         announcement.dismissals_required = payload.dismissals_required
     if payload.clear_trigger_route:

@@ -131,6 +131,35 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     return app_settings
 
 
+async def record_running_version(session: AsyncSession, *, version: str) -> str | None:
+    """Roll the deployment's version pair forward, and say what it was before.
+
+    Called once at boot. When the running version differs from what was last
+    recorded, the old value becomes ``previous_version`` — which is what tells
+    a notice meant for people upgrading past some release whether this
+    deployment is one of them. A fresh install has neither, and that is the
+    honest answer: it never upgraded from anything.
+
+    Idempotent across restarts on the same version: the pair only moves when
+    the running version actually changed.
+    """
+    settings_row = await _ensure_app_settings(session)
+    if settings_row.last_seen_version == version:
+        return settings_row.previous_version
+    if not await _session_can_write_app_settings(session):
+        return settings_row.previous_version
+    settings_row.previous_version = settings_row.last_seen_version
+    settings_row.last_seen_version = version
+    await _write_app_settings(session, settings_row)
+    return settings_row.previous_version
+
+
+async def previous_running_version(session: AsyncSession) -> str | None:
+    """What this deployment was running before its current version, if anything."""
+    settings_row = await _ensure_app_settings(session)
+    return settings_row.previous_version
+
+
 async def get_app_settings(
     session: AsyncSession, *, force_refresh: bool = False
 ) -> AppSetting:

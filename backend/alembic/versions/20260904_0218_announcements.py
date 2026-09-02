@@ -3,6 +3,9 @@
 Three tables in ``public``, because an announcement is a property of the
 deployment rather than of a guild: the same notice reaches every guild, and
 what is remembered about it is remembered per *account*, which spans guilds.
+Two columns land on ``app_settings`` as well — the version pair a compiled-in
+notice reads to tell whether this deployment is one that upgraded into the
+change it describes.
 
 The access shape, and why:
 
@@ -75,6 +78,16 @@ def upgrade() -> None:
         sa.Column(
             "guild_admins_only", sa.Boolean(), nullable=False, server_default="false"
         ),
+        # Which accounts it is for, measured against its own publication date:
+        # a change is about a transition, and somebody who signed up afterwards
+        # never made it. "new" is the same line read from the other side — an
+        # onboarding tip, stale for everyone else.
+        sa.Column(
+            "audience_accounts",
+            sa.String(length=16),
+            nullable=False,
+            server_default="everyone",
+        ),
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         # How many acknowledgements the notice asks for before it stops
@@ -114,6 +127,22 @@ def upgrade() -> None:
         sa.Column("created_by", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
+    )
+
+    # The same question one scale up: which upgrade brought this deployment
+    # here. A publication date says nothing about what a given install was
+    # running, so a fresh install of a late version would otherwise be told
+    # about every change since. Rolled forward at boot; both NULL is what
+    # "never upgraded from anything" looks like, which is what a fresh install
+    # is. Only the compiled-in notices read it — an authored one is written on
+    # a deployment that is already running.
+    op.add_column(
+        "app_settings",
+        sa.Column("last_seen_version", sa.String(length=32), nullable=True),
+    )
+    op.add_column(
+        "app_settings",
+        sa.Column("previous_version", sa.String(length=32), nullable=True),
     )
 
     base = _platform_base()
@@ -176,6 +205,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("app_settings", "previous_version")
+    op.drop_column("app_settings", "last_seen_version")
     op.execute(
         "DROP POLICY IF EXISTS announcement_image_read ON public.announcement_images"
     )
