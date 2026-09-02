@@ -31,11 +31,11 @@ vi.mock("@/hooks/useUsers", () => ({
 const community = (overrides: Record<string, unknown> = {}) => ({
   id: 7,
   name: "Kobold Press",
-  description: null,
+  description: "Where the traps are drawn first.",
   icon_url: null,
   categories: [],
-  member_count: 3,
-  online_count: 1,
+  member_count: 12,
+  online_count: 3,
   already_member: true,
   banner: { image_url: null, color: "", text_color: "#fff", text_align: "center", fade: "none" },
   ...overrides,
@@ -136,13 +136,22 @@ describe("a member's profile", () => {
   });
 
   it("shelves the communities they are in where a community shelves its tools", async () => {
+    // The directory's own card, whole — so the reader meets a community here
+    // the way they would meet it there, and gets the same way in.
     mocks.communities.mockReturnValue({ data: [community()] });
     await renderProfile();
 
-    expect(await screen.findByRole("link", { name: /Kobold Press/ })).toHaveAttribute(
-      "href",
-      "/c/7"
-    );
+    expect(await screen.findByRole("heading", { name: "Kobold Press" })).toBeInTheDocument();
+    expect(screen.getByText("Where the traps are drawn first.")).toBeInTheDocument();
+    expect(screen.getByText("12 members")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
+  });
+
+  it("offers a stranger the way in rather than a door they cannot open", async () => {
+    mocks.communities.mockReturnValue({ data: [community({ already_member: false })] });
+    await renderProfile();
+
+    expect(await screen.findByRole("button", { name: "Join" })).toBeInTheDocument();
   });
 
   it("leaves the rail closed for someone in no communities at all", async () => {

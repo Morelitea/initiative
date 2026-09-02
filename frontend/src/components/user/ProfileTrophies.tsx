@@ -85,7 +85,7 @@ export const ProfileTrophies = ({
         />
         <ul
           aria-label={t("trophyRail")}
-          className="relative flex w-max min-w-full items-start overflow-x-auto px-2 pb-2"
+          className="relative flex w-max min-w-full items-start justify-center overflow-x-auto px-2 pb-2"
         >
           {trophies.map((trophy) => {
             const label = t(trophy.labelKey);

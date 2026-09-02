@@ -3,11 +3,11 @@ import { Loader2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
+import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
 import { UserHandle } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
-import { ProfileCommunities } from "@/components/user/ProfileCommunities";
 import { ProfileJoined } from "@/components/user/ProfileJoined";
 import { ProfileStatus } from "@/components/user/ProfileStatus";
 import { ProfileTrophies } from "@/components/user/ProfileTrophies";
@@ -120,7 +120,16 @@ export const UserProfilePage = () => {
                 TOOL_TRAY_SURFACE
               )}
             >
-              <ProfileCommunities communities={shelved} />
+              <section className="space-y-3">
+                <h2 className="px-1 font-medium text-muted-foreground text-sm">
+                  {t("profiles:guilds.title")}
+                </h2>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {shelved.map((guild) => (
+                    <CommunityCard key={guild.id} guild={guild} />
+                  ))}
+                </div>
+              </section>
             </div>
           ) : null}
         </div>
