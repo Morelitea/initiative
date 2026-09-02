@@ -327,11 +327,7 @@
     "noTemplatesTitle": "Noch keine Vorlagen",
     "noTemplatesDescription": "Markiere ein beliebiges Dokument in seinen Einstellungen als Vorlage, um es später wiederzuverwenden.",
     "startWriting": "Mit dem Schreiben beginnen",
-    "filterPlaceholder": "Nach Titel filtern…",
-    "perPage": "Pro Seite:",
-    "previous": "Zurück",
-    "next": "Weiter",
-    "rangeOf": "{{start}}–{{end}} von {{total}}"
+    "filterPlaceholder": "Nach Titel filtern…"
   },
   "references": {
     "gone": "Gelöscht",

@@ -327,11 +327,7 @@
     "noTemplatesTitle": "Aucun modèle pour l'instant",
     "noTemplatesDescription": "Marquez un document comme modèle dans ses paramètres pour le réutiliser plus tard.",
     "startWriting": "Commencer à écrire",
-    "filterPlaceholder": "Filtrer par titre…",
-    "perPage": "Par page :",
-    "previous": "Précédent",
-    "next": "Suivant",
-    "rangeOf": "{{start}}–{{end}} sur {{total}}"
+    "filterPlaceholder": "Filtrer par titre…"
   },
   "references": {
     "gone": "Supprimé",

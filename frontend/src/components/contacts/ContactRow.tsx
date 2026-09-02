@@ -1,11 +1,13 @@
 import { Link } from "@tanstack/react-router";
 
 import type { ContactRead } from "@/api/generated/initiativeAPI.schemas";
+import { CONTACT_ROW_GRID, CONTACT_ROW_OUTER } from "@/components/contacts/ContactColumns";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
 import { type ChipGuild, SharedGuildChip } from "@/components/contacts/SharedGuildChip";
 import { UserHandle } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 interface ContactRowProps {
   contact: ContactRead;
@@ -20,8 +22,9 @@ interface ContactRowProps {
  * One person, wherever they are listed.
  *
  * The same row in Favorites and under a community, so somebody looks the same
- * in both places and the only difference is which guild the chip drops. The
- * whole row is the link to their profile; the star sits outside it.
+ * in both places and the only difference is which guild the chip drops. Its
+ * cells sit on the page's shared column template; the link covers all of them
+ * and the star sits outside it, in the one column the link does not reach.
  */
 export const ContactRow = ({
   contact,
@@ -33,20 +36,23 @@ export const ContactRow = ({
   const name = getUserDisplayName(contact);
 
   return (
-    <li className="flex items-center gap-2 rounded-md px-2 hover:bg-muted/50">
+    <li className={cn(CONTACT_ROW_OUTER, "rounded-md px-2 hover:bg-muted/50")}>
       <Link
         to="/u/$handle"
         params={{ handle: getUrlHandle(contact) }}
-        className="flex min-w-0 flex-1 items-center gap-3 py-2"
+        className={cn(CONTACT_ROW_GRID, "py-1.5")}
       >
         <ProfileAvatar user={contact} presence={contact.presence} className="size-8" />
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <UserHandle user={contact} className="min-w-0 truncate text-sm" />
-          {contact.full_name ? (
-            <span className="min-w-0 truncate text-muted-foreground text-xs">
-              {contact.full_name}
-            </span>
-          ) : null}
+        <span className="flex min-w-0 text-sm">
+          <UserHandle
+            user={contact}
+            className="min-w-0 max-w-full"
+            nameClassName="min-w-0 truncate"
+            numberClassName="shrink-0"
+          />
+        </span>
+        <span className="hidden min-w-0 truncate text-muted-foreground text-sm sm:block">
+          {contact.full_name ?? ""}
         </span>
         <SharedGuildChip
           sharedGuildIds={contact.shared_guild_ids}

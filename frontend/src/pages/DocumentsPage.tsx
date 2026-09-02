@@ -30,13 +30,13 @@ import {
   isDocumentStatus,
 } from "@/components/documents/DocumentsStatusFilter";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
-import { PaginationBar } from "@/components/documents/PaginationBar";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   ToolListToolbar,
   type ToolViewOption,
 } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { PaginationBar } from "@/components/PaginationBar";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { Button } from "@/components/ui/button";

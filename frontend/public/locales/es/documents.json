@@ -327,11 +327,7 @@
     "noTemplatesTitle": "Aún no hay plantillas",
     "noTemplatesDescription": "Marca cualquier documento como plantilla en su configuración para reutilizarlo más adelante.",
     "startWriting": "Comenzar a escribir",
-    "filterPlaceholder": "Filtrar por título…",
-    "perPage": "Por página:",
-    "previous": "Anterior",
-    "next": "Siguiente",
-    "rangeOf": "{{start}}–{{end}} de {{total}}"
+    "filterPlaceholder": "Filtrar por título…"
   },
   "references": {
     "gone": "Eliminado",

@@ -136,5 +136,9 @@
     "namesAndMore_one": "{{names}} and {{count}} other",
     "namesAndMore_other": "{{names}} and {{count}} others",
     "error": "Could not save your reaction."
+  },
+  "pagination": {
+    "perPage": "Per page:",
+    "rangeOf": "{{start}}–{{end}} of {{total}}"
   }
 }
