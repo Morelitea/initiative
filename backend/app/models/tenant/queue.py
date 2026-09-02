@@ -23,7 +23,7 @@ from app.models.tenant._mixins import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import Tag
     from app.models.tenant.document import Document
     from app.models.tenant.task import Task
@@ -148,8 +148,11 @@ class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
         back_populates="items",
         sa_relationship_kwargs={"foreign_keys": "[QueueItem.queue_id]"},
     )
-    user: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[QueueItem.user_id]"},
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(QueueItem.user_id) == MemberProfile.id",
+            "viewonly": True,
+        },
     )
     tag_links: List["QueueItemTag"] = Relationship(
         back_populates="queue_item",

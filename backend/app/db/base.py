@@ -18,8 +18,13 @@ from app.models.tenant.filter_preset import ProjectFilterPreset
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, Subtask
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
+
+# Registers ``MemberProfile`` in the mapper registry — the tenant
+# relationships that name a person resolve it by name.
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.api_key import UserApiKey
 from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
@@ -99,6 +104,7 @@ __all__ = [
     "AnnouncementImage",
     "AnnouncementReadReceipt",
     "User",
+    "MemberProfile",
     "AccessGrant",
     "AuthProvider",
     "AuthProviderSecret",
@@ -126,6 +132,7 @@ __all__ = [
     "InitiativeMember",
     "UserApiKey",
     "ProjectFavorite",
+    "ProjectOrder",
     "RecentView",
     "Comment",
     "Document",

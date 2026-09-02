@@ -11,7 +11,7 @@ from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
     from app.models.tenant.property import CalendarEventPropertyValue
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import Tag
     from app.models.tenant.document import Document
 
@@ -59,8 +59,11 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     calendar: Optional["Calendar"] = Relationship(back_populates="events")
-    creator: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[CalendarEvent.created_by]"},
+    creator: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(CalendarEvent.created_by) == MemberProfile.id",
+            "viewonly": True,
+        },
     )
     attendees: List["CalendarEventAttendee"] = Relationship(
         back_populates="calendar_event",
@@ -115,7 +118,14 @@ class CalendarEventAttendee(SQLModel, table=True):
     )
 
     calendar_event: Optional[CalendarEvent] = Relationship(back_populates="attendees")
-    user: Optional["User"] = Relationship()
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "foreign(CalendarEventAttendee.user_id) == MemberProfile.id"
+            ),
+            "viewonly": True,
+        }
+    )
 
 
 class CalendarEventTag(SQLModel, table=True):

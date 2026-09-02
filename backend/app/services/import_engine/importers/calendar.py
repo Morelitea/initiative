@@ -4,7 +4,7 @@ becomes the calendar's owner; events apply in per-event savepoints (the ICS
 import's partial-success pattern) so a malformed event fails alone, never the
 batch.
 
-Attendees resolve by email against the target initiative's members; the
+Attendees resolve by handle against the target initiative's members; the
 matched keep their RSVP, the unmatched are reported. Linked document titles
 in the envelope are informational and dropped."""
 
@@ -34,7 +34,8 @@ from app.schemas.tenant.import_envelopes import (
 )
 from app.services.import_engine.common import (
     ensure_tag,
-    load_initiative_member_emails,
+    load_initiative_member_handles,
+    handle_key,
     parse_datetime,
     unique_name,
 )
@@ -66,7 +67,7 @@ class CalendarImporter:
     ) -> EnvelopeImportResult:
         env: CalendarEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
         guild_id = target_initiative.guild_id
-        member_emails = await load_initiative_member_emails(
+        member_handles = await load_initiative_member_handles(
             session, initiative_id=target_initiative.id
         )
 
@@ -110,7 +111,7 @@ class CalendarImporter:
         props_created = 0
         props_matched = 0
         attendees_matched = 0
-        unmatched_emails: set[str] = set()
+        unmatched_handles: set[str] = set()
         warnings: list[str] = []
 
         for item in env.events:
@@ -123,8 +124,8 @@ class CalendarImporter:
                         initiative_id=target_initiative.id,
                         guild_id=guild_id,
                         importer=importer,
-                        member_emails=member_emails,
-                        unmatched_emails=unmatched_emails,
+                        member_handles=member_handles,
+                        unmatched_handles=unmatched_handles,
                     )
             except Exception:
                 failed += 1
@@ -153,7 +154,7 @@ class CalendarImporter:
                 "attendees": attendees_matched,
             },
             failed={"events": failed} if failed else {},
-            unmatched_emails=sorted(unmatched_emails),
+            unmatched_handles=sorted(unmatched_handles),
             warnings=warnings,
         )
 
@@ -166,8 +167,8 @@ class CalendarImporter:
         initiative_id: int,
         guild_id: int,
         importer: User,
-        member_emails: dict[str, int],
-        unmatched_emails: set[str],
+        member_handles: dict[str, int],
+        unmatched_handles: set[str],
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
         end_at = parse_datetime(item.end_at)
@@ -191,11 +192,11 @@ class CalendarImporter:
         attendees_matched = 0
         seen_user_ids: set[int] = set()
         for attendee in item.attendees:
-            if not attendee.email:
+            if not attendee.handle:
                 continue
-            uid = member_emails.get(attendee.email)
+            uid = member_handles.get(handle_key(attendee.handle))
             if uid is None:
-                unmatched_emails.add(attendee.email)
+                unmatched_handles.add(attendee.handle)
                 continue
             if uid in seen_user_ids:
                 continue
@@ -232,7 +233,7 @@ class CalendarImporter:
             session,
             initiative_id=initiative_id,
             values=item.properties,
-            member_emails=member_emails,
+            member_handles=member_handles,
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(

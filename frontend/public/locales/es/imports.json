@@ -51,7 +51,7 @@
       "initiativesCreated_other": "{{count}} iniciativas creadas",
       "perTool": "{{created}} creados · {{failed}} fallidos · {{skipped}} omitidos",
       "assets": "{{restored}} archivos restaurados, {{deduped}} ya presentes",
-      "unmatchedEmails": "Algunas personas no se pudieron emparejar por correo: {{emails}}",
+      "unmatchedHandles": "Algunas personas no se pudieron emparejar por identificador: {{handles}}",
       "failedEntries": "Elementos que no se importaron:",
       "nothing": "No se importó nada."
     }
@@ -71,8 +71,8 @@
     "importing": "Importando…",
     "success": "\"{{name}}\" importado.",
     "queued": "Importación iniciada: recibirás una notificación cuando termine.",
-    "warningUnmatched_one": "{{count}} persona no se pudo emparejar por correo: {{emails}}",
-    "warningUnmatched_other": "{{count}} personas no se pudieron emparejar por correo: {{emails}}",
+    "warningUnmatched_one": "{{count}} persona no se pudo emparejar por identificador: {{handles}}",
+    "warningUnmatched_other": "{{count}} personas no se pudieron emparejar por identificador: {{handles}}",
     "error": "La importación falló."
   },
   "entry": {

@@ -62,6 +62,7 @@ from app.services.tenant import calendars as calendars_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -135,12 +136,13 @@ async def _refetch_event(session: RLSSessionDep, event_id: int) -> CalendarEvent
     return event
 
 
-async def _fetch_users(session: RLSSessionDep, user_ids: list[int]) -> list[User]:
-    """Load User rows (for reading notification preferences) by id."""
-    if not user_ids:
-        return []
-    result = await session.exec(select(User).where(User.id.in_(tuple(set(user_ids)))))
-    return list(result.all())
+async def _notify_targets(user_ids: list[int]) -> list[User]:
+    """Who to tell, with the preferences and address a notice needs.
+
+    On the system engine: an account's notification settings and address are
+    not a guild's to read.
+    """
+    return await accounts_service.load_all(user_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -641,7 +643,7 @@ async def create_calendar_event(
     invite_ids = [
         uid for uid in (event_in.attendee_ids or []) if uid != current_user.id
     ]
-    for attendee in await _fetch_users(session, invite_ids):
+    for attendee in await _notify_targets(invite_ids):
         await notifications_service.notify_event_invitation(
             session,
             attendee=attendee,
@@ -743,23 +745,25 @@ async def update_calendar_event(
             or event.all_day != old_all_day
         )
         if meaningful_change:
-            for attendee in event.attendees:
-                # Skip the editor and anyone who declined — a declined attendee
-                # isn't coming, so reschedules/edits are noise (mirrors the
-                # reminder pass, which also skips declined RSVPs).
-                if (
-                    attendee.user
-                    and attendee.user_id != current_user.id
-                    and attendee.rsvp_status != RSVPStatus.declined
-                ):
-                    await notifications_service.notify_event_updated(
-                        session,
-                        attendee=attendee.user,
-                        editor=current_user,
-                        event=event,
-                        guild_id=guild_context.guild_id,
-                        time_changed=time_changed,
-                    )
+            # Skip the editor and anyone who declined — a declined attendee
+            # isn't coming, so reschedules/edits are noise (mirrors the
+            # reminder pass, which also skips declined RSVPs).
+            notify_ids = [
+                attendee.user_id
+                for attendee in event.attendees
+                if attendee.user_id
+                and attendee.user_id != current_user.id
+                and attendee.rsvp_status != RSVPStatus.declined
+            ]
+            for attendee_user in await _notify_targets(notify_ids):
+                await notifications_service.notify_event_updated(
+                    session,
+                    attendee=attendee_user,
+                    editor=current_user,
+                    event=event,
+                    guild_id=guild_context.guild_id,
+                    time_changed=time_changed,
+                )
 
         await session.commit()
 
@@ -784,21 +788,23 @@ async def delete_calendar_event(
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id
     )
-    for attendee in event.attendees:
-        # A declined attendee already isn't attending, so skip the cancellation
-        # notice for them (consistent with update/reminder notifications).
-        if (
-            attendee.user
-            and attendee.user_id != current_user.id
-            and attendee.rsvp_status != RSVPStatus.declined
-        ):
-            await notifications_service.notify_event_cancelled(
-                session,
-                attendee=attendee.user,
-                canceller=current_user,
-                event=event,
-                guild_id=guild_context.guild_id,
-            )
+    # A declined attendee already isn't attending, so skip the cancellation
+    # notice for them (consistent with update/reminder notifications).
+    cancel_ids = [
+        attendee.user_id
+        for attendee in event.attendees
+        if attendee.user_id
+        and attendee.user_id != current_user.id
+        and attendee.rsvp_status != RSVPStatus.declined
+    ]
+    for attendee_user in await _notify_targets(cancel_ids):
+        await notifications_service.notify_event_cancelled(
+            session,
+            attendee=attendee_user,
+            canceller=current_user,
+            event=event,
+            guild_id=guild_context.guild_id,
+        )
     await soft_delete_entity(
         session,
         event,
@@ -831,7 +837,7 @@ async def set_attendees(
     )
 
     added_ids = [uid for uid in (set(attendee_ids) - old_ids) if uid != current_user.id]
-    for attendee in await _fetch_users(session, added_ids):
+    for attendee in await _notify_targets(added_ids):
         await notifications_service.notify_event_invitation(
             session,
             attendee=attendee,
@@ -875,7 +881,7 @@ async def update_rsvp(
     session.add(attendee)
 
     if event.created_by != current_user.id:
-        organizers = await _fetch_users(session, [event.created_by])
+        organizers = await _notify_targets([event.created_by])
         if organizers:
             await notifications_service.notify_event_rsvp(
                 session,

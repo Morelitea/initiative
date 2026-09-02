@@ -1,7 +1,7 @@
 """Build a self-contained JSON export for a single project.
 
 The output is a :class:`ProjectExportEnvelope` that references tags, task
-statuses, properties, and users by string keys (name / email) rather than
+statuses, properties, and users by string keys (name / handle) rather than
 integer IDs so it can be imported on a different Initiative instance.
 
 Out of scope (see plan): comments, documents, attachments, project-role
@@ -18,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from app.core.user_display import handle_of
 from app.core.version import get_version
 from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyType, TaskPropertyValue
@@ -40,7 +41,7 @@ async def build_project_export(
     session: AsyncSession,
     project_id: int,
     *,
-    exported_by_email: Optional[str] = None,
+    exported_by_handle: Optional[str] = None,
     source_instance_url: Optional[str] = None,
 ) -> ProjectExportEnvelope:
     """Eager-load the project graph and serialize it to an envelope.
@@ -131,7 +132,7 @@ async def build_project_export(
                     ProjectExportTag(name=link.tag.name, color=link.tag.color)
                 )
 
-        assignee_emails = [u.email for u in (task.assignees or []) if u.email]
+        assignee_handles = [handle_of(u) for u in (task.assignees or [])]
 
         status_name = (
             task.task_status.name
@@ -154,7 +155,7 @@ async def build_project_export(
                 completed_at=task.completed_at,
                 status_name=status_name,
                 tags=task_tags,
-                assignee_emails=assignee_emails,
+                assignee_handles=assignee_handles,
                 subtasks=subtasks,
                 property_values=property_values,
             )
@@ -175,7 +176,7 @@ async def build_project_export(
         schema_version=SCHEMA_VERSION,
         app_version=get_version(),
         exported_at=datetime.now(timezone.utc),
-        exported_by_email=exported_by_email,
+        exported_by_handle=exported_by_handle,
         source_instance_url=source_instance_url,
         project=ProjectExportProject(
             name=project.name,
@@ -260,7 +261,7 @@ def _serialize_property_value(
         base.value_json = pv.value_json
     elif prop_type == PropertyType.user_reference:
         if pv.value_user is not None:
-            base.value_email = pv.value_user.email
+            base.value_handle = handle_of(pv.value_user)
     return base
 
 

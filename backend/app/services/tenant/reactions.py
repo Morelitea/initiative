@@ -31,6 +31,7 @@ from app.core.reactions import ReactionTarget
 from app.models.tenant.comment import Comment
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
+from app.services.platform import accounts as accounts_service
 from app.schemas.tenant.reaction import ReactionGroup, ReactionSummary, ReactionUser
 
 logger = logging.getLogger(__name__)
@@ -356,9 +357,9 @@ async def _queue_reaction_notification(
 
     if ctx.author_id is None or ctx.author_id == reactor.id:
         return
-    author = (
-        await session.exec(select(User).where(User.id == ctx.author_id))
-    ).one_or_none()
+    # On the system engine: whether they want to hear about this, and where to
+    # write to, are facts about their account rather than about this guild.
+    author = await accounts_service.load_one(ctx.author_id)
     if author is None:
         return
     await notifications.enqueue_reaction_event(

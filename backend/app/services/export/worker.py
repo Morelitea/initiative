@@ -28,9 +28,10 @@ from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import UserStatus
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import engine as export_engine
+from app.services.platform import accounts as accounts_service
 from app.services.platform import user_notifications
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,9 @@ async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> s
 
     adapter = export_engine.get_adapter(job.source, job.format)
 
-    user = (await session.exec(select(User).where(User.id == job.created_by))).first()
+    # The session is routed into the guild here, which is not somewhere an
+    # account may be read; the creator comes off the system engine instead.
+    user = await accounts_service.load_one(job.created_by)
     if user is None or user.status != UserStatus.active:
         raise export_engine.ExportError("EXPORT_CREATOR_INACTIVE")
 

@@ -53,7 +53,7 @@ class EnvelopeImportResult(SanitizedBaseModel):
     renamed_properties: list[str] = []
     renamed_property_count: int = 0
     # Emails in the envelope that matched no member of the target initiative.
-    unmatched_emails: list[str] = []
+    unmatched_handles: list[str] = []
     warnings: list[str] = []
 
 

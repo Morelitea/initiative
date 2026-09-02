@@ -46,6 +46,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.user_display import handle_of
 from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
@@ -348,7 +349,7 @@ async def _build_scope(
             schema_version=BACKUP_SCHEMA_VERSION,
             app_version=get_version(),
             exported_at=datetime.now(timezone.utc),
-            exported_by_email=user.email,
+            exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
             guild={"id": guild_id, "name": guild.name if guild else ""},
             include_uploads=_include_uploads(params),

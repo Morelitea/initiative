@@ -25,6 +25,11 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.db.user_columns import (
+    GUILD_MEMBER_PROFILE_COLUMNS,
+    PUBLIC_PROFILE_COLUMNS,
+    PUBLISHED_COLUMNS,
+)
 from app.db.system_grants import (
     SHARED_TABLE_APP_USER_GRANTS,
     SHARED_TABLE_SYSTEM_GRANTS,
@@ -217,16 +222,7 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
     added to the view without a matching grant returns nothing, and one added
     to the table is not in the view until somebody puts it there (migration
     0214)."""
-    public_columns = {
-        "id",
-        "username",
-        "discriminator",
-        "avatar_url",
-        "status",
-        "custom_status",
-        "profile_decorations",
-        "created_at",
-    }
+    public_columns = set(PUBLIC_PROFILE_COLUMNS)
     base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
     async with engine.connect() as conn:
         view_columns = {
@@ -261,10 +257,13 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        assert readable == public_columns, (
+        # The reader owns both projections, so its column grant is their
+        # union — the profile's eight plus the name the guild view adds.
+        expected = set(PUBLISHED_COLUMNS)
+        assert readable == expected, (
             "app_profile_reader reads columns of public.users that are not "
-            f"public: {sorted(readable - public_columns)}; missing "
-            f"{sorted(public_columns - readable)}"
+            f"published: {sorted(readable - expected)}; missing "
+            f"{sorted(expected - readable)}"
         )
 
         # It reads, and that is all it does — to the table or to the view.
@@ -323,8 +322,10 @@ async def test_users_role_is_writable_only_by_the_system_engine(engine):
     (migration 0144). A new ``users`` column must be granted to the request
     floors too, or this test fails — the same "decide it explicitly" discipline
     as the table-grant registry."""
+    # ``app_guild_base`` is absent: the guild-routed path holds nothing on the
+    # table at all (0221), which
+    # ``test_the_guild_path_holds_nothing_on_the_users_table`` asserts instead.
     request_roles = [
-        "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
         "app_user",
     ]
@@ -690,3 +691,118 @@ async def test_no_default_privileges_for_login_roles(engine):
     assert hits == [], (
         f"default privileges silently grant future objects to login roles: {hits}"
     )
+
+
+async def test_the_guild_path_holds_nothing_on_the_users_table(engine):
+    """A guild-routed session cannot name ``public.users``.
+
+    ``app_guild_base`` is what every ``guild_<id>`` and ``guild_<id>_ro`` role
+    inherits its shared-table access from, so this one role is the whole guild
+    path. It holds no table privilege and no column privilege: the projection
+    it reads is ``public.guild_member_profiles`` (0220), and the table went
+    with 0221.
+
+    Asserted per column as well as per table, because the two are granted
+    separately and a column grant outlives a table-level revoke. This is also
+    what makes a column added to ``users`` private by construction — there is
+    no grant to forget to narrow.
+    """
+    async with engine.connect() as conn:
+        for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+            held = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege('app_guild_base', "
+                        f"'public.users', '{verb}')"
+                    )
+                )
+            ).scalar()
+            assert not held, f"app_guild_base must not hold {verb} on public.users"
+
+        for verb in ("SELECT", "INSERT", "UPDATE"):
+            reachable = {
+                row[0]
+                for row in (
+                    await conn.execute(
+                        text(
+                            "SELECT column_name, has_column_privilege("
+                            "'app_guild_base', 'public.users', column_name, "
+                            f"'{verb}') FROM information_schema.columns "
+                            "WHERE table_schema = 'public' AND table_name = 'users'"
+                        )
+                    )
+                ).all()
+                if row[1]
+            }
+            assert not reachable, (
+                f"app_guild_base holds {verb} on users columns "
+                f"{sorted(reachable)} — the guild path reads "
+                "public.guild_member_profiles instead"
+            )
+
+
+async def test_guild_member_view_publishes_the_guild_projection(engine):
+    """What a guild-routed session may read of a person is a catalog fact.
+
+    ``public.guild_member_profiles`` carries the profile's columns plus
+    ``full_name``, and the guild path holds SELECT on the view and nothing
+    else — the schema's default privileges would otherwise have granted all
+    four verbs (migration 0220).
+    """
+    expected = set(GUILD_MEMBER_PROFILE_COLUMNS)
+    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    async with engine.connect() as conn:
+        view_columns = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' "
+                        "AND table_name = 'guild_member_profiles'"
+                    )
+                )
+            ).all()
+        }
+        assert view_columns == expected, (
+            "public.guild_member_profiles carries columns that were not "
+            f"decided: {sorted(view_columns - expected)}; missing "
+            f"{sorted(expected - view_columns)}"
+        )
+
+        can_read = (
+            await conn.execute(
+                text(
+                    "SELECT has_table_privilege('app_guild_base', "
+                    "'public.guild_member_profiles', 'SELECT')"
+                )
+            )
+        ).scalar()
+        assert can_read, "app_guild_base must be able to read the guild projection"
+
+        for verb in ("INSERT", "UPDATE", "DELETE"):
+            can_write = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege('app_guild_base', "
+                        f"'public.guild_member_profiles', '{verb}')"
+                    )
+                )
+            ).scalar()
+            assert not can_write, f"app_guild_base must not hold {verb} on the view"
+
+        # The cross-guild profile page reads ``user_profiles``, which has no
+        # name in it, so the platform floor has no business with this one.
+        base_can_read = (
+            await conn.execute(
+                text(
+                    "SELECT has_table_privilege(:role, "
+                    "'public.guild_member_profiles', 'SELECT')"
+                ),
+                {"role": base},
+            )
+        ).scalar()
+        assert not base_can_read, (
+            f"{base} must not read the guild projection — a real name is "
+            "readable inside a guild, not from the platform path"
+        )

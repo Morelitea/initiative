@@ -1,10 +1,12 @@
 """What a request-path session may write on ``public.users``.
 
-An account belongs to the person it names. Reading other people is ordinary —
-rosters, pickers and member management all do it — but a request-path session
-writes one row, its own, whichever role it has assumed. Platform user
-management (reactivate, platform role, delete, avatar takedown) runs on the
-system engine instead, where a capability check is the authorization.
+An account belongs to the person it names. A platform-tier session reads other
+people — rosters, pickers and member management all do it — and writes one row,
+its own. A guild-routed session reads people through
+``public.guild_member_profiles`` and does not reach the table in either
+direction. Platform user management (reactivate, platform role, delete, avatar
+takedown) runs on the system engine instead, where a capability check is the
+authorization.
 
 These run under the real ``app_user`` login with a routed context rather than
 the superuser-backed ``session`` fixture: the subject is what a policy does,
@@ -13,6 +15,7 @@ and a superuser session would show none of it.
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
@@ -62,7 +65,13 @@ async def _count_visible(session: AsyncSession, user_id: int) -> int:
 
 class TestGuildSession:
     """A guild-scoped session — ``SET ROLE guild_<id>``, the request path for
-    everything under ``/g/{guild_id}``."""
+    everything under ``/g/{guild_id}``.
+
+    It does not reach ``public.users`` at all. People are read through
+    ``public.guild_member_profiles``, the projection that carries who somebody
+    is and none of their account (migrations 0220/0221), so the questions here
+    are about the table being unreachable and the view answering instead.
+    """
 
     @pytest.fixture
     async def guild_with_two_members(self, session):
@@ -74,41 +83,71 @@ class TestGuildSession:
         )
         return admin, member, guild
 
-    async def test_reads_another_member(
-        self, session, role_session, guild_with_two_members
-    ):
-        admin, member, guild = guild_with_two_members
-        s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=admin.id, guild_id=guild.id, guild_role="admin"
-        )
-
-        assert await _count_visible(s, member.id) == 1
-
-    @pytest.mark.parametrize("column", CREDENTIAL_COLUMNS)
-    async def test_does_not_write_another_members_credentials(
-        self, session, role_session, guild_with_two_members, column
-    ):
-        admin, member, guild = guild_with_two_members
-        s = await role_session("app_user")
-        await set_rls_context(
-            s, user_id=admin.id, guild_id=guild.id, guild_role="admin"
-        )
-
-        assert await _update_returning(s, member.id, column, "rewritten") == []
-
-    async def test_writes_its_own_row(
-        self, session, role_session, guild_with_two_members
-    ):
+    @pytest.fixture
+    async def guild_session(self, role_session, guild_with_two_members):
         admin, _member, guild = guild_with_two_members
         s = await role_session("app_user")
         await set_rls_context(
             s, user_id=admin.id, guild_id=guild.id, guild_role="admin"
         )
+        return s
 
-        assert await _update_returning(s, admin.id, "full_name", "Renamed") == [
-            admin.id
-        ]
+    async def test_does_not_read_the_users_table(
+        self, guild_session, guild_with_two_members
+    ):
+        _admin, member, _guild = guild_with_two_members
+        with pytest.raises(ProgrammingError):
+            await _count_visible(guild_session, member.id)
+        await guild_session.rollback()
+
+    @pytest.mark.parametrize("column", CREDENTIAL_COLUMNS)
+    async def test_does_not_write_another_members_credentials(
+        self, guild_session, guild_with_two_members, column
+    ):
+        _admin, member, _guild = guild_with_two_members
+        with pytest.raises(ProgrammingError):
+            await _update_returning(guild_session, member.id, column, "rewritten")
+        await guild_session.rollback()
+
+    async def test_does_not_write_its_own_row_either(
+        self, guild_session, guild_with_two_members
+    ):
+        """An account is edited on the platform path, never from inside a
+        guild — so the own-row write goes with the rest."""
+        admin, _member, _guild = guild_with_two_members
+        with pytest.raises(ProgrammingError):
+            await _update_returning(guild_session, admin.id, "full_name", "Renamed")
+        await guild_session.rollback()
+
+    async def test_reads_another_member_through_the_projection(
+        self, guild_session, guild_with_two_members
+    ):
+        _admin, member, _guild = guild_with_two_members
+        found = (
+            await guild_session.exec(
+                text(
+                    "SELECT username FROM public.guild_member_profiles WHERE id = :i"
+                ).bindparams(i=member.id)
+            )
+        ).scalar()
+        await guild_session.rollback()
+        assert found == member.username
+
+    async def test_the_projection_carries_no_account_columns(
+        self, guild_session, guild_with_two_members
+    ):
+        """The view is the whole vocabulary: a column that is not in it cannot
+        be named through it, whatever the query asks for."""
+        _admin, member, _guild = guild_with_two_members
+        for column in CREDENTIAL_COLUMNS:
+            with pytest.raises(ProgrammingError):
+                await guild_session.exec(
+                    text(
+                        f"SELECT {column} FROM public.guild_member_profiles "
+                        "WHERE id = :i"
+                    ).bindparams(i=member.id)
+                )
+            await guild_session.rollback()
 
 
 class TestPlatformSession:

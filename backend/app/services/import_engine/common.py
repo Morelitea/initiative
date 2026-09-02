@@ -5,8 +5,8 @@ same way:
 * tags match-or-create by ``(guild_id, name)``;
 * property definitions match by name+type with option-set compatibility,
   renamed on collision (never mutate the target's definition);
-* people resolve by email against the TARGET INITIATIVE's members only,
-  with unmatched emails reported, never guessed;
+* people resolve by handle against the TARGET INITIATIVE's members only,
+  with unmatched handles reported, never guessed;
 * names de-duplicate with an ``" (imported)"`` suffix.
 
 ``project_import.py`` re-imports these — one implementation, two callers.
@@ -21,7 +21,8 @@ from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.user import User
+from app.core.user_display import handle_of
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.property import PropertyDefinition, PropertyType
 from app.models.tenant.tag import Tag
@@ -120,23 +121,31 @@ async def unique_property_name(
     return f"{desired_name}_{n}"
 
 
-async def load_initiative_member_emails(
+async def load_initiative_member_handles(
     session: AsyncSession, *, initiative_id: int
 ) -> dict[str, int]:
-    """Map ``email → user_id`` for the target initiative's members.
+    """Map ``handle → user_id`` for the target initiative's members.
 
     People are matched against members of the *initiative*, not the wider
-    guild. ``User.email`` is a decryption property, not a column, so we load
-    the User row and read the property in Python rather than projecting the
-    column.
+    guild. The handle is what identifies somebody here: it is unique, it is
+    what the export writes, and it is readable from a guild — an address is
+    not.
+
+    Keyed case-insensitively on the name part, because a handle never differs
+    from another by case alone (``ix_users_handle``).
     """
     stmt = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(InitiativeMember.initiative_id == initiative_id)
     )
-    users = (await session.exec(stmt)).all()
-    return {user.email: user.id for user in users if user.email}  # ty: ignore[invalid-return-type] — persisted rows, ids are set
+    members = (await session.exec(stmt)).all()
+    return {handle_key(handle_of(member)): member.id for member in members}
+
+
+def handle_key(handle: str | None) -> str:
+    """A handle as it is looked up: trimmed, and lowercased on the name part."""
+    return (handle or "").strip().lower()
 
 
 async def load_initiative_properties(
@@ -221,16 +230,16 @@ class _EnvelopePropertyValue(Protocol):
     value_number: float | None
     value_boolean: bool | None
     value_json: Any
-    value_email: str | None
+    value_handle: str | None
 
 
 def decode_property_value(
     pv: _EnvelopePropertyValue,
-    initiative_member_emails: dict[str, int],
+    initiative_member_handles: dict[str, int],
 ) -> dict[str, Any] | None:
     """Convert an envelope property value back to the typed column kwargs.
 
-    Returns ``None`` if the value is a user reference whose email isn't a
+    Returns ``None`` if the value is a user reference whose handle isn't a
     member of the target initiative — caller skips the row silently.
     """
     t = pv.property_type
@@ -247,9 +256,9 @@ def decode_property_value(
     if t == PropertyType.multi_select:
         return {"value_json": pv.value_json}
     if t == PropertyType.user_reference:
-        if not pv.value_email:
+        if not pv.value_handle:
             return {"value_user_id": None}
-        uid = initiative_member_emails.get(pv.value_email)
+        uid = initiative_member_handles.get(handle_key(pv.value_handle))
         if uid is None:
             # Drop the value rather than the whole row; the UI renders the
             # property as "—".

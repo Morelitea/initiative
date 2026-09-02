@@ -48,6 +48,7 @@ from app.models.tenant.tag import ProjectTag
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
@@ -1363,16 +1364,18 @@ async def create_project(
         share_all = any(g.all_initiative_members for g in project_in.grants)
         granted_roles = {g.role_id for g in project_in.grants if g.role_id is not None}
         granted_users = {g.user_id for g in project_in.grants if g.user_id is not None}
-        for membership in project.initiative.memberships:
-            member = membership.user
-            if not member or member.id == current_user.id:
-                continue
-            if not (
+        shared_with = [
+            membership.user_id
+            for membership in project.initiative.memberships
+            if membership.user_id
+            and membership.user_id != current_user.id
+            and (
                 share_all
                 or membership.role_id in granted_roles
                 or membership.user_id in granted_users
-            ):
-                continue
+            )
+        ]
+        for member in await accounts_service.load_all(shared_with):
             await notifications_service.notify_project_added(
                 session,
                 member,
@@ -1482,7 +1485,7 @@ async def duplicate_project(
     # Add read permissions for all initiative members (except owner)
     if source_project.initiative:
         for membership in source_project.initiative.memberships:
-            if membership.user_id != owner_id and membership.user:
+            if membership.user_id is not None and membership.user_id != owner_id:
                 read_permission = ResourceGrant(
                     resource_type="project",
                     resource_id=new_project.id,
@@ -1538,10 +1541,12 @@ async def duplicate_project(
         new_project.id, session, guild_context.guild_id
     )
     if new_project.initiative_id and new_project.initiative:
-        for membership in new_project.initiative.memberships:
-            member = membership.user
-            if not member or member.id == current_user.id:
-                continue
+        notify_ids = [
+            membership.user_id
+            for membership in new_project.initiative.memberships
+            if membership.user_id and membership.user_id != current_user.id
+        ]
+        for member in await accounts_service.load_all(notify_ids):
             await notifications_service.notify_project_added(
                 session,
                 member,
@@ -2229,7 +2234,7 @@ async def build_project_export_for_user(
     return await project_export_service.build_project_export(
         session,
         project_id=project.id,
-        exported_by_email=current_user.email,
+        exported_by_handle=current_user.email,
         source_instance_url=app_settings.APP_URL,
     )
 

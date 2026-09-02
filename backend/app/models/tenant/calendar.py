@@ -15,7 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import Tag
 
 
@@ -64,8 +64,11 @@ class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True)
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="calendars")
-    creator: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Calendar.created_by]"},
+    creator: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(Calendar.created_by) == MemberProfile.id",
+            "viewonly": True,
+        },
     )
     events: List["CalendarEvent"] = Relationship(
         back_populates="calendar",

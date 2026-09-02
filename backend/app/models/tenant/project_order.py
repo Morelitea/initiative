@@ -5,7 +5,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
 
 
 class ProjectOrder(SQLModel, table=True):
@@ -21,5 +21,10 @@ class ProjectOrder(SQLModel, table=True):
         sa_column=Column(Float, nullable=False, server_default="0"),
     )
 
-    user: Optional["User"] = Relationship(back_populates="project_orders")
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(ProjectOrder.user_id) == MemberProfile.id",
+            "viewonly": True,
+        }
+    )
     project: Optional["Project"] = Relationship(back_populates="orders")

@@ -5336,7 +5336,8 @@ export interface UserInitiativeRole {
  *
  * Carries the membership facts a guild admin manages — guild role, whether
  * the membership is OIDC-managed, when the account joined — and none of the
- * account's own: no address, and a name only where the guild shows names. Two
+ * account's own: no address, no platform tier, no word on whether the address
+ * was ever confirmed, and a name only where the guild shows names. Two
  * members are told apart by their handle, which is unique.
  */
 export interface UserGuildMember {
@@ -5346,10 +5347,8 @@ export interface UserGuildMember {
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
-  role: UserRole;
   guild_role: string | null;
   oidc_managed: boolean;
-  email_verified: boolean;
   created_at: string;
   initiative_roles: UserInitiativeRole[];
 }

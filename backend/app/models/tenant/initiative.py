@@ -23,7 +23,7 @@ from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.platform.guild import Guild
     from app.models.tenant.document import Document
     from app.models.tenant.queue import Queue
@@ -188,7 +188,12 @@ class InitiativeMember(SQLModel, table=True):
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="memberships")
-    user: Optional["User"] = Relationship(back_populates="initiative_memberships")
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(InitiativeMember.user_id) == MemberProfile.id",
+            "viewonly": True,
+        }
+    )
     role_ref: Optional["InitiativeRoleModel"] = Relationship(back_populates="members")
 
 

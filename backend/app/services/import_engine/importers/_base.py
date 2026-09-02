@@ -64,7 +64,7 @@ async def resolve_property_values(
     *,
     initiative_id: int,
     values: list[EnvelopePropertyValue],
-    member_emails: dict[str, int],
+    member_handles: dict[str, int],
 ) -> AttachedProperties:
     """Resolve flat by-name property values against the target initiative's
     definitions: match by (name, type); a missing definition is recreated
@@ -101,7 +101,7 @@ async def resolve_property_values(
             attached.created += 1
         else:
             attached.matched += 1
-        column_kwargs = decode_property_value(pv, member_emails)
+        column_kwargs = decode_property_value(pv, member_handles)
         if column_kwargs is None:
             continue
         attached.column_kwargs_by_id[definition.id] = column_kwargs  # ty: ignore[invalid-assignment] — persisted row, id is set

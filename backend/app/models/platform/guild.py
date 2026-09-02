@@ -12,7 +12,7 @@ from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.platform.guild_administration import GuildAdministration
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.guild_setting import GuildSetting
@@ -298,7 +298,12 @@ class GuildMembership(SQLModel, table=True):
     )
 
     guild: Optional[Guild] = Relationship(back_populates="members")
-    user: Optional["User"] = Relationship(back_populates="guild_memberships")
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(GuildMembership.user_id) == MemberProfile.id",
+            "viewonly": True,
+        }
+    )
 
 
 class GuildInvite(SQLModel, table=True):
