@@ -4,28 +4,25 @@
  * Chips and links are both references, and the page reads them together: a chip
  * asks `task:12:status`, a link asks `task:12`, and one request answers both.
  * Pulled out of the plugin so the walk over a document can be tested.
+ *
+ * One reference per node, deliberately: a chip's answer carries the thing's
+ * current name with it, so naming what a reading is about costs nothing extra
+ * and a long document stays inside what one request will read.
  */
 
 import type { EditorState, LexicalNode } from "lexical";
 
 import { $isEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { $isSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
-import { chipEntityType, referenceRef } from "@/lib/smartChips";
+import { referenceRef } from "@/lib/smartChips";
 
-/** The references a node needs read, or empty if it refers to nothing.
- *
- * A chip asks two questions about the same thing: the fact it shows, and what
- * that thing is called — the reading goes in the sentence and the name goes on
- * the card behind it. Both are the same request. */
-export const nodeReferences = (node: LexicalNode): string[] => {
-  if ($isSmartChipNode(node)) {
-    const kind = node.getChipKind();
-    return [node.getRef(), referenceRef(chipEntityType(kind), node.getEntityId())];
-  }
+/** The reference a node needs read, or `null` if it refers to nothing. */
+export const nodeReference = (node: LexicalNode): string | null => {
+  if ($isSmartChipNode(node)) return node.getRef();
   if ($isEntityMentionNode(node)) {
-    return [referenceRef(node.getEntityType(), node.getEntityId())];
+    return referenceRef(node.getEntityType(), node.getEntityId());
   }
-  return [];
+  return null;
 };
 
 /** Every reference in a set of nodes, sorted so the same page asks the same
@@ -33,7 +30,8 @@ export const nodeReferences = (node: LexicalNode): string[] => {
 export const collectReferences = (nodes: Iterable<LexicalNode>): string[] => {
   const found = new Set<string>();
   for (const node of nodes) {
-    for (const ref of nodeReferences(node)) found.add(ref);
+    const ref = nodeReference(node);
+    if (ref) found.add(ref);
   }
   return [...found].sort();
 };

@@ -28,6 +28,7 @@ const state = (over: Partial<SmartChipState>): SmartChipState => ({
   entity_type: SearchEntityType.task,
   aspect: SmartChipAspect.status,
   text: "",
+  title: null,
   tone: SmartChipTone.neutral,
   color: null,
   date: null,

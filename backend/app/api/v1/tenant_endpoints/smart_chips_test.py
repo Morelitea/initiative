@@ -406,6 +406,28 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
     assert f"calendar_event:{event.id}:when" in body
 
 
+async def test_a_chip_names_what_its_reading_is_about(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A chip answers with the thing's current name beside the fact, so showing
+    a fact costs one reference rather than two — and the name is as live as the
+    reading is."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Old name")
+    ref = f"task:{task.id}:status"
+
+    assert (await _chips(client, a, ref))[ref]["title"] == "Old name"
+
+    task.title = "New name"
+    session.add(task)
+    await session.commit()
+
+    answer = (await _chips(client, a, ref))[ref]
+    assert answer["title"] == "New name"
+    # The reading itself is still the column, not the name.
+    assert answer["text"] != "New name"
+
+
 async def test_a_reference_reads_the_current_name(
     client, session, acting_user: ActingUser
 ) -> None:

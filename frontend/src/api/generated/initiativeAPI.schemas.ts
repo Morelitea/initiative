@@ -4488,6 +4488,7 @@ export interface SmartChipState {
   entity_type: SearchEntityType;
   aspect: SmartChipAspect | null;
   text: string;
+  title: string | null;
   tone: SmartChipTone;
   color: string | null;
   date: string | null;

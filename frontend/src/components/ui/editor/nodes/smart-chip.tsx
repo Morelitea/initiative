@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useChipState, useReferenceTitle } from "@/hooks/useSmartChips";
+import { useChipState } from "@/hooks/useSmartChips";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
 import { hitIcon } from "@/lib/searchResults";
@@ -38,10 +38,10 @@ export function SmartChip({ chipKind, entityId, fallback }: SmartChipProps) {
   const state = useChipState(chipRef(chipKind, entityId));
 
   const entityType = chipEntityType(chipKind);
-  // The name comes from the same request the reading did: a chip asks about
-  // `task:12` as well as `task:12:status`, so the card names what the thing is
-  // called now rather than what it was called when the chip was inserted.
-  const liveTitle = useReferenceTitle(entityType, entityId);
+  // The answer carries the thing's name beside its reading, so the card names
+  // what it is called NOW rather than what it was called when this was written
+  // — and asking cost the page nothing beyond the reading itself.
+  const liveTitle = state?.title;
 
   const display = chipDisplay(
     fallback,

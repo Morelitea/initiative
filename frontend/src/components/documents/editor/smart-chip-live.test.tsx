@@ -66,8 +66,8 @@ describe("a smart chip in a real document", () => {
     server.use(
       guildHttp.get("/smart-chips/", ({ request }) => {
         const refs = new URL(request.url).searchParams.getAll("ref");
-        // Both questions in one request: the reading, and what it is about.
-        expect(refs.sort()).toEqual(["counter:4", "counter:4:value"]);
+        // One reference per chip: the answer names its own thing.
+        expect(refs).toEqual(["counter:4:value"]);
         return HttpResponse.json({
           items: [
             {
@@ -75,20 +75,11 @@ describe("a smart chip in a real document", () => {
               entity_type: "counter",
               aspect: "value",
               text: "42 / 100",
+              title: "Launch signups",
               tone: "neutral",
               color: null,
               date: null,
               number: "42",
-            },
-            {
-              ref: "counter:4",
-              entity_type: "counter",
-              aspect: null,
-              text: "Launch signups",
-              tone: "neutral",
-              color: null,
-              date: null,
-              number: null,
             },
           ],
         });

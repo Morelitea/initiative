@@ -31,6 +31,11 @@ class SmartChipState(BaseModel):
     #: Which fact about it, or absent where this is simply what it is called.
     aspect: Optional[SmartChipAspect] = None
     text: str
+    #: What the thing is called right now. Sent with every answer so a chip
+    #: showing a fact can also name what the fact is about — the reading goes
+    #: in the sentence, the name goes on the card behind it — without the
+    #: caller spending a second reference on the same row.
+    title: Optional[str] = None
     tone: SmartChipTone
     #: A colour the thing carries itself — a task status has one. Overrides the
     #: tone where present.

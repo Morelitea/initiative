@@ -280,7 +280,7 @@ def parse_ref(
 
 async def _titles(
     session: AsyncSession, entity_type: SearchEntityType, ids: list[int]
-) -> dict[int, SmartChipValue]:
+) -> dict[int, str]:
     """What these things are called right now.
 
     The column is whichever one the kind calls its name — derived, so a queue
@@ -292,7 +292,7 @@ async def _titles(
     rows = (
         await session.exec(select(table.c["id"], title).where(table.c["id"].in_(ids)))
     ).all()
-    return {entity_id: SmartChipValue(text=name or "") for entity_id, name in rows}
+    return {entity_id: name or "" for entity_id, name in rows}
 
 
 async def _visible(
@@ -345,19 +345,36 @@ async def read_smart_chips(
         by_type.setdefault(entity_type, set()).update(ids)
     visible = await _visible(session, user_id=user_id, wanted=by_type)
 
+    # What each thing is called, read once per kind and sent with every answer
+    # about it. A chip carries the name of its own thing rather than the caller
+    # asking for it separately, so showing a fact costs one reference and not
+    # two — which is what keeps a long document inside :data:`MAX_REFS`.
+    names: dict[SearchEntityType, dict[int, str]] = {}
+    for entity_type, ids in by_type.items():
+        allowed = [i for i in ids if i in visible.get(entity_type, ())]
+        names[entity_type] = (
+            await _titles(session, entity_type, allowed) if allowed else {}
+        )
+
     read: dict[
         tuple[SearchEntityType, Optional[SmartChipAspect]], dict[int, SmartChipValue]
     ] = {}
     for pair, ids in wanted.items():
         entity_type, aspect = pair
-        allowed = [i for i in ids if i in visible.get(entity_type, ())]
+        allowed = {i for i in ids if i in visible.get(entity_type, ())}
         if not allowed:
             read[pair] = {}
         elif aspect is None:
-            read[pair] = await _titles(session, entity_type, allowed)
+            # A bare reference asks only what the thing is called, so the name
+            # already read IS the answer.
+            read[pair] = {
+                entity_id: SmartChipValue(text=name)
+                for entity_id, name in names[entity_type].items()
+                if entity_id in allowed
+            }
         else:
             read[pair] = await SMART_CHIP_SOURCES[(entity_type, aspect)](
-                session, allowed
+                session, sorted(allowed)
             )
 
     states: list[SmartChipState] = []
@@ -371,6 +388,7 @@ async def read_smart_chips(
                 entity_type=pair[0],
                 aspect=pair[1],
                 text=value.text,
+                title=names.get(pair[0], {}).get(entity_id),
                 tone=value.tone,
                 color=value.color,
                 date=value.date,

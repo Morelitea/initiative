@@ -13,7 +13,7 @@ import {
   EntityMentionNode,
 } from "@/components/ui/editor/nodes/entity-mention-node";
 import { $createSmartChipNode, SmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
-import { collectReferences, documentReferences, nodeReferences } from "@/lib/documentReferences";
+import { collectReferences, documentReferences, nodeReference } from "@/lib/documentReferences";
 
 function inEditor<T>(fn: () => T): T {
   const editor: LexicalEditor = createEditor({
@@ -36,22 +36,23 @@ describe("what a page asks about", () => {
   it("includes the things it links to, not only its chips", () => {
     // The whole point of live names: a reference nobody asks about can only
     // ever show the words it was written with.
-    const refs = inEditor(() =>
-      nodeReferences($createEntityMentionNode(SearchEntityType.task, 12, "Ship it"))
+    const ref = inEditor(() =>
+      nodeReference($createEntityMentionNode(SearchEntityType.task, 12, "Ship it"))
     );
-    expect(refs).toEqual(["task:12"]);
+    expect(ref).toBe("task:12");
   });
 
-  it("asks a chip's two questions: the fact, and what it is a fact about", () => {
-    // The reading goes in the sentence; the name goes on the card behind it.
-    const refs = inEditor(() =>
-      nodeReferences($createSmartChipNode(SmartChipKind["task:status"], 12, "Ship it"))
+  it("asks one question per chip, because the answer names its own thing", () => {
+    // A chip's reading comes back with what it is a fact about, so a page of
+    // chips costs one reference each and stays inside what one request reads.
+    const ref = inEditor(() =>
+      nodeReference($createSmartChipNode(SmartChipKind["task:status"], 12, "Ship it"))
     );
-    expect(refs.sort()).toEqual(["task:12", "task:12:status"]);
+    expect(ref).toBe("task:12:status");
   });
 
   it("ignores a node that names nothing", () => {
-    expect(inEditor(() => nodeReferences($createTextNode("plain")))).toEqual([]);
+    expect(inEditor(() => nodeReference($createTextNode("plain")))).toBeNull();
   });
 
   it("asks about a thing once, however many times it is named", () => {
@@ -110,10 +111,6 @@ describe("what a page asks about, read off the page", () => {
       { discrete: true }
     );
 
-    expect(documentReferences(editor.getEditorState())).toEqual([
-      "counter:4",
-      "counter:4:value",
-      "task:12",
-    ]);
+    expect(documentReferences(editor.getEditorState())).toEqual(["counter:4:value", "task:12"]);
   });
 });
