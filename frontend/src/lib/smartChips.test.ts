@@ -7,7 +7,7 @@ import {
   type SmartChipState,
   SmartChipTone,
 } from "@/api/generated/initiativeAPI.schemas";
-import { REFS_PER_REQUEST, referenceBatches } from "@/hooks/useSmartChips";
+import { currentStates, REFS_PER_REQUEST, referenceBatches } from "@/hooks/useSmartChips";
 import {
   CHIP_ENTITY_TYPES,
   CHIP_TONE_CLASSES,
@@ -193,5 +193,29 @@ describe("a page with more references than one request carries", () => {
 
   it("asks about a thing once, however many times the page names it", () => {
     expect(referenceBatches(["task:1:status", "task:1:status"])).toEqual([["task:1:status"]]);
+  });
+});
+
+describe("what the page is currently showing", () => {
+  const answered = (ref: string): SmartChipState => state({ ref, text: "In Progress" });
+
+  it("answers for what the page refers to", () => {
+    const states = currentStates([answered("task:1:status")], ["task:1:status"]);
+    expect(states.get("task:1:status")?.text).toBe("In Progress");
+  });
+
+  it("drops an answer the page no longer refers to", () => {
+    // Editing a long document repartitions its batches, and a batch holds its
+    // previous answer while the new one loads — so an answer can outlive the
+    // chip that asked for it, and a deleted chip would keep on reading.
+    const states = currentStates(
+      [answered("task:1:status"), answered("task:2:status")],
+      ["task:1:status"]
+    );
+    expect([...states.keys()]).toEqual(["task:1:status"]);
+  });
+
+  it("has nothing to show before anything is answered", () => {
+    expect(currentStates([], ["task:1:status"]).size).toBe(0);
   });
 });

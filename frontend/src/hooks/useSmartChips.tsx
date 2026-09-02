@@ -75,6 +75,29 @@ export const useSmartChipStates = (refs: string[], enabled = true) => {
   });
 };
 
+/**
+ * What the page refers to NOW, out of everything the batches answered.
+ *
+ * A batch keeps its previous answer while a changed page reloads, which is what
+ * stops every chip blanking to its stored label on the keystroke that adds one.
+ * The cost is that an answer can outlive the reference that asked for it: edit a
+ * long document and the batches repartition, so the previous answer may cover
+ * references the page no longer holds. Keyed by reference, that could never
+ * show one chip another's reading — but it could keep answering for something
+ * deleted, so what the page does not refer to is dropped here.
+ */
+export const currentStates = (
+  items: SmartChipState[],
+  refs: string[]
+): Map<string, SmartChipState> => {
+  const wanted = new Set(refs);
+  const states = new Map<string, SmartChipState>();
+  for (const state of items) {
+    if (wanted.has(state.ref)) states.set(state.ref, state);
+  }
+  return states;
+};
+
 interface SmartChipScopeValue {
   /** What everything on this page currently says, by reference. */
   states: Map<string, SmartChipState>;
@@ -110,11 +133,10 @@ export function SmartChipScope({ children }: { children: ReactNode }) {
 
   const { data } = useSmartChipStates(refs);
 
-  const value = useMemo(() => {
-    const states = new Map<string, SmartChipState>();
-    for (const state of data?.items ?? []) states.set(state.ref, state);
-    return { states, report };
-  }, [data, report]);
+  const value = useMemo(
+    () => ({ states: currentStates(data?.items ?? [], refs), report }),
+    [data, refs, report]
+  );
 
   return <SmartChipScopeContext.Provider value={value}>{children}</SmartChipScopeContext.Provider>;
 }
