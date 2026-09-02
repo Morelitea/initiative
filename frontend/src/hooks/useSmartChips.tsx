@@ -1,8 +1,12 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
-import type { SearchEntityType, SmartChipState } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  SearchEntityType,
+  SmartChipState,
+  SmartChipStateList,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey,
   readSmartChipsApiV1GGuildIdSmartChipsGet,
@@ -14,29 +18,60 @@ import { referenceRef } from "@/lib/smartChips";
 const STALE_MS = 30_000;
 /** How often an open document asks again while its tab is in front. */
 const POLL_MS = 60_000;
+/**
+ * How many references one request may carry — the server's own ceiling, which
+ * it enforces by refusing the request rather than answering part of it.
+ *
+ * A page longer than this asks in several requests instead of one, so what a
+ * page costs follows what is actually written in it. Every real document fits
+ * in the first.
+ */
+export const REFS_PER_REQUEST = 100;
+
+/** One page's references, split into what a request will carry. */
+export const referenceBatches = (refs: string[]): string[][] => {
+  // Sorted first, so the same page splits the same way however its nodes are
+  // ordered and each batch keeps a stable cache key.
+  const sorted = [...new Set(refs)].sort();
+  const batches: string[][] = [];
+  for (let index = 0; index < sorted.length; index += REFS_PER_REQUEST) {
+    batches.push(sorted.slice(index, index + REFS_PER_REQUEST));
+  }
+  return batches;
+};
+
+/** The batches read back as one answer.
+ *
+ * Module scope so its identity is stable: `combine` runs on every render, and
+ * a fresh function here would rebuild the result — and every chip below it —
+ * each time the document is touched. */
+const combineBatches = (results: { data?: SmartChipStateList; isFetched: boolean }[]) => ({
+  data: { items: results.flatMap((result) => result.data?.items ?? []) },
+  isFetched: results.every((result) => result.isFetched),
+});
 
 /**
- * Every chip on one page, in one request.
+ * Everything one page refers to, in as few requests as it takes.
  *
  * A document with thirty chips makes one call, not thirty: the scope collects
- * the references out of the editor and asks for them together. Refs are sorted
- * so that the same page produces the same cache key however the nodes are
- * ordered.
+ * the references out of the editor and asks for them together.
  */
 export const useSmartChipStates = (refs: string[], enabled = true) => {
   const guildId = useActiveGuildId();
-  const ref = [...new Set(refs)].sort();
-  const params = { ref };
-  return useQuery({
-    queryKey: getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey(guildId, params),
-    queryFn: () => readSmartChipsApiV1GGuildIdSmartChipsGet(guildId, params),
-    enabled: enabled && guildId != null && ref.length > 0,
-    staleTime: STALE_MS,
-    // A chip goes stale because someone else moved something, so it is asked
-    // again on a timer rather than waiting for this reader to do anything.
-    // React Query pauses this while the tab is in the background.
-    refetchInterval: POLL_MS,
-    placeholderData: keepPreviousData,
+  const batches = referenceBatches(refs);
+  return useQueries({
+    queries: batches.map((ref) => ({
+      queryKey: getReadSmartChipsApiV1GGuildIdSmartChipsGetQueryKey(guildId, { ref }),
+      queryFn: () => readSmartChipsApiV1GGuildIdSmartChipsGet(guildId, { ref }),
+      enabled: enabled && guildId != null,
+      staleTime: STALE_MS,
+      // A chip goes stale because someone else moved something, so it is asked
+      // again on a timer rather than waiting for this reader to do anything.
+      // React Query pauses this while the tab is in the background.
+      refetchInterval: POLL_MS,
+      placeholderData: keepPreviousData,
+    })),
+    combine: combineBatches,
   });
 };
 
@@ -90,7 +125,7 @@ export const useReportReferences = () => useContext(SmartChipScopeContext).repor
 /** What everything this page refers to currently says, by reference.
  *
  * Chips and links read from the same map: a chip asks `task:12:status`, a link
- * asks `task:12`, and both came back in one request. */
+ * asks `task:12`, and the page asked for both together. */
 export const useChipState = (ref: string): SmartChipState | undefined =>
   useContext(SmartChipScopeContext).states.get(ref);
 

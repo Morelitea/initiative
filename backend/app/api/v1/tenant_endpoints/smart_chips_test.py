@@ -20,7 +20,7 @@ from sqlmodel import select
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
 from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
 from app.db.reference_targets import referenceable_types
-from app.services.tenant.smart_chips import SMART_CHIP_SOURCES
+from app.services.tenant.smart_chips import MAX_REFS, SMART_CHIP_SOURCES
 from app.testing import (
     Actor,
     create_calendar,
@@ -404,6 +404,33 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
     )
     assert f"counter:{counter.id}:value" not in body
     assert f"calendar_event:{event.id}:when" in body
+
+
+async def test_the_ceiling_is_refused_rather_than_quietly_trimmed(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A page asking about more than one request carries is told so.
+
+    Answering the first ``MAX_REFS`` and dropping the rest would look exactly
+    like a page whose remaining things had all been deleted, which is a worse
+    answer than none: the client batches to this number instead.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Ship it")
+
+    at_the_line = [f"task:{task.id}:status"] * 1 + [
+        f"task:{9000 + i}:status" for i in range(MAX_REFS - 1)
+    ]
+    response = await client.get(
+        a.g("/smart-chips/"), headers=a.headers, params={"ref": at_the_line}
+    )
+    assert response.status_code == 200
+
+    over = [*at_the_line, f"task:{9999}:status"]
+    response = await client.get(
+        a.g("/smart-chips/"), headers=a.headers, params={"ref": over}
+    )
+    assert response.status_code == 422
 
 
 async def test_a_chip_names_what_its_reading_is_about(

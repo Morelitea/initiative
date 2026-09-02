@@ -7,6 +7,7 @@ import {
   type SmartChipState,
   SmartChipTone,
 } from "@/api/generated/initiativeAPI.schemas";
+import { REFS_PER_REQUEST, referenceBatches } from "@/hooks/useSmartChips";
 import {
   CHIP_ENTITY_TYPES,
   CHIP_TONE_CLASSES,
@@ -164,5 +165,33 @@ describe("a chip that was answered with nothing", () => {
     expect(display.text).toBe("None");
     // Answered, so the card behind it can still offer to open the task.
     expect(display.live).toBe(true);
+  });
+});
+
+describe("a page with more references than one request carries", () => {
+  it("splits them into batches the server will accept", () => {
+    // Past its ceiling the server refuses the request outright rather than
+    // answering part of it, so a page that asked in one go would lose every
+    // reading it has, not just the ones past the line.
+    const refs = Array.from({ length: REFS_PER_REQUEST * 2 + 1 }, (_, i) => `task:${i}:status`);
+    const batches = referenceBatches(refs);
+
+    expect(batches).toHaveLength(3);
+    for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(REFS_PER_REQUEST);
+    // Every reference is asked about exactly once, across the batches.
+    expect(batches.flat().sort()).toEqual([...new Set(refs)].sort());
+  });
+
+  it("asks nothing for a page that refers to nothing", () => {
+    expect(referenceBatches([])).toEqual([]);
+  });
+
+  it("splits the same way however the page is ordered", () => {
+    const refs = Array.from({ length: 150 }, (_, i) => `task:${i}:status`);
+    expect(referenceBatches(refs)).toEqual(referenceBatches([...refs].reverse()));
+  });
+
+  it("asks about a thing once, however many times the page names it", () => {
+    expect(referenceBatches(["task:1:status", "task:1:status"])).toEqual([["task:1:status"]]);
   });
 });
