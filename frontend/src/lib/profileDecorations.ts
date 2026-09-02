@@ -61,6 +61,7 @@ export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWB
 /** Every decoration this build ships, by the name its label is keyed under. */
 type DecorationName =
   | "ace"
+  | "ahimsahand"
   | "ammonite"
   | "arcade"
   | "aurora"
@@ -70,7 +71,6 @@ type DecorationName =
   | "bat"
   | "bauble"
   | "beach"
-  | "beadedrosette"
   | "beadwork"
   | "benzene"
   | "bi"
@@ -78,6 +78,7 @@ type DecorationName =
   | "blade"
   | "blind"
   | "blocks"
+  | "bonenecklace"
   | "bones"
   | "bookshelf"
   | "braille"
@@ -102,6 +103,7 @@ type DecorationName =
   | "controller"
   | "court"
   | "cowries"
+  | "cross"
   | "crown"
   | "cupoftea"
   | "curtain"
@@ -109,6 +111,7 @@ type DecorationName =
   | "dagger"
   | "deaf"
   | "desert"
+  | "dharmawheel"
   | "diabetes"
   | "diamond"
   | "dicetower"
@@ -130,6 +133,7 @@ type DecorationName =
   | "fastball"
   | "feather"
   | "festival"
+  | "festivaloflights"
   | "fetch"
   | "filmstrip"
   | "fist"
@@ -230,9 +234,11 @@ type DecorationName =
   | "horse"
   | "icicles"
   | "incense"
+  | "interlace"
   | "ironwork"
   | "kente"
   | "keys"
+  | "khanda"
   | "koi"
   | "labbench"
   | "laces"
@@ -245,6 +251,7 @@ type DecorationName =
   | "lotus"
   | "madteaparty"
   | "magnet"
+  | "manyfaiths"
   | "marquee"
   | "masks"
   | "matcha"
@@ -265,10 +272,13 @@ type DecorationName =
   | "net"
   | "neurodivergent"
   | "nightsky"
+  | "ninepointedstar"
   | "nonbinary"
   | "northstar"
   | "notebook"
   | "observatory"
+  | "om"
+  | "opendoors"
   | "orbital"
   | "oreblock"
   | "overgrown"
@@ -300,8 +310,8 @@ type DecorationName =
   | "rakedsand"
   | "rakelines"
   | "rat"
+  | "ratears"
   | "reel"
-  | "ribbonwork"
   | "ridge"
   | "rink"
   | "rockhammer"
@@ -311,10 +321,12 @@ type DecorationName =
   | "seams"
   | "servicedog"
   | "sheetmusic"
+  | "shintotorii"
   | "ship"
   | "showtime"
   | "singingbowl"
   | "skeletons"
+  | "skyline"
   | "snake"
   | "snowflake"
   | "snowman"
@@ -327,6 +339,8 @@ type DecorationName =
   | "stack"
   | "stage"
   | "stagelights"
+  | "starandcrescent"
+  | "starofdavid"
   | "stitching"
   | "stones"
   | "streetparty"
@@ -356,6 +370,7 @@ type DecorationName =
   | "witchinghour"
   | "wreath"
   | "writingdesk"
+  | "yinandyang"
   | "yorick";
 
 /**
@@ -558,24 +573,38 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "pottery"
   ),
   "firstnations.weave": entry("firstnations.weave", "banner", "firstnations-weave", "weave"),
+  "faith.skyline": entry("faith.skyline", "banner", "faith-skyline", "skyline"),
+  "faith.lights": entry("faith.lights", "banner", "faith-lights", "festivaloflights"),
+  "faith.doors": entry("faith.doors", "banner", "faith-doors", "opendoors"),
+  "faith.circle": entry("faith.circle", "frame", "faith-circle", "manyfaiths"),
+  "faith.interlace": entry("faith.interlace", "frame", "faith-interlace", "interlace"),
+  "faith.cross": entry("faith.cross", "trophy", "faith-cross", "cross"),
+  "faith.crescent": entry("faith.crescent", "trophy", "faith-crescent", "starandcrescent"),
+  "faith.starofdavid": entry("faith.starofdavid", "trophy", "faith-starofdavid", "starofdavid"),
+  "faith.om": entry("faith.om", "trophy", "faith-om", "om"),
+  "faith.dharmawheel": entry("faith.dharmawheel", "trophy", "faith-dharmawheel", "dharmawheel"),
+  "faith.khanda": entry("faith.khanda", "trophy", "faith-khanda", "khanda"),
+  "faith.taijitu": entry("faith.taijitu", "trophy", "faith-taijitu", "yinandyang"),
+  "faith.ninepointedstar": entry(
+    "faith.ninepointedstar",
+    "trophy",
+    "faith-ninepointedstar",
+    "ninepointedstar"
+  ),
+  "faith.ahimsa": entry("faith.ahimsa", "trophy", "faith-ahimsa", "ahimsahand"),
+  "faith.torii": entry("faith.torii", "trophy", "faith-torii", "shintotorii"),
+  "firstnations.bonenecklace": entry(
+    "firstnations.bonenecklace",
+    "frame",
+    "firstnations-bonenecklace",
+    "bonenecklace"
+  ),
   "firstnations.drum": entry("firstnations.drum", "frame", "firstnations-drum", "handdrum"),
   "firstnations.quillwork": entry(
     "firstnations.quillwork",
     "frame",
     "firstnations-quillwork",
     "quillwork"
-  ),
-  "firstnations.ribbonwork": entry(
-    "firstnations.ribbonwork",
-    "frame",
-    "firstnations-ribbonwork",
-    "ribbonwork"
-  ),
-  "firstnations.rosette": entry(
-    "firstnations.rosette",
-    "frame",
-    "firstnations-rosette",
-    "beadedrosette"
   ),
   "firstnations.wheel": entry(
     "firstnations.wheel",
@@ -758,6 +787,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "pets.catears": entry("pets.catears", "frame", "pets-catears", "catears"),
   "pets.collar": entry("pets.collar", "frame", "pets-collar", "collar"),
   "pets.dogears": entry("pets.dogears", "frame", "pets-dogears", "dogears"),
+  "pets.ratears": entry("pets.ratears", "frame", "pets-ratears", "ratears"),
   "pets.bunny": entry("pets.bunny", "trophy", "pets-bunny", "rabbit"),
   "pets.cat": entry("pets.cat", "trophy", "pets-cat", "cat"),
   "pets.dog": entry("pets.dog", "trophy", "pets-dog", "dog"),
