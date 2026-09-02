@@ -162,7 +162,7 @@ def _cross_guild_event_dac_clause(guild_id: int, user_id: int) -> ColumnElement[
     never applies here — the gather only visits guilds the user is a real member
     of — so the clause resolves to a no-op only for a guild admin.
     """
-    return permissions_service.dac_scope_clause(
+    return permissions_service.granted_scope_clause(
         Tool.calendar, CalendarEvent.calendar_id, user_id, guild_id=guild_id
     )
 
@@ -504,11 +504,12 @@ async def query_guild_calendar_events(
     # An event is reached through its calendar, so the sharing gate applies to
     # the calendar the event names.
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.listing_scope_clause(
             Tool.calendar,
             CalendarEvent.calendar_id,
             current_user.id,
             guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
         )
     )
 

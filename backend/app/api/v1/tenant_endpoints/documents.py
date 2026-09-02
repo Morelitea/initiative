@@ -351,8 +351,12 @@ def _build_visible_docs_filters(
     """
     conditions = [
         Initiative.guild_id == guild_id,
-        permissions_service.dac_scope_clause(
-            Tool.document, Document.id, user_id, guild_id=guild_id
+        permissions_service.listing_scope_clause(
+            Tool.document,
+            Document.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
         ),
     ]
 

@@ -1024,13 +1024,15 @@ async def test_document_counts_by_initiative(
     await create_document(session, admin.initiative, admin.user)
     await create_document(session, other_initiative, admin.user)
 
-    # Guild admin sees every document, grouped by initiative.
+    # The counts span initiatives, so they answer what reaches the reader —
+    # a guild admin included. Theirs is the one document they hold in each,
+    # not the member's two alongside it.
     response = await client.get(
         admin.g("/documents/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {
-        str(admin.initiative.id): 3,
+        str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
 
