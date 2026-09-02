@@ -1,5 +1,13 @@
 import { Capacitor } from "@capacitor/core";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -69,7 +77,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Keep the React user state and the api-client session flag in lockstep so
   // the 401 interceptor always knows whether to treat a 401 as session expiry
   // (non-null user) or as a not-logged-in visitor (null user).
+  // Which answer about who is signed in is the current one.
+  //
+  // Reading the account is not instant and several reads can be in the air at
+  // once — two signals arriving together, a signal beside the catch-up a
+  // reconnect does. Responses come back in whatever order the network gives
+  // them, so the last one to arrive is not the last one asked for, and letting
+  // it win puts back an account that has already been replaced.
+  //
+  // Every write of who is signed in takes a turn here. A read captures the
+  // turn it was asked in and applies its answer only if that is still the
+  // current one — so a slow read loses to a newer read, to a sign-in, and to a
+  // sign-out, which is the ordering each of those wants.
+  const identityTurnRef = useRef(0);
+
   const setUser = useCallback((nextUser: UserRead | null) => {
+    identityTurnRef.current += 1;
     setUserState(nextUser);
     setHasActiveSession(nextUser !== null);
   }, []);
@@ -91,7 +114,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshUser = useCallback(async () => {
+    const turn = identityTurnRef.current;
     const response = await apiClient.get<UserRead>("/users/me");
+    if (turn !== identityTurnRef.current) {
+      // Something newer settled while this was in flight. Its answer is the
+      // one to keep.
+      return;
+    }
     setUser(response.data);
   }, [setUser]);
 
