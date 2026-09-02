@@ -267,11 +267,12 @@ async def list_counter_groups(
         )
 
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.listing_scope_clause(
             Tool.counter_group,
             CounterGroup.id,
             current_user.id,
             guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
         )
     )
 
@@ -346,7 +347,7 @@ async def get_counter_group_counts_by_initiative(
         ),
     ]
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.granted_scope_clause(
             Tool.counter_group,
             CounterGroup.id,
             current_user.id,

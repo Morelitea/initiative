@@ -299,8 +299,12 @@ async def list_queues(
         )
 
     conditions.append(
-        permissions_service.dac_scope_clause(
-            Tool.queue, Queue.id, current_user.id, guild_id=guild_context.guild_id
+        permissions_service.listing_scope_clause(
+            Tool.queue,
+            Queue.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
         )
     )
 
@@ -375,7 +379,7 @@ async def get_queue_counts_by_initiative(
         ),
     ]
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.granted_scope_clause(
             Tool.queue, Queue.id, current_user.id, guild_id=guild_context.guild_id
         )
     )

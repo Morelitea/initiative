@@ -530,8 +530,12 @@ def _visible_project_conditions(
     """
     conditions = [
         Initiative.guild_id == guild_id,
-        permissions_service.dac_scope_clause(
-            Tool.project, Project.id, user_id, guild_id=guild_id
+        permissions_service.listing_scope_clause(
+            Tool.project,
+            Project.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
         ),
     ]
     if initiative_id is not None:
@@ -972,7 +976,7 @@ async def _list_global_projects(
             select(Project)
             .where(
                 *conditions,
-                permissions_service.dac_scope_clause(
+                permissions_service.granted_scope_clause(
                     Tool.project, Project.id, current_user.id, guild_id=guild_id
                 ),
             )
@@ -1163,7 +1167,7 @@ async def get_project_counts_by_initiative(
         Initiative.guild_id == guild_context.guild_id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
-        permissions_service.dac_scope_clause(
+        permissions_service.granted_scope_clause(
             Tool.project,
             Project.id,
             current_user.id,

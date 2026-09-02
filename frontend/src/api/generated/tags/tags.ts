@@ -707,7 +707,11 @@ export const useDeleteTagApiV1GGuildIdTagsTagIdDelete = <
 /**
  * Get all entities (tasks, projects, documents) with this tag.
  *
- * Only returns entities the user has permission to access.
+ * A tag reaches across every initiative in the community, so this listing
+ * answers what has been shared with the reader — the same rule the community
+ * front page's table and the ``/me/*`` views follow. A guild admin's authority
+ * over any one initiative is unchanged; it is asked about by opening that
+ * initiative, not by opening a tag.
  * @summary Get Tag Entities
  */
 export const getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet = (

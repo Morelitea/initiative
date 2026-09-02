@@ -179,11 +179,12 @@ async def list_calendars(
         conditions.append(calendars_service.tool_enabled_clause())
 
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.listing_scope_clause(
             Tool.calendar,
             Calendar.id,
             current_user.id,
             guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
         )
     )
 
@@ -247,7 +248,7 @@ async def get_calendar_counts_by_initiative(
         ),
     ]
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.granted_scope_clause(
             Tool.calendar,
             Calendar.id,
             current_user.id,
@@ -483,7 +484,7 @@ async def list_my_calendars(
         # nowhere that belongs to an initiative.
         conditions = [
             calendars_service.tool_enabled_clause(),
-            permissions_service.dac_scope_clause(
+            permissions_service.granted_scope_clause(
                 Tool.calendar, Calendar.id, current_user.id, guild_id=guild_id
             ),
         ]

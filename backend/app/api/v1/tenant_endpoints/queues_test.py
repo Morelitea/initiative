@@ -972,13 +972,15 @@ async def test_queue_counts_by_initiative(
     await create_queue(session, other_initiative, admin.user, name="Other queue")
     await create_queue(session, disabled_initiative, admin.user, name="Hidden queue")
 
-    # Guild admin: every queue in queues-enabled initiatives, grouped.
+    # Guild admin: the counts span initiatives, so they count what reaches
+    # the reader — the admin's own queue in each, not the member's beside it.
+    # The disabled initiative is absent either way.
     response = await client.get(
         admin.g("/queues/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {
-        str(admin.initiative.id): 2,
+        str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
 

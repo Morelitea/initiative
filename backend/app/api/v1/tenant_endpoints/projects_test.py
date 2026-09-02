@@ -1687,13 +1687,14 @@ async def test_project_counts_by_initiative(
     )
     await create_project(session, other_initiative, admin.user, name="Other project")
 
-    # Guild admin: every non-archived, non-template project, grouped.
+    # Guild admin: the counts span initiatives, so they count what reaches
+    # the reader — the admin's own project in each, not the member's beside it.
     response = await client.get(
         admin.g("/projects/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {
-        str(admin.initiative.id): 2,
+        str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
 

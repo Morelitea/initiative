@@ -22,7 +22,7 @@ from app.db.query import (
     parse_conditions,
     parse_sort_fields,
 )
-from app.schemas.query import FilterOp, SortDir
+from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -977,22 +977,60 @@ async def _ensure_can_manage(
     return project
 
 
+def _confining_project_id(
+    conditions: list[FilterCondition | FilterGroup],
+) -> Optional[int]:
+    """The single project this request is narrowed to, or ``None``.
+
+    Only a plain top-level equality on one id confines a request to a project.
+    ``project_id != 5`` and ``project_id NOT IN []`` both name a value while
+    leaving the request spanning every other project in the community, so the
+    scope question they ask is the cross-initiative one — and the answer to
+    "which rows may this reader see" must not turn on a value the filter is
+    about to discard.
+
+    Deliberately stricter than :func:`extract_condition_value`, which reports a
+    value for any of those shapes: this one decides access, and the only shape
+    that decides it is the one that actually holds for every row returned.
+    """
+    for cond in conditions:
+        if isinstance(cond, FilterGroup) or cond.field != "project_id":
+            continue
+        if cond.negate or cond.op is not FilterOp.eq:
+            return None
+        if isinstance(cond.value, (list, tuple, set)):
+            return None
+        try:
+            return int(cond.value)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 async def _allowed_project_ids(
     session: SessionDep,
     user: User,
     guild_id: int,
     *,
     include_templates: bool = False,
+    project_id: Optional[int] = None,
 ) -> Optional[set[int]]:
     """Project ids whose tasks this request may see.
 
-    The set stays explicitly guild-scoped either way; ``dac_scope_clause`` adds
-    the sharing gate, which is a no-op for a request that reaches the whole
-    guild — such a request sees tasks in every project of the guild, like a
-    member of every initiative.
+    The set stays explicitly guild-scoped either way; the sharing gate on top of
+    it follows the scope being asked about, the same rule the tool listings
+    follow. Confined to one project, the question is the reader's standing in
+    the initiative holding it, and a guild admin's reaches all of it. Spanning
+    them — the tag browse, the community calendar's task markers — the question
+    is what has been shared with the reader, so the answer matches the events
+    those markers sit beside.
     """
     conditions = [
         permissions_service.dac_scope_clause(
+            Tool.project, Project.id, user.id, guild_id=guild_id
+        )
+        if project_id is not None
+        else permissions_service.granted_scope_clause(
             Tool.project, Project.id, user.id, guild_id=guild_id
         ),
         Initiative.guild_id == guild_id,
@@ -1345,6 +1383,9 @@ async def _guild_task_query_builder(
         current_user,
         guild_id,
         include_templates=q.project_id is not None,
+        # Access takes the strict reading, not the one that decides whether
+        # templates join the set.
+        project_id=_confining_project_id(q.user_conditions),
     )
     if allowed_ids is not None:
         if not allowed_ids:

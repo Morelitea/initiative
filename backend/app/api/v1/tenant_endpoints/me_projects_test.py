@@ -123,6 +123,78 @@ async def test_list_global_projects_respects_permissions(
 
 
 @pytest.mark.integration
+async def test_my_projects_follows_grants_not_guild_admin_standing(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin's My Projects is what has been shared with them.
+
+    Their authority still reaches every project in the community — asking for
+    the initiative by name still answers with all of it. A list that spans
+    initiatives answers a different question: what reaches the reader.
+    """
+    owner = await create_user(session, email="owner@example.com")
+    admin = await create_user(session, email="otheradmin@example.com")
+
+    guild = await create_guild(session, creator=owner, name="Shared Guild")
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    elsewhere = await create_initiative(session, guild, owner, name="Not Theirs")
+    unshared = await create_project(session, elsewhere, owner, name="Someone Else's")
+
+    mine = await create_initiative(session, guild, admin, name="Theirs")
+    shared = await create_project(session, mine, admin, name="Their Own")
+
+    response = await client.get("/api/v1/me/projects", headers=get_auth_headers(admin))
+
+    assert response.status_code == 200
+    project_ids = {p["id"] for p in response.json()["items"]}
+    assert shared.id in project_ids
+    assert unshared.id not in project_ids
+
+
+@pytest.mark.integration
+async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """Naming one initiative asks about standing, and an admin's reaches it all.
+
+    The companion to the test above: the same project the cross-initiative list
+    withholds is returned the moment the admin asks for its initiative, which is
+    what keeps this a change to navigation rather than to authority.
+    """
+    owner = await create_user(session, email="owner2@example.com")
+    admin = await create_user(session, email="otheradmin2@example.com")
+
+    guild = await create_guild(session, creator=owner, name="Shared Guild")
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    elsewhere = await create_initiative(session, guild, owner, name="Not Theirs")
+    unshared = await create_project(session, elsewhere, owner, name="Someone Else's")
+
+    headers = get_auth_headers(admin)
+    across = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
+    assert across.status_code == 200
+    assert unshared.id not in {p["id"] for p in across.json()["items"]}
+
+    within = await client.get(
+        f"/api/v1/g/{guild.id}/projects/?initiative_id={elsewhere.id}",
+        headers=headers,
+    )
+    assert within.status_code == 200
+    assert unshared.id in {p["id"] for p in within.json()["items"]}
+
+
+@pytest.mark.integration
 async def test_list_global_projects_guild_filter(
     client: AsyncClient, session: AsyncSession
 ):
