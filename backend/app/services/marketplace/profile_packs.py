@@ -31,9 +31,9 @@ __all__ = ["MAX_PACK_DECORATIONS", "normalize_profile_pack_definition"]
 
 #: How many decorations one pack may grant. A themed set is usually three or
 #: four; a set whose whole idea is breadth — a flag for every country somebody
-#: in the room is from — is legitimately dozens. Still bounded, so a pack
-#: cannot be a way to bulk-load a library.
-MAX_PACK_DECORATIONS = 64
+#: in the room is from — runs to a hundred and keeps growing. Still bounded, so
+#: a pack cannot be a way to bulk-load a library.
+MAX_PACK_DECORATIONS = 160
 
 
 def _decoration(raw: Any, *, index: int, seen: set[str]) -> dict[str, str]:
