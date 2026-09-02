@@ -6,6 +6,7 @@ import {
   PenLine,
   ScrollText,
   SquareCheckBig,
+  Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +30,7 @@ export const HomeSidebarContent = () => {
     { to: "/my-calendar", label: t("myCalendar"), icon: CalendarDays },
     { to: "/my-projects", label: t("myProjects"), icon: ListTodo },
     { to: "/my-documents", label: t("myDocuments"), icon: ScrollText },
+    { to: "/contacts", label: t("myContacts"), icon: Users },
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },
   ];
 

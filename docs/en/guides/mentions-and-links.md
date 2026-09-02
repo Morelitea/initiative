@@ -60,10 +60,10 @@ If what you pointed at is deleted, or was never shared with you, the reference k
 
 All three work in the same places: every **comment**, on every tool, and inside a **text document**.
 
-Inside a text document you can go further than a link: a **badge** shows what a thing is currently doing. See [Documents](documents.md#badges).
+Inside a text document you can go further than a link: a **smart chip** shows what a thing is currently doing. See [Documents](documents.md#smart-chips).
 
 ## Related
 
-- [Documents](documents.md) — including badges, which are a document feature
+- [Documents](documents.md) — including smart chips, which are a document feature
 - [Search & shortcuts](search-and-shortcuts.md)
 - [Notifications](notifications.md)

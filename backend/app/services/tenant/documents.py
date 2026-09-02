@@ -485,7 +485,7 @@ def extract_linked_document_ids(content: dict[str, Any] | None) -> set[int]:
 
     Walks the Lexical state for reference nodes naming a document. A reference
     to something else — a task, a queue — is not a document link and is left
-    out; a badge is a reading rather than a link and never counts.
+    out; a smart chip is a reading rather than a link and never counts.
     """
     if not isinstance(content, dict):
         return set()

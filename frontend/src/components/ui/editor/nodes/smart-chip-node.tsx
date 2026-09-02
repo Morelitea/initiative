@@ -9,7 +9,7 @@
  *
  * It still serializes `text`, and that is deliberate: the export renderers
  * degrade any node carrying `text` to its text, and the search index reads
- * `$.**.text`. So a badge exports and is findable by the label it had when it
+ * `$.**.text`. So a chip exports and is findable by the label it had when it
  * was inserted, while the app shows the live one. A PDF cannot poll.
  */
 
@@ -25,13 +25,13 @@ import {
 } from "lexical";
 import type { JSX } from "react";
 
-import type { BadgeKind } from "@/api/generated/initiativeAPI.schemas";
-import { BadgeChip } from "@/components/ui/editor/nodes/badge-chip";
-import { badgeRef, isBadgeKind } from "@/lib/badges";
+import type { SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
+import { SmartChip } from "@/components/ui/editor/nodes/smart-chip";
+import { chipRef, isSmartChipKind } from "@/lib/smartChips";
 
-export type SerializedBadgeNode = Spread<
+export type SerializedSmartChipNode = Spread<
   {
-    badgeKind: BadgeKind;
+    chipKind: SmartChipKind;
     entityId: number;
     /** The label as it read when inserted — what an export shows, and what the
      *  chip falls back to when the thing cannot be read. */
@@ -40,62 +40,66 @@ export type SerializedBadgeNode = Spread<
   SerializedLexicalNode
 >;
 
-const BADGE_ATTR = "data-lexical-badge";
+const CHIP_ATTR = "data-lexical-smart-chip";
 const ENTITY_ATTR = "data-entity-id";
 
-function $convertBadgeElement(domNode: HTMLElement): DOMConversionOutput | null {
-  const badgeKind = domNode.getAttribute(BADGE_ATTR);
+function $convertSmartChipElement(domNode: HTMLElement): DOMConversionOutput | null {
+  const chipKind = domNode.getAttribute(CHIP_ATTR);
   const entityId = Number(domNode.getAttribute(ENTITY_ATTR));
   // A pair this build does not know, or an id that is not one, is left as the
   // text it was rendering — better a stale word than a chip pointing nowhere.
-  if (!badgeKind || !isBadgeKind(badgeKind) || !Number.isFinite(entityId)) return null;
+  if (!chipKind || !isSmartChipKind(chipKind) || !Number.isFinite(entityId)) return null;
   return {
-    node: $createBadgeNode(badgeKind, entityId, domNode.textContent ?? ""),
+    node: $createSmartChipNode(chipKind, entityId, domNode.textContent ?? ""),
   };
 }
 
-export class BadgeNode extends DecoratorNode<JSX.Element> {
-  __badgeKind: BadgeKind;
+export class SmartChipNode extends DecoratorNode<JSX.Element> {
+  __chipKind: SmartChipKind;
   __entityId: number;
   __text: string;
 
   static getType(): string {
-    return "document-badge";
+    return "smart-chip";
   }
 
-  static clone(node: BadgeNode): BadgeNode {
-    return new BadgeNode(node.__badgeKind, node.__entityId, node.__text, node.__key);
+  static clone(node: SmartChipNode): SmartChipNode {
+    return new SmartChipNode(node.__chipKind, node.__entityId, node.__text, node.__key);
   }
 
-  static importJSON(serialized: SerializedBadgeNode): BadgeNode {
-    return $createBadgeNode(serialized.badgeKind, serialized.entityId, serialized.text);
+  static importJSON(serialized: SerializedSmartChipNode): SmartChipNode {
+    return $createSmartChipNode(serialized.chipKind, serialized.entityId, serialized.text);
   }
 
-  constructor(badgeKind: BadgeKind, entityId: number, text: string, key?: NodeKey) {
+  constructor(chipKind: SmartChipKind, entityId: number, text: string, key?: NodeKey) {
     super(key);
-    this.__badgeKind = badgeKind;
+    this.__chipKind = chipKind;
     this.__entityId = entityId;
     this.__text = text;
   }
 
-  exportJSON(): SerializedBadgeNode {
+  exportJSON(): SerializedSmartChipNode {
     return {
       ...super.exportJSON(),
-      badgeKind: this.__badgeKind,
+      chipKind: this.__chipKind,
       entityId: this.__entityId,
       text: this.__text,
-      type: "document-badge",
+      type: "smart-chip",
       version: 1,
     };
   }
 
-  /** The reference this chip reads — what the plugin collects and asks for. */
+  /** The reference this chip reads — what the scope collects and asks for. */
   getRef(): string {
-    return badgeRef(this.__badgeKind, this.__entityId);
+    return chipRef(this.__chipKind, this.__entityId);
   }
 
-  getBadgeKind(): BadgeKind {
-    return this.__badgeKind;
+  getChipKind(): SmartChipKind {
+    return this.__chipKind;
+  }
+
+  getEntityId(): number {
+    return this.__entityId;
   }
 
   getTextContent(): string {
@@ -114,25 +118,25 @@ export class BadgeNode extends DecoratorNode<JSX.Element> {
 
   exportDOM(): DOMExportOutput {
     const element = document.createElement("span");
-    element.setAttribute(BADGE_ATTR, this.__badgeKind);
+    element.setAttribute(CHIP_ATTR, this.__chipKind);
     element.setAttribute(ENTITY_ATTR, String(this.__entityId));
     element.textContent = this.__text;
     return { element };
   }
 
-  /** Reads back what `exportDOM` wrote, so a badge survives being copied and
+  /** Reads back what `exportDOM` wrote, so a chip survives being copied and
    *  pasted as a live chip rather than arriving as the words it happened to
    *  show. */
   static importDOM(): DOMConversionMap | null {
     return {
       span: (domNode: HTMLElement) => {
-        if (!domNode.hasAttribute(BADGE_ATTR)) return null;
-        return { conversion: $convertBadgeElement, priority: 1 };
+        if (!domNode.hasAttribute(CHIP_ATTR)) return null;
+        return { conversion: $convertSmartChipElement, priority: 1 };
       },
     };
   }
 
-  /** Inline: a badge sits in a sentence, not between paragraphs. */
+  /** Inline: a chip sits in a sentence, not between paragraphs. */
   isInline(): true {
     return true;
   }
@@ -143,15 +147,19 @@ export class BadgeNode extends DecoratorNode<JSX.Element> {
 
   decorate(): JSX.Element {
     return (
-      <BadgeChip badgeKind={this.__badgeKind} entityId={this.__entityId} fallback={this.__text} />
+      <SmartChip chipKind={this.__chipKind} entityId={this.__entityId} fallback={this.__text} />
     );
   }
 }
 
-export function $createBadgeNode(badgeKind: BadgeKind, entityId: number, text: string): BadgeNode {
-  return new BadgeNode(badgeKind, entityId, text);
+export function $createSmartChipNode(
+  chipKind: SmartChipKind,
+  entityId: number,
+  text: string
+): SmartChipNode {
+  return new SmartChipNode(chipKind, entityId, text);
 }
 
-export function $isBadgeNode(node: LexicalNode | null | undefined): node is BadgeNode {
-  return node instanceof BadgeNode;
+export function $isSmartChipNode(node: LexicalNode | null | undefined): node is SmartChipNode {
+  return node instanceof SmartChipNode;
 }

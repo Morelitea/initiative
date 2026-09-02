@@ -46,11 +46,9 @@ def test_a_reference_to_something_that_is_not_a_document_is_not_a_document_link(
     assert extract_linked_document_ids(content) == set()
 
 
-def test_a_badge_is_a_reading_not_a_link():
-    """A badge shows what something is doing; it does not point at a page."""
-    content = _doc(
-        {"type": "document-badge", "badgeKind": "task:status", "entityId": 9}
-    )
+def test_a_chip_is_a_reading_not_a_link():
+    """A chip shows what something is doing; it does not point at a page."""
+    content = _doc({"type": "smart-chip", "chipKind": "task:status", "entityId": 9})
     assert extract_linked_document_ids(content) == set()
 
 

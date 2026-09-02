@@ -11,8 +11,8 @@
  */
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
-import { referenceRef } from "@/lib/badges";
 import { typeForTrigger } from "@/lib/mentions";
+import { referenceRef } from "@/lib/smartChips";
 
 //: `#task[Label](12)` — the trigger word, then a label, then the id.
 const ENTITY_PATTERN = /#([\w-]+)\[[^\]]*\]\((\d+)\)/g;

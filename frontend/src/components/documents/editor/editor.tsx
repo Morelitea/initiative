@@ -12,6 +12,7 @@ import type * as Y from "yjs";
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { SmartChipScope } from "@/hooks/useSmartChips";
 import { getUserColorHsl } from "@/lib/userColor";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -113,44 +114,49 @@ export function Editor({
           </div>
         </div>
       )}
-      <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
-        <TooltipProvider>
-          <Plugins
-            showToolbar={showToolbar}
-            readOnly={readOnly}
-            collaborative={useCollaborativeMode}
-            cursorsContainerRef={cursorsContainerRef}
-            initiativeId={initiativeId}
-            supportsEntityMentions={supportsEntityMentions}
-            onWikilinkNavigate={onWikilinkNavigate}
-            onCreateReferencedThing={onCreateReferencedThing}
-          />
-
-          {useCollaborativeMode && providerFactory && (
-            <LexicalCollaboration>
-              <CollaborationPlugin
-                id="main"
-                providerFactory={providerFactory}
-                initialEditorState={initialEditorStateForCollab}
-                shouldBootstrap={true}
-                username={userName}
-                cursorColor={userColor.current}
-                cursorsContainerRef={cursorsContainerRef}
-              />
-            </LexicalCollaboration>
-          )}
-
-          {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
-            <OnChangePlugin
-              ignoreSelectionChange={true}
-              onChange={(editorState) => {
-                onChange?.(editorState);
-                onSerializedChange?.(editorState.toJSON());
-              }}
+      {/* Outside the composer on purpose: chips and references render as Lexical
+          decorators, which the composer portals in itself. Only something above
+          it is an ancestor of all of them. */}
+      <SmartChipScope>
+        <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
+          <TooltipProvider>
+            <Plugins
+              showToolbar={showToolbar}
+              readOnly={readOnly}
+              collaborative={useCollaborativeMode}
+              cursorsContainerRef={cursorsContainerRef}
+              initiativeId={initiativeId}
+              supportsEntityMentions={supportsEntityMentions}
+              onWikilinkNavigate={onWikilinkNavigate}
+              onCreateReferencedThing={onCreateReferencedThing}
             />
-          )}
-        </TooltipProvider>
-      </LexicalExtensionComposer>
+
+            {useCollaborativeMode && providerFactory && (
+              <LexicalCollaboration>
+                <CollaborationPlugin
+                  id="main"
+                  providerFactory={providerFactory}
+                  initialEditorState={initialEditorStateForCollab}
+                  shouldBootstrap={true}
+                  username={userName}
+                  cursorColor={userColor.current}
+                  cursorsContainerRef={cursorsContainerRef}
+                />
+              </LexicalCollaboration>
+            )}
+
+            {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
+              <OnChangePlugin
+                ignoreSelectionChange={true}
+                onChange={(editorState) => {
+                  onChange?.(editorState);
+                  onSerializedChange?.(editorState.toJSON());
+                }}
+              />
+            )}
+          </TooltipProvider>
+        </LexicalExtensionComposer>
+      </SmartChipScope>
     </div>
   );
 }

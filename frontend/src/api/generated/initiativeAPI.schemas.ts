@@ -745,95 +745,6 @@ export interface BackupEstimate {
 }
 
 /**
- * The fact a badge is about.
- */
-export type BadgeAspect = (typeof BadgeAspect)[keyof typeof BadgeAspect];
-
-export const BadgeAspect = {
-  status: "status",
-  assignee: "assignee",
-  due: "due",
-  priority: "priority",
-  value: "value",
-  when: "when",
-} as const;
-
-export type BadgeKind = (typeof BadgeKind)[keyof typeof BadgeKind];
-
-export const BadgeKind = {
-  "calendar_event:when": "calendar_event:when",
-  "counter:value": "counter:value",
-  "task:assignee": "task:assignee",
-  "task:due": "task:due",
-  "task:priority": "task:priority",
-  "task:status": "task:status",
-} as const;
-
-export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
-
-export const SearchEntityType = {
-  calendar: "calendar",
-  calendar_event: "calendar_event",
-  comment: "comment",
-  counter: "counter",
-  counter_group: "counter_group",
-  dashboard: "dashboard",
-  document: "document",
-  project: "project",
-  queue: "queue",
-  queue_item: "queue_item",
-  tag: "tag",
-  task: "task",
-} as const;
-
-/**
- * How a chip is coloured when nothing more specific applies.
- *
- * The server decides this rather than the client, because what counts as
- * finished, late or urgent is a product rule and not a rendering detail. A
- * chip with its own colour — a task status carries one — sends that instead.
- */
-export type BadgeTone = (typeof BadgeTone)[keyof typeof BadgeTone];
-
-export const BadgeTone = {
-  neutral: "neutral",
-  muted: "muted",
-  good: "good",
-  warn: "warn",
-  danger: "danger",
-} as const;
-
-/**
- * One chip's current reading.
- *
- * ``text`` is always set, so a client that understands nothing else can still
- * render the chip. ``date`` and ``number`` are sent alongside it where the
- * value is one of those, because a date and a number belong in the reader's
- * own locale and only the client knows what that is.
- */
-export interface BadgeState {
-  ref: string;
-  entity_type: SearchEntityType;
-  aspect: BadgeAspect | null;
-  text: string;
-  tone: BadgeTone;
-  color: string | null;
-  date: string | null;
-  number: string | null;
-}
-
-/**
- * The chips that could be read.
- *
- * A ref that names nothing, or something this caller cannot see, is simply
- * absent: the two are the same answer, and the chip falls back to the label
- * the document already stored.
- */
-export interface BadgeStateList {
-  items: BadgeState[];
-}
-
-/**
  * How far a banner dissolves into the page beneath it.
  *
  * ``none`` ends the banner at an edge — a band with the page starting under
@@ -1709,6 +1620,48 @@ export interface CommunitySettingsUpdate {
   community_directory_enabled: boolean;
 }
 
+/**
+ * One person, on one row of the page.
+ *
+ * Inherits ``UserSummary``'s guild-name visibility: ``full_name`` survives
+ * only where the guild this row was read under renders real names, which the
+ * cross-guild loop sets per guild.
+ */
+export interface ContactRead {
+  id: number;
+  username: string;
+  discriminator: number;
+  full_name: string | null;
+  avatar_url: string | null;
+  status: UserStatus;
+  presence: Presence;
+  shared_guild_ids: number[];
+}
+
+/**
+ * One guild's roster, as one accordion section.
+ */
+export interface ContactGuildSection {
+  guild_id: number;
+  guild_name: string;
+  icon_url: string | null;
+  total_count: number;
+  items: ContactRead[];
+  has_next: boolean;
+}
+
+/**
+ * Every guild section, in the reader's own rail order.
+ *
+ * Paginated *within* each section rather than across a merged list: the
+ * response is grouped, so a flat offset would not mean anything.
+ */
+export interface ContactSectionsResponse {
+  sections: ContactGuildSection[];
+  page: number;
+  page_size: number;
+}
+
 export type CounterViewMode = (typeof CounterViewMode)[keyof typeof CounterViewMode];
 
 export const CounterViewMode = {
@@ -2433,6 +2386,17 @@ export interface FCMConfigResponse {
   application_id: string | null;
   api_key: string | null;
   sender_id: string | null;
+}
+
+/**
+ * The starred section.
+ *
+ * Not part of the guild aggregate: a favorite may be someone the reader
+ * shares no guild with, so it cannot come from a walk of their guilds.
+ */
+export interface FavoriteContactsResponse {
+  items: ContactRead[];
+  total_count: number;
 }
 
 /**
@@ -4471,6 +4435,23 @@ export interface RestoreResponse {
   restored: boolean;
 }
 
+export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
+
+export const SearchEntityType = {
+  calendar: "calendar",
+  calendar_event: "calendar_event",
+  comment: "comment",
+  counter: "counter",
+  counter_group: "counter_group",
+  dashboard: "dashboard",
+  document: "document",
+  project: "project",
+  queue: "queue",
+  queue_item: "queue_item",
+  tag: "tag",
+  task: "task",
+} as const;
+
 /**
  * One thing found.
  *
@@ -4507,6 +4488,79 @@ export interface SearchSuggestion {
   initiative_id?: number | null;
   tool?: Tool | null;
   tool_id?: number | null;
+}
+
+/**
+ * The fact a chip is about.
+ */
+export type SmartChipAspect = (typeof SmartChipAspect)[keyof typeof SmartChipAspect];
+
+export const SmartChipAspect = {
+  status: "status",
+  assignee: "assignee",
+  due: "due",
+  priority: "priority",
+  value: "value",
+  when: "when",
+} as const;
+
+export type SmartChipKind = (typeof SmartChipKind)[keyof typeof SmartChipKind];
+
+export const SmartChipKind = {
+  "calendar_event:when": "calendar_event:when",
+  "counter:value": "counter:value",
+  "task:assignee": "task:assignee",
+  "task:due": "task:due",
+  "task:priority": "task:priority",
+  "task:status": "task:status",
+} as const;
+
+/**
+ * How a chip is coloured when nothing more specific applies.
+ *
+ * The server decides this rather than the client, because what counts as
+ * finished, late or urgent is a product rule and not a rendering detail. A
+ * chip with its own colour — a task status carries one — sends that instead.
+ */
+export type SmartChipTone = (typeof SmartChipTone)[keyof typeof SmartChipTone];
+
+export const SmartChipTone = {
+  neutral: "neutral",
+  muted: "muted",
+  good: "good",
+  warn: "warn",
+  danger: "danger",
+} as const;
+
+/**
+ * One chip's current reading.
+ *
+ * ``text`` is always set, so a client that understands nothing else can still
+ * render the chip. ``date`` and ``number`` are sent alongside it where the
+ * value is one of those, because a date and a number belong in the reader's
+ * own locale and only the client knows what that is.
+ */
+export interface SmartChipState {
+  ref: string;
+  entity_type: SearchEntityType;
+  aspect: SmartChipAspect | null;
+  text: string;
+  title: string | null;
+  tone: SmartChipTone;
+  color: string | null;
+  date: string | null;
+  number: string | null;
+}
+
+/**
+ * The chips that could be read.
+ *
+ * A ref that names nothing, or something this caller cannot see, is simply
+ * absent: the two are the same answer, and the chip falls back to the label
+ * the document already stored.
+ */
+export interface SmartChipStateList {
+  items: SmartChipState[];
 }
 
 export type StorageBackfillStatusResponseStatus =
@@ -6504,9 +6558,9 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
   limit?: number;
 };
 
-export type ReadBadgesApiV1GGuildIdDocumentBadgesGetParams = {
+export type ReadSmartChipsApiV1GGuildIdSmartChipsGetParams = {
   /**
-   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no badge are ignored. Available: calendar_event:when, counter:value, task:assignee, task:due, task:priority, task:status
+   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, task:assignee, task:due, task:priority, task:status
    * @maxItems 100
    */
   ref?: string[];
@@ -6673,4 +6727,28 @@ export type GetUserStatsApiV1MeStatsGetParams = {
    * @maximum 365
    */
   days?: number;
+};
+
+export type ListContactSectionsApiV1MeContactsGetParams = {
+  /**
+   * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
+   */
+  search?: string | null;
+  guild_ids?: number[] | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListFavoriteContactsApiV1MeContactsFavoritesGetParams = {
+  /**
+   * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
+   */
+  search?: string | null;
 };

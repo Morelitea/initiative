@@ -1,7 +1,7 @@
 """What can be referred to, and how a reference is resolved.
 
-A `#` link, a `[[ ]]` link and a badge all name the same thing: one row, in one
-guild schema. Resolving one asks two questions — *what is it called now* and
+A `#` link, a `[[ ]]` link and a smart chip all name the same thing: one row,
+in one guild schema. Resolving one asks two questions — *what is it called now* and
 *may this request see it* — and neither answer is written down here.
 
 Both come from :data:`~app.db.search_index.SEARCH_SOURCES`, which every

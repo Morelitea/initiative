@@ -18,7 +18,6 @@ import { TreeViewPlugin } from "@/components/ui/editor/plugins/actions/tree-view
 import { CodeActionMenuPlugin } from "@/components/ui/editor/plugins/code-action-menu-plugin";
 import { ComponentPickerMenuPlugin } from "@/components/ui/editor/plugins/component-picker-menu-plugin";
 import { ContextMenuPlugin } from "@/components/ui/editor/plugins/context-menu-plugin";
-import { DocumentBadgesPlugin } from "@/components/ui/editor/plugins/document-badges-plugin";
 import { DragDropPastePlugin } from "@/components/ui/editor/plugins/drag-drop-paste-plugin";
 import { DraggableBlockPlugin } from "@/components/ui/editor/plugins/draggable-block-plugin";
 import { AutoEmbedPlugin } from "@/components/ui/editor/plugins/embeds/auto-embed-plugin";
@@ -32,7 +31,6 @@ import { LegacyNodesPlugin } from "@/components/ui/editor/plugins/legacy-nodes-p
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
-import { BadgePickerPlugins } from "@/components/ui/editor/plugins/picker/badge-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
 import { CheckListPickerPlugin } from "@/components/ui/editor/plugins/picker/check-list-picker-plugin";
 import { CodePickerPlugin } from "@/components/ui/editor/plugins/picker/code-picker-plugin";
@@ -44,10 +42,12 @@ import { ImagePickerPlugin } from "@/components/ui/editor/plugins/picker/image-p
 import { NumberedListPickerPlugin } from "@/components/ui/editor/plugins/picker/numbered-list-picker-plugin";
 import { ParagraphPickerPlugin } from "@/components/ui/editor/plugins/picker/paragraph-picker-plugin";
 import { QuotePickerPlugin } from "@/components/ui/editor/plugins/picker/quote-picker-plugin";
+import { SmartChipPickerPlugins } from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
 import {
   DynamicTablePickerPlugin,
   TablePickerPlugin,
 } from "@/components/ui/editor/plugins/picker/table-picker-plugin";
+import { SmartChipRefsPlugin } from "@/components/ui/editor/plugins/smart-chip-refs-plugin";
 import { TabFocusPlugin } from "@/components/ui/editor/plugins/tab-focus-plugin";
 import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
 import { FormatBulletedList } from "@/components/ui/editor/plugins/toolbar/block-format/format-bulleted-list";
@@ -62,6 +62,7 @@ import { InsertColumnsLayout } from "@/components/ui/editor/plugins/toolbar/bloc
 import { InsertEmbeds } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-embeds";
 import { InsertHorizontalRule } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-horizontal-rule";
 import { InsertImage } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-image";
+import { InsertSmartChip } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-smart-chip";
 import { InsertTable } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-table";
 import { BlockInsertPlugin } from "@/components/ui/editor/plugins/toolbar/block-insert-plugin";
 import { ClearFormattingToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/clear-formatting-toolbar-plugin";
@@ -170,6 +171,7 @@ export function Plugins({
                       <InsertTable />
                       <InsertColumnsLayout />
                       <InsertEmbeds />
+                      {supportsEntityMentions && <InsertSmartChip initiativeId={initiativeId} />}
                     </BlockInsertPlugin>
                   </>
                 )}
@@ -188,7 +190,14 @@ export function Plugins({
                   <FormatCodeBlock />
                   <FormatQuote />
                 </BlockFormatDropDown>
-                {blockType === "code" ? <CodeLanguageToolbarPlugin /> : <ToolbarOverflowMenu />}
+                {blockType === "code" ? (
+                  <CodeLanguageToolbarPlugin />
+                ) : (
+                  <ToolbarOverflowMenu
+                    initiativeId={initiativeId}
+                    supportsSmartChips={supportsEntityMentions}
+                  />
+                )}
               </div>
             </>
           )}
@@ -217,7 +226,7 @@ export function Plugins({
 
         <LegacyNodesPlugin />
         <MentionsPlugin initiativeId={initiativeId ?? undefined} />
-        {supportsEntityMentions && <DocumentBadgesPlugin />}
+        {supportsEntityMentions && <SmartChipRefsPlugin />}
         {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}
         <WikilinksPlugin
           initiativeId={initiativeId}
@@ -251,7 +260,7 @@ export function Plugins({
             EmbedsPickerPlugin({ embed: "youtube-video" }),
             ImagePickerPlugin(),
             // Live chips, offered where `#` is: prose only.
-            ...(supportsEntityMentions ? BadgePickerPlugins(t, initiativeId) : []),
+            ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
             ColumnsLayoutPickerPlugin(),
             AlignmentPickerPlugin({ alignment: "left" }),
             AlignmentPickerPlugin({ alignment: "center" }),

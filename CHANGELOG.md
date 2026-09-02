@@ -9,70 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Fourteen more packs, and one of them is everybody's.** Sports gathers eight games under one listing. Pets brings cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters. Multicultural is thirty-two flags drawn as roundels and the bunting to hang them from. Travel has the monuments and every way of arriving — plane, ship, train, car, bicycle. First Nations has stepped weaving, a star quilt and an orca built from crescents and trigons, with the red handprint, an eagle feather and the medicine wheel. Black heritage has strip-woven cloth, cowries, the raised fist, Sankofa and the pick. Then Books, Tea, Drama, Cinema, Zen and Gaming, which now covers the table as well as the screen.
+- **My Contacts.** Everyone you share a community with, on one page. Favorites you picked at the top, then each of your communities in the order you dragged them into the rail, as sections you can collapse. Somebody in several of your communities is listed under each of them, and their row shows small icons for the others. Star anyone — including people you share no community with — to keep them at the top; starring is private and tells them nothing. One search box covers the whole page.
 
-- **The pride pack flies more than one flag.** Non-binary, trans, lesbian, gay, bisexual, asexual and polyamorous each get a banner, a frame and a heart of their own, alongside the Progress flag that was already there. Two-Spirit — two feathers hanging over the six colours — is in the First Nations pack, on a banner and a trophy.
+- **People have profiles.** A page of your own with your picture, your handle and what you're up to — a status emoji and line, both optional, set by clicking the bubble rather than filling in a form. Around it goes a look you choose in Settings › Profile: a banner across the top, a frame on your picture, and a rail of trophies under the banner, in the same shape a community's front page has. It travels with you — the frame and the status show in the sidebar and beside every comment you write — and the settings tab previews the card a stranger sees as you build it. A profile also lists the communities you share, of the ones that opted into the directory.
 
-- **A pack card opens.** Click one in the marketplace and you get everything in it, grouped by slot and named — a card can show one banner, one frame and one trophy, and some packs now hold thirty-four pieces. The packs you already have open the same way from their name.
-
-- **Two frames whose colour is yours.** The gilded frame takes a colour and the new split frame takes two, picked in Settings › Profile and drawn from what you chose rather than served as a fixed picture. Only the frames that ship with the app: a pack's artwork is the pack's.
-- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
-
-- **Nine sports packs.** Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis, martial arts and fencing, each with the ground it is played on for a banner, a frame made of the equipment, and the object itself for a badge — a match ball's panels, a football's lacing, a face-off circle, a baseball's seam, a net, a string bed, a belt tied at the bottom, and a blade bent round to its own guard.
-
-- **A profile says which communities someone is in.** Only the ones that opted into the community directory — a community that never listed itself does not appear on anybody's profile, for anyone.
-
-- **Frames and the presence dot follow people around.** The picture beside a comment, the one at the bottom of the sidebar and the one on a profile are drawn by the same component now, so a frame you put on shows wherever you appear at a size it reads at, and the green dot with it.
-
-- **Three more decoration packs: Mushrooms, Spooky and Pride.** Mushrooms is for foragers and anyone who stops a walk to look at a log — the badge is a morel, pitted cap and hollow stem, and the frame is the moss and twigs it came up through. Spooky is cobwebs, lantern light and something in the trees, with a web for a frame and a spider still patrolling it. Pride carries the Progress flag in full on its banner and the heart on its badge. Badges are drawn at twice the detail they were and shown at a size that detail survives.
-
-- **Set your status where you read it.** Your status is a thought bubble on your own profile and at the bottom of the sidebar, and clicking either one opens it: the emoji and the line together, both optional, saved on the spot. No form, and no second place that has to agree with the first. Changing your picture works the same way — click the picture.
+- **A wardrobe to fill it from.** Seventeen packs ship with the app — Sports, Pets, Pride, Multicultural, Travel, First Nations, Black heritage, Gaming, Books, Tea, Drama, Cinema, Zen, Mushrooms, Spooky, Observatory and Soundcheck — each with banners, frames and trophies you can wear in any combination. Pride carries a flag, a frame and a heart for seven identities; Multicultural carries thirty-two flags. Take a pack in the marketplace and click any card to see everything in it. Two frames leave their colour to you: the gilded one takes a colour and the split one takes two.
 
 - **Search that finds everything in a community, and reads inside it.** ⌘K and a results page of its own reach projects, tasks, documents, queues, counters, calendars, dashboards, tags, comments and people — matching names, descriptions, and the words inside a document, whiteboard or spreadsheet. Results are ranked, show the line that matched, and answer before you finish a word; a misspelling is offered the closest names rather than an empty page. Archived work is kept back unless you switch it on.
 
 - **Point at other work from anywhere you write.** `@` names a person, `#` names anything that exists, and `[[ ]]` names a tool — and offers to make one that doesn't exist yet, in place, without leaving the sentence. All three work in every comment and in text documents. References keep up: rename a task and every sentence mentioning it says the new name, with nobody editing anything. A document's backlinks count them all, not just `[[ ]]` links.
 
-- **Badges: a chip that keeps itself current.** Type `/` in a document and pick a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip shows what that thing is doing right now — move a task to Done and it turns green in every document that mentions it. Click one to open what it's about.
+- **Smart chips: a chip that keeps itself current.** Type `/` in a document, or pick **Smart chip** from the toolbar's insert menu, and choose a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip carries the reading itself — `In progress`, `42 / 100`, `12 Sep` — so it sits in a sentence without repeating what the sentence already says; hover it for what the thing is called now and what kind of thing it is, and click to open it. Move a task to Done and it turns green in every document that mentions it.
 
 - **Comments grew up.** React with an emoji (the author hears about it in a digest, not one ping per thumbs-up), turn comments off per tool under Settings › Advanced, and read them through the MCP server as well as write them.
 
-- **People have profiles.** A page of their own with their picture, handle and what they're up to — a status emoji and line under Settings › Profile — plus a banner, a picture frame and a row of badges picked from your library. Settings previews the card other people see as you build it, your frame travels with you into the sidebar, and the marketplace has a personal half to fill that library from.
+- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
 
 - **An initiative's status columns can be read in one request**, instead of asking project by project and stitching the answers together.
 
 - **Say how you're around, or don't.** A dot under your picture in the sidebar opens the four states: online, idle, busy, or offline. Offline means offline — nobody sees you as here, whatever you have open. Idle sets itself once nothing has been touched for a while, and you can also pick it outright to say you have stepped away. The same dot on your profile card in Settings › Profile opens the same menu.
 
 ### Changed
-
-- **Badges are trophies.** The word was doing too much — a badge is also the chip in a document and the count on a tab — so the thing you wear beside your name has its own name now, top to bottom: the API field, the picker, the artwork folder.
-
-- **Trophies sit under the banner, in a rail.** The same rail a community puts its tools in, under the same banner, with each trophy's name printed on the tray under it. A row of small marks in a corner was a row nobody read.
-
-- **Tabletop and Soundcheck are drawn rather than pixelled.** A table an hour into the session — the map out, two dice settled, one still going — and the room before doors, with the meter running the back wall behind the mic. The last two packs still on a grid.
-
-- **The cobweb is spun, and the mushroom frame is a nest.** The web's spokes are uneven and one patch of silk lies over the edge of the picture; the spider has gone. The overgrown frame is loops of twig with ends poking out and moss along the top, which is the side the light reaches.
-
-- **The sports banners play.** The ball rolls across the pitch and back, the kick goes through the uprights, the shot drops through the net, the volley and the rally cross the net and return, and the baseball diamond is seen from the box with one leaving the park.
-
-- **Your library is in alphabetical order.** The pickers listed what ships with the app first and then everything else in the order you acquired it, which stopped being an order at about the fourth pack.
-
-- **The Spooky and Observatory packs are drawn rather than pixelled.** Spooky is a hollow between two dead trees lit by two things and nothing else — a moon that rims everything in silver and a lantern that rims the near side of everything in orange — with a graveyard, railings, a raven on a branch and a web with its tenant on the other side. Observatory is a dome with its shutter open and the barrel out of it, aimed at a ringed planet, under a shell diagram joined up in stars. Both are composed for where a banner is actually cropped: dead centre on a phone, and above the fade on every screen.
-
-- **Badges are shown at the size a tool is shown at.** A badge is a thing you collect, and a row of them at icon size reads as a row of icons — so they are drawn at the guild tool rail's circle size, welded to their tray by the same filter it uses. The number-one-fan badge is a prize rosette now, with the app's mark in the medallion and "#1 FAN" on the ribbon, which is what a number one comes on.
-
-- **The mushrooms grow properly now.** The Mushrooms pack was drawn on a pixel grid, which a mushroom does not have — a cap is a dome and a stem is a taper. It is all curves, and it is a forest floor rather than the same mushroom three times: a morel, a fly agaric, a cluster of little brown ones, and bracket fungus on a fallen log.
-
-- **The sidebar's status bubble moved over to make room.** It keeps the left, under the face it is a thought of, and gives up the width it was not using; the presence dot took the space that freed on the right. The picture above no longer carries a dot of its own, because the one below it is the one you can click.
-
-- **Your status is a thought bubble, and it sits with the face thinking it.** Two dots trail from the bubble toward your picture — above the picture on your profile, below it in the sidebar, so they always run the right way.
-
-- **Badges read on any banner.** A row of dark discs laid on a night-sky banner was a row you could not see. They sit on a tray now, welded to it by the same goo filter the community tool rail uses, so a set of badges reads as one collection at any brightness.
-
-- **Your profile page is built like a community's front page.** The banner runs the full width of the content area with your handle on it and your badges in the corner, fading into the page the way a community's does, and your picture sits over the tail of it. What a community's admin chooses there, a decoration declares here.
-
-- **Settings › Profile is now the face, and Account is the account.** The profile tab is the preview card, your look, and your packs, in that order. Your real name and your timezone moved to Account, beside your address and your handle — nothing on the profile tab is private, and nothing on Account is visible to anyone else.
-
-- **Badges are earned, not issued.** The three that shipped with every account are gone; the only one left by default is Initiative's own mark, for being here. Every other badge comes from a pack, which is what makes it a sign of belonging to something.
 
 - **Guilds are now communities.** The name was picked for gaming guilds, and people turned out to be running far more than that. Pages moved from `/g/…` to `/c/…`, and a new install's first community is called "Primary Community".
 
@@ -101,14 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 
 ### Fixed
-
-- **Giving a decoration pack back leaves a look that still works.** Its banner and frame come off — back to a bare profile, which is what they were before you had them — and its badge leaves the row. A piece that also ships with the app, or that you had picked but not yet saved, is handled too: what the pickers show is what the library still answers for, so there is no way to be left wearing something you no longer have.
-
-- **Decorations that spin, spin where they are.** The observatory's shells, the vinyl record, the spectrum frame and the soundcheck meter all turned around a point that was not on the artwork, so they wandered across the banner instead of rotating in place. Each one now says which box its centre is measured in.
-
-- **Your profile said you were offline while you were reading it.** Presence was fed only by the socket a tab opens inside a community, so anyone looking at a profile, their settings, or their own tasks read as offline to everyone. It now follows the notification stream as well, which is open on every page for as long as you are signed in — which is what "has Initiative open" was always meant to mean.
-
-- **Frames sit on the picture, not around it.** Every frame is drawn to one aperture, so the artwork meets the edge exactly instead of floating clear of it or covering the face — Vinyl had been painting over the whole picture.
 
 - **The community calendar shows its calendars** and offers to add one, instead of opening straight onto a grid of events.
 
