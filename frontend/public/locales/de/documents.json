@@ -331,6 +331,9 @@
   },
   "references": {
     "gone": "Gelöscht",
+    "noMatches": "Nichts in dieser Initiative passt zu „{{query}}“.",
+    "scopeHint": "Hier lässt sich nur die Initiative dieses Dokuments benennen.",
+    "searching": "Suche läuft …",
     "unavailable": "Das ist für dich nicht mehr verfügbar"
   },
   "settings": {
@@ -393,9 +396,15 @@
     "counterValue": "Zählerstand",
     "eventWhen": "Termindatum",
     "insert": "Smart-Chip",
+    "noInitiative": "Dieses Dokument gehört zu keiner Initiative, also gibt es noch nichts zum Verweisen.",
+    "noMatches": "Nichts in dieser Initiative passt zu „{{query}}“.",
     "none": "Keine",
+    "nothingYet": "In dieser Initiative gibt es noch nichts, worauf verwiesen werden kann.",
     "openHint": "Zum Öffnen klicken",
+    "recent": "Zuletzt bearbeitet",
+    "scopeHint": "Hier lässt sich nur die Initiative dieses Dokuments benennen.",
     "searchPlaceholder": "Suche etwas zum Anzeigen",
+    "searching": "Suche läuft …",
     "taskAssignee": "Zuständige Person",
     "taskDue": "Fälligkeitsdatum",
     "taskPriority": "Priorität",

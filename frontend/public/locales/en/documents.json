@@ -331,6 +331,9 @@
   },
   "references": {
     "gone": "Deleted",
+    "noMatches": "Nothing in this initiative matches “{{query}}”.",
+    "scopeHint": "Only this document’s initiative can be named here.",
+    "searching": "Searching…",
     "unavailable": "This is no longer available to you"
   },
   "settings": {
@@ -393,9 +396,15 @@
     "counterValue": "Counter value",
     "eventWhen": "Event date",
     "insert": "Smart chip",
+    "noInitiative": "This document isn’t in an initiative, so there is nothing to point at yet.",
+    "noMatches": "Nothing in this initiative matches “{{query}}”.",
     "none": "None",
+    "nothingYet": "Nothing in this initiative to point at yet.",
     "openHint": "Click to open",
+    "recent": "Recently edited",
+    "scopeHint": "Only this document’s initiative can be named here.",
     "searchPlaceholder": "Search for something to show",
+    "searching": "Searching…",
     "taskAssignee": "Task assignee",
     "taskDue": "Task due date",
     "taskPriority": "Task priority",

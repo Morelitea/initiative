@@ -77,6 +77,39 @@ async def search_guild(
     )
 
 
+@router.get("/recent", response_model=List[SearchSuggestion])
+async def recent_guild(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    types: Optional[List[SearchEntityType]] = Query(
+        default=None, description=_TYPE_DESCRIPTION
+    ),
+    initiative_id: Optional[int] = Query(
+        default=None, description="Restrict to one initiative."
+    ),
+    template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
+    limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
+) -> List[SearchSuggestion]:
+    """What a picker offers before anything has been typed.
+
+    The most recently changed things the caller could name, taking the same
+    ``types``, ``initiative_id`` and ``template`` narrowing as the search — so
+    what a picker suggests and what it finds are the same set of things.
+    """
+    return await search_service.recent(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        filters=search_service.Filters(
+            types=types,
+            initiative_id=initiative_id,
+            template=template,
+        ),
+        limit=limit,
+    )
+
+
 @router.get("/suggest", response_model=List[SearchSuggestion])
 async def suggest_guild(
     session: RLSSessionDep,

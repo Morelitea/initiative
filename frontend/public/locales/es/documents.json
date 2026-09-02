@@ -331,6 +331,9 @@
   },
   "references": {
     "gone": "Eliminado",
+    "noMatches": "Nada en esta iniciativa coincide con «{{query}}».",
+    "scopeHint": "Aquí solo se puede nombrar la iniciativa de este documento.",
+    "searching": "Buscando…",
     "unavailable": "Esto ya no está disponible para ti"
   },
   "settings": {
@@ -393,9 +396,15 @@
     "counterValue": "Valor del contador",
     "eventWhen": "Fecha del evento",
     "insert": "Chip inteligente",
+    "noInitiative": "Este documento no pertenece a ninguna iniciativa, así que todavía no hay nada a lo que apuntar.",
+    "noMatches": "Nada en esta iniciativa coincide con «{{query}}».",
     "none": "Ninguno",
+    "nothingYet": "Todavía no hay nada en esta iniciativa a lo que apuntar.",
     "openHint": "Haz clic para abrir",
+    "recent": "Editado recientemente",
+    "scopeHint": "Aquí solo se puede nombrar la iniciativa de este documento.",
     "searchPlaceholder": "Busca algo que mostrar",
+    "searching": "Buscando…",
     "taskAssignee": "Persona asignada",
     "taskDue": "Fecha de vencimiento",
     "taskPriority": "Prioridad",

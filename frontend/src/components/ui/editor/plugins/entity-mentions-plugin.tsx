@@ -8,6 +8,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { CLICK_COMMAND, COMMAND_PRIORITY_LOW, type TextNode } from "lexical";
 import { type JSX, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
@@ -66,6 +67,7 @@ export function EntityMentionsPlugin({
   initiativeId,
 }: EntityMentionsPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
+  const { t } = useTranslation("documents");
   const navigate = useNavigate();
   const guildId = useActiveGuildId();
   const [queryString, setQueryString] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function EntityMentionsPlugin({
 
   // The one lookup every picker in the app goes through, narrowed to this
   // initiative's live work.
-  const { data } = useGuildSearchSuggest(debouncedQuery, {
+  const { data, isFetching, isPlaceholderData } = useGuildSearchSuggest(debouncedQuery, {
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     template: false,
@@ -92,13 +94,19 @@ export function EntityMentionsPlugin({
   // faster than the answer can arrive, though, so what is on screen is held to
   // the kinds asked for now — pressing Enter can only ever insert one of them.
   const wanted = active?.types;
-  const options = useMemo(
+  const shown = useMemo(
     () =>
       (data ?? [])
         .filter((suggestion) => !wanted || wanted.includes(suggestion.entity_type))
         .map((suggestion) => new EntityOption(suggestion)),
     [data, wanted]
   );
+  // What is on screen is the previous query's answer while the next is in
+  // flight. It stays visible so the menu does not blink shut, but it is not an
+  // answer to what has been typed now — so nothing here is offered to the
+  // keyboard, and Enter cannot land on a thing the reader has stopped naming.
+  const stale = isPlaceholderData;
+  const options = useMemo(() => (stale ? [] : shown), [stale, shown]);
 
   const onSelectOption = useCallback(
     (option: EntityOption, nodeToReplace: TextNode | null, closeMenu: () => void) => {
@@ -148,29 +156,49 @@ export function EntityMentionsPlugin({
       triggerFn={entityMatch}
       options={options}
       menuRenderFn={(anchorElementRef, { selectedIndex, selectOptionAndCleanUp }) =>
-        anchorElementRef.current && options.length
+        anchorElementRef.current
           ? createPortal(
               <div className="absolute z-10 w-[260px] rounded-md shadow-md">
                 <Command>
                   <CommandList>
-                    <CommandGroup>
-                      {options.map((option, index) => {
-                        const Icon = hitIcon(option.suggestion);
-                        return (
-                          <CommandItem
-                            key={option.key}
-                            value={option.key}
-                            onSelect={() => selectOptionAndCleanUp(option)}
-                            className={`flex items-center gap-2 ${
-                              selectedIndex === index ? "bg-accent" : "bg-transparent!"
-                            }`}
-                          >
-                            <Icon className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{option.suggestion.title}</span>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
+                    {shown.length ? (
+                      <CommandGroup>
+                        {shown.map((option, index) => {
+                          const Icon = hitIcon(option.suggestion);
+                          return (
+                            <CommandItem
+                              key={option.key}
+                              value={option.key}
+                              onSelect={() => !stale && selectOptionAndCleanUp(option)}
+                              disabled={stale}
+                              className={`flex items-center gap-2 ${
+                                selectedIndex === index ? "bg-accent" : "bg-transparent!"
+                              } ${stale ? "opacity-50" : ""}`}
+                            >
+                              <Icon className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{option.suggestion.title}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    ) : (
+                      // Rendering nothing here is what made `#` look broken: a
+                      // reference is scoped to this document's initiative, so a
+                      // guild full of matches can still leave a reader staring
+                      // at an unchanged caret with no idea why.
+                      <div className="space-y-1 px-3 py-2">
+                        <p className="text-muted-foreground text-sm">
+                          {isFetching
+                            ? t("references.searching")
+                            : t("references.noMatches", { query: active?.query ?? "" })}
+                        </p>
+                        {!isFetching && (
+                          <p className="text-muted-foreground/80 text-xs">
+                            {t("references.scopeHint")}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </CommandList>
                 </Command>
               </div>,
