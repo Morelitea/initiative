@@ -9,33 +9,32 @@
     @keyframes slide { from { transform: translateX(0) } to { transform: translateX(-40px) } }
     .shimmer { animation: glimmer 6s ease-in-out infinite alternate }
     @keyframes glimmer { from { opacity: .3 } to { opacity: .68 } }
-    /* The sun goes down behind the ridge over about a minute, and comes back
-       up. Three washes cross-fade over the sky as it drops — gold first, then
+    /* The sun goes down behind the ridge and comes back up. Three washes cross-fade over the sky as it drops — gold first, then
        ember, then night — so the colour of the sky is what tells you how far
        down it has got. The water takes the last of it. */
-    .sink { animation: setting 56s ease-in-out infinite alternate }
+    .sink { animation: setting 17s ease-in-out infinite alternate }
     @keyframes setting { from { transform: translateY(-2px) scale(1) }
                          to { transform: translateY(9.5px) scale(1.18) } }
-    .rise { animation: rising 56s ease-in-out infinite alternate }
+    .rise { animation: rising 17s ease-in-out infinite alternate }
     @keyframes rising { from { transform: translateY(-2px) scaleY(.9); opacity: .5 }
                         to { transform: translateY(-9.5px) scaleY(1.5); opacity: 1 } }
-    .warm { animation: warming 56s ease-in-out infinite alternate }
+    .warm { animation: warming 17s ease-in-out infinite alternate }
     @keyframes warming { 0% { opacity: 0 } 46% { opacity: .7 } 100% { opacity: .26 } }
-    .ember { animation: burning 56s ease-in-out infinite alternate }
+    .ember { animation: burning 17s ease-in-out infinite alternate }
     @keyframes burning { 0% { opacity: 0 } 52% { opacity: .24 } 100% { opacity: .68 } }
-    .night { animation: nightfall 56s ease-in-out infinite alternate }
+    .night { animation: nightfall 17s ease-in-out infinite alternate }
     @keyframes nightfall { 0% { opacity: 0 } 58% { opacity: 0 } 100% { opacity: .62 } }
-    .wet { animation: darkening 56s ease-in-out infinite alternate }
+    .wet { animation: darkening 17s ease-in-out infinite alternate }
     @keyframes darkening { 0% { opacity: 0 } 100% { opacity: .95 } }
-    .ridge { animation: darkridge 56s ease-in-out infinite alternate }
+    .ridge { animation: darkridge 17s ease-in-out infinite alternate }
     @keyframes darkridge { 0% { fill: #46597A } 54% { fill: #4E4056 } 100% { fill: #241E38 } }
-    .caps { animation: dimcaps 56s ease-in-out infinite alternate }
+    .caps { animation: dimcaps 17s ease-in-out infinite alternate }
     @keyframes dimcaps { 0% { fill: #F2F8FC } 54% { fill: #F6CBA6 } 100% { fill: #8C7290 } }
-    .under { animation: darkunder 56s ease-in-out infinite alternate }
+    .under { animation: darkunder 17s ease-in-out infinite alternate }
     @keyframes darkunder { 0% { fill: #3A5A7E } 54% { fill: #45405E } 100% { fill: #1E1C34 } }
-    .sundisc { animation: cooling 56s ease-in-out infinite alternate }
+    .sundisc { animation: cooling 17s ease-in-out infinite alternate }
     @keyframes cooling { 0% { fill: #FFF8E0 } 54% { fill: #FFC066 } 100% { fill: #F05A32 } }
-    .lastlight { animation: burn 56s ease-in-out infinite alternate }
+    .lastlight { animation: burn 17s ease-in-out infinite alternate }
     @keyframes burn { from { opacity: .16; fill: #FFD9A0 } to { opacity: .52; fill: #E8482A } }
     @media (prefers-reduced-motion: reduce) { .ripple, .shimmer { animation: none } }
     @keyframes fly { 0% { transform: translate(-16px,2px); opacity: 0 }

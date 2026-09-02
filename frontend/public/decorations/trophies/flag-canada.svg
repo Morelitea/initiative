@@ -7,9 +7,8 @@
   <circle cx="24" cy="24" r="23" fill="#1B2036"/>
   <circle cx="24" cy="24" r="21" fill="none" stroke="#5A628C" stroke-width="2"/>
   <g clip-path="url(#disc)">
-  <rect width="48" height="48" fill="#FFFFFF"/>  <rect x="0" y="0" width="12" height="48" fill="#D80621"/>  <rect x="36" y="0" width="12" height="48" fill="#D80621"/>  <g transform="translate(24 22) scale(0.95)">
-  <path d="M0 -13 L1.9 -8.4 L6.2 -9.4 L4.8 -5 L9.6 -1.6 L6.6 -.2 L7.6 3.4 L2.6 2.4 L1.4 5.4 L0 3 L-1.4 5.4 L-2.6 2.4 L-7.6 3.4 L-6.6 -.2 L-9.6 -1.6 L-4.8 -5 L-6.2 -9.4 L-1.9 -8.4 Z" fill="#D80621"/>
-  <path d="M0 3 L0 11" stroke="#D80621" stroke-width="1.6"/>
+  <rect width="48" height="48" fill="#FFFFFF"/>  <rect x="0" y="0" width="12" height="48" fill="#D80621"/>  <rect x="36" y="0" width="12" height="48" fill="#D80621"/>  <g transform="translate(24 24) scale(0.005)">
+  <path d="m-90 2030 45-863a95 95 0 0 0-111-98l-859 151 116-320a65 65 0 0 0-20-73l-941-762 212-99a65 65 0 0 0 34-79l-186-572 542 115a65 65 0 0 0 73-38l105-247 423 454a65 65 0 0 0 111-57l-204-1052 327 189a65 65 0 0 0 91-27l332-652 332 652a65 65 0 0 0 91 27l327-189-204 1052a65 65 0 0 0 111 57l423-454 105 247a65 65 0 0 0 73 38l542-115-186 572a65 65 0 0 0 34 79l212 99-941 762a65 65 0 0 0-20 73l116 320-859-151a95 95 0 0 0-111 98l45 863z" fill="#D80621"/>
   </g>
   </g>
   <circle cx="24" cy="24" r="19" fill="none" stroke="#0E1122" stroke-width="1.4" opacity=".8"/>
