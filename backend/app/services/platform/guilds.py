@@ -286,6 +286,54 @@ async def enroll_new_member_in_auto_join_initiatives(
         )
 
 
+async def align_admin_initiative_roles(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    role: GuildRole,
+) -> None:
+    """Bring a freshly promoted guild admin's initiative rows up to their standing.
+
+    A guild admin's membership row carries a manager role, which every write
+    path settles for itself. A promotion changes the guild role and nothing
+    else, so the rows the person already held are reconciled here — the one
+    moment their standing changes underneath rows that already exist.
+
+    Only a promotion to admin does anything; a demotion leaves the manager role
+    in place, which is an ordinary initiative role for an ordinary member to
+    hold, and taking it away would be a second decision nobody asked for.
+
+    The initiatives live in the guild's schema and this runs on the system
+    engine with ``search_path = public``, so the work is done through a routed
+    excursion that hands the session back as it found it. The whole excursion
+    sits inside a savepoint: the role change is the thing being asked for, and
+    reconciling rows underneath it must never be what makes it fail. Flush-only;
+    the caller owns the transaction.
+    """
+    if role != GuildRole.admin:
+        return
+    from app.db.session import guild_schema_context
+    from app.services.tenant import initiatives as initiatives_service
+
+    try:
+        async with session.begin_nested():
+            async with guild_schema_context(session, guild_id=guild_id):
+                # A second savepoint so a failure unwinds before the excursion
+                # restores the caller's context, rather than during it.
+                async with session.begin_nested():
+                    await initiatives_service.align_guild_admin_membership_roles(
+                        session, guild_id=guild_id, user_id=user_id
+                    )
+    except Exception:
+        logger.exception(
+            "admin promotion: user %s became an admin of guild %s but their "
+            "existing initiative roles were not reconciled",
+            user_id,
+            guild_id,
+        )
+
+
 # Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
 # tag ("USER") so the two-int key (namespace, guild_id) can't collide with the
 # storage-quota ("STOR") or (user_id, guild_id) advisory locks used elsewhere.

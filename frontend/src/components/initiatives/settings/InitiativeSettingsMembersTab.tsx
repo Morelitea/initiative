@@ -183,9 +183,19 @@ export const InitiativeSettingsMembersTab = ({
         header: t("settings.roleColumn"),
         cell: ({ row }) => {
           const member = row.original;
-          if (!canManageMembers || !roles || adminIds.has(member.user.id)) {
+          if (!canManageMembers || !roles) {
             return <Badge variant="outline">{getRoleDisplayName(member)}</Badge>;
           }
+          // A community admin already on a manager role has nothing to choose:
+          // it is the only role their row can hold. One that is not — promoted
+          // to admin after joining, so their row kept the role they joined
+          // with — keeps the picker, narrowed to the manager roles, because
+          // this is where that row gets put right.
+          const isAdmin = adminIds.has(member.user.id);
+          if (isAdmin && member.is_manager) {
+            return <Badge variant="outline">{getRoleDisplayName(member)}</Badge>;
+          }
+          const options = isAdmin ? roles.filter((role) => role.is_manager) : roles;
           return (
             <Select
               value={String(member.role_id || "")}
@@ -202,7 +212,7 @@ export const InitiativeSettingsMembersTab = ({
                 <SelectValue placeholder="Role" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((role) => (
+                {options.map((role) => (
                   <SelectItem key={role.id} value={String(role.id)}>
                     {role.display_name}
                   </SelectItem>

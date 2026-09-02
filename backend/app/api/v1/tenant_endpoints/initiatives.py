@@ -278,6 +278,7 @@ async def list_initiative_directory(
         session,
         guild_id=guild_context.guild_id,
         user_id=current_user.id,
+        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 

@@ -121,6 +121,53 @@ async def resolve_membership_role(
     return await get_member_role(session, initiative_id=initiative.id)
 
 
+async def align_guild_admin_membership_roles(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> list[int]:
+    """Move ``user_id``'s existing initiative rows onto a manager role.
+
+    A guild admin's membership row carries a manager role.
+    :func:`resolve_membership_role` settles that for every row written from
+    here on; this settles the rows that were already there when they were
+    promoted, so everything that reads ``is_manager`` — the join-request queue
+    and the notifications that follow it, the directory's queue badge — agrees
+    with the standing they now hold.
+
+    Rows already on a manager role are left alone, as is an initiative with no
+    project manager role to move them to. Returns the initiative ids changed.
+
+    The session must already be routed into the guild's schema; flush-only, the
+    caller owns the transaction.
+    """
+    rows = (
+        await session.exec(
+            select(InitiativeMember)
+            .options(selectinload(InitiativeMember.role_ref))
+            .where(
+                InitiativeMember.guild_id == guild_id,
+                InitiativeMember.user_id == user_id,
+            )
+        )
+    ).all()
+
+    changed: list[int] = []
+    for membership in rows:
+        if membership.role_ref is not None and membership.role_ref.is_manager:
+            continue
+        pm_role = await get_pm_role(session, initiative_id=membership.initiative_id)
+        if pm_role is None:
+            continue
+        membership.role_id = pm_role.id
+        session.add(membership)
+        changed.append(membership.initiative_id)
+    if changed:
+        await session.flush()
+    return changed
+
+
 async def create_builtin_roles(
     session: AsyncSession,
     *,
@@ -630,6 +677,7 @@ async def list_directory_entries(
     *,
     guild_id: int,
     user_id: int,
+    is_guild_admin: bool = False,
 ) -> list[InitiativeDirectoryEntry]:
     """The guild's initiative directory, as seen by one caller.
 
@@ -646,7 +694,10 @@ async def list_directory_entries(
     ``scope=guild`` on the initiatives endpoint, which backs guild settings.
 
     Managers additionally get the size of their own join-request queue, so the
-    guild home needs no second call to badge it.
+    guild home needs no second call to badge it. A guild admin gets it for the
+    initiatives they are in, whatever role their own row happens to carry —
+    answering a request is authority they hold as admin. It stays off the
+    initiatives they are not in, which are not theirs to read into.
     """
     member_count = (
         select(func.count())
@@ -671,9 +722,10 @@ async def list_directory_entries(
         )
         .exists()
     )
-    # The queue badge, and only for a manager of that initiative. Everyone else
-    # reads a flat zero instead of a headcount of their peers' knocking, and
-    # the CASE means the count is not computed for them at all.
+    # The queue badge, and only for whoever may answer the queue: a manager of
+    # that initiative, or a guild admin who is in it. Everyone else reads a flat
+    # zero instead of a headcount of their peers' knocking, and the CASE means
+    # the count is not computed for them at all.
     manages = (
         select(InitiativeMember.user_id)
         .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
@@ -693,7 +745,8 @@ async def list_directory_entries(
         )
         .scalar_subquery()
     )
-    pending_queue_size = case((manages, pending_count), else_=0)
+    may_answer = or_(manages, is_member) if is_guild_admin else manages
+    pending_queue_size = case((may_answer, pending_count), else_=0)
 
     statement = (
         select(
