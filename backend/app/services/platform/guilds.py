@@ -252,11 +252,10 @@ async def enroll_new_member_in_auto_join_initiatives(
     onboarding hook rather than a sweep: someone who was already in the guild
     is returned earlier and is never re-enrolled.
 
-    A guild admin is skipped. They already reach every initiative in their guild
-    by standing, and the built-in ``member`` role is one they must never hold
-    (see ``_guard_guild_admin_role``) — so for them there is nothing to grant and
-    a row to avoid. This also covers guild creation, where the admin membership
-    is written before the guild's schema exists at all.
+    A guild admin is skipped. Their membership row is written before the guild's
+    schema exists at all — guild creation is the case — and their standing
+    already reaches every initiative, so nothing here is theirs to be handed.
+    They pick which initiatives they navigate by joining them.
 
     The initiatives live in the guild's schema and the join paths that reach here
     run on the system engine with ``search_path = public``, so the work is done
@@ -282,6 +281,54 @@ async def enroll_new_member_in_auto_join_initiatives(
         logger.exception(
             "auto-join: user %s joined guild %s but was enrolled in none of its "
             "auto-join initiatives",
+            user_id,
+            guild_id,
+        )
+
+
+async def align_admin_initiative_roles(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    role: GuildRole,
+) -> None:
+    """Bring a freshly promoted guild admin's initiative rows up to their standing.
+
+    A guild admin's membership row carries a manager role, which every write
+    path settles for itself. A promotion changes the guild role and nothing
+    else, so the rows the person already held are reconciled here — the one
+    moment their standing changes underneath rows that already exist.
+
+    Only a promotion to admin does anything; a demotion leaves the manager role
+    in place, which is an ordinary initiative role for an ordinary member to
+    hold, and taking it away would be a second decision nobody asked for.
+
+    The initiatives live in the guild's schema and this runs on the system
+    engine with ``search_path = public``, so the work is done through a routed
+    excursion that hands the session back as it found it. The whole excursion
+    sits inside a savepoint: the role change is the thing being asked for, and
+    reconciling rows underneath it must never be what makes it fail. Flush-only;
+    the caller owns the transaction.
+    """
+    if role != GuildRole.admin:
+        return
+    from app.db.session import guild_schema_context
+    from app.services.tenant import initiatives as initiatives_service
+
+    try:
+        async with session.begin_nested():
+            async with guild_schema_context(session, guild_id=guild_id):
+                # A second savepoint so a failure unwinds before the excursion
+                # restores the caller's context, rather than during it.
+                async with session.begin_nested():
+                    await initiatives_service.align_guild_admin_membership_roles(
+                        session, guild_id=guild_id, user_id=user_id
+                    )
+    except Exception:
+        logger.exception(
+            "admin promotion: user %s became an admin of guild %s but their "
+            "existing initiative roles were not reconciled",
             user_id,
             guild_id,
         )

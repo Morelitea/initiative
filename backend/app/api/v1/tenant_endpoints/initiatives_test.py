@@ -910,12 +910,16 @@ async def test_member_roster_reports_a_custom_role_as_itself(
 
 
 @pytest.mark.integration
-async def test_guild_admin_cannot_be_assigned_member_role(
+async def test_inviting_a_guild_admin_lands_them_on_the_manager_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A guild admin is an implicit full-access member; assigning them a
-    standard member (or custom) role is rejected — they may only be elevated to
-    a manager role."""
+    """An invite naming a standard role for a guild admin still succeeds.
+
+    A guild admin's standing already reaches every initiative, so their row
+    carries the manager role — the invite settles that rather than refusing,
+    which is what lets a project manager add an admin without first checking
+    who is one.
+    """
     from app.models.tenant.initiative import InitiativeRoleModel
     from sqlmodel import select
 
@@ -939,8 +943,111 @@ async def test_guild_admin_cannot_be_assigned_member_role(
         json={"user_id": target_admin.user.id, "role_id": member_role.id},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED"
+    assert response.status_code == 200
+    member_roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
+    assert member_roles[target_admin.user.id] == "project_manager"
+
+
+@pytest.mark.integration
+async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A promotion reaches the rows the person already held.
+
+    Their guild role changes underneath initiative memberships that already
+    exist, and only this path can bring them up to the manager role an admin's
+    row carries — everything that writes a row settles it for itself.
+    """
+    from app.testing.schema_harness import route_session_to_guild
+
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    joiner = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.patch(
+        f"/api/v1/guilds/{admin.guild.id}/members/{joiner.user.id}",
+        headers=admin.headers,
+        json={"role": "admin"},
+    )
+    assert response.status_code == 204, response.text
+
+    await route_session_to_guild(session, admin.guild.id)
+    membership = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == admin.initiative.id,
+                InitiativeMember.user_id == joiner.user.id,
+            )
+        )
+    ).one()
+    role = await initiatives_service.get_role_by_id(session, role_id=membership.role_id)
+    assert role is not None and role.is_manager
+
+
+@pytest.mark.integration
+async def test_the_queue_badge_survives_a_role_a_promotion_left_behind(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild admin inside an initiative reads its queue whatever their row says.
+
+    Answering a request is authority they hold as admin, so the badge follows
+    the standing rather than the role their membership row happens to carry.
+    """
+    manager = await acting_user(guild_role=GuildRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    admin = await acting_user(
+        guild_role=GuildRole.admin,
+        guild=manager.guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    created = await client.post(
+        manager.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=(
+            await acting_user(guild_role=GuildRole.member, guild=manager.guild)
+        ).headers,
+        json={},
+    )
+    assert created.status_code == 201, created.text
+
+    response = await client.get(
+        admin.g("/initiatives/directory"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    entry = next(e for e in response.json() if e["id"] == initiative.id)
+    assert entry["pending_join_request_count"] == 1
+
+
+@pytest.mark.integration
+async def test_a_project_manager_can_invite_a_guild_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The invite is the project manager's to make, on their own initiative."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    manager = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="project_manager",
+    )
+    target_admin = await acting_user(
+        guild_role=GuildRole.admin, guild=admin.guild, email="admin3@example.com"
+    )
+
+    response = await client.post(
+        manager.g(f"/initiatives/{admin.initiative.id}/members"),
+        headers=manager.headers,
+        json={"user_id": target_admin.user.id},
+    )
+
+    assert response.status_code == 200
+    member_roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
+    assert member_roles[target_admin.user.id] == "project_manager"
 
 
 @pytest.mark.integration
@@ -1179,18 +1286,22 @@ async def test_directory_lists_private_initiatives_to_their_members(
 
 
 @pytest.mark.integration
-async def test_directory_lists_everything_to_a_guild_admin(
+async def test_directory_reads_the_same_way_for_a_guild_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A guild admin's directory is the whole guild.
+    """A guild admin's directory is theirs plus what is on offer.
 
-    Their standing already reaches every initiative (the `current_guild_role=
-    'admin'` RLS leg), and the deprecated initiatives page showed them all —
-    so the directory does too, membership still ordered first.
+    Their authority over the guild is unchanged; the front page just stops
+    standing in for it. A private initiative they are not in is not listed to
+    them any more than to anyone else — ``scope=guild`` is where the whole
+    guild is, and guild settings is where it is staffed.
     """
     owner = await acting_user(guild_role=GuildRole.admin)
     await create_initiative(
         session, owner.guild, owner.user, name="Hidden", join_policy="private"
+    )
+    await create_initiative(
+        session, owner.guild, owner.user, name="Askable", join_policy="open"
     )
 
     other_admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
@@ -1199,9 +1310,9 @@ async def test_directory_lists_everything_to_a_guild_admin(
     )
 
     assert response.status_code == 200
-    listed = {entry["name"]: entry for entry in response.json()}
-    assert "Hidden" in listed
-    assert listed["Hidden"]["is_member"] is False
+    listed = {entry["name"] for entry in response.json()}
+    assert "Hidden" not in listed
+    assert "Askable" in listed
 
 
 @pytest.mark.integration
@@ -1352,6 +1463,35 @@ async def test_self_join_rejected_for_non_open_policy(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "INITIATIVE_NOT_JOINABLE"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("policy", ["private", "request"])
+async def test_a_guild_admin_walks_into_a_closed_initiative_as_manager(
+    client: AsyncClient, session: AsyncSession, acting_user, policy: str
+):
+    """A guild admin joins whatever the policy says, on the manager role.
+
+    Their sidebar is their memberships now, so this is how they put an
+    initiative in it — the same act as ticking themselves in guild settings,
+    and the reason they never have to knock at a queue they could answer.
+    """
+    owner = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, owner.guild, owner.user, name=f"Closed {policy}", join_policy=policy
+    )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+
+    response = await client.post(
+        admin.g(f"/initiatives/{initiative.id}/join"), headers=admin.headers
+    )
+
+    assert response.status_code == 200
+    entry = next(
+        m for m in response.json()["members"] if m["user"]["id"] == admin.user.id
+    )
+    assert entry["role_name"] == "project_manager"
+    assert entry["is_manager"] is True
 
 
 @pytest.mark.integration
@@ -2518,12 +2658,14 @@ async def test_directory_badges_the_queue_for_managers_only(
     assert entry["pending_join_request_count"] == 0
     assert entry["has_pending_request"] is True
 
+    # A guild admin outside the initiative is a bystander here like anyone
+    # else: they staff themselves onto it to take the queue.
     admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
     as_admin = await client.get(
         admin.g("/initiatives/directory"), headers=admin.headers
     )
     entry = next(e for e in as_admin.json() if e["id"] == initiative.id)
-    assert entry["pending_join_request_count"] == 1
+    assert entry["pending_join_request_count"] == 0
 
 
 def _capture_join_request_emails(monkeypatch) -> list[dict]:

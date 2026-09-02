@@ -165,8 +165,11 @@ export function useInitiativeAccess() {
 
   const access = useMemo(() => deriveGuildAccess(activeGuild, user), [activeGuild, user]);
   const { isGuildAdmin, isGrantGuild, grantReadWrite } = access;
-  // Admins and PAM grantees see every initiative in the guild.
-  const seesAllInitiatives = isGuildAdmin || isGrantGuild;
+  // A PAM grantee holds no membership row in the guild — the grant is what
+  // they navigate by, so every initiative it reaches is theirs for its window.
+  // A guild admin is not an exception here: their authority still reaches the
+  // whole guild, but what they navigate is what they joined.
+  const seesAllInitiatives = isGrantGuild;
 
   /** Narrow a guild's initiative list to the ones the user may see. */
   const filterVisible = useCallback(

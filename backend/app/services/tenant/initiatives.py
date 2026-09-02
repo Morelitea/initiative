@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Iterable
 
-from sqlalchemy import case, desc, func, or_, true
+from sqlalchemy import case, desc, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
@@ -23,6 +23,7 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.user import User
 from app.schemas.platform.user import UserInitiativeRole, UserSummary
 from app.schemas.tenant.initiative import (
@@ -72,6 +73,99 @@ async def get_member_role(
     return await get_role_by_name(
         session, initiative_id=initiative_id, role_name="member"
     )
+
+
+async def is_guild_admin_member(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> bool:
+    """Whether ``user_id`` holds the admin role in ``guild_id``."""
+    result = await session.exec(
+        select(GuildMembership.role).where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.user_id == user_id,
+        )
+    )
+    return result.one_or_none() == GuildRole.admin
+
+
+async def resolve_membership_role(
+    session: AsyncSession,
+    *,
+    initiative: Initiative,
+    user_id: int,
+    requested: InitiativeRoleModel | None = None,
+) -> InitiativeRoleModel | None:
+    """The role a membership row takes for ``user_id`` — the one rule every
+    route into an initiative resolves its role through.
+
+    A guild admin's standing already reaches every initiative in their guild,
+    so their row carries a manager role: the built-in project manager unless a
+    manager role was named. That is settled here rather than refused, so a
+    project manager can bring an admin into their initiative like anyone else.
+
+    Everyone else takes ``requested``, or the built-in ``member`` role when the
+    caller names none. ``None`` means the initiative has no role to give, which
+    is the caller's error to report.
+    """
+    if await is_guild_admin_member(
+        session, guild_id=initiative.guild_id, user_id=user_id
+    ):
+        if requested is not None and requested.is_manager:
+            return requested
+        return await get_pm_role(session, initiative_id=initiative.id)
+    if requested is not None:
+        return requested
+    return await get_member_role(session, initiative_id=initiative.id)
+
+
+async def align_guild_admin_membership_roles(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> list[int]:
+    """Move ``user_id``'s existing initiative rows onto a manager role.
+
+    A guild admin's membership row carries a manager role.
+    :func:`resolve_membership_role` settles that for every row written from
+    here on; this settles the rows that were already there when they were
+    promoted, so everything that reads ``is_manager`` — the join-request queue
+    and the notifications that follow it, the directory's queue badge — agrees
+    with the standing they now hold.
+
+    Rows already on a manager role are left alone, as is an initiative with no
+    project manager role to move them to. Returns the initiative ids changed.
+
+    The session must already be routed into the guild's schema; flush-only, the
+    caller owns the transaction.
+    """
+    rows = (
+        await session.exec(
+            select(InitiativeMember)
+            .options(selectinload(InitiativeMember.role_ref))
+            .where(
+                InitiativeMember.guild_id == guild_id,
+                InitiativeMember.user_id == user_id,
+            )
+        )
+    ).all()
+
+    changed: list[int] = []
+    for membership in rows:
+        if membership.role_ref is not None and membership.role_ref.is_manager:
+            continue
+        pm_role = await get_pm_role(session, initiative_id=membership.initiative_id)
+        if pm_role is None:
+            continue
+        membership.role_id = pm_role.id
+        session.add(membership)
+        changed.append(membership.initiative_id)
+    if changed:
+        await session.flush()
+    return changed
 
 
 async def create_builtin_roles(
@@ -583,7 +677,7 @@ async def list_directory_entries(
     *,
     guild_id: int,
     user_id: int,
-    include_unlisted: bool = False,
+    is_guild_admin: bool = False,
 ) -> list[InitiativeDirectoryEntry]:
     """The guild's initiative directory, as seen by one caller.
 
@@ -592,11 +686,18 @@ async def list_directory_entries(
     the guild's complete initiative list. Each entry carries its roster size
     and the caller's own state (in it / knocked / free to join) so the client
     renders one call to action per card. A private initiative the caller is
-    *not* in stays unlisted, exactly as before — unless ``include_unlisted``
-    says the caller's standing already reaches everything (a guild admin).
+    *not* in stays unlisted.
+
+    One reading for everyone, guild admin included: their authority still
+    reaches every initiative, but the front page lists the ones they are in and
+    the ones on offer, the same as anyone else. The whole-guild listing is
+    ``scope=guild`` on the initiatives endpoint, which backs guild settings.
 
     Managers additionally get the size of their own join-request queue, so the
-    guild home needs no second call to badge it.
+    guild home needs no second call to badge it. A guild admin gets it for the
+    initiatives they are in, whatever role their own row happens to carry —
+    answering a request is authority they hold as admin. It stays off the
+    initiatives they are not in, which are not theirs to read into.
     """
     member_count = (
         select(func.count())
@@ -621,10 +722,10 @@ async def list_directory_entries(
         )
         .exists()
     )
-    # The queue badge, and only for whoever may open the queue: a manager of
-    # that initiative, or a guild admin (``include_unlisted``). Everyone else
-    # reads a flat zero instead of a headcount of their peers' knocking, and
-    # the CASE means the count is not computed for them at all.
+    # The queue badge, and only for whoever may answer the queue: a manager of
+    # that initiative, or a guild admin who is in it. Everyone else reads a flat
+    # zero instead of a headcount of their peers' knocking, and the CASE means
+    # the count is not computed for them at all.
     manages = (
         select(InitiativeMember.user_id)
         .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
@@ -644,9 +745,8 @@ async def list_directory_entries(
         )
         .scalar_subquery()
     )
-    pending_queue_size = case(
-        (true() if include_unlisted else manages, pending_count), else_=0
-    )
+    may_answer = or_(manages, is_member) if is_guild_admin else manages
+    pending_queue_size = case((may_answer, pending_count), else_=0)
 
     statement = (
         select(
@@ -658,9 +758,7 @@ async def list_directory_entries(
         )
         .where(
             Initiative.guild_id == guild_id,
-            true()
-            if include_unlisted
-            else or_(Initiative.join_policy.in_(LISTED_JOIN_POLICIES), is_member),
+            or_(Initiative.join_policy.in_(LISTED_JOIN_POLICIES), is_member),
             Initiative.is_archived.is_(False),
             Initiative.deleted_at.is_(None),
         )
@@ -701,13 +799,17 @@ async def self_join(
     initiative: Initiative,
     user_id: int,
 ) -> InitiativeMember:
-    """Add ``user_id`` to ``initiative`` with the built-in ``member`` role.
+    """Add ``user_id`` to ``initiative`` with the role their standing earns.
 
     The floor, not the ceiling: ``member`` is view-only on the core tools and
     creates nothing, and per-resource sharing still decides what is reachable
     inside. The row is ordinary — ``oidc_managed`` false, so group sync neither
     reaps it nor fights it — which is the whole point: every join path ends at
     the same membership row RLS already reads.
+
+    The role comes from :func:`resolve_membership_role`, so a guild admin
+    arriving by any of these routes lands on the manager role their standing
+    already implies.
 
     Idempotent — an existing membership is returned untouched. Flush-only; the
     caller owns the transaction. The policy check is the caller's
@@ -719,14 +821,16 @@ async def self_join(
     if existing is not None:
         return existing
 
-    member_role = await get_member_role(session, initiative_id=initiative.id)
-    if member_role is None:
+    role = await resolve_membership_role(
+        session, initiative=initiative, user_id=user_id
+    )
+    if role is None:
         raise ValueError(InitiativeMessages.MEMBER_ROLE_NOT_FOUND)
 
     membership = InitiativeMember(
         initiative_id=initiative.id,
         user_id=user_id,
-        role_id=member_role.id,
+        role_id=role.id,
         guild_id=initiative.guild_id,
         oidc_managed=False,
     )
@@ -784,8 +888,8 @@ async def enroll_in_auto_join_initiatives(
     """Enrol a brand-new guild member in the guild's auto-join initiatives.
 
     Each enrolment routes through :func:`self_join`, so an arrival lands on the
-    same membership row every other join path writes — built-in ``member`` role,
-    ``oidc_managed`` false, so group sync neither reaps nor fights it.
+    same membership row every other join path writes — ``oidc_managed`` false,
+    so group sync neither reaps nor fights it.
 
     Best effort, per initiative: one initiative that cannot take a member (its
     built-in ``member`` role is missing, say) is logged and skipped inside its
@@ -926,9 +1030,9 @@ async def resolve_join_request(
     """Settle a pending request, creating the membership row on approval.
 
     Approval routes through :func:`self_join`, so an approved requester lands on
-    exactly the row every other join path produces — built-in ``member`` role,
-    ``oidc_managed`` false — and someone who became a member by another route
-    while the request sat in the queue is absorbed rather than colliding.
+    exactly the row every other join path produces — ``oidc_managed`` false —
+    and someone who became a member by another route while the request sat in
+    the queue is absorbed rather than colliding.
 
     The row is claimed before anything is granted: one UPDATE that fires only
     while the status is still ``pending``, so two managers answering at once
