@@ -39,7 +39,19 @@ people who made them.
   it was drawn on, baked to a banner-sized image.
 - **`trophies/plants-morel.svg`** — the morel is *Morel* by **platzster**, from
   [Openclipart](https://openclipart.org/), released to the public domain. Only
-  the disc behind it and its colour are ours.
+  the disc behind it and its colour are ours. The same drawing stands in the
+  `banners/plants-grove.svg` banner.
+- **`frames/winter-poinsettia.svg`** — the ring is *Christmas flower* by
+  **liftarn**, from [Openclipart](https://openclipart.org/), public domain. It
+  is line work with nothing filled; the colour is ours.
+- **`banners/winter-flurry.svg`** — the snowflakes are from a public-domain
+  drawing; the night, the drifts and the falling are ours.
+- **`banners/winter-santa.svg`** — a public-domain Christmas card by
+  **Chrisdesign**, from [Openclipart](https://openclipart.org/), cropped to a
+  banner and baked at that size. The stars that blink are ours, over the ones
+  painted on it.
+- **`banners/tea-party.svg`** — John Tenniel's *A Mad Tea-Party* (1865), long in
+  the public domain, baked to a banner-sized image on paper of about its own age.
 
 - **`trophies/firstnations-handprint.svg`** — the hand is
   [Red hand](https://commons.wikimedia.org/wiki/File:Red_hand.svg) by

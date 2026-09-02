@@ -94,13 +94,16 @@ const PackCard = ({
           style={banner ? { backgroundImage: `url(${banner.src})` } : undefined}
         />
         <div className="space-y-2 p-4 pb-3">
-          <div className="-mt-12 flex items-end gap-3">
+          {/* Only the picture laps onto the banner. The name reads against the
+              card, because a banner is a whole illustration and some of them
+              are pale where the words would land. */}
+          <div className="flex items-center gap-3">
             <ProfileAvatar
               user={user}
               decorations={{ banner: null, frame_tint: [], frame: frameId, trophies: [] }}
-              className="size-16 rounded-full ring-4 ring-card"
+              className="-mt-14 size-16 shrink-0 rounded-full ring-4 ring-card"
             />
-            <div className="min-w-0 flex-1 pb-1">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h3 className="truncate font-semibold">{entry.name}</h3>
                 {trophy ? (

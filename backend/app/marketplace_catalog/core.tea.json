@@ -5,11 +5,11 @@
   "name": "Tea",
   "publisher": "Initiative",
   "description": "For anyone with opinions about water temperature.",
-  "long_description": "A pot that has sat exactly long enough, terraces at the hour the mist has not lifted, and a shelf of caddies. Leaves or porcelain round your picture, and a cup, a pot, a bag and a bowl of matcha to wear. Loose-leaf people welcome. Bag people also welcome.",
+  "long_description": "A pot that has sat exactly long enough, terraces at the hour the mist has not lifted, a shelf of caddies, and the maddest tea party in English. Leaves or porcelain round your picture, and a cup, a pot, a bag and a bowl of matcha to wear. Loose-leaf people welcome. Bag people also welcome.",
   "avatar_url": "/decorations/banners/tea-service.svg",
   "images": [],
-  "version": "1.1.0",
-  "release_notes": "More in the pack.",
+  "version": "1.2.0",
+  "release_notes": "A mad tea party.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -58,6 +58,11 @@
         "id": "tea.matcha",
         "slot": "trophy",
         "name": "Matcha"
+      },
+      {
+        "id": "tea.party",
+        "slot": "banner",
+        "name": "A mad tea party"
       }
     ]
   }

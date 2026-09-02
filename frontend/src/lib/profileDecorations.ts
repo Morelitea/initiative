@@ -87,6 +87,7 @@ type DecorationName =
   | "cassette"
   | "cat"
   | "catnap"
+  | "christmaseve"
   | "chronicpain"
   | "clapper"
   | "clay"
@@ -159,6 +160,7 @@ type DecorationName =
   | "flagvietnam"
   | "flask"
   | "floodlights"
+  | "flurry"
   | "fourdirections"
   | "garden"
   | "gay"
@@ -189,6 +191,7 @@ type DecorationName =
   | "lesbian"
   | "lizard"
   | "lotus"
+  | "madteaparty"
   | "magnet"
   | "marquee"
   | "masks"
@@ -227,6 +230,7 @@ type DecorationName =
   | "piste"
   | "plane"
   | "playhouse"
+  | "poinsettia"
   | "poly"
   | "popcorn"
   | "porcelain"
@@ -668,6 +672,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
 
   "tea.caddies": entry("tea.caddies", "banner", "tea-caddies", "caddies"),
   "tea.garden": entry("tea.garden", "banner", "tea-garden", "teagarden"),
+  "tea.party": entry("tea.party", "banner", "tea-party", "madteaparty", "dark"),
   "tea.service": entry("tea.service", "banner", "tea-service", "teaservice"),
   "tea.leaves": entry("tea.leaves", "frame", "tea-leaves", "tealeaves"),
   "tea.porcelain": entry("tea.porcelain", "frame", "tea-porcelain", "porcelain"),
@@ -698,9 +703,12 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "volleyball.net": entry("volleyball.net", "frame", "volleyball-net", "net"),
   "volleyball.spike": entry("volleyball.spike", "trophy", "volleyball-spike", "spike"),
 
+  "winter.flurry": entry("winter.flurry", "banner", "winter-flurry", "flurry"),
   "winter.hearth": entry("winter.hearth", "banner", "winter-hearth", "hearth"),
+  "winter.santa": entry("winter.santa", "banner", "winter-santa", "christmaseve"),
   "winter.snowfall": entry("winter.snowfall", "banner", "winter-snowfall", "snowfall"),
   "winter.icicles": entry("winter.icicles", "frame", "winter-icicles", "icicles"),
+  "winter.poinsettia": entry("winter.poinsettia", "frame", "winter-poinsettia", "poinsettia"),
   "winter.wreath": entry("winter.wreath", "frame", "winter-wreath", "wreath"),
   "winter.bauble": entry("winter.bauble", "trophy", "winter-bauble", "bauble"),
   "winter.cocoa": entry("winter.cocoa", "trophy", "winter-cocoa", "cocoa"),

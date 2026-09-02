@@ -5,11 +5,11 @@
   "name": "Winter",
   "publisher": "Initiative",
   "description": "Snow coming down, and a fire that is going nowhere.",
-  "long_description": "A house with the lights on and somebody built out front, and a hearth with the stockings up and the cocoa poured. A holly wreath or a rim of icicles to frame you, and a snowflake, a snowman, a bauble and a mug. Put it up early. Leave it up late.",
+  "long_description": "A house with the lights on and somebody built out front, a hearth with the stockings up, snow falling all the way down the frame, and a sleigh crossing the moon. A holly wreath, a rim of icicles or a poinsettia to frame you, and a snowflake, a snowman, a bauble and a mug. Put it up early. Leave it up late.",
   "avatar_url": "/decorations/banners/winter-snowfall.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "Snow that falls, a poinsettia, and Christmas Eve.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -53,6 +53,21 @@
         "id": "winter.bauble",
         "slot": "trophy",
         "name": "Bauble"
+      },
+      {
+        "id": "winter.poinsettia",
+        "slot": "frame",
+        "name": "Poinsettia"
+      },
+      {
+        "id": "winter.flurry",
+        "slot": "banner",
+        "name": "Flurry"
+      },
+      {
+        "id": "winter.santa",
+        "slot": "banner",
+        "name": "Christmas Eve"
       }
     ]
   }
