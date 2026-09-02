@@ -11,9 +11,9 @@
     @media (prefers-reduced-motion: reduce) { .hang { animation: none } }
   </style>
   <defs>
-    <linearGradient id="vaneA" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#3A2A1C"/><stop offset="42%" stop-color="#6B5238"/>
-      <stop offset="62%" stop-color="#F2E8D6"/><stop offset="100%" stop-color="#D8CBB0"/>
+    <linearGradient id="vaneA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#33241A"/><stop offset="36%" stop-color="#6B5238"/>
+      <stop offset="70%" stop-color="#D8CBB0"/><stop offset="100%" stop-color="#F6F0E2"/>
     </linearGradient>
     <radialGradient id="behind" cx=".5" cy=".5" r=".5">
       <stop offset="0%" stop-color="#000000" stop-opacity=".3"/>
