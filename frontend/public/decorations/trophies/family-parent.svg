@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Parent</title>
+  <circle cx="24" cy="24" r="23" fill="#2A1C28"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8A0A8" stroke-width="2"/>
+  <g fill="#E8A0A8">
+    <circle cx="17.6" cy="12.6" r="5"/>
+    <path d="M8.6 40 C8.6 28 12 22.6 17.6 22.6 C23.2 22.6 26.6 28 26.6 40 Z"/>
+  </g>
+  <g fill="#8ECAD8">
+    <circle cx="32.6" cy="23.4" r="3.6"/>
+    <path d="M26.4 40 C26.4 32.6 28.6 30 32.6 30 C36.6 30 38.8 32.6 38.8 40 Z"/>
+  </g>
+  <path d="M24 29 C26 27.6 28 27.6 29.6 28.6" fill="none" stroke="#F2C4CA" stroke-width="2.6"
+        stroke-linecap="round"/>
+  <path d="M11.6 18.6 C11 22 11.4 26 12.6 29" fill="none" stroke="#F6C6CE" stroke-width="1.1"
+        opacity=".7"/>
+</svg>

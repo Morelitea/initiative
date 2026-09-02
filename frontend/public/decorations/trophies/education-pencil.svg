@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Pencil</title>
+  <circle cx="24" cy="24" r="23" fill="#16233A"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B84B" stroke-width="2"/>
+  <g transform="rotate(-40 24 24)">
+    <path d="M12 20.4 L31.6 20.4 L31.6 27.6 L12 27.6 Z" fill="#F2C230"/>
+    <path d="M12 20.4 L31.6 20.4 L31.6 22.6 L12 22.6 Z" fill="#F8DE8E"/>
+    <path d="M12 25.4 L31.6 25.4 L31.6 27.6 L12 27.6 Z" fill="#C79A22"/>
+    <path d="M31.6 20.4 L38.4 24 L31.6 27.6 Z" fill="#E4C79A"/>
+    <path d="M36.4 23 L38.4 24 L36.4 25 Z" fill="#3A3A3E"/>
+    <path d="M8.4 20.4 L12 20.4 L12 27.6 L8.4 27.6 Z" fill="#B8BEC6"/>
+    <path d="M9.6 20.4 L9.6 27.6 M10.8 20.4 L10.8 27.6" stroke="#8A9098" stroke-width=".5"/>
+    <path d="M4 21.4 C4 20.4 4.6 20.4 5.6 20.4 L8.4 20.4 L8.4 27.6 L5.6 27.6
+             C4.6 27.6 4 27.6 4 26.6 Z" fill="#E88A8A"/>
+  </g>
+</svg>

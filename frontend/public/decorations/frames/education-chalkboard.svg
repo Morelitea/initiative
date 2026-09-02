@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Chalkboard</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Slate in an oak frame, with a ledge across the bottom that has the chalk
+       and the eraser on it. The marks come up the way they are written. -->
+  <defs>
+    <linearGradient id="cbOak" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#B4864E"/><stop offset="52%" stop-color="#8A5F32"/>
+      <stop offset="100%" stop-color="#5E3E1E"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .ck { fill: none; stroke: #F2F6EE; stroke-width: 1.5; stroke-linecap: round;
+          stroke-linejoin: round; animation: cbWrite 7s ease-in-out infinite }
+    .c1 { animation-delay: -1.4s } .c2 { animation-delay: -2.8s }
+    .c3 { animation-delay: -4.2s } .c4 { animation-delay: -5.6s }
+    @keyframes cbWrite { 0%, 100% { opacity: .18 } 45% { opacity: .9 } }
+    @media (prefers-reduced-motion: reduce) { .ck { animation: none; opacity: .6 } }
+  </style>
+  <path d="M64 0.4 A63.6 63.6 0 1 0 64 127.6 A63.6 63.6 0 1 0 64 0.4 Z M64 14.2 A49.8 49.8 0 1 1 64 113.8 A49.8 49.8 0 1 1 64 14.2 Z"
+        fill="url(#cbOak)" fill-rule="evenodd"/>
+  <path d="M64 6.4 A57.6 57.6 0 1 0 64 121.6 A57.6 57.6 0 1 0 64 6.4 Z M64 14.2 A49.8 49.8 0 1 1 64 113.8 A49.8 49.8 0 1 1 64 14.2 Z"
+        fill="#2A3A32" fill-rule="evenodd"/>
+  <path d="M64 6.4 A57.6 57.6 0 0 0 18 29.4" fill="none" stroke="#E8F0E4" stroke-width="3"
+        opacity=".07"/>
+  <g class="ck c0" transform="translate(118.6 81.7) rotate(108)"><path d="M-5 -3 L5 -3 M0 -6 L0 0"/></g><g class="ck c1" transform="translate(99.3 109.2) rotate(142)"><path d="M-5 -4 C-1 -8 3 -1 5 -5"/></g><g class="ck c2" transform="translate(68.0 121.3) rotate(176)"><path d="M-4 -5 L-4 2 M-4 -5 L2 -5 M-4 -1 L1 -1"/></g><g class="ck c3" transform="translate(31.9 111.6) rotate(214)"><path d="M-5 2 L0 -6 L5 2 M-3 -1 L3 -1"/></g><g class="ck c4" transform="translate(10.8 85.5) rotate(248)"><path d="M-4 -6 L-4 2 M-4 -6 C2 -6 2 -1 -4 -1"/></g><g class="ck c0" transform="translate(8.8 48.2) rotate(286)"><path d="M-5 -1 L5 -1 M-5 1.6 L5 1.6"/></g><g class="ck c1" transform="translate(28.7 18.8) rotate(322)"><path d="M-4 -5 C2 -8 4 -2 -1 0 C4 1 2 5 -4 3"/></g><g class="ck c2" transform="translate(62.0 6.6) rotate(358)"><path d="M-4 -5 L4 3 M4 -5 L-4 3"/></g><g class="ck c3" transform="translate(96.1 16.4) rotate(394)"><path d="M-5 3 C-2 -6 2 -6 5 3"/></g><g class="ck c4" transform="translate(117.2 42.5) rotate(428)"><path d="M-4 -6 L-4 3 L4 3"/></g>
+  <path d="M28 108 C38 116 52 120 64 120 C76 120 90 116 100 108 L102 113
+           C91 121 77 125 64 125 C51 125 37 121 26 113 Z" fill="url(#cbOak)"/>
+  <path d="M28 108 C38 116 52 120 64 120 C76 120 90 116 100 108 L100.8 110
+           C90 118 76 122 64 122 C52 122 38 118 27.2 110 Z" fill="#D2A66E" opacity=".55"/>
+  <path d="M46 115.4 L58 116.8 L57.6 119.6 L45.6 118.2 Z" fill="#F4F8F0"/>
+  <path d="M67 116.6 L80 114.6 L80.8 118.4 L67.8 120.4 Z" fill="#3A3F4A"/>
+  <path d="M67 116.6 L80 114.6 L80.4 116.4 L67.4 118.4 Z" fill="#6E7480"/>
+</svg>

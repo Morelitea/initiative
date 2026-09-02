@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Growing up</title>
+  <circle cx="24" cy="24" r="23" fill="#2A1C28"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8A0A8" stroke-width="2"/>
+  <path d="M17 5 L27 5 L27 43 L17 43 Z" fill="#C49A6E"/>
+  <path d="M17 5 L20 5 L20 43 L17 43 Z" fill="#DCB88E"/>
+  <path d="M24.4 5 L27 5 L27 43 L24.4 43 Z" fill="#9A7248"/>
+  <g stroke="#6B4426" stroke-width="1.2" stroke-linecap="round">
+    <path d="M18 34.6 L26 34.6"/><path d="M18 28.6 L26 28.6"/>
+    <path d="M18 22.4 L26 22.4"/><path d="M18 16.4 L26 16.4"/>
+    <path d="M18 11 L26 11"/>
+  </g>
+  <g fill="none" stroke="#3E8ED0" stroke-width="1.1" stroke-linecap="round">
+    <path d="M29 34.6 L35.4 34.6"/><path d="M29 22.4 L34 22.4"/>
+  </g>
+  <g fill="none" stroke="#D9534F" stroke-width="1.1" stroke-linecap="round">
+    <path d="M29 28.6 L34.4 28.6"/><path d="M29 11 L36 11"/>
+  </g>
+  <g fill="none" stroke="#7FBF46" stroke-width="1.1" stroke-linecap="round">
+    <path d="M29 16.4 L33.4 16.4"/>
+  </g>
+  <g fill="#E8C46A">
+    <circle cx="37.6" cy="34.6" r="1.2"/><circle cx="38.2" cy="11" r="1.2"/>
+  </g>
+</svg>

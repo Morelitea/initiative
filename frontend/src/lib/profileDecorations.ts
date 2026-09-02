@@ -60,13 +60,17 @@ export const FRAME_APERTURE_INSET = `${(((1 - (FRAME_APERTURE * 2) / FRAME_VIEWB
 
 /** Every decoration this build ships, by the name its label is keyed under. */
 type DecorationName =
+  | "abacus"
   | "ace"
-  | "ahimsahand"
+  | "alphabetblocks"
   | "ammonite"
+  | "anniversary"
+  | "apple"
   | "arcade"
   | "aurora"
   | "autistic"
   | "backpack"
+  | "bahai"
   | "balcony"
   | "bat"
   | "bauble"
@@ -82,28 +86,36 @@ type DecorationName =
   | "bones"
   | "bookshelf"
   | "braille"
+  | "buddhist"
+  | "bunsenburner"
   | "bunting"
   | "buttons"
   | "bytrain"
   | "campfire"
   | "car"
+  | "caregiver"
   | "cassette"
   | "cat"
   | "catears"
   | "catnap"
+  | "chalkboard"
+  | "chosenfamily"
+  | "christian"
   | "christmaseve"
   | "christmaslights"
   | "chronicpain"
   | "clapper"
+  | "classroom"
   | "clay"
   | "cobweb"
   | "cocoa"
   | "collar"
   | "colosseum"
+  | "commencement"
   | "controller"
   | "court"
   | "cowries"
-  | "cross"
+  | "crayons"
   | "crown"
   | "cupoftea"
   | "curtain"
@@ -111,10 +123,10 @@ type DecorationName =
   | "dagger"
   | "deaf"
   | "desert"
-  | "dharmawheel"
   | "diabetes"
   | "diamond"
   | "dicetower"
+  | "diploma"
   | "directorschair"
   | "disabilitypride"
   | "dividers"
@@ -126,8 +138,10 @@ type DecorationName =
   | "eiffeltower"
   | "ember"
   | "endzone"
+  | "engaged"
   | "engarde"
   | "enso"
+  | "expecting"
   | "faceoff"
   | "fan"
   | "fastball"
@@ -222,7 +236,9 @@ type DecorationName =
   | "gold"
   | "goldengate"
   | "goodplacetoread"
+  | "graduationcap"
   | "grove"
+  | "growingup"
   | "guitar"
   | "hamster"
   | "handdrum"
@@ -230,15 +246,17 @@ type DecorationName =
   | "headphones"
   | "hearth"
   | "helix"
+  | "hindu"
   | "hollow"
   | "horse"
   | "icicles"
   | "incense"
   | "interlace"
   | "ironwork"
+  | "jain"
+  | "jewish"
   | "kente"
   | "keys"
-  | "khanda"
   | "koi"
   | "labbench"
   | "laces"
@@ -253,6 +271,7 @@ type DecorationName =
   | "magnet"
   | "manyfaiths"
   | "marquee"
+  | "married"
   | "masks"
   | "matcha"
   | "matchball"
@@ -266,18 +285,21 @@ type DecorationName =
   | "monstera"
   | "morel"
   | "morningstar"
+  | "mortarboard"
   | "mountain"
+  | "muslim"
   | "natural20"
   | "nest"
   | "net"
   | "neurodivergent"
+  | "newbaby"
+  | "newhome"
   | "nightsky"
-  | "ninepointedstar"
   | "nonbinary"
   | "northstar"
   | "notebook"
+  | "nursery"
   | "observatory"
-  | "om"
   | "opendoors"
   | "orbital"
   | "oreblock"
@@ -287,10 +309,14 @@ type DecorationName =
   | "panafrican"
   | "panafricanflag"
   | "panels"
+  | "paperchain"
   | "parade"
   | "parchment"
+  | "parent"
   | "parfleche"
   | "pawprint"
+  | "pencil"
+  | "photoframe"
   | "pigskin"
   | "pines"
   | "piste"
@@ -303,6 +329,7 @@ type DecorationName =
   | "pottery"
   | "prideheart"
   | "projector"
+  | "protractor"
   | "puck"
   | "quill"
   | "quillwork"
@@ -317,13 +344,17 @@ type DecorationName =
   | "rockhammer"
   | "rosette"
   | "saxophone"
+  | "schoolbell"
+  | "schoolbus"
+  | "sciencelab"
   | "screening"
   | "seams"
   | "servicedog"
   | "sheetmusic"
-  | "shintotorii"
+  | "shinto"
   | "ship"
   | "showtime"
+  | "sikh"
   | "singingbowl"
   | "skeletons"
   | "skyline"
@@ -339,14 +370,13 @@ type DecorationName =
   | "stack"
   | "stage"
   | "stagelights"
-  | "starandcrescent"
-  | "starofdavid"
   | "stitching"
   | "stones"
   | "streetparty"
   | "strings"
   | "succulent"
   | "swish"
+  | "taoist"
   | "teabag"
   | "teacup"
   | "teagarden"
@@ -354,6 +384,7 @@ type DecorationName =
   | "teaservice"
   | "tennisace"
   | "tent"
+  | "thetable"
   | "ticket"
   | "torii"
   | "train"
@@ -364,13 +395,14 @@ type DecorationName =
   | "vines"
   | "vinyl"
   | "violin"
+  | "washingline"
   | "weave"
   | "wheelchair"
+  | "wiccan"
   | "windowsill"
   | "witchinghour"
   | "wreath"
   | "writingdesk"
-  | "yinandyang"
   | "yorick";
 
 /**
@@ -573,26 +605,78 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
     "pottery"
   ),
   "firstnations.weave": entry("firstnations.weave", "banner", "firstnations-weave", "weave"),
+  "education.classroom": entry("education.classroom", "banner", "education-classroom", "classroom"),
+  "education.lab": entry("education.lab", "banner", "education-lab", "sciencelab"),
+  "education.commencement": entry(
+    "education.commencement",
+    "banner",
+    "education-commencement",
+    "commencement"
+  ),
+  "education.mortarboard": entry(
+    "education.mortarboard",
+    "frame",
+    "education-mortarboard",
+    "mortarboard"
+  ),
+  "education.crayons": entry("education.crayons", "frame", "education-crayons", "crayons"),
+  "education.chalkboard": entry(
+    "education.chalkboard",
+    "frame",
+    "education-chalkboard",
+    "chalkboard"
+  ),
+  "education.apple": entry("education.apple", "trophy", "education-apple", "apple"),
+  "education.blocks": entry("education.blocks", "trophy", "education-blocks", "alphabetblocks"),
+  "education.bus": entry("education.bus", "trophy", "education-bus", "schoolbus"),
+  "education.pencil": entry("education.pencil", "trophy", "education-pencil", "pencil"),
+  "education.abacus": entry("education.abacus", "trophy", "education-abacus", "abacus"),
+  "education.protractor": entry(
+    "education.protractor",
+    "trophy",
+    "education-protractor",
+    "protractor"
+  ),
+  "education.bunsen": entry("education.bunsen", "trophy", "education-bunsen", "bunsenburner"),
+  "education.diploma": entry("education.diploma", "trophy", "education-diploma", "diploma"),
+  "education.cap": entry("education.cap", "trophy", "education-cap", "graduationcap"),
+  "education.bell": entry("education.bell", "trophy", "education-bell", "schoolbell"),
   "faith.skyline": entry("faith.skyline", "banner", "faith-skyline", "skyline"),
   "faith.lights": entry("faith.lights", "banner", "faith-lights", "festivaloflights"),
   "faith.doors": entry("faith.doors", "banner", "faith-doors", "opendoors"),
   "faith.circle": entry("faith.circle", "frame", "faith-circle", "manyfaiths"),
   "faith.interlace": entry("faith.interlace", "frame", "faith-interlace", "interlace"),
-  "faith.cross": entry("faith.cross", "trophy", "faith-cross", "cross"),
-  "faith.crescent": entry("faith.crescent", "trophy", "faith-crescent", "starandcrescent"),
-  "faith.starofdavid": entry("faith.starofdavid", "trophy", "faith-starofdavid", "starofdavid"),
-  "faith.om": entry("faith.om", "trophy", "faith-om", "om"),
-  "faith.dharmawheel": entry("faith.dharmawheel", "trophy", "faith-dharmawheel", "dharmawheel"),
-  "faith.khanda": entry("faith.khanda", "trophy", "faith-khanda", "khanda"),
-  "faith.taijitu": entry("faith.taijitu", "trophy", "faith-taijitu", "yinandyang"),
+  "faith.cross": entry("faith.cross", "trophy", "faith-cross", "christian"),
+  "faith.crescent": entry("faith.crescent", "trophy", "faith-crescent", "muslim"),
+  "faith.pentacle": entry("faith.pentacle", "trophy", "faith-pentacle", "wiccan"),
+  "faith.starofdavid": entry("faith.starofdavid", "trophy", "faith-starofdavid", "jewish"),
+  "faith.om": entry("faith.om", "trophy", "faith-om", "hindu"),
+  "faith.dharmawheel": entry("faith.dharmawheel", "trophy", "faith-dharmawheel", "buddhist"),
+  "faith.khanda": entry("faith.khanda", "trophy", "faith-khanda", "sikh"),
+  "faith.taijitu": entry("faith.taijitu", "trophy", "faith-taijitu", "taoist"),
   "faith.ninepointedstar": entry(
     "faith.ninepointedstar",
     "trophy",
     "faith-ninepointedstar",
-    "ninepointedstar"
+    "bahai"
   ),
-  "faith.ahimsa": entry("faith.ahimsa", "trophy", "faith-ahimsa", "ahimsahand"),
-  "faith.torii": entry("faith.torii", "trophy", "faith-torii", "shintotorii"),
+  "faith.ahimsa": entry("faith.ahimsa", "trophy", "faith-ahimsa", "jain"),
+  "faith.torii": entry("faith.torii", "trophy", "faith-torii", "shinto"),
+  "family.washing": entry("family.washing", "banner", "family-washing", "washingline"),
+  "family.nursery": entry("family.nursery", "banner", "family-nursery", "nursery"),
+  "family.table": entry("family.table", "banner", "family-table", "thetable"),
+  "family.paperchain": entry("family.paperchain", "frame", "family-paperchain", "paperchain"),
+  "family.photoframe": entry("family.photoframe", "frame", "family-photoframe", "photoframe"),
+  "family.rattle": entry("family.rattle", "trophy", "family-rattle", "newbaby"),
+  "family.booties": entry("family.booties", "trophy", "family-booties", "expecting"),
+  "family.engaged": entry("family.engaged", "trophy", "family-engaged", "engaged"),
+  "family.married": entry("family.married", "trophy", "family-married", "married"),
+  "family.anniversary": entry("family.anniversary", "trophy", "family-anniversary", "anniversary"),
+  "family.parent": entry("family.parent", "trophy", "family-parent", "parent"),
+  "family.newhome": entry("family.newhome", "trophy", "family-newhome", "newhome"),
+  "family.caregiver": entry("family.caregiver", "trophy", "family-caregiver", "caregiver"),
+  "family.nest": entry("family.nest", "trophy", "family-nest", "chosenfamily"),
+  "family.growing": entry("family.growing", "trophy", "family-growing", "growingup"),
   "firstnations.bonenecklace": entry(
     "firstnations.bonenecklace",
     "frame",

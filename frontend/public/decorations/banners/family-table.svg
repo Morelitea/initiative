@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>The table</title>
+  <!-- Places laid, one of them smaller than the others, and something in the
+       middle that is still going. -->
+  <defs>
+    <linearGradient id="tbRoom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2A1F2C"/><stop offset="100%" stop-color="#48303A"/>
+    </linearGradient>
+    <linearGradient id="tbOak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9C6B42"/><stop offset="100%" stop-color="#6B4426"/>
+    </linearGradient>
+    <filter id="tbSoft" x="-30%" y="-60%" width="160%" height="220%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <radialGradient id="tbLamp" cx=".5" cy=".2" r=".7">
+      <stop offset="0%" stop-color="#F6D89A" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#F6D89A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <style>
+    .steam { animation: tbRise 6s ease-in-out infinite; transform-box: view-box }
+    .v2 { animation-delay: -2s } .v3 { animation-delay: -4s }
+    @keyframes tbRise { 0% { opacity: 0; transform: translate(0,2px) }
+                        30% { opacity: .5 }
+                        100% { opacity: 0; transform: translate(-2px,-9px) } }
+    .glow { animation: tbWarm 7s ease-in-out infinite alternate }
+    @keyframes tbWarm { from { opacity: .78 } to { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) { .steam, .glow { animation: none } }
+  </style>
+  <rect width="160" height="40" fill="url(#tbRoom)"/>
+  <ellipse class="glow" cx="80" cy="18" rx="54" ry="19" fill="url(#tbLamp)" filter="url(#tbSoft)"/>
+  <path d="M80 0 L80 5.6" stroke="#7E6A54" stroke-width=".7"/>
+  <path d="M71.4 11 C71.4 7 75 5.6 80 5.6 C85 5.6 88.6 7 88.6 11 Z" fill="#C46A7E"/>
+  <path d="M71.4 11 C75 12.2 85 12.2 88.6 11 L88.6 11.8 C85 13 75 13 71.4 11.8 Z" fill="#8E4256"/>
+  <circle class="glow" cx="80" cy="12.4" r="2.2" fill="#FBE6BE"/>
+  <path d="M0 28.6 L160 28.6 L160 32 L0 32 Z" fill="url(#tbOak)"/>
+  <path d="M0 28.6 L160 28.6 L160 29.4 L0 29.4 Z" fill="#C08E5E"/>
+  <path d="M0 32 L160 32 L160 40 L0 40 Z" fill="#241820"/>
+  <g><ellipse cx="24" cy="30" rx="5.4" ry="2.3" fill="#F2ECE0"/><ellipse cx="24" cy="29.6" rx="5.4" ry="2.3" fill="#FBF6EC"/><ellipse cx="24" cy="29.6" rx="3.1" ry="1.3" fill="#E8DFD0"/><path d="M16.0 28.4 L16.0 31.4" stroke="#B8BEC6" stroke-width="1.1" stroke-linecap="round"/><path d="M31.8 28.4 L31.8 31.4" stroke="#B8BEC6" stroke-width="1.1" stroke-linecap="round"/><path d="M30.4 24.4 C30.4 27.6 33.4 27.6 33.4 24.4 Z" fill="#C46A7E"/><path d="M31.7 27.4 L32.1 27.4 L32.1 29.4 L31.7 29.4 Z" fill="#B8BEC6"/></g><g><ellipse cx="52" cy="30" rx="4.2" ry="1.8" fill="#F2ECE0"/><ellipse cx="52" cy="29.6" rx="4.2" ry="1.8" fill="#FBF6EC"/><ellipse cx="52" cy="29.6" rx="2.4" ry="1.0" fill="#E8DFD0"/><path d="M45.2 28.4 L45.2 31.4" stroke="#B8BEC6" stroke-width="0.9" stroke-linecap="round"/><path d="M58.6 28.4 L58.6 31.4" stroke="#B8BEC6" stroke-width="0.9" stroke-linecap="round"/><path d="M55.2 24.6 L58.8 24.6 L58.2 28.4 L55.8 28.4 Z" fill="#8ECFE4"/><path d="M56.4 23.4 L57.6 23.4 L57.6 24.6 L56.4 24.6 Z" fill="#5FA8C4"/></g><g><ellipse cx="108" cy="30" rx="5.4" ry="2.3" fill="#F2ECE0"/><ellipse cx="108" cy="29.6" rx="5.4" ry="2.3" fill="#FBF6EC"/><ellipse cx="108" cy="29.6" rx="3.1" ry="1.3" fill="#E8DFD0"/><path d="M100.0 28.4 L100.0 31.4" stroke="#B8BEC6" stroke-width="1.1" stroke-linecap="round"/><path d="M115.8 28.4 L115.8 31.4" stroke="#B8BEC6" stroke-width="1.1" stroke-linecap="round"/><path d="M114.4 24.4 C114.4 27.6 117.4 27.6 117.4 24.4 Z" fill="#C46A7E"/><path d="M115.7 27.4 L116.1 27.4 L116.1 29.4 L115.7 29.4 Z" fill="#B8BEC6"/></g><g><ellipse cx="136" cy="30" rx="4.9" ry="2.0" fill="#F2ECE0"/><ellipse cx="136" cy="29.6" rx="4.9" ry="2.0" fill="#FBF6EC"/><ellipse cx="136" cy="29.6" rx="2.8" ry="1.2" fill="#E8DFD0"/><path d="M128.5 28.4 L128.5 31.4" stroke="#B8BEC6" stroke-width="1.0" stroke-linecap="round"/><path d="M143.3 28.4 L143.3 31.4" stroke="#B8BEC6" stroke-width="1.0" stroke-linecap="round"/><path d="M141.9 24.4 C141.9 27.6 144.9 27.6 144.9 24.4 Z" fill="#C46A7E"/><path d="M143.2 27.4 L143.6 27.4 L143.6 29.4 L143.2 29.4 Z" fill="#B8BEC6"/></g>
+  <g>
+    <ellipse cx="80" cy="30.4" rx="9" ry="3.4" fill="#8A5F32"/>
+    <path d="M71.6 28.6 C71.6 24.6 75.4 22.6 80 22.6 C84.6 22.6 88.4 24.6 88.4 28.6
+             C88.4 30.4 84.6 31.6 80 31.6 C75.4 31.6 71.6 30.4 71.6 28.6 Z" fill="#C46A4E"/>
+    <path d="M80 22.6 C84.6 22.6 88.4 24.6 88.4 28.6 C88.4 30.4 84.6 31.6 80 31.6 Z"
+          fill="#9C4A32" opacity=".5"/>
+    <ellipse cx="80" cy="23.4" rx="8" ry="2.4" fill="#E8B48E"/>
+    <ellipse cx="80" cy="23" rx="6.4" ry="1.8" fill="#F2CDA8"/>
+  </g>
+  <g fill="none" stroke="#F6EEDE" stroke-width="1" stroke-linecap="round">
+    <path class="steam" d="M76 21 C74.4 18 77 16 75.4 13"/>
+    <path class="steam v2" d="M80 20.6 C78.4 17.6 81 15.6 79.4 12.6"/>
+    <path class="steam v3" d="M84 21 C82.4 18 85 16 83.4 13"/>
+  </g>
+</svg>
