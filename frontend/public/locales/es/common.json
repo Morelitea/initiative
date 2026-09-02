@@ -136,5 +136,9 @@
     "namesAndMore_one": "{{names}} y {{count}} persona más",
     "namesAndMore_other": "{{names}} y {{count}} personas más",
     "error": "No se pudo guardar tu reacción."
+  },
+  "pagination": {
+    "perPage": "Por página:",
+    "rangeOf": "{{start}}–{{end}} de {{total}}"
   }
 }

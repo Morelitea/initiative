@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { DocumentCard } from "@/components/documents/DocumentCard";
-import { PaginationBar } from "@/components/documents/PaginationBar";
+import { PaginationBar } from "@/components/PaginationBar";
 import { TagTreeView } from "@/components/tags/TagTreeView";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";

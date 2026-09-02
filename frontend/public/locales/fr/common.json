@@ -136,5 +136,9 @@
     "namesAndMore_one": "{{names}} et {{count}} autre",
     "namesAndMore_other": "{{names}} et {{count}} autres",
     "error": "Votre réaction n'a pas pu être enregistrée."
+  },
+  "pagination": {
+    "perPage": "Par page :",
+    "rangeOf": "{{start}}–{{end}} sur {{total}}"
   }
 }

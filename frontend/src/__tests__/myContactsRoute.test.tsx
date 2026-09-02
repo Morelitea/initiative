@@ -8,7 +8,7 @@
  * preloads the route's own component.
  */
 import { createRouter } from "@tanstack/react-router";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,7 +23,8 @@ const mocks = vi.hoisted(() => ({
   sections: vi.fn(),
   favorites: vi.fn(),
   toggle: vi.fn(),
-  fetchPage: vi.fn(),
+  sectionPage: vi.fn(),
+  prefetch: vi.fn(),
 }));
 
 vi.mock("@/hooks/useContacts", () => ({
@@ -31,7 +32,9 @@ vi.mock("@/hooks/useContacts", () => ({
   useContactSections: (search: string) => mocks.sections(search),
   useFavoriteContacts: (search: string) => mocks.favorites(search),
   useToggleFavoriteContact: () => mocks.toggle,
-  fetchContactPage: (...args: unknown[]) => mocks.fetchPage(...args),
+  useContactSectionPage: (guildId: number, page: number, search: string) =>
+    mocks.sectionPage(guildId, page, search),
+  usePrefetchContactSectionPage: () => mocks.prefetch,
   contactsPrefetch: () => ({ sections: {}, favorites: {} }),
 }));
 
@@ -67,16 +70,24 @@ const section = (overrides: Partial<ContactGuildSection> = {}): ContactGuildSect
   ...overrides,
 });
 
-const answer = (sections: ContactGuildSection[], favorites: ContactRead[] = []) => {
+const answer = (
+  sections: ContactGuildSection[],
+  favorites: ContactRead[] = [],
+  state: { isLoading?: boolean; isFetching?: boolean } = {}
+) => {
+  const flags = { isLoading: false, isFetching: false, ...state };
   mocks.sections.mockReturnValue({
     data: { sections, page: 1, page_size: 20 },
-    isLoading: false,
+    ...flags,
   });
   mocks.favorites.mockReturnValue({
     data: { items: favorites, total_count: favorites.length },
-    isLoading: false,
+    ...flags,
   });
 };
+
+/** A section page that has not arrived — what every page past the first is. */
+const pendingPage = { data: undefined, isPending: true, isPlaceholderData: false };
 
 const contactsPage = async () => {
   const route = router.routesById[CONTACTS_ROUTE_ID];
@@ -97,10 +108,13 @@ const renderContacts = async (q?: string) => {
   });
 };
 
+const people = (count: number) => Array.from({ length: count }, () => contact());
+
 beforeEach(() => {
   vi.clearAllMocks();
   nextId = 1;
   answer([]);
+  mocks.sectionPage.mockReturnValue(pendingPage);
 });
 
 describe("My Contacts", () => {
@@ -125,6 +139,16 @@ describe("My Contacts", () => {
       expect.stringContaining("Ravenloft Table"),
       expect.stringContaining("Homebrew Workshop"),
     ]);
+  });
+
+  it("names the columns once, above every section", async () => {
+    answer([section({ items: [contact({ username: "ada" })] })]);
+    await renderContacts();
+
+    await screen.findByText("ada");
+    expect(screen.getByText("Person")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Also in")).toBeInTheDocument();
   });
 
   it("lists somebody under each community they are in", async () => {
@@ -156,7 +180,7 @@ describe("My Contacts", () => {
     await renderContacts();
 
     await screen.findByText("solo");
-    expect(screen.queryByLabelText(/Also in/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Also in .+/)).not.toBeInTheDocument();
   });
 
   it("keeps every shared community on a Favorites row, which sits under none", async () => {
@@ -197,102 +221,128 @@ describe("My Contacts", () => {
     expect(mocks.favorites).toHaveBeenCalledWith("ada");
   });
 
-  it("offers more of a community only while more remains", async () => {
+  it("keeps both pager buttons on screen, disabled where there is nowhere to go", async () => {
     answer([
-      section({ guild_id: 1, guild_name: "Big Table", items: [contact()], has_next: true }),
-      section({ guild_id: 2, guild_name: "Small Table", items: [contact()], has_next: false }),
+      section({ guild_id: 1, guild_name: "Big Table", items: people(1), total_count: 25 }),
+      section({ guild_id: 2, guild_name: "Small Table", items: people(1), total_count: 1 }),
     ]);
     await renderContacts();
 
-    expect(await screen.findAllByRole("button", { name: "Show more" })).toHaveLength(1);
+    // Both sections carry a pager, whether or not they have a second page.
+    const next = await screen.findAllByRole("button", { name: "Next" });
+    expect(next).toHaveLength(2);
+    expect(next[0]).toBeEnabled();
+    expect(next[1]).toBeDisabled();
+
+    const previous = screen.getAllByRole("button", { name: "Previous" });
+    expect(previous).toHaveLength(2);
+    for (const button of previous) expect(button).toBeDisabled();
   });
 
-  it("appends the next page of a community without touching the others", async () => {
-    const first = contact({ username: "aaa" });
-    answer([section({ guild_id: 1, items: [first], total_count: 2, has_next: true })]);
-    mocks.fetchPage.mockResolvedValue(
-      section({ guild_id: 1, items: [contact({ username: "zzz" })], has_next: false })
+  it("says which slice of a community is on screen", async () => {
+    answer([section({ guild_id: 1, items: people(1), total_count: 25 })]);
+    await renderContacts();
+
+    expect(await screen.findByText("1–20 of 25")).toBeInTheDocument();
+  });
+
+  it("replaces a community's rows with the next page, leaving the others", async () => {
+    answer([
+      section({
+        guild_id: 1,
+        guild_name: "Big Table",
+        items: [contact({ username: "aaa" })],
+        total_count: 25,
+      }),
+      section({ guild_id: 2, guild_name: "Small Table", items: [contact({ username: "stays" })] }),
+    ]);
+    mocks.sectionPage.mockImplementation((guildId: number, page: number) =>
+      page === 2
+        ? {
+            data: {
+              sections: [section({ guild_id: guildId, items: [contact({ username: "zzz" })] })],
+            },
+            isPending: false,
+            isPlaceholderData: false,
+          }
+        : pendingPage
     );
     await renderContacts();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Show more" }));
+    const next = await screen.findAllByRole("button", { name: "Next" });
+    await userEvent.click(next[0]);
 
-    expect(mocks.fetchPage).toHaveBeenCalledWith(1, 2, "");
+    expect(mocks.sectionPage).toHaveBeenCalledWith(1, 2, "");
     expect(await screen.findByText("zzz")).toBeInTheDocument();
-    // The first page is still there — this appends rather than replaces.
-    expect(screen.getByText("aaa")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
+    // A page replaces the one before it, and no other section moved.
+    expect(screen.queryByText("aaa")).not.toBeInTheDocument();
+    expect(screen.getByText("stays")).toBeInTheDocument();
+    expect(screen.getByText("21–25 of 25")).toBeInTheDocument();
   });
 
-  it("drops a page that lands after the term moved on", async () => {
-    answer([section({ guild_id: 1, items: [contact({ username: "aaa" })], has_next: true })]);
-    let land: (value: ContactGuildSection) => void = () => {};
-    mocks.fetchPage.mockReturnValue(
-      new Promise<ContactGuildSection>((resolve) => {
-        land = resolve;
-      })
+  it("says a page failed rather than claiming the community is empty", async () => {
+    answer([section({ guild_id: 1, guild_name: "Big Table", items: people(1), total_count: 25 })]);
+    mocks.sectionPage.mockImplementation((_guildId: number, page: number) =>
+      page === 2
+        ? { data: undefined, isPending: false, isPlaceholderData: false, isError: true }
+        : pendingPage
     );
     await renderContacts();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Show more" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
 
-    // The reader types while that page is still in flight, so the sections
-    // underneath become a filtered set.
-    answer([section({ guild_id: 1, items: [contact({ username: "match" })] })]);
+    expect(await screen.findByText("That page didn't load.")).toBeInTheDocument();
+    // The empty-roster line would say the opposite of what is true.
+    expect(screen.queryByText("Nobody else is in this community yet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("returns a community to its first page under a new term", async () => {
+    answer([section({ guild_id: 1, items: people(1), total_count: 25 })]);
+    await renderContacts();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+    expect(mocks.sectionPage).toHaveBeenLastCalledWith(1, 2, "");
+
+    answer([section({ guild_id: 1, items: [contact({ username: "match" })], total_count: 1 })]);
     await userEvent.type(
       screen.getByRole("searchbox", { name: "Search everyone on this page" }),
       "match"
     );
+
+    // The sections under a different term are a different set of people, so
+    // page two of the old one is not a place to still be.
+    await waitFor(() => expect(mocks.sectionPage).toHaveBeenLastCalledWith(1, 1, "match"));
     expect(await screen.findByText("match")).toBeInTheDocument();
-
-    // The old page arrives carrying somebody who does not match the new term.
-    await act(async () => {
-      land(section({ guild_id: 1, items: [contact({ username: "stale" })], has_next: false }));
-    });
-
-    expect(screen.queryByText("stale")).not.toBeInTheDocument();
   });
 
-  it("appends a page once when the term changes and changes back", async () => {
-    // The term check alone cannot see this: both requests were asked under the
-    // same term, and the reset in between re-offered the button.
-    answer([section({ guild_id: 1, items: [contact({ username: "aaa" })], has_next: true })]);
-    const landings: Array<(value: ContactGuildSection) => void> = [];
-    mocks.fetchPage.mockImplementation(
-      () =>
-        new Promise<ContactGuildSection>((resolve) => {
-          landings.push(resolve);
-        })
-    );
+  it("pages the starred list, which arrives whole", async () => {
+    const starred = people(21);
+    answer([], starred);
     await renderContacts();
 
-    const showMore = () => screen.getByRole("button", { name: "Show more" });
-    const box = () => screen.getByRole("searchbox", { name: "Search everyone on this page" });
+    const last = starred[20];
+    expect(await screen.findByText("1–20 of 21")).toBeInTheDocument();
+    expect(screen.queryByText(last.username as string)).not.toBeInTheDocument();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Show more" }));
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText(last.username as string)).toBeInTheDocument();
+  });
 
-    // Away and back, which resets the section and re-enables the button. The
-    // reads are debounced, so wait for the term to actually land each way.
-    await userEvent.type(box(), "x");
-    await waitFor(() => expect(mocks.sections).toHaveBeenLastCalledWith("x"));
-    await userEvent.clear(box());
-    await waitFor(() => expect(mocks.sections).toHaveBeenLastCalledWith(""));
+  it("explains the wait while a search crosses every community", async () => {
+    answer([section({ items: [contact({ username: "ada" })] })], [], { isFetching: true });
+    await renderContacts("ada");
 
-    await waitFor(() => expect(showMore()).toBeEnabled());
-    await userEvent.click(showMore());
-    expect(landings).toHaveLength(2);
+    expect(await screen.findByText("Searching every community")).toBeInTheDocument();
+    expect(screen.getByText(/one at a time/)).toBeInTheDocument();
+  });
 
-    // Both requests were for the same page, and both land.
-    const page2 = () =>
-      section({ guild_id: 1, items: [contact({ id: 99, username: "second" })], has_next: false });
-    await act(async () => {
-      landings[0](page2());
-    });
-    await act(async () => {
-      landings[1](page2());
-    });
+  it("says nothing about crossing communities when simply loading the page", async () => {
+    answer([], [], { isLoading: true });
+    await renderContacts();
 
-    expect(screen.getAllByText("second")).toHaveLength(1);
+    expect(await screen.findByText("Loading your contacts…")).toBeInTheDocument();
+    expect(screen.queryByText("Searching every community")).not.toBeInTheDocument();
   });
 
   it("says so when a search matched nobody", async () => {
