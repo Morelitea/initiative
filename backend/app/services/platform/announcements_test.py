@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import struct
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import builtin_announcements as builtins_module
 from app.core.builtin_announcements import BuiltinAnnouncement
@@ -185,6 +187,35 @@ async def test_a_notice_can_ask_to_be_dismissed_more_than_once(session):
 
     await service.record_receipt(session, user_id=reader.id, key=key, dismissed=True)
     await session.commit()
+    assert await service.list_for_user(session, user=reader) == []
+
+
+@pytest.mark.integration
+async def test_two_tabs_dismissing_at_once_do_not_collide(session, engine):
+    """Two connections, neither aware of the other, both dismissing.
+
+    The read-then-write this used to be would either collide on the primary
+    key (both finding no row) or lose one of the increments.
+    """
+    author = await create_user(session, role=UserRole.owner)
+    reader = await create_user(session)
+    announcement = await _publish(session, author, dismissals_required=2)
+    key = f"db:{announcement.id}"
+
+    async def dismiss_on_its_own_connection() -> None:
+        async with AsyncSession(engine, expire_on_commit=False) as other:
+            await service.record_receipt(
+                other, user_id=reader.id, key=key, dismissed=True
+            )
+            await other.commit()
+
+    await asyncio.gather(
+        dismiss_on_its_own_connection(), dismiss_on_its_own_connection()
+    )
+
+    receipt = await session.get(AnnouncementReadReceipt, (reader.id, key))
+    await session.refresh(receipt)
+    assert receipt.dismiss_count == 2
     assert await service.list_for_user(session, user=reader) == []
 
 

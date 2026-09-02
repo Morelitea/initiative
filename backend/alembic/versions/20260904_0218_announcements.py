@@ -20,8 +20,10 @@ The access shape, and why:
   own-row policies for SELECT/INSERT/UPDATE on the platform floor, which is
   the only path that records one. The system engine reads and deletes (a
   deleted announcement takes its receipts with it) and never writes one.
-* **``announcement_images``** — bytes, held and served entirely on the system
-  engine like guild images. No request-path role holds anything at all.
+* **``announcement_images``** — the bytes, readable by any signed-in account
+  on the request path: an announcement's audience decides who is *shown* a
+  notice, not who may fetch a screenshot addressed by its own digest. Writing
+  them is the system engine's, like the notices they belong to.
 
 The schema's default privileges hand every new ``public`` table to the routed
 base roles, so they are wound back explicitly before anything is granted.
@@ -159,14 +161,21 @@ def upgrade() -> None:
         # --- announcement_images ---------------------------------------------
         f"REVOKE ALL ON TABLE public.announcement_images FROM {request_roles}",
         "GRANT SELECT, INSERT, DELETE ON TABLE public.announcement_images TO app_admin",
+        f'GRANT SELECT ON TABLE public.announcement_images TO app_guild_base, "{base}"',
         "ALTER TABLE public.announcement_images ENABLE ROW LEVEL SECURITY",
         "ALTER TABLE public.announcement_images FORCE ROW LEVEL SECURITY",
+        "DROP POLICY IF EXISTS announcement_image_read ON public.announcement_images",
+        "CREATE POLICY announcement_image_read ON public.announcement_images "
+        f'AS PERMISSIVE FOR SELECT TO app_guild_base, "{base}" USING (true)',
     ]
     for statement in statements:
         op.execute(statement)
 
 
 def downgrade() -> None:
+    op.execute(
+        "DROP POLICY IF EXISTS announcement_image_read ON public.announcement_images"
+    )
     op.execute(
         "DROP POLICY IF EXISTS announcement_read_self_update "
         "ON public.announcement_reads"

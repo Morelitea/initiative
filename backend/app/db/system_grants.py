@@ -167,8 +167,8 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # Receipts are written by the reader under their own role. The system
     # engine only ever removes them, when the announcement they name goes.
     "announcement_reads": frozenset({"SELECT", "DELETE"}),
-    # The pictures are stored and served entirely on the system engine, like
-    # guild images: no request-path role holds the bytes.
+    # The system engine stores and prunes the pictures; the request path reads
+    # them under its own role (a signed-in account may fetch any of them).
     "announcement_images": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Append-only. The system engine writes the record and the board reads it;

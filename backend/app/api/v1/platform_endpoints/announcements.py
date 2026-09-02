@@ -11,7 +11,11 @@ Two audiences on one router, deliberately kept apart by path and by session:
 
 Pictures are served from ``/announcements/images/{sha256}`` and authenticated
 the way ``/uploads/*`` is — an ``<img>`` carries the session cookie on web and
-a short-lived uploads-scoped token in a native WebView.
+a short-lived uploads-scoped token in a native WebView. That route resolves its
+caller before the session is routed (the token is not an ``Authorization``
+header), so it takes the bare session and establishes the platform context
+itself rather than reaching for the system engine to read bytes any signed-in
+account may have.
 """
 
 from __future__ import annotations
@@ -24,13 +28,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
+    SessionDep,
     UploadUserDep,
     UserSessionDep,
     get_current_active_user,
     require_capability,
 )
 from app.core.capabilities import Capability
-from app.db.session import get_admin_session
+from app.db.session import get_admin_session, set_rls_context
 from app.core.messages import AnnouncementMessages
 from app.models.platform.announcement import (
     ANNOUNCEMENT_IMAGE_MAX_BYTES,
@@ -130,14 +135,18 @@ async def dismiss(
 async def read_announcement_image(
     sha256: Annotated[str, Path(pattern=r"^[0-9a-f]{64}$")],
     current_user: UploadUserDep,
-    session: AdminSessionDep,
+    session: SessionDep,
 ) -> Response:
     """Serve one announcement picture.
 
     Any signed-in account may read one: an announcement's audience decides who
     is *shown* a notice, not who may fetch a screenshot whose 64-hex address
-    they would have to have been given in the first place.
+    they would have to have been given in the first place. The read runs under
+    the caller's own platform role, like every other request-path read.
     """
+    await set_rls_context(
+        session, user_id=current_user.id, platform_role=current_user.role.value
+    )
     image = await announcements_service.read_image(session, sha256=sha256)
     if image is None:
         raise HTTPException(
@@ -181,6 +190,7 @@ async def create_announcement(
     announcement = await announcements_service.create(
         session, payload=payload, author_id=author.id
     )
+    await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     await session.refresh(announcement)
     return announcements_service.to_admin_read(announcement)
@@ -242,6 +252,10 @@ async def upload_announcement_image(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    # Sweep here as well as on save: an editor that is opened, uploads a
+    # screenshot and is then closed leaves bytes nothing points at, and the
+    # next upload is the only event that is certain to follow it.
+    await announcements_service.prune_unreferenced_images(session)
     await session.commit()
     return AnnouncementImageRead(
         url=announcements_service.image_url(image.sha256),

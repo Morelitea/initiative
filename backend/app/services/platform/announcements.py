@@ -28,7 +28,8 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -288,30 +289,59 @@ async def record_receipt(
     ``seen_at``, and never undoes a dismissal. A *dismissal* is counted rather
     than flagged, because a notice may ask to be acknowledged more than once —
     the count is what ``list_for_user`` compares against the announcement's
-    ``dismissals_required``. It is bounded by that same number so a client
-    that posts twice cannot run it away.
+    ``dismissals_required``, and it is capped there so a client that posts
+    twice cannot run it away.
+
+    Written as a single upsert rather than read-then-write because two tabs
+    dismissing the same notice at once is an ordinary thing to do: separate
+    statements would either collide on the primary key (both finding no row)
+    or lose an increment (both reading the same count). ``LEAST`` applies the
+    cap inside the same statement that does the increment.
     """
     now = now or datetime.now(timezone.utc)
     required = await dismissals_required_for(session, key=key)
-    existing = await session.get(AnnouncementReadReceipt, (user_id, key))
-    if existing is None:
-        existing = AnnouncementReadReceipt(
-            user_id=user_id,
-            announcement_key=key,
-            seen_at=now,
-            dismissed_at=now if dismissed else None,
-            dismiss_count=1 if dismissed else 0,
+
+    values = {
+        "user_id": user_id,
+        "announcement_key": key,
+        "seen_at": now,
+        "dismissed_at": now if dismissed else None,
+        "dismiss_count": 1 if dismissed else 0,
+    }
+    statement = pg_insert(AnnouncementReadReceipt).values(**values)
+    table = statement.excluded
+    if dismissed:
+        counted = func.least(
+            AnnouncementReadReceipt.__table__.c.dismiss_count + 1, required
         )
-        session.add(existing)
-        # Flushed so a second call in the same transaction finds this row
-        # rather than inserting a duplicate of it.
-        await session.flush()
-        return existing
-    if dismissed and existing.dismiss_count < required:
-        existing.dismiss_count += 1
-        existing.dismissed_at = now
-        session.add(existing)
-    return existing
+        statement = statement.on_conflict_do_update(
+            index_elements=["user_id", "announcement_key"],
+            set_={
+                "dismiss_count": counted,
+                # The stamp moves only when the count did; a dismissal past
+                # what was asked for is not a new acknowledgement.
+                "dismissed_at": case(
+                    (
+                        AnnouncementReadReceipt.__table__.c.dismiss_count < required,
+                        table.dismissed_at,
+                    ),
+                    else_=AnnouncementReadReceipt.__table__.c.dismissed_at,
+                ),
+            },
+        )
+    else:
+        # Being shown something again is not news.
+        statement = statement.on_conflict_do_nothing(
+            index_elements=["user_id", "announcement_key"]
+        )
+    await session.exec(statement)
+
+    receipt = await session.get(AnnouncementReadReceipt, (user_id, key))
+    if receipt is not None:
+        # The upsert wrote behind the identity map's back; read the row as the
+        # database now has it.
+        await session.refresh(receipt)
+    return receipt  # ty: ignore[invalid-return-type]
 
 
 async def dismissals_required_for(session: AsyncSession, *, key: str) -> int:
