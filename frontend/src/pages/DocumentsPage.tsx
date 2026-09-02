@@ -50,6 +50,7 @@ import {
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
+import type { GridToggleOptions } from "@/hooks/useGridSelection";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
@@ -57,6 +58,7 @@ import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
+import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { toolDetailRoute } from "@/lib/tools";
 
@@ -446,14 +448,36 @@ export const DocumentsView = ({
     () => new Set(selectedDocuments.map((doc) => doc.id)),
     [selectedDocuments]
   );
-  const toggleDocumentSelection = useCallback((document: DocumentSummary) => {
-    setSelectedDocuments((prev) =>
-      prev.some((doc) => doc.id === document.id)
-        ? prev.filter((doc) => doc.id !== document.id)
-        : [...prev, document]
-    );
-  }, []);
+  // Shift-click extends from the last card clicked; the range runs along the
+  // order the cards render in, which the grid and tags views share. Both refs
+  // are read only from a click handler, so they describe what the user sees.
+  const selectionAnchorRef = useRef<number | null>(null);
+  const visibleDocumentsRef = useRef<DocumentSummary[]>([]);
+  const toggleDocumentSelection = useCallback(
+    (document: DocumentSummary, options?: GridToggleOptions) => {
+      // Read the anchor and the list *now*: React runs the updater below at
+      // render time, by which point the refs already describe the next click.
+      const anchorId = selectionAnchorRef.current;
+      const items = visibleDocumentsRef.current;
+      selectionAnchorRef.current = document.id;
+
+      setSelectedDocuments((prev) => {
+        const selectedIds = new Set(prev.map((doc) => doc.id));
+        const { add, remove } = resolveCardClick(document, {
+          items,
+          anchorId,
+          isSelected: (id) => selectedIds.has(id),
+          extend: options?.extend,
+        });
+        const removed = new Set(remove);
+        const kept = prev.filter((doc) => !removed.has(doc.id));
+        return [...kept, ...add.filter((doc) => !selectedIds.has(doc.id))];
+      });
+    },
+    []
+  );
   const exitCardSelection = useCallback(() => {
+    selectionAnchorRef.current = null;
     setCardSelectionActive(false);
     setSelectedDocuments([]);
   }, []);
@@ -461,6 +485,7 @@ export const DocumentsView = ({
   // hidden selection behind another view's bulk actions — every change starts
   // unselected.
   useEffect(() => {
+    selectionAnchorRef.current = null;
     setCardSelectionActive(false);
     setSelectedDocuments([]);
   }, [viewMode, status]);
@@ -596,6 +621,7 @@ export const DocumentsView = ({
 
   // Server handles untagged filtering via ?untagged=true param
   const displayDocuments = documents;
+  visibleDocumentsRef.current = displayDocuments;
 
   return (
     <div className="space-y-6">
@@ -761,7 +787,7 @@ export const DocumentsView = ({
                   key={document.id}
                   active={cardSelectionActive}
                   selected={selectedDocumentIds.has(document.id)}
-                  onToggle={() => toggleDocumentSelection(document)}
+                  onToggle={(options) => toggleDocumentSelection(document, options)}
                   label={document.name}
                 >
                   <DocumentCard document={document} />

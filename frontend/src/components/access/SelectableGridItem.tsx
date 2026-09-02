@@ -1,13 +1,15 @@
 import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 
+import type { GridToggleOptions } from "@/hooks/useGridSelection";
 import { cn } from "@/lib/utils";
 
 interface SelectableGridItemProps {
   /** Whether the list is in selection mode. When false, children render as-is. */
   active: boolean;
   selected: boolean;
-  onToggle: () => void;
+  /** Called with `extend` when the click held shift, asking for a range. */
+  onToggle: (options: GridToggleOptions) => void;
   children: ReactNode;
   label?: string;
 }
@@ -16,6 +18,9 @@ interface SelectableGridItemProps {
  * Wraps a grid card so it can be multi-selected without touching the card
  * component. In selection mode the card underneath is made non-interactive (its
  * link won't navigate) and a full-card toggle button + checkbox overlay is shown.
+ * Holding shift asks the list for a range from the last card clicked to this one
+ * — keyboard activation counts too, since Shift+Enter/Space fires a click with
+ * the modifier set.
  */
 export function SelectableGridItem({
   active,
@@ -35,11 +40,11 @@ export function SelectableGridItem({
       </div>
       <button
         type="button"
-        onClick={onToggle}
+        onClick={(event) => onToggle({ extend: event.shiftKey })}
         aria-pressed={selected}
         aria-label={label}
         className={cn(
-          "absolute inset-0 z-10 rounded-2xl ring-inset transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "absolute inset-0 z-10 select-none rounded-2xl ring-inset transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           selected ? "bg-primary/5 ring-2 ring-primary" : "hover:bg-muted/20"
         )}
       >

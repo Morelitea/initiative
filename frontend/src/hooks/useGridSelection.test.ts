@@ -40,4 +40,49 @@ describe("useGridSelection", () => {
     expect(result.current.selectedItems.map((i) => i.id).sort()).toEqual([1, 9]);
     expect(result.current.selectedItems.find((i) => i.id === 1)?.name).toBe("page1");
   });
+
+  it("shift-click selects the run between the anchor and the clicked card", () => {
+    const items = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+    const { result } = renderHook(() => useGridSelection(items));
+
+    act(() => result.current.enter());
+    act(() => result.current.toggle({ id: 1 }));
+    act(() => result.current.toggle({ id: 4 }, { extend: true }));
+
+    expect([...result.current.selectedIds].sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  it("shift-click clears the run when the anchor was just deselected", () => {
+    const items = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+    const { result } = renderHook(() => useGridSelection(items));
+
+    act(() => result.current.toggle({ id: 1 }));
+    act(() => result.current.toggle({ id: 4 }, { extend: true }));
+    // Deselect 3, then sweep back up to 1 — the anchor's state paints the run.
+    act(() => result.current.toggle({ id: 3 }));
+    act(() => result.current.toggle({ id: 1 }, { extend: true }));
+
+    expect([...result.current.selectedIds]).toEqual([4]);
+  });
+
+  it("shift-click is a plain toggle before anything has been clicked", () => {
+    const items = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const { result } = renderHook(() => useGridSelection(items));
+
+    act(() => result.current.toggle({ id: 3 }, { extend: true }));
+
+    expect([...result.current.selectedIds]).toEqual([3]);
+  });
+
+  it("forgets the anchor on exit, so the next list starts fresh", () => {
+    const items = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const { result } = renderHook(() => useGridSelection(items));
+
+    act(() => result.current.toggle({ id: 1 }));
+    act(() => result.current.exit());
+    act(() => result.current.enter());
+    act(() => result.current.toggle({ id: 3 }, { extend: true }));
+
+    expect([...result.current.selectedIds]).toEqual([3]);
+  });
 });
