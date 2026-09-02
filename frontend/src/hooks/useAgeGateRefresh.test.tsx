@@ -71,6 +71,48 @@ describe("useAgeGateRefresh", () => {
     expect(refreshUser).not.toHaveBeenCalled();
   });
 
+  it("re-reads on a backstop interval, for a tab that is never left", () => {
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useAgeGateRefresh());
+
+      // No focus event ever fires: this tab has been open and focused all day.
+      act(() => void vi.advanceTimersByTime(5 * 60 * 1000));
+
+      expect(refreshUser).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("runs no backstop for an account that has already answered", () => {
+    vi.useFakeTimers();
+    try {
+      state.user = buildUser({ age_confirmed_at: "2026-01-01T00:00:00Z" });
+      renderHook(() => useAgeGateRefresh());
+
+      act(() => void vi.advanceTimersByTime(60 * 60 * 1000));
+
+      expect(refreshUser).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops the backstop when it is unmounted", () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = renderHook(() => useAgeGateRefresh());
+      unmount();
+
+      act(() => void vi.advanceTimersByTime(60 * 60 * 1000));
+
+      expect(refreshUser).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("leaves the gate as it was when the re-read fails", async () => {
     refreshUser.mockRejectedValue(new Error("offline"));
     renderHook(() => useAgeGateRefresh());

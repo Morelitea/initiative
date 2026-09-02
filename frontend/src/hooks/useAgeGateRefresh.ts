@@ -16,12 +16,22 @@ import { useAuth } from "@/hooks/useAuth";
  *
  * So the account is re-read when the tab is brought back, which is the moment
  * something may have changed while its owner was elsewhere — the same reason
- * the deployment's own config is re-read there.
+ * the deployment's own config is re-read there — and, as a backstop, on a slow
+ * interval, because a tab that is never left never fires a focus event and
+ * would otherwise carry this morning's answer all day.
  *
  * Only for an account that has not confirmed yet. Once it has, no membership
- * or listing anywhere can make the gate apply again, so the listener is not
- * installed at all and the steady state costs nothing.
+ * or listing anywhere can make the gate apply again, so nothing is installed
+ * at all and the steady state costs nothing. The interval is deliberately slow:
+ * the population it runs for is every unconfirmed account, including the ones
+ * in no listed community at all, and what it is catching up with is a prompt
+ * rather than a withdrawal of access — the join itself is refused server-side
+ * regardless of what any tab believes.
  */
+
+/** Backstop cadence for a tab that is never left. Minutes, not seconds. */
+const RECHECK_INTERVAL_MS = 5 * 60 * 1000;
+
 export const useAgeGateRefresh = () => {
   const { user, refreshUser } = useAuth();
   const { communityAgeGateEnabled } = useAppConfig();
@@ -39,9 +49,11 @@ export const useAgeGateRefresh = () => {
     };
     window.addEventListener("focus", recheck);
     document.addEventListener("visibilitychange", recheck);
+    const timer = window.setInterval(recheck, RECHECK_INTERVAL_MS);
     return () => {
       window.removeEventListener("focus", recheck);
       document.removeEventListener("visibilitychange", recheck);
+      window.clearInterval(timer);
     };
   }, [outstanding, refreshUser]);
 };
