@@ -58,8 +58,11 @@ people who made them.
 - **`banners/drama-showtime.svg`** — a public-domain title card from
   [Openclipart](https://openclipart.org/). Its searchlights are stretched across
   the banner and swept; the marquee bulbs are ours.
-- **`banners/pets-paddock.svg`** — a public-domain drawing of a horse, baked at
-  banner size; the field, the fence and the light are ours.
+- **`banners/pets-paddock.svg`** — a public-domain drawing of a horse, on black
+  like the rest of the pack, baked at banner size.
+- **`banners/books-meadow.svg`** — a public-domain Art Nouveau colour print,
+  baked at banner size on card of about its own age; the light crossing it is
+  ours.
 
 - **`trophies/firstnations-handprint.svg`** — the hand is
   [Red hand](https://commons.wikimedia.org/wiki/File:Red_hand.svg) by

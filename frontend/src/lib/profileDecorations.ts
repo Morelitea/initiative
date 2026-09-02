@@ -169,6 +169,7 @@ type DecorationName =
   | "glasses"
   | "globe"
   | "gold"
+  | "goodplacetoread"
   | "grove"
   | "guitar"
   | "hamster"
@@ -200,7 +201,6 @@ type DecorationName =
   | "matchball"
   | "medicinewheel"
   | "meeple"
-  | "meeples"
   | "mentalhealth"
   | "meridians"
   | "microphone"
@@ -230,7 +230,6 @@ type DecorationName =
   | "parade"
   | "parchment"
   | "pawprint"
-  | "pickaxe"
   | "pigskin"
   | "pines"
   | "piste"
@@ -386,6 +385,7 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "baseball.fastball": entry("baseball.fastball", "trophy", "baseball-fastball", "fastball"),
 
   "books.desk": entry("books.desk", "banner", "books-desk", "writingdesk", "dark"),
+  "books.meadow": entry("books.meadow", "banner", "books-meadow", "goodplacetoread", "dark"),
   "books.shelf": entry("books.shelf", "banner", "books-shelf", "bookshelf", "dark"),
   "books.pages": entry("books.pages", "frame", "books-pages", "pages"),
   "books.spines": entry("books.spines", "frame", "books-spines", "spines"),
@@ -550,11 +550,9 @@ export const DECORATIONS: Readonly<Record<string, Decoration>> = {
   "gaming.blocks": entry("gaming.blocks", "banner", "gaming-blocks", "blocks"),
   "gaming.tabletop": entry("gaming.tabletop", "banner", "gaming-tabletop", "gamesnight"),
   "gaming.buttons": entry("gaming.buttons", "frame", "gaming-buttons", "buttons"),
-  "gaming.meeples": entry("gaming.meeples", "frame", "gaming-meeples", "meeples"),
   "gaming.controller": entry("gaming.controller", "trophy", "gaming-controller", "controller"),
   "gaming.meeple": entry("gaming.meeple", "trophy", "gaming-meeple", "meeple"),
   "gaming.ore": entry("gaming.ore", "trophy", "gaming-ore", "oreblock"),
-  "gaming.pickaxe": entry("gaming.pickaxe", "trophy", "gaming-pickaxe", "pickaxe"),
 
   "gridiron.endzone": entry("gridiron.endzone", "banner", "gridiron-endzone", "endzone"),
   "gridiron.laces": entry("gridiron.laces", "frame", "gridiron-laces", "laces"),

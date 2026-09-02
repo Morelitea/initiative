@@ -4,89 +4,84 @@
   <!-- Four hours in, and somebody is still reading the rules. -->
   <style>
     .warm { animation: glow 8s ease-in-out infinite alternate }
-    @keyframes glow { from { opacity: .45 } to { opacity: .8 } }
-    .tap { animation: fidget 3.4s ease-in-out infinite;
+    @keyframes glow { from { opacity: .45 } to { opacity: .82 } }
+    .tap { animation: fidget 3.6s ease-in-out infinite;
            transform-box: fill-box; transform-origin: 50% 100% }
-    @keyframes fidget { 0%,72% { transform: rotate(0) } 80% { transform: rotate(-9deg) }
-                        88% { transform: rotate(6deg) } 100% { transform: rotate(0) } }
-    @media (prefers-reduced-motion: reduce) { .warm, .tap { animation: none } }
+    @keyframes fidget { 0%,70% { transform: translateY(0) rotate(0) }
+                        78% { transform: translateY(-1.2px) rotate(-7deg) }
+                        86% { transform: translateY(0) rotate(5deg) }
+                        100% { transform: translateY(0) rotate(0) } }
+    .sway { animation: hang 9s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 0 }
+    @keyframes hang { from { transform: rotate(-1.1deg) } to { transform: rotate(1.1deg) } }
+    @media (prefers-reduced-motion: reduce) { .warm, .tap, .sway { animation: none } }
   </style>
   <defs>
     <linearGradient id="gameroom" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#140E22"/><stop offset="100%" stop-color="#2A1E3E"/>
     </linearGradient>
     <linearGradient id="gametable" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#6B4A2E"/><stop offset="100%" stop-color="#3E2A18"/>
+      <stop offset="0%" stop-color="#7A5432"/><stop offset="100%" stop-color="#3E2A18"/>
     </linearGradient>
-    <radialGradient id="pendant" cx=".5" cy=".1" r=".8">
-      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".55"/>
+    <radialGradient id="pendant" cx=".5" cy=".08" r=".8">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".6"/>
       <stop offset="100%" stop-color="#FFD79A" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="160" height="40" fill="url(#gameroom)"/>
-  <ellipse class="warm" cx="80" cy="6" rx="60" ry="26" fill="url(#pendant)"/>
-  <!-- The lamp over the table. -->
-  <path d="M79.4 0 L80.6 0 L80.6 4 L79.4 4 Z" fill="#3A3050"/>
-  <path d="M72 9 C72 5.4 76 4 80 4 C84 4 88 5.4 88 9 Z" fill="#4A3A6B"/>
-  <path class="warm" d="M72.6 9 L87.4 9 L87.4 9.8 L72.6 9.8 Z" fill="#FFE7B8"/>
+  <ellipse class="warm" cx="80" cy="4" rx="62" ry="28" fill="url(#pendant)"/>
 
-  <path d="M0 24 L160 24 L160 40 L0 40 Z" fill="url(#gametable)"/>
-  <path d="M0 24 L160 24 L160 24.8 L0 24.8 Z" fill="#8A6034"/>
-
-  <!-- The board, mid-game. -->
-  <g transform="rotate(-2 80 25)">
-    <path d="M56 14.4 L100 14.4 L100 35 L56 35 Z" fill="#2A2038"/>
-    <g transform="translate(-1.6 -1.6)"><rect x="58.0" y="16.0" width="5.4" height="3.6" fill="#6B5A94"/><rect x="63.4" y="16.0" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="68.8" y="16.0" width="5.4" height="3.6" fill="#6B5A94"/><rect x="74.2" y="16.0" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="79.6" y="16.0" width="5.4" height="3.6" fill="#6B5A94"/><rect x="85.0" y="16.0" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="90.4" y="16.0" width="5.4" height="3.6" fill="#6B5A94"/><rect x="95.8" y="16.0" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="58.0" y="19.6" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="63.4" y="19.6" width="5.4" height="3.6" fill="#6B5A94"/><rect x="68.8" y="19.6" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="74.2" y="19.6" width="5.4" height="3.6" fill="#6B5A94"/><rect x="79.6" y="19.6" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="85.0" y="19.6" width="5.4" height="3.6" fill="#6B5A94"/><rect x="90.4" y="19.6" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="95.8" y="19.6" width="5.4" height="3.6" fill="#6B5A94"/><rect x="58.0" y="23.2" width="5.4" height="3.6" fill="#6B5A94"/><rect x="63.4" y="23.2" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="68.8" y="23.2" width="5.4" height="3.6" fill="#6B5A94"/><rect x="74.2" y="23.2" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="79.6" y="23.2" width="5.4" height="3.6" fill="#6B5A94"/><rect x="85.0" y="23.2" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="90.4" y="23.2" width="5.4" height="3.6" fill="#6B5A94"/><rect x="95.8" y="23.2" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="58.0" y="26.8" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="63.4" y="26.8" width="5.4" height="3.6" fill="#6B5A94"/><rect x="68.8" y="26.8" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="74.2" y="26.8" width="5.4" height="3.6" fill="#6B5A94"/><rect x="79.6" y="26.8" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="85.0" y="26.8" width="5.4" height="3.6" fill="#6B5A94"/><rect x="90.4" y="26.8" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="95.8" y="26.8" width="5.4" height="3.6" fill="#6B5A94"/><rect x="58.0" y="30.4" width="5.4" height="3.6" fill="#6B5A94"/><rect x="63.4" y="30.4" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="68.8" y="30.4" width="5.4" height="3.6" fill="#6B5A94"/><rect x="74.2" y="30.4" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="79.6" y="30.4" width="5.4" height="3.6" fill="#6B5A94"/><rect x="85.0" y="30.4" width="5.4" height="3.6" fill="#4A3A6B"/><rect x="90.4" y="30.4" width="5.4" height="3.6" fill="#6B5A94"/><rect x="95.8" y="30.4" width="5.4" height="3.6" fill="#4A3A6B"/></g>
-    <path d="M56 14.4 L100 14.4 L100 35 L56 35 Z" fill="none" stroke="#8A76B4" stroke-width=".6"/>
+  <!-- The table, seen from where you are sitting. -->
+  <path d="M0 17 C30 13.6 60 12.4 80 12.4 C100 12.4 130 13.6 160 17 L160 40 L0 40 Z"
+        fill="url(#gametable)"/>
+  <path d="M0 17 C30 13.6 60 12.4 80 12.4 C100 12.4 130 13.6 160 17 L160 17.9
+           C130 14.5 100 13.3 80 13.3 C60 13.3 30 14.5 0 17.9 Z" fill="#A87C48"/>
+  <g stroke="#5A3A22" stroke-width=".35" opacity=".45" fill="none">
+    <path d="M0 24 C40 21.6 120 21.6 160 24"/><path d="M0 31 C40 29 120 29 160 31"/>
   </g>
+
+  <!-- The lamp over it. -->
+  <g class="sway">
+    <path d="M79.4 0 L80.6 0 L80.6 4.4 L79.4 4.4 Z" fill="#3A3050"/>
+    <path d="M71 9.4 C71 5.6 75 4 80 4 C85 4 89 5.6 89 9.4 Z" fill="#4A3A6B"/>
+    <path d="M71 9.4 C71 5.6 75 4 80 4 C77 5.4 75.4 7.2 74.8 9.4 Z" fill="#6B54A0"/>
+    <path class="warm" d="M71.6 9.4 L88.4 9.4 L88.4 10.3 L71.6 10.3 Z" fill="#FFE7B8"/>
+  </g>
+
+  <!-- The board, tiled out. -->
+  <g><path d="M69.20 17.64 L66.50 20.26 L61.10 20.26 L58.40 17.64 L61.10 15.02 L66.50 15.02 Z" fill="#2A1E14" opacity=".55"/><path d="M69.20 16.74 L66.50 19.36 L61.10 19.36 L58.40 16.74 L61.10 14.12 L66.50 14.12 Z" fill="#6EA84E"/><path d="M68.01 16.74 L65.91 18.78 L61.69 18.78 L59.59 16.74 L61.69 14.70 L65.91 14.70 Z" fill="#FFFFFF" opacity=".12"/><path d="M69.20 16.74 L66.50 19.36 L61.10 19.36 L58.40 16.74 L61.10 14.12 L66.50 14.12 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M77.30 20.27 L74.60 22.89 L69.20 22.89 L66.50 20.27 L69.20 17.65 L74.60 17.65 Z" fill="#2A1E14" opacity=".55"/><path d="M77.30 19.37 L74.60 21.99 L69.20 21.99 L66.50 19.37 L69.20 16.75 L74.60 16.75 Z" fill="#C9A85E"/><path d="M76.11 19.37 L74.01 21.41 L69.79 21.41 L67.69 19.37 L69.79 17.33 L74.01 17.33 Z" fill="#FFFFFF" opacity=".12"/><path d="M77.30 19.37 L74.60 21.99 L69.20 21.99 L66.50 19.37 L69.20 16.75 L74.60 16.75 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M85.40 17.64 L82.70 20.26 L77.30 20.26 L74.60 17.64 L77.30 15.02 L82.70 15.02 Z" fill="#2A1E14" opacity=".55"/><path d="M85.40 16.74 L82.70 19.36 L77.30 19.36 L74.60 16.74 L77.30 14.12 L82.70 14.12 Z" fill="#8A8EA0"/><path d="M84.21 16.74 L82.11 18.78 L77.89 18.78 L75.79 16.74 L77.89 14.70 L82.11 14.70 Z" fill="#FFFFFF" opacity=".12"/><path d="M85.40 16.74 L82.70 19.36 L77.30 19.36 L74.60 16.74 L77.30 14.12 L82.70 14.12 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M69.20 22.90 L66.50 25.52 L61.10 25.52 L58.40 22.90 L61.10 20.28 L66.50 20.28 Z" fill="#2A1E14" opacity=".55"/><path d="M69.20 22.00 L66.50 24.62 L61.10 24.62 L58.40 22.00 L61.10 19.38 L66.50 19.38 Z" fill="#C9A85E"/><path d="M68.01 22.00 L65.91 24.04 L61.69 24.04 L59.59 22.00 L61.69 19.96 L65.91 19.96 Z" fill="#FFFFFF" opacity=".12"/><path d="M69.20 22.00 L66.50 24.62 L61.10 24.62 L58.40 22.00 L61.10 19.38 L66.50 19.38 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M77.30 25.53 L74.60 28.15 L69.20 28.15 L66.50 25.53 L69.20 22.91 L74.60 22.91 Z" fill="#2A1E14" opacity=".55"/><path d="M77.30 24.63 L74.60 27.25 L69.20 27.25 L66.50 24.63 L69.20 22.01 L74.60 22.01 Z" fill="#3E7A38"/><path d="M76.11 24.63 L74.01 26.67 L69.79 26.67 L67.69 24.63 L69.79 22.59 L74.01 22.59 Z" fill="#FFFFFF" opacity=".12"/><path d="M77.30 24.63 L74.60 27.25 L69.20 27.25 L66.50 24.63 L69.20 22.01 L74.60 22.01 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M85.40 22.90 L82.70 25.52 L77.30 25.52 L74.60 22.90 L77.30 20.28 L82.70 20.28 Z" fill="#2A1E14" opacity=".55"/><path d="M85.40 22.00 L82.70 24.62 L77.30 24.62 L74.60 22.00 L77.30 19.38 L82.70 19.38 Z" fill="#B4703A"/><path d="M84.21 22.00 L82.11 24.04 L77.89 24.04 L75.79 22.00 L77.89 19.96 L82.11 19.96 Z" fill="#FFFFFF" opacity=".12"/><path d="M85.40 22.00 L82.70 24.62 L77.30 24.62 L74.60 22.00 L77.30 19.38 L82.70 19.38 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M93.50 25.53 L90.80 28.15 L85.40 28.15 L82.70 25.53 L85.40 22.91 L90.80 22.91 Z" fill="#2A1E14" opacity=".55"/><path d="M93.50 24.63 L90.80 27.25 L85.40 27.25 L82.70 24.63 L85.40 22.01 L90.80 22.01 Z" fill="#6EA84E"/><path d="M92.31 24.63 L90.21 26.67 L85.99 26.67 L83.89 24.63 L85.99 22.59 L90.21 22.59 Z" fill="#FFFFFF" opacity=".12"/><path d="M93.50 24.63 L90.80 27.25 L85.40 27.25 L82.70 24.63 L85.40 22.01 L90.80 22.01 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M77.30 30.79 L74.60 33.41 L69.20 33.41 L66.50 30.79 L69.20 28.17 L74.60 28.17 Z" fill="#2A1E14" opacity=".55"/><path d="M77.30 29.89 L74.60 32.51 L69.20 32.51 L66.50 29.89 L69.20 27.27 L74.60 27.27 Z" fill="#8A8EA0"/><path d="M76.11 29.89 L74.01 31.94 L69.79 31.94 L67.69 29.89 L69.79 27.85 L74.01 27.85 Z" fill="#FFFFFF" opacity=".12"/><path d="M77.30 29.89 L74.60 32.51 L69.20 32.51 L66.50 29.89 L69.20 27.27 L74.60 27.27 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M85.40 28.16 L82.70 30.78 L77.30 30.78 L74.60 28.16 L77.30 25.54 L82.70 25.54 Z" fill="#2A1E14" opacity=".55"/><path d="M85.40 27.26 L82.70 29.88 L77.30 29.88 L74.60 27.26 L77.30 24.64 L82.70 24.64 Z" fill="#C9A85E"/><path d="M84.21 27.26 L82.11 29.30 L77.89 29.30 L75.79 27.26 L77.89 25.22 L82.11 25.22 Z" fill="#FFFFFF" opacity=".12"/><path d="M85.40 27.26 L82.70 29.88 L77.30 29.88 L74.60 27.26 L77.30 24.64 L82.70 24.64 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/><path d="M93.50 30.79 L90.80 33.41 L85.40 33.41 L82.70 30.79 L85.40 28.17 L90.80 28.17 Z" fill="#2A1E14" opacity=".55"/><path d="M93.50 29.89 L90.80 32.51 L85.40 32.51 L82.70 29.89 L85.40 27.27 L90.80 27.27 Z" fill="#3E7A38"/><path d="M92.31 29.89 L90.21 31.94 L85.99 31.94 L83.89 29.89 L85.99 27.85 L90.21 27.85 Z" fill="#FFFFFF" opacity=".12"/><path d="M93.50 29.89 L90.80 32.51 L85.40 32.51 L82.70 29.89 L85.40 27.27 L90.80 27.27 Z" fill="none" stroke="#2A1E14" stroke-width=".4" opacity=".6"/></g>
+  <!-- Who is where on it. -->
   <g>
-    <g transform="translate(64 22) rotate(-6) scale(0.52)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#E8483A"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".22"/></g><g transform="translate(72 26) rotate(4) scale(0.52)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#4CE08A"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".22"/></g>
-    <g transform="translate(80 20) rotate(-2) scale(0.52)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#39E8FF"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".22"/></g><g transform="translate(88 27) rotate(8) scale(0.52)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#FFC83D"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".22"/></g>
-    <g transform="translate(94 21) rotate(-5) scale(0.52)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#FF5FD2"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".22"/></g>
+    <g><ellipse cx="73.0" cy="21.1" rx="1.93" ry="0.69" fill="#2A1E14" opacity=".4"/><g transform="translate(72 20.6) scale(0.46)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#E8483A"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".25"/></g></g><g><ellipse cx="81.6" cy="19.7" rx="1.93" ry="0.69" fill="#2A1E14" opacity=".4"/><g transform="translate(80.6 19.2) scale(0.46)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#4CE08A"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".25"/></g></g>
+    <g><ellipse cx="89.0" cy="22.9" rx="1.93" ry="0.69" fill="#2A1E14" opacity=".4"/><g transform="translate(88 22.4) scale(0.46)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#39E8FF"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".25"/></g></g><g><ellipse cx="76.6" cy="26.9" rx="1.93" ry="0.69" fill="#2A1E14" opacity=".4"/><g transform="translate(75.6 26.4) scale(0.46)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#FFC83D"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".25"/></g></g>
+    <g><ellipse cx="86.0" cy="28.1" rx="1.93" ry="0.69" fill="#2A1E14" opacity=".4"/><g transform="translate(85 27.6) scale(0.46)"><path d="M0 9.4 C-4.4 9.4 -6.4 8.6 -6.4 6.6 C-6.4 4.2 -4.6 2.2 -2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C2.4 -6 4.4 -4.4 4.4 -2.2 C4.4 -.8 3.6 .4 2.2 1.2 C4.6 2.2 6.4 4.2 6.4 6.6 C6.4 8.6 4.4 9.4 0 9.4 Z" fill="#FF5FD2"/><path d="M-2.2 1.2 C-3.6 .4 -4.4 -.8 -4.4 -2.2 C-4.4 -4.4 -2.4 -6 0 -6 C-1.2 -5 -1.8 -3.8 -1.8 -2.2 C-1.8 -.8 -1.4 .4 -.6 1.2 Z" fill="#FFFFFF" opacity=".25"/></g></g>
   </g>
-
-  <!-- Dice, thrown. -->
-  <g>
-    <g class="tap">
-      <rect x="42" y="27" width="7" height="7" rx="1.4" fill="#EFEAF8"
-            transform="rotate(-12 45.5 30.5)"/>
-      <circle cx="44.00" cy="29.00" r="0.42" fill="#2A2038"/><circle cx="47.00" cy="29.00" r="0.42" fill="#2A2038"/><circle cx="45.50" cy="30.50" r="0.42" fill="#2A2038"/><circle cx="44.00" cy="32.00" r="0.42" fill="#2A2038"/><circle cx="47.00" cy="32.00" r="0.42" fill="#2A2038"/>
-    </g>
-    <rect x="34" y="30.4" width="6" height="6" rx="1.2" fill="#EFEAF8"
-          transform="rotate(16 37 33.4)"/>
-    <circle cx="35.50" cy="31.90" r="0.38" fill="#2A2038"/><circle cx="37.00" cy="33.40" r="0.38" fill="#2A2038"/><circle cx="38.50" cy="34.90" r="0.38" fill="#2A2038"/>
-  </g>
-
-  <!-- A hand of cards, face down, and the rules nobody has finished. -->
-  <g>
-    <g transform="rotate(-14 116 31)">
-      <rect x="108" y="24" width="9" height="13" rx="1.2" fill="#8E3A5A"/>
-      <rect x="109.4" y="25.4" width="6.2" height="10.2" rx=".8" fill="#C46A88" opacity=".55"/>
-    </g>
-    <g transform="rotate(-4 122 31)">
-      <rect x="115" y="24" width="9" height="13" rx="1.2" fill="#8E3A5A"/>
-      <rect x="116.4" y="25.4" width="6.2" height="10.2" rx=".8" fill="#C46A88" opacity=".55"/>
-    </g>
-    <g transform="rotate(7 128 31)">
-      <rect x="122" y="24" width="9" height="13" rx="1.2" fill="#8E3A5A"/>
-      <rect x="123.4" y="25.4" width="6.2" height="10.2" rx=".8" fill="#C46A88" opacity=".55"/>
-    </g>
-  </g>
-  <g transform="rotate(6 142 31)">
-    <path d="M134 26 L152 26 L152 36 L134 36 Z" fill="#EFEAF8"/>
-    <path d="M134 26 L143 26 L143 36 L134 36 Z" fill="#DCD4EC"/>
-    <g stroke="#A89CC4" stroke-width=".4">
-      <path d="M136 29 L141 29"/><path d="M136 31 L141 31"/><path d="M136 33 L140 33"/>
-      <path d="M145 29 L150 29"/><path d="M145 31 L150 31"/><path d="M145 33 L149 33"/>
+  <!-- Resource cubes, in somebody's pile. -->
+  <g><g><path d="M46 28.9 L47.7 29.7 L46 30.5 L44.3 29.7 Z" fill="#E8483A"/><path d="M44.3 29.7 L46 30.5 L46 32 L44.3 31.2 Z" fill="#A82C22"/><path d="M47.7 29.7 L46 30.5 L46 32 L47.7 31.2 Z" fill="#C43A2E"/></g><g><path d="M50 30.299999999999997 L51.7 31.099999999999998 L50 31.9 L48.3 31.099999999999998 Z" fill="#4CE08A"/><path d="M48.3 31.099999999999998 L50 31.9 L50 33.4 L48.3 32.6 Z" fill="#2A9E5A"/><path d="M51.7 31.099999999999998 L50 31.9 L50 33.4 L51.7 32.6 Z" fill="#38B96E"/></g><g><path d="M43.4 31.5 L45.1 32.300000000000004 L43.4 33.1 L41.7 32.300000000000004 Z" fill="#39E8FF"/><path d="M41.7 32.300000000000004 L43.4 33.1 L43.4 34.6 L41.7 33.800000000000004 Z" fill="#1E9EB4"/><path d="M45.1 32.300000000000004 L43.4 33.1 L43.4 34.6 L45.1 33.800000000000004 Z" fill="#2ABCD4"/></g><g><path d="M54 28.5 L55.7 29.3 L54 30.1 L52.3 29.3 Z" fill="#FFC83D"/><path d="M52.3 29.3 L54 30.1 L54 31.6 L52.3 30.8 Z" fill="#C4901E"/><path d="M55.7 29.3 L54 30.1 L54 31.6 L55.7 30.8 Z" fill="#DDA92C"/></g></g>
+  <!-- Dice, one of them just thrown. -->
+  <g class="tap"><g><ellipse cx="36.6" cy="30.04" rx="3.68" ry="1.22" fill="#2A1E14" opacity=".4"/><path d="M36 25.02 L39.2 26.68 L36 28.34 L32.8 26.68 Z" fill="#F6F2FA"/><path d="M32.8 26.68 L36 28.34 L36 30.52 L32.8 28.86 Z" fill="#DCD6E8"/><path d="M39.2 26.68 L36 28.34 L36 30.52 L39.2 28.86 Z" fill="#C2BAD4"/><circle cx="34.65" cy="25.94" r="0.30" fill="#2A2038"/><circle cx="37.35" cy="25.94" r="0.30" fill="#2A2038"/><circle cx="36.00" cy="26.68" r="0.30" fill="#2A2038"/><circle cx="34.65" cy="27.42" r="0.30" fill="#2A2038"/><circle cx="37.35" cy="27.42" r="0.30" fill="#2A2038"/><circle cx="33.73" cy="27.25" r="0.28" fill="#2A2038"/><circle cx="34.40" cy="28.60" r="0.28" fill="#2A2038"/><circle cx="35.07" cy="29.95" r="0.28" fill="#2A2038"/></g></g>
+  <g><ellipse cx="30.0" cy="33.49" rx="3.02" ry="1.00" fill="#2A1E14" opacity=".4"/><path d="M29.4 29.37 L32.024 30.74 L29.4 32.10 L26.776 30.74 Z" fill="#F6F2FA"/><path d="M26.776 30.74 L29.4 32.10 L29.4 33.89 L26.776 32.52 Z" fill="#DCD6E8"/><path d="M32.024 30.74 L29.4 32.10 L29.4 33.89 L32.024 32.52 Z" fill="#C2BAD4"/><circle cx="28.29" cy="30.13" r="0.25" fill="#2A2038"/><circle cx="30.51" cy="31.35" r="0.25" fill="#2A2038"/><circle cx="27.53" cy="31.20" r="0.23" fill="#2A2038"/><circle cx="28.64" cy="31.20" r="0.23" fill="#2A2038"/><circle cx="27.53" cy="32.31" r="0.23" fill="#2A2038"/><circle cx="28.64" cy="32.31" r="0.23" fill="#2A2038"/><circle cx="27.53" cy="33.42" r="0.23" fill="#2A2038"/><circle cx="28.64" cy="33.42" r="0.23" fill="#2A2038"/></g>
+  <!-- A hand, held up. -->
+  <g><g transform="rotate(-16 120 34)"><rect x="115.0" y="22" width="10" height="14" rx="1.2" fill="#F2EDE2"/><rect x="116.0" y="23" width="8" height="12" rx=".8" fill="#8E3A5A"/><path d="M120.0 26.4 C118.4 25 117.4 26.4 117.4 27.6 C117.4 29.4 120.0 31.4 120.0 31.4 C120.0 31.4 122.6 29.4 122.6 27.6 C122.6 26.4 121.6 25 120.0 26.4 Z" fill="#F2EDE2" opacity=".8"/></g><g transform="rotate(-8 120 34)"><rect x="118.4" y="22" width="10" height="14" rx="1.2" fill="#F2EDE2"/><rect x="119.4" y="23" width="8" height="12" rx=".8" fill="#8E3A5A"/><path d="M123.4 26.4 C121.8 25 120.8 26.4 120.8 27.6 C120.8 29.4 123.4 31.4 123.4 31.4 C123.4 31.4 126.0 29.4 126.0 27.6 C126.0 26.4 125.0 25 123.4 26.4 Z" fill="#F2EDE2" opacity=".8"/></g><g transform="rotate(0 120 34)"><rect x="121.8" y="22" width="10" height="14" rx="1.2" fill="#F2EDE2"/><rect x="122.8" y="23" width="8" height="12" rx=".8" fill="#8E3A5A"/><path d="M126.8 26.4 C125.2 25 124.2 26.4 124.2 27.6 C124.2 29.4 126.8 31.4 126.8 31.4 C126.8 31.4 129.4 29.4 129.4 27.6 C129.4 26.4 128.4 25 126.8 26.4 Z" fill="#F2EDE2" opacity=".8"/></g><g transform="rotate(8 120 34)"><rect x="125.2" y="22" width="10" height="14" rx="1.2" fill="#F2EDE2"/><rect x="126.2" y="23" width="8" height="12" rx=".8" fill="#8E3A5A"/><path d="M130.2 26.4 C128.6 25 127.6 26.4 127.6 27.6 C127.6 29.4 130.2 31.4 130.2 31.4 C130.2 31.4 132.8 29.4 132.8 27.6 C132.8 26.4 131.8 25 130.2 26.4 Z" fill="#F2EDE2" opacity=".8"/></g><g transform="rotate(16 120 34)"><rect x="128.6" y="22" width="10" height="14" rx="1.2" fill="#F2EDE2"/><rect x="129.6" y="23" width="8" height="12" rx=".8" fill="#8E3A5A"/><path d="M133.6 26.4 C132.0 25 131.0 26.4 131.0 27.6 C131.0 29.4 133.6 31.4 133.6 31.4 C133.6 31.4 136.2 29.4 136.2 27.6 C136.2 26.4 135.2 25 133.6 26.4 Z" fill="#F2EDE2" opacity=".8"/></g></g>
+  <!-- The rules, still open. -->
+  <g transform="rotate(-5 24 20)">
+    <path d="M12 15.4 L36 15.4 L36 23.4 L12 23.4 Z" fill="#EFEAF8"/>
+    <path d="M12 15.4 L24 15.4 L24 23.4 L12 23.4 Z" fill="#DCD4EC"/>
+    <path d="M23.6 15.4 L24.4 15.4 L24.4 23.4 L23.6 23.4 Z" fill="#B4A8CC"/>
+    <g stroke="#A89CC4" stroke-width=".32">
+      <path d="M14 17.4 L22 17.4"/><path d="M14 19 L22 19"/><path d="M14 20.6 L21 20.6"/>
+      <path d="M26 17.4 L34 17.4"/><path d="M26 19 L34 19"/><path d="M26 20.6 L33 20.6"/>
     </g>
   </g>
   <!-- Snacks, obviously. -->
-  <g transform="translate(18 31)">
-    <path d="M-7 0 C-7 -4.4 7 -4.4 7 0 C7 3.4 -7 3.4 -7 0 Z" fill="#4A3A6B"/>
-    <ellipse cx="0" cy="-1.6" rx="6.4" ry="2.4" fill="#2A2038"/>
+  <g transform="translate(146 30)">
+    <ellipse cx="0" cy="1" rx="8.4" ry="3" fill="#3A2C56"/>
+    <ellipse cx="0" cy=".2" rx="8" ry="2.7" fill="#4A3A6B"/>
+    <ellipse cx="0" cy="-.2" rx="6.4" ry="2" fill="#2A2038"/>
     <g fill="#E8C43A">
-      <circle cx="-3" cy="-2" r="1.3"/><circle cx="0" cy="-2.6" r="1.5"/>
-      <circle cx="3" cy="-1.8" r="1.2"/><circle cx="-1.4" cy="-3.4" r="1.1"/>
+      <circle cx="-3" cy="-.6" r="1.3"/><circle cx="0" cy="-1.2" r="1.5"/>
+      <circle cx="3" cy="-.4" r="1.2"/><circle cx="-1.4" cy="-2" r="1.1"/>
+      <circle cx="1.8" cy="-2.2" r="1"/>
     </g>
   </g>
 </svg>

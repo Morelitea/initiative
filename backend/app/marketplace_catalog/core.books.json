@@ -5,11 +5,11 @@
   "name": "Books",
   "publisher": "Initiative",
   "description": "The to-be-read pile is furniture now.",
-  "long_description": "A shelf of bindings nobody has straightened, and a writer at the hour it actually gets done. Spines and pages to frame you, and trophies for the half of you that writes as well as reads: typewriter, quill, notebook, glasses, and a stack that is not getting any smaller.",
+  "long_description": "A shelf of bindings nobody has straightened, a writer at the hour it actually gets done, and somebody who found the right patch of meadow. Spines and pages to frame you, and trophies for the half of you that writes as well as reads: typewriter, quill, notebook, glasses, and a stack that is not getting any smaller.",
   "avatar_url": "/decorations/banners/books-shelf.svg",
   "images": [],
-  "version": "1.2.0",
-  "release_notes": "The stacks retired.",
+  "version": "1.3.0",
+  "release_notes": "A good place to read.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -58,6 +58,11 @@
         "id": "books.notebook",
         "slot": "trophy",
         "name": "Notebook"
+      },
+      {
+        "id": "books.meadow",
+        "slot": "banner",
+        "name": "A good place to read"
       }
     ]
   }
