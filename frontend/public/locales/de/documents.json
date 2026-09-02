@@ -331,6 +331,9 @@
   },
   "references": {
     "gone": "Gelöscht",
+    "noMatches": "Nichts in dieser Initiative passt zu „{{query}}“.",
+    "scopeHint": "Hier lässt sich nur die Initiative dieses Dokuments benennen.",
+    "searching": "Suche läuft …",
     "unavailable": "Das ist für dich nicht mehr verfügbar"
   },
   "settings": {
@@ -393,13 +396,18 @@
     "counterValue": "Zählerstand",
     "eventWhen": "Termindatum",
     "insert": "Smart-Chip",
+    "noInitiative": "Dieses Dokument gehört zu keiner Initiative, also gibt es noch nichts zum Verweisen.",
+    "noMatches": "Nichts in dieser Initiative passt zu „{{query}}“.",
     "none": "Keine",
     "openHint": "Zum Öffnen klicken",
+    "scopeHint": "Hier lässt sich nur die Initiative dieses Dokuments benennen.",
     "searchPlaceholder": "Suche etwas zum Anzeigen",
+    "searching": "Suche läuft …",
     "taskAssignee": "Zuständige Person",
     "taskDue": "Fälligkeitsdatum",
     "taskPriority": "Priorität",
     "taskStatus": "Aufgabenstatus",
+    "typeToSearch": "Tippe, um etwas in dieser Initiative zu finden.",
     "whichFact": "Welchen Wert soll der Chip anzeigen?"
   },
   "smartLink": {

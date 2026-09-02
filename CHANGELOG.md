@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Smart chips: a chip that keeps itself current.** Type `/` in a document, or pick **Smart chip** from the toolbar's insert menu, and choose a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip carries the reading itself — `In progress`, `42 / 100`, `12 Sep` — so it sits in a sentence without repeating what the sentence already says; hover it for what the thing is called now and what kind of thing it is, and click to open it. Move a task to Done and it turns green in every document that mentions it.
 
+- **A picker that finds nothing says so.** `#` and the smart-chip picker reach the work in the document's own initiative, so a community full of matching tasks can still answer nothing — and both used to render that as an unchanged caret and an empty box, which reads as a broken feature rather than as an answer. They now say that nothing matched, and that the initiative is the limit.
+
 - **Comments grew up.** React with an emoji (the author hears about it in a digest, not one ping per thumbs-up), turn comments off per tool under Settings › Advanced, and read them through the MCP server as well as write them.
 
 - **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.

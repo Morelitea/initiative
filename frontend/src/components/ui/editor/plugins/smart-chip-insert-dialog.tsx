@@ -50,13 +50,16 @@ export function SmartChipInsertDialog({
   const [chosen, setChosen] = useState<SearchSuggestion | null>(null);
 
   const types: SearchEntityType[] = chipKind ? [chipEntityType(chipKind)] : CHIP_ENTITY_TYPES;
+  // A chip points at work inside this document's own initiative, so a document
+  // that belongs to none has nothing to offer and should say so.
+  const hasInitiative = (initiativeId ?? 0) > 0;
 
-  const { data } = useGuildSearchSuggest(debounced, {
+  const { data, isFetching } = useGuildSearchSuggest(debounced, {
     types,
     initiative_id: initiativeId ?? undefined,
     template: false,
     limit: LIMIT,
-    enabled: (initiativeId ?? 0) > 0,
+    enabled: hasInitiative,
   });
 
   const insert = (kind: SmartChipKind, suggestion: SearchSuggestion) => {
@@ -109,6 +112,16 @@ export function SmartChipInsertDialog({
     );
   }
 
+  const results = data ?? [];
+  const searched = debounced.trim().length > 0;
+  const emptyMessage = !hasInitiative
+    ? t("smartChips.noInitiative")
+    : isFetching
+      ? t("smartChips.searching")
+      : searched
+        ? t("smartChips.noMatches", { query: debounced })
+        : t("smartChips.typeToSearch");
+
   return (
     <div className="space-y-2">
       <Input
@@ -120,27 +133,38 @@ export function SmartChipInsertDialog({
       />
       <Command shouldFilter={false}>
         <CommandList>
-          <CommandGroup>
-            {(data ?? []).map((suggestion) => {
-              const Icon = hitIcon(suggestion);
-              return (
-                <CommandItem
-                  key={`${suggestion.entity_type}:${suggestion.entity_id}`}
-                  value={`${suggestion.entity_type}:${suggestion.entity_id}`}
-                  onSelect={() => choose(suggestion)}
-                  className="flex items-center gap-2"
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{suggestion.title}</span>
-                  {!chipKind && (
-                    <span className="ml-auto shrink-0 text-muted-foreground text-xs">
-                      {t(`search:types.${suggestion.entity_type}` as never)}
-                    </span>
-                  )}
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
+          {results.length ? (
+            <CommandGroup>
+              {results.map((suggestion) => {
+                const Icon = hitIcon(suggestion);
+                return (
+                  <CommandItem
+                    key={`${suggestion.entity_type}:${suggestion.entity_id}`}
+                    value={`${suggestion.entity_type}:${suggestion.entity_id}`}
+                    onSelect={() => choose(suggestion)}
+                    className="flex items-center gap-2"
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{suggestion.title}</span>
+                    {!chipKind && (
+                      <span className="ml-auto shrink-0 text-muted-foreground text-xs">
+                        {t(`search:types.${suggestion.entity_type}` as never)}
+                      </span>
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          ) : (
+            // Every one of these used to render as an empty box, which reads as
+            // a broken dialog rather than as an answer.
+            <div className="space-y-1 px-3 py-6 text-center">
+              <p className="text-muted-foreground text-sm">{emptyMessage}</p>
+              {searched && !isFetching && (
+                <p className="text-muted-foreground/80 text-xs">{t("smartChips.scopeHint")}</p>
+              )}
+            </div>
+          )}
         </CommandList>
       </Command>
     </div>

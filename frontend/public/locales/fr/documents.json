@@ -331,6 +331,9 @@
   },
   "references": {
     "gone": "Supprimé",
+    "noMatches": "Rien dans cette initiative ne correspond à « {{query}} ».",
+    "scopeHint": "Seule l’initiative de ce document peut être nommée ici.",
+    "searching": "Recherche…",
     "unavailable": "Ceci ne vous est plus accessible"
   },
   "settings": {
@@ -393,13 +396,18 @@
     "counterValue": "Valeur du compteur",
     "eventWhen": "Date de l'événement",
     "insert": "Puce intelligente",
+    "noInitiative": "Ce document n’appartient à aucune initiative, il n’y a donc rien à désigner pour l’instant.",
+    "noMatches": "Rien dans cette initiative ne correspond à « {{query}} ».",
     "none": "Aucun",
     "openHint": "Cliquez pour ouvrir",
+    "scopeHint": "Seule l’initiative de ce document peut être nommée ici.",
     "searchPlaceholder": "Cherchez quelque chose à afficher",
+    "searching": "Recherche…",
     "taskAssignee": "Personne assignée",
     "taskDue": "Date d'échéance",
     "taskPriority": "Priorité",
     "taskStatus": "Statut de la tâche",
+    "typeToSearch": "Tapez pour trouver quelque chose dans cette initiative.",
     "whichFact": "Quelle information la puce doit-elle afficher ?"
   },
   "smartLink": {

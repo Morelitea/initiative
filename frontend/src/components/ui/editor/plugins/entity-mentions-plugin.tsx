@@ -8,6 +8,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { CLICK_COMMAND, COMMAND_PRIORITY_LOW, type TextNode } from "lexical";
 import { type JSX, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
@@ -66,6 +67,7 @@ export function EntityMentionsPlugin({
   initiativeId,
 }: EntityMentionsPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
+  const { t } = useTranslation("documents");
   const navigate = useNavigate();
   const guildId = useActiveGuildId();
   const [queryString, setQueryString] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function EntityMentionsPlugin({
 
   // The one lookup every picker in the app goes through, narrowed to this
   // initiative's live work.
-  const { data } = useGuildSearchSuggest(debouncedQuery, {
+  const { data, isFetching } = useGuildSearchSuggest(debouncedQuery, {
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     template: false,
@@ -148,29 +150,48 @@ export function EntityMentionsPlugin({
       triggerFn={entityMatch}
       options={options}
       menuRenderFn={(anchorElementRef, { selectedIndex, selectOptionAndCleanUp }) =>
-        anchorElementRef.current && options.length
+        anchorElementRef.current
           ? createPortal(
               <div className="absolute z-10 w-[260px] rounded-md shadow-md">
                 <Command>
                   <CommandList>
-                    <CommandGroup>
-                      {options.map((option, index) => {
-                        const Icon = hitIcon(option.suggestion);
-                        return (
-                          <CommandItem
-                            key={option.key}
-                            value={option.key}
-                            onSelect={() => selectOptionAndCleanUp(option)}
-                            className={`flex items-center gap-2 ${
-                              selectedIndex === index ? "bg-accent" : "bg-transparent!"
-                            }`}
-                          >
-                            <Icon className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{option.suggestion.title}</span>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
+                    {options.length ? (
+                      <CommandGroup>
+                        {options.map((option, index) => {
+                          const Icon = hitIcon(option.suggestion);
+                          return (
+                            <CommandItem
+                              key={option.key}
+                              value={option.key}
+                              onSelect={() => selectOptionAndCleanUp(option)}
+                              className={`flex items-center gap-2 ${
+                                selectedIndex === index ? "bg-accent" : "bg-transparent!"
+                              }`}
+                            >
+                              <Icon className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{option.suggestion.title}</span>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    ) : (
+                      // Rendering nothing here is what made `#` look broken: a
+                      // reference is scoped to this document's initiative, so a
+                      // guild full of matches can still leave a reader staring
+                      // at an unchanged caret with no idea why.
+                      <div className="space-y-1 px-3 py-2">
+                        <p className="text-muted-foreground text-sm">
+                          {isFetching
+                            ? t("references.searching")
+                            : t("references.noMatches", { query: active?.query ?? "" })}
+                        </p>
+                        {!isFetching && (
+                          <p className="text-muted-foreground/80 text-xs">
+                            {t("references.scopeHint")}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </CommandList>
                 </Command>
               </div>,
