@@ -10,8 +10,10 @@ import {
   buildInitiative,
   buildInitiativeDirectoryEntry,
   buildInitiativeJoinRequest,
+  buildInitiativeMember,
   buildProject,
   buildRecentActivityEntry,
+  buildUser,
 } from "@/__tests__/factories";
 import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
@@ -22,6 +24,10 @@ import { queryClient } from "@/lib/queryClient";
 import { GuildHomePage } from "./GuildHomePage";
 
 const INITIATIVE_ID = 7;
+
+/** Whoever is reading the page. Pinned so the stubbed listing can carry their
+ *  membership row — which is what the endpoint returns, guild admin or not. */
+const READER = buildUser({ id: 42 });
 
 const page = (items: unknown[], totalCount = items.length) =>
   HttpResponse.json({
@@ -55,12 +61,20 @@ function stubTools({
   );
 }
 
-/** A guild admin sees every initiative, so the rail reflects the initiative's
- *  own tool switches rather than one membership row. */
+/** The listing is the reader's own memberships, guild admin or not, so the
+ *  stub carries their row. For an admin the rail still reflects the
+ *  initiative's own tool switches rather than that row's flags. */
 function stubInitiatives(overrides: Record<string, boolean> = {}) {
   server.use(
     guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides })])
+      HttpResponse.json([
+        buildInitiative({
+          id: INITIATIVE_ID,
+          name: "Apollo",
+          members: [buildInitiativeMember({ user: { ...READER } })],
+          ...overrides,
+        }),
+      ])
     )
   );
 }
@@ -72,14 +86,15 @@ function stubDirectory(entries: unknown[]) {
 
 const renderHome = (search?: Record<string, unknown>) =>
   renderPage(GuildHomePage, {
+    auth: { user: READER },
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
     routerSearch: search,
   });
 
-/** The same page seen by a plain member — no create affordance, no admin view
- *  of every initiative. */
+/** The same page seen by a plain member — no create affordance. */
 const renderHomeAsMember = (search?: Record<string, unknown>) =>
   renderPage(GuildHomePage, {
+    auth: { user: READER },
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "member" }) },
     routerSearch: search,
   });
