@@ -100,6 +100,12 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        # Deployment-wide notices and what each person has done with them. One
+        # announcement is shown in every guild and read by an account, not by a
+        # membership, so none of the three has a guild to live in.
+        "announcements",
+        "announcement_reads",
+        "announcement_images",
         # Marketplace catalog: what is installable, platform-wide. Holds no
         # guild_id by design — the catalog never records who installed what.
         "marketplace_listings",

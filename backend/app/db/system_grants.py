@@ -156,6 +156,15 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Authoring runs on the system engine because a draft is invisible to the
+    # request path by policy — which is the point of the policy.
+    "announcements": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Receipts are written by the reader under their own role. The system
+    # engine only ever removes them, when the announcement they name goes.
+    "announcement_reads": frozenset({"SELECT", "DELETE"}),
+    # The pictures are stored and served entirely on the system engine, like
+    # guild images: no request-path role holds the bytes.
+    "announcement_images": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Append-only. The system engine writes the record and the board reads it;
     # UPDATE and DELETE are granted to nobody at all, here included, because a
@@ -266,6 +275,11 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
     "notifications": None,
+    # An announcement is shown to a signed-in account, so nothing about it is
+    # read before routing.
+    "announcements": None,
+    "announcement_reads": None,
+    "announcement_images": None,
     "oidc_claim_mappings": None,
     "push_tokens": None,
     "user_view_preferences": None,

@@ -1,6 +1,7 @@
 import "i18next";
 
 import type access from "../../public/locales/en/access.json";
+import type announcements from "../../public/locales/en/announcements.json";
 import type apps from "../../public/locales/en/apps.json";
 import type auth from "../../public/locales/en/auth.json";
 import type calendars from "../../public/locales/en/calendars.json";
@@ -41,6 +42,7 @@ declare module "i18next" {
     returnObjects: false;
     resources: {
       access: typeof access;
+      announcements: typeof announcements;
       auth: typeof auth;
       command: typeof command;
       common: typeof common;

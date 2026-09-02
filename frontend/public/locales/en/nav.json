@@ -75,5 +75,6 @@
     "finalizing": "Finalizing redirect…",
     "goHome": "Go back home"
   },
-  "adminDashboard": "Admin dashboard"
+  "adminDashboard": "Admin dashboard",
+  "pastAnnouncements": "Past announcements"
 }

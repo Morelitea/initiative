@@ -1,0 +1,119 @@
+{
+  "category": {
+    "release": "Release",
+    "feature": "New",
+    "breaking": "Breaking change",
+    "maintenance": "Maintenance",
+    "security": "Security",
+    "info": "Announcement"
+  },
+  "dialog": {
+    "gotIt": "Got it",
+    "next": "Next",
+    "more_one": "{{count}} more",
+    "more_other": "{{count}} more",
+    "back": "Back",
+    "continue": "Continue",
+    "pageOf": "{{current}} of {{total}}",
+    "showsAgain_one": "shows once more",
+    "showsAgain_other": "shows {{count}} more times",
+    "zoomImage": "View this picture full size"
+  },
+  "update": {
+    "title": "Version {{version}} is available",
+    "whatsNew": "What's new",
+    "noDetailedChanges": "No detailed changes were listed for this release.",
+    "viewAllChanges": "View all changes",
+    "later": "Later",
+    "reloadNow": "Reload now"
+  },
+  "admin": {
+    "title": "Announcements",
+    "subtitle": "Notices shown to people using this deployment. Each one is shown once and remembered per person.",
+    "new": "New announcement",
+    "newTitle": "New announcement",
+    "editTitle": "Edit announcement",
+    "editorSubtitle": "Give it a title, then add a section for each thing you want to show.",
+    "empty": "No announcements yet.",
+    "builtin": "Built in",
+    "preview": "Preview",
+    "untitled": "Untitled announcement",
+    "saved": "Announcement saved",
+    "saveFailed": "Could not save the announcement",
+    "deleted": "Announcement deleted",
+    "deleteFailed": "Could not delete the announcement",
+    "deleteTitle": "Delete this announcement?",
+    "deleteDescription": "\"{{title}}\" will be removed, along with everyone's record of having read it.",
+    "needsTitleAndSection": "An announcement needs a title and at least one section",
+    "uploadFailed": "Could not upload that image",
+    "publishNow": "Publish now",
+    "makeDraft": "Back to draft",
+    "addSection": "Add section",
+    "sectionNumber": "Section {{number}}",
+    "moveUp": "Move section up",
+    "moveDown": "Move section down",
+    "removeSection": "Remove section",
+    "addImage": "Add image",
+    "replaceImage": "Replace image",
+    "removeImage": "Remove image",
+    "publishedOn": "Published {{date}}",
+    "notPublished": "Not published",
+    "audience": "{{role}} and above",
+    "guildAdminsOnly": "Community admins only",
+    "status": {
+      "draft": "Draft",
+      "scheduled": "Scheduled",
+      "live": "Live",
+      "expired": "Expired"
+    },
+    "roles": {
+      "member": "Everyone",
+      "support": "Support",
+      "moderator": "Moderator",
+      "operator": "Operator",
+      "owner": "Owner"
+    },
+    "fields": {
+      "title": "Title",
+      "titlePlaceholder": "What changed?",
+      "category": "Category",
+      "minRole": "Minimum platform role",
+      "minRoleHint": "Only people at this rung or above are shown it.",
+      "guildAdminsOnly": "Community admins only",
+      "guildAdminsOnlyHint": "Show it only to people who administer at least one community.",
+      "publishedAt": "Publish at",
+      "expiresAt": "Stop showing at",
+      "expiresHint": "Leave empty to keep showing it. An end date also takes it off the announcements page.",
+      "sections": "Sections",
+      "headingPlaceholder": "Section heading (optional)",
+      "bodyPlaceholder": "Markdown is supported",
+      "altPlaceholder": "Describe the image for screen readers",
+      "timezoneHint": "Times are in your timezone ({{zone}}).",
+      "draftPlaceholder": "Leave empty to keep it a draft",
+      "dismissalsRequired": "Times to acknowledge",
+      "dismissalsRequiredHint": "How many times someone has to dismiss it before it stops coming back. Keep it at 1 unless missing it would hurt.",
+      "triggerRoute": "Show on page (optional)",
+      "triggerRouteHint": "Leave empty to show it right away. A path pattern holds it until someone opens a matching page — * is one part of the path, ** is the rest."
+    },
+    "startsPage": "Start a new page",
+    "triggerErrors": {
+      "needsSlash": "Start the pattern with a / — for example /c/*/settings.",
+      "whitespace": "A path pattern can't contain spaces.",
+      "wildcardSegment": "* and ** stand for a whole part of the path, so they can't be joined to other characters.",
+      "doubleStarNotLast": "** matches the rest of the path, so nothing can come after it."
+    }
+  },
+  "archive": {
+    "title": "Announcements",
+    "subtitle": "Everything Initiative has announced, newest first.",
+    "empty": "Nothing has been announced yet.",
+    "read": "Read it",
+    "unread": "Unread",
+    "readLabel": "Read",
+    "allCaughtUp": "You're all caught up.",
+    "filter": {
+      "all": "All ({{count}})",
+      "unread": "Unread ({{count}})"
+    }
+  }
+}

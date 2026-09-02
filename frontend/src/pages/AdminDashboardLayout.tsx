@@ -39,6 +39,12 @@ export const AdminDashboardLayout = () => {
         capabilities: [Capability.guildsManage],
       },
       {
+        value: "announcements",
+        label: t("adminDashboard.tabs.announcements"),
+        path: "/settings/admin/announcements",
+        capabilities: [Capability.announcementsManage],
+      },
+      {
         value: "audit",
         label: t("adminDashboard.tabs.audit"),
         path: "/settings/admin/audit",

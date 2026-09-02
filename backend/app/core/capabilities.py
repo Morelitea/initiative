@@ -44,6 +44,13 @@ class Capability(str, Enum):
 
     # Platform operations.
     GUILDS_MANAGE = "guilds.manage"
+
+    # Writing the notices every user of this deployment is shown (see
+    # ``app.services.platform.announcements``). Product communication rather
+    # than configuration, so it sits a rung below ``config.manage``: an
+    # operator running the deployment day to day can say what changed without
+    # also holding the keys to OIDC and SMTP.
+    ANNOUNCEMENTS_MANAGE = "announcements.manage"
     ROLES_ASSIGN = "roles.assign"
 
     # The right to self-issue a break-glass PAM grant (operator+owner only). This is
@@ -88,6 +95,7 @@ _MODERATOR: FrozenSet[Capability] = _SUPPORT | {
 
 _OPERATOR: FrozenSet[Capability] = _MODERATOR | {
     Capability.GUILDS_MANAGE,
+    Capability.ANNOUNCEMENTS_MANAGE,
     Capability.USERS_DELETE,
     Capability.DATA_BYPASS,
     Capability.ROLES_ASSIGN,

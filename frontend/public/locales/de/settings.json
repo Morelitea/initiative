@@ -874,7 +874,8 @@
       "users": "Benutzer",
       "access": "Zugriff",
       "guilds": "Communitys",
-      "audit": "Prüfprotokoll"
+      "audit": "Prüfprotokoll",
+      "announcements": "Ankündigungen"
     }
   },
   "guilds": {

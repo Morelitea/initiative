@@ -1,0 +1,119 @@
+{
+  "category": {
+    "release": "Release",
+    "feature": "Neu",
+    "breaking": "Breaking Change",
+    "maintenance": "Wartung",
+    "security": "Sicherheit",
+    "info": "Ankündigung"
+  },
+  "dialog": {
+    "gotIt": "Verstanden",
+    "next": "Weiter",
+    "more_one": "{{count}} weitere",
+    "more_other": "{{count}} weitere",
+    "back": "Zurück",
+    "continue": "Weiter",
+    "pageOf": "{{current}} von {{total}}",
+    "showsAgain_one": "wird noch einmal gezeigt",
+    "showsAgain_other": "wird noch {{count}}-mal gezeigt",
+    "zoomImage": "Bild in voller Größe ansehen"
+  },
+  "update": {
+    "title": "Version {{version}} ist verfügbar",
+    "whatsNew": "Was ist neu",
+    "noDetailedChanges": "Für dieses Release wurden keine Details aufgeführt.",
+    "viewAllChanges": "Alle Änderungen ansehen",
+    "later": "Später",
+    "reloadNow": "Jetzt neu laden"
+  },
+  "admin": {
+    "title": "Ankündigungen",
+    "subtitle": "Hinweise für alle, die diese Installation nutzen. Jeder wird einmal gezeigt und pro Person gemerkt.",
+    "new": "Neue Ankündigung",
+    "newTitle": "Neue Ankündigung",
+    "editTitle": "Ankündigung bearbeiten",
+    "editorSubtitle": "Gib ihr einen Titel und füge für jede Sache einen Abschnitt hinzu.",
+    "empty": "Noch keine Ankündigungen.",
+    "builtin": "Integriert",
+    "preview": "Vorschau",
+    "untitled": "Ankündigung ohne Titel",
+    "saved": "Ankündigung gespeichert",
+    "saveFailed": "Ankündigung konnte nicht gespeichert werden",
+    "deleted": "Ankündigung gelöscht",
+    "deleteFailed": "Ankündigung konnte nicht gelöscht werden",
+    "deleteTitle": "Diese Ankündigung löschen?",
+    "deleteDescription": "„{{title}}“ wird entfernt, samt der Notiz, wer sie gelesen hat.",
+    "needsTitleAndSection": "Eine Ankündigung braucht einen Titel und mindestens einen Abschnitt",
+    "uploadFailed": "Dieses Bild konnte nicht hochgeladen werden",
+    "publishNow": "Jetzt veröffentlichen",
+    "makeDraft": "Zurück zum Entwurf",
+    "addSection": "Abschnitt hinzufügen",
+    "sectionNumber": "Abschnitt {{number}}",
+    "moveUp": "Abschnitt nach oben",
+    "moveDown": "Abschnitt nach unten",
+    "removeSection": "Abschnitt entfernen",
+    "addImage": "Bild hinzufügen",
+    "replaceImage": "Bild ersetzen",
+    "removeImage": "Bild entfernen",
+    "publishedOn": "Veröffentlicht am {{date}}",
+    "notPublished": "Nicht veröffentlicht",
+    "audience": "{{role}} und höher",
+    "guildAdminsOnly": "Nur Community-Admins",
+    "status": {
+      "draft": "Entwurf",
+      "scheduled": "Geplant",
+      "live": "Aktiv",
+      "expired": "Abgelaufen"
+    },
+    "roles": {
+      "member": "Alle",
+      "support": "Support",
+      "moderator": "Moderator",
+      "operator": "Operator",
+      "owner": "Owner"
+    },
+    "fields": {
+      "title": "Titel",
+      "titlePlaceholder": "Was hat sich geändert?",
+      "category": "Kategorie",
+      "minRole": "Mindest-Plattformrolle",
+      "minRoleHint": "Nur Personen ab dieser Stufe sehen sie.",
+      "guildAdminsOnly": "Nur Community-Admins",
+      "guildAdminsOnlyHint": "Nur Personen zeigen, die mindestens eine Community verwalten.",
+      "publishedAt": "Veröffentlichen am",
+      "expiresAt": "Nicht mehr zeigen ab",
+      "expiresHint": "Leer lassen, um sie dauerhaft zu zeigen. Ein Enddatum entfernt sie auch von der Ankündigungsseite.",
+      "sections": "Abschnitte",
+      "headingPlaceholder": "Überschrift (optional)",
+      "bodyPlaceholder": "Markdown wird unterstützt",
+      "altPlaceholder": "Bild für Screenreader beschreiben",
+      "timezoneHint": "Zeiten gelten in deiner Zeitzone ({{zone}}).",
+      "draftPlaceholder": "Leer lassen, um es als Entwurf zu behalten",
+      "dismissalsRequired": "Wie oft bestätigen",
+      "dismissalsRequiredHint": "Wie oft jemand sie schließen muss, bis sie nicht mehr erscheint. Belasse es bei 1, außer es täte weh, sie zu verpassen.",
+      "triggerRoute": "Auf Seite zeigen (optional)",
+      "triggerRouteHint": "Leer lassen, um sie sofort zu zeigen. Ein Pfadmuster hält sie zurück, bis jemand eine passende Seite öffnet — * ist ein Pfadteil, ** ist der Rest."
+    },
+    "startsPage": "Neue Seite beginnen",
+    "triggerErrors": {
+      "needsSlash": "Beginne das Muster mit / — zum Beispiel /c/*/settings.",
+      "whitespace": "Ein Pfadmuster darf keine Leerzeichen enthalten.",
+      "wildcardSegment": "* und ** stehen für einen ganzen Pfadteil und dürfen nicht mit anderen Zeichen zusammenstehen.",
+      "doubleStarNotLast": "** steht für den Rest des Pfades, danach darf nichts mehr kommen."
+    }
+  },
+  "archive": {
+    "title": "Ankündigungen",
+    "subtitle": "Alles, was Initiative angekündigt hat, neueste zuerst.",
+    "empty": "Bisher wurde nichts angekündigt.",
+    "read": "Lesen",
+    "unread": "Ungelesen",
+    "readLabel": "Gelesen",
+    "allCaughtUp": "Du bist auf dem neuesten Stand.",
+    "filter": {
+      "all": "Alle ({{count}})",
+      "unread": "Ungelesen ({{count}})"
+    }
+  }
+}

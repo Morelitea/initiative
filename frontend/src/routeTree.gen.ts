@@ -20,6 +20,7 @@ import { Route as ServerRequiredVerifyEmailRouteImport } from './routes/_serverR
 import { Route as ServerRequiredWelcomeRouteImport } from './routes/_serverRequired/welcome'
 import { Route as AppsConnectedRouteImport } from './routes/apps.connected'
 import { Route as ServerRequiredAuthenticatedIndexRouteImport } from './routes/_serverRequired/_authenticated/index'
+import { Route as ServerRequiredAuthenticatedAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/announcements'
 import { Route as ServerRequiredAuthenticatedCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/communities'
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
@@ -56,6 +57,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdSearchRouteImport } from '.
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings'
 import { Route as ServerRequiredAuthenticatedSettingsAdminIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/index'
 import { Route as ServerRequiredAuthenticatedSettingsAdminAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/access'
+import { Route as ServerRequiredAuthenticatedSettingsAdminAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/announcements'
 import { Route as ServerRequiredAuthenticatedSettingsAdminAuditRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/audit'
 import { Route as ServerRequiredAuthenticatedSettingsAdminCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/communities'
 import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/users'
@@ -200,6 +202,12 @@ const ServerRequiredAuthenticatedIndexRoute =
   ServerRequiredAuthenticatedIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
+  } as any)
+const ServerRequiredAuthenticatedAnnouncementsRoute =
+  ServerRequiredAuthenticatedAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedCommunitiesRoute =
@@ -416,6 +424,12 @@ const ServerRequiredAuthenticatedSettingsAdminAccessRoute =
   ServerRequiredAuthenticatedSettingsAdminAccessRouteImport.update({
     id: '/access',
     path: '/access',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute =
+  ServerRequiredAuthenticatedSettingsAdminAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsAdminAuditRoute =
@@ -1115,6 +1129,7 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
+  '/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
@@ -1149,6 +1164,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteWithChildren
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/settings/admin/announcements': typeof ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute
   '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/communities': typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
@@ -1249,6 +1265,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
+  '/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
@@ -1278,6 +1295,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/marketplace': typeof ServerRequiredAuthenticatedCGuildIdMarketplaceRoute
   '/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/settings/admin/announcements': typeof ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute
   '/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/settings/admin/communities': typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
@@ -1371,6 +1389,7 @@ export interface FileRoutesById {
   '/_serverRequired/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/_serverRequired/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
+  '/_serverRequired/_authenticated/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/_serverRequired/_authenticated/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
@@ -1406,6 +1425,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/_serverRequired/_authenticated/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/_serverRequired/_authenticated/settings/admin/announcements': typeof ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute
   '/_serverRequired/_authenticated/settings/admin/audit': typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   '/_serverRequired/_authenticated/settings/admin/communities': typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
@@ -1508,6 +1528,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/welcome'
     | '/apps/connected'
+    | '/announcements'
     | '/communities'
     | '/created-tasks'
     | '/documents'
@@ -1542,6 +1563,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/search'
     | '/c/$guildId/settings'
     | '/settings/admin/access'
+    | '/settings/admin/announcements'
     | '/settings/admin/audit'
     | '/settings/admin/communities'
     | '/settings/admin/users'
@@ -1642,6 +1664,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/welcome'
     | '/apps/connected'
+    | '/announcements'
     | '/communities'
     | '/created-tasks'
     | '/documents'
@@ -1671,6 +1694,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/marketplace'
     | '/c/$guildId/search'
     | '/settings/admin/access'
+    | '/settings/admin/announcements'
     | '/settings/admin/audit'
     | '/settings/admin/communities'
     | '/settings/admin/users'
@@ -1763,6 +1787,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/verify-email'
     | '/_serverRequired/welcome'
     | '/apps/connected'
+    | '/_serverRequired/_authenticated/announcements'
     | '/_serverRequired/_authenticated/communities'
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
@@ -1798,6 +1823,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/search'
     | '/_serverRequired/_authenticated/c/$guildId/settings'
     | '/_serverRequired/_authenticated/settings/admin/access'
+    | '/_serverRequired/_authenticated/settings/admin/announcements'
     | '/_serverRequired/_authenticated/settings/admin/audit'
     | '/_serverRequired/_authenticated/settings/admin/communities'
     | '/_serverRequired/_authenticated/settings/admin/users'
@@ -1972,6 +1998,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof ServerRequiredAuthenticatedIndexRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
+    }
+    '/_serverRequired/_authenticated/announcements': {
+      id: '/_serverRequired/_authenticated/announcements'
+      path: '/announcements'
+      fullPath: '/announcements'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedAnnouncementsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/communities': {
@@ -2224,6 +2257,13 @@ declare module '@tanstack/react-router' {
       path: '/access'
       fullPath: '/settings/admin/access'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminAccessRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
+    }
+    '/_serverRequired/_authenticated/settings/admin/announcements': {
+      id: '/_serverRequired/_authenticated/settings/admin/announcements'
+      path: '/announcements'
+      fullPath: '/settings/admin/announcements'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminAnnouncementsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
     }
     '/_serverRequired/_authenticated/settings/admin/audit': {
@@ -2879,6 +2919,7 @@ const ServerRequiredAuthenticatedProfileRouteWithChildren =
 
 interface ServerRequiredAuthenticatedSettingsAdminRouteChildren {
   ServerRequiredAuthenticatedSettingsAdminAccessRoute: typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute: typeof ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute
   ServerRequiredAuthenticatedSettingsAdminAuditRoute: typeof ServerRequiredAuthenticatedSettingsAdminAuditRoute
   ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute: typeof ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute
   ServerRequiredAuthenticatedSettingsAdminUsersRoute: typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
@@ -2889,6 +2930,8 @@ const ServerRequiredAuthenticatedSettingsAdminRouteChildren: ServerRequiredAuthe
   {
     ServerRequiredAuthenticatedSettingsAdminAccessRoute:
       ServerRequiredAuthenticatedSettingsAdminAccessRoute,
+    ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute:
+      ServerRequiredAuthenticatedSettingsAdminAnnouncementsRoute,
     ServerRequiredAuthenticatedSettingsAdminAuditRoute:
       ServerRequiredAuthenticatedSettingsAdminAuditRoute,
     ServerRequiredAuthenticatedSettingsAdminCommunitiesRoute:
@@ -3331,6 +3374,7 @@ const ServerRequiredAuthenticatedCGuildIdRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedRouteChildren {
+  ServerRequiredAuthenticatedAnnouncementsRoute: typeof ServerRequiredAuthenticatedAnnouncementsRoute
   ServerRequiredAuthenticatedCommunitiesRoute: typeof ServerRequiredAuthenticatedCommunitiesRoute
   ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
@@ -3352,6 +3396,8 @@ interface ServerRequiredAuthenticatedRouteChildren {
 
 const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRouteChildren =
   {
+    ServerRequiredAuthenticatedAnnouncementsRoute:
+      ServerRequiredAuthenticatedAnnouncementsRoute,
     ServerRequiredAuthenticatedCommunitiesRoute:
       ServerRequiredAuthenticatedCommunitiesRoute,
     ServerRequiredAuthenticatedCreatedTasksRoute:
