@@ -35,6 +35,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 # Shared tables that carry (FORCEd) row-level security.
 _RLS_SHARED_TABLES = {
     "access_grants",
+    "announcement_images",
+    "announcement_reads",
+    "announcements",
     "audit_events",
     "app_service_nonces",
     "app_service_registrations",

@@ -241,6 +241,11 @@ _SIGIL_EXEMPT: frozenset[str] = frozenset(
         "app.schemas.tenant.property.PropertyDefinitionUpdate.name",
         "app.schemas.tenant.task_status.TaskStatusCreate.name",
         "app.schemas.tenant.task_status.TaskStatusUpdate.name",
+        # An announcement's title is prose an operator writes about the product
+        # — never a mention target and never indexed — and a notice about
+        # mentions or about issue #123 wants to say so in its title.
+        "app.schemas.platform.announcement.AnnouncementWrite.title",
+        "app.schemas.platform.announcement.AnnouncementUpdate.title",
     }
 )
 

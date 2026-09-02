@@ -497,5 +497,10 @@
   "BANNER_TEXT_COLOR_INVALID": "Bannertext ist schwarz oder weiß.",
   "USER_DECORATION_NOT_OWNED": "Du hast diese Dekoration nicht.",
   "USER_DECORATION_PACK_NOT_FOUND": "Dieses Dekorationspack gibt es nicht.",
-  "USER_DECORATION_ALREADY_GRANTED": "Diese Dekoration hast du schon aus einem anderen Pack."
+  "USER_DECORATION_ALREADY_GRANTED": "Diese Dekoration hast du schon aus einem anderen Pack.",
+  "ANNOUNCEMENT_NOT_FOUND": "Diese Ankündigung existiert nicht mehr.",
+  "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Integrierte Ankündigungen werden über ein Release geändert, nicht hier.",
+  "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Dieses Bild existiert nicht mehr.",
+  "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Dieses Bild ist zu groß. Bleib unter 2 MB.",
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Diese Datei ist kein unterstütztes Bild (PNG, JPEG, WebP oder GIF)."
 }

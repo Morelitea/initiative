@@ -497,5 +497,10 @@
   "BANNER_TEXT_COLOR_INVALID": "Le texte de la bannière est noir ou blanc.",
   "USER_DECORATION_NOT_OWNED": "Vous n'avez pas cette décoration.",
   "USER_DECORATION_PACK_NOT_FOUND": "Ce pack de décoration n'existe pas.",
-  "USER_DECORATION_ALREADY_GRANTED": "Vous avez déjà cette décoration dans un autre pack."
+  "USER_DECORATION_ALREADY_GRANTED": "Vous avez déjà cette décoration dans un autre pack.",
+  "ANNOUNCEMENT_NOT_FOUND": "Cette annonce n'existe plus.",
+  "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Les annonces intégrées se modifient en publiant une version, pas ici.",
+  "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Cette image n'existe plus.",
+  "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Cette image est trop lourde. Restez sous 2 Mo.",
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ce fichier n'est pas une image prise en charge (PNG, JPEG, WebP ou GIF)."
 }

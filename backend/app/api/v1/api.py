@@ -54,6 +54,7 @@ from app.api.v1.tenant_endpoints import (
 from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
+    announcements,
     ai_settings as platform_ai_settings,
     app_platform,
     app_services,
@@ -95,6 +96,12 @@ api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
 api_router.include_router(push.router, prefix="/push", tags=["push"])
+# Deployment-wide notices: what changed, who should hear about it, and what
+# each person has already dealt with. Platform-addressed — one announcement
+# reaches every guild — so no guild segment.
+api_router.include_router(
+    announcements.router, prefix="/announcements", tags=["announcements"]
+)
 # Platform / app-wide config (owner-only) and cross-guild PAM management — NOT
 # guild-scoped (AdminSessionDep / capability-gated), so they stay top-level.
 api_router.include_router(

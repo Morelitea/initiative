@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import {
+  BadgeInfo,
   ChartColumn,
   CircleQuestionMark,
   CircleUserRound,
@@ -204,22 +205,41 @@ export const SidebarUserFooter = ({
               </button>
             </VersionDialog>
 
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <a
-                  href="https://morelitea.github.io/initiative/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label={t("viewDocumentation")}
-                >
-                  <CircleQuestionMark className="h-4 w-4" />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{t("viewDocumentation")}</p>
-              </TooltipContent>
-            </Tooltip>
+            {/* The two icons are one group at the right edge, not two things
+                spread across the row by justify-between. */}
+            <div className="flex items-center gap-3">
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/announcements"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={t("pastAnnouncements")}
+                  >
+                    <BadgeInfo className="h-4 w-4" />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{t("pastAnnouncements")}</p>
+                </TooltipContent>
+              </Tooltip>
+
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <a
+                    href="https://morelitea.github.io/initiative/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={t("viewDocumentation")}
+                  >
+                    <CircleQuestionMark className="h-4 w-4" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{t("viewDocumentation")}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
       </div>

@@ -76,5 +76,6 @@
   "allCounterGroups": "Todos los contadores",
   "createCounterGroup": "Nuevo grupo de contadores",
   "createExternally": "Se crea en {{name}}",
-  "adminDashboard": "Panel de administración"
+  "adminDashboard": "Panel de administración",
+  "pastAnnouncements": "Anuncios anteriores"
 }

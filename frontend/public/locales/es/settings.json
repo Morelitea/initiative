@@ -874,7 +874,8 @@
       "users": "Usuarios",
       "access": "Acceso",
       "guilds": "Comunidades",
-      "audit": "Auditoría"
+      "audit": "Auditoría",
+      "announcements": "Anuncios"
     }
   },
   "guilds": {

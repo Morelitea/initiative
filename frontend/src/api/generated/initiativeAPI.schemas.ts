@@ -326,6 +326,152 @@ export interface AdminUsernameUpdate {
   username: string;
 }
 
+/**
+ * What kind of news this is — drives the icon and accent, nothing else.
+ */
+export type AnnouncementCategory = (typeof AnnouncementCategory)[keyof typeof AnnouncementCategory];
+
+export const AnnouncementCategory = {
+  release: "release",
+  feature: "feature",
+  breaking: "breaking",
+  maintenance: "maintenance",
+  security: "security",
+  info: "info",
+} as const;
+
+/**
+ * One beat of an announcement: a heading, some prose, and a picture.
+ *
+ * Every part is optional on its own, but a section with none of them is
+ * nothing, so at least one must be present.
+ */
+export interface AnnouncementSection {
+  heading?: string | null;
+  starts_page?: boolean;
+  body?: string | null;
+  image_url?: string | null;
+  image_alt?: string | null;
+}
+
+/**
+ * Platform-level (app-wide) user role.
+ *
+ * Ordered from least to most privileged. Authorization checks should
+ * generally go through the capability model (``app.core.capabilities``)
+ * rather than comparing roles directly, so that the privilege ladder can
+ * evolve without touching every call site.
+ */
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const UserRole = {
+  member: "member",
+  support: "support",
+  moderator: "moderator",
+  operator: "operator",
+  owner: "owner",
+} as const;
+
+/**
+ * Everything about an announcement, for the people who write them.
+ */
+export interface AnnouncementAdminRead {
+  key: string;
+  title: string;
+  category: AnnouncementCategory;
+  sections?: AnnouncementSection[];
+  published_at?: string | null;
+  is_builtin?: boolean;
+  dismissed_at?: string | null;
+  dismissals_required?: number;
+  dismiss_count?: number;
+  trigger_route?: string | null;
+  id?: number | null;
+  min_platform_role?: UserRole;
+  guild_admins_only?: boolean;
+  expires_at?: string | null;
+  created_by?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AnnouncementAdminListResponse {
+  items?: AnnouncementAdminRead[];
+}
+
+/**
+ * Where an uploaded picture now lives, and how big it is.
+ */
+export interface AnnouncementImageRead {
+  url: string;
+  sha256: string;
+  content_type: string;
+  byte_size: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * An announcement as a reader receives it.
+ */
+export interface AnnouncementRead {
+  key: string;
+  title: string;
+  category: AnnouncementCategory;
+  sections?: AnnouncementSection[];
+  published_at?: string | null;
+  is_builtin?: boolean;
+  dismissed_at?: string | null;
+  dismissals_required?: number;
+  dismiss_count?: number;
+  trigger_route?: string | null;
+}
+
+export interface AnnouncementListResponse {
+  items?: AnnouncementRead[];
+}
+
+/**
+ * Body for editing an announcement — every field optional.
+ */
+export interface AnnouncementUpdate {
+  title?: string | null;
+  category?: AnnouncementCategory | null;
+  sections?: AnnouncementSection[] | null;
+  min_platform_role?: UserRole | null;
+  guild_admins_only?: boolean | null;
+  published_at?: string | null;
+  expires_at?: string | null;
+  dismissals_required?: number | null;
+  trigger_route?: string | null;
+  clear_published_at?: boolean;
+  clear_expires_at?: boolean;
+  clear_trigger_route?: boolean;
+}
+
+/**
+ * Body for creating an announcement, and the base for editing one.
+ */
+export interface AnnouncementWrite {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  category?: AnnouncementCategory;
+  sections?: AnnouncementSection[];
+  min_platform_role?: UserRole;
+  guild_admins_only?: boolean;
+  published_at?: string | null;
+  expires_at?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 10
+   */
+  dismissals_required?: number;
+  trigger_route?: string | null;
+}
+
 export interface ApiKeyCreateRequest {
   /**
    * @minLength 1
@@ -820,6 +966,10 @@ export interface BodySetGuildBannerApiV1GuildsGuildIdBannerPut {
 
 export interface BodySetGuildIconApiV1GuildsGuildIdIconPut {
   icon: Blob;
+}
+
+export interface BodyUploadAnnouncementImageApiV1AnnouncementsAdminImagesPost {
+  file: Blob;
 }
 
 export interface BodyUploadAttachmentApiV1GGuildIdAttachmentsPost {
@@ -3809,24 +3959,6 @@ export interface PlatformGuildStorageUpdate {
 }
 
 /**
- * Platform-level (app-wide) user role.
- *
- * Ordered from least to most privileged. Authorization checks should
- * generally go through the capability model (``app.core.capabilities``)
- * rather than comparing roles directly, so that the privilege ladder can
- * evolve without touching every call site.
- */
-export type UserRole = (typeof UserRole)[keyof typeof UserRole];
-
-export const UserRole = {
-  member: "member",
-  support: "support",
-  moderator: "moderator",
-  operator: "operator",
-  owner: "owner",
-} as const;
-
-/**
  * Schema for updating a user's platform role.
  */
 export interface PlatformRoleUpdate {
@@ -5752,6 +5884,10 @@ export type ListCommunityGuildsApiV1GuildsCommunitiesGetParams = {
 
 export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams = {
   guild_id: number;
+};
+
+export type ListAnnouncementsApiV1AnnouncementsGetParams = {
+  include_dismissed?: boolean;
 };
 
 export type ListAccessGrantsApiV1AccessGrantsGetParams = {
