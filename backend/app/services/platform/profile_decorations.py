@@ -34,15 +34,63 @@ from app.schemas.platform.user import OwnedDecoration, ProfileDecorations
 _MAX_PACKS = 200
 
 
-async def _granted_names(session: AsyncSession, sources: set[str]) -> dict[str, str]:
-    """``decoration id -> the name its pack gave it``, for these packs.
+async def _as_the_packs_stand(
+    session: AsyncSession, granted: list[UserDecoration]
+) -> list[UserDecoration]:
+    """The granted rows, re-read against what their packs carry today.
+
+    Returned as unsaved ``UserDecoration`` objects rather than written back: the
+    row is the record of a grant and stays as it was, and what a pack contains
+    is the catalog's answer, asked each time. A row whose pack this deployment
+    no longer offers is kept exactly as it is — losing a decoration because a
+    listing was withdrawn is the one thing withdrawal is not supposed to do.
+    """
+    sources = {row.source for row in granted if row.source}
+    if not sources:
+        return granted
+
+    fresh: list[UserDecoration] = []
+    seen: set[str] = set()
+    for source in sorted(sources):
+        pack = await pack_by_uid(session, source)
+        rows = [row for row in granted if row.source == source]
+        if pack is None:
+            fresh.extend(row for row in rows if row.decoration_id not in seen)
+            seen.update(row.decoration_id for row in rows)
+            continue
+        first = rows[0]
+        for decoration_id, kind in sorted(pack.decorations.items()):
+            if decoration_id in seen or decoration_id in SHIPPED_DECORATIONS:
+                continue
+            seen.add(decoration_id)
+            fresh.append(
+                UserDecoration(
+                    user_id=first.user_id,
+                    decoration_id=decoration_id,
+                    kind=kind,
+                    source=source,
+                    acquired_at=first.acquired_at,
+                )
+            )
+    # A row with no pack behind it at all — hand-granted, or from a listing this
+    # build has never seen — is still the account's.
+    fresh.extend(
+        row for row in granted if not row.source and row.decoration_id not in seen
+    )
+    return fresh
+
+
+async def _granted_names(
+    session: AsyncSession, sources: set[str]
+) -> tuple[dict[str, str], dict[str, str]]:
+    """``decoration id -> its name``, and ``decoration id -> its pack's name``.
 
     A pack from outside this build has no translation here, so the name its
     publisher wrote is the only one there is. One lookup for the packs an
     account holds, rather than one per decoration.
     """
     if not sources:
-        return {}
+        return {}, {}
     listings = [
         listing
         for listing in [
@@ -54,13 +102,15 @@ async def _granted_names(session: AsyncSession, sources: set[str]) -> dict[str, 
         session, [listing.latest_version_id for listing in listings]
     )
     names: dict[str, str] = {}
+    packs: dict[str, str] = {}
     for listing in listings:
         version = versions.get(listing.latest_version_id)
         definition = (version.definition if version is not None else None) or {}
         for entry in definition.get("decorations", []):
             if isinstance(entry, dict) and entry.get("id") and entry.get("name"):
                 names[str(entry["id"])] = str(entry["name"])
-    return names
+                packs[str(entry["id"])] = listing.name
+    return names, packs
 
 
 async def owned_decorations(
@@ -90,7 +140,25 @@ async def owned_decorations(
         )
     ).all()
     granted = [row for row in rows if row.decoration_id not in SHIPPED_DECORATIONS]
-    names = await _granted_names(session, {row.source for row in granted if row.source})
+    # A pack that gains a piece gives it to everybody who has the pack. The rows
+    # record *which packs* an account took, and the pack itself says what that
+    # means now — so a piece added in a later version is in the library on the
+    # next read rather than only for whoever installs it after today.
+    granted = await _as_the_packs_stand(session, granted)
+    names, packs = await _granted_names(
+        session, {row.source for row in granted if row.source}
+    )
+    # By theme, alphabetically, then by what the pack called the piece: a
+    # library is browsed rather than read in the order it was acquired, and
+    # once there are a dozen packs in it the acquisition order is nobody's
+    # order at all. What ships with the app leads, because it is always there.
+    granted.sort(
+        key=lambda row: (
+            packs.get(row.decoration_id, "").casefold(),
+            names.get(row.decoration_id, row.decoration_id).casefold(),
+            row.decoration_id,
+        )
+    )
     owned.extend(
         OwnedDecoration(
             id=row.decoration_id,
@@ -116,7 +184,7 @@ def unwearable(wanted: Iterable[tuple[str, str]], owned: dict[str, str]) -> list
     """Which of these ``(id, slot)`` pairs this library does not answer for.
 
     Both failures land here: an id the account does not have, and one it has
-    in a different slot — a badge cannot be worn as a frame.
+    in a different slot — a trophy cannot be worn as a frame.
     """
     return [
         decoration_id
@@ -352,5 +420,5 @@ def undress(worn: ProfileDecorations, gone: set[str]) -> ProfileDecorations:
     return ProfileDecorations(
         banner=None if worn.banner in gone else worn.banner,
         frame=None if worn.frame in gone else worn.frame,
-        badges=[badge for badge in worn.badges if badge not in gone],
+        trophies=[trophy for trophy in worn.trophies if trophy not in gone],
     )

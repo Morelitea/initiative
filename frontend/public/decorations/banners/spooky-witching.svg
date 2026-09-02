@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Witching hour</title>
+  <!-- Somebody is up, and it is not for tea. -->
+  <style>
+    .bub { animation: pop 3.4s ease-out infinite }
+    .b2 { animation-delay: -1.2s } .b3 { animation-delay: -2.4s }
+    @keyframes pop { 0% { transform: translateY(0) scale(.4); opacity: 0 }
+                     30% { opacity: .8 }
+                     100% { transform: translateY(-9px) scale(1.2); opacity: 0 } }
+    .bub { transform-box: fill-box; transform-origin: 50% 50% }
+    .fly { animation: cross 16s linear infinite }
+    @keyframes cross { 0% { transform: translate(-24px,4px) } 100% { transform: translate(190px,-6px) } }
+    @media (prefers-reduced-motion: reduce) { .bub, .fly { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="wnight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A0616"/><stop offset="100%" stop-color="#2A1140"/>
+    </linearGradient>
+    <radialGradient id="cauldronglow" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#6EE85A" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#6EE85A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#wnight)"/>
+  <circle cx="36" cy="9" r="6.4" fill="#F6EDD2" opacity=".9"/>
+  <circle cx="36" cy="9" r="14" fill="#F6EDD2" opacity=".1"/>
+  <g class="fly" fill="#07030E">
+    <path d="M40 12 L46 8.6 L44 12.6 L52 10 L48 14 C44.4 16.4 41 16 40 12 Z"/>
+    <path d="M44.6 12.6 C46 10.6 47.6 9.6 49 9.4 L49 6.6 C47 7.4 45.4 9.4 44.6 11.4 Z"/>
+    <ellipse cx="46" cy="8" rx="1.9" ry="2.6" transform="rotate(-24 46 8)"/>
+    <path d="M52 10 L58 8.6 L57 10.6 Z"/>
+  </g>
+  <path d="M0 28 C24 26.6 56 27.6 80 27.4 C106 27.2 136 26.4 160 27.4 L160 40 L0 40 Z"
+        fill="#0C0618"/>
+  <g stroke="#04020A" stroke-width="1.6" fill="none" stroke-linecap="round">
+    <path d="M20 28 C18 22 16 17 14 13"/><path d="M16 20 C12 18.6 9 18.6 6 19.6"/>
+    <path d="M17.6 24 C21 22.6 24 22.4 27 23"/>
+    <path d="M140 28 C142 22 144 17 146 13"/><path d="M144 20 C148 18.6 151 18.6 154 19.6"/>
+  </g>
+  <!-- The cauldron, going. -->
+  <ellipse cx="80" cy="20" rx="24" ry="12" fill="url(#cauldronglow)"/>
+  <g fill="#5EE04A">
+    <circle class="bub" cx="76" cy="22" r="1.4"/>
+    <circle class="bub b2" cx="82" cy="23" r="1.1"/>
+    <circle class="bub b3" cx="79" cy="21" r=".9"/>
+  </g>
+  <path d="M67 24 C67 30.6 72.6 34.6 80 34.6 C87.4 34.6 93 30.6 93 24 Z" fill="#12101A"/>
+  <ellipse cx="80" cy="24" rx="13" ry="3.6" fill="#1A1826"/>
+  <ellipse cx="80" cy="24" rx="10.6" ry="2.6" fill="#4EBE3E"/>
+  <ellipse cx="80" cy="23.6" rx="7" ry="1.6" fill="#7CE86A" opacity=".8"/>
+  <path d="M67.6 26.6 C71 28.6 89 28.6 92.4 26.6" fill="none" stroke="#2A2838"
+        stroke-width=".9"/>
+  <g stroke="#12101A" stroke-width="1.6" fill="none">
+    <path d="M70 34 L67 38.6"/><path d="M90 34 L93 38.6"/>
+  </g>
+  <!-- The stirring stick, and a jar or two. -->
+  <path d="M88 22 L98 10" stroke="#6B4526" stroke-width="1.2" stroke-linecap="round"/>
+  <g>
+    <path d="M112 34 L120 34 L119.4 27 L112.6 27 Z" fill="#8E76B4" opacity=".5"/>
+    <path d="M113 33 L119 33 L118.6 29.4 L113.4 29.4 Z" fill="#B45AC8" opacity=".7"/>
+    <path d="M112 27 L120 27 L120 25.6 L112 25.6 Z" fill="#5A3D22"/>
+    <path d="M124 34 L130 34 L129.6 29 L124.4 29 Z" fill="#8E76B4" opacity=".5"/>
+    <path d="M124.6 33.4 L129.4 33.4 L129.2 30.6 L124.8 30.6 Z" fill="#E8730C" opacity=".7"/>
+    <path d="M124 29 L130 29 L130 27.8 L124 27.8 Z" fill="#5A3D22"/>
+  </g>
+  <g fill="#04020A">
+    <ellipse cx="46" cy="32.6" rx="4.4" ry="2.6"/>
+    <path d="M42.6 31.4 C42 29.6 42.6 28.4 44 28 C44.6 29 44.6 30.4 44 31.4 Z"/>
+    <path d="M49.4 31.4 C50 29.6 49.4 28.4 48 28 C47.4 29 47.4 30.4 48 31.4 Z"/>
+    <path d="M50.4 32.6 C53 32 55 32.6 56 34" fill="none" stroke="#04020A" stroke-width="1"/>
+  </g>
+  <g fill="#E8730C">
+    <circle cx="43.6" cy="32.4" r=".5"/><circle cx="46.6" cy="32.4" r=".5"/>
+  </g></svg>

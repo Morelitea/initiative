@@ -60,6 +60,7 @@ _RLS_SHARED_TABLES = {
     "marketplace_registry_state",
     "oidc_claim_mappings",
     "platform_ai_connections",
+    "profile_favorites",
     "storage_backfill_state",
     "user_api_keys",
     "user_avatars",

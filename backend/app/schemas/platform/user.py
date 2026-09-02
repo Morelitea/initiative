@@ -15,10 +15,13 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 from app.core.capabilities import Capability, capabilities_for
 from app.core.emoji import validate_emoji
 from app.core.profile_decorations import (
-    BADGE,
+    MAX_FRAME_TINTS,
+    TINTABLE_FRAMES,
+    TROPHY,
     BANNER,
     FRAME,
     validate_decoration_id,
+    validate_tint,
 )
 from app.core.role_context import guild_shows_member_names
 from app.models.platform.user import Presence, UserRole, UserStatus
@@ -177,8 +180,11 @@ class UserSummaryListResponse(SanitizedBaseModel):
     has_prev: bool
 
 
-#: How long the line beside the emoji may run.
-STATUS_TEXT_MAX_LENGTH = 100
+#: How long the line beside the emoji may run. Short on purpose: the bubble is
+#: read in a sidebar column and over a picture, so a status is a line, not a
+#: paragraph. Mirrored by the CHECK constraint in migration 20260902_0212 and
+#: by ``STATUS_MAX_LENGTH`` in ``frontend/src/components/user/ProfileStatus``.
+STATUS_TEXT_MAX_LENGTH = 40
 
 
 class CustomStatus(SanitizedBaseModel):
@@ -218,13 +224,13 @@ class CustomStatus(SanitizedBaseModel):
         return None if value is None else (value.strip() or None)
 
 
-#: How many badges one profile may wear. A rendering bound — a row of them
-#: beside a name, not a wall.
-MAX_PROFILE_BADGES = 6
+#: How many trophies one profile may wear. A rendering bound — a row of them
+#: under a banner, not a wall.
+MAX_PROFILE_TROPHIES = 6
 
 
 class ProfileDecorations(SanitizedBaseModel):
-    """How a profile is dressed: a banner, a frame, badges beside the name.
+    """How a profile is dressed: a banner, a frame, trophies under it.
 
     Every value is an **id naming a catalog entry**, never an image. The client
     resolves an id to artwork it already ships, so a decorated profile takes up
@@ -243,20 +249,43 @@ class ProfileDecorations(SanitizedBaseModel):
 
     banner: Optional[str] = None
     frame: Optional[str] = None
-    badges: List[str] = Field(default_factory=list, max_length=MAX_PROFILE_BADGES)
+    #: The colours the wearer picked for a frame that takes them. Kept beside
+    #: the frame rather than folded into its id, because the id names a catalog
+    #: entry and a colour is not part of what was granted. Ignored — and
+    #: dropped on write — for any frame that is not tintable.
+    frame_tint: List[str] = Field(default_factory=list, max_length=MAX_FRAME_TINTS)
+    trophies: List[str] = Field(default_factory=list, max_length=MAX_PROFILE_TROPHIES)
 
     @field_validator("banner", "frame")
     @classmethod
     def _check_single(cls, value: Optional[str]) -> Optional[str]:
         return None if value is None else validate_decoration_id(value)
 
-    @field_validator("badges")
+    @field_validator("frame_tint")
     @classmethod
-    def _check_badges(cls, value: List[str]) -> List[str]:
+    def _check_tints(cls, value: List[str]) -> List[str]:
+        return [validate_tint(colour) for colour in value]
+
+    @model_validator(mode="after")
+    def _tint_only_what_takes_it(self) -> "ProfileDecorations":
+        """Keep the stored colours honest about the frame they are for.
+
+        A colour on a frame that cannot take one would be state nothing reads
+        and nothing clears — so it is dropped here, and a frame that takes one
+        colour never keeps two.
+        """
+        takes = TINTABLE_FRAMES.get(self.frame or "", 0)
+        if len(self.frame_tint) > takes:
+            object.__setattr__(self, "frame_tint", self.frame_tint[:takes])
+        return self
+
+    @field_validator("trophies")
+    @classmethod
+    def _check_trophies(cls, value: List[str]) -> List[str]:
         seen: List[str] = []
-        for badge in value:
-            identifier = validate_decoration_id(badge)
-            # Wearing the same badge twice is a duplicate, not a second badge.
+        for trophy in value:
+            identifier = validate_decoration_id(trophy)
+            # Wearing the same one twice is a duplicate, not a second trophy.
             if identifier not in seen:
                 seen.append(identifier)
         return seen
@@ -273,7 +302,7 @@ class ProfileDecorations(SanitizedBaseModel):
             pairs.append((self.banner, BANNER))
         if self.frame:
             pairs.append((self.frame, FRAME))
-        pairs.extend((badge, BADGE) for badge in self.badges)
+        pairs.extend((trophy, TROPHY) for trophy in self.trophies)
         return pairs
 
 

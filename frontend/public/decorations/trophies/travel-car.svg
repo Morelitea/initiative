@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Car</title>
+  <defs>
+    <linearGradient id="paint" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8544C"/><stop offset="100%" stop-color="#A62119"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#1B2748"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#5A79B4" stroke-width="2"/>
+  <!-- Roof rack, because this one is going somewhere. -->
+  <g fill="#3B3F49">
+    <path d="M14.6 14.4 L31.4 14.4 L31.4 15.4 L14.6 15.4 Z"/>
+    <path d="M16 15.4 L17 15.4 L17 17 L16 17 Z"/><path d="M29 15.4 L30 15.4 L30 17 L29 17 Z"/>
+  </g>
+  <path d="M15.4 12.6 L30.6 12.6 L30.6 14.4 L15.4 14.4 Z" fill="#E8B455"/>
+  <!-- Body. -->
+  <path d="M8 30.6 C8 27 9 25 11.4 24.2 L15 18.4 C15.8 17.2 16.8 16.6 18.4 16.6 L29.6 16.6
+           C31 16.6 32 17.2 32.6 18.4 L35.6 24.2 C38.4 25 39.6 27 39.6 30.6
+           C39.6 32 39 32.6 37.6 32.6 L10 32.6 C8.6 32.6 8 32 8 30.6 Z" fill="url(#paint)"/>
+  <path d="M16.6 18.8 C17 18.2 17.6 18 18.4 18 L23 18 L23 23.6 L13.6 23.6 Z" fill="#BFE0F4"/>
+  <path d="M25 18 L29.6 18 C30.4 18 31 18.2 31.4 18.8 L34.2 23.6 L25 23.6 Z" fill="#9CC8E8"/>
+  <path d="M8.4 27.6 L39.2 27.6 L39.2 28.8 L8.4 28.8 Z" fill="#8E211D" opacity=".5"/>
+  <path d="M10.4 25.4 C13 24.8 16 24.4 24 24.4 C32 24.4 35 24.8 37.6 25.4"
+        fill="none" stroke="#FF9B8E" stroke-width=".8" opacity=".45"/>
+  <!-- Lights and wheels. -->
+  <path d="M8.2 29.4 C8.6 28.6 10.4 28.6 11 29.4 C10.4 30.4 8.6 30.4 8.2 29.4 Z" fill="#FFE0A8"/>
+  <path d="M39.4 29.4 C39 28.6 37.2 28.6 36.6 29.4 C37.2 30.4 39 30.4 39.4 29.4 Z" fill="#FF6A5E"/>
+  <g>
+    <circle cx="15" cy="32.6" r="4.4" fill="#22252B"/>
+    <circle cx="15" cy="32.6" r="1.9" fill="#9AA2AE"/>
+    <circle cx="33" cy="32.6" r="4.4" fill="#22252B"/>
+    <circle cx="33" cy="32.6" r="1.9" fill="#9AA2AE"/>
+  </g>
+  <path d="M12.4 20.6 C14 19 16.4 18 19 17.6" fill="none" stroke="#FFFFFF" stroke-width="1.2"
+        opacity=".35" stroke-linecap="round"/>
+</svg>

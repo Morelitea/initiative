@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Garden</title>
+  <!-- The hall on one side, the garden on the other, and the step between them
+       — which is the whole arrangement: you sit on the boards and look out. -->
+  <style>
+    .koi { animation: swim 22s linear infinite;
+           transform-box: fill-box; transform-origin: 50% 50% }
+    .koi2 { animation: swim2 18s linear infinite;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes swim {
+      0%   { transform: translate(0,0) rotate(0deg) }
+      20%  { transform: translate(11px,2.6px) rotate(22deg) }
+      38%  { transform: translate(16px,6px) rotate(112deg) }
+      55%  { transform: translate(6px,8px) rotate(186deg) }
+      75%  { transform: translate(-9px,4.4px) rotate(200deg) }
+      88%  { transform: translate(-8px,.6px) rotate(300deg) }
+      100% { transform: translate(0,0) rotate(360deg) }
+    }
+    @keyframes swim2 {
+      0%   { transform: translate(0,0) rotate(180deg) }
+      25%  { transform: translate(-10px,-2px) rotate(212deg) }
+      45%  { transform: translate(-14px,-5px) rotate(300deg) }
+      62%  { transform: translate(-4px,-7px) rotate(8deg) }
+      82%  { transform: translate(9px,-3px) rotate(24deg) }
+      100% { transform: translate(0,0) rotate(180deg) }
+    }
+    .tail { animation: flick 1.6s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 0% 50% }
+    @keyframes flick { from { transform: rotate(-11deg) } to { transform: rotate(11deg) } }
+    .ring { animation: spread 6s ease-out infinite }
+    .r2 { animation-delay: -2s } .r3 { animation-delay: -4s }
+    @keyframes spread {
+      0%   { transform: scale(.15); opacity: .6 }
+      100% { transform: scale(1); opacity: 0 }
+    }
+    .ring { transform-box: fill-box; transform-origin: 50% 50% }
+    .lamp { animation: warm 6s ease-in-out infinite }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .8 } }
+    @media (prefers-reduced-motion: reduce) {
+      .koi, .koi2, .tail, .ring, .lamp { animation: none }
+    }
+  </style>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0E2C2"/><stop offset="100%" stop-color="#D9C49A"/>
+    </linearGradient>
+    <linearGradient id="tatami" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C3AC72"/><stop offset="100%" stop-color="#9C8551"/>
+    </linearGradient>
+    <linearGradient id="gravel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D9D3C4"/><stop offset="100%" stop-color="#BDB6A4"/>
+    </linearGradient>
+    <radialGradient id="pond" cx=".4" cy=".3" r=".8">
+      <stop offset="0%" stop-color="#3E7C82"/><stop offset="70%" stop-color="#255A63"/>
+      <stop offset="100%" stop-color="#173F49"/>
+    </radialGradient>
+    <radialGradient id="lantern" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".42"/>
+      <stop offset="100%" stop-color="#FFD79A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="#2E1F13"/>
+
+  <!-- The garden: raked gravel, and the sky reflected in what it is raked around. -->
+  <path d="M56 15 L160 15 L160 40 L56 40 Z" fill="url(#gravel)"/>
+  <path d="M56 15 L160 15 L160 16.4 L56 16.4 Z" fill="#8E8674"/>
+  <g fill="none" stroke="#A9A192" stroke-width=".5" opacity=".85">
+    <path d="M56 19.6 C80 18.4 140 18.4 160 19.6"/>
+    <path d="M56 22.6 C80 21.2 140 21.2 160 22.6"/>
+    <path d="M56 34.6 C84 33 140 33 160 34.6"/>
+    <path d="M56 37.6 C84 36 140 36 160 37.6"/>
+  </g>
+  <!-- Rake lines follow the pond round, because that is what they are raked around. -->
+  <g fill="none" stroke="#A9A192" stroke-width=".5" opacity=".8">
+    <ellipse cx="98" cy="27" rx="26" ry="9.4"/>
+    <ellipse cx="98" cy="27" rx="30" ry="11.4"/>
+    <ellipse cx="98" cy="27" rx="34" ry="13.4"/>
+  </g>
+  <!-- The pond. -->
+  <path d="M98 18.6 C110 18.6 120 22.2 120 26.6 C120 31.4 110 34.8 98 34.8
+           C86 34.8 76 31.4 76 26.6 C76 22.2 86 18.6 98 18.6 Z" fill="#8E8674"/>
+  <path d="M98 19.4 C109.4 19.4 118.8 22.6 118.8 26.6 C118.8 31 109.4 34 98 34
+           C86.6 34 77.2 31 77.2 26.6 C77.2 22.6 86.6 19.4 98 19.4 Z" fill="url(#pond)"/>
+  <g fill="none" stroke="#8FD3D8" stroke-width=".4" opacity=".35">
+    <path d="M84 23.4 C90 22.4 100 22.4 106 23.4"/>
+    <path d="M88 30.4 C94 31.4 104 31.4 110 30.4"/>
+  </g>
+  <g fill="none" stroke="#CFF0F2">
+    <circle class="ring" cx="90" cy="24.4" r="4" stroke-width=".5"/>
+    <circle class="ring r2" cx="106" cy="29.4" r="3.4" stroke-width=".45"/>
+    <circle class="ring r3" cx="99" cy="22.6" r="3" stroke-width=".4"/>
+  </g>
+  <!-- Two koi, going round. -->
+  <g class="koi">
+    <g transform="translate(92 26)">
+      <ellipse cx="0" cy="0" rx="3.4" ry="1.5" fill="#F6F2E8"/>
+      <path d="M1 -1.3 C2.4 -1.5 3.2 -.8 3.4 0 C3.2 .8 2.4 1.5 1 1.3 Z" fill="#E2622A"/>
+      <ellipse cx="-1.2" cy="-.3" rx="1.1" ry=".7" fill="#E2622A"/>
+      <ellipse cx="1.6" cy=".5" rx=".7" ry=".45" fill="#1E1A16"/>
+      <g class="tail">
+        <path d="M-3.2 0 C-4.4 -1.4 -5.6 -1.8 -6.4 -1.4 C-5.8 -.6 -5.8 .6 -6.4 1.4
+                 C-5.6 1.8 -4.4 1.4 -3.2 0 Z" fill="#F6F2E8" opacity=".9"/>
+      </g>
+      <path d="M-.4 -1.4 C-.8 -2.2 -1.6 -2.6 -2.2 -2.4 C-1.8 -1.9 -1.6 -1.6 -1.5 -1.2 Z"
+            fill="#F6F2E8" opacity=".8"/>
+      <circle cx="2.7" cy="-.35" r=".25" fill="#1E1A16"/>
+    </g>
+  </g>
+  <g class="koi2">
+    <g transform="translate(105 28.6)">
+      <ellipse cx="0" cy="0" rx="2.8" ry="1.2" fill="#E8A23A"/>
+      <path d="M.8 -1.05 C2 -1.2 2.6 -.65 2.8 0 C2.6 .65 2 1.2 .8 1.05 Z" fill="#F6F2E8"/>
+      <ellipse cx="-1" cy=".2" rx=".9" ry=".55" fill="#C4661C"/>
+      <g class="tail">
+        <path d="M-2.6 0 C-3.6 -1.1 -4.6 -1.5 -5.2 -1.1 C-4.7 -.5 -4.7 .5 -5.2 1.1
+                 C-4.6 1.5 -3.6 1.1 -2.6 0 Z" fill="#E8A23A" opacity=".9"/>
+      </g>
+      <circle cx="2.2" cy="-.3" r=".22" fill="#1E1A16"/>
+    </g>
+  </g>
+  <!-- Rocks, a lantern and a pine, arranged the way they are arranged. -->
+  <g>
+    <path d="M128 24.6 C130.6 21.6 135.4 21.4 137.6 24 C138.6 25.2 138 26.4 136 26.8
+             C132 27.6 128.6 26.6 128 24.6 Z" fill="#6E6A62"/>
+    <path d="M128.6 24 C130.8 22 134.4 21.9 136.4 23.6 C134 23.2 130.8 23.4 128.6 24 Z"
+          fill="#8B867C"/>
+    <path d="M66 31.4 C67.6 29.4 70.6 29.4 72 31.2 C72.6 32 72.2 32.8 70.8 33.1
+             C68.2 33.6 66.4 32.8 66 31.4 Z" fill="#6E6A62"/>
+  </g>
+  <g>
+    <circle class="lamp" cx="146" cy="20" r="9" fill="url(#lantern)"/>
+    <path d="M143.4 30.8 L148.6 30.8 L148.6 28.4 L143.4 28.4 Z" fill="#7A756B"/>
+    <path d="M144.2 28.4 L147.8 28.4 L147.8 24.6 L144.2 24.6 Z" fill="#8B867C"/>
+    <path class="lamp" d="M143.2 24.6 L148.8 24.6 L148.8 20.6 L143.2 20.6 Z" fill="#FFE0A8"/>
+    <path d="M143.2 24.6 L148.8 24.6 L148.8 20.6 L143.2 20.6 Z" fill="none" stroke="#6E6A62"
+          stroke-width=".5"/>
+    <path d="M141.6 20.6 L150.4 20.6 L149 18.6 L143 18.6 Z" fill="#7A756B"/>
+    <path d="M144.6 18.6 L147.4 18.6 L146.6 16.8 L145.4 16.8 Z" fill="#6E6A62"/>
+  </g>
+  <g stroke="#4A3119" stroke-width="1.1" fill="none" stroke-linecap="round">
+    <path d="M118 15 C119.4 12.6 121.4 11 124 10.2"/>
+    <path d="M121 12.4 C122.4 11.4 124 11 125.6 11.2"/>
+  </g>
+  <g fill="#3F6B2B" opacity=".9">
+    <ellipse cx="125.6" cy="9.6" rx="4.6" ry="1.8"/>
+    <ellipse cx="130" cy="11.4" rx="3.2" ry="1.3"/>
+    <ellipse cx="121.6" cy="11.6" rx="2.6" ry="1.1"/>
+  </g>
+
+  <!-- The hall. -->
+  <path d="M0 3 L58 3 L58 21 L0 21 Z" fill="url(#paper)"/>
+  <g stroke="#6B4A2A" stroke-width=".7">
+    <path d="M0 8 L58 8"/><path d="M0 13 L58 13"/><path d="M0 17.6 L58 17.6"/>
+  </g>
+  <g stroke="#6B4A2A" stroke-width=".55">
+    <path d="M8 3 L8 21"/><path d="M16 3 L16 21"/><path d="M24 3 L24 21"/>
+    <path d="M46 3 L46 21"/><path d="M54 3 L54 21"/>
+  </g>
+  <path d="M0 0 L60 0 L60 3.2 L0 3.2 Z" fill="#4A3119"/>
+  <path d="M0 2.6 L60 2.6 L60 3.2 L0 3.2 Z" fill="#654327"/>
+  <!-- The alcove, and one breath of ink in it. -->
+  <path d="M27.4 3.6 L44.6 3.6 L44.6 21 L27.4 21 Z" fill="#3A2716"/>
+  <path d="M27.4 3.6 L44.6 3.6 L44.6 4.6 L27.4 4.6 Z" fill="#5A3D22"/>
+  <path d="M30 4.6 L42 4.6 L42 19.6 L30 19.6 Z" fill="#EFE6D0"/>
+  <path d="M29.4 4.2 L42.6 4.2 L42.6 5.2 L29.4 5.2 Z" fill="#7A5B36"/>
+  <path d="M29.4 19.2 L42.6 19.2 L42.6 20.2 L29.4 20.2 Z" fill="#7A5B36"/>
+  <path d="M36.72 7.11 L37.85 7.35 L38.87 7.83 L39.75 8.53 L40.44 9.41 L40.93 10.44
+           L41.19 11.55 L41.21 12.72 L40.99 13.87 L40.53 14.94 L39.86 15.88 L39.02 16.65
+           L38.05 17.21 L36.99 17.53 L35.9 17.6 L34.83 17.41 L33.83 16.97 L32.95 16.29
+           L32.24 15.42 L31.72 14.4 L31.42 13.29 L31.35 12.15 L31.53 11.03 L31.94 9.99
+           L32.55 9.09 L33.35 8.35 L34.28 7.83 L35.32 7.53 L36.4 7.49 L36.36 8.44
+           L35.5 8.5 L34.68 8.76 L33.95 9.2 L33.34 9.8 L32.89 10.53 L32.6 11.36
+           L32.51 12.24 L32.61 13.11 L32.9 13.94 L33.36 14.68 L33.97 15.29 L34.7 15.74
+           L35.5 16.01 L36.34 16.07 L37.16 15.92 L37.92 15.55 L38.58 14.98 L39.09 14.24
+           L39.42 13.37 L39.53 12.44 L39.42 11.5 L39.09 10.61 L38.55 9.82 L37.83 9.19
+           L36.96 8.75 L36.03 8.55 Z" fill="#241A12"/>
+  <!-- A pair of bokken on their stand. -->
+  <g>
+    <path d="M11.4 17 L11.4 20.4 L12.6 20.4 L12.6 17 Z" fill="#6B4A2A"/>
+    <path d="M17.4 17 L17.4 20.4 L18.6 20.4 L18.6 17 Z" fill="#6B4A2A"/>
+    <path d="M10.4 16.6 C13.4 16.2 16.6 16.2 19.6 16.6 L19.6 17.4 C16.6 17 13.4 17 10.4 17.4 Z"
+          fill="#8A6034"/>
+    <path d="M7 16.4 C13 15.6 26 15.6 32 16.4 C26 17.2 13 17.2 7 16.4 Z" fill="#C9A063"/>
+    <path d="M7.6 18.4 C13.4 17.8 25.6 17.8 31.4 18.4 C25.6 19.1 13.4 19.1 7.6 18.4 Z"
+          fill="#7A5330"/>
+  </g>
+  <!-- Mats, and the boards you sit on to look out. -->
+  <path d="M0 21 L58 21 L58 40 L0 40 Z" fill="url(#tatami)"/>
+  <g stroke="#3A2716" stroke-width=".9" opacity=".85">
+    <path d="M0 21.4 L58 21.4"/><path d="M0 26.2 L58 26.2"/><path d="M0 32.4 L58 32.4"/>
+    <path d="M26 21 L20 40"/>
+  </g>
+  <g stroke="#B29A5F" stroke-width=".3" opacity=".5">
+    <path d="M0 23 L58 23"/><path d="M0 24.6 L58 24.6"/><path d="M0 28.4 L58 28.4"/>
+    <path d="M0 30.4 L58 30.4"/><path d="M0 35 L58 35"/><path d="M0 37.6 L58 37.6"/>
+  </g>
+  <path d="M56 14.6 L62 14.6 L62 40 L56 40 Z" fill="#7A5330"/>
+  <path d="M56 14.6 L62 14.6 L62 15.6 L56 15.6 Z" fill="#9A6C40"/>
+  <g stroke="#5A3D22" stroke-width=".4" opacity=".8">
+    <path d="M58 15.6 L58 40"/><path d="M60 15.6 L60 40"/>
+  </g>
+  <path d="M52 0 L56 0 L56 40 L52 40 Z" fill="#4A3119"/>
+</svg>

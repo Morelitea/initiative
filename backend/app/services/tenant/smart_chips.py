@@ -1,0 +1,403 @@
+"""Reading what a smart chip currently shows.
+
+A chip stores nothing. The document holds a reference — ``task:12:status`` —
+and this reads the row that reference names, every time, so a chip is never
+older than the last request.
+
+One entry per ``(kind, aspect)`` in :data:`SMART_CHIP_SOURCES`, and each entry reads
+its whole set of ids in ONE query. A document with thirty task chips makes one
+request, and that request makes one query per aspect it uses — not one per chip.
+
+Every read goes through the session it is handed, which is the request's
+RLS-scoped one, so a reference to something the caller cannot see comes back
+absent rather than as an error or a row.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+
+from app.core.smart_chips import SmartChipAspect, SmartChipTone
+from app.core.references import REF_SEPARATOR, is_referenceable
+from app.core.search import SearchEntityType
+from app.db import reference_targets
+from app.core.user_display import display_name
+from app.models.platform.user import User
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.counter import Counter
+from app.models.tenant.task import (
+    Task,
+    TaskAssignee,
+    TaskPriority,
+    TaskStatus,
+    TaskStatusCategory,
+)
+from app.schemas.tenant.smart_chip import SmartChipState
+
+#: Ceiling on one request, so the cost of answering one is bounded.
+#:
+#: The endpoint REFUSES a request carrying more rather than answering part of
+#: it, because a partial answer is indistinguishable from a page whose things
+#: were all deleted. A longer page asks in several requests instead — see
+#: ``REFS_PER_REQUEST`` in the client's ``useSmartChips``, which batches to this
+#: number. The slice below bounds a direct call on this service.
+MAX_REFS = 100
+
+
+@dataclass(frozen=True)
+class SmartChipValue:
+    """What one chip reads, before it is paired back to its reference."""
+
+    text: str
+    tone: SmartChipTone = SmartChipTone.neutral
+    color: Optional[str] = None
+    date: Optional[datetime] = None
+    number: Optional[Decimal] = None
+
+
+#: A reader takes the ids wanted and answers for the ones it can see.
+Reader = Callable[[AsyncSession, list[int]], Awaitable[dict[int, SmartChipValue]]]
+
+#: Where a task sits, in the colour its own column carries. ``done`` is the one
+#: category with a meaning every project shares, so it is the one that gets a
+#: tone of its own; the rest are whatever the project called them.
+_STATUS_TONES = {
+    TaskStatusCategory.done: SmartChipTone.good,
+    TaskStatusCategory.in_progress: SmartChipTone.warn,
+}
+
+_PRIORITY_TONES = {
+    TaskPriority.urgent: SmartChipTone.danger,
+    TaskPriority.high: SmartChipTone.warn,
+    TaskPriority.low: SmartChipTone.muted,
+}
+
+
+async def _task_status(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    rows = (
+        await session.exec(
+            select(Task.id, TaskStatus.name, TaskStatus.color, TaskStatus.category)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(Task.id.in_(ids), Task.deleted_at.is_(None))
+        )
+    ).all()
+    return {
+        task_id: SmartChipValue(
+            text=name,
+            tone=_STATUS_TONES.get(category, SmartChipTone.neutral),
+            color=color,
+        )
+        for task_id, name, color, category in rows
+    }
+
+
+async def _task_assignee(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    """Who holds a task. Several people can, so the chip names the first and
+    counts the rest rather than growing with the list."""
+    rows = (
+        await session.exec(
+            select(TaskAssignee.task_id, User)
+            .join(User, User.id == TaskAssignee.user_id)
+            .where(TaskAssignee.task_id.in_(ids))
+            .order_by(TaskAssignee.task_id, User.id)
+        )
+    ).all()
+    holders: dict[int, list[User]] = {}
+    for task_id, user in rows:
+        holders.setdefault(task_id, []).append(user)
+
+    values: dict[int, SmartChipValue] = {}
+    for task_id in ids:
+        people = holders.get(task_id)
+        if not people:
+            # Answered, not missing: an unassigned task is a fact worth showing.
+            values[task_id] = SmartChipValue(text="", tone=SmartChipTone.muted)
+            continue
+        # ``display_name`` reads the guild's own name-visibility setting, so a
+        # chip shows exactly what every other surface here shows.
+        first = display_name(people[0])
+        extra = len(people) - 1
+        values[task_id] = SmartChipValue(text=f"{first} +{extra}" if extra else first)
+    return values
+
+
+async def _task_due(session: AsyncSession, ids: list[int]) -> dict[int, SmartChipValue]:
+    """When a task is due. Late is only late while it is unfinished — a job
+    delivered a day after its date is done, not overdue."""
+    rows = (
+        await session.exec(
+            select(Task.id, Task.due_date, TaskStatus.category)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(Task.id.in_(ids), Task.deleted_at.is_(None))
+        )
+    ).all()
+    now = datetime.now(timezone.utc)
+    values: dict[int, SmartChipValue] = {}
+    for task_id, due, category in rows:
+        if due is None:
+            values[task_id] = SmartChipValue(text="", tone=SmartChipTone.muted)
+            continue
+        moment = due if due.tzinfo else due.replace(tzinfo=timezone.utc)
+        late = moment < now and category != TaskStatusCategory.done
+        values[task_id] = SmartChipValue(
+            text=moment.date().isoformat(),
+            tone=SmartChipTone.danger if late else SmartChipTone.neutral,
+            date=moment,
+        )
+    return values
+
+
+async def _task_priority(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    rows = (
+        await session.exec(
+            select(Task.id, Task.priority).where(
+                Task.id.in_(ids), Task.deleted_at.is_(None)
+            )
+        )
+    ).all()
+    return {
+        task_id: SmartChipValue(
+            text=priority.value,
+            tone=_PRIORITY_TONES.get(priority, SmartChipTone.neutral),
+        )
+        for task_id, priority in rows
+    }
+
+
+async def _counter_value(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    """A counter's reading. Where it has a ceiling the chip says so, because a
+    number is worth more against the number it is heading for."""
+    rows = (
+        await session.exec(
+            select(Counter.id, Counter.count, Counter.max).where(
+                Counter.id.in_(ids), Counter.deleted_at.is_(None)
+            )
+        )
+    ).all()
+    values: dict[int, SmartChipValue] = {}
+    for counter_id, count, ceiling in rows:
+        reached = ceiling is not None and count >= ceiling
+        values[counter_id] = SmartChipValue(
+            text=f"{_plain(count)} / {_plain(ceiling)}" if ceiling else _plain(count),
+            tone=SmartChipTone.good if reached else SmartChipTone.neutral,
+            number=count,
+        )
+    return values
+
+
+async def _event_when(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    rows = (
+        await session.exec(
+            select(CalendarEvent.id, CalendarEvent.start_at).where(
+                CalendarEvent.id.in_(ids), CalendarEvent.deleted_at.is_(None)
+            )
+        )
+    ).all()
+    now = datetime.now(timezone.utc)
+    values: dict[int, SmartChipValue] = {}
+    for event_id, start in rows:
+        moment = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
+        values[event_id] = SmartChipValue(
+            text=moment.date().isoformat(),
+            tone=SmartChipTone.muted if moment < now else SmartChipTone.neutral,
+            date=moment,
+        )
+    return values
+
+
+def _plain(value: Decimal) -> str:
+    """A stored number as a person writes it — ``7`` rather than ``7.0000``."""
+    trimmed = value.normalize()
+    return format(trimmed, "f")
+
+
+#: (kind, aspect) -> how to read it. Adding a chip is one entry here: the
+#: endpoint, the accepted refs and the menu the editor offers all derive from
+#: this, so none of them is a second list to keep in step.
+SMART_CHIP_SOURCES: dict[tuple[SearchEntityType, SmartChipAspect], Reader] = {
+    (SearchEntityType.task, SmartChipAspect.status): _task_status,
+    (SearchEntityType.task, SmartChipAspect.assignee): _task_assignee,
+    (SearchEntityType.task, SmartChipAspect.due): _task_due,
+    (SearchEntityType.task, SmartChipAspect.priority): _task_priority,
+    (SearchEntityType.counter, SmartChipAspect.value): _counter_value,
+    (SearchEntityType.calendar_event, SmartChipAspect.when): _event_when,
+}
+
+
+def reader_for(entity_type: SearchEntityType, aspect: SmartChipAspect) -> Reader:
+    """The reader for one pair. Raises for a pair with none, which
+    ``smart_chips_test`` proves cannot happen."""
+    return SMART_CHIP_SOURCES[(entity_type, aspect)]
+
+
+def parse_ref(
+    ref: str,
+) -> Optional[tuple[SearchEntityType, int, Optional[SmartChipAspect]]]:
+    """``task:12`` or ``task:12:status`` as its parts, or ``None`` for neither.
+
+    Two shapes on purpose. A bare reference asks what the thing is called,
+    which every referenceable kind answers; adding an aspect asks a fact about
+    it, which only some kinds have.
+
+    A reference that does not parse is dropped rather than refused: a document
+    can outlive a build that stopped offering one of these, and a chip that
+    cannot be read falls back to the words stored beside it.
+    """
+    parts = ref.split(REF_SEPARATOR)
+    if len(parts) not in (2, 3):
+        return None
+    kind, raw_id = parts[0], parts[1]
+    if not raw_id.isdigit():
+        return None
+    try:
+        entity_type = SearchEntityType(kind)
+    except ValueError:
+        return None
+    if not is_referenceable(entity_type):
+        return None
+    if len(parts) == 2:
+        return entity_type, int(raw_id), None
+    try:
+        aspect = SmartChipAspect(parts[2])
+    except ValueError:
+        return None
+    if (entity_type, aspect) not in SMART_CHIP_SOURCES:
+        return None
+    return entity_type, int(raw_id), aspect
+
+
+async def _titles(
+    session: AsyncSession, entity_type: SearchEntityType, ids: list[int]
+) -> dict[int, str]:
+    """What these things are called right now.
+
+    The column is whichever one the kind calls its name — derived, so a queue
+    item answers with its label and a task with its title without either being
+    written down here.
+    """
+    table = reference_targets.id_column(entity_type).table
+    title = reference_targets.title_column(entity_type)
+    rows = (
+        await session.exec(select(table.c["id"], title).where(table.c["id"].in_(ids)))
+    ).all()
+    return {entity_id: name or "" for entity_id, name in rows}
+
+
+async def _visible(
+    session: AsyncSession, *, user_id: int, wanted: dict[SearchEntityType, set[int]]
+) -> dict[SearchEntityType, set[int]]:
+    """Which of the things asked about this request may actually open.
+
+    Being routed into the guild and being in the initiative is not the whole
+    answer — a tool is shared per resource, and that is the gate this applies.
+    The gate itself is derived: see :mod:`app.db.reference_targets`.
+
+    Done here rather than inside each reader on purpose: a reader is never
+    handed an id that did not come back from this, so a chip added later
+    cannot forget it.
+    """
+    seen: dict[SearchEntityType, set[int]] = {}
+    for entity_type, ids in wanted.items():
+        statement = reference_targets.visible_ids(entity_type, user_id).where(
+            reference_targets.id_column(entity_type).in_(ids)
+        )
+        # A Core-column select yields rows, not scalars.
+        rows = (await session.exec(statement)).all()
+        seen[entity_type] = {row[0] for row in rows}
+    return seen
+
+
+async def read_smart_chips(
+    session: AsyncSession, *, user_id: int, refs: list[str]
+) -> list[SmartChipState]:
+    """Current state for every reference that resolves, in the order asked.
+
+    Grouped by ``(kind, aspect)`` so each reader runs once over its whole set of
+    ids. A reference naming something that is gone, or that this caller cannot
+    see, is left out of the answer.
+    """
+    wanted: dict[tuple[SearchEntityType, Optional[SmartChipAspect]], list[int]] = {}
+    parsed: list[
+        tuple[str, tuple[SearchEntityType, Optional[SmartChipAspect]], int]
+    ] = []
+    for ref in dict.fromkeys(refs[:MAX_REFS]):
+        resolved = parse_ref(ref)
+        if resolved is None:
+            continue
+        entity_type, entity_id, aspect = resolved
+        wanted.setdefault((entity_type, aspect), []).append(entity_id)
+        parsed.append((ref, (entity_type, aspect), entity_id))
+
+    by_type: dict[SearchEntityType, set[int]] = {}
+    for (entity_type, _aspect), ids in wanted.items():
+        by_type.setdefault(entity_type, set()).update(ids)
+    visible = await _visible(session, user_id=user_id, wanted=by_type)
+
+    # What each thing is called, read once per kind and sent with every answer
+    # about it. A chip carries the name of its own thing rather than the caller
+    # asking for it separately, so showing a fact costs one reference and not
+    # two — which is what keeps a long document inside :data:`MAX_REFS`.
+    names: dict[SearchEntityType, dict[int, str]] = {}
+    for entity_type, ids in by_type.items():
+        allowed = [i for i in ids if i in visible.get(entity_type, ())]
+        names[entity_type] = (
+            await _titles(session, entity_type, allowed) if allowed else {}
+        )
+
+    read: dict[
+        tuple[SearchEntityType, Optional[SmartChipAspect]], dict[int, SmartChipValue]
+    ] = {}
+    for pair, ids in wanted.items():
+        entity_type, aspect = pair
+        allowed = {i for i in ids if i in visible.get(entity_type, ())}
+        if not allowed:
+            read[pair] = {}
+        elif aspect is None:
+            # A bare reference asks only what the thing is called, so the name
+            # already read IS the answer.
+            read[pair] = {
+                entity_id: SmartChipValue(text=name)
+                for entity_id, name in names[entity_type].items()
+                if entity_id in allowed
+            }
+        else:
+            read[pair] = await SMART_CHIP_SOURCES[(entity_type, aspect)](
+                session, sorted(allowed)
+            )
+
+    states: list[SmartChipState] = []
+    for ref, pair, entity_id in parsed:
+        value = read.get(pair, {}).get(entity_id)
+        if value is None:
+            continue
+        states.append(
+            SmartChipState(
+                ref=ref,
+                entity_type=pair[0],
+                aspect=pair[1],
+                text=value.text,
+                title=names.get(pair[0], {}).get(entity_id),
+                tone=value.tone,
+                color=value.color,
+                date=value.date,
+                number=value.number,
+            )
+        )
+    return states

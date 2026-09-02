@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Balcony</title>
+  <circle cx="24" cy="24" r="23" fill="#2A0D14"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#8E1B28" stroke-width="2"/>
+  <path d="M6 30 L42 30 L42 33 L6 33 Z" fill="#C4BCA6"/>
+  <path d="M6 40 L42 40 L42 43 L6 43 Z" fill="#C4BCA6"/>
+  <g stroke="#D8D0BE" stroke-width="1.8" stroke-linecap="round">
+    <path d="M10 33 L10 40"/><path d="M16 33 L16 40"/><path d="M22 33 L22 40"/>
+    <path d="M28 33 L28 40"/><path d="M34 33 L34 40"/><path d="M40 33 L40 40"/>
+  </g>
+  <g fill="#8A8070">
+    <ellipse cx="10" cy="36.6" rx="1.9" ry="2.6"/><ellipse cx="16" cy="36.6" rx="1.9" ry="2.6"/>
+    <ellipse cx="22" cy="36.6" rx="1.9" ry="2.6"/><ellipse cx="28" cy="36.6" rx="1.9" ry="2.6"/>
+    <ellipse cx="34" cy="36.6" rx="1.9" ry="2.6"/><ellipse cx="40" cy="36.6" rx="1.9" ry="2.6"/>
+  </g>
+  <path d="M12 30 L12 14 C12 9 15.6 5.6 20.6 5.6 L27.4 5.6 C32.4 5.6 36 9 36 14 L36 30 Z"
+        fill="#1A0810"/>
+  <path d="M15 30 L15 14.6 C15 11 17.6 8.6 21 8.6 L27 8.6 C30.4 8.6 33 11 33 14.6 L33 30 Z"
+        fill="#F6D98A" opacity=".22"/>
+  <g stroke="#C9A063" stroke-width="1" fill="none">
+    <path d="M12 30 L12 14 C12 9 15.6 5.6 20.6 5.6 L27.4 5.6 C32.4 5.6 36 9 36 14 L36 30"/>
+    <path d="M24 5.6 L24 30"/><path d="M12.6 15 L35.4 15"/>
+  </g>
+  <g stroke="#4E7E42" stroke-width="1.1" fill="none" stroke-linecap="round">
+    <path d="M6 33 C7.4 36 7 39 5 41"/><path d="M42 33 C40.6 36 41 39 43 41"/>
+  </g>
+  <g fill="#5C9E52">
+    <ellipse cx="6.4" cy="35.6" rx="1.8" ry="1.2" transform="rotate(-30 6.4 35.6)"/>
+    <ellipse cx="5.6" cy="39.4" rx="1.8" ry="1.2" transform="rotate(-70 5.6 39.4)"/>
+    <ellipse cx="41.6" cy="35.6" rx="1.8" ry="1.2" transform="rotate(30 41.6 35.6)"/>
+    <ellipse cx="42.4" cy="39.4" rx="1.8" ry="1.2" transform="rotate(70 42.4 39.4)"/>
+  </g></svg>

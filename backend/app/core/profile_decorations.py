@@ -1,7 +1,7 @@
 """What a profile can be dressed in, and which of it ships with the app.
 
 A decoration is named by an **id** — ``core.aurora`` — and belongs to a slot:
-one banner, one frame, any number of badges. The id is all the server holds.
+one banner, one frame, any number of trophies. The id is all the server holds.
 The artwork it names is the client's business (``frontend/src/lib/
 profileDecorations.ts`` maps an id to a file under ``public/decorations``), so
 a decoration a build has no artwork for simply isn't drawn.
@@ -50,12 +50,38 @@ def validate_decoration_id(value: str) -> str:
 
 
 #: The slots a profile has. One banner and one frame, because a profile has one
-#: of each; badges are a row, so there are several.
+#: of each; trophies are a row, so there are several.
 BANNER = "banner"
 FRAME = "frame"
-BADGE = "badge"
+TROPHY = "trophy"
 
-DECORATION_KINDS: frozenset[str] = frozenset({BANNER, FRAME, BADGE})
+DECORATION_KINDS: frozenset[str] = frozenset({BANNER, FRAME, TROPHY})
+
+#: The shipped frames whose colour the wearer picks, and how many colours each
+#: one takes. Only what ships with the app: a pack's artwork is the pack's, and
+#: a publisher who wanted it recoloured would have shipped it that way.
+TINTABLE_FRAMES: dict[str, int] = {
+    "core.gold": 1,
+    "core.split": 2,
+}
+
+#: How many colours any frame may take. The bound the write path checks.
+MAX_FRAME_TINTS = 2
+
+
+def validate_tint(value: str) -> str:
+    """Return ``value`` if it is a ``#rrggbb`` colour, else raise.
+
+    Six digits and a hash, nothing else: the value is written into a fill on a
+    rendered frame, so the vocabulary is worth reading at a glance.
+    """
+    colour = value.strip()
+    if len(colour) != 7 or colour[0] != "#":
+        raise ValueError("Colour must be #rrggbb")
+    if not all(char in "0123456789abcdefABCDEF" for char in colour[1:]):
+        raise ValueError("Colour must be #rrggbb")
+    return "#" + colour[1:].lower()
+
 
 #: What ships with the app: id -> slot. Every account has these. The artwork
 #: lives in the frontend catalog under the same ids; an id here with no artwork
@@ -65,9 +91,9 @@ SHIPPED_DECORATIONS: dict[str, str] = {
     "core.ember": BANNER,
     "core.parchment": BANNER,
     "core.gold": FRAME,
-    "core.arcane": FRAME,
-    # One badge, and it is the app's own rather than any community's: a badge
-    # is a mark of belonging to something, and the thing everyone here belongs
-    # to is Initiative. Every other badge is acquired.
-    "core.fan": BADGE,
+    "core.split": FRAME,
+    # One trophy, and it is the app's own rather than any community's: a
+    # trophy is a mark of belonging to something, and the thing everyone here
+    # belongs to is Initiative. Every other trophy is acquired.
+    "core.fan": TROPHY,
 }

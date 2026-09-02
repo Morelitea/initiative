@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Road bike</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2126"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#C4472E" stroke-width="2"/>
+  <g fill="none" stroke="#C4CAD2" stroke-width="1.8">
+    <circle cx="12" cy="30" r="8"/><circle cx="36" cy="30" r="8"/>
+  </g>
+  <g stroke="#4E545C" stroke-width=".45" opacity=".8">
+    <path d="M12 22 L12 38"/><path d="M4 30 L20 30"/><path d="M6.4 24.4 L17.6 35.6"/>
+    <path d="M17.6 24.4 L6.4 35.6"/><path d="M36 22 L36 38"/><path d="M28 30 L44 30"/>
+    <path d="M30.4 24.4 L41.6 35.6"/><path d="M41.6 24.4 L30.4 35.6"/>
+  </g>
+  <g fill="none" stroke="#C0221E" stroke-width="2" stroke-linejoin="round">
+    <path d="M12 30 L20 30 L27 17 L31.4 17"/><path d="M20 30 L28 17"/>
+    <path d="M20 30 L36 30"/><path d="M28 17 L36 30"/>
+  </g>
+  <path d="M17.4 14.6 L23.4 14.6 L23.4 16 L17.4 16 Z" fill="#2A2E34"/>
+  <path d="M20.4 16 L20.4 30" stroke="#C0221E" stroke-width="2"/>
+  <path d="M29.6 15 L34.6 15" stroke="#2A2E34" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M31.4 15 C31.4 12.6 33.4 11.6 35.4 12.6" fill="none" stroke="#2A2E34"
+        stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="20.4" cy="30" r="1.9" fill="#F2C230"/></svg>

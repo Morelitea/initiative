@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useReferenceTitle } from "@/hooks/useDocumentBadges";
+import { useReferenceTitle } from "@/hooks/useSmartChips";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
 import { hitIcon } from "@/lib/searchResults";

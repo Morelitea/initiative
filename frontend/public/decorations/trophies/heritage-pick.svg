@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Afro pick</title>
+  <defs>
+    <linearGradient id="chrome" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F2E8D6"/><stop offset="55%" stop-color="#C9B99C"/>
+      <stop offset="100%" stop-color="#8A7A5E"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#1E140C"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B21C" stroke-width="2"/>
+  <g transform="rotate(-14 24 24)">
+    <!-- Teeth. -->
+    <g fill="url(#chrome)">
+      <path d="M10.4 20 L13 20 L13 36.4 C13 37.2 12.4 37.6 11.7 37.6 C11 37.6 10.4 37.2 10.4 36.4 Z"/>
+      <path d="M15 20 L17.6 20 L17.6 37.6 C17.6 38.4 17 38.8 16.3 38.8 C15.6 38.8 15 38.4 15 37.6 Z"/>
+      <path d="M19.6 20 L22.2 20 L22.2 38.4 C22.2 39.2 21.6 39.6 20.9 39.6 C20.2 39.6 19.6 39.2 19.6 38.4 Z"/>
+      <path d="M24.2 20 L26.8 20 L26.8 38.4 C26.8 39.2 26.2 39.6 25.5 39.6 C24.8 39.6 24.2 39.2 24.2 38.4 Z"/>
+      <path d="M28.8 20 L31.4 20 L31.4 37.6 C31.4 38.4 30.8 38.8 30.1 38.8 C29.4 38.8 28.8 38.4 28.8 37.6 Z"/>
+      <path d="M33.4 20 L36 20 L36 36.4 C36 37.2 35.4 37.6 34.7 37.6 C34 37.6 33.4 37.2 33.4 36.4 Z"/>
+    </g>
+    <!-- Handle. -->
+    <path d="M9.4 12.6 L37 12.6 C38 12.6 38.6 13.2 38.6 14.2 L38.6 18.6
+             C38.6 19.6 38 20.2 37 20.2 L9.4 20.2 C8.4 20.2 7.8 19.6 7.8 18.6
+             L7.8 14.2 C7.8 13.2 8.4 12.6 9.4 12.6 Z" fill="#B4231F"/>
+    <path d="M9.4 12.6 L37 12.6 C38 12.6 38.6 13.2 38.6 14.2 L38.6 15
+             C33 14.2 13 14.2 7.8 15 L7.8 14.2 C7.8 13.2 8.4 12.6 9.4 12.6 Z" fill="#E05A52"/>
+    <!-- A fist for a handle end, which is how they are made. -->
+    <g fill="#E8B21C">
+      <path d="M15 15.4 L20.4 15.4 L20.4 18.6 L15 18.6 Z"/>
+      <path d="M22 15.4 L27.4 15.4 L27.4 18.6 L22 18.6 Z"/>
+      <path d="M29 15.4 L32.4 15.4 L32.4 18.6 L29 18.6 Z"/>
+    </g>
+  </g>
+</svg>

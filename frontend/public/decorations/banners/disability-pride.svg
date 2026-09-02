@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Disability pride</title>
+  <!-- The flag: a charcoal field for those the world has mourned, and a band
+       cutting across it for the barriers cut through — red for physical, gold
+       for neurodivergence, white for what nobody can see, blue for psychiatric
+       and green for sensory. Muted on purpose: the bright version was unsafe
+       for people the flag is for. -->
+  <defs>
+    <clipPath id="flagBox"><rect x="0" y="0" width="160" height="40"/></clipPath>
+  </defs>
+  <rect width="160" height="40" fill="#595959"/>
+  <g clip-path="url(#flagBox)" transform="rotate(-20 80 20)">
+    <rect x="-40" y="4.4" width="240" height="6.2" fill="#CF7280"/>
+    <rect x="-40" y="10.6" width="240" height="6.2" fill="#EEDE77"/>
+    <rect x="-40" y="16.8" width="240" height="6.2" fill="#E8E8E8"/>
+    <rect x="-40" y="23" width="240" height="6.2" fill="#7BC2E0"/>
+    <rect x="-40" y="29.2" width="240" height="6.2" fill="#3BB07D"/>
+  </g>
+</svg>

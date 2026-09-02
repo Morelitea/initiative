@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Matcha</title>
+  <circle cx="24" cy="24" r="23" fill="#3E3226"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#8A6034" stroke-width="2"/>
+  <path d="M11 20 L37 20 C38 20 38.6 20.8 38.4 21.8 L36 33.4 C35.4 36.4 32.4 38.4 28.4 38.4
+           L19.6 38.4 C15.6 38.4 12.6 36.4 12 33.4 L9.6 21.8 C9.4 20.8 10 20 11 20 Z"
+        fill="#E4DCCA"/>
+  <path d="M11 20 L37 20 C38 20 38.6 20.8 38.4 21.8 L38.2 22.6 L9.8 22.6 L9.6 21.8
+           C9.4 20.8 10 20 11 20 Z" fill="#F6F1E6"/>
+  <ellipse cx="24" cy="22" rx="12.4" ry="3" fill="#6E9E3C"/>
+  <ellipse cx="24" cy="21.6" rx="12.4" ry="3" fill="#8ABF4E"/>
+  <g fill="#B4DC78" opacity=".7">
+    <ellipse cx="19.6" cy="21.4" rx="3" ry="1.2"/><ellipse cx="28.4" cy="22.4" rx="2.4" ry="1"/>
+  </g>
+  <!-- The whisk, resting in it. -->
+  <g transform="rotate(16 32 16)">
+    <path d="M30 6 L34 6 L34 14 L30 14 Z" fill="#D8CBA8"/>
+    <g stroke="#E8DCB8" stroke-width=".7" fill="none" stroke-linecap="round">
+      <path d="M30.4 14 C28.4 17.4 27.6 20.6 28 23.6"/>
+      <path d="M31.4 14 C30.4 17.6 30 20.6 30.4 23.6"/>
+      <path d="M32.6 14 C33.6 17.6 34 20.6 33.6 23.6"/>
+      <path d="M33.6 14 C35.6 17.4 36.4 20.6 36 23.6"/>
+      <path d="M32 14 L32 23.6"/>
+    </g>
+    <path d="M29.4 15.6 C31.6 16.6 32.4 16.6 34.6 15.6" fill="none" stroke="#C9BC96"
+          stroke-width=".7"/>
+  </g></svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Asexual</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       The flag's stripes, run round the picture instead of across it, in the
+       order they are flown. -->
+  <circle cx="64" cy="64" r="61.8" fill="none" stroke="#000000" stroke-width="3.3"/><circle cx="64" cy="64" r="58.6" fill="none" stroke="#A3A3A3" stroke-width="3.3"/><circle cx="64" cy="64" r="55.4" fill="none" stroke="#FFFFFF" stroke-width="3.3"/><circle cx="64" cy="64" r="52.2" fill="none" stroke="#800080" stroke-width="3.3"/>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#14121C" stroke-width="1.8"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#14121C" stroke-width="1.2"
+          stroke-opacity=".5"/>
+</svg>

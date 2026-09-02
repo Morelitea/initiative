@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Gym</title>
+  <!-- The rack, the bench and the mirror, at the hour it is empty. -->
+  <defs>
+    <linearGradient id="gymwall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#191C22"/><stop offset="100%" stop-color="#2A2F38"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#gymwall)"/>
+  <path d="M0 30 L160 30 L160 40 L0 40 Z" fill="#3A3028"/>
+  <g stroke="#2A2218" stroke-width=".5" opacity=".7">
+    <path d="M0 34 L160 34"/><path d="M26 30 L22 40"/><path d="M62 30 L58 40"/>
+    <path d="M100 30 L104 40"/><path d="M136 30 L140 40"/>
+  </g>
+  <!-- Mirror, with the rack reflected in it. -->
+  <path d="M100 4 L156 4 L156 29 L100 29 Z" fill="#39414C" opacity=".75"/>
+  <path d="M100 4 L156 4 L156 29 L100 29 Z" fill="none" stroke="#5A6470" stroke-width=".8"/>
+  <path d="M104 8 L130 4.6 L118 29 L104 29 Z" fill="#4C5764" opacity=".4"/>
+  <!-- Squat rack. -->
+  <g fill="#3E454E">
+    <path d="M14 30 L18 30 L18 6 L14 6 Z"/><path d="M46 30 L50 30 L50 6 L46 6 Z"/>
+    <path d="M12 6 L52 6 L52 9 L12 9 Z"/>
+  </g>
+  <g fill="#C0221E">
+    <path d="M13 13 L19 13 L19 15 L13 15 Z"/><path d="M45 13 L51 13 L51 15 L45 15 Z"/>
+  </g>
+  <!-- Bar, loaded. -->
+  <path d="M6 13.6 L58 13.6 L58 15.4 L6 15.4 Z" fill="#98A0AA"/>
+  <g>
+    <rect x="8" y="7.6" width="4.4" height="13.4" rx="1.4" fill="#1E2126"/>
+    <rect x="12.6" y="9.4" width="3.4" height="10" rx="1.2" fill="#1E2126"/>
+    <rect x="48" y="9.4" width="3.4" height="10" rx="1.2" fill="#1E2126"/>
+    <rect x="51.6" y="7.6" width="4.4" height="13.4" rx="1.4" fill="#1E2126"/>
+    <rect x="8" y="7.6" width="4.4" height="4" rx="1.4" fill="#C0221E"/>
+    <rect x="51.6" y="7.6" width="4.4" height="4" rx="1.4" fill="#C0221E"/>
+  </g>
+  <!-- Bench. -->
+  <g>
+    <path d="M64 30 L66 30 L66 22 L64 22 Z" fill="#3E454E"/>
+    <path d="M88 30 L90 30 L90 22 L88 22 Z" fill="#3E454E"/>
+    <path d="M60 20 L92 22 L92 24 L60 22 Z" fill="#1E2126"/>
+    <path d="M60 20 L92 22 L92 22.8 L60 20.8 Z" fill="#4A525C"/>
+  </g>
+  <!-- Dumbbell rack. -->
+  <g>
+    <path d="M112 30 L152 30 L152 32 L112 32 Z" fill="#3E454E"/>
+    <path d="M112 24 L152 24 L152 26 L112 26 Z" fill="#3E454E"/>
+    <g fill="#1E2126">
+      <rect x="115" y="20" width="3" height="4.4" rx="1"/><rect x="122" y="20" width="3.4" height="4.4" rx="1"/>
+      <rect x="130" y="19.6" width="3.8" height="4.8" rx="1"/><rect x="139" y="19.4" width="4.2" height="5" rx="1"/>
+      <rect x="147" y="19" width="4.6" height="5.4" rx="1"/>
+    </g>
+    <g fill="#C0221E">
+      <rect x="115" y="20" width="3" height="1.4" rx=".7"/><rect x="122" y="20" width="3.4" height="1.4" rx=".7"/>
+      <rect x="130" y="19.6" width="3.8" height="1.4" rx=".7"/><rect x="139" y="19.4" width="4.2" height="1.4" rx=".7"/>
+      <rect x="147" y="19" width="4.6" height="1.4" rx=".7"/>
+    </g>
+  </g>
+  <!-- Chalk, and a bottle. -->
+  <g fill="#E8E2D6" opacity=".3">
+    <ellipse cx="34" cy="31" rx="6" ry="1.4"/><ellipse cx="76" cy="32" rx="4" ry="1"/>
+  </g>
+  <g>
+    <path d="M96 30 L102 30 L101.4 22 L96.6 22 Z" fill="#3C7CD6" opacity=".8"/>
+    <path d="M97.4 22 L100.6 22 L100.6 19.6 L97.4 19.6 Z" fill="#1B3FBF"/>
+  </g></svg>

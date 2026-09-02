@@ -1,0 +1,49 @@
+{
+  "uid": "QF62MJXB9WR3H0",
+  "public_id": "core.gaming",
+  "kind": "profile_pack",
+  "name": "Gaming",
+  "publisher": "Initiative",
+  "description": "A bright screen, a pad in your hands, and a table with dice on it.",
+  "long_description": "Video games and tabletop in one pack, because it is mostly the same people. A dark room lit by a screen and a table an hour into the session; a pad bent round the picture and a ring of shell for a frame; and a controller and a twenty for trophies.",
+  "avatar_url": "/decorations/banners/gaming-arcade.svg",
+  "images": [],
+  "version": "1.2.0",
+  "release_notes": "More in the pack.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "gaming.arcade",
+        "slot": "banner",
+        "name": "Arcade"
+      },
+      {
+        "id": "gaming.buttons",
+        "slot": "frame",
+        "name": "Buttons"
+      },
+      {
+        "id": "gaming.controller",
+        "slot": "trophy",
+        "name": "Controller"
+      },
+      {
+        "id": "ttrpg.dicetower",
+        "slot": "banner",
+        "name": "Dice tower"
+      },
+      {
+        "id": "ttrpg.natural20",
+        "slot": "frame",
+        "name": "Natural 20"
+      },
+      {
+        "id": "ttrpg.d20",
+        "slot": "trophy",
+        "name": "d20"
+      }
+    ]
+  }
+}

@@ -8,8 +8,8 @@
   "long_description": "A stage before the doors open: a meter jumping, a light swinging, a mic waiting. The frame is a record that turns and the badge is a cassette — the thing a band hands you when they want you to hear it.",
   "avatar_url": "/decorations/banners/music-soundcheck.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -26,8 +26,53 @@
       },
       {
         "id": "music.cassette",
-        "slot": "badge",
+        "slot": "trophy",
         "name": "Cassette"
+      },
+      {
+        "id": "music.recordshop",
+        "slot": "banner",
+        "name": "Record shop"
+      },
+      {
+        "id": "music.festival",
+        "slot": "banner",
+        "name": "Festival"
+      },
+      {
+        "id": "music.guitar",
+        "slot": "trophy",
+        "name": "Electric guitar"
+      },
+      {
+        "id": "music.keys",
+        "slot": "trophy",
+        "name": "Keys"
+      },
+      {
+        "id": "music.sax",
+        "slot": "trophy",
+        "name": "Saxophone"
+      },
+      {
+        "id": "music.violin",
+        "slot": "trophy",
+        "name": "Violin"
+      },
+      {
+        "id": "music.mic",
+        "slot": "trophy",
+        "name": "Microphone"
+      },
+      {
+        "id": "music.headphones",
+        "slot": "trophy",
+        "name": "Headphones"
+      },
+      {
+        "id": "music.drums",
+        "slot": "trophy",
+        "name": "Drum kit"
       }
     ]
   }

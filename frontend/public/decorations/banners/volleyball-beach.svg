@@ -7,9 +7,35 @@
     .hang { animation: sag 5s ease-in-out infinite alternate;
             transform-box: fill-box; transform-origin: 50% 0 }
     @keyframes sag { from { transform: translateY(0) } to { transform: translateY(.4px) } }
+    /* Over the net and back, with the arc a set has. */
+    .volley { animation: rally 5.6s linear infinite }
+    @keyframes rally {
+      0%   { transform: translate(-26px,10px) }
+      12%  { transform: translate(-18px,1px) }
+      25%  { transform: translate(-8px,-4px) }
+      37%  { transform: translate(6px,-4px) }
+      50%  { transform: translate(26px,10px) }
+      62%  { transform: translate(18px,1px) }
+      75%  { transform: translate(8px,-4px) }
+      87%  { transform: translate(-6px,-4px) }
+      100% { transform: translate(-26px,10px) }
+    }
+    .drop { animation: shade 5.6s linear infinite }
+    @keyframes shade {
+      0%   { transform: translateX(-26px); opacity: .38 }
+      25%  { transform: translateX(-8px);  opacity: .18 }
+      50%  { transform: translateX(26px);  opacity: .38 }
+      75%  { transform: translateX(8px);   opacity: .18 }
+      100% { transform: translateX(-26px); opacity: .38 }
+    }
+    .turnball { animation: turning 3.4s linear infinite;
+                transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes turning { to { transform: rotate(360deg) } }
     .lap { animation: wash 9s ease-in-out infinite alternate }
     @keyframes wash { from { transform: translateX(-2px) } to { transform: translateX(2px) } }
-    @media (prefers-reduced-motion: reduce) { .hang, .lap { animation: none } }
+    @media (prefers-reduced-motion: reduce) {
+      .hang, .lap, .volley, .drop, .turnball { animation: none }
+    }
   </style>
   <defs>
     <linearGradient id="bsky" x1="0" y1="0" x2="0" y2="1">
@@ -84,8 +110,9 @@
     </g>
   </g>
   <!-- The ball, up and coming down. -->
-  <ellipse cx="80" cy="27.2" rx="3.6" ry="1.1" fill="#A9803F" opacity=".35"/>
-  <g transform="translate(80 5.4)">
+  <ellipse class="drop" cx="80" cy="27.2" rx="3.6" ry="1.1" fill="#A9803F"/>
+  <g class="volley">
+    <g class="turnball" transform="translate(80 5.4)">
     <circle cx="0" cy="0" r="4.2" fill="url(#vball)"/>
     <g fill="none" stroke="#2C6E9E" stroke-width=".7" stroke-linecap="round">
       <path d="M-4.2 -.6 C-2 -1.4 -.4 -2.6 .6 -4.1"/>
@@ -96,5 +123,6 @@
     <circle cx="0" cy="0" r="4.2" fill="none" stroke="#B4BFC9" stroke-width=".4"/>
     <path d="M-3 -2.4 C-2.2 -3.2 -1.2 -3.7 -.2 -3.9" fill="none" stroke="#FFFFFF"
           stroke-width=".8" opacity=".7" stroke-linecap="round"/>
+    </g>
   </g>
 </svg>

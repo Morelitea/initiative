@@ -2,32 +2,67 @@
   "uid": "9GRVFH7M2QXK30",
   "public_id": "core.mushrooms",
   "kind": "profile_pack",
-  "name": "Mushrooms",
+  "name": "Plants",
   "publisher": "Initiative",
   "description": "Morels, moss, and the people who look down.",
   "long_description": "For foragers, mycologists, and anyone who has ever stopped a walk to photograph something growing on a log. The badge is a morel — pitted cap, hollow stem, the one mushroom you identify by its surface — and the frame is the moss and twigs it came up through.",
-  "avatar_url": "/decorations/banners/fungi-grove.svg",
+  "avatar_url": "/decorations/banners/plants-grove.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.2.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
     "decorations": [
       {
-        "id": "fungi.grove",
+        "id": "plants.grove",
         "slot": "banner",
         "name": "Grove"
       },
       {
-        "id": "fungi.overgrown",
+        "id": "plants.nest",
         "slot": "frame",
-        "name": "Overgrown"
+        "name": "Nest"
       },
       {
-        "id": "fungi.morel",
-        "slot": "badge",
+        "id": "plants.morel",
+        "slot": "trophy",
         "name": "Morel"
+      },
+      {
+        "id": "plants.windowsill",
+        "slot": "banner",
+        "name": "Windowsill"
+      },
+      {
+        "id": "plants.desert",
+        "slot": "banner",
+        "name": "Desert"
+      },
+      {
+        "id": "plants.vines",
+        "slot": "frame",
+        "name": "Vines"
+      },
+      {
+        "id": "plants.rosette",
+        "slot": "frame",
+        "name": "Rosette"
+      },
+      {
+        "id": "plants.monstera",
+        "slot": "trophy",
+        "name": "Monstera"
+      },
+      {
+        "id": "plants.succulent",
+        "slot": "trophy",
+        "name": "Succulent"
+      },
+      {
+        "id": "plants.cactus",
+        "slot": "trophy",
+        "name": "Cactus"
       }
     ]
   }

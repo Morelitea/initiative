@@ -19,11 +19,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints import notifications as notifications_endpoint
 from app.api.v1.platform_endpoints.notifications import (
+    MSG_ACTIVE,
     MSG_AUTH,
     websocket_notifications,
 )
 from app.core.security import SESSION_COOKIE_NAME
-from app.services.platform import notification_stream
+from app.services.platform import notification_stream, presence
 from app.services.platform.notification_stream import NotificationStream
 from app.testing import create_user, get_auth_token
 
@@ -33,9 +34,9 @@ WS_POLICY_VIOLATION = 1008
 class FakeWebSocket:
     """Drives the endpoint through one handshake, then hangs up.
 
-    ``frames`` are the client's inbound frames; once they run out the socket
-    raises ``WebSocketDisconnect`` from the keepalive loop, which is how a real
-    client leaving arrives.
+    ``frames`` are the client's inbound frames: the handshake reads the first,
+    the keepalive loop the rest. Once they run out the socket reports a
+    disconnect, which is how a real client leaving arrives.
     """
 
     def __init__(self, frames: list[bytes], cookies: dict | None = None) -> None:
@@ -53,8 +54,12 @@ class FakeWebSocket:
             raise WebSocketDisconnect(code=1000)
         return self._frames.pop(0)
 
-    async def receive_text(self) -> str:
-        raise WebSocketDisconnect(code=1000)
+    async def receive(self) -> dict:
+        """The raw ASGI message, as Starlette hands it over: a disconnect
+        arrives here as a message rather than an exception."""
+        if not self._frames:
+            return {"type": "websocket.disconnect", "code": 1000}
+        return {"type": "websocket.receive", "bytes": self._frames.pop(0)}
 
     async def close(self, code: int = 1000) -> None:
         self.closed_with = code
@@ -116,11 +121,11 @@ async def test_the_socket_is_registered_while_the_loop_runs(
 
     counted: list[int] = []
 
-    async def receive_text() -> str:
+    async def receive() -> dict:
         counted.append(stream.socket_count(user.id))
-        raise WebSocketDisconnect(code=1000)
+        return {"type": "websocket.disconnect", "code": 1000}
 
-    monkeypatch.setattr(websocket, "receive_text", receive_text)
+    monkeypatch.setattr(websocket, "receive", receive)
     await websocket_notifications(websocket)
 
     assert counted == [1]
@@ -141,15 +146,37 @@ async def test_a_session_cookie_stands_in_for_a_null_token(
 
     counted: list[int] = []
 
-    async def receive_text() -> str:
+    async def receive() -> dict:
         counted.append(stream.socket_count(user.id))
-        raise WebSocketDisconnect(code=1000)
+        return {"type": "websocket.disconnect", "code": 1000}
 
-    monkeypatch.setattr(websocket, "receive_text", receive_text)
+    monkeypatch.setattr(websocket, "receive", receive)
     await websocket_notifications(websocket)
 
     assert websocket.closed_with is None
     assert counted == [1]
+
+
+@pytest.mark.integration
+async def test_an_active_frame_marks_its_person_present(
+    session, stream, ws_sessions, monkeypatch
+) -> None:
+    """The one frame the client sends back says its person is at the keyboard,
+    and names nobody — the socket already knows whose it is."""
+    user = await create_user(session)
+    await session.commit()
+    token = get_auth_token(user)
+    websocket = FakeWebSocket(
+        [_auth_frame(f'{{"token": "{token}"}}'.encode()), bytes([MSG_ACTIVE])]
+    )
+
+    seen: list[int] = []
+    monkeypatch.setattr(presence.online, "active", seen.append)
+
+    await websocket_notifications(websocket)
+
+    assert seen == [user.id]
+    assert websocket.closed_with is None
 
 
 @pytest.mark.integration

@@ -4,6 +4,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Index,
@@ -107,6 +108,13 @@ class User(SQLModel, table=True):
             "discriminator",
             unique=True,
         ),
+        # The bound on the status line, held where the line is stored as well
+        # as where it is parsed — see
+        # ``app.schemas.platform.user.STATUS_TEXT_MAX_LENGTH``.
+        CheckConstraint(
+            "char_length(custom_status->>'text') <= 40",
+            name="ck_users_custom_status_text_length",
+        ),
     )
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
     __allow_unmapped__ = True
@@ -188,7 +196,7 @@ class User(SQLModel, table=True):
         ),
     )
     #: How this person's profile is dressed: a banner, a frame around the
-    #: picture, badges beside the name. Each is an id naming a catalog entry
+    #: picture, trophies under it. Each is an id naming a catalog entry
     #: the client resolves to artwork it already ships — never an upload, so a
     #: decorated profile costs a guild none of its storage. The shape is
     #: ``app.schemas.platform.user.ProfileDecorations``.

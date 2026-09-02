@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Microphone</title>
+  <circle cx="24" cy="24" r="23" fill="#140F1F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#F0567A" stroke-width="2"/>
+  <path d="M24 6 C27.4 6 30 8.6 30 12 L30 22 C30 25.4 27.4 28 24 28 C20.6 28 18 25.4 18 22
+           L18 12 C18 8.6 20.6 6 24 6 Z" fill="#4A4260"/>
+  <path d="M24 6 C27.4 6 30 8.6 30 12 L30 22 C30 25.4 27.4 28 24 28 Z" fill="#332C48"/>
+  <g stroke="#8A7FB0" stroke-width=".7" opacity=".9">
+    <path d="M18.4 10.6 L29.6 10.6"/><path d="M18 14 L30 14"/><path d="M18 17.4 L30 17.4"/>
+    <path d="M18 20.8 L30 20.8"/><path d="M18.4 24 L29.6 24"/>
+    <path d="M21 6.6 L21 27.4"/><path d="M24 6 L24 28"/><path d="M27 6.6 L27 27.4"/>
+  </g>
+  <path d="M13.6 21.4 C13.6 27.4 18 31.4 24 31.4 C30 31.4 34.4 27.4 34.4 21.4"
+        fill="none" stroke="#C4CAD2" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M22.6 31.4 L25.4 31.4 L25.4 40 L22.6 40 Z" fill="#C4CAD2"/>
+  <path d="M18 40 L30 40 C31 40 31.6 40.6 31.6 41.6 L31.6 43 L16.4 43 L16.4 41.6
+           C16.4 40.6 17 40 18 40 Z" fill="#2A2438"/></svg>

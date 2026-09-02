@@ -1,88 +1,131 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
      role="presentation" preserveAspectRatio="xMidYMid slice">
   <title>Diamond</title>
-  <!-- The infield from above the plate at dusk: dirt, four bases and the mound,
-       all of it centred so the shape survives a phone's crop. -->
+  <!-- From the box, looking out: the plate at your feet, the mound, the bases
+       and the wall stacked away from you — and one you got all of, leaving. -->
   <style>
-    .seamspin { animation: roll 2.4s linear infinite;
+    /* Away and up, shrinking because it is going away, gone over the wall. */
+    .homer { animation: gone 5.6s cubic-bezier(.25,.55,.5,1) infinite }
+    @keyframes gone {
+      0%   { transform: translate(0,0) scale(1); opacity: 0 }
+      4%   { opacity: 1 }
+      55%  { transform: translate(15px,-14px) scale(.62) }
+      86%  { transform: translate(25px,-25.5px) scale(.32); opacity: 1 }
+      94%  { transform: translate(28px,-28px) scale(.26); opacity: 0 }
+      100% { transform: translate(0,0) scale(1); opacity: 0 }
+    }
+    .seamspin { animation: roll 1.1s linear infinite;
                 transform-box: fill-box; transform-origin: 50% 50% }
     @keyframes roll { to { transform: rotate(-360deg) } }
-    @media (prefers-reduced-motion: reduce) { .seamspin { animation: none } }
+    .trail { animation: streak 5.6s cubic-bezier(.25,.55,.5,1) infinite }
+    @keyframes streak {
+      0%,4% { opacity: 0 }
+      20%   { opacity: .5 }
+      80%   { opacity: .18 }
+      92%,100% { opacity: 0 }
+    }
+    .tw { animation: blink 4s ease-in-out infinite }
+    .t2 { animation-delay: -1.6s }
+    @keyframes blink { 0%,100% { opacity: .8 } 50% { opacity: .25 } }
+    @media (prefers-reduced-motion: reduce) {
+      .homer, .seamspin, .trail, .tw { animation: none }
+    }
   </style>
   <defs>
     <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#241C42"/>
-      <stop offset="55%" stop-color="#6B4A72"/>
+      <stop offset="0%" stop-color="#221A3E"/>
+      <stop offset="50%" stop-color="#6A4A70"/>
       <stop offset="100%" stop-color="#E08A4A"/>
     </linearGradient>
     <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2E6B38"/><stop offset="100%" stop-color="#1C4726"/>
+      <stop offset="0%" stop-color="#2A6234"/><stop offset="100%" stop-color="#3C8144"/>
     </linearGradient>
-    <radialGradient id="dirt" cx=".5" cy=".3" r=".8">
-      <stop offset="0%" stop-color="#C08050"/><stop offset="100%" stop-color="#96603A"/>
+    <linearGradient id="dirt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A96B3E"/><stop offset="100%" stop-color="#C88B54"/>
+    </linearGradient>
+    <radialGradient id="hide" cx=".34" cy=".28" r=".85">
+      <stop offset="0%" stop-color="#FFFFFF"/><stop offset="65%" stop-color="#F2F3EE"/>
+      <stop offset="100%" stop-color="#C4C8BC"/>
     </radialGradient>
   </defs>
-  <rect width="160" height="40" fill="#241C42"/>
-  <path d="M0 0 L160 0 L160 11 L0 11 Z" fill="url(#dusk)"/>
+  <rect width="160" height="40" fill="#221A3E"/>
+  <path d="M0 0 L160 0 L160 9.4 L0 9.4 Z" fill="url(#dusk)"/>
   <g fill="#FFE7C2">
-    <circle cx="18" cy="3" r=".3" opacity=".7"/><circle cx="44" cy="2" r=".26" opacity=".6"/>
-    <circle cx="66" cy="4" r=".3" opacity=".65"/><circle cx="106" cy="2.4" r=".28" opacity=".6"/>
-    <circle cx="140" cy="3.4" r=".3" opacity=".7"/>
+    <circle class="tw" cx="16" cy="2.4" r=".3"/><circle cx="40" cy="1.6" r=".26" opacity=".6"/>
+    <circle class="tw t2" cx="62" cy="3.2" r=".3"/><circle cx="96" cy="2" r=".26" opacity=".6"/>
+    <circle cx="124" cy="3" r=".3" opacity=".7"/><circle cx="150" cy="1.8" r=".26" opacity=".6"/>
   </g>
   <!-- A light tower, off to one side. -->
   <g fill="#1A1430">
-    <path d="M126.4 11 L127.4 3.6 L128.6 3.6 L129.6 11 Z"/>
-    <path d="M123.6 3.8 L132.4 3.8 L132.4 .8 L123.6 .8 Z"/>
+    <path d="M136.4 9.4 L137.4 2.6 L138.6 2.6 L139.6 9.4 Z"/>
+    <path d="M133.6 2.8 L142.4 2.8 L142.4 0 L133.6 0 Z"/>
   </g>
   <g fill="#FFF6DC">
-    <rect x="124.4" y="1.4" width="1.5" height="1" rx=".3"/>
-    <rect x="126.6" y="1.4" width="1.5" height="1" rx=".3"/>
-    <rect x="128.8" y="1.4" width="1.5" height="1" rx=".3"/>
-    <rect x="131" y="1.4" width="1" height="1" rx=".3"/>
+    <rect x="134.4" y=".6" width="1.5" height="1" rx=".3"/>
+    <rect x="136.6" y=".6" width="1.5" height="1" rx=".3"/>
+    <rect x="138.8" y=".6" width="1.5" height="1" rx=".3"/>
+    <rect x="141" y=".6" width="1" height="1" rx=".3"/>
   </g>
-  <ellipse cx="128" cy="2" rx="12" ry="7" fill="#FFF1CE" opacity=".1"/>
-  <!-- Outfield wall, then grass. -->
-  <path d="M0 11 L160 11 L160 14.2 L0 14.2 Z" fill="#173A22"/>
-  <path d="M0 11 L160 11 L160 11.7 L0 11.7 Z" fill="#E0B429" opacity=".8"/>
-  <path d="M0 14.2 L160 14.2 L160 40 L0 40 Z" fill="url(#grass)"/>
-  <g stroke="#367B41" stroke-width="1.6" fill="none" opacity=".45">
-    <path d="M0 18 C40 15.6 120 15.6 160 18"/>
-    <path d="M0 24 C40 21 120 21 160 24"/>
-    <path d="M0 31 C40 27.4 120 27.4 160 31"/>
+  <ellipse cx="138" cy="1.4" rx="14" ry="8" fill="#FFF1CE" opacity=".1"/>
+  <!-- The wall, and the flags on it. -->
+  <path d="M0 9.4 L160 9.4 L160 12.6 L0 12.6 Z" fill="#173A22"/>
+  <path d="M0 9.4 L160 9.4 L160 10 L0 10 Z" fill="#E0B429" opacity=".85"/>
+  <g stroke="#0F2A18" stroke-width=".35" opacity=".7">
+    <path d="M20 10 L20 12.6"/><path d="M50 10 L50 12.6"/><path d="M80 10 L80 12.6"/>
+    <path d="M110 10 L110 12.6"/><path d="M140 10 L140 12.6"/>
   </g>
-  <!-- The dirt, and the diamond on it. -->
-  <path d="M80 34.6 C58 34.6 40 29.4 40 23.2 C40 18.6 57.4 15 80 15 C102.6 15 120 18.6 120 23.2
-           C120 29.4 102 34.6 80 34.6 Z" fill="url(#dirt)"/>
-  <path d="M80 17.4 C68 17.4 58.4 19.6 58.4 22.4 C58.4 25.6 68 30 80 30 C92 30 101.6 25.6 101.6 22.4
-           C101.6 19.6 92 17.4 80 17.4 Z" fill="#2E6B38"/>
-  <g fill="none" stroke="#F2F4EE" stroke-width=".7" opacity=".9">
-    <path d="M80 31.6 L59.6 22.6 L80 16.4 L100.4 22.6 Z"/>
+  <!-- Outfield, mown in arcs that open towards you. -->
+  <path d="M0 12.6 L160 12.6 L160 40 L0 40 Z" fill="url(#grass)"/>
+  <g stroke="#357A3E" stroke-width="1.8" fill="none" opacity=".4">
+    <path d="M-10 17 C30 13.6 130 13.6 170 17"/>
+    <path d="M-10 22.6 C30 17.6 130 17.6 170 22.6"/>
+    <path d="M-10 30 C30 23 130 23 170 30"/>
+  </g>
+  <!-- The infield: dirt from the grass down to your feet. -->
+  <path d="M0 40 L0 33.6 C10 30.6 30 26.6 54 25.4 C70 24.6 90 24.6 106 25.4
+           C130 26.6 150 30.6 160 33.6 L160 40 Z" fill="url(#dirt)"/>
+  <path d="M54 25.4 C70 24.6 90 24.6 106 25.4 C99 28 90 30 80 30 C70 30 61 28 54 25.4 Z"
+        fill="#3C8144"/>
+  <!-- The base paths, and what is on them. -->
+  <g fill="none" stroke="#F4F1E4" stroke-width=".7" opacity=".85">
+    <path d="M80 35.6 L107 25.6"/><path d="M107 25.6 L80 21.4"/>
+    <path d="M80 21.4 L53 25.6"/><path d="M53 25.6 L80 35.6"/>
   </g>
   <g fill="#F7F8F4">
-    <path d="M78.6 16.1 L81.4 16.1 L81.4 17.1 L78.6 17.1 Z"/>
-    <path d="M58.4 22.2 L61 21.3 L61.8 22.2 L59.2 23.1 Z"/>
-    <path d="M99 21.3 L101.6 22.2 L100.8 23.1 L98.2 22.2 Z"/>
-    <path d="M78.4 30.8 L81.6 30.8 L81.6 31.6 L80 32.4 L78.4 31.6 Z"/>
+    <path d="M105.4 25 L109 25.8 L107.6 26.8 L104 26 Z"/>
+    <path d="M51 25.8 L54.6 25 L56 26 L52.4 26.8 Z"/>
+    <path d="M77.8 20.9 L82.2 20.9 L82.2 21.9 L77.8 21.9 Z"/>
   </g>
-  <ellipse cx="80" cy="23.4" rx="5" ry="2.2" fill="#B8794A"/>
-  <path d="M78.6 23.1 L81.4 23.1 L81.4 23.8 L78.6 23.8 Z" fill="#F7F8F4"/>
-  <!-- The pitch, on its way. -->
-  <g class="seamspin">
-    <g transform="translate(104 12.4)">
-      <circle cx="0" cy="0" r="3.1" fill="#F7F8F4"/>
-      <circle cx="0" cy="0" r="3.1" fill="none" stroke="#C9CCC2" stroke-width=".3"/>
-      <path d="M-2 -2.4 C-.6 -1 -.6 1 -2 2.4" fill="none" stroke="#C4302B" stroke-width=".5"/>
-      <path d="M2 -2.4 C.6 -1 .6 1 2 2.4" fill="none" stroke="#C4302B" stroke-width=".5"/>
-      <g stroke="#C4302B" stroke-width=".28" stroke-linecap="round">
-        <path d="M-1.9 -1.6 L-1.2 -1.9"/><path d="M-1.5 -.6 L-.8 -.8"/>
-        <path d="M-1.5 .6 L-.8 .8"/><path d="M-1.9 1.6 L-1.2 1.9"/>
-        <path d="M1.9 -1.6 L1.2 -1.9"/><path d="M1.5 -.6 L.8 -.8"/>
-        <path d="M1.5 .6 L.8 .8"/><path d="M1.9 1.6 L1.2 1.9"/>
-      </g>
+  <!-- The mound. -->
+  <ellipse cx="80" cy="28.6" rx="9" ry="2.6" fill="#B8794A"/>
+  <ellipse cx="80" cy="28.2" rx="9" ry="2.6" fill="#C89058"/>
+  <path d="M77.6 27.8 L82.4 27.8 L82.4 28.6 L77.6 28.6 Z" fill="#F7F8F4"/>
+  <!-- The plate, at your feet, and the box you are standing in. -->
+  <g fill="none" stroke="#F4F1E4" stroke-width=".6" opacity=".6">
+    <path d="M62 33 L71 33 L67.6 40 L56 40 Z"/>
+    <path d="M98 33 L89 33 L92.4 40 L104 40 Z"/>
+  </g>
+  <path d="M74.6 34.6 L85.4 34.6 L87.4 37 L80 39.4 L72.6 37 Z" fill="#F7F8F4"/>
+  <path d="M74.6 34.6 L85.4 34.6 L85.8 35.2 L74.2 35.2 Z" fill="#D8DCD2"/>
+  <!-- Gone. -->
+  <g class="homer">
+    <g class="trail" stroke="#F7F8F4" stroke-linecap="round" fill="none">
+      <path d="M78.4 34.6 C76 35.6 74 36.4 72 37" stroke-width=".7"/>
+      <path d="M79.6 36.2 C77.6 37.2 75.6 38 73.6 38.6" stroke-width=".5" opacity=".7"/>
     </g>
-  </g>
-  <g stroke="#F7F8F4" stroke-width=".35" opacity=".3" stroke-linecap="round" fill="none">
-    <path d="M112 10.4 C110 11 108.6 11.4 107.4 11.8"/>
-    <path d="M114 13 C112 13.2 110.4 13.4 109 13.6"/>
+    <g class="seamspin" transform="translate(84 32.6)">
+      <circle cx="0" cy="0" r="3" fill="url(#hide)"/>
+      <circle cx="0" cy="0" r="3" fill="none" stroke="#B9BDB0" stroke-width=".3"/>
+      <path d="M-2 -2.2 C-.7 -1 -.7 1 -2 2.2" fill="none" stroke="#C4302B" stroke-width=".5"/>
+      <path d="M2 -2.2 C.7 -1 .7 1 2 2.2" fill="none" stroke="#C4302B" stroke-width=".5"/>
+      <g stroke="#C4302B" stroke-width=".26" stroke-linecap="round">
+        <path d="M-1.8 -1.5 L-1.1 -1.8"/><path d="M-1.4 -.5 L-.7 -.7"/>
+        <path d="M-1.4 .5 L-.7 .7"/><path d="M-1.8 1.5 L-1.1 1.8"/>
+        <path d="M1.8 -1.5 L1.1 -1.8"/><path d="M1.4 -.5 L.7 -.7"/>
+        <path d="M1.4 .5 L.7 .7"/><path d="M1.8 1.5 L1.1 1.8"/>
+      </g>
+      <path d="M-2.1 -1.6 C-1.5 -2.3 -.7 -2.7 .2 -2.8" fill="none" stroke="#FFFFFF"
+            stroke-width=".6" opacity=".55" stroke-linecap="round"/>
+    </g>
   </g>
 </svg>

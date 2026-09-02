@@ -2,8 +2,14 @@ import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { OwnedDecoration } from "@/api/generated/initiativeAPI.schemas";
+import { Button } from "@/components/ui/button";
 import { DecorationSwatch } from "@/components/user/DecorationSwatch";
-import { type Decoration, type DecorationKind, resolveDecoration } from "@/lib/profileDecorations";
+import {
+  DEFAULT_TINTS,
+  type Decoration,
+  type DecorationKind,
+  resolveDecoration,
+} from "@/lib/profileDecorations";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,7 +30,7 @@ interface TileProps {
   selected: boolean;
   onToggle: () => void;
   children: React.ReactNode;
-  /** `radio` for a slot that holds one thing, `checkbox` for the badge row. */
+  /** `radio` for a slot that holds one thing, `checkbox` for the trophy row. */
   control: "radio" | "checkbox";
   /** Groups the radios of one slot, so the browser treats them as alternatives. */
   name?: string;
@@ -78,7 +84,70 @@ interface SlotPickerProps {
   value: string | null;
   onChange: (id: string | null) => void;
   owned: OwnedDecoration[] | undefined;
+  /** The colours picked for a tintable frame, and how to change them. */
+  tint?: string[];
+  onTint?: (colours: string[]) => void;
 }
+
+/**
+ * The colour wells for a frame whose colours are the wearer's.
+ *
+ * A native colour input, because every platform already has a colour picker
+ * its own users know, and none of them is worth rebuilding.
+ */
+const TintPicker = ({
+  decoration,
+  value,
+  onChange,
+}: {
+  decoration: Decoration;
+  value: string[];
+  onChange: (colours: string[]) => void;
+}) => {
+  const { t } = useTranslation("profiles");
+  const defaults = DEFAULT_TINTS[decoration.id] ?? [];
+  // A well per colour the frame takes, named by which one it is: on a split
+  // frame that is a side, and on a single-colour frame it is just the colour.
+  const wells = defaults.map((fallback, index) => ({
+    slot: `colour${index + 1}` as const,
+    colour: value[index] || fallback,
+    label:
+      defaults.length > 1
+        ? t(index === 0 ? "decorationPicker.colour1" : "decorationPicker.colour2")
+        : t("decorationPicker.colour"),
+    replace: (next: string) =>
+      onChange(defaults.map((f, i) => (i === index ? next : value[i] || f))),
+  }));
+
+  return (
+    <div className="flex items-center gap-3">
+      {wells.map((well) => (
+        <label
+          key={well.slot}
+          className="flex cursor-pointer items-center gap-2 text-muted-foreground text-xs"
+        >
+          <input
+            type="color"
+            value={well.colour}
+            onChange={(event) => well.replace(event.target.value)}
+            aria-label={well.label}
+            className="size-7 cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+          />
+          {well.label}
+        </label>
+      ))}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={value.length === 0}
+        onClick={() => onChange([])}
+      >
+        {t("decorationPicker.resetColour")}
+      </Button>
+    </div>
+  );
+};
 
 /**
  * The picker for a slot that holds one thing — the banner, the frame.
@@ -86,36 +155,47 @@ interface SlotPickerProps {
  * Picking the tile that is already on takes it off, so "none" needs no tile of
  * its own and there is one way to end up bare.
  */
-export const SlotPicker = ({ kind, value, onChange, owned }: SlotPickerProps) => {
+export const SlotPicker = ({ kind, value, onChange, owned, tint, onTint }: SlotPickerProps) => {
   const { t } = useTranslation("profiles");
   const choices = wearable(owned, kind);
+  const worn = choices.find((decoration) => decoration.id === value);
 
   if (choices.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("decorationPicker.empty")}</p>;
   }
 
   return (
-    <fieldset className="flex min-w-0 flex-wrap gap-2">
-      <legend className="sr-only">{t(`decorationPicker.${kind}`)}</legend>
-      {choices.map((decoration) => (
-        <Tile
-          key={decoration.id}
-          control="radio"
-          name={`decoration-${kind}`}
-          label={t(decoration.labelKey)}
-          selected={value === decoration.id}
-          onToggle={() => onChange(value === decoration.id ? null : decoration.id)}
-        >
-          <span className={kind === "banner" ? "block w-32" : "block"}>
-            <DecorationSwatch decoration={decoration} />
-          </span>
-        </Tile>
-      ))}
-    </fieldset>
+    <div className="space-y-3">
+      <fieldset className="flex min-w-0 flex-wrap gap-2">
+        <legend className="sr-only">{t(`decorationPicker.${kind}`)}</legend>
+        {choices.map((decoration) => (
+          <Tile
+            key={decoration.id}
+            control="radio"
+            name={`decoration-${kind}`}
+            label={t(decoration.labelKey)}
+            selected={value === decoration.id}
+            onToggle={() => onChange(value === decoration.id ? null : decoration.id)}
+          >
+            <span className={kind === "banner" ? "block w-32" : "block"}>
+              <DecorationSwatch
+                decoration={decoration}
+                tint={value === decoration.id ? tint : undefined}
+              />
+            </span>
+          </Tile>
+        ))}
+      </fieldset>
+      {/* Only where there is something to choose: the frames that ship with the
+          app leave their colours open, and a pack's artwork is the pack's. */}
+      {worn?.tint && onTint ? (
+        <TintPicker decoration={worn} value={tint ?? []} onChange={onTint} />
+      ) : null}
+    </div>
   );
 };
 
-interface BadgePickerProps {
+interface TrophyPickerProps {
   value: string[];
   onChange: (ids: string[]) => void;
   owned: OwnedDecoration[] | undefined;
@@ -124,15 +204,15 @@ interface BadgePickerProps {
 }
 
 /**
- * The picker for the badge row, which holds several.
+ * The picker for the trophy row, which holds several.
  *
  * Order is the order they were picked, which is the order they are worn. Past
  * the cap the unpicked tiles stop responding rather than silently dropping the
  * oldest — what is worn is the reader's choice, not the picker's.
  */
-export const BadgePicker = ({ value, onChange, owned, max }: BadgePickerProps) => {
+export const TrophyPicker = ({ value, onChange, owned, max }: TrophyPickerProps) => {
   const { t } = useTranslation("profiles");
-  const choices = wearable(owned, "badge");
+  const choices = wearable(owned, "trophy");
 
   if (choices.length === 0) {
     return <p className="text-muted-foreground text-sm">{t("decorationPicker.empty")}</p>;
@@ -149,7 +229,7 @@ export const BadgePicker = ({ value, onChange, owned, max }: BadgePickerProps) =
   return (
     <div className="space-y-2">
       <fieldset className="flex min-w-0 flex-wrap gap-2">
-        <legend className="sr-only">{t("decorationPicker.badge")}</legend>
+        <legend className="sr-only">{t("decorationPicker.trophy")}</legend>
         {choices.map((decoration) => {
           const selected = value.includes(decoration.id);
           return (
@@ -167,7 +247,7 @@ export const BadgePicker = ({ value, onChange, owned, max }: BadgePickerProps) =
         })}
       </fieldset>
       <p className="text-muted-foreground text-xs">
-        {t("decorationPicker.badgeCount", { count: value.length, max })}
+        {t("decorationPicker.trophyCount", { count: value.length, max })}
       </p>
     </div>
   );

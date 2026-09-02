@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Dumbbell</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2126"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#C4472E" stroke-width="2"/>
+  <g transform="rotate(-24 24 24)">
+    <rect x="10" y="22" width="28" height="4" rx="1.6" fill="#8A9098"/>
+    <rect x="10" y="22" width="28" height="1.6" rx=".8" fill="#C4CAD2"/>
+    <g fill="#2A2E34">
+      <rect x="6" y="14" width="6" height="20" rx="2"/><rect x="36" y="14" width="6" height="20" rx="2"/>
+      <rect x="12" y="17" width="4.6" height="14" rx="1.6"/><rect x="31.4" y="17" width="4.6" height="14" rx="1.6"/>
+    </g>
+    <g fill="#C0221E">
+      <rect x="6" y="14" width="6" height="5" rx="2"/><rect x="36" y="14" width="6" height="5" rx="2"/>
+    </g>
+    <g fill="#4E545C" opacity=".8">
+      <rect x="7.4" y="20" width="3.2" height="8" rx="1"/><rect x="37.4" y="20" width="3.2" height="8" rx="1"/>
+    </g>
+  </g></svg>

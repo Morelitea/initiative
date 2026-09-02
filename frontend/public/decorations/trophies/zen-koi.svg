@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Koi</title>
+  <style>
+    .fin { animation: flick 2s ease-in-out infinite alternate;
+           transform-box: fill-box; transform-origin: 100% 50% }
+    @keyframes flick { from { transform: rotate(-9deg) } to { transform: rotate(9deg) } }
+    .ring { animation: spread 5s ease-out infinite;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    .r2 { animation-delay: -2.5s }
+    @keyframes spread { 0% { transform: scale(.2); opacity: .55 } 100% { transform: scale(1); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .fin, .ring { animation: none } }
+  </style>
+  <defs>
+    <radialGradient id="water" cx=".4" cy=".3" r=".8">
+      <stop offset="0%" stop-color="#3E7C82"/><stop offset="70%" stop-color="#225159"/>
+      <stop offset="100%" stop-color="#14343D"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="url(#water)"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#4E9AA2" stroke-width="2"/>
+  <g fill="none" stroke="#8FD3D8" stroke-width=".8" opacity=".35">
+    <path d="M8 15.6 C13 13.6 21 13.6 26 15.6"/>
+    <path d="M20 34.4 C25 36.4 33 36.4 38 34.4"/>
+  </g>
+  <g fill="none" stroke="#CFF0F2" stroke-width=".9">
+    <circle class="ring" cx="33" cy="15" r="7"/>
+    <circle class="ring r2" cx="15" cy="32" r="6"/>
+  </g>
+  <!-- The fish, seen from above the way you always see one. -->
+  <g transform="translate(24 25) rotate(-16)">
+    <g class="fin">
+      <path d="M-9 0 C-12.4 -4.6 -16.4 -6 -18.6 -4.6 C-16.6 -2.6 -16.6 2.6 -18.6 4.6
+               C-16.4 6 -12.4 4.6 -9 0 Z" fill="#F6F2E8" opacity=".92"/>
+    </g>
+    <ellipse cx="0" cy="0" rx="10.4" ry="4.6" fill="#F6F2E8"/>
+    <path d="M3 -4 C7.6 -4.4 9.8 -2.4 10.4 0 C9.8 2.4 7.6 4.4 3 4 Z" fill="#E2622A"/>
+    <ellipse cx="-3.6" cy="-1" rx="3.4" ry="2.1" fill="#E2622A"/>
+    <ellipse cx="-1" cy="2.2" rx="2" ry="1.2" fill="#1E1A16" opacity=".85"/>
+    <path d="M-1.2 -4.2 C-2.4 -6.6 -4.6 -7.8 -6.4 -7.2 C-5.2 -5.8 -4.6 -4.8 -4.4 -3.6 Z"
+          fill="#F6F2E8" opacity=".85"/>
+    <path d="M-1.2 4.2 C-2.4 6.6 -4.6 7.8 -6.4 7.2 C-5.2 5.8 -4.6 4.8 -4.4 3.6 Z"
+          fill="#F6F2E8" opacity=".7"/>
+    <circle cx="8.2" cy="-1.1" r=".8" fill="#1E1A16"/>
+    <path d="M-8 -3 C-5 -4.4 -1 -4.6 2 -3.8" fill="none" stroke="#FFFFFF" stroke-width=".8"
+          opacity=".45" stroke-linecap="round"/>
+  </g>
+</svg>

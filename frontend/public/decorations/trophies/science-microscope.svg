@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Microscope</title>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+  <path d="M10 40 L38 40 C39.2 40 40 40.8 40 42 L8 42 C8 40.8 8.8 40 10 40 Z" fill="#8FC7EE"/>
+  <path d="M14 36 L34 36 L36 40 L12 40 Z" fill="#2F6EA8"/>
+  <path d="M22 20 L26 20 L26 34 L22 34 Z" fill="#4A86BE"/>
+  <path d="M16 33 L32 33 L32 36 L16 36 Z" fill="#8FC7EE"/>
+  <ellipse cx="24" cy="32.4" rx="3.4" ry="1.2" fill="#CFE9FF"/>
+  <path d="M26 8 C31.4 8 34.6 11.4 34.6 16 C34.6 20 32 23 28.4 24" fill="none"
+        stroke="#8FC7EE" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M26.6 22.6 L31.4 22.6 L30 29 L28 29 Z" fill="#4A86BE"/>
+  <path d="M27.6 29 L30.4 29 L30 31.6 L28 31.6 Z" fill="#CFE9FF"/>
+  <circle cx="34.6" cy="10" r="3.4" fill="#CFE9FF"/>
+  <circle cx="34.6" cy="10" r="1.6" fill="#123055"/>
+  <path d="M13 22 C13 19 15 17 18 17 C21 17 23 19 23 22 L13 22 Z" fill="#4A86BE" opacity="0"/>
+  <g stroke="#8FC7EE" stroke-width="1.4" stroke-linecap="round">
+    <path d="M16 24 L20 24"/><path d="M16 27.6 L20 27.6"/>
+  </g></svg>

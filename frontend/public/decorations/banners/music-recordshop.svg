@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Record shop</title>
+  <!-- An hour in, three maybes, no decision. -->
+  <style>
+    .flip { animation: nudge 6s ease-in-out infinite alternate }
+    @keyframes nudge { from { transform: translateX(-1px) rotate(-1deg) } to { transform: translateX(1px) rotate(1deg) } }
+    .flip { transform-box: fill-box; transform-origin: 50% 100% }
+    @media (prefers-reduced-motion: reduce) { .flip { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="shop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#211A2E"/><stop offset="100%" stop-color="#3A2C42"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#shop)"/>
+  <!-- Sleeves pinned up on the back wall. -->
+  <g>
+    <rect x="8" y="4" width="13" height="13" rx=".6" fill="#F0567A"/>
+    <circle cx="14.5" cy="10.5" r="4" fill="#241A33"/>
+    <rect x="24" y="5" width="13" height="13" rx=".6" fill="#2F6EA8"/>
+    <path d="M26 15.4 L30 9 L34 15.4 Z" fill="#EAF8FF"/>
+    <rect x="40" y="4" width="13" height="13" rx=".6" fill="#E8B21C"/>
+    <g stroke="#241A33" stroke-width="1.2"><path d="M42.6 14 L50.4 14"/><path d="M42.6 11 L50.4 11"/></g>
+    <rect x="120" y="5" width="13" height="13" rx=".6" fill="#4EBE8A"/>
+    <circle cx="126.5" cy="11.5" r="3" fill="#241A33"/>
+    <rect x="136" y="4" width="13" height="13" rx=".6" fill="#B45AC8"/>
+    <path d="M138.6 14.6 L141.6 8 L144.6 12 L147 9 L147 14.6 Z" fill="#241A33"/>
+  </g>
+  <!-- The crates. -->
+  <path d="M0 24 L160 24 L160 40 L0 40 Z" fill="#4A3628"/>
+  <path d="M0 24 L160 24 L160 25.4 L0 25.4 Z" fill="#6B4E38"/>
+  <g>
+    <path d="M4 25.4 L52 25.4 L52 40 L4 40 Z" fill="#33241A"/>
+    <path d="M60 25.4 L108 25.4 L108 40 L60 40 Z" fill="#33241A"/>
+    <path d="M116 25.4 L156 25.4 L156 40 L116 40 Z" fill="#33241A"/>
+  </g>
+  <g>
+    <g transform="translate(6 26)">
+      <rect x="0" y="0" width="2.6" height="13" fill="#F0567A"/>
+      <rect x="3" y="0" width="2.6" height="13" fill="#2F6EA8"/>
+      <rect x="6" y="0" width="2.6" height="13" fill="#E8B21C"/>
+      <rect x="9" y="0" width="2.6" height="13" fill="#4EBE8A"/>
+      <rect x="12" y="0" width="2.6" height="13" fill="#B45AC8"/>
+      <rect x="15" y="0" width="2.6" height="13" fill="#F782A0"/>
+      <rect x="18" y="0" width="2.6" height="13" fill="#356070"/>
+      <rect x="21" y="0" width="2.6" height="13" fill="#C08A3E"/>
+      <rect x="24" y="0" width="2.6" height="13" fill="#8C3B34"/>
+      <rect x="27" y="0" width="2.6" height="13" fill="#4A6B3C"/>
+      <rect x="30" y="0" width="2.6" height="13" fill="#6B4A8C"/>
+      <rect x="33" y="0" width="2.6" height="13" fill="#E8B21C"/>
+      <rect x="36" y="0" width="2.6" height="13" fill="#2F6EA8"/>
+      <rect x="39" y="0" width="2.6" height="13" fill="#F0567A"/>
+      <rect x="42" y="0" width="2.6" height="13" fill="#4EBE8A"/>
+    </g>
+    <g transform="translate(62 26)">
+      <rect x="0" y="0" width="2.6" height="13" fill="#4EBE8A"/>
+      <rect x="3" y="0" width="2.6" height="13" fill="#C08A3E"/>
+      <rect x="6" y="0" width="2.6" height="13" fill="#6B4A8C"/>
+      <rect x="9" y="0" width="2.6" height="13" fill="#F0567A"/>
+      <rect x="12" y="0" width="2.6" height="13" fill="#356070"/>
+      <rect x="15" y="0" width="2.6" height="13" fill="#E8B21C"/>
+      <rect x="18" y="0" width="2.6" height="13" fill="#8C3B34"/>
+      <rect x="27" y="0" width="2.6" height="13" fill="#2F6EA8"/>
+      <rect x="30" y="0" width="2.6" height="13" fill="#F782A0"/>
+      <rect x="33" y="0" width="2.6" height="13" fill="#4A6B3C"/>
+      <rect x="36" y="0" width="2.6" height="13" fill="#B45AC8"/>
+      <rect x="39" y="0" width="2.6" height="13" fill="#E8B21C"/>
+      <rect x="42" y="0" width="2.6" height="13" fill="#356070"/>
+    </g>
+    <g transform="translate(118 26)">
+      <rect x="0" y="0" width="2.6" height="13" fill="#B45AC8"/>
+      <rect x="3" y="0" width="2.6" height="13" fill="#E8B21C"/>
+      <rect x="6" y="0" width="2.6" height="13" fill="#2F6EA8"/>
+      <rect x="9" y="0" width="2.6" height="13" fill="#F0567A"/>
+      <rect x="12" y="0" width="2.6" height="13" fill="#4EBE8A"/>
+      <rect x="15" y="0" width="2.6" height="13" fill="#8C3B34"/>
+      <rect x="18" y="0" width="2.6" height="13" fill="#C08A3E"/>
+      <rect x="21" y="0" width="2.6" height="13" fill="#356070"/>
+      <rect x="24" y="0" width="2.6" height="13" fill="#6B4A8C"/>
+      <rect x="27" y="0" width="2.6" height="13" fill="#F782A0"/>
+      <rect x="30" y="0" width="2.6" height="13" fill="#4A6B3C"/>
+      <rect x="33" y="0" width="2.6" height="13" fill="#E8B21C"/>
+    </g>
+  </g>
+  <!-- The one being looked at, tipped up out of the crate. -->
+  <g class="flip" transform="translate(84 26)">
+    <g transform="rotate(-10)">
+      <rect x="-7" y="-14" width="14" height="14" rx=".6" fill="#241A33"/>
+      <rect x="-6" y="-13" width="12" height="12" rx=".4" fill="#F0567A"/>
+      <circle cx="0" cy="-7" r="4.4" fill="#241A33"/>
+      <circle cx="0" cy="-7" r="1.4" fill="#F0567A"/>
+    </g>
+  </g>
+  <!-- Somebody flipping. -->
+  <g fill="#1A1224">
+    <ellipse cx="98" cy="30" rx="4.4" ry="8"/><circle cx="98" cy="19.6" r="3.4"/>
+    <path d="M94 24.6 C90 26 87 28 85.4 30.4 L88 32.6 C90 30.4 93 28.6 96 27.6 Z"/>
+  </g></svg>

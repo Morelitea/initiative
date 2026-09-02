@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Globe</title>
+  <circle cx="24" cy="24" r="23" fill="#1B2748"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#5A79B4" stroke-width="2"/>
+  <defs>
+    <radialGradient id="sea" cx=".35" cy=".3" r=".85">
+      <stop offset="0%" stop-color="#4E92D6"/><stop offset="70%" stop-color="#2A63A8"/>
+      <stop offset="100%" stop-color="#153E72"/>
+    </radialGradient>
+    <clipPath id="orb"><circle cx="24" cy="24" r="16"/></clipPath>
+  </defs>
+  <circle cx="24" cy="24" r="16" fill="url(#sea)"/>
+  <g clip-path="url(#orb)">
+    <g fill="#4C9E5A">
+      <path d="M9 14 C13 11.6 18 12 21 14.6 C23 16.4 22 19 19 19.6 C15 20.4 10.6 18.6 9 16 Z"/>
+      <path d="M14 24 C17 22.6 21 23.4 22.6 26 C24 28.4 22.6 32 20 34.4 C17.4 36.6 14 35.4 13 32
+               C12.2 29.2 12.4 26 14 24 Z"/>
+      <path d="M27 12.6 C31 11.4 35.6 12.6 37.4 15 C38.6 16.6 37.6 18.6 35 19.4
+               C31.4 20.4 27.6 19 26.6 16.6 C26 15 26 13.4 27 12.6 Z"/>
+      <path d="M28 24.6 C32 23.4 36.6 24.6 38 27 C39 28.8 37.6 31 34.6 31.6
+               C31 32.4 27.6 31 27 28.6 C26.6 27 27 25.4 28 24.6 Z"/>
+    </g>
+    <g fill="none" stroke="#C9DCF4" stroke-width=".7" opacity=".5">
+      <ellipse cx="24" cy="24" rx="16" ry="6"/><ellipse cx="24" cy="24" rx="16" ry="12"/>
+      <ellipse cx="24" cy="24" rx="6" ry="16"/><ellipse cx="24" cy="24" rx="12" ry="16"/>
+      <path d="M8 24 L40 24"/><path d="M24 8 L24 40"/>
+    </g>
+  </g>
+  <circle cx="24" cy="24" r="16" fill="none" stroke="#C9DCF4" stroke-width="1"/>
+  <path d="M13.4 15 C16 12 20 10.2 24 10" fill="none" stroke="#FFFFFF" stroke-width="1.6"
+        opacity=".4" stroke-linecap="round"/>
+</svg>

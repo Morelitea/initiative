@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Snake</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2A1C"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#5C8049" stroke-width="2"/>
+  <path d="M38 34 C32 36.4 24 36 19 33 C13.6 29.6 12 23.6 15 18.6 C17.4 14.6 22.6 13 27 14.6
+           C30.6 16 32.4 19.6 31.4 23 C30.6 25.8 28 27.4 25.4 26.8 C23.4 26.4 22.2 24.6 22.6 22.8"
+        fill="none" stroke="#5C8049" stroke-width="5.6" stroke-linecap="round"/>
+  <path d="M38 34 C32 36.4 24 36 19 33 C13.6 29.6 12 23.6 15 18.6 C17.4 14.6 22.6 13 27 14.6
+           C30.6 16 32.4 19.6 31.4 23 C30.6 25.8 28 27.4 25.4 26.8 C23.4 26.4 22.2 24.6 22.6 22.8"
+        fill="none" stroke="#7EA85E" stroke-width="2.6" stroke-linecap="round"/>
+  <g fill="#3E5C30">
+    <ellipse cx="17" cy="30.4" rx="1.5" ry="1"/><ellipse cx="14.6" cy="24.6" rx="1.5" ry="1"/>
+    <ellipse cx="17.6" cy="18.6" rx="1.5" ry="1"/><ellipse cx="24" cy="15.6" rx="1.5" ry="1"/>
+    <ellipse cx="29.6" cy="19.4" rx="1.4" ry="1"/><ellipse cx="26" cy="35.4" rx="1.5" ry="1"/>
+    <ellipse cx="33.4" cy="34.6" rx="1.5" ry="1"/>
+  </g>
+  <g transform="translate(22.6 22.8) rotate(96)">
+    <path d="M-3 0 C-3 -2.6 -1.4 -4 .8 -4 C3 -4 4.6 -2.6 4.6 0 C4.6 2.4 3 3.8 .8 3.8
+             C-1.4 3.8 -3 2.4 -3 0 Z" fill="#6E9455"/>
+    <circle cx="2.4" cy="-1.9" r="1.1" fill="#F2C230"/>
+    <circle cx="2.4" cy="1.9" r="1.1" fill="#F2C230"/>
+    <path d="M2.4 -2.6 L2.4 -1.2" stroke="#1E2A1C" stroke-width=".7"/>
+    <path d="M2.4 1.2 L2.4 2.6" stroke="#1E2A1C" stroke-width=".7"/>
+    <path d="M4.6 0 C6.6 -.4 8 0 8.6 .8 C7.6 1 6.4 1 4.6 .6 Z" fill="#C4302B"/>
+  </g></svg>

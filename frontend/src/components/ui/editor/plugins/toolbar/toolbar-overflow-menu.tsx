@@ -33,6 +33,7 @@ import {
   PaintBucketIcon,
   PaletteIcon,
   RemoveFormattingIcon,
+  SparklesIcon,
   StrikethroughIcon,
   SubscriptIcon,
   SuperscriptIcon,
@@ -59,9 +60,17 @@ import {
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";
 import { InsertImageDialog } from "@/components/ui/editor/plugins/images-plugin";
 import { InsertLayoutDialog } from "@/components/ui/editor/plugins/layout-plugin";
+import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
 import { InsertTableDialog } from "@/components/ui/editor/plugins/table-plugin";
 
-export function ToolbarOverflowMenu() {
+export function ToolbarOverflowMenu({
+  initiativeId = null,
+  supportsSmartChips = false,
+}: {
+  initiativeId?: number | null;
+  /** See `Plugins.supportsEntityMentions` — chips are offered where `#` is. */
+  supportsSmartChips?: boolean;
+}) {
   const { activeEditor, showModal } = useToolbarContext();
   const { t } = useTranslation("documents");
 
@@ -336,6 +345,22 @@ export function ToolbarOverflowMenu() {
             <ImageIcon className="mr-2 size-4" />
             {t("editor.image")}
           </DropdownMenuItem>
+          {supportsSmartChips && (
+            <DropdownMenuItem
+              onClick={() =>
+                showModal(t("smartChips.insert"), (onClose) => (
+                  <SmartChipInsertDialog
+                    initiativeId={initiativeId}
+                    activeEditor={activeEditor}
+                    onClose={onClose}
+                  />
+                ))
+              }
+            >
+              <SparklesIcon className="mr-2 size-4" />
+              {t("smartChips.insert")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() =>
               showModal(t("editor.insertTable"), (onClose) => (

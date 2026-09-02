@@ -34,7 +34,7 @@ class UserDecoration(SQLModel, table=True):
     )
     #: The catalog id — ``core.aurora``, or whatever a pack published.
     decoration_id: str = Field(sa_column=Column(String(64), primary_key=True))
-    #: Which slot it goes in: banner, frame or badge. Recorded on the grant
+    #: Which slot it goes in: banner, frame or trophy. Recorded on the grant
     #: rather than looked up, because the catalog that defines a pack's
     #: decorations is the pack's, and it may be gone by the time this is read.
     kind: str = Field(sa_column=Column(String(16), nullable=False))

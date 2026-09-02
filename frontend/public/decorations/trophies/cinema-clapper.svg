@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Clapperboard</title>
+  <style>
+    .clap { animation: snap 3.4s ease-in-out infinite;
+            transform-box: fill-box; transform-origin: 6% 92% }
+    @keyframes snap {
+      0%,55% { transform: rotate(-24deg) }
+      64%,100% { transform: rotate(0deg) }
+    }
+    @media (prefers-reduced-motion: reduce) { .clap { animation: none; transform: rotate(-14deg) } }
+  </style>
+  <circle cx="24" cy="24" r="23" fill="#140F1E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#3E3650" stroke-width="2"/>
+  <!-- The slate. -->
+  <g transform="rotate(-7 24 28)">
+    <path d="M8.6 22 L39.4 22 C40.2 22 40.8 22.6 40.8 23.4 L40.8 37.6 C40.8 38.4 40.2 39 39.4 39
+             L8.6 39 C7.8 39 7.2 38.4 7.2 37.6 L7.2 23.4 C7.2 22.6 7.8 22 8.6 22 Z"
+          fill="#22202E"/>
+    <g stroke="#4A4660" stroke-width=".6" fill="none">
+      <path d="M9.4 27 L38.6 27"/><path d="M9.4 31 L38.6 31"/><path d="M9.4 35 L38.6 35"/>
+      <path d="M20 23 L20 38"/><path d="M28 23 L28 38"/>
+    </g>
+    <g fill="#EDE9F2">
+      <path d="M10.6 24.4 L17 24.4 L17 25.6 L10.6 25.6 Z" opacity=".8"/>
+      <path d="M21 28.6 L26 28.6 L26 29.6 L21 29.6 Z" opacity=".6"/>
+      <path d="M10.6 32.6 L18.6 32.6 L18.6 33.6 L10.6 33.6 Z" opacity=".6"/>
+      <path d="M30 36.4 L37 36.4 L37 37.4 L30 37.4 Z" opacity=".5"/>
+    </g>
+  </g>
+  <!-- The stick. -->
+  <g class="clap">
+    <g transform="rotate(-7 24 28)">
+      <path d="M7.2 15.2 L39.4 15.2 C40.2 15.2 40.8 15.8 40.8 16.6 L40.8 20.6
+               C40.8 21.4 40.2 22 39.4 22 L8.6 22 C7.8 22 7.2 21.4 7.2 20.6 Z" fill="#1A1826"/>
+      <g fill="#EDE9F2">
+        <path d="M9 15.2 L14 15.2 L11.4 22 L7.2 22 L7.2 20.6 Z"/>
+        <path d="M19 15.2 L24 15.2 L21.4 22 L16.4 22 Z"/>
+        <path d="M29 15.2 L34 15.2 L31.4 22 L26.4 22 Z"/>
+        <path d="M39 15.2 L39.4 15.2 C40.2 15.2 40.8 15.8 40.8 16.6 L40.8 20.6
+                 C40.8 21.4 40.2 22 39.4 22 L36.4 22 Z"/>
+      </g>
+    </g>
+  </g>
+</svg>

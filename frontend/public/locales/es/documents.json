@@ -3,16 +3,6 @@
     "title_one": "Enlazado desde {{count}} documento",
     "title_other": "Enlazado desde {{count}} documentos"
   },
-  "badges": {
-    "counterValue": "Valor del contador",
-    "eventWhen": "Fecha del evento",
-    "none": "Ninguno",
-    "searchPlaceholder": "Busca algo que mostrar",
-    "taskAssignee": "Persona asignada",
-    "taskDue": "Fecha de vencimiento",
-    "taskPriority": "Prioridad",
-    "taskStatus": "Estado de la tarea"
-  },
   "bulk": {
     "delete": "Eliminar",
     "deleteConfirm_one": "¿Eliminar {{count}} documento?",
@@ -394,6 +384,27 @@
     "title": "Panel del documento",
     "commentsTab": "Comentarios",
     "summaryTab": "Resumen"
+  },
+  "smartChips": {
+    "aspects": {
+      "assignee": "Persona asignada",
+      "due": "Fecha de vencimiento",
+      "priority": "Prioridad",
+      "status": "Estado",
+      "value": "Valor",
+      "when": "Fecha"
+    },
+    "counterValue": "Valor del contador",
+    "eventWhen": "Fecha del evento",
+    "insert": "Chip inteligente",
+    "none": "Ninguno",
+    "openHint": "Haz clic para abrir",
+    "searchPlaceholder": "Busca algo que mostrar",
+    "taskAssignee": "Persona asignada",
+    "taskDue": "Fecha de vencimiento",
+    "taskPriority": "Prioridad",
+    "taskStatus": "Estado de la tarea",
+    "whichFact": "¿Qué dato debe mostrar el chip?"
   },
   "smartLink": {
     "missingUrl": "Este enlace inteligente no tiene URL.",

@@ -8,8 +8,8 @@
   "long_description": "A ridge under stars with the dome already open, and an atom whose electrons keep their own periods. The frame is a shell diagram and the badge is a flask, mid-experiment.",
   "avatar_url": "/decorations/banners/science-observatory.svg",
   "images": [],
-  "version": "1.0.0",
-  "release_notes": "First release.",
+  "version": "1.1.0",
+  "release_notes": "More in the pack.",
   "definition": {
     "schema_version": 1,
     "kind": "profile_pack",
@@ -26,8 +26,53 @@
       },
       {
         "id": "science.flask",
-        "slot": "badge",
+        "slot": "trophy",
         "name": "Flask"
+      },
+      {
+        "id": "science.lab",
+        "slot": "banner",
+        "name": "Lab bench"
+      },
+      {
+        "id": "science.helix",
+        "slot": "frame",
+        "name": "Helix"
+      },
+      {
+        "id": "science.dna",
+        "slot": "trophy",
+        "name": "DNA"
+      },
+      {
+        "id": "science.microscope",
+        "slot": "trophy",
+        "name": "Microscope"
+      },
+      {
+        "id": "science.benzene",
+        "slot": "trophy",
+        "name": "Benzene"
+      },
+      {
+        "id": "science.ammonite",
+        "slot": "trophy",
+        "name": "Ammonite"
+      },
+      {
+        "id": "science.hammer",
+        "slot": "trophy",
+        "name": "Rock hammer"
+      },
+      {
+        "id": "science.dividers",
+        "slot": "trophy",
+        "name": "Dividers"
+      },
+      {
+        "id": "science.magnet",
+        "slot": "trophy",
+        "name": "Magnet"
       }
     ]
   }

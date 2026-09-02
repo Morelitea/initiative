@@ -935,3 +935,12 @@ class BillingMessages:
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
     PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"
+
+
+class ContactMessages:
+    """My Contacts — the starred list on the personal page."""
+
+    #: No account with that id that this reader may be shown. Suspended and
+    #: anonymized accounts answer the same way.
+    USER_NOT_FOUND = "CONTACT_USER_NOT_FOUND"
+    CANNOT_FAVORITE_SELF = "CONTACT_CANNOT_FAVORITE_SELF"

@@ -23,6 +23,7 @@ from app.models.platform.user import Presence, User, UserStatus
 from app.core.profile_decorations import SHIPPED_DECORATIONS
 from app.core.usernames import url_handle
 from app.models.platform.user_decoration import UserDecoration
+from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
@@ -1174,7 +1175,7 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
         full_name="Tinker Bell",
         avatar_url="https://example.com/tinker.png",
         custom_status={"emoji": "\N{GAME DIE}", "text": "rolling for initiative"},
-        profile_decorations={"banner": "core.aurora", "badges": ["core.fan"]},
+        profile_decorations={"banner": "core.aurora", "trophies": ["core.fan"]},
     )
 
     response = await client.get(
@@ -1193,8 +1194,9 @@ async def test_profile_carries_the_basics(client: AsyncClient, session: AsyncSes
     }
     assert body["profile_decorations"] == {
         "banner": "core.aurora",
+        "frame_tint": [],
         "frame": None,
-        "badges": ["core.fan"],
+        "trophies": ["core.fan"],
     }
     assert body["presence"] == "offline"
     assert body["joined_at"]
@@ -1519,6 +1521,31 @@ async def test_custom_status_round_trips_as_one_object(
 
 
 @pytest.mark.integration
+async def test_custom_status_holds_the_line_to_its_length(
+    client: AsyncClient, session: AsyncSession
+):
+    """A status is a line, so the longest one it takes is a short one."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    at_the_bound = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"custom_status": {"text": "x" * STATUS_TEXT_MAX_LENGTH}},
+    )
+
+    assert at_the_bound.status_code == 200
+
+    over_it = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"custom_status": {"text": "x" * (STATUS_TEXT_MAX_LENGTH + 1)}},
+    )
+
+    assert over_it.status_code == 422
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "payload",
     [
@@ -1526,14 +1553,14 @@ async def test_custom_status_round_trips_as_one_object(
         {"custom_status": {"mood": "chipper"}},
         {"profile_decorations": {"banner": "../../etc/passwd"}},
         {"profile_decorations": {"hat": "core.aurora"}},
-        {"profile_decorations": {"badges": ["a", "b", "c", "d", "e", "f", "g"]}},
+        {"profile_decorations": {"trophies": ["a", "b", "c", "d", "e", "f", "g"]}},
     ],
 )
 async def test_profile_writes_reject_a_shape_that_is_not_the_shape(
     client: AsyncClient, session: AsyncSession, payload: dict
 ):
     """Text where an emoji goes, a key nothing wears, a path where an id goes,
-    and more badges than a profile has room for."""
+    and more trophies than a profile has room for."""
     user = await create_user(session)
 
     response = await client.patch(
@@ -1559,7 +1586,7 @@ async def test_library_lists_what_ships_with_the_app(
     items = response.json()["items"]
     assert {item["id"] for item in items} == set(SHIPPED_DECORATIONS)
     assert all(item["source"] is None for item in items)
-    assert {item["kind"] for item in items} == {"banner", "frame", "badge"}
+    assert {item["kind"] for item in items} == {"banner", "frame", "trophy"}
 
 
 @pytest.mark.integration
@@ -1670,7 +1697,7 @@ async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSe
             "profile_decorations": {
                 "banner": "pack.midnight",
                 "frame": "core.gold",
-                "badges": ["core.fan", "core.fan"],
+                "trophies": ["core.fan", "core.fan"],
             }
         },
     )
@@ -1679,9 +1706,145 @@ async def test_wearing_what_a_pack_granted(client: AsyncClient, session: AsyncSe
     assert response.json()["profile_decorations"] == {
         "banner": "pack.midnight",
         "frame": "core.gold",
-        # The same badge twice is a duplicate, not a second badge.
-        "badges": ["core.fan"],
+        "frame_tint": [],
+        # The same trophy twice is a duplicate, not a second trophy.
+        "trophies": ["core.fan"],
     }
+
+
+@pytest.mark.integration
+async def test_a_frame_that_takes_a_colour_keeps_the_one_it_was_given(
+    client: AsyncClient, session: AsyncSession
+):
+    """The colours a wearer picks are stored beside the frame they picked them
+    for, and a frame that takes one never keeps two."""
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={
+            "profile_decorations": {
+                "frame": "core.split",
+                "frame_tint": ["#1B5E32", "#F2C230"],
+            }
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["profile_decorations"]["frame_tint"] == [
+        "#1b5e32",
+        "#f2c230",
+    ]
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={
+            "profile_decorations": {
+                "frame": "core.gold",
+                "frame_tint": ["#AA0011", "#223344"],
+            }
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["profile_decorations"]["frame_tint"] == ["#aa0011"]
+
+
+@pytest.mark.integration
+async def test_a_frame_that_takes_no_colour_is_stored_without_one(
+    client: AsyncClient, session: AsyncSession
+):
+    """A colour on a frame that cannot take one is state nothing reads and
+    nothing clears, so it is not kept. Every frame that ships takes one, so the
+    frame under test is one a pack granted."""
+    user = await create_user(session)
+    session.add(
+        UserDecoration(
+            user_id=user.id,
+            decoration_id="pack.ironwork",
+            kind="frame",
+            source="studio.ironwork-pack",
+        )
+    )
+    await session.commit()
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={
+            "profile_decorations": {
+                "frame": "pack.ironwork",
+                "frame_tint": ["#AA0011"],
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["profile_decorations"]["frame_tint"] == []
+
+
+@pytest.mark.integration
+async def test_a_colour_that_is_not_a_colour_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session)
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        headers=get_auth_headers(user),
+        json={"profile_decorations": {"frame": "core.gold", "frame_tint": ["puce"]}},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_a_pack_that_grew_gives_the_new_piece_to_whoever_has_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """A pack is not frozen at the moment it was installed: what it carries is
+    the catalog's answer, and a piece added in a later version is in the library
+    on the next read rather than only for whoever installs it after today."""
+    user = await create_user(session)
+    listing = await create_profile_pack(
+        session, uid="PACKGREW000001", public_id="studio.grew", slug="grew"
+    )
+    pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
+    await profile_decorations_service.install_pack(session, user_id=user.id, pack=pack)
+
+    # The pack publishes a version with one more piece in it.
+    await marketplace_catalog.upsert_listing(
+        session,
+        {
+            "uid": listing.uid,
+            "public_id": listing.public_id,
+            "kind": "profile_pack",
+            "name": listing.name,
+            "publisher": "Studio",
+            "description": listing.description,
+            "version": "2.0.0",
+            "definition": {
+                "schema_version": 1,
+                "kind": "profile_pack",
+                "decorations": [
+                    {"id": "grew.banner", "slot": "banner", "name": "A banner"},
+                    {"id": "grew.frame", "slot": "frame", "name": "A frame"},
+                    {"id": "grew.trophy", "slot": "trophy", "name": "A trophy"},
+                    {"id": "grew.later", "slot": "trophy", "name": "Added later"},
+                ],
+            },
+        },
+        source="builtin",
+    )
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me/decorations", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+    held = {item["id"] for item in response.json()["items"]}
+    assert "grew.later" in held
 
 
 @pytest.mark.integration
@@ -1763,7 +1926,7 @@ async def test_decoration_packs_list_the_store(
     assert {content["kind"] for content in entry["contents"]} == {
         "banner",
         "frame",
-        "badge",
+        "trophy",
     }
     assert all(content["source"] == listing.uid for content in entry["contents"])
 
@@ -1788,7 +1951,7 @@ async def test_the_shipped_packs_are_on_the_shelf(
 
     assert response.status_code == 200
     shipped = {item["public_id"] for item in response.json()["items"]}
-    assert {"core.tabletop", "core.soundcheck", "core.observatory"} <= shipped
+    assert {"core.gaming", "core.soundcheck", "core.observatory"} <= shipped
 
 
 @pytest.mark.integration
@@ -1809,9 +1972,9 @@ async def test_installing_a_pack_puts_it_in_the_library(
 
     library = await client.get("/api/v1/users/me/decorations", headers=headers)
     owned = {item["id"]: item for item in library.json()["items"]}
-    assert owned["tt.badge"]["kind"] == "badge"
+    assert owned["tt.trophy"]["kind"] == "trophy"
     # The grant records the listing uid — the one name for this pack anywhere.
-    assert owned["tt.badge"]["source"] == listing.uid
+    assert owned["tt.trophy"]["source"] == listing.uid
 
     listed = await client.get("/api/v1/users/me/decoration-packs", headers=headers)
     installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
@@ -1856,13 +2019,13 @@ async def test_a_pack_you_have_is_wearable(client: AsyncClient, session: AsyncSe
             "profile_decorations": {
                 "banner": "tt.banner",
                 "frame": "tt.frame",
-                "badges": ["tt.badge"],
+                "trophies": ["tt.trophy"],
             }
         },
     )
 
     assert response.status_code == 200
-    assert response.json()["profile_decorations"]["badges"] == ["tt.badge"]
+    assert response.json()["profile_decorations"]["trophies"] == ["tt.trophy"]
 
 
 @pytest.mark.integration
@@ -1876,7 +2039,7 @@ async def test_a_pack_you_do_not_have_is_not_wearable(
     response = await client.patch(
         "/api/v1/users/me",
         headers=get_auth_headers(user),
-        json={"profile_decorations": {"badges": ["tt.badge"]}},
+        json={"profile_decorations": {"trophies": ["tt.trophy"]}},
     )
 
     assert response.status_code == 422
@@ -1906,7 +2069,7 @@ async def test_removing_a_pack_takes_off_what_was_worn(
             "profile_decorations": {
                 "banner": "tt.banner",
                 "frame": "mu.frame",
-                "badges": ["tt.badge", "mu.badge"],
+                "trophies": ["tt.trophy", "mu.trophy"],
             }
         },
     )
@@ -1923,10 +2086,10 @@ async def test_removing_a_pack_takes_off_what_was_worn(
     # The tabletop pieces came off; the other pack's stayed on.
     assert worn["banner"] is None
     assert worn["frame"] == "mu.frame"
-    assert worn["badges"] == ["mu.badge"]
+    assert worn["trophies"] == ["mu.trophy"]
 
     library = await client.get("/api/v1/users/me/decorations", headers=headers)
-    assert "tt.badge" not in {item["id"] for item in library.json()["items"]}
+    assert "tt.trophy" not in {item["id"] for item in library.json()["items"]}
 
 
 @pytest.mark.integration
@@ -1950,7 +2113,7 @@ async def test_removing_a_pack_leaves_someone_elses_library_alone(
     library = await client.get(
         "/api/v1/users/me/decorations", headers=get_auth_headers(other)
     )
-    assert "tt.badge" in {item["id"] for item in library.json()["items"]}
+    assert "tt.trophy" in {item["id"] for item in library.json()["items"]}
 
 
 @pytest.mark.integration
@@ -2040,7 +2203,7 @@ async def test_giving_a_pack_back_is_all_or_nothing(session: AsyncSession):
     user.profile_decorations = {
         "banner": "tt.banner",
         "frame": None,
-        "badges": ["tt.badge"],
+        "trophies": ["tt.trophy"],
     }
     session.add(user)
     await session.commit()
@@ -2078,7 +2241,7 @@ async def test_giving_a_pack_back_reads_what_is_worn_now(session: AsyncSession):
     await profile_decorations_service.install_pack(
         session, user_id=user_id, pack=music_pack
     )
-    user.profile_decorations = {"banner": "tt.banner", "frame": None, "badges": []}
+    user.profile_decorations = {"banner": "tt.banner", "frame": None, "trophies": []}
     session.add(user)
     await session.commit()
 
@@ -2090,7 +2253,7 @@ async def test_giving_a_pack_back_reads_what_is_worn_now(session: AsyncSession):
             profile_decorations={
                 "banner": "mu.banner",
                 "frame": "tt.frame",
-                "badges": ["mu.badge"],
+                "trophies": ["mu.trophy"],
             }
         )
     )
@@ -2103,7 +2266,7 @@ async def test_giving_a_pack_back_reads_what_is_worn_now(session: AsyncSession):
     # The newer choice survived; only the given-back pack's piece came off.
     assert fresh.profile_decorations["banner"] == "mu.banner"
     assert fresh.profile_decorations["frame"] is None
-    assert fresh.profile_decorations["badges"] == ["mu.badge"]
+    assert fresh.profile_decorations["trophies"] == ["mu.trophy"]
 
 
 @pytest.mark.integration
@@ -2120,13 +2283,13 @@ async def test_giving_back_an_older_pack_undresses_what_it_gave(session: AsyncSe
     listing = await create_profile_pack(session, uid="PACKTABTP00001", slug="tt")
     pack = await profile_decorations_service.pack_by_uid(session, listing.uid)
     await profile_decorations_service.install_pack(session, user_id=user_id, pack=pack)
-    user.profile_decorations = {"banner": "tt.banner", "frame": None, "badges": []}
+    user.profile_decorations = {"banner": "tt.banner", "frame": None, "trophies": []}
     session.add(user)
     await session.commit()
 
     # The pack publishes again without the banner it had granted.
     thinner = profile_decorations_service.Pack(
-        listing=pack.listing, decorations={"tt.frame": "frame", "tt.badge": "badge"}
+        listing=pack.listing, decorations={"tt.frame": "frame", "tt.trophy": "trophy"}
     )
     await profile_decorations_service.remove_pack(
         session, user_id=user_id, pack=thinner
@@ -2171,7 +2334,7 @@ async def test_giving_a_pack_back_keeps_what_ships_with_the_app(
     user.profile_decorations = {
         "banner": "sh.banner",
         "frame": "core.gold",
-        "badges": [],
+        "trophies": [],
     }
     session.add(user)
     await session.commit()
@@ -2206,7 +2369,7 @@ async def test_a_pack_claiming_another_packs_decoration_is_refused(
             "schema_version": 1,
             "kind": "profile_pack",
             "decorations": [
-                {"id": "tt.badge", "slot": "badge", "name": "Also a badge"}
+                {"id": "tt.trophy", "slot": "trophy", "name": "Also a trophy"}
             ],
         },
     )
@@ -2222,7 +2385,7 @@ async def test_a_pack_claiming_another_packs_decoration_is_refused(
     # And the first pack's grant is untouched, still attributed to it.
     library = await client.get("/api/v1/users/me/decorations", headers=headers)
     owned = {item["id"]: item for item in library.json()["items"]}
-    assert owned["tt.badge"]["source"] == first.uid
+    assert owned["tt.trophy"]["source"] == first.uid
 
     listed = await client.get("/api/v1/users/me/decoration-packs", headers=headers)
     installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}

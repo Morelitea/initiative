@@ -1182,7 +1182,7 @@ async def create_profile_pack(
             "decorations": [
                 {"id": f"{slug}.banner", "slot": "banner", "name": "A banner"},
                 {"id": f"{slug}.frame", "slot": "frame", "name": "A frame"},
-                {"id": f"{slug}.badge", "slot": "badge", "name": "A badge"},
+                {"id": f"{slug}.trophy", "slot": "trophy", "name": "A trophy"},
             ],
         },
         commit=commit,

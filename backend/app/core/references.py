@@ -1,8 +1,8 @@
 """What can be referred to, and how a reference is written down.
 
 A reference names one thing: ``task:12``. Everything that points at work is
-built on it — a `#` link, a `[[ ]]` link, an `@` mention, and the badges that
-add a fact about the thing on top.
+built on it — a `#` link, a `[[ ]]` link, an `@` mention, and the smart chips
+that add a fact about the thing on top.
 
 This module owns the vocabulary because it belongs to all of those shapes and
 to none of them in particular. What a reference RESOLVES to — the column
@@ -25,7 +25,7 @@ REF_SEPARATOR = ":"
 NOT_REFERENCEABLE: frozenset[SearchEntityType] = frozenset({SearchEntityType.comment})
 
 #: Everything a reference can name. Derived, so a tool added to ``Tool`` can be
-#: linked, mentioned and badged without an edit here.
+#: linked, mentioned and chipped without an edit here.
 REFERENCEABLE_TYPES: tuple[SearchEntityType, ...] = tuple(
     entity_type
     for entity_type in SearchEntityType
