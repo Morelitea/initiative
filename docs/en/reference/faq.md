@@ -108,7 +108,15 @@ It isn't meant to. The cross-community lists — My Projects, My Documents, My C
 
 ### Where is my data stored?
 
-Wherever your server runs — Initiative is self-hosted, so your group controls the location. See [Data & compliance](../security/data-and-compliance.md).
+If you host Initiative yourself, wherever your server runs — your group controls the location. If we host it for you, where our service runs. Either way it stays yours: communities own their content, and people own their account and their messages. See [Data & compliance](../security/data-and-compliance.md).
+
+### Can a community admin read my direct messages?
+
+No. Messages are end-to-end encrypted, so they can be read on the devices in the conversation and nowhere else — not by a community admin, not by whoever runs the server, and not by us. They're also not part of a community, so they don't appear in its exports or search. See [Private messages](../security/private-messages.md).
+
+### Why don't my messages appear on my new phone?
+
+Because there's no copy on the server for it to catch up from — that's what end-to-end encryption costs. Each device keeps its own history from the moment it joined a conversation, and signing out takes that device's copy with it. See [Your messages live on your devices](../guides/messages.md#your-messages-live-on-your-devices).
 
 ### Can I get my data out?
 

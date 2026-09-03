@@ -10,6 +10,7 @@ The short answer: Initiative is built so that the only people who see something 
 
 - **This page** explains what security means for *you*, as someone using Initiative day to day.
 - **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, administrators, and anyone evaluating Initiative.
+- **[Private messages](private-messages.md)** explains what end-to-end encryption covers, and what could and could not be handed over if somebody asked.
 - **[Data & compliance](data-and-compliance.md)** covers data ownership, encryption, your data rights, and what compliance posture you can expect.
 - **[Reporting a problem](reporting-a-problem.md)** is how to responsibly report a security concern.
 
@@ -36,6 +37,12 @@ This is the layer most groups rely on day to day, and it needs no configuration:
 ### Sensitive information is encrypted
 
 Behind the scenes, the most sensitive pieces of stored data — things like saved API keys and email addresses — are **encrypted at rest**, so they're not readable even to someone who somehow got hold of the raw database files. More in [Data & compliance](data-and-compliance.md).
+
+### Your private messages are only yours
+
+Direct messages are **end-to-end encrypted**: written on your device, read on theirs, and unreadable everywhere in between. A community admin can't read them, whoever runs the server can't read them, and neither can we — not as a policy, but because no key to them exists outside the two devices talking.
+
+The trade is that your history lives on your devices rather than on a server, so a new device starts from when it arrived and signing out takes that device's copy with it. See [Private messages](private-messages.md).
 
 ### You stay in control of your account
 

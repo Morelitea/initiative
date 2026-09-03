@@ -61,6 +61,7 @@ nav = [
     "en/guides/apps-and-marketplace.md",
     "en/guides/tags.md",
     "en/guides/your-space.md",
+    "en/guides/messages.md",
     "en/guides/search-and-shortcuts.md",
     "en/guides/mentions-and-links.md",
     "en/guides/notifications.md",
@@ -73,6 +74,7 @@ nav = [
   { "Security & privacy" = [
     "en/security/index.md",
     "en/security/how-your-data-is-kept-separate.md",
+    "en/security/private-messages.md",
     "en/security/data-and-compliance.md",
     "en/security/reporting-a-problem.md",
   ] },

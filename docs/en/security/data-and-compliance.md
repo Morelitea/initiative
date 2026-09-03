@@ -6,21 +6,41 @@ icon: lucide/scale
 
 This page explains who owns your data, where it lives, the rights you have over it, and — honestly — what compliance posture you can and can't expect. It's written for the people who have to answer these questions for their organization, but the first part is for everyone.
 
-## Who owns your data
+## Two ways to run Initiative
 
-**You do.** Initiative is **self-hosted**, which means it runs on hardware your group controls (or a host your group chooses). Your projects, documents, and files live in *your* database and *your* file storage. There's no central company sitting in the middle with a copy.
+Initiative is one product you can get in two ways, and the difference shows up mostly in who does the operational work:
 
-That's a genuine privacy advantage — and it comes with a responsibility: because you hold the data, you (or whoever administers your server) are responsible for backing it up and looking after it. See [Backups & updates](../admin/backups-and-updates.md).
+- **You host it yourself.** Initiative is open source and runs on hardware your group controls, or a host your group chooses. Everything below is true of it — you just hold the machine as well.
+- **We host it for you** *(coming soon)*. You sign up and start; keeping the service running, backed up, and up to date is ours to do.
+
+Both are the same software, with the same protections — nothing is held back from the version you run yourself. Where a section below depends on which you chose, it says so.
+
+## Who owns what
+
+The rule is a simple one: **communities own community data, and people own their own.** In practice that means:
+
+- **A community's content belongs to the community.** Its projects, tasks, documents, and files are the group's, and its admins act for the group — they decide who may see what, what gets exported, and what gets deleted. Writing a task doesn't make it privately yours any more than minuting a meeting makes the minutes yours.
+- **Your account is yours.** Your profile, your picture, your preferences, your handle and email address — yours across every community you're in, and yours to take with you or delete.
+- **Your messages are yours and the other person's**, and nobody else's. Not the community's, not an admin's, not ours. See [Private messages](private-messages.md).
+
+None of it is ours. We don't sell it, we don't mine it, and it isn't training data.
+
+If you host Initiative yourself, all of it sits in *your* database and *your* file storage, and backing it up is your job too. See [Backups & updates](../admin/backups-and-updates.md).
+
+If we host it, we hold it **on behalf of the people it belongs to**, and the tools stay in their hands: export it whenever you like, delete it whenever you like, take it elsewhere. The export formats below are ordinary files, not something only we can open.
 
 ## Where your data lives (data residency)
 
-Your data lives wherever your server runs. If that's a computer in your office, your data is in your office. If it's a cloud server in a particular country, your data is in that country. **You choose** — which makes meeting data-residency requirements a matter of where you deploy, not something you have to negotiate with a vendor.
+If you host Initiative yourself, your data lives wherever your server runs. If that's a computer in your office, your data is in your office; if it's a cloud server in a particular country, your data is in that country. **You choose** — which makes meeting data-residency requirements a matter of where you deploy, not something to negotiate with a vendor.
+
+If we host it, your data lives where our service runs. For a group with a residency requirement it can't meet, self-hosting is always there — it's the same software, and there is no feature held back from it.
 
 ## How your data is protected
 
-- **In transit:** run behind HTTPS and all traffic between browsers and the server is encrypted.
+- **In transit:** traffic between browsers and the server is encrypted over HTTPS.
 - **At rest:** the most sensitive stored fields — saved AI keys, single-sign-on secrets, email-server passwords, and email addresses — are encrypted in the database.
-- **Access control:** everything is gated by the [six-layer model](how-your-data-is-kept-separate.md) and enforced in the database.
+- **End-to-end, for direct messages:** private messages are encrypted on the sending device and decrypted on the receiving one. Nobody in between can read them, including us and including an administrator of the server they passed through. See [Private messages](private-messages.md).
+- **Access control:** everything else is gated by the [six-layer model](how-your-data-is-kept-separate.md) and enforced in the database.
 
 ## Your data rights
 
@@ -56,29 +76,48 @@ If you answer that you are not old enough, that answer is kept — again, the fa
 
 Administrators of a deployment where every account is known to belong to an adult can switch the question off entirely, under **Settings › Admin › Community**.
 
+## What could be handed over
+
+A question worth answering before you have to ask it: if somebody with legal authority demanded your group's data, what exists to give them?
+
+**On a server you run**, the answer is between you and them — nobody else holds a copy to be asked for.
+
+**On a server we run**, we answer lawful requests, and what we can produce is limited to what actually exists:
+
+| Asked for | What exists |
+|---|---|
+| Projects, tasks, documents, files | Held on your behalf, and readable. This is your working data. |
+| The content of direct messages | **Nothing.** They are end-to-end encrypted; no key to them exists outside the devices in the conversation. |
+| That two people have a conversation, and when | The fact and the timing. Encryption hides what was said, not that anyone spoke. |
+| Account details | Handle, email address, and account timestamps. |
+
+The messages row is not a policy we could revise under pressure — there is nothing stored that we are able to read. See [Private messages](private-messages.md).
+
 ## What compliance can you expect?
 
 Here's the honest, useful answer.
 
 !!! info "Initiative gives you the building blocks; your deployment determines your compliance."
-    Because Initiative is self-hosted, **your organization is the data controller**. Initiative provides the technical features that support a strong compliance posture, but a certification or legal compliance status always depends on *how you deploy and operate it* — your hosting, your backups, your policies, your access governance.
+    Initiative provides the technical features that support a strong compliance posture. A certification or a legal compliance status, though, always attaches to an **organization and its operations** — so part of the answer is ours and part of it is yours, and which part depends on who runs the server.
 
-**What Initiative provides toward compliance:**
+**What Initiative provides, either way:**
 
 - **Strong tenant isolation** enforced in the database (see [How your data is kept separate](how-your-data-is-kept-separate.md)).
 - **Least-privilege database roles** and no standing all-tenant bypass.
-- **Encryption** of sensitive data at rest, and HTTPS in transit.
+- **Encryption** of sensitive data at rest, HTTPS in transit, and end-to-end encryption for direct messages.
 - **Granular access control** (community, initiative, role, and per-item sharing).
 - **Audited, time-bound privileged access** instead of permanent back doors.
 - **Data export and erasure** tools that support data-subject requests.
 - **Configurable retention** for deleted content.
 - **Single sign-on (OIDC)** so you can centralize identity, password policy, and account de-provisioning in your existing identity provider.
 
-**What depends on you, the operator:**
+**If you host it yourself**, the operational half is yours:
 
-- **Data-protection regulations (such as GDPR/CCPA):** Initiative supports the technical side (export, erasure, access control, residency by choice of host), but lawful processing, consent, records, and data-processing agreements are organizational responsibilities. There's no third-party processor to sign an agreement with — *you* run it.
-- **Formal certifications (such as SOC 2, ISO 27001, HIPAA):** these certify an *organization and its operations*, not just software. Initiative can be a component of a compliant system, but the certification is achieved by your hosting and processes — encryption keys, backups, monitoring, physical security, staff access, and so on.
+- **Data-protection regulations (such as GDPR/CCPA):** your organization is the data controller. Initiative supports the technical side — export, erasure, access control, residency by choice of host — while lawful processing, consent, and records are organizational responsibilities. There is no third-party processor to sign an agreement with; *you* run it.
+- **Formal certifications (such as SOC 2, ISO 27001, HIPAA):** achieved by your hosting and processes — key management, backups, monitoring, physical security, staff access.
 - **Backups, disaster recovery, monitoring, and patching:** yours to run. See the [administrator guide](../admin/index.md).
+
+**If we host it**, the operational half is ours: running the service, backing it up, keeping it patched and current. What stays with you is what always stays with the organization using a tool — deciding what you collect, why you're allowed to, who in your group may see it, and answering the requests your own members make of you. Regulated data is worth a conversation before you commit to it rather than after.
 
 !!! warning "No legal advice"
     This page describes capabilities, not a legal compliance guarantee. For regulated data, review your specific obligations with a qualified professional and document how your deployment meets them.
@@ -98,5 +137,6 @@ If compliance matters to your group, make sure you:
 ## Related
 
 - [How your data is kept separate](how-your-data-is-kept-separate.md) — the technical isolation model.
-- [Backups & updates](../admin/backups-and-updates.md) — your operational responsibilities.
+- [Private messages](private-messages.md) — what end-to-end encryption covers.
+- [Backups & updates](../admin/backups-and-updates.md) — your operational responsibilities if you host it yourself.
 - [Reporting a problem](reporting-a-problem.md) — responsible disclosure.

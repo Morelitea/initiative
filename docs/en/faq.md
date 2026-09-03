@@ -55,6 +55,8 @@ Two things look similar and are not:
 
 Everything inside the communities you were **invited** to is unaffected either way. This only closes the parts that are open to people you haven't met.
 
+Once the question is answered, who may reach you is yours to set — see [Messages](guides/messages.md#who-can-reach-you).
+
 ### I typed my birthday wrong and now I'm locked out
 
 That's the common case, and there's a way back: ask an administrator of your server to **reset the age question** for you. Anyone on the support tier or above can do it from the platform users page, and it's recorded in the audit log like any other action one person takes on another's account.

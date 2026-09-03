@@ -36,6 +36,7 @@ The categories are:
 | **Overdue tasks** | A daily reminder of what's past due, at a time you choose. |
 | **Events** | You're invited to an event, or one you're attending changes. |
 | **Event reminders** | Shortly before an event you're attending begins. |
+| **Direct messages** | Somebody sent you a message. You're told who and how many — never what it says, because nothing outside your own devices could. |
 
 ![Notification settings](../images/notifications/settings.png)
 

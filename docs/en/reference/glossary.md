@@ -122,6 +122,22 @@ How you're around, shown as a dot under your picture: **online**, **idle**, **bu
 
 Your personal page listing everyone you share a community with, plus anyone you've starred. See [Your space](../guides/your-space.md#my-contacts).
 
+### Direct message
+
+A private one-to-one conversation, end-to-end encrypted: readable on the two people's own devices and nowhere else. See [Messages](../guides/messages.md).
+
+### Connection
+
+A mutual link between two accounts. Once accepted, the two can message each other whatever their privacy settings say, and it survives leaving a community. Made by typing somebody's full handle. See [Connections](../guides/messages.md#connections).
+
+### Message request
+
+Asking somebody if you may message them. It carries no text — only the request itself — and it's theirs to accept or decline. See [Message requests](../guides/messages.md#message-requests).
+
+### Ignoring
+
+Ending contact with an account: nothing they send arrives and nothing they do notifies you, while you both carry on using every tool normally. They aren't told, and nothing is deleted. See [Ignoring someone](../guides/messages.md#ignoring-someone).
+
 ### Announcement
 
 A notice shown in a dialog to the people using a server — a change to act on, or a maintenance window to plan around. Read past ones from the info icon in the sidebar footer. See [Announcements](../admin/announcements.md).

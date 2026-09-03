@@ -34,13 +34,19 @@ Your **favorites** sit at the top, then each of your communities in the order yo
 - **One search box** covers the whole page. Each community keeps its own member list, so a search visits them one at a time and says so while it works.
 - Each section **pages on its own**, twenty at a time, without moving the ones around it.
 
-Opening a row takes you to [that person's profile](../account/profile-and-preferences.md#your-profile-page).
+Opening a row takes you to [that person's profile](../account/profile-and-preferences.md#your-profile-page). The actions menu on a row is where you act on somebody where you found them: **connect**, **ask to message**, **ignore**, or remove a connection you already have. See [Messages](messages.md).
 
 !!! screenshot "My Contacts"
     **Show:** the contacts page with a Favorites section and two community sections, and the shared-community icons on a row.
 
     Save as `en/images/your-space/my-contacts.png`, then replace this box with:
     `![My Contacts](../images/your-space/my-contacts.png)`
+
+## My Messages
+
+Your private conversations, one to one and end-to-end encrypted — the one page here whose contents live on your device rather than on the server. Everyone you can already message is listed, whether or not you've spoken yet.
+
+See [Messages](messages.md) for who can reach you, connections, and what happens to your history when you sign out.
 
 ## My Calendar
 

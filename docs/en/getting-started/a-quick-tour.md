@@ -12,7 +12,7 @@ Let's walk through the screen so everything feels familiar. Don't worry about re
 
 Down the **far-left edge of the screen** is a narrow vertical strip of icons:
 
-- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every community: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Contacts*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
+- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every community: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Contacts*, *My Messages*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
 - **Below the logo** is one icon for **each community** you belong to. The highlighted icon is the community you're in now; click another to switch. Opening a community shows that community's **dashboard** and fills the sidebar with its contents. (More on communities in [Your first community](your-first-community.md).)
 
 ## The sidebar (next to it)

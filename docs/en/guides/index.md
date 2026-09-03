@@ -64,6 +64,12 @@ If you're not sure how the pieces fit together yet, start with [How Initiative i
 
     [:octicons-arrow-right-24: Your space](your-space.md)
 
+-   :material-message-outline: __Messages__
+
+    Private one-to-one conversations, encrypted end to end.
+
+    [:octicons-arrow-right-24: Messages](messages.md)
+
 -   :material-magnify: __Search & shortcuts__
 
     Find anything fast, and the keystrokes worth knowing.
