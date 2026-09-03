@@ -39,10 +39,7 @@ class DmDeviceRegistration(BaseModel):
     one_time_keys: list[DmOneTimeKeyUpload] = Field(
         default_factory=list, max_length=MAX_ONE_TIME_KEYS
     )
-    # No label here. It is derived at registration from the request's own
-    # user-agent, so it is a fact about the connection rather than a string the
-    # client chose -- which is what the device list is more useful for, and what
-    # keeps a name field out of a request body.
+    label: str | None = Field(default=None, max_length=200)
 
 
 class DmOneTimeKeyBatch(BaseModel):

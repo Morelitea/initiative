@@ -27,6 +27,7 @@ def _registration(seed: int = 1) -> dict:
         "fingerprint_key": _key(seed + 1),
         "fallback_key": {"key_id": "fb", "public_key": _key(seed + 2)},
         "one_time_keys": [{"key_id": "otk-1", "public_key": _key(seed + 3)}],
+        "label": "Firefox on Linux",
     }
 
 
@@ -54,11 +55,9 @@ async def _open_channel(session, a, b) -> None:
     await session.commit()
 
 
-async def _register(client, actor, seed=1, user_agent="Firefox on Linux") -> str:
+async def _register(client, actor, seed=1) -> str:
     response = await client.post(
-        "/api/v1/me/dm/devices",
-        json=_registration(seed),
-        headers={**actor.headers, "user-agent": user_agent},
+        "/api/v1/me/dm/devices", json=_registration(seed), headers=actor.headers
     )
     assert response.status_code == 201, response.text
     return response.json()["devices"][0]["id"]
@@ -75,7 +74,6 @@ async def test_a_device_publishes_only_public_keys(client, acting_user):
 
     body = listed.json()["devices"][0]
     assert body["id"] == device_id
-    # Named by what connected, not by what the client asked to be called.
     assert body["label"] == "Firefox on Linux"
     assert body["one_time_key_count"] == 1
     # The identity key is not on the caller's own device row: it is directory

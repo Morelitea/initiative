@@ -113,5 +113,9 @@
       "title": "Zugriff entzogen",
       "body": "Dein Zugriff auf {{guild}} wurde entzogen"
     }
+  },
+  "directMessage": {
+    "title": "{{sender}} hat dir eine Nachricht gesendet",
+    "body": "Öffne Initiative, um sie zu lesen."
   }
 }

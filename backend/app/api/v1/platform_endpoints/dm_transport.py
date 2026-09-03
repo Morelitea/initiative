@@ -14,10 +14,11 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
 
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.messages import DirectMessageTransportMessages as Messages
+from app.core.user_display import handle_of
 from app.models.platform.user import User
 from app.schemas.platform.dm_transport import (
     DmConversationCreate,
@@ -33,6 +34,7 @@ from app.schemas.platform.dm_transport import (
     DmSendResponse,
     DmSessionKeysResponse,
 )
+from app.services.platform import dm_notifications, dm_stream
 from app.services.platform import dm_transport as service
 
 me_router = APIRouter()
@@ -70,13 +72,8 @@ async def register_device(
     body: DmDeviceRegistration,
     session: UserSessionDep,
     current_user: CurrentUser,
-    user_agent: Annotated[str | None, Header()] = None,
 ) -> DmDevicesResponse:
-    """Publish this installed client's public keys.
-
-    The device's label comes from the request's user-agent rather than the body:
-    a device list is more use when it says what actually connected.
-    """
+    """Publish this installed client's public keys."""
     try:
         await service.register_device(
             session,
@@ -85,7 +82,7 @@ async def register_device(
             fingerprint_key=body.fingerprint_key,
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
-            label=(user_agent or "")[:200] or None,
+            label=body.label,
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
@@ -255,7 +252,7 @@ async def send_messages(
 ) -> DmSendResponse:
     """Hand the server one already-encrypted copy per destination device."""
     try:
-        written, _recipient = await service.send(
+        written, recipient_id = await service.send(
             session,
             user_id=current_user.id,
             conversation_id=conversation_id,
@@ -264,6 +261,18 @@ async def send_messages(
     except service.DmTransportError as exc:
         raise _error(exc) from exc
     await session.commit()
+
+    # The sender's own tabs always have something to collect; the recipient only
+    # where the message actually reached them, and they are never told about the
+    # difference.
+    await dm_stream.signal_dm(current_user.id)
+    if recipient_id is not None:
+        await dm_notifications.notify(
+            recipient_id=recipient_id,
+            sender=current_user,
+            sender_name=handle_of(current_user),
+            conversation_id=conversation_id,
+        )
     return DmSendResponse(accepted=written)
 
 

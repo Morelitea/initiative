@@ -2370,6 +2370,7 @@ export interface DmDeviceRegistration {
   fallback_key: DmOneTimeKeyUpload;
   /** @maxItems 100 */
   one_time_keys?: DmOneTimeKeyUpload[];
+  label?: string | null;
 }
 
 export interface DmDevicesResponse {
@@ -4010,6 +4011,7 @@ export const NotificationType = {
   connection_accepted: "connection_accepted",
   message_request_received: "message_request_received",
   message_request_accepted: "message_request_accepted",
+  direct_message: "direct_message",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -5686,6 +5688,8 @@ export interface UserRead {
   push_overdue_tasks: boolean;
   push_mentions: boolean;
   push_comment_reactions: boolean;
+  email_direct_messages: boolean;
+  push_direct_messages: boolean;
   email_events: boolean;
   push_events: boolean;
   email_event_reminders: boolean;
@@ -5734,6 +5738,8 @@ export interface UserSelfUpdate {
   push_overdue_tasks?: boolean | null;
   push_mentions?: boolean | null;
   push_comment_reactions?: boolean | null;
+  email_direct_messages?: boolean | null;
+  push_direct_messages?: boolean | null;
   email_events?: boolean | null;
   push_events?: boolean | null;
   email_event_reminders?: boolean | null;

@@ -113,5 +113,9 @@
       "title": "Accès révoqué",
       "body": "Votre accès à {{guild}} a été révoqué"
     }
+  },
+  "directMessage": {
+    "title": "{{sender}} t'a envoyé un message",
+    "body": "Ouvre Initiative pour le lire."
   }
 }

@@ -785,6 +785,48 @@ async def send_mention_email(
     )
 
 
+async def send_direct_message_email(
+    session: AsyncSession,
+    user: User,
+    *,
+    sender_name: str,
+    link: str,
+) -> None:
+    """Tell somebody a message is waiting, without telling them what it says.
+
+    The subject and body carry the sender's name and nothing else. There is no
+    preview here and no parameter that could carry one: the message this
+    announces is encrypted, and the server has no key to it.
+
+    Sent once per conversation, on the transition into unread -- the same rule
+    the push and the bell line use, so a flurry is one email.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    body_text = email_t("directMessage.body", locale=locale, sender=sender_name)
+    button = _cta_button(
+        email_t("directMessage.buttonLabel", locale=locale), link, accent
+    )
+    body = f"""
+    <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
+    <p>{body_text}</p>
+    <p style="margin:24px 0;">{button}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("directMessage.title", locale=locale), body, accent, locale=locale
+    )
+    plain = _strip_html(body_text) + f"\n\nView: {link}"
+    await send_email(
+        session,
+        recipients=[user.email],
+        subject=email_t("directMessage.subject", locale=locale, sender=sender_name),
+        html_body=html_body,
+        text_body=plain,
+        settings_obj=settings_obj,
+    )
+
+
 async def send_overdue_tasks_email(
     session: AsyncSession,
     user: User,

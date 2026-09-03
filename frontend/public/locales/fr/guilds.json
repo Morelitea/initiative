@@ -249,6 +249,8 @@
     "commentOnResource": "{{commenterName}} a commenté sur {{entityName}}.",
     "commentReply": "{{replierName}} a répondu à votre commentaire sur {{contextTitle}}.",
     "commentReaction": "{{reactorName}} a réagi {{emoji}} à votre commentaire sur {{contextTitle}}.",
+    "directMessage": "{{senderName}} t'a envoyé un message.",
+    "directMessageMany": "{{senderName}} t'a envoyé {{count}} messages.",
     "commentReactionMulti_one": "{{reactorName}} et 1 autre personne ont réagi {{emoji}} à votre commentaire sur {{contextTitle}}.",
     "commentReactionMulti_other": "{{reactorName}} et {{count}} autres personnes ont réagi {{emoji}} à votre commentaire sur {{contextTitle}}.",
     "accessGrantRequested": "{{requester}} a demandé un accès {{level}} à {{guild}}.",
