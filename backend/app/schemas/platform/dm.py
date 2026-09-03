@@ -88,3 +88,47 @@ class DirectMessagePermissionRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     permission: str
+
+
+class ContactGrantRead(SanitizedBaseModel):
+    """One connection or message request, from the reader's side of it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    user_id: int
+    username: str
+    discriminator: int
+    avatar_url: Optional[str] = None
+    state: str
+    #: True when the reader is the one who asked, which is what tells a
+    #: cancellable request from one waiting on them.
+    outgoing: bool
+    created_at: datetime
+    responded_at: Optional[datetime] = None
+
+
+class ContactGrantsResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    accepted: List[ContactGrantRead]
+    incoming: List[ContactGrantRead]
+    outgoing: List[ContactGrantRead]
+
+
+class ConnectionRequestCreate(SanitizedBaseModel):
+    """A connection is addressed by handle, never by id.
+
+    One shape whatever the target's policy, and the shape the app-wide people
+    search will use: an account on ``private`` is reached by somebody typing
+    its handle rather than by being offered from a list.
+    """
+
+    username: str
+    discriminator: int
+
+
+class MessageRequestCreate(SanitizedBaseModel):
+    """A message request is addressed by id: everyone you may ask is somebody
+    you can already see."""
+
+    user_id: int

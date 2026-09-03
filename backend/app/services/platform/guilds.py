@@ -30,6 +30,7 @@ from app.models.platform.user import User
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
+from app.services.platform import contact_grants as contact_grants_service
 
 logger = logging.getLogger(__name__)
 
@@ -1480,6 +1481,15 @@ async def remove_user_from_guild(
         # change with where it belongs, and leaving is not always their doing.
         account_stream.queue_account_signal(session, user_id, "membership")
         billing_ping.notify_membership_changed(guild_id)
+        # This community was a leg of can_ask for everyone they shared it with,
+        # so every open channel that rested on it is re-tested. One survives if
+        # the pair connected, which is what a connection is for. The sweep
+        # commits on its own, so a caller that rolls back after this leaves the
+        # channels closed rather than open — the safe direction, and a new
+        # request reopens one.
+        await contact_grants_service.revoke_stale_message_grants(
+            session, user_id=user_id
+        )
 
 
 async def adopt_guild_name_display(session: AsyncSession, *, guild_id: int) -> None:

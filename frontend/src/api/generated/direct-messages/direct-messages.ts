@@ -21,12 +21,16 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ConnectionRequestCreate,
+  ContactGrantRead,
+  ContactGrantsResponse,
   DirectMessagePermissionRead,
   DirectMessageSettingsRead,
   DirectMessageSettingsUpdate,
   HTTPValidationError,
   IgnoredAccountsResponse,
   ListIgnoredAccountsApiV1MeIgnoredGetParams,
+  MessageRequestCreate,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -757,6 +761,827 @@ export const useStopIgnoringAccountApiV1MeIgnoredUserIdDelete = <
 > => {
   return useMutation(
     getStopIgnoringAccountApiV1MeIgnoredUserIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Accepted connections, plus what is pending in each direction.
+ * @summary List Connections
+ */
+export const listConnectionsApiV1MeConnectionsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ContactGrantsResponse>(
+    { url: `/api/v1/me/connections`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListConnectionsApiV1MeConnectionsGetQueryKey = () => {
+  return [`/api/v1/me/connections`] as const;
+};
+
+export const getListConnectionsApiV1MeConnectionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListConnectionsApiV1MeConnectionsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>
+  > = ({ signal }) => listConnectionsApiV1MeConnectionsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListConnectionsApiV1MeConnectionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>
+>;
+export type ListConnectionsApiV1MeConnectionsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListConnectionsApiV1MeConnectionsGet<
+  TData = Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListConnectionsApiV1MeConnectionsGet<
+  TData = Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListConnectionsApiV1MeConnectionsGet<
+  TData = Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Connections
+ */
+
+export function useListConnectionsApiV1MeConnectionsGet<
+  TData = Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConnectionsApiV1MeConnectionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListConnectionsApiV1MeConnectionsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Ask an account to connect, by its exact handle.
+ *
+ * A handle rather than an id, whatever the target's policy: it is the one
+ * shape that works for an account on ``private``, which is never offered from
+ * a roster or a picker.
+ * @summary Request Connection
+ */
+export const requestConnectionApiV1MeConnectionsPost = (
+  connectionRequestCreate: BodyType<ConnectionRequestCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ContactGrantRead>(
+    {
+      url: `/api/v1/me/connections`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: connectionRequestCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRequestConnectionApiV1MeConnectionsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestConnectionApiV1MeConnectionsPost>>,
+    TError,
+    { data: BodyType<ConnectionRequestCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestConnectionApiV1MeConnectionsPost>>,
+  TError,
+  { data: BodyType<ConnectionRequestCreate> },
+  TContext
+> => {
+  const mutationKey = ["requestConnectionApiV1MeConnectionsPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestConnectionApiV1MeConnectionsPost>>,
+    { data: BodyType<ConnectionRequestCreate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestConnectionApiV1MeConnectionsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestConnectionApiV1MeConnectionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestConnectionApiV1MeConnectionsPost>>
+>;
+export type RequestConnectionApiV1MeConnectionsPostMutationBody = BodyType<ConnectionRequestCreate>;
+export type RequestConnectionApiV1MeConnectionsPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Request Connection
+ */
+export const useRequestConnectionApiV1MeConnectionsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof requestConnectionApiV1MeConnectionsPost>>,
+      TError,
+      { data: BodyType<ConnectionRequestCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof requestConnectionApiV1MeConnectionsPost>>,
+  TError,
+  { data: BodyType<ConnectionRequestCreate> },
+  TContext
+> => {
+  return useMutation(
+    getRequestConnectionApiV1MeConnectionsPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Accept a connection, which also opens the pair's message channel.
+ * @summary Accept Connection
+ */
+export const acceptConnectionApiV1MeConnectionsUserIdAcceptPost = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ContactGrantRead>(
+    { url: `/api/v1/me/connections/${userId}/accept`, method: "POST", signal },
+    options
+  );
+};
+
+export const getAcceptConnectionApiV1MeConnectionsUserIdAcceptPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptConnectionApiV1MeConnectionsUserIdAcceptPost>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptConnectionApiV1MeConnectionsUserIdAcceptPost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["acceptConnectionApiV1MeConnectionsUserIdAcceptPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptConnectionApiV1MeConnectionsUserIdAcceptPost>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return acceptConnectionApiV1MeConnectionsUserIdAcceptPost(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptConnectionApiV1MeConnectionsUserIdAcceptPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptConnectionApiV1MeConnectionsUserIdAcceptPost>>
+>;
+
+export type AcceptConnectionApiV1MeConnectionsUserIdAcceptPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Accept Connection
+ */
+export const useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acceptConnectionApiV1MeConnectionsUserIdAcceptPost>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof acceptConnectionApiV1MeConnectionsUserIdAcceptPost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getAcceptConnectionApiV1MeConnectionsUserIdAcceptPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Decline, cancel or disconnect — one verb.
+ *
+ * The pair's message grant is re-tested rather than dropped: two co-members
+ * who un-connect can still ask each other, so they keep talking.
+ * @summary Remove Connection
+ */
+export const removeConnectionApiV1MeConnectionsUserIdDelete = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/connections/${userId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveConnectionApiV1MeConnectionsUserIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeConnectionApiV1MeConnectionsUserIdDelete>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeConnectionApiV1MeConnectionsUserIdDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["removeConnectionApiV1MeConnectionsUserIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeConnectionApiV1MeConnectionsUserIdDelete>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return removeConnectionApiV1MeConnectionsUserIdDelete(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveConnectionApiV1MeConnectionsUserIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeConnectionApiV1MeConnectionsUserIdDelete>>
+>;
+
+export type RemoveConnectionApiV1MeConnectionsUserIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove Connection
+ */
+export const useRemoveConnectionApiV1MeConnectionsUserIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeConnectionApiV1MeConnectionsUserIdDelete>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeConnectionApiV1MeConnectionsUserIdDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getRemoveConnectionApiV1MeConnectionsUserIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Open channels, plus what is pending in each direction.
+ * @summary List Message Requests
+ */
+export const listMessageRequestsApiV1MeMessageRequestsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ContactGrantsResponse>(
+    { url: `/api/v1/me/message-requests`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListMessageRequestsApiV1MeMessageRequestsGetQueryKey = () => {
+  return [`/api/v1/me/message-requests`] as const;
+};
+
+export const getListMessageRequestsApiV1MeMessageRequestsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListMessageRequestsApiV1MeMessageRequestsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>
+  > = ({ signal }) => listMessageRequestsApiV1MeMessageRequestsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMessageRequestsApiV1MeMessageRequestsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>
+>;
+export type ListMessageRequestsApiV1MeMessageRequestsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMessageRequestsApiV1MeMessageRequestsGet<
+  TData = Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMessageRequestsApiV1MeMessageRequestsGet<
+  TData = Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMessageRequestsApiV1MeMessageRequestsGet<
+  TData = Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Message Requests
+ */
+
+export function useListMessageRequestsApiV1MeMessageRequestsGet<
+  TData = Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMessageRequestsApiV1MeMessageRequestsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMessageRequestsApiV1MeMessageRequestsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Ask permission to message an account.
+ *
+ * Comes back already accepted when the pair is connected: a connection has
+ * answered this question, and asking twice is a consent step with no decision
+ * in it.
+ * @summary Request Message
+ */
+export const requestMessageApiV1MeMessageRequestsPost = (
+  messageRequestCreate: BodyType<MessageRequestCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ContactGrantRead>(
+    {
+      url: `/api/v1/me/message-requests`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: messageRequestCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRequestMessageApiV1MeMessageRequestsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestMessageApiV1MeMessageRequestsPost>>,
+    TError,
+    { data: BodyType<MessageRequestCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestMessageApiV1MeMessageRequestsPost>>,
+  TError,
+  { data: BodyType<MessageRequestCreate> },
+  TContext
+> => {
+  const mutationKey = ["requestMessageApiV1MeMessageRequestsPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestMessageApiV1MeMessageRequestsPost>>,
+    { data: BodyType<MessageRequestCreate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestMessageApiV1MeMessageRequestsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestMessageApiV1MeMessageRequestsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestMessageApiV1MeMessageRequestsPost>>
+>;
+export type RequestMessageApiV1MeMessageRequestsPostMutationBody = BodyType<MessageRequestCreate>;
+export type RequestMessageApiV1MeMessageRequestsPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Request Message
+ */
+export const useRequestMessageApiV1MeMessageRequestsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof requestMessageApiV1MeMessageRequestsPost>>,
+      TError,
+      { data: BodyType<MessageRequestCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof requestMessageApiV1MeMessageRequestsPost>>,
+  TError,
+  { data: BodyType<MessageRequestCreate> },
+  TContext
+> => {
+  return useMutation(
+    getRequestMessageApiV1MeMessageRequestsPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Accept Message Request
+ */
+export const acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ContactGrantRead>(
+    { url: `/api/v1/me/message-requests/${userId}/accept`, method: "POST", signal },
+    options
+  );
+};
+
+export const getAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost>>
+>;
+
+export type AcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Accept Message Request
+ */
+export const useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof acceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Decline, cancel or close a channel.
+ * @summary Remove Message Request
+ */
+export const removeMessageRequestApiV1MeMessageRequestsUserIdDelete = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/message-requests/${userId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveMessageRequestApiV1MeMessageRequestsUserIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeMessageRequestApiV1MeMessageRequestsUserIdDelete>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeMessageRequestApiV1MeMessageRequestsUserIdDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["removeMessageRequestApiV1MeMessageRequestsUserIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeMessageRequestApiV1MeMessageRequestsUserIdDelete>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return removeMessageRequestApiV1MeMessageRequestsUserIdDelete(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveMessageRequestApiV1MeMessageRequestsUserIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeMessageRequestApiV1MeMessageRequestsUserIdDelete>>
+>;
+
+export type RemoveMessageRequestApiV1MeMessageRequestsUserIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove Message Request
+ */
+export const useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeMessageRequestApiV1MeMessageRequestsUserIdDelete>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeMessageRequestApiV1MeMessageRequestsUserIdDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getRemoveMessageRequestApiV1MeMessageRequestsUserIdDeleteMutationOptions(options),
     queryClient
   );
 };

@@ -17,12 +17,18 @@ from sqlalchemy import text
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.messages import DirectMessageMessages
 from app.models.platform.user import User
+from app.models.platform.contact_grant import ContactGrantKind
 from app.schemas.platform.dm import (
+    ConnectionRequestCreate,
+    ContactGrantRead,
+    ContactGrantsResponse,
     DirectMessagePermissionRead,
     DirectMessageSettingsRead,
     DirectMessageSettingsUpdate,
     IgnoredAccountsResponse,
+    MessageRequestCreate,
 )
+from app.services.platform import contact_grants as contact_grants_service
 from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import user_ignores as user_ignores_service
 
@@ -159,3 +165,188 @@ async def read_dm_permission(
         )
     ).scalar_one()
     return DirectMessagePermissionRead(permission=permission)
+
+
+def _grant_error(exc: contact_grants_service.ContactGrantError) -> HTTPException:
+    """Every refusal is a 409 with its code and nothing else.
+
+    A handle nobody holds, an account that cannot be reached and a request that
+    will never be surfaced all answer the same way, so the endpoint is not a
+    way to learn which it was.
+    """
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.code)
+
+
+@me_router.get("/connections", response_model=ContactGrantsResponse)
+async def list_connections(
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> ContactGrantsResponse:
+    """Accepted connections, plus what is pending in each direction."""
+    grants = await contact_grants_service.list_for(
+        session, user_id=current_user.id, kind=ContactGrantKind.connection
+    )
+    return await contact_grants_service.to_reads(
+        session, user_id=current_user.id, grants=grants
+    )
+
+
+@me_router.post(
+    "/connections",
+    response_model=ContactGrantRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_connection(
+    payload: ConnectionRequestCreate,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> ContactGrantRead:
+    """Ask an account to connect, by its exact handle.
+
+    A handle rather than an id, whatever the target's policy: it is the one
+    shape that works for an account on ``private``, which is never offered from
+    a roster or a picker.
+    """
+    try:
+        target_id = await contact_grants_service.resolve_handle(
+            session,
+            username=payload.username,
+            discriminator=payload.discriminator,
+        )
+        grant = await contact_grants_service.request(
+            session,
+            actor_id=current_user.id,
+            target_id=target_id,
+            kind=ContactGrantKind.connection,
+        )
+    except contact_grants_service.ContactGrantError as exc:
+        raise _grant_error(exc) from exc
+    return await _single_read(session, current_user.id, grant)
+
+
+@me_router.post("/connections/{user_id}/accept", response_model=ContactGrantRead)
+async def accept_connection(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> ContactGrantRead:
+    """Accept a connection, which also opens the pair's message channel."""
+    try:
+        grant = await contact_grants_service.accept(
+            session,
+            actor_id=current_user.id,
+            other_id=user_id,
+            kind=ContactGrantKind.connection,
+        )
+    except contact_grants_service.ContactGrantError as exc:
+        raise _grant_error(exc) from exc
+    return await _single_read(session, current_user.id, grant)
+
+
+@me_router.delete("/connections/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_connection(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """Decline, cancel or disconnect — one verb.
+
+    The pair's message grant is re-tested rather than dropped: two co-members
+    who un-connect can still ask each other, so they keep talking.
+    """
+    await contact_grants_service.remove(
+        session,
+        actor_id=current_user.id,
+        other_id=user_id,
+        kind=ContactGrantKind.connection,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@me_router.get("/message-requests", response_model=ContactGrantsResponse)
+async def list_message_requests(
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> ContactGrantsResponse:
+    """Open channels, plus what is pending in each direction."""
+    grants = await contact_grants_service.list_for(
+        session, user_id=current_user.id, kind=ContactGrantKind.message
+    )
+    return await contact_grants_service.to_reads(
+        session, user_id=current_user.id, grants=grants
+    )
+
+
+@me_router.post(
+    "/message-requests",
+    response_model=ContactGrantRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_message(
+    payload: MessageRequestCreate,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> ContactGrantRead:
+    """Ask permission to message an account.
+
+    Comes back already accepted when the pair is connected: a connection has
+    answered this question, and asking twice is a consent step with no decision
+    in it.
+    """
+    try:
+        grant = await contact_grants_service.request(
+            session,
+            actor_id=current_user.id,
+            target_id=payload.user_id,
+            kind=ContactGrantKind.message,
+        )
+    except contact_grants_service.ContactGrantError as exc:
+        raise _grant_error(exc) from exc
+    return await _single_read(session, current_user.id, grant)
+
+
+@me_router.post("/message-requests/{user_id}/accept", response_model=ContactGrantRead)
+async def accept_message_request(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> ContactGrantRead:
+    try:
+        grant = await contact_grants_service.accept(
+            session,
+            actor_id=current_user.id,
+            other_id=user_id,
+            kind=ContactGrantKind.message,
+        )
+    except contact_grants_service.ContactGrantError as exc:
+        raise _grant_error(exc) from exc
+    return await _single_read(session, current_user.id, grant)
+
+
+@me_router.delete("/message-requests/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_message_request(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """Decline, cancel or close a channel."""
+    await contact_grants_service.remove(
+        session,
+        actor_id=current_user.id,
+        other_id=user_id,
+        kind=ContactGrantKind.message,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _single_read(session, user_id: int, grant) -> ContactGrantRead:
+    grouped = await contact_grants_service.to_reads(
+        session, user_id=user_id, grants=[grant]
+    )
+    for bucket in (grouped.accepted, grouped.incoming, grouped.outgoing):
+        if bucket:
+            return bucket[0]
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=DirectMessageMessages.USER_NOT_FOUND,
+    )

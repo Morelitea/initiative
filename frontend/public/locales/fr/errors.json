@@ -511,5 +511,9 @@
   "DM_USER_NOT_FOUND": "Ce compte n'est pas disponible.",
   "DM_AGE_CONFIRMATION_REQUIRED": "Confirmez votre âge avant de modifier qui peut vous écrire.",
   "DM_CANNOT_IGNORE_SELF": "Vous ne pouvez pas ignorer votre propre compte.",
-  "DM_NOT_A_MEMBER": "Vous n'êtes pas membre de cette communauté."
+  "DM_NOT_A_MEMBER": "Vous n'êtes pas membre de cette communauté.",
+  "CONTACT_GRANT_CANNOT_REACH": "Vous ne pouvez pas joindre ce compte pour le moment.",
+  "CONTACT_GRANT_NO_REQUEST": "Aucune demande de ce compte à accepter.",
+  "CONTACT_GRANT_CANNOT_GRANT_SELF": "Vous ne pouvez pas vous connecter à votre propre compte.",
+  "CONTACT_GRANT_HANDLE_NOT_FOUND": "Aucun compte ne correspond à cet identifiant."
 }
