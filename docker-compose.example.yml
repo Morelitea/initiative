@@ -9,14 +9,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-initiative}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    configs:
-      # Runs ONCE when the database volume is first initialized: creates the
-      # least-privilege role the app uses for migrations + guild provisioning,
-      # so the app never holds Postgres superuser credentials. Existing
-      # deployments (volume already initialized) instead run
-      # backend/scripts/create-provisioner.sql once — see the deployment docs.
-      - source: initdb-provisioner
-        target: /docker-entrypoint-initdb.d/01-app-provisioner.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
@@ -46,9 +38,15 @@ services:
       # System engine for background jobs and seeding (app_admin role — policy-bound, no RLS bypass)
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:${APP_ADMIN_PASSWORD:-app_admin_password}@db:5432/${POSTGRES_DB:-initiative}
       # Provisioning connection for migrations + guild schema/role creation.
-      # app_provisioner is least-privilege (no superuser) — created by the db
-      # init script above on fresh installs.
+      # app_provisioner is least-privilege (no superuser).
       DATABASE_URL: postgresql+asyncpg://app_provisioner:${PROVISIONER_PASSWORD:-provisioner_password}@db:5432/${POSTGRES_DB:-initiative}
+      # The database owner. Used once at startup to create the three roles above
+      # and install the guild-search match operator, then closed — the app
+      # serves every request on the roles above. Applied again on each start, so
+      # changing a password here is enough to rotate it. You may remove this
+      # line once the stack has come up: the app then checks those prerequisites
+      # instead of applying them, and says what is missing if any are.
+      DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@db:5432/${POSTGRES_DB:-initiative}
       # REQUIRED: generate with `openssl rand -hex 32`. The stack refuses to start without it.
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set - generate with openssl rand -hex 32}
       ACCESS_TOKEN_EXPIRE_MINUTES: 60
@@ -77,29 +75,3 @@ services:
 volumes:
   postgres_data:
     driver: local
-
-configs:
-  initdb-provisioner:
-    content: |
-      CREATE ROLE app_provisioner WITH LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS
-        PASSWORD '${PROVISIONER_PASSWORD:-provisioner_password}';
-      GRANT CREATE, CONNECT ON DATABASE "${POSTGRES_DB:-initiative}" TO app_provisioner;
-      -- Least privilege on the database itself: the app creates no temporary
-      -- objects, so it does not need the TEMPORARY grant PUBLIC carries by
-      -- default on a new database. Existing deployments apply this by
-      -- re-running backend/scripts/create-provisioner.sql.
-      REVOKE TEMPORARY ON DATABASE "${POSTGRES_DB:-initiative}" FROM PUBLIC;
-      -- Postgres 15+ made CREATE on the public schema owner-only, and the
-      -- baseline migration (running as app_provisioner) builds the shared
-      -- schema there — including COMMENT ON SCHEMA, which needs ownership.
-      ALTER SCHEMA public OWNER TO app_provisioner;
-      -- Postgres 16+ lets only BYPASSRLS holders create/alter BYPASSRLS
-      -- roles, so the login roles are created here (superuser context),
-      -- never by the provisioner-run migration — it only syncs their
-      -- passwords from the APP/ADMIN URLs. ADMIN OPTION lets it do that.
-      CREATE ROLE app_user WITH LOGIN NOINHERIT
-        PASSWORD '${APP_USER_PASSWORD:-app_user_password}';
-      CREATE ROLE app_admin WITH LOGIN BYPASSRLS
-        PASSWORD '${APP_ADMIN_PASSWORD:-app_admin_password}';
-      GRANT app_user TO app_provisioner WITH ADMIN OPTION;
-      GRANT app_admin TO app_provisioner WITH ADMIN OPTION;

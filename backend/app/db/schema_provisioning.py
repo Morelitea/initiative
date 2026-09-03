@@ -26,7 +26,6 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -601,13 +600,10 @@ async def warn_if_privileged_database_url() -> None:
     """Emit a deprecation banner when DATABASE_URL connects as a superuser
     (or BYPASSRLS) role.
 
-    The app never needs a Postgres superuser: migrations + guild provisioning
-    fit in the least-privilege ``app_provisioner`` role (NOSUPERUSER CREATEROLE
-    + CREATE on the database + ownership of the app's objects). Role creation
-    is an infrastructure concern, not app code: fresh docker-compose installs
-    get the role from the Postgres image's ``docker-entrypoint-initdb.d``
-    script; existing deployments run ``scripts/create-provisioner.sql`` once
-    (see the deployment docs), then point DATABASE_URL at ``app_provisioner``.
+    Migrations and guild provisioning fit in the least-privilege
+    ``app_provisioner`` role (NOSUPERUSER CREATEROLE + CREATE on the database +
+    ownership of the app's objects), so this URL never needs more. Creating
+    that role is :mod:`app.db.bootstrap`'s job, over ``DATABASE_URL_BOOTSTRAP``.
 
     Superuser DATABASE_URL support is DEPRECATED and a future release will
     refuse to start with it, so the banner is deliberately loud — a framed
@@ -630,14 +626,11 @@ async def warn_if_privileged_database_url() -> None:
             "The app never needs these privileges, and a FUTURE RELEASE WILL\n"
             "REFUSE TO START with them. Migrate once (about a minute):\n"
             "\n"
-            "  1. Create the least-privilege provisioning role — connected as\n"
-            "     the current DATABASE_URL role, run\n"
-            "     backend/scripts/create-provisioner.sql, e.g.:\n"
-            "       docker exec -i initiative-db \\\n"
-            "         psql -v ON_ERROR_STOP=1 -U <user> -d <database> \\\n"
-            "              -v provisioner_password='CHANGE-ME' \\\n"
-            "              -f - < backend/scripts/create-provisioner.sql\n"
-            "  2. Point DATABASE_URL at app_provisioner and restart.\n"
+            "  1. Set DATABASE_URL_BOOTSTRAP to this same connection URL.\n"
+            "  2. Point DATABASE_URL at app_provisioner, with a password of\n"
+            "     your choosing, and restart. The bootstrap creates the role\n"
+            "     and hands the app's objects over to it.\n"
+            "  3. Optional: remove DATABASE_URL_BOOTSTRAP and restart again.\n"
             "\n"
             "DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
             "deployment docs for details.\n"
@@ -675,8 +668,8 @@ def search_operator_available() -> bool:
 async def search_operator_ready() -> bool:
     """Whether guild search can use its index.
 
-    ``scripts/create-search-operator.sql`` installs the match operator and its
-    operator class; both must be present.
+    :mod:`app.db.bootstrap` installs the match operator and its operator
+    class; both must be present.
     """
     async with db_session.provisioning_engine.connect() as conn:
         row = (
@@ -783,14 +776,6 @@ async def backfill_guild_search() -> int:
     return total
 
 
-#: Where the install script sits, in the image and in a checkout. The first that
-#: exists is the one the message names, so it names a path the reader has.
-_SEARCH_OPERATOR_SCRIPTS = (
-    Path("/app/scripts/create-search-operator.sql"),
-    Path(__file__).resolve().parents[2] / "scripts" / "create-search-operator.sql",
-)
-
-
 async def warn_if_search_operator_missing() -> None:
     """Say so, loudly, when the search operator is absent.
 
@@ -799,34 +784,36 @@ async def warn_if_search_operator_missing() -> None:
     restore or a major-version upgrade that lost the objects would otherwise
     show up only as search getting slower.
 
+    :mod:`app.db.bootstrap` installs the objects at startup whenever
+    ``DATABASE_URL_BOOTSTRAP`` names a superuser connection, so reaching this
+    warning means that setting is absent or its role is not a superuser —
+    Postgres accepts the ``LEAKPROOF`` attribute only from one.
+
     Names the database it checked, because a host commonly has more than one and
     the objects are per-database.
     """
     if await search_operator_ready():
         return
     database = db_session.provisioning_engine.url.database or "?"
-    script = next(
-        (p for p in _SEARCH_OPERATOR_SCRIPTS if p.exists()),
-        _SEARCH_OPERATOR_SCRIPTS[0],
-    )
     logger.warning(
         "\n%s\n"
         'Guild search is running without its index (database "%s").\n'
         "Results are unchanged; each search reads more of the index table,\n"
         "which grows with the guild.\n"
         "\n"
-        "Installing it is one file, once per database, run as a SUPERUSER —\n"
-        "which the app's own role deliberately is not:\n"
+        "Set DATABASE_URL_BOOTSTRAP to a superuser connection for this\n"
+        "database and restart, and the app installs it. To apply it by hand\n"
+        "instead:\n"
         "\n"
-        "  psql -U <superuser> -d %s -f %s\n"
+        "  python -m app.db.bootstrap --print-sql \\\n"
+        "    | psql -v ON_ERROR_STOP=1 -U <superuser> -d %s\n"
         "\n"
-        "Then restart: the index is rebuilt on the next provisioning sweep.\n"
+        "Either way the index is rebuilt on the next provisioning sweep.\n"
         "Re-running is safe.\n"
         "%s",
         "=" * 70,
         database,
         database,
-        script,
         "=" * 70,
     )
 
@@ -1210,12 +1197,12 @@ async def verify_engine_identities() -> None:
             "\n%s\n"
             "PRIVILEGE DRIFT: the request login %r holds TEMPORARY on database\n"
             "%r. The app creates no temporary objects, so this grant is unused;\n"
-            "fresh installs revoke it from PUBLIC at database init. Deployments\n"
-            "created before that still carry it. To align, run as the database\n"
+            "the bootstrap revokes it from PUBLIC. Deployments created before\n"
+            "that still carry it. To align, run as the database\n"
             "owner:\n"
             "  REVOKE TEMPORARY ON DATABASE %s FROM PUBLIC;\n"
-            "or re-run backend/scripts/create-provisioner.sql, which does this\n"
-            "and verifies it took effect.\n"
+            "or set DATABASE_URL_BOOTSTRAP and restart, which does this and\n"
+            "verifies it took effect.\n"
             "%s",
             bar,
             app_login,

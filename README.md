@@ -147,13 +147,17 @@ For FCM setup, see [docs/en/admin/push-notifications.md](docs/en/admin/push-noti
 
 ### Database connections
 
-Initiative needs **three** PostgreSQL connection strings, and the container will not start without all of them (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults — a missing one aborts startup with a config validation error). They work as a set:
+Initiative runs on **three** PostgreSQL roles, one database. The container will not start without all three connection strings (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults — a missing one aborts startup with a config validation error). They work as a set:
 
-- **`DATABASE_URL`** — the **provisioning role** (`app_provisioner`): runs migrations and creates/removes guild schemas, and **auto-creates the two roles below**. It is deliberately *not* a superuser — the example compose file creates `app_provisioner` automatically when the database volume is first initialized, and the app warns at boot if this URL connects as a superuser (existing installs: run `backend/scripts/create-provisioner.sql` once to switch).
-- **`DATABASE_URL_APP`** — connects as `app_user`. The password in this URL is the password the `app_user` role is created/updated with.
-- **`DATABASE_URL_ADMIN`** — connects as `app_admin`, the system role for background jobs and startup seeding. Likewise, its password seeds that role.
+- **`DATABASE_URL`** — the **provisioning role** (`app_provisioner`): runs migrations and creates/removes guild schemas. Deliberately *not* a superuser.
+- **`DATABASE_URL_APP`** — connects as `app_user`, the role every request runs on.
+- **`DATABASE_URL_ADMIN`** — connects as `app_admin`, the system role for background jobs and startup seeding.
 
-In other words, the provisioning URL bootstraps the roles, while the `APP`/`ADMIN` URLs both *define* those roles' passwords and are what the running app actually uses. The [example compose file](docker-compose.example.yml) wires all three together with matching credentials, so the default `docker-compose up` path works as-is. If you write your own compose file or use `docker run`, set all three.
+A fourth is what creates them:
+
+- **`DATABASE_URL_BOOTSTRAP`** — the **database owner**. At startup the app uses it to create the three roles above (with the passwords you put in their URLs), take ownership of the schema, and install the guild-search match operator; then it closes that connection and serves everything on the three roles. It re-applies on every start, so changing a role's password in its URL is enough to rotate it.
+
+The [example compose file](docker-compose.example.yml) wires all four together, so `docker compose up` works as-is with no SQL to run by hand. Once the stack is up you can remove `DATABASE_URL_BOOTSTRAP`: the app then checks those prerequisites instead of applying them, and tells you what is missing if any are. A deployment that provisions its database elsewhere — managed Postgres, a Kubernetes operator, your DBA — never sets it; `python -m app.db.bootstrap --print-sql` prints exactly what to apply.
 
 ### Running as a non-root user (PUID/PGID)
 

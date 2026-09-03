@@ -171,11 +171,9 @@ def _create_login_roles(connection) -> None:
     """app_user (RLS-enforced request path) and app_admin (BYPASSRLS system
     engine), passwords synced from DATABASE_URL_APP / DATABASE_URL_ADMIN.
 
-    Privileged role *attributes* are the database bootstrap's job (the
-    docker-compose init script on fresh installs, create-provisioner.sql on
-    existing ones), because Postgres reserves BYPASSRLS surgery for BYPASSRLS
-    holders and this migration normally runs as app_provisioner (CREATEROLE,
-    NOBYPASSRLS). Within that model this function does only what its
+    Privileged role *attributes* are ``app.db.bootstrap``'s job, because
+    Postgres reserves BYPASSRLS surgery for BYPASSRLS holders and this
+    migration normally runs as app_provisioner (CREATEROLE, NOBYPASSRLS). Within that model this function does only what its
     executor lawfully can: create app_user (plain CREATEROLE work), sync
     passwords through ADMIN OPTION membership, and *verify* the app_admin
     contract — failing fast with repair instructions when it doesn't hold.

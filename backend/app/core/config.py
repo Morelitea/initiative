@@ -160,6 +160,13 @@ class Settings(BaseSettings):
         str  # Non-superuser connection for RLS-enforced queries (required)
     )
     DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
+    # The database owner, used once at startup to apply the prerequisites the
+    # three logins above cannot create for themselves: the logins themselves,
+    # and the guild-search match operator (see app.db.bootstrap). The
+    # connection is opened, used and disposed before the app serves anything.
+    # Unset it and the app verifies those prerequisites instead of applying
+    # them; a deployment that provisions its database out of band never sets it.
+    DATABASE_URL_BOOTSTRAP: str | None = None
     # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
     # session state and so wants a connection of its own, apart from the pooled
     # engines above. Unset (the common case) it uses ``DATABASE_URL``; set it

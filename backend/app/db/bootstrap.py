@@ -1,0 +1,630 @@
+"""The privileged database bootstrap, in one place.
+
+Two things have to exist in the cluster before the app can run as its own
+least-privilege logins, and neither can be created *by* those logins:
+
+* **The three login roles** — the provisioning role that owns the app's objects
+  and runs migrations, the RLS-enforced request login, and the system-engine
+  login — plus the database grants and ``public`` ownership they need.
+* **The guild-search match operator** — a ``LEAKPROOF`` function, an operator
+  over it, and a GIN operator class. Postgres accepts ``LEAKPROOF`` only from a
+  superuser (``only superuser can define a leakproof function``), so this stays
+  a privileged step no matter how the roles are arranged.
+
+Both are declared here and applied from a connection opened with
+``DATABASE_URL_BOOTSTRAP``, which is disposed before the app serves anything —
+the request path keeps running on the three logins above. Every statement is
+idempotent and re-applied on each boot, so rotating a role password, upgrading
+into a release that adds a privileged object, and restoring a dump that carried
+no role attributes all converge without hand-run SQL.
+
+When ``DATABASE_URL_BOOTSTRAP`` is unset the same invariants are *verified*
+instead: a deployment that provisions its database out of band (managed
+Postgres, a Kubernetes operator, a DBA) boots normally when they hold, and
+stops with the exact SQL when they do not. ``--print-sql`` emits that SQL.
+
+Run standalone with ``python -m app.db.bootstrap``.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from dataclasses import dataclass
+from urllib.parse import unquote, urlparse
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+#: The canonical login names, used when a URL does not name one. Each is paired
+#: with the setting whose URL supplies its name and password.
+_PROVISIONER = ("DATABASE_URL", "app_provisioner")
+_APP_USER = ("DATABASE_URL_APP", "app_user")
+_SYSTEM_ENGINE = ("DATABASE_URL_ADMIN", "app_admin")
+
+#: Roles the provisioner administers but does not create: the shared floors and
+#: the platform ladder come from the baseline migration, and per-guild roles
+#: from guild provisioning. Granting them ``WITH ADMIN OPTION`` where they
+#: already exist is what lets the provisioner maintain them afterwards.
+_ADMINISTERED_ROLE_PATTERN = (
+    "rolname IN ('app_guild_base', 'platform_base', 'platform_member', "
+    "'platform_support', 'platform_moderator', 'platform_operator', "
+    "'platform_owner') OR rolname ~ '^guild_[0-9]+(_ro|_support)?$'"
+)
+
+
+@dataclass(frozen=True)
+class LoginRole:
+    """One login the bootstrap maintains, as named by its connection URL."""
+
+    name: str
+    password: str | None
+    attributes: str
+
+
+@dataclass(frozen=True)
+class BootstrapResult:
+    applied: bool
+    roles: tuple[str, ...]
+    search_operator_installed: bool
+    notes: tuple[str, ...] = ()
+
+
+def _url_parts(setting_name: str, default_role: str) -> tuple[str, str | None]:
+    """The (role name, password) a connection URL carries.
+
+    Deployments are free to name their logins something other than the
+    canonical names; the bootstrap maintains whatever the URLs actually
+    connect as, the same way the system-engine check reads ``current_user``.
+    """
+    url = getattr(settings, setting_name, None)
+    if not url:
+        return default_role, None
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return default_role, None
+    name = unquote(parsed.username) if parsed.username else default_role
+    password = unquote(parsed.password) if parsed.password else None
+    return name, password
+
+
+def login_roles() -> tuple[LoginRole, LoginRole, LoginRole]:
+    """The three logins to maintain, read from the connection URLs."""
+    provisioner_name, provisioner_pw = _url_parts(*_PROVISIONER)
+    app_name, app_pw = _url_parts(*_APP_USER)
+    system_name, system_pw = _url_parts(*_SYSTEM_ENGINE)
+    return (
+        LoginRole(
+            provisioner_name,
+            provisioner_pw,
+            "LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS",
+        ),
+        LoginRole(app_name, app_pw, "LOGIN NOINHERIT"),
+        LoginRole(system_name, system_pw, "LOGIN BYPASSRLS"),
+    )
+
+
+# --- Role and database statements ------------------------------------------
+#
+# Role DDL takes no bind parameters, so the name and password travel as
+# transaction-local GUCs and are quoted server-side with format(%I) / format(%L)
+# — the same shape the baseline migration's role DDL uses.
+
+_ENSURE_ROLE = """
+DO $$
+DECLARE
+    role_name text := current_setting('app._bootstrap_role');
+    role_attrs text := current_setting('app._bootstrap_attrs');
+    role_pw text := nullif(current_setting('app._bootstrap_pw'), '');
+    verb text;
+BEGIN
+    SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name)
+                THEN 'ALTER' ELSE 'CREATE' END INTO verb;
+    IF role_pw IS NULL THEN
+        EXECUTE format('%s ROLE %I WITH %s', verb, role_name, role_attrs);
+    ELSE
+        EXECUTE format('%s ROLE %I WITH %s PASSWORD %L',
+                       verb, role_name, role_attrs, role_pw);
+    END IF;
+END
+$$;
+"""
+
+_GRANT_DATABASE = """
+DO $$ BEGIN
+    EXECUTE format('GRANT CREATE, CONNECT ON DATABASE %I TO %I',
+                   current_database(), current_setting('app._bootstrap_role'));
+END $$;
+"""
+
+# The app creates no temporary objects, so it does not use the TEMPORARY grant
+# PUBLIC carries by default on a new database.
+_REVOKE_TEMPORARY = """
+DO $$ BEGIN
+    EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC',
+                   current_database());
+END $$;
+"""
+
+# Only a database's owner can change its ACL; a REVOKE from any other role
+# reports success and changes nothing, so read the ACL back rather than trust
+# the command's exit.
+_VERIFY_TEMPORARY_REVOKED = """
+DO $$
+DECLARE db_owner text;
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_database d,
+             aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) a
+        WHERE d.datname = current_database()
+          AND a.grantee = 0
+          AND a.privilege_type = 'TEMPORARY'
+    ) THEN
+        SELECT pg_get_userbyid(datdba) INTO db_owner
+          FROM pg_database WHERE datname = current_database();
+        RAISE EXCEPTION
+            'REVOKE TEMPORARY did not take effect on database %. The '
+            'bootstrap connection must be its owner (%).',
+            current_database(), db_owner;
+    END IF;
+END
+$$;
+"""
+
+# Postgres 15+ made CREATE on the public schema owner-only, and the baseline
+# migration builds the shared schema there as the provisioning role.
+_OWN_PUBLIC_SCHEMA = """
+DO $$ BEGIN
+    EXECUTE format('ALTER SCHEMA public OWNER TO %I',
+                   current_setting('app._bootstrap_role'));
+END $$;
+"""
+
+# Roles the provisioner creates from now on carry implicit ADMIN (PG16+
+# CREATEROLE); ones that already exist are granted here.
+_ADMINISTER_EXISTING_ROLES = f"""
+DO $$
+DECLARE
+    provisioner text := current_setting('app._bootstrap_role');
+    r record;
+BEGIN
+    FOR r IN SELECT rolname FROM pg_roles WHERE {_ADMINISTERED_ROLE_PATTERN}
+    LOOP
+        EXECUTE format('GRANT %I TO %I WITH ADMIN OPTION', r.rolname, provisioner);
+    END LOOP;
+END
+$$;
+"""
+
+_ADMINISTER_LOGIN_ROLE = """
+DO $$ BEGIN
+    EXECUTE format('GRANT %I TO %I WITH ADMIN OPTION',
+                   current_setting('app._bootstrap_grantee'),
+                   current_setting('app._bootstrap_role'));
+END $$;
+"""
+
+# Hand the app's objects to the provisioning role. Explicit catalog iteration
+# rather than REASSIGN OWNED, which also picks up a bootstrap superuser's
+# pinned system objects. Tables first — their owned sequences follow.
+_TRANSFER_OWNERSHIP = """
+DO $$
+DECLARE
+    provisioner text := current_setting('app._bootstrap_role');
+    r record;
+BEGIN
+    FOR r IN
+        SELECT n.nspname, c.relname FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE (n.nspname = 'public' OR n.nspname ~ '^guild_([0-9]+|template)$')
+          AND c.relkind IN ('r', 'v', 'm', 'p')
+          AND c.relowner = current_user::regrole
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I OWNER TO %I',
+                       r.nspname, r.relname, provisioner);
+    END LOOP;
+    FOR r IN
+        SELECT n.nspname, c.relname FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE (n.nspname = 'public' OR n.nspname ~ '^guild_([0-9]+|template)$')
+          AND c.relkind = 'S' AND c.relowner = current_user::regrole
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'a'
+          )
+    LOOP
+        EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO %I',
+                       r.nspname, r.relname, provisioner);
+    END LOOP;
+    FOR r IN
+        SELECT p.oid::regprocedure AS sig FROM pg_proc p
+        WHERE p.pronamespace = 'public'::regnamespace
+          AND p.proowner = current_user::regrole
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e'
+          )
+    LOOP
+        EXECUTE format('ALTER FUNCTION %s OWNER TO %I', r.sig, provisioner);
+    END LOOP;
+    FOR r IN
+        SELECT t.typname FROM pg_type t
+        WHERE t.typnamespace = 'public'::regnamespace AND t.typtype = 'e'
+          AND t.typowner = current_user::regrole
+    LOOP
+        EXECUTE format('ALTER TYPE public.%I OWNER TO %I', r.typname, provisioner);
+    END LOOP;
+    FOR r IN
+        SELECT n.nspname FROM pg_namespace n
+        WHERE n.nspname ~ '^guild_([0-9]+|template)$'
+          AND n.nspowner = current_user::regrole
+    LOOP
+        EXECUTE format('ALTER SCHEMA %I OWNER TO %I', r.nspname, provisioner);
+    END LOOP;
+END
+$$;
+"""
+
+# A login role must hold no default privilege: a new shared table gives it
+# nothing until a migration grants it from the audited registry. Revoked rather
+# than merely not granted, so a database that was handed over by an earlier
+# build converges instead of keeping what that build set.
+_REVOKE_LOGIN_DEFAULT_PRIVILEGES = """
+DO $$
+DECLARE
+    provisioner text := current_setting('app._bootstrap_role');
+    grantee text := current_setting('app._bootstrap_grantee');
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = grantee) THEN
+        RETURN;
+    END IF;
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
+        'REVOKE ALL ON TABLES FROM %I', provisioner, grantee);
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
+        'REVOKE ALL ON SEQUENCES FROM %I', provisioner, grantee);
+END
+$$;
+"""
+
+# Tables created by future provisioner-run migrations reach the routed roles
+# through the two shared floors. The login roles are deliberately absent: a new
+# shared table grants them nothing until a migration decides, from the audited
+# registry in app.db.system_grants. Skipped until the floors exist — the
+# baseline migration creates them, and the next start asserts this.
+_DEFAULT_PRIVILEGES = """
+DO $$
+DECLARE
+    provisioner text := current_setting('app._bootstrap_role');
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_guild_base')
+       OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'platform_base') THEN
+        RETURN;
+    END IF;
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
+        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES '
+        'TO app_guild_base, platform_base',
+        provisioner);
+    EXECUTE format(
+        'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public '
+        'GRANT SELECT, USAGE ON SEQUENCES TO app_guild_base, platform_base',
+        provisioner);
+END
+$$;
+"""
+
+
+# --- Search operator --------------------------------------------------------
+#
+# Guild search matches a tsvector against a tsquery. These objects give it its
+# own match operator and GIN operator class so its index can serve that match.
+# The stock `@@` operator is left exactly as Postgres ships it.
+
+# PL/pgSQL rather than SQL on purpose: a SQL body is inlined into the calling
+# query, which discards the attributes declared here.
+_SEARCH_MATCH_FUNCTION = """
+CREATE OR REPLACE FUNCTION public.search_tsmatch(tsvector, tsquery)
+    RETURNS boolean
+    LANGUAGE plpgsql
+    IMMUTABLE STRICT PARALLEL SAFE LEAKPROOF
+    AS $fn$ BEGIN RETURN $1 OPERATOR(pg_catalog.@@) $2; END $fn$;
+"""
+
+_SEARCH_FUNCTION_COMMENT = """
+COMMENT ON FUNCTION public.search_tsmatch(tsvector, tsquery) IS
+    'Guild search text match, behind the public.@@@ operator. Body is PL/pgSQL '
+    'so the attributes declared here survive planning.';
+"""
+
+# Selectivity estimators are the stock full-text ones, so the planner costs
+# this exactly as it costs `@@`.
+_SEARCH_OPERATOR = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_operator o
+        JOIN pg_namespace n ON n.oid = o.oprnamespace
+        WHERE n.nspname = 'public' AND o.oprname = '@@@'
+          AND o.oprleft = 'tsvector'::regtype AND o.oprright = 'tsquery'::regtype
+    ) THEN
+        CREATE OPERATOR public.@@@ (
+            LEFTARG   = tsvector,
+            RIGHTARG  = tsquery,
+            PROCEDURE = public.search_tsmatch,
+            RESTRICT  = tsmatchsel,
+            JOIN      = tsmatchjoinsel
+        );
+    END IF;
+END
+$$;
+"""
+
+# Support functions are the stock ones — only the operator differs, so an index
+# built on this behaves like any tsvector GIN index.
+_SEARCH_OPERATOR_CLASS = """
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_opclass c
+        JOIN pg_namespace n ON n.oid = c.opcnamespace
+        WHERE n.nspname = 'public' AND c.opcname = 'tsvector_search_ops'
+    ) THEN
+        CREATE OPERATOR CLASS public.tsvector_search_ops
+            FOR TYPE tsvector USING gin AS
+            OPERATOR 1 public.@@@ (tsvector, tsquery),
+            FUNCTION 1 pg_catalog.gin_cmp_tslexeme(text, text),
+            FUNCTION 2 pg_catalog.gin_extract_tsvector(tsvector, internal, internal),
+            FUNCTION 3 pg_catalog.gin_extract_tsquery(tsvector, internal, smallint,
+                           internal, internal, internal, internal),
+            FUNCTION 4 pg_catalog.gin_tsquery_consistent(internal, smallint, tsvector,
+                           integer, internal, internal, internal, internal),
+            FUNCTION 5 pg_catalog.gin_cmp_prefix(text, text, smallint, internal),
+            FUNCTION 6 pg_catalog.gin_tsquery_triconsistent(internal, smallint, tsvector,
+                           integer, internal, internal, internal),
+            STORAGE text;
+    END IF;
+END
+$$;
+"""
+
+_SEARCH_OPERATOR_STEPS = (
+    ("search match function", _SEARCH_MATCH_FUNCTION),
+    ("search match function comment", _SEARCH_FUNCTION_COMMENT),
+    ("search match operator", _SEARCH_OPERATOR),
+    ("search operator class", _SEARCH_OPERATOR_CLASS),
+)
+
+
+def search_operator_sql() -> tuple[str, ...]:
+    """The statements that install the guild-search match operator, in order."""
+    return tuple(statement for _label, statement in _SEARCH_OPERATOR_STEPS)
+
+
+#: Both objects must be present for guild search to use its index.
+_SEARCH_OPERATOR_PRESENT = text(
+    "SELECT "
+    "  coalesce((SELECT p.proleakproof FROM pg_proc p"
+    "            JOIN pg_namespace n ON n.oid = p.pronamespace"
+    "            WHERE n.nspname = 'public' AND p.proname = 'search_tsmatch'), false)"
+    "  AND EXISTS (SELECT 1 FROM pg_opclass c"
+    "              JOIN pg_namespace n ON n.oid = c.opcnamespace"
+    "              WHERE n.nspname = 'public' AND c.opcname = 'tsvector_search_ops')"
+)
+
+_IS_SUPERUSER = text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+
+
+async def _set_local(conn, key: str, value: str) -> None:
+    await conn.execute(text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value})
+
+
+async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
+    provisioner = roles[0]
+    for role in roles:
+        await _set_local(conn, "app._bootstrap_role", role.name)
+        await _set_local(conn, "app._bootstrap_attrs", role.attributes)
+        await _set_local(conn, "app._bootstrap_pw", role.password or "")
+        await conn.execute(text(_ENSURE_ROLE))
+    await _set_local(conn, "app._bootstrap_pw", "")
+
+    # Everything below acts for the provisioning role.
+    await _set_local(conn, "app._bootstrap_role", provisioner.name)
+    await conn.execute(text(_GRANT_DATABASE))
+    await conn.execute(text(_REVOKE_TEMPORARY))
+    await conn.execute(text(_VERIFY_TEMPORARY_REVOKED))
+    await conn.execute(text(_OWN_PUBLIC_SCHEMA))
+    for role in roles:
+        if role.name == provisioner.name:
+            continue
+        await _set_local(conn, "app._bootstrap_grantee", role.name)
+        await conn.execute(text(_ADMINISTER_LOGIN_ROLE))
+        await conn.execute(text(_REVOKE_LOGIN_DEFAULT_PRIVILEGES))
+    await conn.execute(text(_ADMINISTER_EXISTING_ROLES))
+    await conn.execute(text(_TRANSFER_OWNERSHIP))
+    await conn.execute(text(_DEFAULT_PRIVILEGES))
+
+
+async def _apply_search_operator(conn) -> bool:
+    """Install the match operator objects. Returns whether they are present
+    afterwards — a non-superuser bootstrap connection cannot create them, and
+    that is reported rather than raised: search works without them."""
+    if not await conn.scalar(_IS_SUPERUSER):
+        return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+    for label, statement in _SEARCH_OPERATOR_STEPS:
+        try:
+            await conn.execute(text(statement))
+        except Exception:
+            logger.exception("database bootstrap: %s failed", label)
+            return False
+    return bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+
+
+def bootstrap_sql() -> str:
+    """The whole bootstrap as runnable SQL, for an operator applying it by hand.
+
+    The role name and password GUCs the statements read are emitted as
+    ``set_config`` calls ahead of them, so the output runs as-is under ``psql``.
+    """
+    provisioner, app_login, system = login_roles()
+    out: list[str] = [
+        "-- Initiative database bootstrap. Run as the database owner",
+        "-- (a superuser, for the search operator's LEAKPROOF function).",
+        "BEGIN;",
+    ]
+
+    def setting(key: str, value: str) -> str:
+        return f"SELECT set_config('{key}', {_sql_literal(value)}, true);"
+
+    for role in (provisioner, app_login, system):
+        out += [
+            "",
+            f"-- {role.name}",
+            setting("app._bootstrap_role", role.name),
+            setting("app._bootstrap_attrs", role.attributes),
+            setting("app._bootstrap_pw", role.password or ""),
+            _ENSURE_ROLE.strip(),
+        ]
+    out += [
+        "",
+        "-- Database, schema ownership and role administration",
+        setting("app._bootstrap_pw", ""),
+        setting("app._bootstrap_role", provisioner.name),
+        _GRANT_DATABASE.strip(),
+        _REVOKE_TEMPORARY.strip(),
+        _VERIFY_TEMPORARY_REVOKED.strip(),
+        _OWN_PUBLIC_SCHEMA.strip(),
+    ]
+    for role in (app_login, system):
+        out += [
+            setting("app._bootstrap_grantee", role.name),
+            _ADMINISTER_LOGIN_ROLE.strip(),
+            _REVOKE_LOGIN_DEFAULT_PRIVILEGES.strip(),
+        ]
+    out += [
+        _ADMINISTER_EXISTING_ROLES.strip(),
+        _TRANSFER_OWNERSHIP.strip(),
+        _DEFAULT_PRIVILEGES.strip(),
+        "",
+        "-- Guild search match operator",
+    ]
+    out += [statement.strip() for _label, statement in _SEARCH_OPERATOR_STEPS]
+    out += ["", "COMMIT;"]
+    return "\n".join(out) + "\n"
+
+
+def _sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _repair_instructions(missing: list[str]) -> str:
+    return (
+        "The database is missing prerequisites the app cannot create as its "
+        "own roles: " + ", ".join(missing) + ".\n"
+        "Either set DATABASE_URL_BOOTSTRAP to a connection URL for the "
+        "database owner and restart — the app then applies them itself — or "
+        "apply them once by hand:\n"
+        "  docker compose exec -T initiative python -m app.db.bootstrap "
+        "--print-sql | psql -v ON_ERROR_STOP=1 -U <owner> -d <database>\n"
+    )
+
+
+async def _verify_only() -> BootstrapResult:
+    """Check the invariants using the provisioning connection the app already
+    has, for deployments that provision their database out of band."""
+    from app.db import session as db_session
+
+    provisioner, app_login, system = login_roles()
+    missing: list[str] = []
+    async with db_session.provisioning_engine.connect() as conn:
+        present = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text("SELECT rolname FROM pg_roles WHERE rolname = ANY(:names)"),
+                    {"names": [provisioner.name, app_login.name, system.name]},
+                )
+            ).all()
+        }
+        for role in (provisioner, app_login, system):
+            if role.name not in present:
+                missing.append(f"role {role.name}")
+        search_ready = bool(await conn.scalar(_SEARCH_OPERATOR_PRESENT))
+    if missing:
+        raise RuntimeError(_repair_instructions(missing))
+    return BootstrapResult(
+        applied=False,
+        roles=(provisioner.name, app_login.name, system.name),
+        search_operator_installed=search_ready,
+        notes=("DATABASE_URL_BOOTSTRAP is not set; verified only",),
+    )
+
+
+async def ensure_database_bootstrap(
+    bootstrap_url: str | None = None,
+) -> BootstrapResult:
+    """Apply the privileged prerequisites, or verify them when no bootstrap URL
+    is configured. Called once at startup, before migrations.
+
+    ``bootstrap_url`` overrides ``DATABASE_URL_BOOTSTRAP`` for callers that
+    already know which connection to use — the test harness sources its own
+    superuser and points this at the database under test.
+    """
+    url = bootstrap_url or settings.DATABASE_URL_BOOTSTRAP
+    if not url:
+        return await _verify_only()
+
+    roles = login_roles()
+    engine = create_async_engine(url, poolclass=NullPool, echo=False)
+    try:
+        async with engine.begin() as conn:
+            try:
+                await _apply_roles(conn, roles)
+            except Exception as exc:
+                raise RuntimeError(
+                    "DATABASE_URL_BOOTSTRAP could not apply the database "
+                    "prerequisites. It must connect as the owner of the "
+                    f"database (and, for the search operator, a superuser): "
+                    f"{exc}"
+                ) from exc
+            search_ready = await _apply_search_operator(conn)
+    finally:
+        await engine.dispose()
+
+    result = BootstrapResult(
+        applied=True,
+        roles=tuple(role.name for role in roles),
+        search_operator_installed=search_ready,
+    )
+    logger.info(
+        "database bootstrap applied: roles %s; search operator %s",
+        ", ".join(result.roles),
+        "present" if search_ready else "NOT installed",
+    )
+    return result
+
+
+async def _main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    result = await ensure_database_bootstrap()
+    print(
+        f"roles: {', '.join(result.roles)}\n"
+        f"search operator: "
+        f"{'present' if result.search_operator_installed else 'missing'}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    if "--print-sql" in sys.argv:
+        print(bootstrap_sql(), end="")
+    else:
+        raise SystemExit(asyncio.run(_main()))

@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Install with one file and nothing to run by hand.** Initiative now creates its own three database roles at startup and installs the search index's match operator with them, using a new `DATABASE_URL_BOOTSTRAP` connection for the database owner. The example compose file no longer carries a block of SQL for the database to run when its volume is first created, and search no longer waits for somebody to pipe a script between two containers — until now, an install from Docker Hub read more of its index on every search until an operator noticed the startup warning and ran it. Because the bootstrap runs on every start rather than once per volume, changing a role's password in its URL and restarting is enough to rotate it. Existing installs need no action: the roles they already have are re-asserted, and the search operator they were told about gets installed on the next start. You can also remove `DATABASE_URL_BOOTSTRAP` once the stack is up — Initiative then checks those prerequisites instead of applying them and names anything missing — and a deployment whose database is provisioned elsewhere can leave it unset and apply `python -m app.db.bootstrap --print-sql` itself.
+
 - **Choose what new accounts start on.** Settings › Community gains the direct-message policy an account is created with. It is read once, when the account is made, so changing it opens no account that already exists and closes none either. The shipped default is Private.
 
 - **Requests wait on My Contacts too.** Anything asking for an answer — either direction, connection or message — sits above the page rather than only in Settings.
