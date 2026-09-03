@@ -25,6 +25,7 @@ import {
 import { ratchet } from "./client";
 import {
   accountPickle,
+  deviceClaim,
   messageLog,
   type StoredMessage,
   sessionForDevice,
@@ -45,27 +46,59 @@ const KEY_POOL = 50;
 export async function ensureDevice(): Promise<string> {
   const existing = await storedDeviceId.get();
   if (existing) {
-    // A device the server no longer knows about — revoked from another tab,
-    // or the account erased — has to be re-registered rather than used.
+    // A device the server no longer knows about — revoked from another tab, or
+    // the account erased — has to be registered again rather than used.
     const devices = await listDevices();
     if (devices.devices.some((device) => device.id === existing)) return existing;
+    await deviceClaim.invalidate();
   }
 
-  const account = await ratchet.createAccount();
-  const keys = await ratchet.generateKeys(account.pickle, KEY_POOL, true);
-  if (keys.fallback_key === null) {
-    throw new Error("the ratchet published no fallback key");
+  // Registration is a network round trip, so it cannot sit inside one database
+  // transaction. Only one tab takes it; the rest wait for the answer. Two tabs
+  // each registering would leave the server holding two devices and this
+  // browser holding one set of private keys, and whatever was sent to the other
+  // would never be readable.
+  if (!(await deviceClaim.take())) return waitForRegistration();
+
+  try {
+    const account = await ratchet.createAccount();
+    const keys = await ratchet.generateKeys(account.pickle, KEY_POOL, true);
+    if (keys.fallback_key === null) {
+      throw new Error("the ratchet published no fallback key");
+    }
+    const response = await registerDevice({
+      identity_key: account.identity_key,
+      fingerprint_key: account.fingerprint_key,
+      fallback_key: keys.fallback_key,
+      one_time_keys: keys.one_time_keys,
+    });
+    const created = response.devices[response.devices.length - 1];
+    // Keys first, then the id, then the claim: a tab that sees the claim
+    // settled must find everything the id refers to already written.
+    await accountPickle.set(keys.pickle);
+    await storedDeviceId.set(created.id);
+    await deviceClaim.settle(created.id);
+    return created.id;
+  } catch (error) {
+    // Hand the claim back, or the next attempt waits out the stale window for
+    // a tab that has already given up.
+    await deviceClaim.release();
+    throw error;
   }
-  const response = await registerDevice({
-    identity_key: account.identity_key,
-    fingerprint_key: account.fingerprint_key,
-    fallback_key: keys.fallback_key,
-    one_time_keys: keys.one_time_keys,
-  });
-  const created = response.devices[response.devices.length - 1];
-  await accountPickle.set(keys.pickle);
-  await storedDeviceId.set(created.id);
-  return created.id;
+}
+
+/** Wait for whichever tab is registering to finish, then use what it made. */
+async function waitForRegistration(): Promise<string> {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const claim = await deviceClaim.read();
+    if (claim?.status === "ready") {
+      const id = await storedDeviceId.get();
+      if (id) return id;
+    }
+    if (claim?.status === "claiming" && claim.at === 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error("another tab is still setting up encrypted messages");
 }
 
 async function outboundSessionFor(

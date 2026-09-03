@@ -64,18 +64,31 @@ async function write(key: string, value: unknown): Promise<void> {
  * connection to the database, so this holds between tabs. A JavaScript lock
  * cannot: it lives in one tab's module scope, and the second tab never sees it.
  */
-async function update<T>(key: string, change: (current: T | undefined) => T | undefined) {
+async function update<T>(
+  key: string,
+  change: (current: T | undefined) => T | undefined
+): Promise<{ written: boolean; value: T | undefined }> {
   const db = await open();
-  await new Promise<void>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE, "readwrite");
     const store = transaction.objectStore(STORE);
     const request = store.get(key);
+    let settled: { written: boolean; value: T | undefined } = {
+      written: false,
+      value: undefined,
+    };
     request.onsuccess = () => {
-      const next = change(request.result as T | undefined);
-      if (next !== undefined) store.put(next, key);
+      const current = request.result as T | undefined;
+      const next = change(current);
+      if (next === undefined) {
+        settled = { written: false, value: current };
+        return;
+      }
+      store.put(next, key);
+      settled = { written: true, value: next };
     };
     request.onerror = () => reject(request.error);
-    transaction.oncomplete = () => resolve();
+    transaction.oncomplete = () => resolve(settled);
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
@@ -140,6 +153,59 @@ export async function pickleKey(): Promise<string> {
   return toBase64(raw);
 }
 
+/**
+ * Who is allowed to register this browser's device.
+ *
+ * Registration is a network round trip, so it cannot sit inside one database
+ * transaction. Two tabs opening Messages for the first time would otherwise
+ * both create an account and both register: the server would hold two devices,
+ * only one set of private keys would survive the last write, and anything sent
+ * to the other would never be readable.
+ *
+ * So the *right* to register is claimed atomically first, and the loser waits
+ * for the winner's answer. A claim that was abandoned — the tab closed
+ * mid-registration — goes stale and can be taken again.
+ */
+export type DeviceClaim =
+  | { status: "claiming"; at: number }
+  | { status: "ready"; deviceId: string };
+
+const DEVICE_CLAIM = "device-claim";
+const CLAIM_STALE_MS = 30_000;
+
+export const deviceClaim = {
+  read: () => read<DeviceClaim>(DEVICE_CLAIM),
+
+  /** True if this caller may register. False means somebody else is on it. */
+  take: async (): Promise<boolean> => {
+    const now = Date.now();
+    const { written } = await update<DeviceClaim>(DEVICE_CLAIM, (current) => {
+      if (current?.status === "ready") return undefined;
+      if (current?.status === "claiming" && now - current.at < CLAIM_STALE_MS) {
+        return undefined;
+      }
+      return { status: "claiming", at: now };
+    });
+    return written;
+  },
+
+  settle: async (deviceId: string): Promise<void> => {
+    await update<DeviceClaim>(DEVICE_CLAIM, () => ({ status: "ready", deviceId }));
+  },
+
+  /** Force the claim open again — the recorded device is gone from the server. */
+  invalidate: async (): Promise<void> => {
+    await update<DeviceClaim>(DEVICE_CLAIM, () => ({ status: "claiming", at: 0 }));
+  },
+
+  /** Let go of a claim this caller could not finish. */
+  release: async (): Promise<void> => {
+    await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
+      current?.status === "claiming" ? { status: "claiming", at: 0 } : undefined
+    );
+  },
+};
+
 export const accountPickle = {
   get: () => read<string>(ACCOUNT),
   set: (pickle: string) => write(ACCOUNT, pickle),
@@ -176,12 +242,13 @@ export const messageLog = {
    * of them share one database. A plain read-then-write loses whichever
    * finishes first — on the only copy of that message this device has.
    */
-  append: (conversationId: string, message: StoredMessage): Promise<void> =>
-    update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+  append: async (conversationId: string, message: StoredMessage): Promise<void> => {
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
       const current = existing ?? [];
       if (current.some((entry) => entry.id === message.id)) return undefined;
       return [...current, message];
-    }),
+    });
+  },
 };
 
 /** Which device of theirs we already hold a session with, per session id. */
@@ -200,14 +267,15 @@ export const sessionForDevice = {
 export const sessionsInConversation = {
   get: async (conversationId: string): Promise<string[]> =>
     (await read<string[]>("conversation-sessions:" + conversationId)) ?? [],
-  add: (conversationId: string, sessionId: string): Promise<void> =>
-    update<string[]>("conversation-sessions:" + conversationId, (existing) => {
+  add: async (conversationId: string, sessionId: string): Promise<void> => {
+    await update<string[]>("conversation-sessions:" + conversationId, (existing) => {
       const current = existing ?? [];
       if (current.includes(sessionId)) return undefined;
       // Most recent first: the session a message just arrived on is the one the
       // next message is most likely to be on.
       return [sessionId, ...current];
-    }),
+    });
+  },
 };
 
 export const sessionPickle = {

@@ -17,7 +17,7 @@ import "fake-indexeddb/auto";
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { forgetDevice, messageLog, sessionsInConversation } from "./store";
+import { deviceClaim, forgetDevice, messageLog, sessionsInConversation } from "./store";
 
 beforeEach(async () => {
   await forgetDevice();
@@ -82,5 +82,41 @@ describe("the sessions a conversation holds", () => {
     await sessionsInConversation.add("conv", "session-a");
 
     expect(await sessionsInConversation.get("conv")).toEqual(["session-a"]);
+  });
+});
+
+describe("the device-registration claim", () => {
+  it("is taken by exactly one caller", async () => {
+    // Two tabs opening Messages for the first time. Registering twice would
+    // leave the server with two devices and this browser with one set of
+    // private keys.
+    const results = await Promise.all([deviceClaim.take(), deviceClaim.take(), deviceClaim.take()]);
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("is not taken again once somebody has registered", async () => {
+    await deviceClaim.take();
+    await deviceClaim.settle("device-1");
+
+    expect(await deviceClaim.take()).toBe(false);
+    expect(await deviceClaim.read()).toEqual({ status: "ready", deviceId: "device-1" });
+  });
+
+  it("can be taken again by the next caller when one is handed back", async () => {
+    // A tab that failed mid-registration must not hold the claim until it goes
+    // stale, or the next attempt waits for nothing.
+    expect(await deviceClaim.take()).toBe(true);
+    await deviceClaim.release();
+
+    expect(await deviceClaim.take()).toBe(true);
+  });
+
+  it("can be forced open when the recorded device is gone", async () => {
+    await deviceClaim.take();
+    await deviceClaim.settle("device-1");
+    await deviceClaim.invalidate();
+
+    expect(await deviceClaim.take()).toBe(true);
   });
 });
