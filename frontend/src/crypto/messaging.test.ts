@@ -87,7 +87,13 @@ vi.mock("./client", () => ({
   },
 }));
 
-import { collect, ensureDevice, RecipientHasNoDeviceError, sendText } from "./messaging";
+import {
+  collect,
+  ensureDevice,
+  forgetMessagesOnThisDevice,
+  RecipientHasNoDeviceError,
+  sendText,
+} from "./messaging";
 import { accountPickle, deviceClaim, deviceId, forgetDevice, messageLog } from "./store";
 
 const OURS = { id: "device-1", identity_key: "mine" };
@@ -305,6 +311,24 @@ describe("registering", () => {
     await expect(ensureDevice()).resolves.toBe("device-quick");
     expect(api.removeDevice).toHaveBeenCalledWith("device-slow");
     expect(await accountPickle.get()).toBe("pickle-quick");
+  });
+});
+
+describe("signing out", () => {
+  it("takes the device off the server and the messages off this browser", async () => {
+    api.removeDevice.mockResolvedValue(undefined);
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from("theirs", "read on this device") })],
+    });
+    await collect();
+    expect(await messageLog.get("conv-1")).toHaveLength(1);
+
+    await forgetMessagesOnThisDevice();
+
+    expect(api.removeDevice).toHaveBeenCalledWith(OURS.id);
+    expect(await messageLog.get("conv-1")).toEqual([]);
+    expect(await deviceId.get()).toBeUndefined();
+    expect(await accountPickle.get()).toBeUndefined();
   });
 });
 

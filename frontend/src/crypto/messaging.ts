@@ -30,6 +30,7 @@ import {
   accountPickle,
   allSessions,
   deviceClaim,
+  forgetDevice,
   messageLog,
   type SessionOrigin,
   type StoredMessage,
@@ -517,6 +518,24 @@ export async function collect(): Promise<string[]> {
     await ackQueue({ device_id: device, message_ids: collected });
   }
   return [...touched];
+}
+
+/**
+ * Leave nothing behind on this browser, and stop messages being addressed to it.
+ *
+ * What signing out calls. A decrypted conversation must not outlive the session
+ * that read it — a shared computer is the whole reason — and a device whose
+ * keys are gone should not go on being sent to: withdrawing it releases
+ * everything the server was holding for it.
+ */
+export async function forgetMessagesOnThisDevice(): Promise<void> {
+  const existing = await storedDeviceId.get();
+  if (existing) {
+    // Best effort: the local store is cleared either way, and a device left
+    // behind is withdrawn the next time this browser registers.
+    await removeDevice(existing).catch(() => undefined);
+  }
+  await forgetDevice();
 }
 
 export type { StoredMessage };
