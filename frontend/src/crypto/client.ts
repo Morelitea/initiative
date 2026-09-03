@@ -14,7 +14,6 @@
  * Tests that exercise the ratchet itself import `./engine` directly.
  */
 
-import type { RatchetMethod } from "./worker";
 import type {
   AccountCreated,
   Decrypted,
@@ -23,6 +22,7 @@ import type {
   KeysGenerated,
   OutboundSession,
 } from "./types";
+import type { RatchetMethod } from "./worker";
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -40,9 +40,23 @@ class RatchetUnavailableError extends Error {
   }
 }
 
-/** Whether this runtime can hold a ratchet at all. */
+/**
+ * Whether this runtime can hold a ratchet at all.
+ *
+ * Three things are needed and any of them can be missing: a worker to run the
+ * ratchet in, somewhere to keep the key store, and the browser's own crypto —
+ * which is only handed out on a secure origin, so a page served over plain
+ * http from anything but localhost has none. That last one is the common one
+ * in development, and it looks like a broken feature rather than a wrong
+ * address unless it is said out loud.
+ */
 export function ratchetSupported(): boolean {
-  return typeof Worker !== "undefined";
+  return (
+    typeof Worker !== "undefined" &&
+    typeof indexedDB !== "undefined" &&
+    typeof crypto !== "undefined" &&
+    crypto.subtle !== undefined
+  );
 }
 
 function ensureWorker(): Worker {

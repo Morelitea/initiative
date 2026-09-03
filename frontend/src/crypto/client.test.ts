@@ -41,4 +41,22 @@ describe("the ratchet client", () => {
     globalThis.Worker = class {} as unknown as typeof Worker;
     expect(ratchetSupported()).toBe(true);
   });
+
+  it("counts the browser's own crypto, which a plain http address does not get", () => {
+    // The common way to meet this is a dev server reached by its address on the
+    // network: the browser is capable and the origin is not secure, so there is
+    // no subtle crypto and no key store to be had. Saying "this browser cannot"
+    // is the honest answer, and it beats a failure that looks like a bug.
+    globalThis.Worker = class {} as unknown as typeof Worker;
+    const real = globalThis.crypto;
+    Object.defineProperty(globalThis, "crypto", {
+      value: { getRandomValues: real.getRandomValues.bind(real) },
+      configurable: true,
+    });
+
+    expect(ratchetSupported()).toBe(false);
+
+    Object.defineProperty(globalThis, "crypto", { value: real, configurable: true });
+    expect(ratchetSupported()).toBe(true);
+  });
 });

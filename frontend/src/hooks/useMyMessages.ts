@@ -35,7 +35,16 @@ export const messageKeys = {
 export function useDmDevice() {
   return useQuery({
     queryKey: messageKeys.device,
-    queryFn: () => ensureDevice(),
+    queryFn: async () => {
+      try {
+        return await ensureDevice();
+      } catch (error) {
+        // The page can only say that it failed. What failed is worth having
+        // when somebody has to work out why.
+        console.error("[messages] this device could not be set up", error);
+        throw error;
+      }
+    },
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });

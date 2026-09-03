@@ -450,6 +450,30 @@ describe("My Contacts", () => {
       expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
     });
 
+    it("puts the question in place of the page, not on top of it", async () => {
+      // An unanswered account cannot reach anybody and nobody can reach it, in
+      // any community. A table and a search field over that are furniture for
+      // a list that can only ever be empty.
+      reader({ age_confirmed_at: null });
+      answer([section({ total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(await screen.findByText(/Direct messages are off for this account/i)).toBeVisible();
+      expect(screen.queryByText("Person")).toBeNull();
+      expect(screen.queryByRole("searchbox")).toBeNull();
+      expect(screen.queryByRole("region")).toBeNull();
+    });
+
+    it("asks the age question under a search term as well", async () => {
+      // Searching does not make an unanswered account reachable, so the term
+      // is not the reason the page is bare and the panel still belongs.
+      reader({ age_confirmed_at: null });
+      answer([section({ total_count: 0, items: [] })]);
+      await renderContacts("anybody");
+
+      expect(await screen.findByText(/Direct messages are off for this account/i)).toBeVisible();
+    });
+
     it("explains a private account's empty communities and opens them in one click", async () => {
       reader({ dm_policy: "private" });
       answer([section({ guild_id: 1, total_count: 0, items: [] })]);

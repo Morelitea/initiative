@@ -15,5 +15,5 @@
   "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
   "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
   "loading": "Chargement…",
-  "unsupportedBrowser": "Ce navigateur ne peut pas exécuter les messages chiffrés. Essaie-en un autre, ou l'application."
+  "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application."
 }

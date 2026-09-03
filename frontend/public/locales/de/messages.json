@@ -15,5 +15,5 @@
   "recipientHasNoDevice": "{{name}} hat verschlüsselte Nachrichten noch nicht eingerichtet, deshalb konnte dies nicht zugestellt werden.",
   "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
   "loading": "Wird geladen …",
-  "unsupportedBrowser": "Dieser Browser kann keine verschlüsselten Nachrichten ausführen. Versuche einen anderen oder die App."
+  "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App."
 }

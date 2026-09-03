@@ -215,6 +215,9 @@ export const invalidateContactGrants = () => {
 /** The accounts this person has chosen not to hear from. */
 export const invalidateIgnoredAccounts = () => invalidatePersonalPrefix("/api/v1/me/ignored");
 
+/** Everyone the reader may reach: the community sections and the starred list. */
+export const invalidateContacts = () => invalidatePersonalPrefix("/api/v1/me/contacts");
+
 /**
  * The direct-message mailbox.
  *
