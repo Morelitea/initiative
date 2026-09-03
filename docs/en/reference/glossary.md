@@ -100,15 +100,31 @@ The name you picked plus a four-digit number, written `jordan#1234`. The number 
 
 ### Profile
 
-Your own page, at `/u/<handle>`: your picture, handle, status, badges, and whether you have Initiative open. Public, and the same page whoever opens it, because it belongs to you rather than to a community. See [Profile & preferences](../account/profile-and-preferences.md#your-profile-page).
+Your own page, at `/u/<handle>`: your picture, handle, status, what you're wearing, how you're around, and the listed communities you're in. Public, and the same page whoever opens it, because it belongs to you rather than to a community. See [Profile & preferences](../account/profile-and-preferences.md#your-profile-page).
 
 ### Decoration pack
 
-A set of profile artwork from your marketplace — a banner, a frame for your picture, and a badge. You download one to your collection, then choose what to wear; pieces from different packs mix freely.
+A set of profile artwork from your marketplace, built around one thing people have in common — banners, frames and trophies, usually several of each. You download one to your collection, then choose what to wear; pieces from different packs mix freely.
+
+### Banner, frame, trophy
+
+The three things a profile wears: the **banner** across the top, the **frame** on your picture (which follows you into the sidebar and onto your comments), and the rail of **trophies** underneath — up to six. See [Decorations](../account/profile-and-preferences.md#decorations).
 
 ### Profile status
 
-An emoji, a line about what you're up to, or both, shown on your profile. Not to be confused with a task's **status** above.
+An emoji, a line about what you're up to, or both, shown on your profile. Not to be confused with a task's **status** above, or with **presence** below.
+
+### Presence
+
+How you're around, shown as a dot under your picture: **online**, **idle**, **busy**, or **offline**. Idle sets itself after a while of nothing happening; offline means nobody sees you as here, whatever you have open. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
+
+### My Contacts
+
+Your personal page listing everyone you share a community with, plus anyone you've starred. See [Your space](../guides/your-space.md#my-contacts).
+
+### Announcement
+
+A notice shown in a dialog to the people using a server — a change to act on, or a maintenance window to plan around. Read past ones from the info icon in the sidebar footer. See [Announcements](../admin/announcements.md).
 
 ### Role (initiative role)
 

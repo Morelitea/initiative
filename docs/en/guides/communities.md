@@ -16,7 +16,9 @@ You can belong to many communities at once. The **community rail** runs down the
 - Switching changes everything else — the sidebar, initiatives, and projects — over to that community.
 - Each community is independent. Work, people, and settings never cross between them.
 
-Opening a community lands you on its **front page**: a row of the community's tools across the top, one circle each. Pick a tool and everything of that kind in the community is listed underneath it — every project, document, calendar, queue, counter group or dashboard you have access to, wherever it lives — with the initiative it belongs to, its tags, and when it last changed. Click a name to open it, or an initiative to go there instead.
+Opening a community lands you on its **front page**: a row of the community's tools across the top, one circle each. Pick a tool and everything of that kind that has reached **you** is listed underneath it — every project, document, calendar, queue, counter group or dashboard shared with you, with a role you hold, or with everyone in an initiative you're in — along with the initiative it belongs to, its tags, and when it last changed. Click a name to open it, or an initiative to go there instead.
+
+The same rule applies to a community admin. Their authority over the community is unchanged — opening a single initiative still shows them all of its work — but the front page is a reading list, not an inventory, so it shows their work rather than everyone's.
 
 Only the tools your initiatives actually use appear, so a community that doesn't run queues never shows a Queues circle.
 
@@ -26,6 +28,8 @@ Only the tools your initiatives actually use appear, so a community that doesn't
 
 !!! tip "Two communities at once"
     Open Initiative in two browser tabs and you can have each tab in a different community — handy if you're juggling, say, a work team and a side project.
+
+An open tab keeps up with your membership by itself. If an admin adds you to a community, a group sign-in sync brings you into one, or a community you're already in lists itself in the directory, the rail updates where you are — no reload.
 
 ## Finding a community to join
 
@@ -94,6 +98,14 @@ Inside a community there are two roles:
 
 Administrators can promote a member to admin, or step a member back down, from **Community settings → Users**.
 
+Promoting someone lifts the **initiative roles they already hold**: every initiative they're in moves them to project manager, so the app treats them as the authority they now are — they're told when somebody asks to join, and waiting requests show up on the community's front page. A membership left behind by a promotion made before this was the case can be put right from that initiative's **Members** tab.
+
+### What the member list shows
+
+The list carries what a community actually manages: **handle**, **name** (in communities set to show real names), **community role**, whether the membership comes from a group sign-in sync, the member's standing, and when they joined. **Export all as CSV** writes the same columns.
+
+A member's platform role and whether they've confirmed their email address aren't a community's business, and aren't in either the list or the CSV. Platform-wide user management lives in the [admin dashboard](../admin/platform-roles.md#managing-platform-users).
+
 !!! note "Community admin is not the same as the app's owner"
     Being an admin of *your* community gives you full control of that community — but not of the whole server or other people's communities. Server-wide roles are a separate thing, covered in [Platform roles](../admin/platform-roles.md).
 
@@ -101,11 +113,14 @@ Administrators can promote a member to admin, or step a member back down, from *
 
 Open **Community settings** from the sidebar (or the community rail). You'll find tabs for:
 
-- **Community** — the name, description, and icon. (Icons should be a square image, up to 512&nbsp;KB.)
-- **Users** — members, their roles, and invite links.
-- **Initiatives** — create and manage the community's initiatives.
+- **Community** — the name, description, icon and banner, and whether the community lists itself in the directory. (Icons should be a square image, up to 512&nbsp;KB.)
 - **AI** — optional AI settings for the community (see [AI features](../account/ai-features.md)).
+- **Users** — members, their roles, and invite links.
+- **Authentication** — single sign-on for this community, where your server offers it (see [Single sign-on](../admin/single-sign-on.md)).
+- **Initiatives** — create and manage the community's initiatives.
+- **Apps** — the apps installed in this community (see [Apps & the marketplace](apps-and-marketplace.md#adding-an-app)).
 - **Trash** — recently deleted items, which you can restore.
+- **Data** — export the whole community, and re-download a finished export.
 - **Danger zone** — sensitive actions, including deleting the community.
 
 ### Trash and retention

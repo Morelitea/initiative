@@ -98,6 +98,14 @@ No. Each community's data is isolated at the database level — other groups can
 
 A **community admin** can see everything in their own community — that's part of running it. Platform staff on a hosted service can only get in through **temporary, recorded** access, never a standing back door. See [Platform roles](../admin/platform-roles.md).
 
+### I'm a community admin. Why doesn't my sidebar list every initiative?
+
+Because navigation follows what you're *in*, not what you may reach. Your sidebar and the community front page show the initiatives you've joined, then the ones on offer — the same view everyone else gets — so a community with a hundred initiatives doesn't bury the three you work in. Your authority is unchanged: open any initiative and you see all of it. To keep one to hand, join it from the community front page (you walk straight in) or take the project manager role from **Community settings → Initiatives**. See [Community admins join like everyone else](../guides/initiatives.md#community-admins-join-like-everyone-else).
+
+### My Projects doesn't show everything in my community.
+
+It isn't meant to. The cross-community lists — My Projects, My Documents, My Calendar — and the community front page show what has reached *you*: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. Open a single initiative to see all of its work. See [Your space](../guides/your-space.md#my-projects).
+
 ### Where is my data stored?
 
 Wherever your server runs — Initiative is self-hosted, so your group controls the location. See [Data & compliance](../security/data-and-compliance.md).
@@ -105,6 +113,10 @@ Wherever your server runs — Initiative is self-hosted, so your group controls 
 ### Can I get my data out?
 
 Yes. Export projects to a portable file, spreadsheets to CSV/Excel, and calendars to `.ics`. See [Data & compliance](../security/data-and-compliance.md#getting-your-data-out).
+
+### An import didn't match people to their accounts.
+
+Exports and imports identify people by **handle** (`foobar#1234`), because a handle is the same in every community. A file exported before that was true names people by email address and won't match; export it again and the new file will. See [Exporting a project](../guides/projects-and-tasks.md#exporting-a-project).
 
 ## For administrators
 

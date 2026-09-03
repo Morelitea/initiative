@@ -18,9 +18,9 @@ Platform roles form a five-rung ladder, each rung adding to the one below it:
 | Role | What it can do |
 |---|---|
 | **Member** | Standard access to their own communities. No server-wide privileges. This is everyone by default. |
-| **Support** | Read-only visibility across the platform (users, communities, audit), and can **request** time-bound access to a community to help with an issue. |
+| **Support** | Read-only visibility across the platform (users, communities, audit), can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
 | **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate) and content moderation. |
-| **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), and approves access requests. |
+| **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, and writes [announcements](announcements.md). |
 | **Owner** | Full control, **including server-wide configuration** (single sign-on, email, branding, AI). The only role that can change configuration. |
 
 !!! info "Capabilities, not just titles"
@@ -41,6 +41,7 @@ From **Settings → Platform → Users** (or the **Admin dashboard → Users**) 
 - **Reset a user's password** (sends them a reset email).
 - **Reactivate** a deactivated account.
 - **Export** the user list as CSV.
+- **Let someone answer the age question again**, where they answered as under age. Nearly always a mistyped year. It clears the answer and nothing else — they answer again from scratch, and no birthday is recorded either way. See [Asking members their age](configuration.md#asking-members-their-age).
 - **Delete a user**, choosing how thorough it is:
     - **Deactivate** — can't sign in; data preserved; reversible.
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.
@@ -62,12 +63,17 @@ There are two paths:
 
 ![Access requests and break-glass](../images/admin/access-grants.png)
 
+## Announcements
+
+Operators and owners can write **announcements** — notices shown in a dialog to the people using the server. They're for a change somebody has to act on, or would otherwise be confused by. See [Announcements](announcements.md).
+
 ## Community storage limits
 
 The owner can set a maximum storage size per community from **Settings → Platform → Communities**. See [File & object storage](object-storage.md#per-community-storage-limits).
 
 ## Related
 
+- [Announcements](announcements.md) — telling everyone something.
 - [Configuration](configuration.md) — foundational settings.
 - [Working with communities](../guides/communities.md) — the per-community admin role.
 - [How your data is kept separate](../security/how-your-data-is-kept-separate.md) — the access model behind all of this.

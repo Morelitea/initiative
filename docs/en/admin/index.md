@@ -63,6 +63,12 @@ If you only *use* Initiative, you can happily skip this section. Everything you 
 
     [:octicons-arrow-right-24: Platform roles](platform-roles.md)
 
+-   :material-bullhorn-outline: __Announcements__
+
+    Tell everyone on your server something they have to act on.
+
+    [:octicons-arrow-right-24: Announcements](announcements.md)
+
 -   :material-backup-restore: __Backups & updates__
 
     Protect your data and stay current.

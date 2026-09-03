@@ -22,6 +22,17 @@ On a touchscreen, a **three-finger tap** opens search.
 | **Sort by a column** | Click the column heading |
 | **Sort by several columns** | Hold ++shift++ and click each additional heading |
 
+## In a list of cards
+
+Projects, documents, queues, counter groups and dashboards are listed as cards, and you can select several to act on them together.
+
+| Action | How |
+|---|---|
+| **Select one card** | Click it |
+| **Select a run** | Click the first, then hold ++shift++ and click the last |
+| **Clear a run** | Untick a card, then hold ++shift++ and click away from it |
+| **From the keyboard** | ++shift+enter++ or ++shift+space++ extends the same way |
+
 ## Tips that act like shortcuts
 
 - **Search instead of clicking.** Press ++cmd+k++ / ++ctrl+k++ and start typing a project, task, or document name to jump straight there — usually quicker than the sidebar. See [Search & shortcuts](../guides/search-and-shortcuts.md).

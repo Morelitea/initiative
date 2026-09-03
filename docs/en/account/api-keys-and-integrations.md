@@ -42,7 +42,7 @@ A few important properties:
 
 - It's **off unless your administrator enables it** on the server.
 - Every action runs **as you**, scoped by your key. An assistant can only ever reach data *you* could reach.
-- The surface is **deliberately small and read-leaning** — a handful of read actions for any key, and only a few write actions (create/edit/move a task, add a comment) for a full-access key. A **read-only** key can't write at all.
+- The surface is **deliberately small and read-leaning** — a handful of read actions for any key (projects, tasks, initiatives, members, task statuses, and the **comments** on a task or document), and only a few write actions (create/edit/move a task, add a comment) for a full-access key. A **read-only** key can't write at all.
 
 !!! tip "Use a read-only, single-community key for AI assistants"
     For most uses, a read-only key pinned to one community is the right call. Only use a full-access key if you actually want the assistant to make changes — and each change is confirmed in the assistant before it runs.

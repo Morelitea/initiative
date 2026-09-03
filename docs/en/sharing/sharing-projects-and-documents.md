@@ -42,7 +42,11 @@ Start restricted when in doubt; you can always widen access later.
 
 Open the **Access** tab in a project's or document's settings at any time to add people, change someone's level, or remove access. Changes apply immediately.
 
+Every settings tab has an address of its own, so you can send someone a link straight to a tool's sharing or advanced options rather than describing where to click.
+
 You can also **edit access on several items at once**: from a list view, select multiple **documents, projects, queues, counters, or calendar events** and update who can see or edit them in one step — handy when a new teammate joins a batch of work, or when someone leaves.
+
+You don't have to click each card. Click the first, hold ++shift++ and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way. (++shift+enter++ or ++shift+space++ does the same from the keyboard.)
 
 ## A couple of things to remember
 

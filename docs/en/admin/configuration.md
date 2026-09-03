@@ -38,6 +38,14 @@ While it's off there is nothing to browse, nobody can join a community without a
 
 Listing is then each community admin's own decision: they pick the community's categories and certify that it holds no adult or illegal content. Initiative refuses to list a community with room for only a single member. See [Listing your community](../guides/communities.md#listing-your-community-administrators).
 
+### Asking members their age
+
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one to confirm they're **13 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered — and only the parts of Initiative open to strangers ask at all. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+
+The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
+
+Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [admin dashboard](platform-roles.md#managing-platform-users).
+
 ## Running behind a reverse proxy
 
 For any real deployment you'll put Initiative behind a reverse proxy that handles HTTPS.

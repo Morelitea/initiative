@@ -12,7 +12,9 @@ The tabs split along a simple line: **Profile** is the face other people see, **
 
 You have a page of your own at a link worth sharing — `/u/jordan1234`, your handle with its number run onto the end. Open it from **My profile** in your account menu, or by opening anyone from a member list or a search result.
 
-It shows your picture, your handle, whatever status you have set, the badges you are wearing, whether you have Initiative open right now, and when you joined. It is public and the same page whoever opens it, because it belongs to *you* rather than to any one community — so it shows your handle rather than your real name, wherever it is opened from.
+It shows your picture, your handle, whatever status you have set, the banner and frame and trophies you are wearing, how you are around right now, and when you joined. Underneath, it lists the communities you are in — of the ones that have listed themselves in the [community directory](../guides/communities.md#finding-a-community-to-join); a private community is nobody else's business and never appears there.
+
+It is public and the same page whoever opens it, because it belongs to *you* rather than to any one community — so it shows your handle rather than your real name, wherever it is opened from.
 
 ![A profile page](../images/account/profile-page.png)
 
@@ -22,9 +24,10 @@ The **Profile** tab is everything on that page, with a live preview of it at the
 
 - **Picture** — upload one, or point at an image URL. An uploaded picture saves the moment you choose it.
 - **Display name** — your real name, used only in communities that are set to show real names. Everywhere else you are your handle.
-- **Status** — an emoji, a line about what you are up to, or both. Up to 100 characters, and clearing it takes the status off.
+- **Status** — an emoji, a line about what you are up to, or both. Set it by clicking the bubble on the card rather than filling in a form; the emoji picker is searchable and in your language. Up to 100 characters, and clearing it takes the status off.
+- **Presence** — the dot under your picture. See [Saying how you're around](#saying-how-youre-around).
 - **Your packs** — the decoration packs you have downloaded, and the way to remove one.
-- **Your look** — which banner, frame and badges you are wearing.
+- **Your look** — which banner, frame and trophies you are wearing.
 
 ![The Profile tab](../images/account/profile-settings.png)
 
@@ -35,18 +38,40 @@ A profile can wear three things, and you mix them freely — they do not have to
 | | What it is | How many |
 |---|---|---|
 | **Banner** | The artwork across the top of your profile | One |
-| **Frame** | A ring around your picture, which follows you into the sidebar | One |
-| **Badges** | Small marks beside your handle | Up to six |
+| **Frame** | Artwork around your picture, which follows you into the sidebar and onto every comment you write | One |
+| **Trophies** | The rail of small marks under your picture | Up to six |
 
-Banners and frames move; badges hold still, because a row of them beside a name has to stay readable. If you have asked your device for less motion, they hold still too.
+Banners and frames move; trophies hold still, because a rail of them has to stay readable at a glance. If you have asked your device for less motion, they hold still too.
+
+Not every frame is a ring. Several stand in *front* of your picture instead, so you are sitting in the teacup, in one bay of the Colosseum, or wearing the headphones.
 
 You never upload a decoration. You pick from what you own, which starts with the set that ships with Initiative and grows with the **decoration packs** you download from your marketplace — see [Apps & the marketplace](../guides/apps-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community none of its storage.
 
 Picking the thing you are already wearing takes it off, so there is nothing extra to click for "none". Press **Save look** when you are happy with it.
 
+#### Two things you fill in yourself
+
+- **Colour.** The gilded frame takes one colour and the split frame takes two. Pick them beside the frame, or **Reset** to go back to how it came.
+- **Year.** The Grad banner and the Grad trophy carry a year. Choosing either offers this year and keeps whatever you give it, so "class of" says the right thing.
+
 ### Removing a pack
 
 **Remove pack** on any pack in **Your packs** gives it up. Its pieces leave your collection, and anything from it you were wearing comes off with it — Initiative says so before it does anything, and you can download the pack again later.
+
+If you have taken a lot of packs, the search box above the list finds one by name.
+
+## Saying how you're around
+
+Under your picture in the sidebar is a small **dot**. Click it and pick how you appear:
+
+| | What it means |
+|---|---|
+| **Online** | You have Initiative open. |
+| **Idle** | Set on its own once nothing has been touched for a while — or pick it outright to say you have stepped away. |
+| **Busy** | You are around, and would rather not be interrupted. |
+| **Offline** | Nobody sees you as here, whatever you have open. |
+
+**Offline** means offline: choosing it is the way to be present without being seen to be. The same dot on your profile card in **User settings → Profile** opens the same menu, and the state you pick shows on your profile page and wherever your picture appears.
 
 ## Account
 

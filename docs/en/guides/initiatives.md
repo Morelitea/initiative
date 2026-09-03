@@ -78,8 +78,16 @@ Two things to know:
 - It applies to people arriving **from now on**. It doesn't reach back and add everyone already in the community.
 - Only an **anyone can join** initiative can carry it, so auto-join never hands out access that the person couldn't have given themselves from the list a moment later.
 
-!!! tip "Community admins are already everywhere"
-    A community admin reaches every initiative in their community by virtue of being an admin, so they're not enrolled as ordinary members and don't appear in these lists as needing to join.
+### Community admins join like everyone else
+
+A community admin has authority over every initiative in their community — but authority isn't navigation. Their sidebar and the community's front page show **the initiatives they're actually in**, then the ones on offer, exactly as anyone else sees it. An admin drowning in a hundred initiatives they've never opened can't find the three they work in.
+
+To put an initiative in front of themselves, an admin joins it from the community's front page. They walk straight in whatever the initiative's joining setting says — no request, no waiting — and land on the **project manager** role their standing already implies. **Community settings → Initiatives** still lists every initiative in the community, and taking the project manager role there does the same thing.
+
+None of this changes what an admin may *do*. Opening a single initiative still shows them all of its work.
+
+!!! tip "Adding an admin to your initiative"
+    A project manager can add a community admin to an initiative like anybody else — the member picker offers them, and they arrive on the project manager role, which is the only role their standing allows here.
 
 ## Roles and what they unlock
 
@@ -112,8 +120,10 @@ There's a full walkthrough of roles and how they combine with sharing in [Initia
 Open an initiative's **settings** to find:
 
 - **Details** — name, color, description, and **Joining** (how people may join; see [How people join an initiative](#how-people-join-an-initiative)).
-- **Members** — who's in, and their roles.
+- **Members** — who's in, their roles, and any waiting join requests.
 - **Roles** — create roles and set their permissions.
+- **Properties** — the custom fields this initiative's tasks, documents and events can carry.
+- **Export** — download the initiative's data (managers and above).
 - **Danger zone** — archive, unarchive, or delete the initiative.
 
 ### Archiving vs. deleting

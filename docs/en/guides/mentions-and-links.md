@@ -34,6 +34,8 @@ You don't have to. `#` on its own searches the lot, and typing the kind is just 
 
 Mentioning a task also notifies the people it's assigned to.
 
+The list reaches the work in **this initiative** — the document's own, if you're writing in one — so a community full of matching tasks can still come back with nothing. When that happens the picker says so, and says the initiative is the limit, rather than leaving you looking at an empty box.
+
 !!! tip "Links survive renames"
     A `#` link points at the thing, not at its name, so renaming a task doesn't break the sentence that mentions it.
 
@@ -55,6 +57,9 @@ If what you pointed at is deleted, or was never shared with you, the reference k
 
 !!! note "Exports show the words"
     A PDF or Word file can't keep itself current, so an export shows the name a thing had when the reference was written.
+
+!!! note "`#` and `@` aren't allowed in names"
+    Because both already mean something when you're writing, a name or title can't contain either. If you try, Initiative says so rather than quietly making a reference nobody can follow.
 
 ## Where each one works
 

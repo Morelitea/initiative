@@ -79,15 +79,29 @@ Each connection shows which service it uses and what it's allowed to do there, s
 
 ## Your own marketplace
 
-Your marketplace holds **decoration packs** — sets of artwork for your profile. A pack carries a banner, a frame for your picture, and a badge, built around one thing a group of people has in common: **Tabletop** for the table that rolls for it, **Soundcheck** for bands and anyone who books the room and plugs in, **Observatory** for labs, field stations and reading groups with a whiteboard.
+Your marketplace holds **decoration packs** — sets of artwork for your profile. Each one is built around a single thing a group of people has in common, and carries banners, frames and trophies, usually several of each, which you wear in any combination you like.
+
+Twenty-three packs ship with Initiative:
+
+| | |
+|---|---|
+| **People and identity** | Pride, Multicultural, Disability, First Nations, Black heritage, Faith and Belief, Family |
+| **What you do** | Sports, Gaming, Drama, Cinema, Soundcheck, Observatory, Education |
+| **What you love** | Pets, Plants, Books, Tea, Travel, Nature, Winter, Zen, Spooky |
+
+Some run deep. Pride flies a flag, a turning ring and a heart for each of seven identities. Multicultural carries seventy flags. Disability has a trophy for eleven of the things people are, and a flag for all of them.
+
+The banners move: a playhead lights the notes it passes, a curtain runs in and out, skeletons dance until sunrise, a typewriter types a line at a time, a lake changes colour the whole way down as the sun sets into it, and the view from a train window keeps going past.
 
 What you take here is yours rather than your community's. Download a pack in one community and you are wearing it in all of them, because your profile belongs to you.
 
 1. Open **Browse the marketplace** on **User settings → Profile**.
-2. Open a pack to see the profile it would make — the banner running, the frame around your own picture, the badge beside your name.
+2. Open a pack to see everything in it, and the profile it would make — the banner running, the frame around your own picture, the trophies under it.
 3. **Get this pack**, and its pieces land in your collection.
 
 Downloading a pack does not put anything on you. It gives you the pieces; you choose which to wear back on **User settings → Profile**, and you can mix pieces from different packs however you like. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
+
+Giving one back is the same click in reverse — open the pack's card and remove it. Its pieces leave your collection, and anything from it you were wearing comes off with them.
 
 ![Decoration packs](../images/marketplace/decoration-packs.png)
 

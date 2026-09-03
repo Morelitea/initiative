@@ -12,13 +12,14 @@ Let's walk through the screen so everything feels familiar. Don't worry about re
 
 Down the **far-left edge of the screen** is a narrow vertical strip of icons:
 
-- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every community: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
+- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every community: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Contacts*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
 - **Below the logo** is one icon for **each community** you belong to. The highlighted icon is the community you're in now; click another to switch. Opening a community shows that community's **dashboard** and fills the sidebar with its contents. (More on communities in [Your first community](your-first-community.md).)
 
 ## The sidebar (next to it)
 
 When you're in a community, the sidebar maps out that community. You'll usually find:
 
+- **Search** — near the top, if you'd rather click than press ++cmd+k++.
 - **Initiatives** — the heart of the workspace. Each one expands to show its projects and documents, and clicking an initiative's **title** opens that initiative's own **dashboard**. This is where most of your work lives.
 - **Tags** and **Favorites** — quick ways to find things you've labeled or starred.
 
@@ -29,9 +30,10 @@ When you're in a community, the sidebar maps out that community. You'll usually 
 
 Pinned to the **bottom** of the sidebar are your personal controls:
 
-- Your **name and picture** — opens your **account menu**, with **My profile**, your **settings**, and **sign out**. Your picture wears whatever frame you have put on it.
+- Your **name and picture** — opens your **account menu**, with **My profile**, your **settings**, and **sign out**. Your picture wears whatever frame you have put on it, and the **dot** on it is how you're around: click it to go online, idle, busy, or offline. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
 - The **light / dark theme** toggle — switch the whole app between **Light**, **Dark**, or **System** (which follows your device's own setting). Set it once and forget it.
-- Your **notifications** — a running list of everything you've been alerted to.
+- Your **notifications** — a running list of everything you've been alerted to, updated as things happen.
+- The **info icon** — **Past announcements**, everything the server has told you, with the unread ones marked. See [Announcements](../guides/notifications.md#announcements).
 
 Below those, you'll see the app's **version number** and a link to the project's **open-source code on GitHub**.
 
