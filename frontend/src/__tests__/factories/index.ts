@@ -4,6 +4,11 @@ export {
   buildRecentActivityEntry,
   resetCounter as resetCommentCounter,
 } from "./comment.factory";
+export {
+  buildContactGrant,
+  buildIgnoredAccount,
+  resetCounter as resetDmCounter,
+} from "./dm.factory";
 export { buildDocumentSummary, resetCounter as resetDocumentCounter } from "./document.factory";
 export {
   buildDefaultFilterPresets,
@@ -84,6 +89,7 @@ export {
 } from "./user.factory";
 
 import { resetCounter as resetCommentCounter } from "./comment.factory";
+import { resetCounter as resetDmCounter } from "./dm.factory";
 import { resetCounter as resetDocumentCounter } from "./document.factory";
 import { resetCounter as resetFilterPresetCounter } from "./filterPreset.factory";
 import { resetCounter as resetGuildCounter } from "./guild.factory";
@@ -119,4 +125,5 @@ export function resetFactories(): void {
   resetMarketplaceCounter();
   resetFilterPresetCounter();
   resetSearchCounter();
+  resetDmCounter();
 }

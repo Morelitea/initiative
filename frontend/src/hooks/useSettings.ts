@@ -67,6 +67,7 @@ import {
   updateOidcSettingsApiV1SettingsAuthPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
   updateStorageSettingsApiV1SettingsStoragePut,
+  useReadCommunitySettingsApiV1SettingsCommunityGet,
 } from "@/api/generated/settings/settings";
 import {
   getChangelogApiV1ChangelogGet,
@@ -76,6 +77,7 @@ import {
   invalidateAppConfig,
   invalidateAuthProviders,
   invalidateAuthSettings,
+  invalidateCommunitySettings,
   invalidateEmailSettings,
   invalidateInterfaceSettings,
   invalidateOidcMappings,
@@ -246,11 +248,20 @@ export const useUpdateInterfaceSettings = (
   );
 
 /**
+ * The three community-wide decisions, for the owner's settings page.
+ *
+ * The two switches are on the boot config, which is where every other page
+ * reads them; the default direct-message policy is not, because nothing in the
+ * SPA acts on it — the server applies it when an account is made. So it is
+ * read here, behind the capability that writes it.
+ */
+export const useCommunitySettings = () => useReadCommunitySettingsApiV1SettingsCommunityGet();
+
+/**
  * Turn the community directory on or off for the whole deployment (owner only).
  *
- * There is no matching query: the value is public and every signed-in page
- * needs it, so it rides along with the SPA's boot config — which is what this
- * invalidates, so the owner's own session reflects the switch immediately.
+ * Invalidates the boot config, which carries the two switches every signed-in
+ * page reads, and this page's own read, which carries the third decision.
  */
 export const useUpdateCommunitySettings = (
   options?: MutationOpts<CommunitySettingsResponse, CommunitySettingsUpdate>
@@ -261,7 +272,7 @@ export const useUpdateCommunitySettings = (
         updateCommunitySettingsApiV1SettingsCommunityPut(
           data as Parameters<typeof updateCommunitySettingsApiV1SettingsCommunityPut>[0]
         ),
-      invalidate: () => invalidateAppConfig(),
+      invalidate: () => Promise.all([invalidateAppConfig(), invalidateCommunitySettings()]),
     },
     options
   );

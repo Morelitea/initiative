@@ -50,7 +50,12 @@ vi.mock("@/hooks/useContacts", () => ({
 // The reader's own policy decides whether the page has anything to list, so
 // every test below states it. The default is an account that answered its age
 // and let its communities in — the one whose sections have members.
-vi.mock("@/hooks/useDirectMessages", () => ({
+vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
+  // Spread rather than listed: the row's actions menu reads several more of
+  // these, and a mock that had to name every one would break on the next hook
+  // added rather than on anything this file is about. The four below are the
+  // ones a test here steers; the rest run for real, against the handlers.
+  ...(await importOriginal<Record<string, unknown>>()),
   useDmSettings: () => mocks.dmSettings(),
   useUpdateDmSettings: () => ({ mutate: mocks.updateDm, isPending: false }),
   useConnections: () => mocks.connections(),

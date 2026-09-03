@@ -19,8 +19,9 @@ export const CONTACT_ROW_GRID = cn(
   "sm:grid-cols-[2rem_minmax(0,1.1fr)_minmax(0,1fr)_5rem]"
 );
 
-/** The row itself: everything above, plus the star that sits outside the link. */
-export const CONTACT_ROW_OUTER = "grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-1";
+/** The row itself: everything above, plus the two controls that sit outside
+ *  the link — the star, and the menu of what can be done about this person. */
+export const CONTACT_ROW_OUTER = "grid grid-cols-[minmax(0,1fr)_2rem_2rem] items-center gap-1";
 
 /**
  * The one heading over the whole page.
@@ -44,6 +45,7 @@ export const ContactColumnHeader = () => {
         </span>
         <span className="text-muted-foreground text-xs">{t("columns.alsoIn")}</span>
       </div>
+      <span aria-hidden="true" />
       <span aria-hidden="true" />
     </div>
   );

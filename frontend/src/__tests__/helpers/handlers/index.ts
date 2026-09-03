@@ -1,5 +1,6 @@
 import { authHandlers } from "./auth.handlers";
 import { commentHandlers } from "./comment.handlers";
+import { dmHandlers } from "./dm.handlers";
 import { documentHandlers } from "./document.handlers";
 import { filterPresetHandlers } from "./filterPreset.handlers";
 import { guildHandlers } from "./guild.handlers";
@@ -25,5 +26,6 @@ export const handlers = [
   ...commentHandlers,
   ...userHandlers,
   ...propertyHandlers,
+  ...dmHandlers,
   ...toolCountHandlers,
 ];

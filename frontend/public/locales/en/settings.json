@@ -1126,7 +1126,9 @@
     "ageGateHelpText": "While this is on, anyone who belongs to a listed community is asked once to confirm their age, and the answer is kept on their account. Turn it off only where you already know every account belongs to an adult.",
     "ageGateOffTitle": "Stop asking members their age?",
     "ageGateOffBody": "Turning this off asserts that every account on this deployment belongs to someone 18 or older. Nobody will be asked to confirm their age again, including people who join a listed community later.",
-    "ageGateOffConfirm": "Everyone here is 18 or older"
+    "ageGateOffConfirm": "Everyone here is 18 or older",
+    "defaultDmLabel": "Direct messages for new accounts",
+    "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be."
   },
   "audit": {
     "title": "Audit",

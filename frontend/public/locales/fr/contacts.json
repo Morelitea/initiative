@@ -4,6 +4,7 @@
   "favorites": "Favoris",
   "connections": "Connexions",
   "directMessages": "Messages directs",
+  "requests": "Demandes",
   "searchPlaceholder": "Rechercher des contacts",
   "searchLabel": "Rechercher parmi tout le monde sur cette page",
   "clearSearch": "Effacer la recherche",
@@ -47,5 +48,16 @@
       "open": "Autoriser mes communautés à m'écrire",
       "settings": "Paramètres de confidentialité"
     }
+  },
+  "actions": {
+    "label": "Actions pour {{handle}}",
+    "connect": "Se connecter",
+    "ask": "Demander à écrire",
+    "askSent": "Demande envoyée.",
+    "ignore": "Ignorer",
+    "stopIgnoring": "Ne plus ignorer",
+    "removeConnection": "Supprimer la connexion",
+    "removeConnectionTitle": "Supprimer cette connexion ?",
+    "removeConnectionBody": "Vous ne serez plus connectés. Si rien d'autre ne vous permet de vous écrire — une communauté commune, ou le fait que vous soyez tous deux ouverts aux messages —, cela prend fin aussi."
   }
 }

@@ -2,6 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { Loader2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { PageBanner } from "@/components/PageBanner";
@@ -100,6 +101,18 @@ export const UserProfilePage = () => {
             />
             {banner ? null : <h1 className="pb-1 font-semibold text-2xl">{name}</h1>}
             <ProfileJoined joinedAt={profile.joined_at} className="ms-auto pb-1" />
+            {/* Not on your own profile: there is nothing here to do about
+                yourself. */}
+            {mine ? null : (
+              <ContactActionsMenu
+                user={{
+                  id: profile.id,
+                  username: profile.username,
+                  discriminator: profile.discriminator,
+                }}
+                className="mb-1"
+              />
+            )}
           </div>
         </div>
 

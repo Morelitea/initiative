@@ -7,7 +7,7 @@ import secrets
 
 from sqlalchemy import Integer, bindparam, func, or_, text
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlmodel import col, select, delete
+from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.role_context import set_guild_shows_member_names
@@ -787,8 +787,7 @@ async def update_guild(
         updated = True
         # Listing a community — or taking it back off the shelf — changes what
         # is asked of everybody already in it, none of whom did anything. The
-        # one fan-out this channel has, and it is addressed to the members who
-        # are actually here rather than to the whole roster.
+        # one fan-out this channel has, and it is addressed to the roster.
         await _signal_members_present(session, guild_id=guild.id)
     if categories_provided:
         normalized = normalize_categories(categories)
@@ -1072,27 +1071,21 @@ async def redeem_invite_for_user(
 
 
 async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> None:
-    """Poke this guild's members whose tabs this worker is holding.
+    """Poke this guild's members: listing it changes what their account says.
 
-    A guild may have thousands of members and almost none of them are at a
-    keyboard right now, so the roster is narrowed to the sockets this process
-    has before anything is queued: the cost is the people who are here, not the
-    people who exist. Everyone else re-reads their account when they next
-    arrive, which is the same moment they would have seen the change anyway.
+    Addressed to the whole membership rather than to the sockets this process
+    holds. A frame is published on the cross-worker bus, so narrowing to the
+    local sockets first would decide, on this worker, that members sitting on
+    every other worker are not here — and the frame for them would never be
+    published for their own worker to deliver. The bus serializes its sends
+    for exactly this fan-out.
 
-    Other workers' members are reached by their own listeners off the bus, so
-    what looks process-local here is not.
+    Members with nothing open are addressed too and cost a frame that reaches
+    no socket. That is the price of the question being unanswerable from one
+    process; they would re-read their account on arriving anyway.
     """
-    from app.services.platform.user_stream import stream as user_sockets
-
-    here = user_sockets.connected_users()
-    if not here:
-        return
     rows = await session.exec(
-        select(GuildMembership.user_id).where(
-            GuildMembership.guild_id == guild_id,
-            col(GuildMembership.user_id).in_(here),
-        )
+        select(GuildMembership.user_id).where(GuildMembership.guild_id == guild_id)
     )
     account_stream.queue_for_members(session, rows.all(), "community")
 

@@ -270,6 +270,10 @@ export const invalidateStorageSettings = () =>
 // than a settings one.
 export const invalidateAppConfig = () => invalidatePersonalExact([`/api/v1/config`]);
 
+/** The owner's own read of the three community-wide decisions. */
+export const invalidateCommunitySettings = () =>
+  invalidatePersonalExact([`/api/v1/settings/community`]);
+
 export const invalidateOidcMappings = () =>
   invalidatePersonalPrefix("/api/v1/settings/oidc-mappings");
 

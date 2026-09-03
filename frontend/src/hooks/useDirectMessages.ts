@@ -16,6 +16,7 @@ import {
   useListConnectionsApiV1MeConnectionsGet,
   useListIgnoredAccountsApiV1MeIgnoredGet,
   useListMessageRequestsApiV1MeMessageRequestsGet,
+  useReadDmPermissionApiV1UsersUserIdDmPermissionGet,
   useReadDmSettingsApiV1MeDmSettingsGet,
   useRemoveConnectionApiV1MeConnectionsUserIdDelete,
   useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete,
@@ -66,6 +67,19 @@ const refreshOnly = { mutation: { onSettled: refreshContactLists } };
 // ── Reads ───────────────────────────────────────────────────────────────────
 
 export const useDmSettings = () => useReadDmSettingsApiV1MeDmSettingsGet();
+
+/**
+ * What the reader may do about one account: ``open``, ``may_request`` or
+ * ``denied``.
+ *
+ * One value with nothing beside it — the server collapses every refusal into
+ * ``denied`` on purpose, so a menu built from this cannot tell the reasons
+ * apart either.
+ */
+export const useDmPermission = (userId: number | undefined) =>
+  useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
+    query: { enabled: typeof userId === "number" },
+  });
 export const useConnections = () => useListConnectionsApiV1MeConnectionsGet();
 export const useMessageRequests = () => useListMessageRequestsApiV1MeMessageRequestsGet();
 export const useIgnoredAccounts = () => useListIgnoredAccountsApiV1MeIgnoredGet();

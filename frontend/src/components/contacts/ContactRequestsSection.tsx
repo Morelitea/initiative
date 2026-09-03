@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ContactGrantRead } from "@/api/generated/initiativeAPI.schemas";
@@ -26,7 +27,13 @@ type PendingRow = ContactGrantRead & { kind: Kind };
  * A request from an account the reader ignores never arrives here: the server
  * leaves it out, so there is nothing to filter and nothing that hints at it.
  */
-export const ContactRequestsSection = () => {
+export const ContactRequestsSection = ({
+  whenEmpty,
+}: {
+  /** What to show with nothing waiting. A page that only offers the section
+   *  when something is waiting passes ``null``. */
+  whenEmpty?: ReactNode;
+} = {}) => {
   const { t } = useTranslation("settings");
   const connections = useConnections();
   const messages = useMessageRequests();
@@ -65,7 +72,11 @@ export const ContactRequestsSection = () => {
       : removeMessage.mutate({ userId: row.user_id });
 
   if (rows.length === 0) {
-    return <p className="text-muted-foreground text-sm">{t("privacy.requests.empty")}</p>;
+    return whenEmpty === undefined ? (
+      <p className="text-muted-foreground text-sm">{t("privacy.requests.empty")}</p>
+    ) : (
+      <>{whenEmpty}</>
+    );
   }
 
   return (

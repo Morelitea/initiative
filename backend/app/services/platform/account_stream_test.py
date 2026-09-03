@@ -32,6 +32,18 @@ async def _drain_tasks() -> None:
 
 
 @pytest.fixture
+def published_remotely(monkeypatch):
+    """The ids this worker handed to the bus for the other workers to deliver."""
+    seen: list[int] = []
+
+    async def _record(user_id: int, _frame) -> None:
+        seen.append(user_id)
+
+    monkeypatch.setattr(user_stream, "_publish_remote", _record)
+    return seen
+
+
+@pytest.fixture
 def captured_stream(monkeypatch):
     """A registry of this test's own, patched where the sockets really live."""
     stream = UserStream()
@@ -183,10 +195,17 @@ async def test_re_adding_an_existing_member_pokes_nobody(
 
 
 @pytest.mark.integration
-async def test_listing_a_community_pokes_the_members_who_are_here(
-    session, captured_stream
+async def test_listing_a_community_pokes_every_member(
+    session, captured_stream, published_remotely
 ) -> None:
-    """The fan-out: nobody in the guild did anything, and it changes them all."""
+    """The fan-out: nobody in the guild did anything, and it changes them all.
+
+    Addressed to the whole roster rather than to the sockets this process is
+    holding. A member sitting on another worker has no socket *here*, and the
+    frame that reaches them is the one this worker puts on the bus — so a
+    roster narrowed by local sockets first would be deciding, from one
+    process, that everybody else is absent.
+    """
     here = await create_user(session)
     away = await create_user(session)
     guild = await create_guild(session)
@@ -220,6 +239,8 @@ async def test_listing_a_community_pokes_the_members_who_are_here(
     await _drain_tasks()
 
     assert [frame["resource"] for frame in tab.sent] == ["account"]
-    # The member with no socket here cost nothing: they were never queued, and
-    # they re-read their account whenever they next turn up.
-    assert captured_stream.socket_count(away.id) == 0
+    # And the one this worker holds nothing for: published, for whichever
+    # worker does hold them. Without it their tab would sit on the old answer
+    # until they navigated.
+    assert away.id in published_remotely
+    assert here.id in published_remotely

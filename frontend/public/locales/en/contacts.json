@@ -4,6 +4,7 @@
   "favorites": "Favorites",
   "connections": "Connections",
   "directMessages": "Direct messages",
+  "requests": "Requests",
   "searchPlaceholder": "Search contacts",
   "searchLabel": "Search everyone on this page",
   "clearSearch": "Clear search",
@@ -47,5 +48,16 @@
       "open": "Let my communities message me",
       "settings": "Privacy settings"
     }
+  },
+  "actions": {
+    "label": "Actions for {{handle}}",
+    "connect": "Connect",
+    "ask": "Ask to message",
+    "askSent": "Request sent.",
+    "ignore": "Ignore",
+    "stopIgnoring": "Stop ignoring",
+    "removeConnection": "Remove connection",
+    "removeConnectionTitle": "Remove this connection?",
+    "removeConnectionBody": "You will no longer be connected. If nothing else lets the two of you message each other — a community you both belong to, or both of you being open to messages — that ends with it."
   }
 }
