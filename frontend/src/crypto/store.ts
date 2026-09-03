@@ -219,6 +219,23 @@ export const deviceClaim = {
 export const accountPickle = {
   get: () => read<string>(ACCOUNT),
   set: (pickle: string) => write(ACCOUNT, pickle),
+  /**
+   * Replace the account only if it is still the one that was read.
+   *
+   * The account holds the private half of every prekey it has published, and
+   * more than one thing advances it: collecting a pre-key message spends a key,
+   * topping the pool up mints fifty. Two tabs doing that from the same starting
+   * pickle each write a different account, and the loser's keys are already
+   * published — a sender that claims one opens a session this device cannot.
+   * So a writer that finds the account moved under it is told, and redoes its
+   * work against what is actually stored.
+   */
+  swap: async (expected: string, next: string): Promise<boolean> => {
+    const { written } = await update<string>(ACCOUNT, (current) =>
+      current === expected ? next : undefined
+    );
+    return written;
+  },
 };
 
 export const deviceId = {
@@ -286,6 +303,21 @@ export const sessionsInConversation = {
       return [sessionId, ...current];
     });
   },
+};
+
+/**
+ * Whose device is on the other end of a session.
+ *
+ * A message arriving from this account's own other client is the sender's own
+ * outbox catching up, and belongs on the sender's side of the thread. The queue
+ * row says nothing about who wrote it, so this is recorded when the session is
+ * established — which is the only moment either end is known.
+ */
+export type SessionOrigin = "self" | "other";
+
+export const sessionOrigin = {
+  get: (id: string) => read<SessionOrigin>("session-origin:" + id),
+  set: (id: string, origin: SessionOrigin) => write("session-origin:" + id, origin),
 };
 
 export const sessionPickle = {

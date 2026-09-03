@@ -17,7 +17,14 @@ import "fake-indexeddb/auto";
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { deviceClaim, forgetDevice, messageLog, sessionsInConversation } from "./store";
+import {
+  accountPickle,
+  deviceClaim,
+  forgetDevice,
+  messageLog,
+  sessionOrigin,
+  sessionsInConversation,
+} from "./store";
 
 beforeEach(async () => {
   await forgetDevice();
@@ -82,6 +89,41 @@ describe("the sessions a conversation holds", () => {
     await sessionsInConversation.add("conv", "session-a");
 
     expect(await sessionsInConversation.get("conv")).toEqual(["session-a"]);
+  });
+});
+
+describe("the account", () => {
+  it("is replaced only by a writer that read what is stored", async () => {
+    // The account holds the private half of every published prekey. Two tabs
+    // advancing it from the same starting point — one collecting, one topping
+    // up — would otherwise leave published keys with no private half.
+    await accountPickle.set("first");
+
+    expect(await accountPickle.swap("first", "second")).toBe(true);
+    expect(await accountPickle.swap("first", "third")).toBe(false);
+    expect(await accountPickle.get()).toBe("second");
+  });
+
+  it("admits exactly one of two writers that raced", async () => {
+    await accountPickle.set("first");
+
+    const results = await Promise.all([
+      accountPickle.swap("first", "collected"),
+      accountPickle.swap("first", "topped-up"),
+    ]);
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+});
+
+describe("which side a session belongs to", () => {
+  it("is remembered per session", async () => {
+    await sessionOrigin.set("session-theirs", "other");
+    await sessionOrigin.set("session-my-phone", "self");
+
+    expect(await sessionOrigin.get("session-theirs")).toBe("other");
+    expect(await sessionOrigin.get("session-my-phone")).toBe("self");
+    expect(await sessionOrigin.get("session-unknown")).toBeUndefined();
   });
 });
 
