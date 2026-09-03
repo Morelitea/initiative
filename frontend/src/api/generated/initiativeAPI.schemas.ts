@@ -1714,6 +1714,25 @@ export interface CommentUpdate {
 }
 
 /**
+ * One of the reader's communities, and whether it counts.
+ *
+ * Only consulted while the policy is ``community``; the list is returned
+ * whatever the policy is, so switching to it does not arrive on an empty
+ * screen.
+ */
+export interface CommunityDmToggle {
+  guild_id: number;
+  name: string;
+  icon_url: string | null;
+  enabled: boolean;
+}
+
+export interface CommunityDmToggleUpdate {
+  guild_id: number;
+  enabled: boolean;
+}
+
+/**
  * A subject a guild can file itself under in the community directory.
  *
  * A closed vocabulary rather than free-form tags: the directory's job is to
@@ -1796,6 +1815,20 @@ export interface CommunityGuildPage {
 }
 
 /**
+ * Who may ask to message this account, outside its connections.
+ *
+ * A connection satisfies every value here, which is what makes it the one
+ * thing that works whatever the holder picks.
+ */
+export type DmPolicy = (typeof DmPolicy)[keyof typeof DmPolicy];
+
+export const DmPolicy = {
+  private: "private",
+  community: "community",
+  public: "public",
+} as const;
+
+/**
  * Whether this deployment runs a community directory.
  *
  * Read back by the owner's settings page after a write; everyone else learns
@@ -1805,11 +1838,13 @@ export interface CommunityGuildPage {
 export interface CommunitySettingsResponse {
   community_directory_enabled: boolean;
   age_gate_enabled: boolean;
+  default_dm_policy: DmPolicy;
 }
 
 export interface CommunitySettingsUpdate {
   community_directory_enabled: boolean;
   age_gate_enabled?: boolean | null;
+  default_dm_policy?: DmPolicy | null;
 }
 
 /**
@@ -2216,6 +2251,35 @@ export interface DeviceTokenRequest {
 export interface DeviceTokenResponse {
   device_token: string;
   token_type: string;
+}
+
+/**
+ * What this reader may do about that account, right now.
+ *
+ * ``denied`` covers every refusal with no distinguishing field: a policy that
+ * does not admit them, an account that cannot be reached, and being ignored
+ * all answer the same way.
+ */
+export interface DirectMessagePermissionRead {
+  permission: string;
+}
+
+export interface DirectMessageSettingsRead {
+  dm_policy: DmPolicy;
+  communities: CommunityDmToggle[];
+  age_confirmed_at: string | null;
+}
+
+/**
+ * Both halves optional, and omitting one leaves it alone.
+ *
+ * A toggle list is a set of changes rather than the whole list: a client that
+ * knows about three communities should not be able to silently switch on a
+ * fourth it has never rendered.
+ */
+export interface DirectMessageSettingsUpdate {
+  dm_policy?: DmPolicy | null;
+  communities?: CommunityDmToggleUpdate[] | null;
 }
 
 /**
@@ -3242,6 +3306,22 @@ export interface ICalParseResult {
   event_count: number;
   events: ICalEventPreview[];
   has_recurring: boolean;
+}
+
+/**
+ * One row of the holder's own list.
+ */
+export interface IgnoredAccountRead {
+  user_id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+export interface IgnoredAccountsResponse {
+  items: IgnoredAccountRead[];
+  total: number;
 }
 
 export type ImportJobReadParams = { [key: string]: unknown };
@@ -6951,4 +7031,16 @@ export type ListFavoriteContactsApiV1MeContactsFavoritesGetParams = {
    * Narrows every section. Matches the handle, plus the real name in a guild that shows names; type a whole handle (`foobar#1234`) to pin one person.
    */
   search?: string | null;
+};
+
+export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
 };

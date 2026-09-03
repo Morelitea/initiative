@@ -952,6 +952,20 @@ class BillingMessages:
     PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"
 
 
+class DirectMessageMessages:
+    """Who may ask to message an account, and who it will not hear from."""
+
+    #: No account with that id that this reader may be shown. Suspended,
+    #: anonymized and ignored accounts all answer the same way.
+    USER_NOT_FOUND = "DM_USER_NOT_FOUND"
+    #: An account that has not answered the age question cannot raise its
+    #: policy above ``private``, and cannot be reached at all.
+    AGE_CONFIRMATION_REQUIRED = "DM_AGE_CONFIRMATION_REQUIRED"
+    CANNOT_IGNORE_SELF = "DM_CANNOT_IGNORE_SELF"
+    #: A community named in a toggle write that this account is not in.
+    NOT_A_MEMBER = "DM_NOT_A_MEMBER"
+
+
 class ContactMessages:
     """My Contacts — the starred list on the personal page."""
 

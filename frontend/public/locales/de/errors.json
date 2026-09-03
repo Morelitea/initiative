@@ -507,5 +507,9 @@
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Dieses Bild ist zu groß. Bleib unter 2 MB.",
   "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Diese Datei ist kein unterstütztes Bild (PNG, JPEG, WebP oder GIF).",
   "USER_AGE_ANSWER_STANDS": "Du hast die Altersfrage bereits beantwortet. Eine Administratorin oder ein Administrator kann sie zurücksetzen.",
-  "USER_AGE_NOT_BLOCKED": "Für dieses Konto gibt es keine Alterssperre, die aufgehoben werden könnte."
+  "USER_AGE_NOT_BLOCKED": "Für dieses Konto gibt es keine Alterssperre, die aufgehoben werden könnte.",
+  "DM_USER_NOT_FOUND": "Dieses Konto ist nicht verfügbar.",
+  "DM_AGE_CONFIRMATION_REQUIRED": "Bestätige dein Alter, bevor du änderst, wer dir schreiben darf.",
+  "DM_CANNOT_IGNORE_SELF": "Du kannst dein eigenes Konto nicht ignorieren.",
+  "DM_NOT_A_MEMBER": "Du bist kein Mitglied dieser Community."
 }

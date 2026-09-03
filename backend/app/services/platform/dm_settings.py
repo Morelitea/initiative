@@ -17,7 +17,17 @@ from datetime import datetime, timezone
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.platform.user_dm_settings import UserDmSettings
+from sqlmodel import col, select
+
+from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild_image import GuildImageVariant
+from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
+from app.schemas.platform.dm import (
+    CommunityDmToggle,
+    CommunityDmToggleUpdate,
+    DirectMessageSettingsRead,
+)
 
 
 async def seed_for_new_account(session: AsyncSession, *, user_id: int) -> None:
@@ -47,3 +57,146 @@ async def seed_for_new_account(session: AsyncSession, *, user_id: int) -> None:
         )
         .on_conflict_do_nothing(index_elements=["user_id"])
     )
+
+
+async def _row_for(session: AsyncSession, user_id: int) -> UserDmSettings:
+    """The account's policy row, created closed if it is somehow missing.
+
+    Only reached on the account's own request path, so the insert satisfies the
+    own-row policy.
+    """
+    row = await session.get(UserDmSettings, user_id)
+    if row is None:
+        row = UserDmSettings(user_id=user_id, dm_policy=DmPolicy.private)
+        session.add(row)
+        await session.flush()
+    return row
+
+
+async def _rail_ordered_communities(
+    session: AsyncSession, *, user_id: int
+) -> list[tuple[int, str]]:
+    """The reader's communities in the order they dragged the rail into.
+
+    Same rule My Contacts uses, so the toggle list and the contacts page name
+    the same communities in the same order. A suspended community is left out:
+    it does not count towards ``can_ask`` either.
+    """
+    rows = (
+        await session.exec(
+            select(Guild.id, Guild.name)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(
+                GuildMembership.user_id == user_id,
+                Guild.status != GuildStatus.suspended.value,
+            )
+            .order_by(col(GuildMembership.position).asc(), col(Guild.id).asc())
+        )
+    ).all()
+    return [(row[0], row[1]) for row in rows]
+
+
+async def read_settings(
+    session: AsyncSession, *, user, include_icons: bool = True
+) -> DirectMessageSettingsRead:
+    """The policy, and one toggle per community the reader is in.
+
+    The toggles are the reader's communities LEFT JOINed against their own
+    opt-out rows, so a community joined since the last write arrives switched
+    on with nothing written for it.
+    """
+    from app.services.platform import guild_images as guild_images_service
+
+    row = await _row_for(session, user.id)
+    communities = await _rail_ordered_communities(session, user_id=user.id)
+    guild_ids = [guild_id for guild_id, _ in communities]
+
+    switched_off = set(
+        (
+            await session.exec(
+                select(UserDmGuildOptout.guild_id).where(
+                    UserDmGuildOptout.user_id == user.id
+                )
+            )
+        ).all()
+    )
+    icons: dict[int, dict] = {}
+    if include_icons and guild_ids:
+        icons = await guild_images_service.image_urls(
+            session, guild_ids, GuildImageVariant.icon
+        )
+
+    return DirectMessageSettingsRead(
+        dm_policy=row.dm_policy,
+        age_confirmed_at=user.age_confirmed_at,
+        communities=[
+            CommunityDmToggle(
+                guild_id=guild_id,
+                name=name,
+                icon_url=icons.get(guild_id, {}).get(GuildImageVariant.icon),
+                enabled=guild_id not in switched_off,
+            )
+            for guild_id, name in communities
+        ],
+    )
+
+
+class DirectMessageSettingsError(Exception):
+    """Raised with a message code the endpoint turns into a status."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+async def update_settings(
+    session: AsyncSession,
+    *,
+    user,
+    dm_policy: DmPolicy | None = None,
+    communities: list[CommunityDmToggleUpdate] | None = None,
+) -> DirectMessageSettingsRead:
+    """Write either half, leaving the other alone.
+
+    Raising the policy above ``private`` needs the age question answered — the
+    DM surface asks for that itself rather than waiting on the community
+    directory's switches, so the floor holds on every deployment.
+
+    A toggle for a community the account is not in is refused rather than
+    ignored: it is a client sending something it cannot have rendered.
+    """
+    from app.core.messages import DirectMessageMessages
+
+    row = await _row_for(session, user.id)
+
+    if dm_policy is not None and dm_policy is not DmPolicy.private:
+        if user.age_confirmed_at is None:
+            raise DirectMessageSettingsError(
+                DirectMessageMessages.AGE_CONFIRMATION_REQUIRED
+            )
+
+    if communities:
+        member_of = {
+            guild_id
+            for guild_id, _ in await _rail_ordered_communities(session, user_id=user.id)
+        }
+        unknown = [t.guild_id for t in communities if t.guild_id not in member_of]
+        if unknown:
+            raise DirectMessageSettingsError(DirectMessageMessages.NOT_A_MEMBER)
+        for toggle in communities:
+            existing = await session.get(UserDmGuildOptout, (user.id, toggle.guild_id))
+            if toggle.enabled and existing is not None:
+                await session.delete(existing)
+            elif not toggle.enabled and existing is None:
+                session.add(
+                    UserDmGuildOptout(user_id=user.id, guild_id=toggle.guild_id)
+                )
+
+    if dm_policy is not None:
+        row.dm_policy = dm_policy
+    if dm_policy is not None or communities:
+        row.updated_at = datetime.now(timezone.utc)
+        session.add(row)
+
+    await session.commit()
+    return await read_settings(session, user=user)

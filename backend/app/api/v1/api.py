@@ -73,6 +73,7 @@ from app.api.v1.platform_endpoints import (
     user_view_preferences,
     users,
     version,
+    dm,
 )
 
 api_router = APIRouter()
@@ -88,6 +89,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(dm.user_router, prefix="/users", tags=["direct-messages"])
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
@@ -263,4 +265,5 @@ me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
+me_router.include_router(dm.me_router, tags=["direct-messages"])
 api_router.include_router(me_router)
