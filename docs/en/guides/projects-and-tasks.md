@@ -17,7 +17,7 @@ If you only ever learn one part of Initiative, make it this one. It's where basi
     - **Description** — optional.
     - **Initiative** — which folder it lives in.
     - **Template** — optionally start from one you saved earlier (see [Templates](#templates)).
-3. Create it. The board opens, empty and full of promise.
+3. Create it. The board opens, empty and radiating potential.
 
 ![Creating a project](../images/projects/create-project.png)
 
@@ -30,7 +30,7 @@ Both are just for you. Starring something doesn't inflict it on anybody else.
 
 ## Adding tasks
 
-Click **Create task**. The quick form wants a **title** and maybe a description, and honestly that's enough — you can fill the rest in later, or never.
+Click **Create task**. The quick form wants a **title** and maybe a description. That's enough. You can fill the rest in later, or never, and nothing will nag you about it.
 
 Need more detail now? Expand **Advanced details** for everything else, sorted into **Tracking**, **Schedule**, **People & labels**, and any custom **Properties** your initiative uses.
 
@@ -63,9 +63,9 @@ You can rename them, add your own, and give each one an icon and colour, from **
 
 ### Subtasks
 
-Break a big task into a checklist. As you tick them off the task shows its progress — "3/5 subtasks" — which is genuinely quite motivating on a bad Tuesday.
+Break a big task into a checklist. As you tick them off, the task shows its progress — "3/5 subtasks" — which is more motivating on a bad Tuesday than it has any right to be.
 
-Good for "this isn't really finished until I've also done A, B and C."
+Good for the tasks that are secretly three tasks wearing a coat.
 
 ### Recurring tasks
 
@@ -79,7 +79,9 @@ Then pick *when* the next one appears: on a fixed **schedule**, or only **after 
 
 Finish a task that's assigned to you and Initiative marks the occasion — confetti, a "+1 Heart", a "Natural 20", or a shower of gold coins.
 
-Pick your preferred celebration in **User settings → Interface**, or set it to **None** if you'd rather your accomplishments passed in dignified silence. There's optional sound and vibration too, for those who want the full experience.
+Pick your preferred celebration in **User settings → Interface**, or set it to **None** if you'd rather your accomplishments passed in dignified silence.
+
+There's optional sound and vibration too, for anyone who wants the full experience. No judgement. Some weeks you need the coins.
 
 ## When a board gets busy
 
@@ -89,7 +91,9 @@ Pick your preferred celebration in **User settings → Interface**, or set it to
 - **Select several tasks** and act on them together — status, dates, assignees, priority, tags, or archive, all in one go.
 
 !!! tip "Archive things, don't delete them"
-    Finished tasks don't need deleting. **Archive** clears them off the board while keeping the record — there's a one-click **Archive done tasks** for the end of a push — and you can filter them back into view any time you want proof of how much you got done.
+    Finished tasks don't need deleting. **Archive** sweeps them off the board while keeping the record — there's a one-click **Archive done tasks** for the end of a push.
+
+    And you can filter them back into view any time you'd like documentary evidence of how much you actually got done, which is useful when somebody asks and also just nice.
 
 ## Project settings
 
@@ -100,7 +104,9 @@ Pick your preferred celebration in **User settings → Interface**, or set it to
 
 ### Moving a task to another project
 
-You can move a task from its menu. One thing that surprises people: because every project can have its own statuses, a moved task restarts at **Backlog** in its new home. Set the new status and carry on. Nothing's broken.
+You can move a task from its menu. One thing that catches people out: because every project can have its own statuses, a moved task restarts at **Backlog** in its new home.
+
+Nothing's broken and you haven't lost anything. Set the new status and carry on.
 
 ## Templates
 

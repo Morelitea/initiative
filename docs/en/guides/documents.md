@@ -6,7 +6,9 @@ icon: lucide/file-text
 
 A **document** is where your group writes things down — notes, plans, scripts, budgets — and keeps its files.
 
-Documents live inside an initiative, and most kinds can be edited by several people **at the same time**, live. No emailing versions round. No `final_v3_ACTUAL_final.docx`. Not here.
+Documents live inside an initiative, and most kinds can be edited by several people **at the same time**, live.
+
+No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whether Dave is working on the old one.
 
 ## Kinds of document
 
@@ -35,7 +37,7 @@ Documents live inside an initiative, and most kinds can be edited by several peo
 
 The editor has what you'd expect: **bold, italic, underline**, headings, quotes, code blocks, bulleted and numbered lists, checklists, alignment, images, tables, dividers, embedded video, and undo for when you change your mind.
 
-Everything **autosaves**. There is no save button, which means there is no save button to forget about at 11pm.
+Everything **autosaves**. There is no save button — which means there is no save button to forget to press at 11pm, and no version of this evening where you lose forty minutes of work to a browser tab.
 
 Four keys do more than they look like they do:
 
@@ -88,7 +90,7 @@ The everyday essentials, and not much more:
 
 ## Whiteboards
 
-A blank canvas for the thinking that refuses to be a paragraph. A floor plan, a seating chart, who-does-what, boxes and arrows that made complete sense at the time.
+A blank canvas for the thinking that flatly refuses to become a paragraph. A floor plan. A seating chart. Who-does-what. Boxes and arrows that made complete sense at the time and will need explaining in March.
 
 - **Draw anything** — shapes, arrows, freehand lines, text, images.
 - **Work on it together** — everyone's pointer shows up live with their name on it, so you can point at the same thing at the same time from different houses.
@@ -129,7 +131,9 @@ Anyone who can reply can react. The author gets told — as a periodic summary, 
 
 ## Uploaded files and version history
 
-Uploaded files keep a **version history**. Upload a new version and the older ones stay available, each marked with its date, so you can always get back to the copy from before somebody helpfully reorganised it.
+Uploaded files keep a **version history**. Upload a new version and the older ones stay put, each marked with its date.
+
+So you can always get back to the copy from before somebody helpfully reorganised it.
 
 ## Attaching documents to a project
 

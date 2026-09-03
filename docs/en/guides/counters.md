@@ -6,7 +6,7 @@ icon: lucide/hash
 
 A **counter** tracks a number that moves. Tickets sold, seats left, money raised, points scored, laps run, cups of tea consumed by the committee since March.
 
-The reason it's a feature rather than a note in a document is that a number in a document is *one person's* number. A counter is everyone's — tap it on your phone, and the screen at the front of the room changes.
+The reason this is a feature and not just a note in a document is that a number in a document is *one person's* number, and it is wrong. A counter is everybody's. Tap it on your phone and the screen at the front of the room changes.
 
 ## Counter groups
 
@@ -42,7 +42,7 @@ Counters take decimals, so a fundraising total in pounds and pence works as well
 - **Focus mode** blows one counter up to fill the screen, which is what you want when it's on a projector or a tablet propped up on the door.
 
 !!! tip "Focus mode is the one to remember"
-    A counter is often being read by people who aren't holding the device. Focus mode makes it legible from across a hall.
+    Counters are usually being read by people who aren't holding the device — which is to say, from the other end of a draughty hall, at an angle, by somebody who left their glasses in the car. Focus mode is for them.
 
 ## Things people use them for
 

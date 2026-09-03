@@ -19,7 +19,7 @@ Most people arrive on an invite link from somebody already in the group.
 That's genuinely the whole thing.
 
 !!! note "If your link says it's expired"
-    Invite links can be set to run out, or to only work a certain number of times. That's the link, not you and not your account. Ask whoever sent it for a fresh one — it takes them about four seconds.
+    Invite links can be set to run out, or to only work a certain number of times. This is the link's fault, not yours, and definitely not a comment on you as a person. Ask whoever sent it for a new one — it takes them about four seconds.
 
 ## Finding one yourself
 
@@ -33,7 +33,7 @@ Starting fresh for your own group? You can create a community yourself, as long 
 
 1. On the **community rail** down the left edge, choose **Create community** (look for the **+**).
 2. Give it a **name** — usually just what your group is actually called. "Fairview Bakery". "PTA Committee". "The Nguyens".
-3. Add an **icon** while you're there. Once you're in three communities the rail is how you tell them apart, and future-you will be grateful.
+3. Add an **icon** while you're there. Once you're in three communities, that rail of tiny pictures is the only thing standing between you and posting the surprise party plans in the work one.
 4. Create it. Congratulations, you're an administrator.
 
 ![Creating a new community](../images/getting-started/create-community.png)
@@ -43,9 +43,9 @@ Starting fresh for your own group? You can create a community yourself, as long 
 
 ## What a brand-new community comes with
 
-A **Default Initiative** — a ready-made folder, so you're not staring at an empty screen wondering what on earth the first move is.
+A **Default Initiative** — a ready-made folder, so you're not staring at a beautiful empty screen wondering what on earth the first move is meant to be.
 
-Rename it, ignore it, add more later. Whatever you like.
+Rename it, ignore it, add more later. It's yours.
 
 The natural first thing to do:
 
@@ -58,11 +58,13 @@ Put some tasks on it. That's a working setup — everything else in these guides
 
 You can belong to as many as you want — work, the volunteer thing, your family — and they stay completely separate from each other.
 
-Click a community's icon on the rail and the whole app moves over with you: sidebar, projects, documents, everything. Nothing leaks between them, which is why you can't accidentally post the surprise party plans in the work one.
+Click a community's icon on the rail and the whole app moves over with you: sidebar, projects, documents, everything. Nothing leaks between them, ever, in either direction.
 
 ??? techspec "For the technically minded — a community is a hard boundary"
     Each community's content lives in its own database schema, created with the community, and a request is routed into exactly one of them — so reads and writes reach only communities you belong to, enforced at the database level rather than in the interface. Two browser tabs can sit in two different communities at once with no crossover. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Next
 
-You're in. Either build a mental picture with [how Initiative is organized](../concepts/index.md), or skip it entirely and go straight to the [how-to guides](../guides/index.md). Both are valid life choices.
+You're in. Either build a mental picture with [how Initiative is organized](../concepts/index.md), or skip it entirely and go straight to the [how-to guides](../guides/index.md).
+
+Both are completely valid life choices and we won't ask which you picked.

@@ -6,15 +6,17 @@ icon: lucide/compass
 
 Initiative is where your group's projects, tasks, documents and plans all live in one place.
 
-Right now they're probably living across a group chat, two spreadsheets, an email thread from March, and the head of whoever's been doing this the longest. We know about the spreadsheet. We know about the merged cells. It's fine. We're here now.
+Right now they're living across a group chat, two spreadsheets, an email thread from March, and the head of whoever's been doing this the longest.
+
+We know about the spreadsheet. We know about the merged cells. We know somebody colour-coded it in 2019 and nobody now remembers what green means. It's fine. We're here now.
 
 ![The Initiative home screen](images/home/overview.png)
 
 ## Start small. No, smaller than that.
 
-Day one: make one board, put a few tasks on it. Done. That's a complete setup — a real, working system — and if you never touch another feature you will still be dramatically better off than you were on Tuesday.
+Day one: make one board, put a few tasks on it. Done. That's a complete setup — a real, functioning system — and if you never touch another feature you'll still be dramatically better off than you were on Tuesday.
 
-Everything else is already installed and waiting. Documents, a calendar, dashboards, the lot. None of it will bother you until you go looking for it. It has nowhere else to be.
+Everything else is already installed and waiting. Documents, a calendar, dashboards, the lot. None of it will bother you, email you, or pop up to ask whether you've considered optimising your workflow. It has nowhere else to be.
 
 [Start with Getting started →](getting-started/index.md){ .md-button .md-button--primary }
 
@@ -22,18 +24,31 @@ Everything else is already installed and waiting. Documents, a calendar, dashboa
 
 This is the thing people actually worry about, so let's clear it up first.
 
-- **Deleted something?** It's in the Trash. Go and get it.
+- **Deleted something?** It's in the Trash, sulking. Go and get it.
 - **Moved a task somewhere daft?** Move it back. Nobody saw.
-- **Made an initiative you didn't need?** Archive it and it leaves your life entirely.
-- **Made a project called "test"?** Yeah. Everyone does. It's still there, isn't it.
+- **Made an initiative you didn't need?** Archive it. It leaves your life entirely and does not write.
+- **Made a project called "test"?** Everyone does. It's still there, isn't it.
+- **Made *four* projects called "test"?** Also fine. Marginally funnier. Still fine.
 
-There's exactly one genuinely permanent button in the whole app, and it makes you type things out to prove you meant it. Everything else survives being dropped down the stairs. Click around — you're not going to hurt it.
+There is exactly one genuinely permanent button in this entire application, and it makes you type things out longhand to prove you meant it. Everything else survives being dropped down the stairs.
+
+So click things. Open menus. Drag stuff about. The worst outcome available to you today is a mildly untidy sidebar.
+
+## We say no to things
+
+Initiative is meant to help you, not to gradually become the tool with so many features that operating it is its own part-time job.
+
+So some things are left out on purpose. There are no group chats, for instance — because everything here already has **comments** on it. Projects, tasks, documents, calendars, all of it. The conversation about a thing happens on that thing, where the next person finds it without being told where to look, and every word of it is searchable.
+
+A group chat is where somebody pastes the thing that should have been a document, and then six months later everyone is scrolling backwards through four thousand messages looking for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
+
+Every feature is one more thing to learn, one more thing to set up wrong, and one more row in a menu standing between you and the reason you opened the app in the first place. We'd rather it stayed small enough to keep in your head.
 
 ## Two ways to run it
 
-**Host it yourself** — open source, free, the entire product, running on whatever machine you've got going spare.
+**Host it yourself** — open source, free, the entire product, running on whatever machine you've got going spare. A ten-year-old laptop with a broken hinge is a perfectly respectable server.
 
-**Or let us host it** (soon) — pay us and never think about a database again, which is an extremely reasonable thing to want and possibly the correct answer for most people.
+**Or let us host it** (soon) — pay us and never think about a database again, which is an extremely reasonable thing to want and quietly the correct answer for most people.
 
 Same software either way. We're not keeping the good bits back for the paying customers. [Which one is you? →](self-host-or-hosted.md)
 
@@ -101,7 +116,7 @@ Which is how the payroll planning stays away from the seasonal staff, and next y
 
 ## The tools come from people like you
 
-Whatever your group needs, some other group with the exact same problem has almost certainly already built it, got fed up rebuilding it by hand every year, and shared it.
+Whatever your group needs, some other group has needed precisely the same thing, built it, spent three years rebuilding it by hand every January, finally snapped, and shared it.
 
 That's the **marketplace**: ready-made dashboards and apps you add in about two clicks. No developer. No custom build. No waiting for us to get round to it.
 

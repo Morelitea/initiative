@@ -11,9 +11,15 @@ Sometimes the thing you need to say really doesn't belong on a task.
 Open them from the **Initiative logo** in the top-left corner, then **My Messages**.
 
 !!! info "One to one, on purpose"
-    There are no group messages, and there aren't going to be.
+    There are no group messages, and there aren't going to be — because you've already got somewhere better to have that conversation.
 
-    Group conversations belong in a community, where they can be found later, shared with the person who joins next, and handed on when somebody leaves. Messages are for the quiet word on the side, and that's all they're for.
+    **Everything in Initiative has comments.** Projects, tasks, documents, queues, counters, calendars, dashboards, the lot. So the discussion about a thing lives *on* that thing, right where the next person will find it, instead of forty messages upstream of where they started reading.
+
+    **And comments are searchable.** Half-remember somebody saying something about the venue deposit? Search it. It comes back. This is a genuinely nice feeling and we recommend it.
+
+    Which is the real trouble with a group chat: somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
+
+    Messages are for the quiet word on the side. Different job, and the one they're good at.
 
 !!! screenshot "My Messages"
     **Show:** the Messages page with a conversation open — the list of people on the left, a thread on the right, and the encrypted notice under the title.

@@ -6,7 +6,9 @@ icon: lucide/list-ordered
 
 A **queue** answers one question, and answers it for everybody at once: *whose turn is it?*
 
-That sounds small until you count how often a group needs it. Who's on call this week. Who's opening the shop. Whose turn to bring biscuits. Who speaks next at the AGM. Whose go it is in the campaign. Every one of those is currently living in somebody's head, or in a chat message from three weeks ago that nobody can find.
+That sounds like a small thing until you count how often a group needs it. Who's on call this week. Who's opening up. Whose turn to bring biscuits. Who speaks next at the AGM. Whose go it is.
+
+Every one of those is currently stored in one person's head, or in a chat message from three weeks ago that nobody can find, and both of those systems fail the moment that person goes on holiday.
 
 ## Making one
 
@@ -44,9 +46,10 @@ Each item can carry:
 
 - **On-call rotas** — who's carrying the phone this week.
 - **Speaking order** — meetings, panels, table reads.
-- **Chores** — the wheel that everyone agrees to and nobody remembers.
-- **Turn order** — tabletop games, tournaments, anything with a round.
-- **Duty rosters** — front of house, driving, opening up.
+- **Chores** — the wheel everybody enthusiastically agrees to in January and nobody can recall by March.
+- **Turn order** — tabletop games, tournaments, anything with a round in it.
+- **Duty rosters** — front of house, driving, unlocking the hall.
+- **Whose turn it is to email the council.** Nobody's turn. It's always nobody's turn. Put it in a queue.
 
 ## Sharing and comments
 
