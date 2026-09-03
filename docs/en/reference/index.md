@@ -4,25 +4,19 @@ icon: lucide/library
 
 # Help & reference
 
-Quick-reference material for when you need a fact fast rather than a walkthrough.
+For when you need a fact fast rather than a walkthrough.
 
 <div class="grid cards" markdown>
 
 -   :material-book-alphabet: __Glossary__
 
-    Plain-language definitions of the words Initiative uses.
+    Every word Initiative uses, in plain language.
 
     [:octicons-arrow-right-24: Glossary](glossary.md)
 
--   :material-frequently-asked-questions: __FAQ__
-
-    Short answers to the questions people ask most.
-
-    [:octicons-arrow-right-24: FAQ](faq.md)
-
 -   :material-keyboard-outline: __Keyboard shortcuts__
 
-    Keystrokes worth knowing.
+    The keystrokes worth committing to muscle memory.
 
     [:octicons-arrow-right-24: Keyboard shortcuts](keyboard-shortcuts.md)
 
@@ -30,7 +24,8 @@ Quick-reference material for when you need a fact fast rather than a walkthrough
 
 ## Still stuck?
 
-- For how something works, browse [Using Initiative](../guides/index.md).
-- For account or sign-in trouble, see [Getting started](../getting-started/index.md).
-- For a server problem, the person who runs your Initiative (your administrator) is the right first contact — see the [admin guide](../admin/index.md).
-- For a security concern, see [Reporting a problem](../security/reporting-a-problem.md).
+- Quick answers: the [FAQ](../faq.md).
+- How something works: [Using Initiative](../guides/index.md).
+- Account or sign-in trouble: [Getting started](../getting-started/index.md).
+- A server problem: whoever runs your Initiative is the right first call — point them at the [admin guide](../admin/index.md).
+- A security concern: [Reporting a problem](../security/reporting-a-problem.md).

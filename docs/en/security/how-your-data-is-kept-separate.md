@@ -10,7 +10,7 @@ If you just want the everyday version, read [Security & privacy](index.md) inste
 
 ## The short version
 
-Initiative is **multi-tenant**: many separate groups (communities) can share one server without ever seeing each other's data. The separation is enforced **in the database itself**, not only in the application. So even if a flaw slipped into the app, the database would still refuse to return data a user isn't entitled to. Security is **fail-closed**: the default is no access, and access has to be positively established on every request.
+Initiative is **multi-tenant**: many separate groups (communities) share one server without ever seeing each other's data. The separation is enforced **in the database itself**, not only in the application, so the database is the final authority on what any request may return. Security is **fail-closed**: the default is no access, and access has to be positively established on every request.
 
 ## Each community gets its own space in the database
 
@@ -19,7 +19,7 @@ A community is not just a label attached to shared rows. Each community's conten
 Shared identity and configuration (the list of users, community memberships, invitations, server settings) lives in a common area. Everything that *belongs to a community* lives in that community's own space.
 
 ??? techspec "Why a separate schema per community, rather than a shared table with a community column?"
-    A single shared table relying only on a "community ID" column for separation is one forgotten `WHERE` clause away from a cross-tenant leak. A schema-per-community design makes the boundary structural: a request is routed into a specific community's space and literally cannot address another community's tables. It's a stronger isolation line, which matters for groups with real confidentiality requirements. This is a firm architectural commitment, not an implementation detail that might change.
+    Because it makes the boundary structural rather than conditional. A request is routed into one community's space and literally cannot address another community's tables — the separation is a property of where the data sits, not of the queries written against it. That's a stronger isolation line, and it's what groups with real confidentiality requirements are asking about. This is a firm architectural commitment, not an implementation detail that might change.
 
 ## The database connects under least-privilege roles
 
@@ -33,9 +33,9 @@ The application **never connects to the database as a superuser** — not for re
 
 The key point: the role that handles your requests **cannot bypass the security rules**. Each request temporarily assumes the specific community role it's allowed to, does its work, and resets. There is no standing, all-communities back door in the request path.
 
-## The six gates
+## The gates
 
-Every read or write of community data passes through the same access model. Picture it as nested gates — you must clear them from the outside in:
+Every read or write of community data passes through the same access model: four nested gates you clear from the outside in, plus two deliberate overrides above them.
 
 ```mermaid
 graph TD
@@ -62,7 +62,7 @@ Two deliberate overrides sit above the four gates:
 
 ## Sessions and sign-in
 
-- **Web sessions** use secure, HttpOnly cookies — meaning a malicious script running in the browser cannot read your session and impersonate you. This closes a common account-takeover route.
+- **Web sessions** use secure, HttpOnly cookies, so the session is held by the browser rather than exposed to page scripts.
 - **Mobile apps** store their credentials in the device's secure storage.
 - **Single sign-on (OIDC)** is supported, with modern protections (PKCE) and optional automatic mapping of identity-provider groups to community and initiative memberships.
 - **Sign-in tokens carry the minimum** needed; your community and role context is worked out fresh, server-side, on each request — so a stale token can't grant access you no longer have.
@@ -75,8 +75,8 @@ Two deliberate overrides sit above the four gates:
 ## What this means in practice
 
 - One server can safely host many unrelated groups.
-- A bug in one feature can't quietly become a cross-group data leak, because the database boundary holds independently of the app.
-- "Who can see this?" has a single, consistent answer enforced everywhere — the web app, the mobile app, file downloads, and live collaboration all defer to the same gates.
+- The database boundary holds on its own terms, independently of the application — so the isolation between groups is a property of where the data lives, not of every feature being written correctly.
+- "Who can see this?" has one consistent answer, enforced everywhere. The web app, the mobile app, file downloads and live collaboration all defer to the same gates.
 
 ## Related
 

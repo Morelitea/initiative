@@ -4,11 +4,11 @@ icon: lucide/settings
 
 # Account & settings
 
-Your settings are split into two places, depending on whether they affect **you** or affect a **whole group**.
+Settings live in three places, depending on who they affect:
 
-- **User settings** — your personal account and preferences. Open them from your name/avatar at the bottom of the sidebar.
-- **Community settings** — settings for a whole workspace, available to community administrators. Covered under [Working with communities](../guides/communities.md).
-- **Platform settings** — server-wide configuration, for the server's owner. Covered in the [administrator guide](../admin/index.md).
+- **User settings** — you. Open them from your name and picture at the bottom of the sidebar.
+- **Community settings** — a whole workspace, for community admins. See [Working with communities](../guides/communities.md).
+- **Platform settings** — the whole server, for its owner. See the [administrator guide](../admin/index.md).
 
 This section is about **your** settings.
 
@@ -16,14 +16,15 @@ This section is about **your** settings.
 
 | Tab | What it's for |
 |---|---|
-| **Profile** | The face other people see: your picture, status, and decorations. |
-| **Account** | How you sign in — your email, your handle, and your password. |
-| **Interface** | Theme, language, timezone, week start, task-completion effects, and other look-and-feel choices. |
-| **Notifications** | What you're notified about, and where. See [Notifications](../guides/notifications.md). |
-| **AI** | Your personal AI settings. Only appears if there's an AI connection for you to set up. See [AI features](ai-features.md). |
+| **Profile** | The face other people see: picture, status, decorations. |
+| **Account** | How you sign in — email, handle, password. |
+| **Interface** | Theme, language, timezone, week start, task-completion effects, and other look-and-feel. |
+| **Notifications** | What you're told about, and where. See [Notifications](../guides/notifications.md). |
+| **Privacy** | Who can ask to message you, your connections, and pending requests. See [Messages](../guides/messages.md#who-can-reach-you). |
+| **AI** | Your personal AI settings. Only appears if there's a connection for you to set up. See [AI features](ai-features.md). |
 | **Import** | Bring tasks in from other tools. See below. |
 | **Security** | Signed-in devices and access keys. See [API keys & integrations](api-keys-and-integrations.md). |
-| **Trash** | Your recently deleted items. |
+| **Trash** | Things you recently deleted. |
 | **Danger Zone** | Deactivate or delete your account. |
 
 <div class="grid cards" markdown>
@@ -50,11 +51,11 @@ This section is about **your** settings.
 
 ## Importing from another tool
 
-Switching from another app? Initiative can **import tasks** from several popular tools. Open **User settings → Import** and follow the wizard:
+Switching from something else? Open **User settings → Import** and follow the wizard:
 
 1. **Upload** your export file from the other tool.
-2. **Configure** which list/board to bring in and pick the **target project**.
-3. **Map statuses** so the other tool's columns line up with yours.
+2. **Configure** which list or board to bring in, and pick the **target project**.
+3. **Map statuses** so the old columns line up with yours.
 4. **Review the results.**
 
-Supported sources include **Todoist**, **TickTick**, **Trello**, **Asana**, and **Vikunja**. Subtasks come across too, and anything that can't be matched is reported so nothing disappears silently.
+Supported sources: **Todoist**, **TickTick**, **Trello**, **Asana**, and **Vikunja**. Subtasks come across too, and anything that can't be matched is reported — nothing disappears quietly.

@@ -4,58 +4,52 @@ icon: lucide/share-2
 
 # Sharing projects & documents
 
-This is the final, most precise layer of access: deciding who can see and edit a **specific** project or document. It works the same way for both, so once you've learned it for one, you know it for both.
+The final, most precise layer: who can reach a **specific** project or document. It works identically for both, so learn it once.
 
-## The three access levels
-
-When you share a project or document, you give each person (or role) one of three levels:
+## The three levels
 
 | Level | Can do |
 |---|---|
-| **Viewer** | Open and read it, but not change it. |
-| **Editor** | Read **and** make changes. |
-| **Owner** | Everything an editor can do, **plus** manage who else has access. |
+| **Viewer** | Open and read it. |
+| **Editor** | Read **and** change it. |
+| **Owner** | Everything an editor can, **plus** manage who else has access. |
 
-Pick the lowest level that lets someone do their job. Most people only need **Viewer** or **Editor**.
+Pick the lowest level that lets someone do their job. Most people only need Viewer or Editor.
 
 ## Who you can share with
 
-You can grant access to:
-
 - **A person** — a specific member of the initiative.
-- **A role** — *everyone* who has that [initiative role](initiative-roles.md), in one go. Share with the "Cast" role and every cast member gets access, including people you add to that role later.
+- **A role** — *everyone* holding that [initiative role](initiative-roles.md), in one go. Share with "Cast" and every cast member gets access, including people you add to that role later.
 
-Sharing with a **role** is the tidy choice when a whole group should have the same access — you set it once instead of adding people one at a time.
+Sharing with a **role** is the tidy choice when a whole group should have the same access. Set it once instead of adding people one at a time.
 
 ![Choosing who can access a project](../images/sharing/access-settings.png)
 
-## Open to everyone, or restricted
-
-When you set up access, you generally choose between:
+## Open, or restricted
 
 - **All initiative members** — everyone in the initiative can reach it. Good for things the whole team should see.
-- **Restricted** — only the specific people and roles you add. Good for anything sensitive.
+- **Restricted** — only the people and roles you name. Good for anything sensitive.
 
-Start restricted when in doubt; you can always widen access later.
+Start restricted when you're unsure. Widening later is easy.
 
-## Changing access later
+## Changing access
 
-Open the **Access** tab in a project's or document's settings at any time to add people, change someone's level, or remove access. Changes apply immediately.
+Open the **Access** tab in a project's or document's settings any time to add people, change a level, or remove access. Changes apply immediately.
 
-Every settings tab has an address of its own, so you can send someone a link straight to a tool's sharing or advanced options rather than describing where to click.
+Every settings tab has its own address, so you can send someone a link straight to a tool's sharing options rather than describing where to click.
 
-You can also **edit access on several items at once**: from a list view, select multiple **documents, projects, queues, counters, or calendar events** and update who can see or edit them in one step — handy when a new teammate joins a batch of work, or when someone leaves.
+You can also **edit access on several items at once**: from a list view, select multiple documents, projects, queues, counters or calendar events and update them in one step. Handy when a new teammate joins a batch of work, or when someone leaves.
 
-You don't have to click each card. Click the first, hold ++shift++ and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way. (++shift+enter++ or ++shift+space++ does the same from the keyboard.)
+No need to click each card, either. Click the first, hold ++shift++ and click the last, and everything between comes with it. Shift-clicking away from a card you just unticked clears that run the same way. (++shift+enter++ or ++shift+space++ does it from the keyboard.)
 
-## A couple of things to remember
+## Three things to remember
 
-- **Initiative membership comes first.** You can only share an item with someone who's already a member of its initiative. If they're not in the initiative, [add them there](../guides/initiatives.md#adding-members) first.
-- **Managers see everything.** A member with the initiative's [Manager role](initiative-roles.md#the-built-in-manager-role) can open the item regardless of these per-item settings. That's intended — keep it in mind for truly private material.
-- **Community admins see everything in their community.** Again by design, so someone can always administer the group.
+- **Initiative membership comes first.** You can only share with someone already in the initiative. If they're not, [add them there](../guides/initiatives.md#adding-members) first.
+- **Managers see everything.** A member with the [Manager role](initiative-roles.md#the-built-in-manager-role) opens the item regardless of these settings. Intended — but worth remembering for genuinely private material.
+- **Community admins see everything in their community.** Also by design, so somebody can always administer the group.
 
 ??? techspec "For the technically minded — how item sharing is stored and checked"
-    Per-item sharing is recorded as grants that name a project or document, a person *or* a role, and a level (view / edit / own). On every request, the database evaluates whether the current user satisfies the grant — directly, through a role they hold, through the initiative's Manager role, or as a community admin — before any data is returned. Because this is enforced in the database alongside the community and initiative boundaries, a project shared with "Editors" can't be reached by someone who has merely guessed its link. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+    Per-item sharing is recorded as grants naming a project or document, a person *or* a role, and a level (view / edit / own). On every request the database evaluates whether the current user satisfies the grant — directly, through a role they hold, through the initiative's Manager role, or as a community admin — before any data comes back. Because that check lives in the database alongside the community and initiative boundaries, the link to a project is never the thing that grants access to it. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Related
 

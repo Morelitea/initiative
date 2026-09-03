@@ -4,9 +4,9 @@ icon: lucide/store
 
 # Apps & the marketplace
 
-The tool your group needs has usually been needed before, by a group with the same problem. The **marketplace** is where those tools live: ready-made dashboards and apps you can add to your workspace in a couple of clicks, without a developer and without waiting for a new version of Initiative.
+Whatever tool your group needs, some other group with the same problem has probably already built it. The **marketplace** is where those live: ready-made dashboards and apps you add in a couple of clicks, with no developer and no waiting for a new version of Initiative.
 
-Your marketplace holds the listings that ship with Initiative, plus any that the person running your server has added and approved. It isn't an open upload pool — nothing reaches your marketplace without them putting it there.
+Your marketplace holds the listings that ship with Initiative plus any the person running your server added and approved. Everything on it got there because somebody decided to put it there.
 
 ## Two marketplaces
 
@@ -24,62 +24,56 @@ There are two, and the difference is who gets what you take.
 
 | | **Dashboards** | **Apps** |
 |---|---|---|
-| What it adds | A screen of charts, numbers, and timelines | Something the whole community shares |
+| What it adds | A screen of charts, numbers and timelines | Something the whole community shares |
 | Where it goes | Into one initiative | Into the community |
 | Who can add it | Anyone who can create dashboards in that initiative | Community admins only |
 
-Both are browsed the same way: search, open a listing to read what it does, then add it.
+Both browse the same way: search, open a listing to read what it does, add it.
 
-## Adding a dashboard
-
-A **dashboard** displays your data on one canvas — task counts, project progress, upcoming calendar entries, counters. Dashboards are read-only by design: nothing you see on one can be edited from it.
+### Adding a dashboard
 
 1. Open the listing and choose **Add to an initiative**.
 2. Pick the **initiative** it should live in.
-3. Give it a **name** — the listing's name is filled in, and you can change it now or later.
+3. Give it a **name** — the listing's name is filled in, changeable now or later.
 
-It then appears under that initiative's **Dashboards**, exactly like one you built yourself. You can rename it, tag it, share it, and delete it like any other tool.
+It appears under that initiative's **Dashboards**, exactly like one you built. Rename it, tag it, share it, delete it like any other tool.
 
-!!! info "Don't see any initiative to choose?"
+!!! info "No initiative to choose from?"
     You can only add a dashboard where you're allowed to create one. If the list is empty, ask an initiative manager to give your role the dashboard permission — see [Initiative roles](../sharing/initiative-roles.md).
 
-### Previews
+A listing's page can show a **preview** drawn with sample data, so you can see the shape of it before committing. Yours will show your group's real numbers.
 
-A listing's page can show a **preview** of the dashboard, drawn with sample data so you can see the shape of it before you commit. What you add will show your group's real numbers instead.
+When the publisher ships a newer version, the dashboard shows **Version X available**. Updating is your choice; nothing changes underneath you. If a listing needs a newer Initiative than your server runs, it says so rather than half-working.
 
-### Updates
+### Adding an app
 
-When the publisher releases a newer version, the dashboard shows **Version X available**. Updating is a choice you make — nothing changes underneath you. If a listing needs a newer version of Initiative than your server is running, it says so rather than half-working.
-
-## Adding an app
-
-An **app** adds something to the community as a whole rather than to one effort — a shared surface, extra dashboard widgets, or a connection to a service your group already uses. Because it affects everyone, **only community admins can add or remove one**.
+An **app** adds something to the community as a whole rather than one effort — a shared surface, extra dashboard widgets, or a connection to a service your group already uses. Because it affects everyone, **only community admins can add or remove one**.
 
 1. Switch the marketplace to the **Apps** shelf and open a listing.
-2. Choose **Add to community** and name it.
-3. If the app needs setting up, it's marked **Needs setup** — open its settings to finish.
+2. **Add to community**, and name it.
+3. If it needs setting up, it's marked **Needs setup** — open its settings to finish.
 
-The Apps shelf lists the apps your server actually runs. An app is served by a program the person running your server sets up, so one they haven't set up — or have switched off — isn't offered here at all. If you were expecting a particular app and can't find it, they're the person to ask.
+The Apps shelf lists the apps your server actually runs. Some apps are just a screen; others need a program running alongside Initiative to do their job, and one your server hasn't set up — or has switched off — isn't offered here. If you expected something and can't find it, whoever runs your server is who to ask. (On the hosted service those are already running — see [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).)
 
 Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Apps**.
 
 ### Setting an app up
 
-Some apps need a credential before they can do anything — an API key, or a sign-in to another service. There are two kinds, and the difference matters:
+Some apps need a credential — an API key, or a sign-in to another service. Two kinds, and the difference matters:
 
-- **Community credential** — set once by a community admin, used for everyone. Good for a shared account the whole group works through.
-- **Your account** — each member supplies their own, and it's used only for them. Your credential is yours; other members can't see or use it.
+- **Community credential** — set once by an admin, used for everyone. Good for a shared account the whole group works through.
+- **Your account** — each member supplies their own, used only for them. Yours is yours; other members can't see or use it.
 
-Each connection shows which service it uses and what it's allowed to do there, so you can decide before you supply anything.
+Each connection shows which service it uses and what it's allowed to do there, so you can decide before you hand anything over.
 
 ### Turning an app off, and removing it
 
-- **Turn off** hides an app from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay visible in **Community settings → Apps**, which is where an admin turns them back on.
-- **Remove** takes it out of the community entirely. Anything it created moves to the **Trash**, where it can still be restored during the retention window. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.
+- **Turn off** hides it from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay listed in **Community settings → Apps**.
+- **Remove** takes it out entirely. Anything it created moves to the **Trash**, restorable during the retention window. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.
 
 ## Your own marketplace
 
-Your marketplace holds **decoration packs** — sets of artwork for your profile. Each one is built around a single thing a group of people has in common, and carries banners, frames and trophies, usually several of each, which you wear in any combination you like.
+Yours holds **decoration packs**: sets of artwork for your profile. Each is built around one thing a group of people has in common, and carries banners, frames and trophies — usually several of each — which you wear in any combination you like.
 
 Twenty-three packs ship with Initiative:
 
@@ -91,39 +85,39 @@ Twenty-three packs ship with Initiative:
 
 Some run deep. Pride flies a flag, a turning ring and a heart for each of seven identities. Multicultural carries seventy flags. Disability has a trophy for eleven of the things people are, and a flag for all of them.
 
-The banners move: a playhead lights the notes it passes, a curtain runs in and out, skeletons dance until sunrise, a typewriter types a line at a time, a lake changes colour the whole way down as the sun sets into it, and the view from a train window keeps going past.
+The banners move, too: a playhead lights the notes it passes, a curtain runs in and out, skeletons dance until sunrise, a typewriter types a line at a time, a lake changes color the whole way down as the sun sets into it, and the view from a train window keeps going past.
 
-What you take here is yours rather than your community's. Download a pack in one community and you are wearing it in all of them, because your profile belongs to you.
+What you take here is yours, not your community's. Download a pack in one community and you're wearing it in all of them, because your profile belongs to you.
 
 1. Open **Browse the marketplace** on **User settings → Profile**.
-2. Open a pack to see everything in it, and the profile it would make — the banner running, the frame around your own picture, the trophies under it.
+2. Open a pack to see everything in it, and the profile it would make — banner running, frame around your own picture, trophies underneath.
 3. **Get this pack**, and its pieces land in your collection.
 
-Downloading a pack does not put anything on you. It gives you the pieces; you choose which to wear back on **User settings → Profile**, and you can mix pieces from different packs however you like. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
+Downloading puts nothing on you. It gives you the pieces; you choose what to wear back on **User settings → Profile**, mixing pieces from different packs however you like. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
 
 Giving one back is the same click in reverse — open the pack's card and remove it. Its pieces leave your collection, and anything from it you were wearing comes off with them.
 
 ![Decoration packs](../images/marketplace/decoration-packs.png)
 
-## Where listings come from, and what they can reach
+## Where listings come from
 
-Every listing in your marketplace got there one of two ways:
+Every listing in your marketplace arrived one of two ways:
 
 - It **ships with Initiative** — part of the built-in catalog, credited to Initiative. That credit can't be claimed by anything else.
-- Your **platform owner added it** — the person who runs your server chose that listing and published it to your deployment. If you run Initiative yourself, that person is you.
+- Your **platform owner added it** — they chose that listing and published it to your deployment. If you run Initiative yourself, that's you.
 
-There's no third way in. Anyone can write a listing, but reaching *your* marketplace is a decision your platform owner makes, one listing at a time. See [Publishing your own listings](../admin/publishing-listings.md).
+There's no third way. Anyone can write a listing; reaching *your* marketplace is a decision your platform owner makes, one listing at a time. See [Publishing your own listings](../admin/publishing-listings.md).
 
-Every listing also shows **who published it** — on the card, on its page, and in the dialog where you add it — so the question is answered at the moment you're deciding.
+Every listing shows **who published it** — on the card, on its page, and in the dialog where you add it — so the question is answered while you're deciding.
 
-Two things stay true whatever you install:
+Two things hold whatever you install:
 
-- **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — the same community, initiative, role, and sharing checks as everywhere else. Two people looking at the same dashboard can correctly see different numbers.
-- **Widgets run in a sandbox.** Marketplace widgets run in an isolated runtime that can only return something to draw. If one misbehaves, that tile shows an error and the rest of the page carries on.
+- **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — same community, initiative, role and sharing checks as everywhere else. Two people on the same dashboard can correctly see different numbers.
+- **Widgets run in a sandbox.** Marketplace widgets run in an isolated runtime that can only hand back something to draw. If one misbehaves, that tile shows an error and the rest of the page carries on.
 
 ## Related
 
 - [Profile & preferences](../account/profile-and-preferences.md) — wearing what a decoration pack gave you.
-- [Tools](tools.md) — the calendar, queues, counters, and dashboards built into every initiative.
+- [Tools](tools.md) — the calendar, queues, counters and dashboards built into every initiative.
 - [Sharing & access](../sharing/index.md) — who can see what you add.
-- [Publishing your own listings](../admin/publishing-listings.md) — for administrators adding listings to their server's marketplace.
+- [Publishing your own listings](../admin/publishing-listings.md) — for admins adding to their server's marketplace.

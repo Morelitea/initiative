@@ -4,14 +4,14 @@ icon: lucide/mail
 
 # Email
 
-Initiative sends email for things like account verification, password resets, invitations, and the daily overdue-task digest. To enable that, point Initiative at an **SMTP** mail server. You set this up from **Settings → Platform → Email** as the [owner](platform-roles.md).
+Initiative sends email for account verification, password resets, invitations, and the daily overdue-task digest. Point it at an **SMTP** mail server from **Settings → Platform → Email**, as the [owner](platform-roles.md).
 
-!!! info "No email = no email-based features"
-    Without SMTP configured, Initiative still works, but it can't send verification links, password resets, or email notifications. In-app (bell) notifications keep working regardless.
+!!! info "Without email, the email things don't happen"
+    Initiative works fine without SMTP, but it can't send verification links, password resets, or email notifications. In-app bell notifications carry on regardless.
 
 ## What you'll need
 
-Outgoing mail credentials from a mail provider — your own mail server, or a transactional email service (such as a typical SMTP relay). You'll need the host, port, a username and password, and a "from" address.
+Outgoing mail credentials — your own mail server, or a transactional email service. Specifically: host, port, username, password, and a "from" address.
 
 ## Settings
 
@@ -26,9 +26,9 @@ In **Settings → Platform → Email**:
 | **Username** / **Password** | Your SMTP credentials. (Leave the password blank when editing to keep the existing one.) |
 | **From address** | The sender shown to recipients, e.g. `Initiative <no-reply@example.com>`. |
 
-## Test before you rely on it
+## Test it before you rely on it
 
-Use the **Send test email** option (enter a recipient and send). If it arrives, you're set. If not, check the host/port/TLS combination first — that's the usual culprit — then the credentials.
+**Send test email**, pick a recipient, send. If it arrives, you're done. If not, check the host/port/TLS combination first — that's the usual culprit — then the credentials.
 
 ![SMTP email settings](../images/admin/email-settings.png)
 

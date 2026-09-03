@@ -24,10 +24,13 @@ You decide, under **User settings → Privacy**. The setting covers who may *ask
 | Setting | Who can ask |
 |---|---|
 | **Private** | Nobody. |
-| **My communities** | People you share a community with — and you can narrow it to particular communities. |
+| **My communities** | People you share a community with — narrowable to particular communities. |
 | **Anyone** | Anybody on Initiative, by your handle. |
 
-Every one of these ends in a **request** you accept or decline. *Anyone* removes the restriction on who may ask — it doesn't let anybody write to you unasked.
+Every one of these ends in a **request** you accept or decline. *Anyone* widens who may ask; it never lets somebody write to you unasked.
+
+!!! info "New accounts start Private"
+    Which means nobody can reach you until you open it up — and your [My Contacts](your-space.md#my-contacts) sections start empty for the same reason. Whoever runs your server picks the setting new accounts are created with, and the shipped default is **Private**. Changing it later affects only accounts made after the change; it never opens or closes an existing one.
 
 Whatever you choose, a **connection** always lets the two of you message each other. That's the point of one.
 

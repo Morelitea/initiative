@@ -4,14 +4,16 @@ icon: lucide/package
 
 # Installation
 
-The recommended way to run Initiative is with **Docker Compose**. It brings up the application and its PostgreSQL database together, handles the database setup for you, and is the same path the project supports and tests.
+The recommended way to run Initiative is **Docker Compose**. It brings up the app and its PostgreSQL database together, handles the database setup for you, and is the path the project actually supports and tests.
+
+Would rather not run a server? A paid hosted service is coming — see [Self-host or let us host it](../self-host-or-hosted.md).
 
 ## Before you start
 
-You'll need a machine (your own, or a cloud server) with:
+A machine (yours, or a cloud box) with:
 
 - **Docker** and **Docker Compose** installed.
-- A way to reach it in a browser — `localhost` for trying it out, or a domain name for real use.
+- A way to reach it in a browser — `localhost` for a try-out, a domain name for real use.
 
 ## Quick start
 
@@ -45,7 +47,7 @@ The example compose file sets up volumes for both. Make sure those volumes live 
 
 ## The database connections
 
-Initiative runs on **three** PostgreSQL roles, and it won't start without a connection string for each. They work as a set — this is part of how Initiative enforces least-privilege at the database level (see [How your data is kept separate](../security/how-your-data-is-kept-separate.md)).
+Initiative runs on **three** PostgreSQL roles and won't start without a connection string for each. They work as a set — this is how least-privilege is enforced at the database level (see [How your data is kept separate](../security/how-your-data-is-kept-separate.md)).
 
 | Variable | Connects as | Purpose |
 |---|---|---|
@@ -59,7 +61,7 @@ A fourth connection creates those three:
 |---|---|---|
 | `DATABASE_URL_BOOTSTRAP` | the database owner | Creates the three roles, hands them the schema, and installs the search index's match operator. |
 
-At startup Initiative opens the bootstrap connection, applies those prerequisites, and closes it — every request afterwards runs on the three roles above. The password you put in each of their URLs is the password that role is given, and the bootstrap runs again on every start, so changing one and restarting rotates it.
+At startup Initiative opens the bootstrap connection, applies those prerequisites, and closes it. Every request afterwards runs on the three roles above. The password you put in each URL is the password that role gets, and the bootstrap runs on every start — so changing one and restarting is how you rotate it.
 
 The example compose file wires all four together, so `docker compose up` works with no SQL to run by hand.
 

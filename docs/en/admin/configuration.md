@@ -4,10 +4,10 @@ icon: lucide/sliders-horizontal
 
 # Configuration
 
-Initiative is configured with **environment variables** (set in your `docker-compose.yml`, a `.env` file, or your container environment). This page covers the settings you're most likely to touch. For the complete list, see `backend/.env.example` in the source.
+Initiative is configured with **environment variables**, set in your `docker-compose.yml`, a `.env` file, or your container environment. This page covers what you're most likely to touch; the complete list is `backend/.env.example` in the source.
 
 !!! tip "Some things are configured in the app, not here"
-    A few areas — email, single sign-on, branding colors, and AI — can be set up from the **Settings → Platform** screens in the running app, by the [owner](platform-roles.md). Those pages are friendlier than environment variables and are covered on their own pages. Environment variables are mainly for the foundational settings below.
+    Email, single sign-on, branding colors and AI are all set up from **Settings → Platform** in the running app, by the [owner](platform-roles.md) — friendlier than environment variables, and covered on their own pages. Environment variables are for the foundational settings below.
 
 ## Essential settings
 
@@ -19,7 +19,7 @@ Initiative is configured with **environment variables** (set in your `docker-com
 | `DATABASE_URL_ADMIN` | Connection for migrations and background jobs (`app_admin`). | *required* |
 | `APP_URL` | Your public base URL. Needed for single-sign-on callbacks and correct links. | — |
 
-See [Installation](installation.md#the-three-database-connections) for how the three database URLs work together.
+See [Installation](installation.md#the-database-connections) for how the database URLs work together.
 
 ## Who can sign up
 
@@ -28,7 +28,7 @@ See [Installation](installation.md#the-three-database-connections) for how the t
 | `ENABLE_PUBLIC_REGISTRATION` | Allow people to register without an invite link. Set `false` for invite-only. | `true` |
 | `DISABLE_GUILD_CREATION` | Stop regular users from creating new communities (they must be invited to one). | `false` |
 
-These two together let you run anything from a fully open community server to a locked-down, invite-only, single-organization deployment.
+Between them, you can run anything from a wide-open public server to a locked-down, invite-only, one-organization deployment.
 
 ### The community directory
 
@@ -36,7 +36,7 @@ Communities can also list themselves publicly, so people find and join them with
 
 While it's off there is nothing to browse, nobody can join a community without an invite, and the listing control doesn't appear in community settings at all. Turning it off again later hides the directory rather than un-listing anyone: switch it back on and the same communities are there.
 
-Listing is then each community admin's own decision: they pick the community's categories and certify that it holds no adult or illegal content. Initiative refuses to list a community with room for only a single member. See [Listing your community](../guides/communities.md#listing-your-community-administrators).
+Listing is then each community admin's own decision: they pick the community's categories and certify that it holds no adult or illegal content. Initiative refuses to list a community with room for only a single member. See [Listing your community](../guides/communities.md#listing-your-community-admins).
 
 ### Asking members their age
 
@@ -45,6 +45,12 @@ Because a listed community is open to people its members haven't met, Initiative
 The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
 
 Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [admin dashboard](platform-roles.md#managing-platform-users).
+
+### What new accounts can be reached at
+
+Direct messages are off by default: every account is created on the **Private** policy, meaning nobody can even ask to message them until the person opens it up. The starting policy sits under the same **Settings → Platform → Community** tab.
+
+It's read **once**, when an account is made. Changing it opens no existing account and closes none either — people who already have a setting keep it. See [Who can reach you](../guides/messages.md#who-can-reach-you).
 
 ## Running behind a reverse proxy
 
@@ -56,7 +62,7 @@ For any real deployment you'll put Initiative behind a reverse proxy that handle
 | `FORWARDED_ALLOW_IPS` | Which proxy IPs to trust when `BEHIND_PROXY=true`. | `*` |
 
 !!! warning "Only enable proxy trust behind an actual proxy"
-    Turning on `BEHIND_PROXY` when Initiative is directly exposed would let clients spoof their address. Enable it only when a trusted proxy sits in front.
+    `BEHIND_PROXY` tells Initiative to believe the `X-Forwarded-*` headers it receives. Only turn it on when a trusted proxy is the one setting them.
 
 ## Keeping bots out (captcha)
 
@@ -93,7 +99,7 @@ These have their own pages:
 
 ## Mobile app version floor
 
-There's a setting (`MIN_NATIVE_VERSION`, tracked in the source) that records the minimum native mobile-app version the current web bundle requires. You rarely touch it by hand — it's part of how the mobile app updates safely over the air. It's mentioned here only so you know what it is if you see it. See [Backups & updates](backups-and-updates.md).
+`MIN_NATIVE_VERSION` (tracked in the source) records the minimum native mobile-app version the current web bundle needs. You rarely touch it by hand — it's part of how the mobile app updates safely over the air. Mentioned here only so it isn't a mystery if you spot it. See [Backups & updates](backups-and-updates.md).
 
 ## After changing settings
 

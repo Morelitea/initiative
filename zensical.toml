@@ -39,6 +39,7 @@ extra_css = ["stylesheets/extra.css"]
 # ----------------------------------------------------------------------------
 nav = [
   { "Home" = "en/index.md" },
+  { "Self-host or hosted" = "en/self-host-or-hosted.md" },
   { "FAQ" = "en/faq.md" },
   { "Getting started" = [
     "en/getting-started/index.md",
@@ -101,7 +102,6 @@ nav = [
   { "Help & reference" = [
     "en/reference/index.md",
     "en/reference/glossary.md",
-    "en/reference/faq.md",
     "en/reference/keyboard-shortcuts.md",
   ] },
 ]

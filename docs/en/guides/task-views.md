@@ -4,46 +4,46 @@ icon: lucide/layout-dashboard
 
 # Task views
 
-The same tasks can be shown in three different ways. Pick whichever helps you think — switching between them changes nothing about the tasks themselves, just how you look at them. Use the view switcher at the top of any project board.
+The same tasks, three different ways of looking at them. Pick whichever helps you think — switching changes nothing about the tasks, only your view of them. The switcher sits at the top of any project board.
 
 ![Switching between task views](../images/projects/view-switcher.png)
 
 ## Table
 
-A clean, spreadsheet-style list — one row per task, with columns for status, priority, dates, assignees, and so on.
+A spreadsheet-style list — one row per task, columns for status, priority, dates, assignees and the rest.
 
 **Best for:** scanning a lot of tasks, sorting, and bulk edits.
 
-- Click a column heading to **sort** by it. Hold ++shift++ and click another to sort by several columns at once.
+- Click a column heading to **sort**. Hold ++shift++ and click another to sort by several at once.
 - **Group** rows by status, priority, or assignee.
-- **Filter** to narrow down to exactly what you want.
+- **Filter** down to exactly what you want.
 - **Select** multiple rows to edit them together.
 
 ![A project in Table view](../images/projects/view-table.png)
 
 ## Kanban
 
-Cards arranged in columns, one column per status. Drag a card from one column to the next as work moves along.
+Cards in columns, one column per status. Drag a card along as the work moves.
 
-**Best for:** seeing the flow of work and updating status with a simple drag.
+**Best for:** seeing the flow, and updating status without opening anything.
 
-- **Drag and drop** a task between columns to change its status.
-- **Collapse** a column you don't need to focus on the rest.
+- **Drag and drop** between columns to change status.
+- **Collapse** a column you're not thinking about.
 
 ![A project in Kanban view](../images/projects/view-kanban.png)
 
 ## Calendar
 
-Your tasks laid out on a calendar by their start and due dates.
+Your tasks laid out by start and due date.
 
-**Best for:** seeing *when* things are happening and spotting a crowded week.
+**Best for:** seeing *when* things land, and spotting the week that's about to go badly.
 
 ## Which should I use?
 
-There's no wrong answer — use whatever makes the work clearer for you. A common pattern:
+No wrong answer. A common rhythm:
 
 - **Kanban** day to day, to push work along.
-- **Table** when you need to tidy up, sort, or edit many tasks.
+- **Table** when you need to tidy up, sort, or edit a lot at once.
 - **Calendar** when you're planning ahead or reporting on schedule.
 
-Your view choice is personal and remembered, so you can settle into the one you like.
+Your choice is personal and remembered, so you can settle into the one you like.

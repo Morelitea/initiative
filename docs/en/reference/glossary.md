@@ -4,7 +4,7 @@ icon: lucide/book-a
 
 # Glossary
 
-The words Initiative uses, in plain language. Terms are listed roughly from the biggest idea to the smallest.
+Every word Initiative uses, in plain language, roughly biggest idea to smallest.
 
 ### Community
 
@@ -17,6 +17,10 @@ A **folder for a big effort** inside a community. It gathers related projects, d
 ### Default Initiative
 
 The starter initiative every new community comes with, so there's always somewhere to begin. It can be renamed but not deleted.
+
+### Self-hosting / hosted
+
+Two ways to get Initiative. **Self-hosting** means you run it — free, open source, complete. **Hosted** means we run it as a paid service. Same software either way. See [Self-host or let us host it](../self-host-or-hosted.md).
 
 ### Community directory
 
@@ -84,7 +88,11 @@ The catalog of ready-made things you can add. There are two: your **community's*
 
 ### App
 
-Something added from the marketplace that serves the **whole community** rather than one initiative. Only community admins can add or remove one. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+Something added from the marketplace that serves the **whole community** rather than one initiative. Only community admins can add or remove one. Some apps need a program running alongside Initiative before they work. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+
+### Automations
+
+Rules that carry out repetitive steps for you. Available on the hosted service, metered separately from the subscription because it runs continuously. See [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).
 
 ### Widget
 
@@ -120,11 +128,15 @@ How you're around, shown as a dot under your picture: **online**, **idle**, **bu
 
 ### My Contacts
 
-Your personal page listing everyone you share a community with, plus anyone you've starred. See [Your space](../guides/your-space.md#my-contacts).
+Your personal page listing the people you can actually reach — your connections, anyone you've agreed to message, and the members of your communities who can message you — plus anyone you've starred. See [Your space](../guides/your-space.md#my-contacts).
 
 ### Direct message
 
 A private one-to-one conversation, end-to-end encrypted: readable on the two people's own devices and nowhere else. See [Messages](../guides/messages.md).
+
+### Message policy
+
+Who may *ask* to message you: **Private** (nobody), **My communities** (people you share one with, narrowable), or **Anyone**. New accounts start Private. Every setting still ends in a request you accept or decline. See [Who can reach you](../guides/messages.md#who-can-reach-you).
 
 ### Connection
 

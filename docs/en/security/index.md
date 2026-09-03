@@ -4,9 +4,9 @@ icon: lucide/shield-check
 
 # Security & privacy
 
-"Is my stuff safe and private?" is a fair question to ask of any tool you trust with your group's information.
+"Is my stuff safe and private?" is a fair question to ask of anything you hand your group's information to.
 
-The short answer: Initiative is built so that the only people who see something are the people you deliberately gave it to. That's not a setting you have to find and switch on — it's how the layers work by default, all the way down to the database. Here's what that means in practice, and where to find the details.
+Short answer: the only people who see something are the people you deliberately gave it to. That isn't a setting to hunt for and switch on — it's how the layers work by default, all the way down to the database. Here's what that means day to day, and where the detail lives.
 
 - **This page** explains what security means for *you*, as someone using Initiative day to day.
 - **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, administrators, and anyone evaluating Initiative.
@@ -30,13 +30,13 @@ This is the layer most groups rely on day to day, and it needs no configuration:
 
 ### Your sign-in is protected
 
-- Signing in uses a secure session that **can't be stolen by malicious scripts** in your browser — a common way accounts get hijacked elsewhere, closed off here.
+- Your sign-in session is held in a cookie the page's own scripts can't read.
 - You can use your organization's **single sign-on** instead of a separate password.
-- Passwords must be **at least 12 characters**, and they're never stored in a readable form.
+- Passwords must be **at least 12 characters**, and are never stored in readable form.
 
 ### Sensitive information is encrypted
 
-Behind the scenes, the most sensitive pieces of stored data — things like saved API keys and email addresses — are **encrypted at rest**, so they're not readable even to someone who somehow got hold of the raw database files. More in [Data & compliance](data-and-compliance.md).
+The most sensitive stored fields — saved API keys, email addresses, and the like — are **encrypted at rest**, so the raw database file doesn't carry them in the clear. More in [Data & compliance](data-and-compliance.md).
 
 ### Your private messages are only yours
 
@@ -50,9 +50,9 @@ The trade is that your history lives on your devices rather than on a server, so
 - Create and **revoke access keys** for apps and scripts at any time (see [API keys & integrations](../account/api-keys-and-integrations.md)).
 - **Deactivate or delete your account** whenever you choose, from **User settings → Danger Zone**. You decide whether your content is preserved or removed. See [Data & compliance](data-and-compliance.md).
 
-## Simple habits that keep you safe
+## A few habits that do most of the work
 
-Security is a partnership. A few small habits go a long way:
+Security is a partnership, and your half is not complicated:
 
 - **Use a strong, unique password** (or single sign-on). A password manager makes this effortless.
 - **Sign out on shared computers**, and don't tick "stay signed in" on a device that isn't yours.

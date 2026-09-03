@@ -4,57 +4,55 @@ icon: lucide/user-plus
 
 # Create your account
 
-Your account is your personal identity in Initiative. You sign in with it, and it follows you across every group you belong to.
+Your account is your identity in Initiative. One account, and it follows you into every group you join.
 
 ## Step 1: Open Initiative
 
-There are two common ways to arrive:
+Two ways in:
 
-- **You were sent an invite link.** Click it. It opens Initiative and remembers which group you're joining. This is the easiest path — after you create your account, you're taken straight into that group.
-- **You have a web address.** Someone shared the address of your group's Initiative (something like `initiative.yourteam.com`). Open it in your browser.
+- **You were sent an invite link.** Click it. It remembers which group you're joining, so once your account exists you land straight in it. Easiest path by a mile.
+- **You have a web address.** Someone gave you the address of your group's Initiative — something like `initiative.yourteam.com`. Open it.
 
 ![The Initiative sign-in screen](../images/getting-started/sign-in-screen.png)
 
-## Step 2: Choose how to sign up
+## Step 2: Pick how to sign up
 
-Look for **Create account** (or **Sign up**). You'll usually have one or two choices:
+Look for **Create account** (or **Sign up**). You'll have one or two choices:
 
-- **Email and password** — the standard way. Continue with Step 3 below.
-- **Single sign-on** — if your organization set this up, you'll see a button like **Continue with Single Sign-On**. Click it and sign in with your existing work or school account. There's no separate password to create. You can skip the rest of this page.
+- **Email and password** — the usual. Carry on to Step 3.
+- **Single sign-on** — if your organization set it up, there'll be a button like **Continue with Single Sign-On**. Click it, sign in with your work or school account, and you're done. Skip the rest of this page.
 
 ## Step 3: Fill in your details
 
-For an email-and-password account, you'll enter:
-
 | Field | What to put |
 |---|---|
-| **Full name** | Your name as you'd like teammates to see it. You can change it later. |
-| **Email** | A real address you can check. We send a confirmation link there. |
-| **Password** | At least **12 characters**. Longer is stronger. |
-| **Confirm password** | Type the same password again. |
+| **Full name** | How you'd like teammates to see you. Changeable later. |
+| **Email** | A real address you can check — we send a confirmation link. |
+| **Password** | At least **12 characters**. Longer is better. |
+| **Confirm password** | The same one again. |
 
-You may also see a quick **"I'm not a robot"** check. That's normal — it keeps automated sign-ups out.
+You might also get an **"I'm not a robot"** check. That's normal.
 
-!!! tip "Pick a strong password you don't use elsewhere"
-    A short sentence you'll remember — like four random words strung together — is both strong and easy to recall. A password manager is even better.
+!!! tip "Pick a password you don't use anywhere else"
+    Four random words strung together is both strong and memorable. A password manager is better still, and does the remembering for you.
 
 ## Step 4: Confirm your email
 
-After you sign up, one of a few things happens depending on how your group set things up:
+What happens next depends on how your group set things up:
 
-- **"Check your inbox to verify your email."** Open the email we sent and click the link. Then you can sign in. (No email after a few minutes? Check your spam folder.)
-- **"Pending approval from an administrator."** Your group reviews new sign-ups by hand. You'll be able to sign in once someone approves you.
-- **You're let straight in.** Some groups automatically approve people whose email matches the organization (for example, anyone with a `@yourteam.com` address).
+- **"Check your inbox to verify your email."** Click the link we sent, then sign in. (Nothing after a few minutes? Check spam.)
+- **"Pending approval from an administrator."** Your group reviews sign-ups by hand. You'll get in once someone approves you.
+- **You're just let in.** Some groups auto-approve anyone with a matching email domain — everyone at `@yourteam.com`, say.
 
 ??? techspec "For the technically minded — how sign-up is gated"
-    Three independent settings control who can register, and an administrator chooses the combination:
+    Three independent settings, combined however an administrator likes:
 
-    - **Public registration** can be turned off entirely, so only people with an invite link can join.
-    - **An allow-list of email domains** can auto-approve sign-ups from trusted domains; everyone else waits for manual approval.
-    - **Email verification** confirms the address belongs to the person signing up.
+    - **Public registration** can be off entirely, making invite links the only way in.
+    - **An allow-list of email domains** auto-approves sign-ups from trusted domains; everyone else waits for manual approval.
+    - **Email verification** confirms the address belongs to whoever used it.
 
-    The very first person to register on a brand-new server automatically becomes the platform **owner** (the top administrator). See [Platform roles](../admin/platform-roles.md).
+    The first person to register on a brand-new server becomes the platform **owner**. See [Platform roles](../admin/platform-roles.md).
 
 ## Next
 
-You have an account. Time to [sign in](signing-in.md).
+Account made. Time to [sign in](signing-in.md).

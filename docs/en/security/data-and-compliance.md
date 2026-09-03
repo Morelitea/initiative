@@ -8,12 +8,12 @@ This page explains who owns your data, where it lives, the rights you have over 
 
 ## Two ways to run Initiative
 
-Initiative is one product you can get in two ways, and the difference shows up mostly in who does the operational work:
+One product, two ways to get it, and the difference is mostly about who does the operational work:
 
-- **You host it yourself.** Initiative is open source and runs on hardware your group controls, or a host your group chooses. Everything below is true of it — you just hold the machine as well.
-- **We host it for you** *(coming soon)*. You sign up and start; keeping the service running, backed up, and up to date is ours to do.
+- **You host it yourself.** Open source, running on hardware your group controls or a host your group picked. Everything below applies — you just hold the machine too.
+- **We host it for you** *(coming soon)*. A paid service: you sign up and start, and keeping it running, backed up and current is ours.
 
-Both are the same software, with the same protections — nothing is held back from the version you run yourself. Where a section below depends on which you chose, it says so.
+Same software, same protections — nothing is held back from the version you run yourself. Where a section below depends on which you picked, it says so. See [Self-host or let us host it](../self-host-or-hosted.md).
 
 ## Who owns what
 
@@ -23,23 +23,21 @@ The rule is a simple one: **communities own community data, and people own their
 - **Your account is yours.** Your profile, your picture, your preferences, your handle and email address — yours across every community you're in, and yours to take with you or delete.
 - **Your messages are yours and the other person's**, and nobody else's. Not the community's, not an admin's, not ours. See [Private messages](private-messages.md).
 
-None of it is ours. We don't sell it, we don't mine it, and it isn't training data.
+None of it is ours. We don't sell it, we don't mine it, and we don't train on it — there's no path in the architecture for us to. (The one time your content deliberately leaves your server is when somebody presses an AI **Generate** button, and then it's the provider's terms that apply. See [AI features](../account/ai-features.md#the-privacy-bit-which-is-genuinely-worth-reading).)
 
 If you host Initiative yourself, all of it sits in *your* database and *your* file storage, and backing it up is your job too. See [Backups & updates](../admin/backups-and-updates.md).
 
 If we host it, we hold it **on behalf of the people it belongs to**, and the tools stay in their hands: export it whenever you like, delete it whenever you like, take it elsewhere. The export formats below are ordinary files, not something only we can open.
 
-## Why we built it this way
+## Why the rules are what they are
 
-A word on where this comes from, because it explains choices that might otherwise look severe.
+Some of the choices below look severe until you know where they came from.
 
-We're self-hosters. We got there the way most people do — by growing steadily less comfortable with what the tools we relied on were doing with the things we put into them. What tipped it for us was watching creative work get swallowed into training data by companies that never thought to ask. Once that has happened to something you made, "we promise not to" stops sounding like much of a promise.
+We treat privacy as an architecture problem rather than a policy one. A policy lasts exactly as long as whoever owns the company next; a system with no path to your content doesn't depend on anybody's good intentions. Hence no standing administrative access to a community's data, cross-community access only through a time-bound grant that leaves a record, and direct messages encrypted so thoroughly that no key to them exists outside the two devices talking.
 
-So we treat this as an architecture problem rather than a policy one. A policy is only as durable as whoever owns the company next; a system with no path to your content doesn't depend on anybody's good intentions. That's the thinking behind the parts of Initiative that can feel strict: no standing administrative access to a community's data, cross-community access only through a time-bound grant that leaves a record, and private messages encrypted so thoroughly that no key to them exists outside the two devices talking.
+The practical upshot: **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own content deliberately, with a key you or your administrator supplied, and they send only what you asked. See [AI features](../account/ai-features.md).
 
-The practical upshot is that **we can't feed your work to a model** — there's no pipe to put it in. The AI features that do exist are ones you point at your own content deliberately, with a key you or your administrator supplied, and they send only what you asked them to. See [AI features](../account/ai-features.md).
-
-We'd rather build something we're comfortable keeping our own work in.
+The longer version of why is on the [home page](../index.md#why-we-built-this).
 
 ## Where your data lives (data residency)
 
