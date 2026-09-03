@@ -1,9 +1,8 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { BirthdateField } from "@/components/auth/BirthdateField";
+import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -12,19 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/useAuth";
-import { getErrorMessage } from "@/lib/errorMessage";
 
 /**
- * The box a directory Join asks to have ticked, once per account.
+ * The age question, asked once, before a directory Join goes through.
  *
- * Asked here, before the join, so the answer is what joins rather than
- * something the server comes back and demands. Once given it is kept on the
- * account, so the second community somebody joins asks nothing.
+ * Asked here rather than after the click, so answering is what joins. Once
+ * given it is kept on the account, so the second community somebody joins asks
+ * nothing.
  *
- * ``onConfirmed`` runs after the confirmation is recorded and the account has
- * been refreshed, which is what the caller resumes its join from.
+ * ``onConfirmed`` runs after the answer is recorded and the account refreshed,
+ * which is what the caller resumes its join from.
  */
 export const AgeConfirmationDialog = ({
   open,
@@ -36,51 +32,41 @@ export const AgeConfirmationDialog = ({
   onConfirmed: () => void;
 }) => {
   const { t } = useTranslation(["guilds", "auth", "common"]);
-  const { refreshUser } = useAuth();
-  const [checked, setChecked] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { birthdate, setBirthdate, submitting, error, confirm, reset } = useAgeConfirmation(() => {
+    onOpenChange(false);
+    onConfirmed();
+  });
 
-  const confirm = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await apiClient.post("/users/me/age-confirmation", { confirmed: true });
-      await refreshUser();
-      onOpenChange(false);
-      setChecked(false);
-      onConfirmed();
-    } catch (err) {
-      setError(getErrorMessage(err, "auth:confirmAge.error"));
-    } finally {
-      setSubmitting(false);
+  // The hook outlives the dialog — the card keeps it mounted and only toggles
+  // `open` — so closing has to forget the date rather than leaving it for
+  // whenever the dialog is opened next.
+  const setOpen = (next: boolean) => {
+    if (!next) {
+      reset();
     }
+    onOpenChange(next);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("auth:confirmAge.title")}</DialogTitle>
           <DialogDescription>{t("guilds:community.ageGateBody")}</DialogDescription>
         </DialogHeader>
-        <div className="flex items-start gap-3">
-          <Checkbox
-            id="community-confirm-age"
-            checked={checked}
-            onCheckedChange={(value) => setChecked(value === true)}
-            disabled={submitting}
-          />
-          <Label htmlFor="community-confirm-age" className="font-normal leading-snug">
-            {t("auth:confirmAge.checkboxLabel")}
-          </Label>
-        </div>
+        <BirthdateField
+          id="community-confirm-age"
+          value={birthdate}
+          onChange={setBirthdate}
+          disabled={submitting}
+        />
+        <p className="text-muted-foreground text-xs">{t("auth:confirmAge.scopeNote")}</p>
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={() => void confirm()} disabled={!checked || submitting}>
+          <Button onClick={() => void confirm()} disabled={!birthdate || submitting}>
             {submitting ? t("common:submitting") : t("guilds:community.ageGateConfirm")}
           </Button>
         </DialogFooter>

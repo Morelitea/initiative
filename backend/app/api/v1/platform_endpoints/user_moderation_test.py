@@ -326,6 +326,10 @@ class TestNothingElse:
         }
 
         assert writes == {
+            # Support (users.age_unblock) — the one write the lowest rung
+            # holds, because getting somebody back into their account after a
+            # mistyped birth year is support work, not a moderation decision.
+            ("/api/v1/admin/users/{user_id}/age-block", "DELETE"),
             # Moderator (content.moderate / users.manage).
             ("/api/v1/admin/users/{user_id}/avatar", "DELETE"),
             ("/api/v1/admin/users/{user_id}/username", "PATCH"),

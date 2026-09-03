@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import (
@@ -706,27 +706,81 @@ async def claim_my_username(
     return UserRead.model_validate(current_user)
 
 
+#: The age below which somebody may not take part in the parts of the platform
+#: that are open to people they have not met.
+MINIMUM_AGE_YEARS = 13
+
+#: A bound on what counts as a date somebody could have been born on. Not a
+#: judgement about anyone — it is what separates a real answer from a typo.
+MAX_PLAUSIBLE_AGE_YEARS = 120
+
+
+def _years_since(birthdate: date, today: date) -> int:
+    """Whole years between two dates — an age, counted the way people count it.
+
+    A birthday that has not come round yet this year does not count, which is
+    the whole of the arithmetic.
+    """
+    had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
+    return today.year - birthdate.year - (0 if had_birthday else 1)
+
+
 @router.post("/me/age-confirmation", response_model=UserRead)
 async def confirm_my_age(
     payload: AgeConfirmation,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserRead:
-    """Record that this account belongs to somebody at least 13 years old.
+    """Answer, once, whether this account is old enough for the open parts.
 
-    Asked for by a deployment that runs a community directory, of every account
-    that belongs to a guild listed in it. The answer is kept on the account
-    rather than per guild: it is a fact about the person, and the second listed
-    guild they join asks nothing.
+    Asked of every account that belongs to a community anyone on the deployment
+    can find. The answer lives on the account rather than per community: it is a
+    fact about the person, and the second listed community they join asks
+    nothing.
 
-    Saying it again is not an error and does not move the timestamp — the
-    record is when they first said it. Saying it with the box unticked is
-    refused, because an unticked box is not a confirmation.
+    **The date is not kept.** It is read here, compared against the minimum, and
+    goes out of scope with the request — there is no column for it, nothing logs
+    it, and no audit record carries it. What is written is a timestamp saying
+    the question was answered, which is what shows the deployment asked.
+
+    The comparison is the server's because it is the one that decides. A client
+    could work out the same answer, and a client's answer is not evidence.
+
+    Saying it again is not an error and does not move the timestamp — the record
+    is when they first answered.
+
+    **An answer of "under age" also stands.** It is recorded — the fact, not the
+    date — and the question is not asked again, because a question you can
+    re-answer until it comes out right is not one. Putting it right takes
+    somebody with ``users.age_unblock``, which is a support ticket rather than
+    an appeal to the same form.
     """
-    if not payload.confirmed:
+    if current_user.age_below_minimum_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
+
+    today = datetime.now(timezone.utc).date()
+    if payload.birthdate > today or payload.birthdate < today.replace(
+        year=today.year - MAX_PLAUSIBLE_AGE_YEARS
+    ):
+        # Not a date anybody was born on. Refused separately from being too
+        # young, so the reply says which it was.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=UserMessages.AGE_NOT_CONFIRMED,
+            detail=UserMessages.AGE_INVALID_BIRTHDATE,
+        )
+    if _years_since(payload.birthdate, today) < MINIMUM_AGE_YEARS:
+        # Recorded before the refusal, so the answer holds: what is written is
+        # that they answered under age, never the date they gave.
+        current_user.age_below_minimum_at = datetime.now(timezone.utc)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_BELOW_MINIMUM,
         )
 
     if current_user.age_confirmed_at is None:

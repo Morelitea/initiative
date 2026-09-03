@@ -412,7 +412,7 @@
       "certifyDuty": "Vous êtes administrateur de cette communauté : c’est à vous de le faire respecter. Vous êtes censé surveiller ce type de contenu et le supprimer. Une communauté qui cesse de respecter cela est retirée de l’annuaire.",
       "confirm": "Inscrire la communauté"
     },
-    "ageGateBody": "N'importe quelle personne connectée peut trouver ces communautés : rejoindre la première demande donc votre âge une fois. On ne vous le redemandera pas.",
+    "ageGateBody": "Toute personne connectée peut trouver ces communautés : rejoindre la première demande donc votre âge une fois. On ne vous le redemandera pas.",
     "ageGateConfirm": "Confirmer et rejoindre"
   },
   "nameDisplay": {

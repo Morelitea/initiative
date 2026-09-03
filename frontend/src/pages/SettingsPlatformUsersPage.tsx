@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  CalendarClock,
   Crown,
   Download,
   LifeBuoy,
@@ -38,6 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  useAdminClearAgeBlock,
   useAdminReactivateUser,
   useAdminSetSuspension,
   useAdminSetUsername,
@@ -127,6 +129,9 @@ export const SettingsPlatformUsersPage = () => {
   const canManageUsers = hasCapability(user, Capability.usersManage);
   const canDeleteUsers = hasCapability(user, Capability.usersDelete);
   const canModerateContent = hasCapability(user, Capability.contentModerate);
+  // The support tier holds this one and nothing else that writes to an
+  // account: getting somebody back in after a typo is support work.
+  const canUnblockAge = hasCapability(user, Capability.usersAgeUnblock);
   const actorRank = platformRoleRank(user?.role ?? "member");
 
   const usersQuery = usePlatformUsers({ enabled: canView });
@@ -156,6 +161,11 @@ export const SettingsPlatformUsersPage = () => {
       setRenameTarget(null);
       setRenameValue("");
     },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+  });
+
+  const clearAgeBlock = useAdminClearAgeBlock({
+    onSuccess: () => toast.success(t("settings:platformUsers.ageBlockCleared")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
@@ -418,6 +428,18 @@ export const SettingsPlatformUsersPage = () => {
               >
                 <PenLine className="h-4 w-4" />
                 {t("platformUsers.changeUsername")}
+              </Button>
+            )}
+            {canUnblockAge && platformUser.age_below_minimum_at && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => clearAgeBlock.mutate(platformUser.id)}
+                disabled={clearAgeBlock.isPending}
+              >
+                <CalendarClock className="h-4 w-4" />
+                {t("platformUsers.clearAgeBlock")}
               </Button>
             )}
             {canManageUsers &&

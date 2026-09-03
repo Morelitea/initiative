@@ -39,6 +39,11 @@ class Capability(str, Enum):
 
     # Trust & safety / user lifecycle.
     CONTENT_MODERATE = "content.moderate"
+    #: Lift the block on an account that answered the age question as under
+    #: age. Its own capability rather than part of ``users.manage`` because it
+    #: is the one thing about an account the support tier may put right — a
+    #: mistyped birth year is a support ticket, not a moderation case.
+    USERS_AGE_UNBLOCK = "users.age_unblock"
     USERS_MANAGE = "users.manage"
     USERS_DELETE = "users.delete"
 
@@ -83,6 +88,7 @@ _MEMBER: FrozenSet[Capability] = frozenset()
 
 _SUPPORT: FrozenSet[Capability] = _MEMBER | {
     Capability.USERS_READ,
+    Capability.USERS_AGE_UNBLOCK,
     Capability.GUILDS_READ,
     Capability.AUDIT_READ,
     Capability.ACCESS_REQUEST,

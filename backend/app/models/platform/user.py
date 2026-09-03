@@ -113,6 +113,12 @@ class User(SQLModel, table=True):
             "char_length(custom_status->>'text') <= 40",
             name="ck_users_custom_status_text_length",
         ),
+        # One question, two answers, never both. An account that confirmed is
+        # not also blocked, and one that is blocked never got to confirm.
+        CheckConstraint(
+            "age_confirmed_at IS NULL OR age_below_minimum_at IS NULL",
+            name="ck_users_age_answer",
+        ),
     )
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
     __allow_unmapped__ = True
@@ -225,6 +231,16 @@ class User(SQLModel, table=True):
     #: Whether it is asked for at all is the platform owner's switch
     #: (``AppSetting.community_age_gate_enabled``).
     age_confirmed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    #: When this account answered the age question as being under the minimum.
+    #: NULL means it never has. The date it gave is not kept — this records
+    #: only that the answer was given, which is what stops the question being
+    #: asked again until somebody with the standing to put it right lifts it.
+    #: Never set at the same time as ``age_confirmed_at``; the two are the two
+    #: answers to one question (``ck_users_age_answer``).
+    age_below_minimum_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )

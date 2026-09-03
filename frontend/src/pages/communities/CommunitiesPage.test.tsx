@@ -273,8 +273,26 @@ describe("CommunitiesPage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
-    expect(await screen.findByText("Confirm your age")).toBeInTheDocument();
+    expect(await screen.findByText("How old are you?")).toBeInTheDocument();
     // Nothing joined on the strength of an unanswered question.
+    expect(join).not.toHaveBeenCalled();
+  });
+
+  it("forgets a birthdate that was typed and then backed out of", async () => {
+    // The dialog is kept mounted by the card, so nothing unmounts to clear
+    // this — and a date left behind contradicts the note under the field.
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+    const field = await screen.findByLabelText("Date of birth");
+    await userEvent.type(field, "1990-05-04");
+    expect(field).toHaveValue("1990-05-04");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(await screen.findByLabelText("Date of birth")).toHaveValue("");
     expect(join).not.toHaveBeenCalled();
   });
 
@@ -287,7 +305,7 @@ describe("CommunitiesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
     await waitFor(() => expect(join).toHaveBeenCalledWith(1));
-    expect(screen.queryByText("Confirm your age")).not.toBeInTheDocument();
+    expect(screen.queryByText("How old are you?")).not.toBeInTheDocument();
   });
 
   it("offers a way in, not a second join, for a guild already joined", async () => {

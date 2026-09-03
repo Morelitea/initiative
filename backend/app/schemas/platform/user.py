@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
 from pydantic import (
@@ -442,6 +442,11 @@ class UserRead(UserBase):
     #: where it never has. Read by the directory's Join button, which asks
     #: before it joins rather than letting the server refuse.
     age_confirmed_at: Optional[datetime] = None
+    #: When this account answered the age question as under the minimum,
+    #: ``None`` where it has not. Turns the confirmation screen from a form
+    #: into an explanation: the answer stands, and putting it right is
+    #: somebody else's to do.
+    age_below_minimum_at: Optional[datetime] = None
     #: Whether it must say so before it can carry on. True only for an account
     #: that is already in a listed guild without having confirmed — every other
     #: way in leaves the membership standing and lands here. False routes
@@ -526,14 +531,21 @@ class UsernameClaim(SanitizedBaseModel):
 
 
 class AgeConfirmation(SanitizedBaseModel):
-    """An account saying it belongs to somebody at least 13 years old.
+    """Someone saying when they were born, once.
 
-    A body rather than a bare POST because the box has to be ticked: an
-    unticked one is a request that arrives, and is refused, rather than one
-    that is never sent.
+    The date answers one question — are they old enough — and is then gone. It
+    is never written to a column, never logged, and never put in an audit
+    record; there is nowhere in the schema it could be kept. What the account
+    keeps is that the question was answered and when
+    (``users.age_confirmed_at``), which is what a deployment needs to show it
+    asked.
+
+    Asking for a date rather than offering a box to tick is the difference
+    between a question and a formality: a box says what the answer should be
+    before it is given.
     """
 
-    confirmed: bool
+    birthdate: date
 
 
 class UserInitiativeRole(SanitizedBaseModel):

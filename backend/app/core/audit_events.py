@@ -31,6 +31,7 @@ class AuditEventType(str, Enum):
     USER_USERNAME_CHANGED = "user.username_changed"
     USER_SUSPENDED = "user.suspended"
     USER_UNSUSPENDED = "user.unsuspended"
+    USER_AGE_BLOCK_CLEARED = "user.age_block_cleared"
 
 
 class AuditCategory(str, Enum):
@@ -62,6 +63,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.MODERATION, is_write=True
     ),
     AuditEventType.USER_UNSUSPENDED: AuditEventMeta(
+        tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    AuditEventType.USER_AGE_BLOCK_CLEARED: AuditEventMeta(
         tier=2, category=AuditCategory.MODERATION, is_write=True
     ),
 }

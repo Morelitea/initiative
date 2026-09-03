@@ -481,7 +481,8 @@
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Esta comunidad solo tiene sitio para una persona, así que no puede publicarse en el directorio de comunidades.",
   "COMMUNITY_DIRECTORY_DISABLED": "Esta instalación no ofrece un directorio de comunidades.",
   "GUILD_AGE_CONFIRMATION_REQUIRED": "Confirma que tienes 13 años o más antes de unirte a una comunidad.",
-  "USER_AGE_NOT_CONFIRMED": "Marca la casilla para confirmar tu edad.",
+  "USER_AGE_BELOW_MINIMUM": "Necesitas tener 13 años o más para participar en una comunidad que cualquiera puede encontrar.",
+  "USER_AGE_INVALID_BIRTHDATE": "Esa no es una fecha en la que pudieras haber nacido. Revísala e inténtalo de nuevo.",
   "IMAGE_EMPTY": "Esa imagen estaba vacía.",
   "IMAGE_TOO_LARGE": "Esa imagen es demasiado grande.",
   "IMAGE_INVALID": "Ese archivo no es una imagen PNG, JPEG, WebP o GIF.",
@@ -504,5 +505,7 @@
   "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Los anuncios integrados se cambian publicando una versión, no desde aquí.",
   "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Esa imagen ya no existe.",
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Esa imagen es demasiado grande. Mantenla por debajo de 2 MB.",
-  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ese archivo no es una imagen compatible (PNG, JPEG, WebP o GIF)."
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ese archivo no es una imagen compatible (PNG, JPEG, WebP o GIF).",
+  "USER_AGE_ANSWER_STANDS": "Ya respondiste a la pregunta sobre la edad. Una persona administradora puede restablecerla.",
+  "USER_AGE_NOT_BLOCKED": "Esa cuenta no tiene ningún bloqueo por edad que levantar."
 }

@@ -642,7 +642,9 @@
     "suspendTitle": "{{handle}} sperren?",
     "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
-    "actionError": "Das hat nicht geklappt. Bitte erneut versuchen."
+    "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
+    "clearAgeBlock": "Altersfrage zurücksetzen",
+    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden."
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",

@@ -481,7 +481,8 @@
   "GUILD_COMMUNITY_REQUIRES_CAPACITY": "Diese Community hat nur für eine Person Platz und kann deshalb nicht im Community-Verzeichnis eingetragen werden.",
   "COMMUNITY_DIRECTORY_DISABLED": "Diese Instanz betreibt kein Community-Verzeichnis.",
   "GUILD_AGE_CONFIRMATION_REQUIRED": "Bestätige vor dem Beitritt zu einer Community, dass du mindestens 13 Jahre alt bist.",
-  "USER_AGE_NOT_CONFIRMED": "Setze das Häkchen, um dein Alter zu bestätigen.",
+  "USER_AGE_BELOW_MINIMUM": "Für Communitys, die jede Person finden kann, musst du mindestens 13 Jahre alt sein.",
+  "USER_AGE_INVALID_BIRTHDATE": "An diesem Datum kannst du nicht geboren sein. Bitte prüfe es und versuche es erneut.",
   "IMAGE_EMPTY": "Dieses Bild war leer.",
   "IMAGE_TOO_LARGE": "Dieses Bild ist zu groß.",
   "IMAGE_INVALID": "Diese Datei ist kein PNG-, JPEG-, WebP- oder GIF-Bild.",
@@ -504,5 +505,7 @@
   "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Integrierte Ankündigungen werden über ein Release geändert, nicht hier.",
   "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Dieses Bild existiert nicht mehr.",
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Dieses Bild ist zu groß. Bleib unter 2 MB.",
-  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Diese Datei ist kein unterstütztes Bild (PNG, JPEG, WebP oder GIF)."
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Diese Datei ist kein unterstütztes Bild (PNG, JPEG, WebP oder GIF).",
+  "USER_AGE_ANSWER_STANDS": "Du hast die Altersfrage bereits beantwortet. Eine Administratorin oder ein Administrator kann sie zurücksetzen.",
+  "USER_AGE_NOT_BLOCKED": "Für dieses Konto gibt es keine Alterssperre, die aufgehoben werden könnte."
 }

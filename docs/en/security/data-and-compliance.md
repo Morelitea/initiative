@@ -44,6 +44,18 @@ Together, the **export** tools above and these **removal** tools cover the two r
 
 Sensitive cross-group access is **recorded**. When an administrator or support person uses an emergency "break-glass" grant, or a time-bound access request is approved, that event is logged with who, which community, and why — so privileged access is auditable rather than invisible.
 
+### Age, and what we ask for
+
+Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Taking a place in one asks your date of birth, once.
+
+**The date is not kept.** It is used to work out whether you are old enough and then discarded. Your account records that you answered and when — never the date itself. There is no field for it, nothing logs it, and it is not sold or shared with anyone.
+
+Only the parts of Initiative that are open to people outside your own communities ask at all. A private community — one that has not listed itself — never does, and neither does an invite into one.
+
+If you answer that you are not old enough, that answer is kept — again, the fact and not the date — and you are not asked again. Somebody on the support tier or above can reset the question for you, which is the way back from a mistyped year. Resetting it is recorded in the audit log, like every other action one person takes on another's account.
+
+Administrators of a deployment where every account is known to belong to an adult can switch the question off entirely, under **Settings › Admin › Community**.
+
 ## What compliance can you expect?
 
 Here's the honest, useful answer.
