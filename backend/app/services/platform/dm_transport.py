@@ -225,6 +225,7 @@ async def list_devices(session: AsyncSession, *, user_id: int) -> list[DmDeviceR
     return [
         DmDeviceRead(
             id=device.id,
+            identity_key=_encode(device.identity_key),
             fingerprint_key=_encode(device.fingerprint_key),
             label=device.label,
             created_at=device.created_at,
@@ -275,18 +276,7 @@ async def claim_session_keys(
         # One statement, one key. The request path holds no DELETE on another
         # account's pool, and two callers racing take different rows rather
         # than the same one.
-        row = (
-            await session.exec(
-                text(
-                    "SELECT key_id, public_key FROM public.dm_claim_one_time_key(:d)"
-                ).bindparams(d=device.id)
-            )
-        ).first()
-        upload = None
-        if row is not None:
-            upload = DmOneTimeKeyUpload(
-                key_id=row[0], public_key=_encode(bytes(row[1]))
-            )
+        upload = await _claim_for(session, device.id)
         claimed.append(
             DmSessionKey(
                 device_id=device.id,
@@ -297,6 +287,83 @@ async def claim_session_keys(
         )
     await session.flush()
     return claimed
+
+
+async def _claim_for(
+    session: AsyncSession, device_id: uuid.UUID
+) -> DmOneTimeKeyUpload | None:
+    """Spend one prekey from a device, or take its reusable fallback."""
+    row = (
+        await session.exec(
+            text(
+                "SELECT key_id, public_key FROM public.dm_claim_one_time_key(:d)"
+            ).bindparams(d=device_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    return DmOneTimeKeyUpload(key_id=row[0], public_key=_encode(bytes(row[1])))
+
+
+async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionKey]:
+    """That account's devices and their public keys, claiming nothing.
+
+    A recipient needs the sender's identity key to derive the session a pre-key
+    message describes, and the queue row carries no sender -- so it reads the
+    directory for the one other account its conversation has. Spending a prekey
+    to answer an inbound message would drain the pool for no reason.
+    """
+    if await _permission(session, target_id) != "open":
+        raise DmTransportError(Messages.NOT_REACHABLE)
+    devices = list(
+        (
+            await session.exec(
+                select(DmDevice)
+                .where(DmDevice.user_id == target_id)
+                .order_by(DmDevice.created_at)
+            )
+        ).all()
+    )
+    return [
+        DmSessionKey(
+            device_id=device.id,
+            identity_key=_encode(device.identity_key),
+            fingerprint_key=_encode(device.fingerprint_key),
+            one_time_key=None,
+        )
+        for device in devices
+    ]
+
+
+async def own_session_keys(
+    session: AsyncSession, *, user_id: int, except_device: uuid.UUID
+) -> list[DmSessionKey]:
+    """Keys for this account's *other* devices.
+
+    A message has to reach the sender's own clients as well as the recipient's,
+    or their phone never shows what they wrote on their laptop. A device of
+    yours is as much a separate ratchet as anybody else's, so it needs the same
+    keys, claimed the same way -- ``dm_claim_one_time_key`` already lets an
+    owner spend from their own pool, and this is the route to it.
+    """
+    devices = list(
+        (
+            await session.exec(
+                select(DmDevice)
+                .where(DmDevice.user_id == user_id, DmDevice.id != except_device)
+                .order_by(DmDevice.created_at)
+            )
+        ).all()
+    )
+    return [
+        DmSessionKey(
+            device_id=device.id,
+            identity_key=_encode(device.identity_key),
+            fingerprint_key=_encode(device.fingerprint_key),
+            one_time_key=await _claim_for(session, device.id),
+        )
+        for device in devices
+    ]
 
 
 async def fingerprints(session: AsyncSession, *, user_id: int) -> list[str]:

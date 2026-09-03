@@ -56,6 +56,9 @@ class DmDeviceRead(BaseModel):
     """One of the caller's own devices, for the Security page."""
 
     id: uuid.UUID
+    #: This device's own public identity key. Needed to recognise a message
+    #: arriving from one of the account's other clients, and public by nature.
+    identity_key: str
     fingerprint_key: str
     label: str | None
     created_at: datetime
@@ -77,6 +80,12 @@ class DmSessionKey(BaseModel):
     #: Absent only if the device published nothing at all, which a registered
     #: device cannot do — a fallback key is required at registration.
     one_time_key: DmOneTimeKeyUpload | None = None
+
+
+class DmOwnSessionKeysRequest(BaseModel):
+    """Which device is asking, so it is left out of its own answer."""
+
+    device_id: uuid.UUID
 
 
 class DmSessionKeysResponse(BaseModel):

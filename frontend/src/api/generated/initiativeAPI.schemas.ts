@@ -2336,6 +2336,7 @@ export interface DmConversationsResponse {
  */
 export interface DmDeviceRead {
   id: string;
+  identity_key: string;
   fingerprint_key: string;
   label: string | null;
   created_at: string;
@@ -2397,6 +2398,13 @@ export interface DmOutboundMessage {
    * @maxLength 87384
    */
   payload: string;
+}
+
+/**
+ * Which device is asking, so it is left out of its own answer.
+ */
+export interface DmOwnSessionKeysRequest {
+  device_id: string;
 }
 
 export interface DmQueueAck {

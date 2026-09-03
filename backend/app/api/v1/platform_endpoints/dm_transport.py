@@ -27,6 +27,7 @@ from app.schemas.platform.dm_transport import (
     DmDeviceRegistration,
     DmDevicesResponse,
     DmOneTimeKeyBatch,
+    DmOwnSessionKeysRequest,
     DmQueueAck,
     DmQueueResponse,
     DmSafetyNumberResponse,
@@ -146,6 +147,26 @@ async def top_up_keys(
     return DmDevicesResponse(
         devices=await service.list_devices(session, user_id=current_user.id)
     )
+
+
+@me_router.post("/dm/session-keys", response_model=DmSessionKeysResponse)
+async def claim_own_session_keys(
+    body: DmOwnSessionKeysRequest,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DmSessionKeysResponse:
+    """Keys for this account's other devices, so a message reaches its own
+    outbox.
+
+    A device of yours is a separate ratchet, not a shortcut: it needs a session
+    like anybody else's. The calling device names itself so it is left out of
+    its own answer.
+    """
+    devices = await service.own_session_keys(
+        session, user_id=current_user.id, except_device=body.device_id
+    )
+    await session.commit()
+    return DmSessionKeysResponse(user_id=current_user.id, devices=devices)
 
 
 @user_router.post("/{user_id}/dm/session-keys", response_model=DmSessionKeysResponse)
