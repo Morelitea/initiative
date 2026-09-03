@@ -1,0 +1,17 @@
+{
+  "name": "initiative-ratchet",
+  "type": "module",
+  "description": "Olm double-ratchet bindings for Initiative's direct messages",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "files": [
+    "initiative_ratchet_bg.wasm",
+    "initiative_ratchet.js",
+    "initiative_ratchet.d.ts"
+  ],
+  "main": "initiative_ratchet.js",
+  "types": "initiative_ratchet.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
