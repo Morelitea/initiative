@@ -4,13 +4,13 @@ icon: lucide/wrench
 
 # Tools
 
-Six kinds of thing live inside an initiative. Two you'll use from the first day. The other four sit quietly, waiting, entirely unbothered by whether you ever open them.
+Everything that lives inside an initiative is a **tool**. There are six kinds. Two you'll use from the first day; the other four sit quietly, entirely unbothered by whether you ever open them.
 
 <div class="grid cards" markdown>
 
 -   :material-clipboard-check-outline: __Projects & tasks__
 
-    Boards, and the to-dos on them. Where most of the work happens.
+    Boards and the to-dos on them, as a table, a Kanban board or a calendar.
 
     [:octicons-arrow-right-24: Projects & tasks](projects-and-tasks.md)
 
@@ -77,7 +77,7 @@ Every tool, without exception:
 - **Goes to the Trash** when deleted, not to oblivion.
 - **Turns up in [My Tools](your-space.md#my-tools)**, gathered with everything else of its kind from every community you're in.
 
-Learn it once and it's true of the next one. That's the entire point of doing it this way.
+Learn it once and it's true of the next one. That's the entire point of doing it this way — including for the tools that don't exist yet, since the list has grown before and will again.
 
 ## Related
 

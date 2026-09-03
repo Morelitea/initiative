@@ -14,15 +14,13 @@ graph TD
   I1["Initiative<br/>(a big effort)"]
   I2["Initiative"]
   P1["Project<br/>(a task board)"]
-  P2["Project"]
-  D1["Documents"]
-  T1["Tools<br/>(calendar, queues,<br/>counters, dashboards)"]
+  D1["Document"]
+  T1["Calendar · Queue<br/>Counter · Dashboard"]
   TASK["Tasks"]
 
   G --> I1
   G --> I2
   I1 --> P1
-  I1 --> P2
   I1 --> D1
   I1 --> T1
   P1 --> TASK
@@ -32,7 +30,7 @@ Biggest to smallest:
 
 1. **Community** — the whole workspace for one group of people.
 2. **Initiative** — a folder inside it for one big effort.
-3. **Projects, documents and tools** — the actual work, kept inside an initiative.
+3. **Tools** — the six kinds of thing that hold the work, kept inside an initiative.
 4. **Tasks** — the individual to-dos on a project's board.
 
 !!! tip "You do not have to build all of this"
@@ -53,7 +51,7 @@ Inside a community there are exactly two levels of person: **admin** (runs the p
 
 ## Initiative — a big effort
 
-A folder for one major undertaking, holding its projects, documents and tools. This is the level where you decide **who's involved**.
+A folder for one major undertaking, holding all the tools that effort uses. This is the level where you decide **who's involved**.
 
 Why is there a middle layer at all? Because real groups have four things on the go simultaneously, and not everybody needs to see all four — or, frankly, wants to. The person doing the raffle does not need the budget spreadsheet in their sidebar every morning.
 
@@ -66,30 +64,31 @@ Every community comes with a **Default Initiative** so there's always somewhere 
 
 People are added as **members**, each with a **role** — "Director", "Cast" — that decides which tools they can use. See [Initiative roles](../sharing/initiative-roles.md).
 
-## Projects and tasks — the actual work
+## Tools — the things that hold the work
 
-A **project** is a board. It holds **tasks**, and it'll show them to you however you like: as a **Table**, as a drag-and-drop **Kanban** board, or on a **Calendar**.
+Everything inside an initiative is a **tool**. There are six kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
 
-Same work, three ways of looking at it. So the person who thinks in tidy lists and the person who thinks in columns can share a project without either of them quietly suffering.
+Learn how one works and you've learned how the next one works. That's the whole idea.
 
-A **task** can carry a description, a status, a priority, dates, the people doing it, subtasks, and tags. This is where the day-to-day actually happens. See [Projects & tasks](../guides/projects-and-tasks.md).
+### The two you'll start with
 
-## Documents — writing things down
+**Projects** are boards. A project holds **tasks**, and shows them however you like — a **Table**, a drag-and-drop **Kanban** board, or a **Calendar**. Same work, three ways of looking at it, so the person who thinks in tidy lists and the person who thinks in columns can share a project without either of them quietly suffering.
 
-A **document** lives inside an initiative and holds the knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are far easier drawn than described.
+A **task** carries a description, a status, a priority, dates, the people doing it, subtasks and tags. This is where the day-to-day actually happens. See [Projects & tasks](../guides/projects-and-tasks.md).
 
-Most kinds can be edited by several people at once, live, so there's no emailing versions around. You can also upload files — PDFs, Word documents, images — as documents. See [Documents](../guides/documents.md).
+**Documents** hold the knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are far easier drawn than described. Most kinds can be edited by several people at once, live, so there's no emailing versions around. You can upload files as documents too. See [Documents](../guides/documents.md).
 
-## Tools — there if you want them
-
-Each initiative can also run four optional extras:
+### The four you grow into
 
 - **Calendar & events** — things that happen at a time.
 - **Queues** — whose turn it is.
 - **Counters** — numbers that move.
 - **Dashboards** — one screen that answers "how are we doing?"
 
-Use none of them and nothing is missing. They are not sitting there judging you. See [Tools](../guides/tools.md).
+Use none of these and nothing is missing. They aren't sitting there judging you. See [Tools](../guides/tools.md).
+
+!!! info "Six today"
+    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before. When a seventh arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool — because there's one list and everything reads from it.
 
 ## Apps — what other groups already built
 

@@ -28,12 +28,6 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
     [:octicons-arrow-right-24: Projects & tasks](projects-and-tasks.md)
 
--   :material-view-dashboard-outline: __Task views__
-
-    Table, Kanban, Calendar — whichever suits your brain.
-
-    [:octicons-arrow-right-24: Task views](task-views.md)
-
 -   :material-file-document-edit-outline: __Documents__
 
     Text, spreadsheets and whiteboards, written together in real time.
@@ -42,7 +36,7 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
 -   :material-toolbox-outline: __Tools__
 
-    All six of them, and which to reach for when.
+    All six of them, and which one to reach for when.
 
     [:octicons-arrow-right-24: Tools](tools.md)
 

@@ -170,9 +170,36 @@ Grep added lines for `attacker`, `hijack`, `steal`, `exploit`, `takeover`,
   it never interrupts the plain-language flow.
 - **`!!! screenshot`** marks where an image is still needed, saying what to
   capture and where to save it.
-- **Six tools** — project, document, queue, counter_group, calendar, dashboard
-  — come from the `Tool` enum in `backend/app/core/tools.py`. Each has its own
-  guide page. If the enum grows, the docs grow with it.
+### Tools are a defined, growing list — treat them as one
+
+`Tool` in `backend/app/core/tools.py` is a real enum, and it is the source of
+truth for a lot of the app: role permissions, tag links, comment targets, the
+frontend's `src/lib/tools.ts`, and the i18n namespace each tool owns.
+
+Today it holds six: `project`, `document`, `queue`, `counter_group`,
+`calendar`, `dashboard`.
+
+Two rules follow, and the first one is the trap:
+
+1. **Projects and documents are tools.** They are not a separate, more
+   important category that "tools" sits beside. An early draft of
+   `concepts/index.md` had three sections — "Projects and tasks", "Documents",
+   and "Tools — there if you want them" listing only four — which taught the
+   reader a model the app does not have. If you catch yourself writing "and
+   also, tools", stop and restructure.
+
+   Say it the way the app means it: everything inside an initiative is a tool,
+   there are six kinds, two of them are where you start and four are where you
+   grow. They share their sharing model, their tags, their comment threads and
+   their `#` mentions, which is the actual payoff — learn one, know the rest.
+
+2. **The list grows, so write so it can.** Avoid prose that hard-codes "the
+   other four" as a permanent fact. When the enum gains a seventh, it needs a
+   guide page, a nav entry under Tools, a glossary entry, and a mention
+   wherever tools are enumerated — the concepts page, the tools hub, the roles
+   permission table. Derive from the enum; never keep a parallel list.
+
+Each tool has its own guide page, nested under **Tools** in the nav.
 - **No emojis in prose.** They read as trying too hard.
 
 ---

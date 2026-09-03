@@ -55,11 +55,10 @@ nav = [
     "en/guides/index.md",
     "en/guides/communities.md",
     "en/guides/initiatives.md",
-    "en/guides/projects-and-tasks.md",
-    "en/guides/task-views.md",
-    "en/guides/documents.md",
     { "Tools" = [
       "en/guides/tools.md",
+      "en/guides/projects-and-tasks.md",
+      "en/guides/documents.md",
       "en/guides/calendar.md",
       "en/guides/queues.md",
       "en/guides/counters.md",
