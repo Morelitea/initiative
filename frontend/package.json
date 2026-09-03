@@ -155,6 +155,7 @@
     "baseline-browser-mapping": "^2.11.11",
     "cross-env": "^10.1.0",
     "emojibase-data": "^17.0.0",
+    "fake-indexeddb": "^6.2.5",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.3.0",

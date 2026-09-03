@@ -142,13 +142,32 @@ export interface StoredMessage {
 
 const LOG_PREFIX = "log:";
 
+/**
+ * Appends are serialised per conversation.
+ *
+ * Sending and collecting both append, and both are read-modify-write on one
+ * array. Without a queue the later write is built on a value the earlier one
+ * has already replaced, and a message is dropped -- on the only copy this
+ * device will ever have of it.
+ */
+const appendQueues = new Map<string, Promise<void>>();
+
 export const messageLog = {
   get: async (conversationId: string): Promise<StoredMessage[]> =>
     (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [],
-  append: async (conversationId: string, message: StoredMessage): Promise<void> => {
-    const existing = (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [];
-    if (existing.some((entry) => entry.id === message.id)) return;
-    await write(LOG_PREFIX + conversationId, [...existing, message]);
+  append: (conversationId: string, message: StoredMessage): Promise<void> => {
+    const run = (appendQueues.get(conversationId) ?? Promise.resolve()).then(async () => {
+      const existing = (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [];
+      if (existing.some((entry) => entry.id === message.id)) return;
+      await write(LOG_PREFIX + conversationId, [...existing, message]);
+    });
+    // Keep the chain alive even if one append fails, or every later append to
+    // this conversation inherits the rejection.
+    appendQueues.set(
+      conversationId,
+      run.catch(() => {})
+    );
+    return run;
   },
 };
 

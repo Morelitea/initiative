@@ -216,7 +216,10 @@ export async function collect(): Promise<string[]> {
         currentAccount = opened.account_pickle;
         await accountPickle.set(currentAccount);
         await sessionPickle.set(opened.session_id, opened.session_pickle);
-        await sessionForDevice.set(item.conversation_id, opened.session_id);
+        // The conversation's session list, not the device map keyed by a
+        // conversation id: the other party may have several devices, and each
+        // is its own ratchet.
+        await sessionsInConversation.add(item.conversation_id, opened.session_id);
         plaintext = opened.plaintext;
       } else {
         // Which of their devices sent this is not on the row, so the sessions
