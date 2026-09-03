@@ -192,22 +192,6 @@ async def connect_su_postgres() -> asyncpg.Connection:
     )
 
 
-async def connect_su_test_db() -> asyncpg.Connection:
-    """Test-infra superuser connection to THIS worker's test database.
-
-    Same credentials as :func:`connect_su_postgres`, pointed at the database the
-    suite runs against — for the install-time DDL that requires superuser and
-    that infrastructure, not the app, performs.
-    """
-    return await asyncpg.connect(
-        user=_su_user,
-        password=_su_password,
-        host=_app_db.hostname,
-        port=_app_db.port or 5432,
-        database=TEST_DB_NAME,
-    )
-
-
 async def _ensure_test_database() -> None:
     """Create this worker's test database if it doesn't exist.
 
@@ -240,23 +224,33 @@ async def _ensure_test_database() -> None:
         await conn.close()
 
 
-async def _install_search_operator() -> None:
-    """Install the search match operator + operator class in the test database.
+async def _bootstrap_test_database() -> None:
+    """Apply the privileged prerequisites to this worker's test database.
 
-    Infrastructure installs these once per database as a superuser
-    (``scripts/create-search-operator.sql``); the suite is that infrastructure
-    for its own database, the same way it sources its own superuser. Without
-    them the index falls back to the stock operator — a different plan than
-    production runs, so the tests would not be exercising what ships.
+    A deployment gets these from ``app.db.bootstrap`` at startup, over
+    ``DATABASE_URL_BOOTSTRAP``; the suite is that infrastructure for its own
+    database, the same way it sources its own superuser, and runs the same
+    module so the tests exercise what ships. It covers both halves: the three
+    login roles the app connects as, and the search match operator (without
+    which the index falls back to the stock operator — a different plan than
+    production runs).
     """
-    sql = (Path(__file__).parent / "scripts" / "create-search-operator.sql").read_text()
-    # psql meta-commands and the trailing verification SELECT are for humans.
-    body = "\n".join(
-        line for line in sql.splitlines() if not line.startswith("\\")
-    ).split("-- 4. Confirm.")[0]
-    conn = await connect_su_test_db()
+    from app.db.bootstrap import ensure_database_bootstrap
+
+    await ensure_database_bootstrap(bootstrap_url=TEST_DATABASE_URL)
+
+
+async def _grant_test_temporary() -> None:
+    """Hand back the database's default TEMPORARY grant on this worker's own DB.
+
+    A deployment creates no temporary objects, so the bootstrap revokes that
+    grant; the suite does create them (fixtures that stand up a shape to query
+    build it as a TEMP table). Runs on every session rather than only when the
+    database is migrated, because the revoke outlives the run that applied it.
+    """
+    conn = await connect_su_postgres()
     try:
-        await conn.execute(body)
+        await conn.execute(f'GRANT TEMPORARY ON DATABASE "{TEST_DB_NAME}" TO PUBLIC')
     finally:
         await conn.close()
 
@@ -313,12 +307,28 @@ async def _migrate_under_lock() -> None:
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
         await _ensure_test_database()
-        # Before migrations: the search-index migration chooses its operator
-        # class based on whether these objects are present.
-        await _install_search_operator()
         await asyncio.to_thread(_alembic_upgrade_head)
     finally:
         await lock_conn.close()  # closing the connection releases the advisory lock
+
+
+async def _bootstrap_under_lock() -> None:
+    """Create the database and apply the privileged prerequisites to it.
+
+    Runs on EVERY session, not only when the database needs migrating — a
+    deployment applies these on every start, and the state they converge
+    (role attributes, default privileges, the search operator) outlives the run
+    that set it, so a database kept warm between runs would otherwise keep
+    whatever an older build left. Shares the migration lock because the role
+    DDL is cluster-global.
+    """
+    lock_conn = await connect_su_postgres()
+    try:
+        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await _ensure_test_database()
+        await _bootstrap_test_database()
+    finally:
+        await lock_conn.close()
 
 
 async def _refresh_template_rls() -> None:
@@ -388,9 +398,9 @@ async def _test_db_is_at_head() -> bool:
 
 
 def _run_test_migrations() -> None:
-    """Ensure the worker's test database exists and migrate it (serialized across
-    workers by the advisory lock), refresh the template's RLS the way boot does,
-    then arm the statement_timeout net.
+    """Ensure the worker's test database exists, apply the privileged bootstrap
+    and migrate it (serialized across workers by the advisory lock), refresh the
+    template's RLS the way boot does, then arm the statement_timeout net.
 
     The migration is skipped outright when the database is already at head — see
     ``_test_db_is_at_head``; the two steps after it run against this worker's OWN
@@ -399,9 +409,11 @@ def _run_test_migrations() -> None:
     ``_set_db_statement_timeout`` is a per-worker ``ALTER DATABASE`` on this
     worker's OWN DB — no shared catalog — so it runs OUTSIDE the cross-worker lock,
     and after migrations so a slow migration isn't bounded by it."""
+    asyncio.run(_bootstrap_under_lock())
     if not asyncio.run(_test_db_is_at_head()):
         asyncio.run(_migrate_under_lock())
     asyncio.run(_refresh_template_rls())
+    asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
 
 

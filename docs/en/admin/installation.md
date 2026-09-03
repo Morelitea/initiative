@@ -43,17 +43,33 @@ Two things need to persist across restarts and upgrades:
 
 The example compose file sets up volumes for both. Make sure those volumes live somewhere your [backups](backups-and-updates.md) will capture.
 
-## The three database connections
+## The database connections
 
-Initiative connects to PostgreSQL with **three** connection strings, and it won't start without all three. They work as a set — this is part of how Initiative enforces least-privilege at the database level (see [How your data is kept separate](../security/how-your-data-is-kept-separate.md)).
+Initiative runs on **three** PostgreSQL roles, and it won't start without a connection string for each. They work as a set — this is part of how Initiative enforces least-privilege at the database level (see [How your data is kept separate](../security/how-your-data-is-kept-separate.md)).
 
 | Variable | Connects as | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `app_provisioner` | Runs migrations, creates community spaces, and **auto-creates** the two roles below. Not a superuser — the compose file creates this role at first database init. |
+| `DATABASE_URL` | `app_provisioner` | Runs migrations and creates community spaces. Not a superuser. |
 | `DATABASE_URL_APP` | `app_user` | The everyday, security-enforced connection for normal requests. |
-| `DATABASE_URL_ADMIN` | `app_admin` | Migrations and background jobs. |
+| `DATABASE_URL_ADMIN` | `app_admin` | Background jobs and startup seeding. |
 
-The provisioning URL bootstraps the roles; the password you put in each `APP`/`ADMIN` URL becomes that role's password. (Upgrading an existing install? Run `backend/scripts/create-provisioner.sql` once to create `app_provisioner`, or keep your current superuser URL — the app logs a reminder at startup. Re-running it later is safe: it also brings database-level grants in line with what a fresh install gets, and tells you if it could not, so connect as the database owner.) The example compose file wires all three together with matching credentials, so the default path just works. If you write your own compose file or use `docker run`, you must set all three.
+A fourth connection creates those three:
+
+| Variable | Connects as | Purpose |
+|---|---|---|
+| `DATABASE_URL_BOOTSTRAP` | the database owner | Creates the three roles, hands them the schema, and installs the search index's match operator. |
+
+At startup Initiative opens the bootstrap connection, applies those prerequisites, and closes it — every request afterwards runs on the three roles above. The password you put in each of their URLs is the password that role is given, and the bootstrap runs again on every start, so changing one and restarting rotates it.
+
+The example compose file wires all four together, so `docker compose up` works with no SQL to run by hand.
+
+**Once you're running, you can remove `DATABASE_URL_BOOTSTRAP`.** Initiative then checks those prerequisites at startup instead of applying them, and names anything missing. If you point Initiative at a database you provision elsewhere — a managed PostgreSQL service, a Kubernetes operator, a DBA who owns the cluster — leave it unset and apply the SQL yourself:
+
+```bash
+docker compose exec -T initiative python -m app.db.bootstrap --print-sql
+```
+
+One part of that SQL needs a PostgreSQL superuser: the search index's match operator is marked `LEAKPROOF`, which only a superuser may declare. If your database owner isn't one, everything else still applies and search works — it just reads more of its index to do it, and Initiative says so at startup.
 
 ## Running as a specific user (PUID / PGID)
 

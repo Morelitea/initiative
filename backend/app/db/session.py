@@ -604,6 +604,6 @@ async def run_migrations() -> None:
             f"hand as the superuser:\n"
             f"  docker exec -e PGPASSWORD=<pw> <container> \\\n"
             f"    psql -U <superuser> -d postgres -c 'CREATE DATABASE {name}'\n"
-            f"then hand it over with backend/scripts/create-provisioner.sql. "
-            f"The app does not create its own database."
+            f"The app does not create its own database; it takes ownership "
+            f"of an existing one at startup."
         ) from exc

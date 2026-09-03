@@ -67,6 +67,13 @@ async def lifespan(app: FastAPI):
     logger.info("CORS allowed origins: %s", settings.cors_origins)
 
     install_soft_delete_filter()
+    # The prerequisites the app's own logins cannot create for themselves: the
+    # logins, and the guild-search match operator. Applied from
+    # DATABASE_URL_BOOTSTRAP when set, verified otherwise, before anything
+    # connects as those logins.
+    from app.db.bootstrap import ensure_database_bootstrap
+
+    await ensure_database_bootstrap()
     await check_pre_baseline_db()
     await run_migrations()
     # Re-run the idempotent per-guild provisioning for every guild so any
