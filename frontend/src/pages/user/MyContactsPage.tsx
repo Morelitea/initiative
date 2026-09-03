@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ContactRead } from "@/api/generated/initiativeAPI.schemas";
 import { ContactColumnHeader, ContactRowsSkeleton } from "@/components/contacts/ContactColumns";
+import { ContactRequestsSection } from "@/components/contacts/ContactRequestsSection";
 import { ContactSearchField } from "@/components/contacts/ContactSearchField";
 import { ContactSearchProgress } from "@/components/contacts/ContactSearchProgress";
 import {
@@ -87,6 +88,14 @@ export const MyContactsPage = () => {
     },
     [search]
   );
+
+  // Only the count, to decide whether the strip appears at all — the section
+  // itself reads the same two queries and renders them.
+  const pendingRequests =
+    (connectionsQuery.data?.incoming?.length ?? 0) +
+    (connectionsQuery.data?.outgoing?.length ?? 0) +
+    (messagesQuery.data?.incoming?.length ?? 0) +
+    (messagesQuery.data?.outgoing?.length ?? 0);
 
   const connections = useMemo(
     () => (connectionsQuery.data?.accepted ?? []).filter(matches),
@@ -197,6 +206,18 @@ export const MyContactsPage = () => {
           messaging in both directions, so it is not a remark about the
           community sections. */}
       {reason === "age" ? <AgeUnansweredPanel /> : null}
+
+      {/* Also above it, and only when something is waiting: a request is not a
+          contact yet, it is a question — few, actionable and transient, which
+          is not what the table below is for. The same section the Privacy tab
+          renders, so there is one definition of what a request looks like and
+          one set of answers to it. */}
+      {pendingRequests > 0 ? (
+        <section className="space-y-2 rounded-lg border p-4">
+          <h2 className="font-medium text-sm">{t("requests")}</h2>
+          <ContactRequestsSection whenEmpty={null} />
+        </section>
+      ) : null}
 
       {isFirstLoad ? (
         <div className="rounded-lg border px-3 py-2">

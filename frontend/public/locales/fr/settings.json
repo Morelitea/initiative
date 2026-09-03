@@ -1126,7 +1126,9 @@
     "ageGateHelpText": "Tant que ceci est actif, toute personne appartenant à une communauté référencée doit confirmer son âge une fois, et la réponse reste attachée à son compte. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
     "ageGateOffTitle": "Ne plus demander l'âge des membres ?",
     "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge, y compris en rejoignant plus tard une communauté référencée.",
-    "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus"
+    "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus",
+    "defaultDmLabel": "Messages privés pour les nouveaux comptes",
+    "defaultDmHelpText": "Le réglage avec lequel un compte démarre. Il est lu une seule fois, à la création du compte : le modifier n'ouvre aucun compte existant et n'en ferme aucun. « Privé » est la valeur livrée ; avec elle, chacun devient joignable au moment où il le décide."
   },
   "audit": {
     "title": "Audit",

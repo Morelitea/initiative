@@ -4,6 +4,7 @@
   "favorites": "Favoritos",
   "connections": "Conexiones",
   "directMessages": "Mensajes directos",
+  "requests": "Solicitudes",
   "searchPlaceholder": "Buscar contactos",
   "searchLabel": "Buscar a todos en esta página",
   "clearSearch": "Borrar búsqueda",
@@ -47,5 +48,16 @@
       "open": "Permitir que mis comunidades me escriban",
       "settings": "Ajustes de privacidad"
     }
+  },
+  "actions": {
+    "label": "Acciones para {{handle}}",
+    "connect": "Conectar",
+    "ask": "Pedir escribir",
+    "askSent": "Solicitud enviada.",
+    "ignore": "Ignorar",
+    "stopIgnoring": "Dejar de ignorar",
+    "removeConnection": "Eliminar conexión",
+    "removeConnectionTitle": "¿Eliminar esta conexión?",
+    "removeConnectionBody": "Dejaréis de estar conectados. Si nada más os permite escribiros —una comunidad que compartáis, o que ambos estéis abiertos a mensajes—, eso también termina."
   }
 }

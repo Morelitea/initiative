@@ -15,11 +15,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ignore an account.** They stop reaching you: no notification when they mention, reply to or react to you, and nothing they send arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share and can use every tool normally, because ignoring is about contact rather than about work. Nothing is deleted, so if you stop ignoring them everything is exactly where it was.
 
+- **Act on somebody where you find them.** A menu on a profile, and on every row of My Contacts: connect, ask to message, ignore — and remove a connection, which confirms first. Ignoring used to mean knowing an account's exact handle and opening Settings, which is not where anybody reaches for it.
+
 ### Changed
+
+- **Choose what new accounts start on.** Settings › Community gains the direct-message policy an account is created with. It is read once, when the account is made, so changing it opens no account that already exists and closes none either. The shipped default is Private.
+
+- **Requests wait on My Contacts too.** Anything asking for an answer — either direction, connection or message — sits above the page rather than only in Settings.
 
 - **My Contacts lists the people you could actually reach.** A community section now shows the members who can message you and who you can message, rather than everyone in the room — so the page answers "who can I talk to" instead of "who is here". A community you are alone in is left out entirely. Because the shipped default is Private, a new account's sections start empty, and the page says why and offers the one setting that fills them, rather than reading as a community with nobody in it. It never counts the people it is not listing. Two new sections sit above the communities: your connections, and the people you agreed to message who are in none of your communities — before this they appeared nowhere.
 
 ### Fixed
+
+- **Everyone in a community hears that it was listed.** The notice that a community joined the directory — which is what asks its members their age — only reached people whose tab happened to be held by the same server process that made the change. On a deployment running more than one, everybody else waited until they next navigated.
 
 - **A search tab that matched nothing says so.** In ⌘K, switching between Tools, Members, Comments and Tags left the tab before it on screen when the new one had no answer — so a community with nobody matching showed the comments you had just been reading. Each tab now shows only what it found, and says "No results found." when that is nothing — or that search is not answering, if the request never landed, rather than reporting a failure as an empty community.
 

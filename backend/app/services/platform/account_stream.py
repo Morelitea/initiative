@@ -47,9 +47,10 @@ def queue_for_members(session: Any, user_ids: Any, action: str = "changed") -> N
     """Signal a set of accounts at once — a whole community's members.
 
     Listing a community changes the answer for everybody already in it, which
-    is the one fan-out this channel has. Callers pass only the accounts worth
-    poking (see ``user_stream.stream.connected_users``), so the cost is the
-    sockets this worker holds rather than the size of the membership.
+    is the one fan-out this channel has. Callers pass the whole set: each frame
+    goes to this worker's sockets and onto the bus for every other worker's,
+    and a caller that narrowed to its own sockets first would be answering for
+    processes it cannot see.
     """
     for user_id in user_ids:
         queue_account_signal(session, user_id, action)

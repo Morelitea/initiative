@@ -4,6 +4,7 @@
   "favorites": "Favoriten",
   "connections": "Verbindungen",
   "directMessages": "Direktnachrichten",
+  "requests": "Anfragen",
   "searchPlaceholder": "Kontakte durchsuchen",
   "searchLabel": "Alle auf dieser Seite durchsuchen",
   "clearSearch": "Suche zurücksetzen",
@@ -47,5 +48,16 @@
       "open": "Meine Communitys dürfen mir schreiben",
       "settings": "Privatsphäre-Einstellungen"
     }
+  },
+  "actions": {
+    "label": "Aktionen für {{handle}}",
+    "connect": "Verbinden",
+    "ask": "Um Nachricht bitten",
+    "askSent": "Anfrage gesendet.",
+    "ignore": "Ignorieren",
+    "stopIgnoring": "Nicht mehr ignorieren",
+    "removeConnection": "Verbindung entfernen",
+    "removeConnectionTitle": "Diese Verbindung entfernen?",
+    "removeConnectionBody": "Ihr seid dann nicht mehr verbunden. Wenn euch sonst nichts erlaubt, einander zu schreiben – eine gemeinsame Community oder dass ihr beide für Nachrichten offen seid –, endet auch das."
   }
 }

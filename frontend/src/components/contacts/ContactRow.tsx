@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import type { ContactRead } from "@/api/generated/initiativeAPI.schemas";
+import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { CONTACT_ROW_GRID, CONTACT_ROW_OUTER } from "@/components/contacts/ContactColumns";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
 import { type ChipGuild, SharedGuildChip } from "@/components/contacts/SharedGuildChip";
@@ -61,6 +62,15 @@ export const ContactRow = ({
         />
       </Link>
       <FavoriteToggle starred={starred} name={name} onToggle={() => onToggleFavorite(contact)} />
+      {/* Outside the link, like the star: acting on somebody is not the same
+          gesture as going to look at them. */}
+      <ContactActionsMenu
+        user={{
+          id: contact.id,
+          username: contact.username,
+          discriminator: contact.discriminator,
+        }}
+      />
     </li>
   );
 };

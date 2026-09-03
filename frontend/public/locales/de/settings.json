@@ -1126,7 +1126,9 @@
     "ageGateHelpText": "Solange dies aktiv ist, wird jede Person in einer gelisteten Community einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
     "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",
     "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird erneut um eine Altersbestätigung gebeten – auch nicht bei einem späteren Beitritt zu einer gelisteten Community.",
-    "ageGateOffConfirm": "Hier sind alle mindestens 18"
+    "ageGateOffConfirm": "Hier sind alle mindestens 18",
+    "defaultDmLabel": "Direktnachrichten für neue Konten",
+    "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen."
   },
   "audit": {
     "title": "Prüfprotokoll",

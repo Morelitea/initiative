@@ -1126,7 +1126,9 @@
     "ageGateHelpText": "Mientras esto esté activo, a quien pertenezca a una comunidad listada se le pide una vez que confirme su edad, y la respuesta queda en su cuenta. Desactívalo solo donde ya sepas que todas las cuentas pertenecen a personas adultas.",
     "ageGateOffTitle": "¿Dejar de preguntar la edad?",
     "ageGateOffBody": "Desactivarlo afirma que todas las cuentas de esta instalación pertenecen a personas de 18 años o más. No se volverá a pedir a nadie que confirme su edad, ni siquiera a quien se una más adelante a una comunidad listada.",
-    "ageGateOffConfirm": "Aquí todo el mundo tiene 18 o más"
+    "ageGateOffConfirm": "Aquí todo el mundo tiene 18 o más",
+    "defaultDmLabel": "Mensajes directos para cuentas nuevas",
+    "defaultDmHelpText": "El ajuste con el que empieza una cuenta. Se lee una sola vez, al crearla: cambiarlo no abre ninguna cuenta existente ni cierra ninguna. «Privado» es el valor de fábrica; con él, cada persona pasa a ser localizable cuando así lo decide."
   },
   "audit": {
     "title": "Auditoría",
