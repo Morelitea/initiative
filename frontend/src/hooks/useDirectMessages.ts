@@ -29,6 +29,8 @@ import {
   invalidateDmSettings,
   invalidateIgnoredAccounts,
 } from "@/api/query-keys";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 /** Everything a change to one of these lists can affect. */
 export const refreshContactLists = () => {
@@ -37,7 +39,29 @@ export const refreshContactLists = () => {
   void invalidateDmSettings();
 };
 
-const onSettled = { mutation: { onSettled: refreshContactLists } };
+/**
+ * What every one of these mutations does on the way out.
+ *
+ * `onSettled` refreshes all three lists; `onError` says so out loud. These are
+ * ordinary conflicts rather than bugs — accepting a request that was withdrawn
+ * a moment ago, removing a connection somebody else already removed — and the
+ * lists refresh either way, so without a word the row simply changes under the
+ * reader with nothing to explain it. There is no global mutation error handler
+ * to fall back on, so it lives here rather than at each call site.
+ */
+const reportAndRefresh = {
+  mutation: {
+    onSettled: refreshContactLists,
+    onError: (error: unknown) =>
+      toast.error(getErrorMessage(error, "errors:CONTACT_GRANT_CANNOT_REACH")),
+  },
+};
+
+/**
+ * The same, minus the toast: the connect-by-handle field reports next to the
+ * input, where the mistake usually is.
+ */
+const refreshOnly = { mutation: { onSettled: refreshContactLists } };
 
 // ── Reads ───────────────────────────────────────────────────────────────────
 
@@ -48,22 +72,25 @@ export const useIgnoredAccounts = () => useListIgnoredAccountsApiV1MeIgnoredGet(
 
 // ── Writes ──────────────────────────────────────────────────────────────────
 
-export const useUpdateDmSettings = () => useUpdateDmSettingsApiV1MeDmSettingsPatch(onSettled);
+export const useUpdateDmSettings = () =>
+  useUpdateDmSettingsApiV1MeDmSettingsPatch(reportAndRefresh);
 
-export const useRequestConnection = () => useRequestConnectionApiV1MeConnectionsPost(onSettled);
+export const useRequestConnection = () => useRequestConnectionApiV1MeConnectionsPost(refreshOnly);
 export const useAcceptConnection = () =>
-  useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost(onSettled);
+  useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost(reportAndRefresh);
 export const useRemoveConnection = () =>
-  useRemoveConnectionApiV1MeConnectionsUserIdDelete(onSettled);
+  useRemoveConnectionApiV1MeConnectionsUserIdDelete(reportAndRefresh);
 
-export const useRequestMessage = () => useRequestMessageApiV1MeMessageRequestsPost(onSettled);
+export const useRequestMessage = () =>
+  useRequestMessageApiV1MeMessageRequestsPost(reportAndRefresh);
 export const useAcceptMessageRequest = () =>
-  useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost(onSettled);
+  useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost(reportAndRefresh);
 export const useRemoveMessageRequest = () =>
-  useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete(onSettled);
+  useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete(reportAndRefresh);
 
-export const useIgnoreAccount = () => useIgnoreAccountApiV1MeIgnoredUserIdPut(onSettled);
-export const useStopIgnoring = () => useStopIgnoringAccountApiV1MeIgnoredUserIdDelete(onSettled);
+export const useIgnoreAccount = () => useIgnoreAccountApiV1MeIgnoredUserIdPut(reportAndRefresh);
+export const useStopIgnoring = () =>
+  useStopIgnoringAccountApiV1MeIgnoredUserIdDelete(reportAndRefresh);
 
 /**
  * A handle typed as `name#1234`, split for the connection endpoint.
