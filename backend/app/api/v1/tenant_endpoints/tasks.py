@@ -2514,6 +2514,7 @@ async def reorder_tasks(
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
             selectinload(Task.task_status),
+            selectinload(Task.creator),
         )
         .where(Task.id.in_(tuple(affected_ids)))
         .order_by(Task.position.asc(), Task.id.asc())

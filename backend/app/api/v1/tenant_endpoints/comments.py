@@ -99,7 +99,6 @@ async def create_comment(
         ) from exc
 
     await session.commit()
-    await session.refresh(comment)
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     await _broadcast_comment(session, guild_context.guild_id, comment, "created")
     return response

@@ -20,7 +20,7 @@ from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User, UserStatus
-from app.models.platform.user_profile_view import user_profiles
+from app.models.platform.user_profile_view import MemberProfile, user_profiles
 from app.schemas.platform.contact import (
     ContactGuildSection,
     ContactRead,
@@ -74,7 +74,7 @@ async def ordered_member_guilds(
     ]
 
 
-def _reads(users: Iterable[User]) -> list[ContactRead]:
+def _reads(users: Iterable[MemberProfile]) -> list[ContactRead]:
     """Validate inside the caller's current guild context.
 
     ``ContactRead`` inherits the guild-name visibility validator, so where this
@@ -130,13 +130,17 @@ async def guild_sections(
             ).all()
         )
 
+        # Read from the guild projection, not from ``users``: this is a roster,
+        # and a routed session has no reach into the account row behind it. The
+        # predicates below already speak this shape — selecting the account and
+        # filtering the projection is what left the two unjoined.
         base = (
-            select(User)
-            .join(GuildMembership, GuildMembership.user_id == User.id)
+            select(MemberProfile)
+            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
             .where(
                 GuildMembership.guild_id == guild_id,
                 # You are not your own contact.
-                User.id != user_id,
+                MemberProfile.id != user_id,
                 users_service.visible_to_other_people(),
             )
         )
@@ -153,9 +157,9 @@ async def guild_sections(
             await guild_session.exec(
                 base.order_by(
                     *users_service.member_order(closest, shows_names=shows_names),
-                    col(User.username).asc(),
-                    col(User.discriminator).asc(),
-                    col(User.id).asc(),
+                    col(MemberProfile.username).asc(),
+                    col(MemberProfile.discriminator).asc(),
+                    col(MemberProfile.id).asc(),
                 )
                 .offset((page - 1) * page_size)
                 .limit(page_size)

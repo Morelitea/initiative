@@ -30,7 +30,7 @@ from sqlmodel import select
 
 from app.models.platform.user import User
 
-__all__ = ["load", "load_one", "load_all"]
+__all__ = ["load", "load_one", "load_all", "load_event_reminder_optins"]
 
 
 async def load(user_ids: Iterable[int | None]) -> dict[int, User]:
@@ -79,3 +79,26 @@ async def load_all(user_ids: Sequence[int | None]) -> list[User]:
             seen.add(user_id)
             ordered.append(target)
     return ordered
+
+
+async def load_event_reminder_optins() -> list[User]:
+    """Everybody who asked to be reminded about events, detached.
+
+    The reminder sweep walks each guild's schema in turn, so the session it
+    holds is routed into one — and a routed session has no business reading an
+    account's preferences. The question "who wants reminding" is about accounts
+    rather than about any guild, so it is asked here, once, before the walk.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as admin_session:
+        rows = list(
+            (
+                await admin_session.exec(
+                    select(User).where(User.event_reminder_minutes_before.is_not(None))
+                )
+            ).all()
+        )
+        for row in rows:
+            admin_session.expunge(row)
+    return rows
