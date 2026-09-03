@@ -28,8 +28,8 @@ copyright = """
 Copyright &copy; 2026 Morelitea
 """
 
-# Brand palette (shared with morelitea.com), the two custom callout styles,
-# and the heading typeface. See docs/stylesheets/extra.css.
+# Bring your own styling for the "screenshot placeholder" and "technical
+# details" callouts used throughout these docs.
 extra_css = ["stylesheets/extra.css"]
 
 # ----------------------------------------------------------------------------
@@ -58,11 +58,13 @@ nav = [
     "en/guides/projects-and-tasks.md",
     "en/guides/task-views.md",
     "en/guides/documents.md",
-    "en/guides/tools.md",
-    "en/guides/calendar.md",
-    "en/guides/queues.md",
-    "en/guides/counters.md",
-    "en/guides/dashboards.md",
+    { "Tools" = [
+      "en/guides/tools.md",
+      "en/guides/calendar.md",
+      "en/guides/queues.md",
+      "en/guides/counters.md",
+      "en/guides/dashboards.md",
+    ] },
     "en/guides/apps-and-marketplace.md",
     "en/guides/tags.md",
     "en/guides/your-space.md",
@@ -117,16 +119,10 @@ nav = [
 
 language = "en"
 
-# The Initiative mark. White-filled, which is what the moss header wants; the
-# favicon is the same mark on a moss ground so it reads on a browser tab.
+# The Initiative mark, in the theme's primary colour. The favicon is the same
+# mark on a solid ground so it reads against a browser tab.
 logo = "images/logo.svg"
 favicon = "images/favicon.svg"
-
-# Cabin and Libre Baskerville are morelitea.com's pairing. Material loads the
-# body face; extra.css pulls Libre Baskerville in for headings.
-[project.theme.font]
-text = "Cabin"
-code = "JetBrains Mono"
 
 features = [
   "announce.dismiss",
@@ -146,19 +142,17 @@ features = [
   "toc.follow",
 ]
 
-# "custom" carries no colours of its own — extra.css defines them, so the
-# palette stays in one place alongside the rest of the brand tokens.
 [[project.theme.palette]]
 scheme = "default"
-primary = "custom"
-accent = "custom"
+primary = "deep purple"
+accent = "deep purple"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
 [[project.theme.palette]]
 scheme = "slate"
-primary = "custom"
-accent = "custom"
+primary = "deep purple"
+accent = "deep purple"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 

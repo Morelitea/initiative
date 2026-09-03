@@ -1,18 +1,11 @@
 /* ==========================================================================
    Custom styling for the Initiative documentation.
 
-   Two things live here:
-
-     1. The brand palette, shared with morelitea.com — ivory, moss, brown and
-        evergreen, plus the Libre Baskerville headings. The Zensical palette in
-        zensical.toml is set to "custom", which carries no colours of its own,
-        so these definitions are the single source of them.
-
-     2. Two purpose-built callout (admonition) styles:
+   Adds two purpose-built callout (admonition) styles used throughout the docs:
 
      !!! screenshot "..."   — marks exactly where a picture should go, and what
-                              it should show. Renders as a dashed box with a
-                              camera icon so writers/editors can spot every
+                              it should show. Renders as a dashed purple box with
+                              a camera icon so writers/editors can spot every
                               place an image is still needed.
 
      !!! techspec "..."     — "for the technically curious" boxes that hold the
@@ -20,98 +13,6 @@
                               which standard applies) without cluttering the
                               plain-language flow. Often used collapsed: ??? techspec
    ========================================================================== */
-
-@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap");
-
-/* --- Brand palette --------------------------------------------------------
-   Token values are lifted from morelitea.com so the help center and the site
-   read as one property.
-   ------------------------------------------------------------------------- */
-:root {
-  --mt-ivory: #fefae0;
-  --mt-brown: #936546;
-  --mt-brown-dark: #7d5539;
-  --mt-brown-light: #b07d5a;
-  --mt-moss: #606c38;
-  --mt-moss-dark: #505a2e;
-  --mt-evergreen: #45634a;
-  --mt-ink: #2d2418;
-  --mt-sand: #d4c9b8;
-  --mt-night: #0f1a0b;
-  --mt-night-card: #1a2614;
-}
-
-/* Light */
-[data-md-color-scheme="default"] {
-  --md-primary-fg-color: var(--mt-moss);
-  --md-primary-fg-color--light: #74803f;
-  --md-primary-fg-color--dark: var(--mt-moss-dark);
-  --md-primary-bg-color: var(--mt-ivory);
-  --md-primary-bg-color--light: rgba(254, 250, 224, 0.7);
-
-  --md-accent-fg-color: var(--mt-brown);
-  --md-accent-fg-color--transparent: rgba(147, 101, 70, 0.1);
-  --md-accent-bg-color: var(--mt-ivory);
-
-  --md-default-bg-color: var(--mt-ivory);
-  --md-typeset-color: var(--mt-ink);
-  --md-typeset-a-color: var(--mt-brown-dark);
-  --md-default-fg-color--lightest: rgba(45, 36, 24, 0.07);
-  --md-code-bg-color: rgba(212, 201, 184, 0.35);
-  --md-footer-bg-color: var(--mt-ink);
-  --md-footer-bg-color--dark: #241d13;
-}
-
-/* Dark */
-[data-md-color-scheme="slate"] {
-  --md-primary-fg-color: var(--mt-night-card);
-  --md-primary-fg-color--light: #23331b;
-  --md-primary-fg-color--dark: var(--mt-night);
-  --md-primary-bg-color: var(--mt-ivory);
-  --md-primary-bg-color--light: rgba(254, 250, 224, 0.7);
-
-  --md-accent-fg-color: var(--mt-brown-light);
-  --md-accent-fg-color--transparent: rgba(176, 125, 90, 0.15);
-
-  --md-default-bg-color: var(--mt-night);
-  --md-typeset-color: var(--mt-ivory);
-  --md-typeset-a-color: var(--mt-brown-light);
-  --md-code-bg-color: rgba(254, 250, 224, 0.08);
-  --md-footer-bg-color: #0a1207;
-  --md-footer-bg-color--dark: #070d05;
-}
-
-/* Headings in the serif the rest of the brand uses. */
-.md-typeset h1,
-.md-typeset h2,
-.md-typeset h3,
-.md-typeset h4 {
-  font-family: "Libre Baskerville", Georgia, serif;
-  font-weight: 700;
-}
-
-.md-typeset h1 {
-  color: var(--md-typeset-color);
-}
-
-/* --- The mark --------------------------------------------------------------
-   The header and drawer both sit on the page background rather than a coloured
-   bar, so the mark is moss in light and ivory in dark. Two files rather than a
-   filter, because the theme toggle is a class on the page and an SVG loaded
-   through <img> can't see it.
-   ------------------------------------------------------------------------- */
-.md-logo :is(img, svg) {
-  height: 1.6rem;
-  width: auto;
-}
-
-[data-md-color-scheme="slate"] .md-logo img {
-  content: url("../images/logo-dark.svg");
-}
-
-.md-nav__title .md-logo :is(img, svg) {
-  height: 1.2rem;
-}
 
 :root {
   --md-admonition-icon--screenshot: url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20d=%22M12%2015.2a3.2%203.2%200%201%200%200-6.4%203.2%203.2%200%200%200%200%206.4zM9%202%207.17%204H4a2%202%200%200%200-2%202v12a2%202%200%200%200%202%202h16a2%202%200%200%200%202-2V6a2%202%200%200%200-2-2h-3.17L15%202H9zm3%2015a5%205%200%201%201%200-10%205%205%200%200%201%200%2010z%22/%3E%3C/svg%3E');
@@ -121,7 +22,7 @@
 /* --- Screenshot placeholder ------------------------------------------------ */
 .md-typeset .admonition.screenshot,
 .md-typeset details.screenshot {
-  border-color: var(--mt-brown-light);
+  border-color: #7c4dff;
   border-left-width: 0.2rem;
   border-left-style: dashed;
 }
@@ -133,7 +34,7 @@
 
 .md-typeset .screenshot > .admonition-title::before,
 .md-typeset .screenshot > summary::before {
-  background-color: var(--mt-brown-light);
+  background-color: #7c4dff;
   -webkit-mask-image: var(--md-admonition-icon--screenshot);
           mask-image: var(--md-admonition-icon--screenshot);
 }
@@ -172,4 +73,23 @@
 /* Keep wide tables readable rather than overflowing the page. */
 .md-typeset table:not([class]) {
   font-size: 0.78rem;
+}
+
+/* --- The Initiative mark ---------------------------------------------------
+   The header sits on the page background rather than a coloured bar, so the
+   mark ships in two files: primary for light, pale for dark. Two files rather
+   than a CSS filter, because an SVG loaded through <img> can't see the theme
+   class on the page.
+   ------------------------------------------------------------------------- */
+.md-logo :is(img, svg) {
+  height: 1.6rem;
+  width: auto;
+}
+
+[data-md-color-scheme="slate"] .md-logo img {
+  content: url("../images/logo-dark.svg");
+}
+
+.md-nav__title .md-logo :is(img, svg) {
+  height: 1.2rem;
 }
