@@ -93,6 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.64.3] - 2026-08-30
 
+### Changed
+
 - **Link to documentation for help not the github page.**
 
 ## [0.64.2] - 2026-08-29
