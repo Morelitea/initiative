@@ -12,10 +12,10 @@
 
 import {
   acknowledgeQueueApiV1MeDmQueueAckPost as ackQueue,
+  claimOwnSessionKeysApiV1MeDmSessionKeysPost as claimOwnSessionKeys,
   claimSessionKeysApiV1UsersUserIdDmSessionKeysPost as claimSessionKeys,
   collectQueueApiV1MeDmQueueGet as collectQueue,
   listConversationsApiV1MeDmConversationsGet as listConversations,
-  claimOwnSessionKeysApiV1MeDmSessionKeysPost as claimOwnSessionKeys,
   listDevicesApiV1MeDmDevicesGet as listDevices,
   readDirectoryApiV1UsersUserIdDmDevicesGet as readDirectory,
   registerDeviceApiV1MeDmDevicesPost as registerDevice,
@@ -50,7 +50,9 @@ export async function ensureDevice(): Promise<string> {
     // the account erased — has to be registered again rather than used.
     const devices = await listDevices();
     if (devices.devices.some((device) => device.id === existing)) return existing;
-    await deviceClaim.invalidate();
+    // The dead device is named, so only a claim still recording it reopens: a
+    // second tab reaching the same conclusion waits for the first instead.
+    await deviceClaim.invalidate(existing);
   }
 
   // Registration is a network round trip, so it cannot sit inside one database
@@ -58,7 +60,7 @@ export async function ensureDevice(): Promise<string> {
   // each registering would leave the server holding two devices and this
   // browser holding one set of private keys, and whatever was sent to the other
   // would never be readable.
-  if (!(await deviceClaim.take())) return waitForRegistration();
+  if (!(await deviceClaim.take())) return waitForRegistration(existing);
 
   try {
     const account = await ratchet.createAccount();
@@ -87,11 +89,17 @@ export async function ensureDevice(): Promise<string> {
   }
 }
 
-/** Wait for whichever tab is registering to finish, then use what it made. */
-async function waitForRegistration(): Promise<string> {
+/**
+ * Wait for whichever tab is registering to finish, then use what it made.
+ *
+ * `stale` is the device this tab already found gone from the server, if any:
+ * an answer naming it is the settled claim that is being replaced, not the
+ * replacement, so it is waited past.
+ */
+async function waitForRegistration(stale?: string): Promise<string> {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     const claim = await deviceClaim.read();
-    if (claim?.status === "ready") {
+    if (claim?.status === "ready" && claim.deviceId !== stale) {
       const id = await storedDeviceId.get();
       if (id) return id;
     }

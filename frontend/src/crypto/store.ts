@@ -193,9 +193,19 @@ export const deviceClaim = {
     await update<DeviceClaim>(DEVICE_CLAIM, () => ({ status: "ready", deviceId }));
   },
 
-  /** Force the claim open again — the recorded device is gone from the server. */
-  invalidate: async (): Promise<void> => {
-    await update<DeviceClaim>(DEVICE_CLAIM, () => ({ status: "claiming", at: 0 }));
+  /**
+   * Give up on a device the server no longer knows, so it can be replaced.
+   *
+   * Only a settled claim naming that exact device is reopened. One already
+   * being registered under is left alone: two tabs noticing the same revocation
+   * still produce one device between them, rather than one each.
+   */
+  invalidate: async (deviceId: string): Promise<void> => {
+    await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
+      current?.status === "ready" && current.deviceId === deviceId
+        ? { status: "claiming", at: 0 }
+        : undefined
+    );
   },
 
   /** Let go of a claim this caller could not finish. */

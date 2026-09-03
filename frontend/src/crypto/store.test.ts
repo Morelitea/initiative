@@ -115,8 +115,32 @@ describe("the device-registration claim", () => {
   it("can be forced open when the recorded device is gone", async () => {
     await deviceClaim.take();
     await deviceClaim.settle("device-1");
-    await deviceClaim.invalidate();
+    await deviceClaim.invalidate("device-1");
 
     expect(await deviceClaim.take()).toBe(true);
+  });
+
+  it("leaves a claim somebody is already registering under alone", async () => {
+    // One tab noticed the revocation first and is mid-registration. A second
+    // tab reaching the same conclusion must wait for it, not reopen the claim
+    // and register a competing device.
+    await deviceClaim.take();
+    await deviceClaim.settle("device-1");
+    await deviceClaim.invalidate("device-1");
+    expect(await deviceClaim.take()).toBe(true);
+
+    await deviceClaim.invalidate("device-1");
+
+    expect(await deviceClaim.take()).toBe(false);
+  });
+
+  it("is not reopened by a device other than the recorded one", async () => {
+    await deviceClaim.take();
+    await deviceClaim.settle("device-2");
+
+    await deviceClaim.invalidate("device-1");
+
+    expect(await deviceClaim.take()).toBe(false);
+    expect(await deviceClaim.read()).toEqual({ status: "ready", deviceId: "device-2" });
   });
 });
