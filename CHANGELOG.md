@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-09-02
+
 ### Added
 
 - **Search that finds everything in a community, and reads inside it.** ⌘K and a results page of its own reach projects, tasks, documents, queues, counters, calendars, dashboards, tags, comments and people — matching names, descriptions, and the words inside a document, whiteboard or spreadsheet. Results are ranked, show the line that matched, and answer before you finish a word; a misspelling is offered the closest names rather than an empty page. Archived work is kept back unless you switch it on.
