@@ -11,7 +11,8 @@
       "import": "Importer",
       "security": "Sécurité",
       "trash": "Corbeille",
-      "danger": "Zone de danger"
+      "danger": "Zone de danger",
+      "privacy": "Confidentialité"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
     "goToLogin": "Aller à la connexion"
@@ -1148,5 +1149,55 @@
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
     "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
+  },
+  "privacy": {
+    "title": "Confidentialité",
+    "dm": {
+      "title": "Messages directs",
+      "description": "Qui peut demander à vous écrire, en dehors de vos connexions.",
+      "private": "Privé",
+      "privateHint": "Personne.",
+      "community": "Mes communautés",
+      "communityHint": "Les personnes avec qui vous partagez une communauté.",
+      "public": "Tout le monde",
+      "publicHint": "Tout le monde sur Initiative.",
+      "communitiesTitle": "Quelles communautés comptent",
+      "communitiesHint": "Toutes comptent par défaut.",
+      "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
+      "confirmAge": "Confirmer mon âge",
+      "saved": "Enregistré."
+    },
+    "connections": {
+      "title": "Connexions",
+      "description": "Les connexions sont mutuelles. Vous pouvez rester en contact même si vous ne partagez plus de communauté.",
+      "empty": "Vous n'avez encore aucune connexion.",
+      "add": "Se connecter par identifiant",
+      "addPlaceholder": "nom#1234",
+      "addHint": "Saisissez l'identifiant complet, numéro compris.",
+      "send": "Envoyer la demande",
+      "remove": "Retirer",
+      "removeTitle": "Retirer cette connexion ?",
+      "removeKeepsChannel": "Vous partagez une communauté, vous pourrez donc continuer à vous écrire.",
+      "removeEndsChannel": "Cela mettra aussi fin à votre canal de messages.",
+      "connected": "Connectés le {{date}}",
+      "sent": "Demande envoyée."
+    },
+    "requests": {
+      "title": "En attente",
+      "empty": "Rien en attente.",
+      "wantsToConnect": "souhaite se connecter",
+      "askedToMessage": "a demandé à vous écrire",
+      "youAskedToConnect": "vous avez demandé une connexion",
+      "youAskedToMessage": "vous avez demandé à écrire",
+      "accept": "Accepter",
+      "decline": "Refuser",
+      "cancel": "Annuler"
+    },
+    "ignored": {
+      "title": "Comptes ignorés",
+      "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
+      "empty": "Vous n'ignorez personne.",
+      "stop": "Ne plus ignorer"
+    }
   }
 }

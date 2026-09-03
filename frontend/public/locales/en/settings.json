@@ -11,7 +11,8 @@
       "import": "Import",
       "security": "Security",
       "trash": "Trash",
-      "danger": "Danger Zone"
+      "danger": "Danger Zone",
+      "privacy": "Privacy"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
     "goToLogin": "Go to login"
@@ -1148,5 +1149,55 @@
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
     "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle."
+  },
+  "privacy": {
+    "title": "Privacy",
+    "dm": {
+      "title": "Direct messages",
+      "description": "Who can ask to message you, outside your connections.",
+      "private": "Private",
+      "privateHint": "No one.",
+      "community": "My communities",
+      "communityHint": "People you share a community with.",
+      "public": "Anyone",
+      "publicHint": "Anyone on Initiative.",
+      "communitiesTitle": "Which communities count",
+      "communitiesHint": "All count by default.",
+      "ageLocked": "Messaging is available to people aged 13 and over. You have not told us whether you are.",
+      "confirmAge": "Confirm my age",
+      "saved": "Saved."
+    },
+    "connections": {
+      "title": "Connections",
+      "description": "Connections are mutual. You can keep in touch even if you stop sharing a community.",
+      "empty": "You have not connected with anyone yet.",
+      "add": "Connect by handle",
+      "addPlaceholder": "name#1234",
+      "addHint": "Type someone's full handle, including the number.",
+      "send": "Send request",
+      "remove": "Remove",
+      "removeTitle": "Remove this connection?",
+      "removeKeepsChannel": "You share a community, so you will still be able to message each other.",
+      "removeEndsChannel": "This will also end your message channel with them.",
+      "connected": "Connected {{date}}",
+      "sent": "Request sent."
+    },
+    "requests": {
+      "title": "Pending",
+      "empty": "Nothing waiting.",
+      "wantsToConnect": "wants to connect",
+      "askedToMessage": "asked to message you",
+      "youAskedToConnect": "you asked to connect",
+      "youAskedToMessage": "you asked to message",
+      "accept": "Accept",
+      "decline": "Decline",
+      "cancel": "Cancel"
+    },
+    "ignored": {
+      "title": "Ignored accounts",
+      "description": "You will not be notified when these accounts mention, reply to or react to you, and nothing they send you arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share, and be able to use all tools normally.",
+      "empty": "You are not ignoring anyone.",
+      "stop": "Stop ignoring"
+    }
   }
 }

@@ -76,4 +76,22 @@ describe("the settings tabs", () => {
 
     expect(await screen.findByRole("tab", { name: "AI" })).toBeInTheDocument();
   });
+
+  it("offers the Privacy tab, and its path resolves to a real route", async () => {
+    answerWith([connection()]);
+    const { createRouter } = await import("@tanstack/react-router");
+    const { routeTree } = await import("@/routeTree.gen");
+
+    renderPage(UserSettingsLayout);
+    expect(await screen.findByRole("tab", { name: /privacy/i })).toBeInTheDocument();
+
+    // Resolved through a real router over the generated tree: a tab pointing
+    // at a path nothing registered would render exactly the same.
+    const router = createRouter({ routeTree });
+    const matches = router.matchRoutes(
+      { pathname: "/profile/privacy", search: {} },
+      { preload: true }
+    );
+    expect(String(matches.at(-1)?.routeId)).toContain("profile/privacy");
+  });
 });

@@ -11,7 +11,8 @@
       "import": "Importieren",
       "security": "Sicherheit",
       "trash": "Papierkorb",
-      "danger": "Gefahrenzone"
+      "danger": "Gefahrenzone",
+      "privacy": "Privatsphäre"
     },
     "loginRequired": "Du musst angemeldet sein, um dein Profil zu verwalten.",
     "goToLogin": "Zur Anmeldung"
@@ -1148,5 +1149,55 @@
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
     "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
+  },
+  "privacy": {
+    "title": "Privatsphäre",
+    "dm": {
+      "title": "Direktnachrichten",
+      "description": "Wer dich außerhalb deiner Verbindungen um eine Nachricht bitten darf.",
+      "private": "Privat",
+      "privateHint": "Niemand.",
+      "community": "Meine Communities",
+      "communityHint": "Personen, mit denen du eine Community teilst.",
+      "public": "Alle",
+      "publicHint": "Alle auf Initiative.",
+      "communitiesTitle": "Welche Communities zählen",
+      "communitiesHint": "Standardmäßig zählen alle.",
+      "ageLocked": "Nachrichten sind ab 13 Jahren verfügbar. Du hast uns noch nicht gesagt, ob du das bist.",
+      "confirmAge": "Alter bestätigen",
+      "saved": "Gespeichert."
+    },
+    "connections": {
+      "title": "Verbindungen",
+      "description": "Verbindungen sind gegenseitig. Ihr bleibt in Kontakt, auch wenn ihr keine Community mehr teilt.",
+      "empty": "Du hast dich noch mit niemandem verbunden.",
+      "add": "Über Handle verbinden",
+      "addPlaceholder": "name#1234",
+      "addHint": "Gib das vollständige Handle inklusive Nummer ein.",
+      "send": "Anfrage senden",
+      "remove": "Entfernen",
+      "removeTitle": "Diese Verbindung entfernen?",
+      "removeKeepsChannel": "Ihr teilt eine Community, ihr könnt euch also weiterhin schreiben.",
+      "removeEndsChannel": "Damit endet auch euer Nachrichtenkanal.",
+      "connected": "Verbunden am {{date}}",
+      "sent": "Anfrage gesendet."
+    },
+    "requests": {
+      "title": "Ausstehend",
+      "empty": "Nichts offen.",
+      "wantsToConnect": "möchte sich verbinden",
+      "askedToMessage": "hat um eine Nachricht gebeten",
+      "youAskedToConnect": "du hast um Verbindung gebeten",
+      "youAskedToMessage": "du hast um eine Nachricht gebeten",
+      "accept": "Annehmen",
+      "decline": "Ablehnen",
+      "cancel": "Abbrechen"
+    },
+    "ignored": {
+      "title": "Ignorierte Konten",
+      "description": "Du wirst nicht benachrichtigt, wenn diese Konten dich erwähnen, dir antworten oder reagieren, und nichts, was sie dir senden, kommt an — Nachrichten, Nachrichtenanfragen, Verbindungsanfragen. Ihr seht weiterhin die Aktivitäten des anderen in gemeinsamen Communities und könnt alle Werkzeuge normal nutzen.",
+      "empty": "Du ignorierst niemanden.",
+      "stop": "Nicht mehr ignorieren"
+    }
   }
 }

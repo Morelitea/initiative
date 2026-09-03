@@ -11,7 +11,8 @@
       "import": "Importar",
       "security": "Seguridad",
       "trash": "Papelera",
-      "danger": "Zona de peligro"
+      "danger": "Zona de peligro",
+      "privacy": "Privacidad"
     },
     "loginRequired": "Necesitas iniciar sesión para administrar tu perfil.",
     "goToLogin": "Ir a inicio de sesión"
@@ -1148,5 +1149,55 @@
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
     "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador."
+  },
+  "privacy": {
+    "title": "Privacidad",
+    "dm": {
+      "title": "Mensajes directos",
+      "description": "Quién puede pedirte enviarte un mensaje, aparte de tus conexiones.",
+      "private": "Privado",
+      "privateHint": "Nadie.",
+      "community": "Mis comunidades",
+      "communityHint": "Personas con las que compartes una comunidad.",
+      "public": "Cualquiera",
+      "publicHint": "Cualquiera en Initiative.",
+      "communitiesTitle": "Qué comunidades cuentan",
+      "communitiesHint": "Todas cuentan de forma predeterminada.",
+      "ageLocked": "Los mensajes están disponibles para mayores de 13 años. Aún no nos has dicho si lo eres.",
+      "confirmAge": "Confirmar mi edad",
+      "saved": "Guardado."
+    },
+    "connections": {
+      "title": "Conexiones",
+      "description": "Las conexiones son mutuas. Podéis seguir en contacto aunque dejéis de compartir una comunidad.",
+      "empty": "Aún no te has conectado con nadie.",
+      "add": "Conectar por identificador",
+      "addPlaceholder": "nombre#1234",
+      "addHint": "Escribe el identificador completo, incluido el número.",
+      "send": "Enviar solicitud",
+      "remove": "Quitar",
+      "removeTitle": "¿Quitar esta conexión?",
+      "removeKeepsChannel": "Compartís una comunidad, así que aún podréis escribiros.",
+      "removeEndsChannel": "Esto también terminará vuestro canal de mensajes.",
+      "connected": "Conectados el {{date}}",
+      "sent": "Solicitud enviada."
+    },
+    "requests": {
+      "title": "Pendiente",
+      "empty": "Nada pendiente.",
+      "wantsToConnect": "quiere conectar",
+      "askedToMessage": "pidió enviarte un mensaje",
+      "youAskedToConnect": "pediste conectar",
+      "youAskedToMessage": "pediste enviar un mensaje",
+      "accept": "Aceptar",
+      "decline": "Rechazar",
+      "cancel": "Cancelar"
+    },
+    "ignored": {
+      "title": "Cuentas ignoradas",
+      "description": "No recibirás notificaciones cuando estas cuentas te mencionen, te respondan o reaccionen, y nada de lo que te envíen llegará: mensajes, solicitudes de mensaje, solicitudes de conexión. Seguiréis viendo la actividad del otro en las comunidades que compartís y podréis usar todas las herramientas con normalidad.",
+      "empty": "No estás ignorando a nadie.",
+      "stop": "Dejar de ignorar"
+    }
   }
 }
