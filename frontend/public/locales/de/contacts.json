@@ -2,6 +2,8 @@
   "title": "Meine Kontakte",
   "subtitle": "Alle, mit denen du eine Community teilst, und alle, die du markiert hast.",
   "favorites": "Favoriten",
+  "connections": "Verbindungen",
+  "directMessages": "Direktnachrichten",
   "searchPlaceholder": "Kontakte durchsuchen",
   "searchLabel": "Alle auf dieser Seite durchsuchen",
   "clearSearch": "Suche zurücksetzen",
@@ -29,11 +31,21 @@
     "title": "Noch niemand hier",
     "description": "Tritt einer Community bei, dann erscheinen ihre Mitglieder hier.",
     "favorites": "Markiere jemanden mit einem Stern, um ihn oben auf dieser Seite zu behalten.",
-    "guild": "Sonst ist noch niemand in dieser Community."
+    "guild": "Hier nimmt derzeit niemand Nachrichten an."
   },
   "noMatches": {
     "title": "Niemand mit diesem Namen",
     "description": "Versuche einen anderen Namen oder das vollständige Handle.",
     "section": "Hier keine Treffer."
+  },
+  "unreachable": {
+    "age": {
+      "title": "Direktnachrichten sind für dieses Konto deaktiviert"
+    },
+    "private": {
+      "body": "Du bist auf „Privat“ eingestellt. Du kannst dich weiterhin über den genauen Handle mit anderen verbinden, und eine Verbindung erlaubt euch unabhängig von dieser Einstellung, einander zu schreiben. Damit man dich hier erreichen kann, erlaube deinen Communitys, dir zu schreiben.",
+      "open": "Meine Communitys dürfen mir schreiben",
+      "settings": "Privatsphäre-Einstellungen"
+    }
   }
 }

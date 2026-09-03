@@ -7,9 +7,12 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import GuildRole
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import UserStatus
+from app.models.platform.user_dm_settings import DmPolicy
+from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -19,6 +22,32 @@ from app.testing.factories import (
 
 SECTIONS = "/api/v1/me/contacts"
 FAVORITES = "/api/v1/me/contacts/favorites"
+
+
+@pytest.fixture(autouse=True)
+async def community_by_default(session: AsyncSession):
+    """Run these against a deployment whose operator default is ``community``.
+
+    A roster names the people the reader could actually reach out to, so on the
+    shipped default — ``private`` — every one of these sections is empty and
+    the paging, search and naming below have nothing to describe. Setting the
+    operator's default here is what gives them members to be about; the default
+    itself, and the empty page it makes, are
+    ``services/platform/contacts_reachable_test.py``.
+
+    Set before any account is made: the default is copied into the account when
+    it is created, and moving it afterwards moves nobody.
+    """
+    settings = (
+        await session.exec(
+            select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+        )
+    ).one_or_none()
+    if settings is None:
+        settings = AppSetting(id=GLOBAL_SETTINGS_ID)
+        session.add(settings)
+    settings.default_dm_policy = DmPolicy.community
+    await session.commit()
 
 
 def _section(payload: dict, guild_id: int) -> dict:
@@ -54,6 +83,11 @@ async def test_sections_follow_rail_order(client: AsyncClient, session: AsyncSes
     await create_guild_membership(session, user=user, guild=first, position=2)
     await create_guild_membership(session, user=user, guild=second, position=0)
     await create_guild_membership(session, user=user, guild=third, position=1)
+    # Somebody else in each, or there would be no section to order.
+    for guild in (first, second, third):
+        await create_guild_membership(
+            session, user=await create_user(session), guild=guild
+        )
 
     response = await client.get(SECTIONS, headers=get_auth_headers(user))
     assert response.status_code == 200
@@ -72,6 +106,7 @@ async def test_a_guild_the_caller_left_has_no_section(
     mine = await create_guild(session)
     theirs = await create_guild(session)
     await create_guild_membership(session, user=user, guild=mine)
+    await create_guild_membership(session, user=await create_user(session), guild=mine)
 
     response = await client.get(SECTIONS, headers=get_auth_headers(user))
     ids = [s["guild_id"] for s in response.json()["sections"]]
@@ -147,6 +182,10 @@ async def test_guild_ids_narrows_to_one_section(
     second = await create_guild(session)
     await create_guild_membership(session, user=user, guild=first, position=0)
     await create_guild_membership(session, user=user, guild=second, position=1)
+    for guild in (first, second):
+        await create_guild_membership(
+            session, user=await create_user(session), guild=guild
+        )
 
     response = await client.get(
         f"{SECTIONS}?guild_ids={second.id}", headers=get_auth_headers(user)
@@ -520,3 +559,26 @@ async def test_guild_admin_gets_no_extra_reach_into_a_list(
     assert (await client.get(FAVORITES, headers=get_auth_headers(admin))).json()[
         "items"
     ] == []
+
+
+@pytest.mark.integration
+async def test_a_community_of_one_has_no_section(
+    client: AsyncClient, session: AsyncSession
+):
+    """Being alone somewhere is not an empty roster, it is no roster.
+
+    The section would otherwise say nobody there is accepting messages, which
+    is a remark about people who are not there.
+    """
+    user = await create_user(session)
+    alone = await create_guild(session)
+    shared = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=alone)
+    await create_guild_membership(session, user=user, guild=shared)
+    await create_guild_membership(
+        session, user=await create_user(session), guild=shared
+    )
+
+    response = await client.get(SECTIONS, headers=get_auth_headers(user))
+    ids = [s["guild_id"] for s in response.json()["sections"]]
+    assert ids == [shared.id]

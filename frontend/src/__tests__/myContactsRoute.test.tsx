@@ -12,7 +12,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ContactGuildSection, ContactRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ContactGrantRead,
+  ContactGuildSection,
+  ContactRead,
+  DmPolicy,
+} from "@/api/generated/initiativeAPI.schemas";
 import { routeTree } from "@/routeTree.gen";
 
 import { renderPage } from "./helpers/render";
@@ -25,6 +30,10 @@ const mocks = vi.hoisted(() => ({
   toggle: vi.fn(),
   sectionPage: vi.fn(),
   prefetch: vi.fn(),
+  dmSettings: vi.fn(),
+  updateDm: vi.fn(),
+  connections: vi.fn(),
+  messages: vi.fn(),
 }));
 
 vi.mock("@/hooks/useContacts", () => ({
@@ -36,6 +45,16 @@ vi.mock("@/hooks/useContacts", () => ({
     mocks.sectionPage(guildId, page, search),
   usePrefetchContactSectionPage: () => mocks.prefetch,
   contactsPrefetch: () => ({ sections: {}, favorites: {} }),
+}));
+
+// The reader's own policy decides whether the page has anything to list, so
+// every test below states it. The default is an account that answered its age
+// and let its communities in — the one whose sections have members.
+vi.mock("@/hooks/useDirectMessages", () => ({
+  useDmSettings: () => mocks.dmSettings(),
+  useUpdateDmSettings: () => ({ mutate: mocks.updateDm, isPending: false }),
+  useConnections: () => mocks.connections(),
+  useMessageRequests: () => mocks.messages(),
 }));
 
 // The collapse preference is a server round-trip this page does not need to
@@ -86,6 +105,40 @@ const answer = (
   });
 };
 
+/** The reader's own direct-message settings, as the page reads them. */
+const reader = (overrides: { age_confirmed_at?: string | null; dm_policy?: DmPolicy } = {}) =>
+  mocks.dmSettings.mockReturnValue({
+    data: {
+      age_confirmed_at: "2020-01-01T00:00:00Z",
+      dm_policy: "community" as DmPolicy,
+      communities: [{ guild_id: 1, name: "Ravenloft Table", icon_url: null, enabled: false }],
+      ...overrides,
+    },
+  });
+
+let nextGrantId = 500;
+const grant = (overrides: Partial<ContactGrantRead> = {}): ContactGrantRead => ({
+  user_id: nextGrantId++,
+  username: `grant${nextGrantId}`,
+  discriminator: 4321,
+  avatar_url: null,
+  status: "active",
+  presence: "offline",
+  state: "accepted",
+  outgoing: false,
+  created_at: "2026-01-01T00:00:00Z",
+  responded_at: "2026-01-02T00:00:00Z",
+  ...overrides,
+});
+
+/** What the two grant lists hold. Empty unless a test says otherwise. */
+const grants = (connections: ContactGrantRead[] = [], messages: ContactGrantRead[] = []) => {
+  mocks.connections.mockReturnValue({
+    data: { accepted: connections, incoming: [], outgoing: [] },
+  });
+  mocks.messages.mockReturnValue({ data: { accepted: messages, incoming: [], outgoing: [] } });
+};
+
 /** A section page that has not arrived — what every page past the first is. */
 const pendingPage = { data: undefined, isPending: true, isPlaceholderData: false };
 
@@ -114,6 +167,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   nextId = 1;
   answer([]);
+  reader();
+  grants();
+  nextGrantId = 500;
   mocks.sectionPage.mockReturnValue(pendingPage);
 });
 
@@ -375,5 +431,101 @@ describe("My Contacts", () => {
 
     const heading = await screen.findByRole("button", { name: /Big Table/ });
     expect(within(heading).getByText("31")).toBeInTheDocument();
+  });
+
+  describe("when the roster is empty because of the reader", () => {
+    it("asks an unanswered account its age, and offers no policy while it is unanswered", async () => {
+      reader({ age_confirmed_at: null, dm_policy: "private" });
+      answer([section({ total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(await screen.findByText(/Direct messages are off for this account/i)).toBeVisible();
+      // Both conditions hold at once on a new account. Only the age panel may
+      // show: the other one offers a route this account has no access to.
+      expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
+    });
+
+    it("explains a private account's empty communities and opens them in one click", async () => {
+      reader({ dm_policy: "private" });
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(screen.queryByText(/Direct messages are off for this account/i)).toBeNull();
+      await userEvent.click(
+        await screen.findByRole("button", { name: /Let my communities message me/i })
+      );
+
+      // The policy and nothing else: the community switches would stake the
+      // write on a membership list fetched earlier, and this is the button
+      // that must land.
+      expect(mocks.updateDm).toHaveBeenCalledWith({ data: { dm_policy: "community" } });
+    });
+
+    it("says nothing until it knows what the settings are", async () => {
+      // Absent settings read as an account that has answered nothing, and the
+      // age panel is the one thing never to show somebody who has.
+      mocks.dmSettings.mockReturnValue({ data: undefined });
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(screen.queryByText(/Direct messages are off for this account/i)).toBeNull();
+      expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
+    });
+
+    it("says nothing about the reader while a search is running", async () => {
+      reader({ dm_policy: "private" });
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts("nobody");
+
+      // An empty page under a term is about the term.
+      expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
+    });
+
+    it("never counts the people it is not listing", async () => {
+      reader();
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts();
+
+      const line = await screen.findByText(/No one here is accepting messages right now/i);
+      expect(line).toBeVisible();
+      // The line describes other people's settings, which are not the
+      // reader's to count.
+      expect(line.textContent).not.toMatch(/\d/);
+    });
+  });
+
+  describe("people no community introduced", () => {
+    it("lists somebody you agreed to message and share nothing else with", async () => {
+      // Two accounts on Anyone who accepted each other: no connection, no
+      // community in common, and so no section on this page before now.
+      const pen = grant({ username: "penpal" });
+      grants([], [pen]);
+      answer([]);
+      await renderContacts();
+
+      expect(await screen.findByText(/penpal/)).toBeVisible();
+    });
+
+    it("does not list a connection twice", async () => {
+      // Accepting a connection opens the channel with it, so the same person
+      // is in both lists the server sends.
+      const lee = grant({ username: "leelee" });
+      grants([lee], [lee]);
+      answer([]);
+      await renderContacts();
+
+      expect(await screen.findByText("Connections")).toBeVisible();
+      expect(screen.queryByText("Direct messages")).toBeNull();
+      expect(screen.getAllByText(/leelee/)).toHaveLength(1);
+    });
+
+    it("does not send the reader to the generic empty page", async () => {
+      grants([], [grant({ username: "penpal" })]);
+      answer([]);
+      await renderContacts();
+
+      // In no communities and starring nobody, but not without contacts.
+      expect(screen.queryByText(/Join a community/i)).toBeNull();
+    });
   });
 });

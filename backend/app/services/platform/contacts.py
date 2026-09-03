@@ -9,7 +9,7 @@ which needs no guild at all and may name people the reader shares none with.
 
 from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import String, cast, func
+from sqlalchemy import String, cast, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
@@ -114,6 +114,14 @@ async def guild_sections(
     sections: dict[int, ContactGuildSection] = {}
     named = {gid: (name, icon) for gid, name, icon in guilds}
 
+    # Who, of each community, this reader may actually reach — asked here, on
+    # the platform-tier session, because that is the only role the rule is
+    # callable from. It has to happen before the walk below, which routes this
+    # same session into each guild in turn.
+    listable = await listable_by_guild(
+        session, user_id=user_id, guilds=[gid for gid, _n, _i in guilds]
+    )
+
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
         shows_names = guild_shows_member_names()
 
@@ -130,6 +138,13 @@ async def guild_sections(
             ).all()
         )
 
+        # A community of one is not a section. Nobody is in it to list, and an
+        # empty section there would read as a remark about people who are not
+        # there — the reader is by themselves, which the page should not
+        # dress up as everybody being unreachable.
+        if not membership_map[guild_id]:
+            return []
+
         # Read from the guild projection, not from ``users``: this is a roster,
         # and a routed session has no reach into the account row behind it. The
         # predicates below already speak this shape — selecting the account and
@@ -142,6 +157,8 @@ async def guild_sections(
                 # You are not your own contact.
                 MemberProfile.id != user_id,
                 users_service.visible_to_other_people(),
+                # And a contact is somebody you could actually reach out to.
+                col(MemberProfile.id).in_(listable.get(guild_id, set())),
             )
         )
         closest = None
@@ -190,6 +207,29 @@ async def guild_sections(
         for item in section.items:
             item.shared_guild_ids = shared.get(item.id, [])
     return ordered
+
+
+async def listable_by_guild(
+    session: AsyncSession, *, user_id: int, guilds: Sequence[int]
+) -> dict[int, set[int]]:
+    """Per community, the members this reader may ask to message.
+
+    One call per section rather than one per member: the rule does the join
+    itself, so nothing large crosses the boundary in either direction.
+
+    Deliberately **not** narrowed by who has ignored the reader: an ignore
+    governs what arrives, not who is listed, so both rosters stay as they were.
+    """
+    # The rule reads who is asking from the request context, so this runs on
+    # the caller's own session rather than being told an id.
+    await set_rls_context(session, user_id=user_id)
+    result: dict[int, set[int]] = {}
+    for guild_id in guilds:
+        rows = await session.exec(
+            text("SELECT public.dm_listable_in_guild(:g)").bindparams(g=guild_id)
+        )
+        result[guild_id] = {row[0] for row in rows}
+    return result
 
 
 async def favorites(

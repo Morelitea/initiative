@@ -1867,6 +1867,8 @@ export interface ContactGrantRead {
   username: string;
   discriminator: number;
   avatar_url: string | null;
+  status: UserStatus;
+  presence: Presence;
   state: string;
   outgoing: boolean;
   created_at: string;

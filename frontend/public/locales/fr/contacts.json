@@ -2,6 +2,8 @@
   "title": "Mes contacts",
   "subtitle": "Toutes les personnes avec qui vous partagez une communauté, ainsi que vos favoris.",
   "favorites": "Favoris",
+  "connections": "Connexions",
+  "directMessages": "Messages directs",
   "searchPlaceholder": "Rechercher des contacts",
   "searchLabel": "Rechercher parmi tout le monde sur cette page",
   "clearSearch": "Effacer la recherche",
@@ -29,11 +31,21 @@
     "title": "Personne pour l'instant",
     "description": "Rejoignez une communauté et ses membres apparaîtront ici.",
     "favorites": "Mettez quelqu'un en favori pour le garder en haut de cette page.",
-    "guild": "Personne d'autre dans cette communauté pour l'instant."
+    "guild": "Personne ici n'accepte de messages pour le moment."
   },
   "noMatches": {
     "title": "Personne de ce nom",
     "description": "Essayez un autre nom, ou l'identifiant complet.",
     "section": "Aucun résultat ici."
+  },
+  "unreachable": {
+    "age": {
+      "title": "Les messages privés sont désactivés pour ce compte"
+    },
+    "private": {
+      "body": "Vous êtes en mode Privé. Vous pouvez toujours vous connecter à quelqu'un via son identifiant exact, et une connexion vous permet de vous écrire quel que soit ce réglage. Pour être joignable ici, autorisez vos communautés à vous écrire.",
+      "open": "Autoriser mes communautés à m'écrire",
+      "settings": "Paramètres de confidentialité"
+    }
   }
 }
