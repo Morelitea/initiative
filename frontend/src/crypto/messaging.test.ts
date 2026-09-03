@@ -427,6 +427,26 @@ describe("unread", () => {
     expect(await unreadIn(CONVERSATION)).toBe(0);
   });
 
+  it("counts two that landed in the same millisecond", async () => {
+    // A burst arrives with one timestamp on all of it. Counted by time, the
+    // second one would already be behind the marker the first one set.
+    await messageLog.append(CONVERSATION, {
+      id: "m1",
+      body: "first",
+      at: "2026-09-01T10:00:00Z",
+      mine: false,
+    });
+    await markRead(CONVERSATION);
+    await messageLog.append(CONVERSATION, {
+      id: "m2",
+      body: "second, same instant",
+      at: "2026-09-01T10:00:00Z",
+      mine: false,
+    });
+
+    expect(await unreadIn(CONVERSATION)).toBe(1);
+  });
+
   it("survives a browser clock running ahead of the server", async () => {
     // The message this device wrote is stamped from a clock hours ahead. A
     // marker taken from it would swallow everything that arrives next.

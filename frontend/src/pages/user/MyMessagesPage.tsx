@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { MessageSquare, Send, ShieldCheck, UserX } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
@@ -100,6 +100,24 @@ export function MyMessagesPage() {
   const opened = useRef<string | null>(null);
   const startMessages = startConversation.mutate;
   const conversationsLoaded = conversations.isSuccess;
+
+  // Whose open failed, not merely that one did: a mutation has one error state
+  // and the reader moves on to somebody else, who would otherwise arrive at a
+  // failure that was never theirs.
+  const [failedFor, setFailedFor] = useState<string | null>(null);
+
+  const openWith = useCallback(
+    (userId: number, handle: string) =>
+      startMessages(userId, {
+        onSuccess: (conversation) => {
+          setFailedFor(null);
+          setSelected(conversation.id);
+        },
+        onError: () => setFailedFor(handle),
+      }),
+    [startMessages]
+  );
+
   useEffect(() => {
     if (!withHandle || targetId === undefined || !conversationsLoaded) return;
     if (opened.current === withHandle) return;
@@ -110,22 +128,9 @@ export function MyMessagesPage() {
     }
     if (channelOpen) {
       opened.current = withHandle;
-      startMessages(targetId, { onSuccess: (conversation) => setSelected(conversation.id) });
+      openWith(targetId, withHandle);
     }
-  }, [withHandle, targetId, targetConversation, channelOpen, conversationsLoaded, startMessages]);
-
-  /**
-   * Try again, after one of those failed.
-   *
-   * A button rather than the effect having another go on its own: the address
-   * has not changed, so nothing would re-run it, and a state change that did
-   * would keep re-running it against whatever is refusing.
-   */
-  const retryOpen = () => {
-    if (targetId === undefined) return;
-    startConversation.reset();
-    startMessages(targetId, { onSuccess: (conversation) => setSelected(conversation.id) });
-  };
+  }, [withHandle, targetId, targetConversation, channelOpen, conversationsLoaded, openWith]);
 
   const navigate = useNavigate();
 
@@ -263,11 +268,18 @@ export function MyMessagesPage() {
         ) : withHandle ? (
           // Somebody was asked for. Either their thread is on its way, or there
           // is no channel and the panel says what would open one.
-          startConversation.isError ? (
+          failedFor === withHandle ? (
             <div className="flex flex-1 items-center justify-center p-8 text-center">
               <div className="max-w-sm space-y-3">
                 <p className="text-muted-foreground text-sm">{t("openFailed")}</p>
-                <Button variant="outline" onClick={retryOpen}>
+                {/* A button rather than the effect having another go on its
+                    own: the address has not changed, so nothing would re-run
+                    it, and a state change that did would keep re-running it
+                    against whatever is refusing. */}
+                <Button
+                  variant="outline"
+                  onClick={() => targetId !== undefined && openWith(targetId, withHandle)}
+                >
                   {t("tryAgain")}
                 </Button>
               </div>

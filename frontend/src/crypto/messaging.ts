@@ -228,35 +228,33 @@ export async function registeredDevice(): Promise<string | undefined> {
 /**
  * How much of one thread arrived after this device last looked at it.
  *
- * Only the other side counts: your own message is not news to you, and it
- * lands in the same log as theirs because the log is the whole thread.
+ * Counted by position in the log rather than by time: the log is append-only
+ * and in the order this device learned of each message, which is the order the
+ * thread is read in. A marker whose message is not in the log — a device whose
+ * history was cleared under it — leaves everything unread, which is the side to
+ * be wrong on.
+ *
+ * Only the other side counts: your own message is not news to you, and it lands
+ * in the same log as theirs because the log is the whole thread.
  */
 export async function unreadIn(conversationId: string): Promise<number> {
   const [log, seen] = await Promise.all([
     messageLog.get(conversationId),
     lastRead.get(conversationId),
   ]);
-  return log.filter((message) => !message.mine && Date.parse(message.at) > (seen ?? 0)).length;
+  const read = seen ? log.findIndex((message) => message.id === seen) : -1;
+  return log.slice(read + 1).filter((message) => !message.mine).length;
 }
 
-/**
- * This thread has been looked at, up to the newest message in it.
- *
- * Marked against the newest message *from the other side*, and deliberately
- * not against the clock. Their messages are stamped by the server and mine by
- * this browser, so a marker taken from either clock could sit ahead of a
- * message that has not arrived yet and quietly count it as read. Comparing
- * their messages only ever against their own newest leaves one clock in the
- * question, which is the server's.
- */
+/** This thread has been looked at, up to the last message the other side sent. */
 export async function markRead(conversationId: string): Promise<void> {
   const log = await messageLog.get(conversationId);
-  const newest = log.reduce((latest, message) => {
-    if (message.mine) return latest;
-    const at = Date.parse(message.at);
-    return Number.isNaN(at) ? latest : Math.max(latest, at);
-  }, 0);
-  await lastRead.set(conversationId, newest);
+  for (let index = log.length - 1; index >= 0; index -= 1) {
+    if (!log[index].mine) {
+      await lastRead.set(conversationId, log[index].id);
+      return;
+    }
+  }
 }
 
 /**

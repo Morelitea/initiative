@@ -303,6 +303,32 @@ describe("My Messages", () => {
     await waitFor(() => expect(mocks.createConversation).toHaveBeenCalledTimes(2));
   });
 
+  it("does not hand the next person the last one's failure", async () => {
+    // One mutation, one error state — so a failure has to remember whose it
+    // was, or somebody you have never tried to reach arrives at it.
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.userProfile.mockImplementation((handle: string) =>
+      handle === "alex1234" ? profile(7, "alex") : profile(9, "bram")
+    );
+    mocks.dmPermission.mockReturnValue({ data: { permission: "may_request" } });
+    mocks.createConversation.mockRejectedValue(new Error("network"));
+
+    const Page = await messagesPage();
+    const { router } = renderPage(Page, {
+      initialRoute: "/messages",
+      routerSearch: { with: "alex1234" },
+    });
+    expect(await screen.findByRole("button", { name: /try again/i })).toBeVisible();
+
+    // Bram has no channel at all, so nothing was ever tried for him.
+    await router.navigate({ to: "/messages", search: { with: "bram1234" } });
+
+    expect(await screen.findByRole("button", { name: /ask to message/i })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+
   it("sends through the ratchet rather than posting a body", async () => {
     mocks.conversations.mockResolvedValue({
       conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
