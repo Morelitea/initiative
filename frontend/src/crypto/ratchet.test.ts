@@ -16,7 +16,9 @@ vi.mock("./store", () => ({
   pickleKey: async () => btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
 }));
 
-import { ratchet } from "./client";
+// The engine, not the client: the client only speaks to a worker, and what is
+// under test here is the ratchet rather than the transport that reaches it.
+import * as ratchet from "./engine";
 
 describe("the double ratchet", () => {
   it("carries a message between two accounts that never exchanged a secret", async () => {

@@ -1,34 +1,20 @@
 /**
  * The ratchet, as the rest of the app calls it.
  *
- * Every call crosses into a dedicated worker so key material never enters the
- * main thread's heap — including the pickle key, which the worker reads from
- * the store itself rather than being handed. Where there is no `Worker` — Node, and therefore the test
- * suite — the same functions are called directly; that is a test-environment
- * fallback and not a browser code path, so the property holds everywhere it is
- * a property.
+ * Every call crosses into a dedicated worker, and there is deliberately no path
+ * that does not. Key material — including the pickle key, which the worker
+ * reads from the store on its own side — therefore never enters the main
+ * thread's realm.
+ *
+ * An earlier version fell back to calling the engine directly where `Worker`
+ * was undefined. That is removed: a fallback is a second code path, and this
+ * one would have held the key in exactly the realm the worker exists to keep it
+ * out of. Somewhere without workers cannot have encrypted messages, and says so.
+ *
+ * Tests that exercise the ratchet itself import `./engine` directly.
  */
 
-import {
-  createAccount,
-  createInboundSession,
-  createOutboundSession,
-  decrypt,
-  encrypt,
-  generateKeys,
-} from "./engine";
 import type { RatchetMethod } from "./worker";
-
-/** The same table the worker dispatches on, for the no-Worker fallback. */
-const direct = {
-  createAccount,
-  generateKeys,
-  createOutboundSession,
-  createInboundSession,
-  encrypt,
-  decrypt,
-} as const;
-
 import type {
   AccountCreated,
   Decrypted,
@@ -47,8 +33,20 @@ let worker: Worker | null = null;
 let nextId = 1;
 const pending = new Map<number, Pending>();
 
-function ensureWorker(): Worker | null {
-  if (typeof Worker === "undefined") return null;
+class RatchetUnavailableError extends Error {
+  constructor() {
+    super("encrypted messages need a browser that supports web workers");
+    this.name = "RatchetUnavailableError";
+  }
+}
+
+/** Whether this runtime can hold a ratchet at all. */
+export function ratchetSupported(): boolean {
+  return typeof Worker !== "undefined";
+}
+
+function ensureWorker(): Worker {
+  if (typeof Worker === "undefined") throw new RatchetUnavailableError();
   if (worker === null) {
     worker = new Worker(new URL("./worker.ts", import.meta.url), {
       type: "module",
@@ -65,10 +63,11 @@ function ensureWorker(): Worker | null {
 }
 
 function call<T>(method: RatchetMethod, ...args: unknown[]): Promise<T> {
-  const instance = ensureWorker();
-  if (instance === null) {
-    const fn = direct[method] as (...a: unknown[]) => Promise<T>;
-    return fn(...args);
+  let instance: Worker;
+  try {
+    instance = ensureWorker();
+  } catch (error) {
+    return Promise.reject(error);
   }
   const id = nextId++;
   return new Promise<T>((resolve, reject) => {
