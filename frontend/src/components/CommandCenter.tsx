@@ -172,16 +172,22 @@ export function CommandCenter() {
   // communities while the index is per-community, so they are read from the
   // roster — the same split the results page makes.
   const scopeTypes = categoryEntityTypes(scope);
+  const isMemberScope = scopeTypes === null;
   const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
-    enabled: open && !!user && isSearching && scopeTypes !== null,
+    enabled: open && !!user && isSearching && !isMemberScope,
     types: scopeTypes ?? undefined,
     staleTime: 30_000,
   });
   const membersQuery = useUserSearch({
     search: effectiveSearch,
     pageSize: PALETTE_MEMBER_LIMIT,
-    enabled: open && !!user && isSearching && scopeTypes === null,
+    enabled: open && !!user && isSearching && isMemberScope,
   });
+  // Whichever of the two the reader is on — the other is switched off, and a
+  // switched-off question keeps the answer it was last given, which belongs to
+  // the tab before this one. Only the scope being read may put rows on screen
+  // or say there are none.
+  const scopeQuery = isMemberScope ? membersQuery : suggestQuery;
   // Browsing (palette just opened): the user's own not-done tasks, most
   // recently updated — surfacing what they're actively working on. Fired once
   // on open, so the full list row is fine.
@@ -222,13 +228,25 @@ export function CommandCenter() {
   // one that isn't offered.
   const suggestions = useMemo(
     () =>
-      (suggestQuery.data ?? [])
-        .map((hit) => ({ hit, path: searchHitPath(hit) }))
-        .filter((row): row is { hit: SearchSuggestion; path: string } => row.path !== null),
-    [suggestQuery.data]
+      isMemberScope
+        ? []
+        : (suggestQuery.data ?? [])
+            .map((hit) => ({ hit, path: searchHitPath(hit) }))
+            .filter((row): row is { hit: SearchSuggestion; path: string } => row.path !== null),
+    [suggestQuery.data, isMemberScope]
   );
 
-  const members = membersQuery.data?.items ?? [];
+  const members = isMemberScope ? (membersQuery.data?.items ?? []) : [];
+  // Nothing is here, and that is this scope's own answer rather than a gap
+  // before it arrives: a tab that found nobody says so instead of leaving the
+  // rows before it standing. A question that never got an answer is a third
+  // thing again — "nobody matched" would be a claim about a community nothing
+  // has been read from.
+  const scopeIsEmpty =
+    members.length === 0 &&
+    suggestions.length === 0 &&
+    scopeQuery.isSuccess &&
+    !scopeQuery.isPlaceholderData;
 
   const isGuildAdmin = activeGuild?.role === "admin";
   const showPlatformSettings = canManagePlatformConfig(user);
@@ -376,6 +394,11 @@ export function CommandCenter() {
                 </CommandItem>
               );
             })}
+            {(scopeQuery.isError || scopeIsEmpty) && (
+              <div className="py-3 text-center text-muted-foreground text-sm">
+                {scopeQuery.isError ? t("search:failed.title") : t("noResults")}
+              </div>
+            )}
             {activeGuildId !== null && (
               <CommandItem
                 value="result-see-all"

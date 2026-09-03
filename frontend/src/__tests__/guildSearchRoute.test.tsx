@@ -58,6 +58,7 @@ const withHits = (tools: SearchHit[], tags: SearchHit[], comments: SearchHit[] =
       }),
       isLoading: false,
       isFetched: true,
+      isSuccess: true,
     };
   });
 };
@@ -135,11 +136,12 @@ const tag = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.suggest.mockReturnValue({ data: [], isLoading: false });
+  mocks.suggest.mockReturnValue({ data: [], isLoading: false, isFetched: true, isSuccess: true });
   mocks.members.mockReturnValue({
     data: { items: [], total_count: 0, page: 1, page_size: 20, has_next: false, has_prev: false },
     isLoading: false,
     isFetched: true,
+    isSuccess: true,
   });
   withHits([], []);
 });
@@ -286,6 +288,7 @@ describe("the guild search page", () => {
       },
       isLoading: false,
       isFetched: true,
+      isSuccess: true,
     });
     await renderSearch({ q: "irnforge", tab: "member" });
 
@@ -316,7 +319,7 @@ describe("the guild search page", () => {
 
 describe("the command palette", () => {
   it("carries the same three slices, and narrows to the one it is on", async () => {
-    mocks.suggest.mockReturnValue({ data: [], isLoading: false });
+    mocks.suggest.mockReturnValue({ data: [], isLoading: false, isFetched: true, isSuccess: true });
     renderPage(CommandCenter, {
       initialRoute: "/g/$guildId",
       routeParams: { guildId: "1" },
@@ -400,6 +403,78 @@ describe("the command palette", () => {
     expect(pageRouter.state.location.searchStr).toContain("q=riverside");
   });
 
+  it("shows only the slice being read, and says when it holds nothing", async () => {
+    // Members come from the roster and everything else from the index, so each
+    // slice switches the other question off — and a switched-off question keeps
+    // the answer it was last given. Only the slice being read may put rows on
+    // screen, and a slice that matched nobody says so.
+    mocks.suggest.mockReturnValue({
+      data: [
+        buildSearchSuggestion({
+          entity_type: "comment",
+          entity_id: 31,
+          title: "the riverside stage is booked",
+          tool: Tool.project,
+          tool_id: 7,
+        }),
+      ],
+      isLoading: false,
+      isFetched: true,
+      isSuccess: true,
+    });
+
+    renderPage(CommandCenter, {
+      initialRoute: "/g/$guildId",
+      routeParams: { guildId: "1" },
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+    await userEvent.type(await screen.findByRole("combobox"), "riverside");
+
+    expect(
+      await screen.findByText("the riverside stage is booked", undefined, { timeout: 2000 })
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute("aria-selected", "true")
+    );
+
+    expect(screen.queryByText("the riverside stage is booked")).not.toBeInTheDocument();
+    expect(screen.getByText("No results found.")).toBeInTheDocument();
+  });
+
+  it("does not report a search that failed as nobody matching", async () => {
+    // A request that never landed says nothing about who is in the community.
+    mocks.members.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetched: true,
+      isSuccess: false,
+      isError: true,
+    });
+
+    renderPage(CommandCenter, {
+      initialRoute: "/g/$guildId",
+      routeParams: { guildId: "1" },
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+    await userEvent.type(await screen.findByRole("combobox"), "riverside");
+    await screen.findByRole("tab", { name: "Members" }, { timeout: 2000 });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Tab" });
+
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Members" })).toHaveAttribute("aria-selected", "true")
+    );
+    expect(screen.getByText("Search is not answering")).toBeInTheDocument();
+    expect(screen.queryByText("No results found.")).not.toBeInTheDocument();
+  });
+
   it("finds a person from the palette and opens their profile", async () => {
     // Profiles are public and belong to the person, so this leaves the
     // community tree rather than routing under /c/{guild}.
@@ -423,8 +498,9 @@ describe("the command palette", () => {
       },
       isLoading: false,
       isFetched: true,
+      isSuccess: true,
     });
-    mocks.suggest.mockReturnValue({ data: [] });
+    mocks.suggest.mockReturnValue({ data: [], isFetched: true, isSuccess: true });
 
     renderPage(CommandCenter, {
       initialRoute: "/g/$guildId",
