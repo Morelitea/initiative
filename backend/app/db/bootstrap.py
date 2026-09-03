@@ -30,10 +30,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from urllib.parse import unquote, urlparse
 
-from sqlalchemy import text
+from sqlalchemy import make_url, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -42,10 +43,22 @@ from app.db.system_grants import GRANTABLE_SHARED_TABLES
 
 logger = logging.getLogger(__name__)
 
-#: Serializes the bootstrap across processes. Role DDL is cluster-global, so
-#: replicas starting together would otherwise race on the same catalog. Held
-#: for the bootstrap transaction and released with it.
+#: Serializes the bootstrap across processes. Role DDL writes shared catalogs,
+#: so two starts at once can collide there.
+#:
+#: An advisory lock's key space is per-database, which is enough for replicas of
+#: one deployment (they share a database) but not for two deployments on one
+#: cluster. So the lock is taken on the cluster's maintenance database when that
+#: is reachable, and on the app's own database otherwise — the latter still
+#: covers the replica case, which is the one a deployment creates for itself.
+#:
+#: Two deployments sharing a cluster should not share login-role names; the
+#: names come from the connection URLs precisely so they need not.
 _BOOTSTRAP_LOCK_KEY = 0x1417B007
+
+#: Tried in order for the cluster-wide lock. Both are conventionally present;
+#: a provider that exposes neither falls back to the per-database lock.
+_MAINTENANCE_DATABASES = ("postgres", "template1")
 
 #: The canonical login names, used when a URL does not name one. Each is paired
 #: with the setting whose URL supplies its name and password.
@@ -291,12 +304,15 @@ SELECT format('function %s', p.oid::regprocedure),
                OR (n3.nspname = 'public'
                    AND c3.relname IN (SELECT name FROM app_tables)))
        UNION ALL
-       SELECT 1 FROM pg_policy pol
+       -- The catalog records what a policy actually calls, so this is an
+       -- exact dependency rather than a match on the rendered expression.
+       SELECT 1 FROM pg_depend dep
+         JOIN pg_policy pol ON pol.oid = dep.objid
          JOIN pg_class c4 ON c4.oid = pol.polrelid
          JOIN pg_namespace n4 ON n4.oid = c4.relnamespace
-        WHERE (pg_get_expr(pol.polqual, pol.polrelid) LIKE '%' || p.proname || '%'
-               OR pg_get_expr(pol.polwithcheck, pol.polrelid)
-                  LIKE '%' || p.proname || '%')
+        WHERE dep.classid = 'pg_policy'::regclass
+          AND dep.refclassid = 'pg_proc'::regclass
+          AND dep.refobjid = p.oid
           AND (n4.nspname ~ '^guild_([0-9]+|template)$'
                OR (n4.nspname = 'public'
                    AND c4.relname IN (SELECT name FROM app_tables))))
@@ -490,6 +506,40 @@ async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
     await conn.execute(text(_DEFAULT_PRIVILEGES))
 
 
+@asynccontextmanager
+async def _bootstrap_lock(url: str):
+    """Hold the bootstrap lock for the block.
+
+    Prefers a session lock on the cluster's maintenance database, so two
+    deployments on one cluster serialize too. Falls back to the caller's own
+    database, where the lock is still taken per transaction by the caller.
+    """
+    base = make_url(url)
+    for database in _MAINTENANCE_DATABASES:
+        engine = create_async_engine(
+            base.set(database=database), poolclass=NullPool, echo=False
+        )
+        try:
+            conn = await engine.connect()
+        except Exception:
+            await engine.dispose()
+            continue
+        try:
+            await conn.execute(
+                text("SELECT pg_advisory_lock(:key)"), {"key": _BOOTSTRAP_LOCK_KEY}
+            )
+            yield
+            return
+        finally:
+            await conn.close()
+            await engine.dispose()
+    logger.debug(
+        "database bootstrap: no maintenance database reachable for the "
+        "cluster-wide lock; serializing on the app database only"
+    )
+    yield
+
+
 async def _transfer_ownership(conn) -> None:
     """Hand the app's own objects to the provisioning role.
 
@@ -647,7 +697,7 @@ async def ensure_database_bootstrap(
     roles = login_roles()
     engine = create_async_engine(url, poolclass=NullPool, echo=False)
     try:
-        async with engine.begin() as conn:
+        async with _bootstrap_lock(url), engine.begin() as conn:
             await conn.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"),
                 {"key": _BOOTSTRAP_LOCK_KEY},
