@@ -1,52 +1,26 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { MentionEntityType, MentionSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getCaretCoordinates } from "@/lib/caretCoordinates";
+import type { ActiveMention } from "@/lib/mentions";
+import { activeMention, entityMentionSyntax, userMentionSyntax } from "@/lib/mentions";
 
+import type { MentionChoice } from "./MentionPopover";
 import { MentionPopover } from "./MentionPopover";
 
 // Matches the popover width (w-64) so it can be clamped inside the field.
 const POPOVER_WIDTH = 256;
 
-interface MentionTrigger {
-  type: MentionEntityType;
-  triggerText: string;
-  query: string;
-  startIndex: number;
-}
+/** A mention being typed, and where in the field it starts. */
+type MentionTrigger = ActiveMention & { startIndex: number };
 
-// Detect mention triggers in text
+/** The mention the caret is sitting in, if any. */
 function detectMentionTrigger(text: string, cursorPosition: number): MentionTrigger | null {
-  // Get text before cursor
-  const textBeforeCursor = text.slice(0, cursorPosition);
-
-  // Check for triggers (in order of specificity)
-  const triggers = [
-    { pattern: /#project:(\w*)$/, type: "project" as const },
-    { pattern: /#task:(\w*)$/, type: "task" as const },
-    { pattern: /#doc:(\w*)$/, type: "doc" as const },
-    { pattern: /@(\w*)$/, type: "user" as const },
-  ];
-
-  for (const { pattern, type } of triggers) {
-    const match = textBeforeCursor.match(pattern);
-    if (match) {
-      const query = match[1] || "";
-      const startIndex = cursorPosition - match[0].length;
-
-      return {
-        type,
-        triggerText: match[0],
-        query,
-        startIndex,
-      };
-    }
-  }
-
-  return null;
+  const active = activeMention(text.slice(0, cursorPosition));
+  if (!active) return null;
+  return { ...active, startIndex: cursorPosition - active.length };
 }
 
 interface CommentInputProps {
@@ -61,10 +35,16 @@ interface CommentInputProps {
   onClearError?: () => void;
   autoFocus?: boolean;
   compact?: boolean;
+  /** Asked to make something `[[ ]]` could not find, by the name typed. The
+   *  composer does not create: it says what was asked for. */
+  onCreateRequest?: (name: string) => void;
   /** When set, a Cancel button sits beside Submit and Escape dismisses. */
   onCancel?: () => void;
   cancelLabel?: string;
 }
+
+/** How long the mention popover survives a blur, so a click on it lands. */
+const MENTION_BLUR_GRACE_MS = 200;
 
 export const CommentInput = ({
   value,
@@ -78,14 +58,20 @@ export const CommentInput = ({
   onClearError,
   autoFocus = false,
   compact = false,
+  onCreateRequest,
   onCancel,
   cancelLabel,
 }: CommentInputProps) => {
-  const { t } = useTranslation(["documents", "common"]);
-  const resolvedPlaceholder = placeholder ?? t("comments.placeholder");
-  const resolvedSubmitLabel = submitLabel ?? t("comments.postComment");
+  const { t } = useTranslation(["comments", "common"]);
+  const resolvedPlaceholder = placeholder ?? t("placeholder");
+  const resolvedSubmitLabel = submitLabel ?? t("postComment");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
+  const blurTimer = useRef<number>(undefined);
+
+  // A blur on the way out leaves a timer behind that would close a popover
+  // belonging to a component that no longer exists.
+  useEffect(() => () => window.clearTimeout(blurTimer.current), []);
   // Pixel anchor (relative to the field) for the popover, at the trigger char.
   const [mentionAnchor, setMentionAnchor] = useState<{ top: number; left: number } | null>(null);
 
@@ -129,33 +115,28 @@ export const CommentInput = ({
 
   // Handle mention selection
   const handleMentionSelect = useCallback(
-    (suggestion: MentionSuggestion) => {
+    (choice: MentionChoice) => {
       if (!mentionTrigger || !textareaRef.current) return;
 
-      // Build the mention syntax with embedded display text
-      // Format: @[Display Name](id) or #type[Display Text](id)
-      let mentionSyntax = "";
-      const displayText = suggestion.display_text.replace(/[[\]()]/g, ""); // Sanitize brackets
-      switch (suggestion.type) {
-        case "user":
-          mentionSyntax = `@[${displayText}](${suggestion.id})`;
-          break;
-        case "task":
-          mentionSyntax = `#task[${displayText}](${suggestion.id})`;
-          break;
-        case "doc":
-          mentionSyntax = `#doc[${displayText}](${suggestion.id})`;
-          break;
-        case "project":
-          mentionSyntax = `#project[${displayText}](${suggestion.id})`;
-          break;
+      // Making something is a different act from naming one, and it is the
+      // caller's to do — it needs a dialog, and the composer has no business
+      // opening one.
+      if (!choice.user && "create" in choice) {
+        onCreateRequest?.(choice.create);
+        setMentionTrigger(null);
+        return;
       }
+
+      // The label is written into the text, so the characters the syntax is
+      // built from cannot appear inside it.
+      const label = (choice.user ? choice.label : choice.suggestion.title).replace(/[[\]()]/g, "");
+      const mentionSyntax = choice.user
+        ? userMentionSyntax(label, choice.id)
+        : entityMentionSyntax(choice.suggestion.entity_type, label, choice.suggestion.entity_id);
 
       // Replace the trigger text with the mention syntax
       const beforeTrigger = value.slice(0, mentionTrigger.startIndex);
-      const afterTrigger = value.slice(
-        mentionTrigger.startIndex + mentionTrigger.triggerText.length
-      );
+      const afterTrigger = value.slice(mentionTrigger.startIndex + mentionTrigger.length);
       const newValue = beforeTrigger + mentionSyntax + " " + afterTrigger;
 
       onChange(newValue);
@@ -168,7 +149,7 @@ export const CommentInput = ({
         textareaRef.current?.setSelectionRange(newCursorPosition, newCursorPosition);
       }, 0);
     },
-    [mentionTrigger, value, onChange]
+    [mentionTrigger, value, onChange, onCreateRequest]
   );
 
   // Close popover
@@ -223,10 +204,13 @@ export const CommentInput = ({
             }
           }}
           onBlur={() => {
-            // Delay closing to allow click on popover
-            setTimeout(() => {
+            // Held open a moment so a click on the popover lands before the
+            // blur closes it — and the handle is kept so an unmount can cancel
+            // it. Left to run, it sets state on a component that is gone.
+            window.clearTimeout(blurTimer.current);
+            blurTimer.current = window.setTimeout(() => {
               setMentionTrigger(null);
-            }, 200);
+            }, MENTION_BLUR_GRACE_MS);
           }}
           placeholder={resolvedPlaceholder}
           rows={compact ? 2 : 4}
@@ -236,8 +220,7 @@ export const CommentInput = ({
 
         {mentionTrigger && (
           <MentionPopover
-            type={mentionTrigger.type}
-            query={mentionTrigger.query}
+            active={mentionTrigger}
             initiativeId={initiativeId}
             anchor={mentionAnchor}
             onSelect={handleMentionSelect}
@@ -265,7 +248,7 @@ export const CommentInput = ({
           disabled={isSubmitting || value.trim().length === 0}
           size={compact ? "sm" : "default"}
         >
-          {isSubmitting ? t("comments.posting") : resolvedSubmitLabel}
+          {isSubmitting ? t("posting") : resolvedSubmitLabel}
         </Button>
       </div>
     </form>

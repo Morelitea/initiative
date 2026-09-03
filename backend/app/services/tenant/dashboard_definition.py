@@ -279,9 +279,13 @@ APP_WIDGET_SPEC = WidgetSpec(
 
 #: What one app binding may carry, mirroring the manifest's per-source cap.
 MAX_APP_BINDING_PARAMS = 12
-#: A parameter value is a scalar the endpoint declared a type for. Checked again
-#: against that type at fetch time; bounded here so a definition stays small.
+#: A parameter value is a scalar the endpoint declared a type for, or several
+#: of them where it declared ``list``. Checked again against that type at fetch
+#: time; bounded here so a definition stays small.
 MAX_APP_PARAM_LENGTH = 2_000
+#: How many values one parameter may carry. A parameter declaring ``list`` is
+#: still one answer on a form, so this bounds a definition rather than a query.
+MAX_APP_PARAM_VALUES = 64
 
 
 def _check_identifier(value: Any) -> str:
@@ -372,12 +376,28 @@ def _normalize_app_binding(binding: dict[str, Any], listing_uid: str) -> dict[st
 
 
 def _check_app_param(value: Any) -> Any:
-    """One parameter value, kept as the scalar it is.
+    """One parameter value: a scalar, or several of them.
 
     Deliberately not coerced: the source's own ``params_schema`` declares the
     type, and turning a ``true`` into a ``1`` here would quietly satisfy a check
     the fetch path is supposed to refuse.
+
+    An array is a stored value like any other because an endpoint may declare a
+    parameter ``list`` — several labels, several assignees — and a binding that
+    could hold only one of them could not express what such a parameter is for.
+    Which parameters those are is the app's declaration and is checked where it
+    is enforced, at fetch time; what is checked here is only the shape and the
+    bound, which is all a definition can know about somebody else's manifest.
     """
+    if isinstance(value, list):
+        if len(value) > MAX_APP_PARAM_VALUES:
+            _fail(DashboardMessages.BINDING_INVALID)
+        return [_check_app_scalar(entry) for entry in value]
+    return _check_app_scalar(value)
+
+
+def _check_app_scalar(value: Any) -> Any:
+    """One value inside a parameter, of the types a manifest may declare."""
     if isinstance(value, bool) or isinstance(value, int):
         return value
     if isinstance(value, str) and len(value) <= MAX_APP_PARAM_LENGTH:

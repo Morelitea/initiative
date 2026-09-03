@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 
 
-from sqlalchemy import func, update
+from sqlalchemy import ColumnElement, String, and_, cast, func, or_, update
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -13,6 +13,7 @@ from app.core import usernames
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.db.session import set_rls_context
 from app.models.platform.user import User, UserRole, UserStatus
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.services.auth import identity as identity_service
 from app.services.platform import user_avatars as user_avatars_service
@@ -236,13 +237,13 @@ async def check_deletion_eligibility(
         for guild_name in last_admin_guilds:
             if admin_context:
                 blockers.append(
-                    f"User is the last admin of guild '{guild_name}'. "
-                    f"Another user must be promoted to admin or the guild must be deleted first."
+                    f"User is the last admin of community '{guild_name}'. "
+                    f"Another user must be promoted to admin or the community must be deleted first."
                 )
             else:
                 blockers.append(
-                    f"You are the last admin of guild '{guild_name}'. "
-                    f"Promote another user to admin or delete the guild before deleting your account."
+                    f"You are the last admin of community '{guild_name}'. "
+                    f"Promote another user to admin or delete the community before deleting your account."
                 )
 
     can_delete = len(blockers) == 0
@@ -485,11 +486,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     user.email_project_added = True
     user.email_overdue_tasks = True
     user.email_mentions = True
+    user.email_comment_reactions = True
     user.push_initiative_addition = True
     user.push_task_assignment = True
     user.push_project_added = True
     user.push_overdue_tasks = True
     user.push_mentions = True
+    user.push_comment_reactions = True
 
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
@@ -780,7 +783,80 @@ async def hard_delete_user(
     await session.commit()
 
 
-def visible_to_other_people():
+# The member-lookup helpers below bind to ``MemberProfile`` — the guild
+# projection — because every surface that looks a person up is inside a guild,
+# and a guild-routed session does not read ``public.users``.
+
+
+#: How close a typed name has to be to a member's to be worth offering.
+#: Separate from the content-search threshold on purpose: a name is a short
+#: string and a title is a sentence, so the two are tuned against different
+#: things even where the number happens to agree.
+MEMBER_MATCH_THRESHOLD = 0.4
+
+
+def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
+    """How close a member's name is to what was typed, as a rankable number.
+
+    Measured against the closest RUN of the name rather than the whole of it,
+    so a surname matches a member listed by both names. Answers the misspelling
+    that substring matching cannot — and its real work is the ORDER, putting the
+    nearest name at the top of a page rather than whoever sorts first.
+
+    ``shows_names`` is the guild's own setting, so a real name is matched
+    exactly where it is shown and nowhere else.
+    """
+    closest = func.word_similarity(term, MemberProfile.username)
+    if shows_names:
+        closest = func.greatest(
+            closest,
+            func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
+        )
+    return closest
+
+
+def member_match(
+    term: str, *, shows_names: bool
+) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
+    """How a typed name selects members, and what to order the answer by.
+
+    One implementation for every surface that looks people up — the guild
+    roster, an initiative's, a project's, the picker behind an @mention. The
+    handle always; the real name alongside it where the guild shows names; a
+    whole ``foobar#1234`` pinning the one person who owns it; and a name typed
+    nearly right still finding them.
+
+    Returns the predicate, and the closeness to order by — ``None`` when a
+    whole handle was typed, which names one person and has nothing to rank.
+    """
+    name_part, number = usernames.parse_handle(term)
+    if number is not None:
+        return (
+            and_(
+                func.lower(MemberProfile.username) == name_part.lower(),
+                func.lpad(cast(MemberProfile.discriminator, String), 4, "0").like(
+                    f"{number}%"
+                ),
+            ),
+            None,
+        )
+    matches = MemberProfile.username.ilike(f"%{name_part}%")
+    if shows_names:
+        matches = or_(matches, MemberProfile.full_name.ilike(f"%{name_part}%"))
+    closest = name_closeness(name_part, shows_names=shows_names)
+    return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
+
+
+def member_order(
+    closest: ColumnElement[float] | None, *, shows_names: bool
+) -> tuple[ColumnElement, ...]:
+    """Nearest first while searching, alphabetical while reading a roster."""
+    if closest is not None:
+        return (closest.desc(),)
+    return (MemberProfile.full_name.asc(),) if shows_names else ()
+
+
+def visible_to_other_people(status_column=None):
     """Rows that may appear where a person is listed as someone to work with.
 
     A suspended account is not one: it vanishes from rosters, pickers, search,
@@ -790,6 +866,10 @@ def visible_to_other_people():
     account from nothing.
 
     A clause rather than a filtered query, so each surface keeps its own
-    joins and its own gates and only borrows the predicate.
+    joins and its own gates and only borrows the predicate. It reads the guild
+    projection by default, which is what every surface that lists people reads;
+    pass ``status_column`` to apply it to ``public.users`` or to the
+    ``user_profiles`` view, which carry the same column and the same rule.
     """
-    return User.status != UserStatus.suspended
+    column = MemberProfile.status if status_column is None else status_column
+    return column != UserStatus.suspended

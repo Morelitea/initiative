@@ -20,7 +20,7 @@ from app.models.tenant.tag import DocumentTag
 from app.schemas.tenant.import_envelopes import DocumentEnvelope
 from app.services.import_engine.common import (
     ensure_tag,
-    load_initiative_member_emails,
+    load_initiative_member_handles,
     unique_name,
 )
 from app.services.import_engine.contract import (
@@ -118,14 +118,14 @@ class DocumentImporter:
                 tags_matched += 1
             session.add(DocumentTag(document_id=document.id, tag_id=resolved.id))
 
-        member_emails = await load_initiative_member_emails(
+        member_handles = await load_initiative_member_handles(
             session, initiative_id=target_initiative.id
         )
         attached = await resolve_property_values(
             session,
             initiative_id=target_initiative.id,
             values=env.properties,
-            member_emails=member_emails,
+            member_handles=member_handles,
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(

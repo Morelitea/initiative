@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Beach</title>
+  <!-- A net at head height with the ball above it, both centred: the crop can
+       take the posts and the picture still says volleyball. -->
+  <style>
+    .hang { animation: sag 5s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 0 }
+    @keyframes sag { from { transform: translateY(0) } to { transform: translateY(.4px) } }
+    /* Over the net and back, with the arc a set has. */
+    .volley { animation: rally 5.6s linear infinite }
+    @keyframes rally {
+      0%   { transform: translate(-26px,10px) }
+      12%  { transform: translate(-18px,1px) }
+      25%  { transform: translate(-8px,-4px) }
+      37%  { transform: translate(6px,-4px) }
+      50%  { transform: translate(26px,10px) }
+      62%  { transform: translate(18px,1px) }
+      75%  { transform: translate(8px,-4px) }
+      87%  { transform: translate(-6px,-4px) }
+      100% { transform: translate(-26px,10px) }
+    }
+    .drop { animation: shade 5.6s linear infinite }
+    @keyframes shade {
+      0%   { transform: translateX(-26px); opacity: .38 }
+      25%  { transform: translateX(-8px);  opacity: .18 }
+      50%  { transform: translateX(26px);  opacity: .38 }
+      75%  { transform: translateX(8px);   opacity: .18 }
+      100% { transform: translateX(-26px); opacity: .38 }
+    }
+    .turnball { animation: turning 3.4s linear infinite;
+                transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes turning { to { transform: rotate(360deg) } }
+    .lap { animation: wash 9s ease-in-out infinite alternate }
+    @keyframes wash { from { transform: translateX(-2px) } to { transform: translateX(2px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .hang, .lap, .volley, .drop, .turnball { animation: none }
+    }
+  </style>
+  <defs>
+    <linearGradient id="bsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2C6E9E"/>
+      <stop offset="55%" stop-color="#7FB6CE"/>
+      <stop offset="100%" stop-color="#F3C98E"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E6C7E"/><stop offset="100%" stop-color="#2F92A0"/>
+    </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4C58F"/><stop offset="100%" stop-color="#C79E62"/>
+    </linearGradient>
+    <radialGradient id="vball" cx=".35" cy=".3" r=".85">
+      <stop offset="0%" stop-color="#FFFFFF"/><stop offset="70%" stop-color="#F0F3F6"/>
+      <stop offset="100%" stop-color="#C6CFD8"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#bsky)"/>
+  <circle cx="26" cy="7" r="4.6" fill="#FFF0CC" opacity=".8"/>
+  <circle cx="26" cy="7" r="9" fill="#FFF0CC" opacity=".18"/>
+  <g fill="#FFFFFF" opacity=".35">
+    <path d="M96 5.6 C100 3.6 106 3.8 108.6 5.6 C112 5 115 6.2 115.4 7.8 L94 7.8
+             C92.6 6.8 94 5.8 96 5.6 Z"/>
+    <path d="M132 9.4 C135 8 139 8.2 141 9.4 C143.4 9 145.6 9.8 146 11 L130.6 11
+             C129.6 10.4 130.6 9.6 132 9.4 Z"/>
+  </g>
+  <!-- Sea, and where it reaches. -->
+  <path d="M0 16.4 L160 16.4 L160 20.6 L0 20.6 Z" fill="url(#sea)"/>
+  <g class="lap" stroke="#FFFFFF" stroke-width=".4" fill="none" opacity=".55">
+    <path d="M-4 18 C14 17.4 30 18.4 48 17.8"/>
+    <path d="M62 19.2 C80 18.6 96 19.6 114 19"/>
+    <path d="M120 17.6 C134 17.2 150 18 164 17.4"/>
+  </g>
+  <path d="M0 20.6 C24 19.8 44 21.2 66 20.8 C90 20.4 112 21.6 134 20.9 C146 20.5 154 21 160 20.7
+           L160 40 L0 40 Z" fill="url(#sand)"/>
+  <path class="lap" d="M0 21.2 C24 20.4 44 21.8 66 21.4 C90 21 112 22.2 134 21.5
+           C146 21.1 154 21.6 160 21.3" fill="none" stroke="#FFFFFF" stroke-width=".5"
+        opacity=".45"/>
+  <g fill="#B98F55" opacity=".45">
+    <ellipse cx="30" cy="30" rx="3.4" ry="1.2"/><ellipse cx="52" cy="34.6" rx="4" ry="1.4"/>
+    <ellipse cx="112" cy="31.4" rx="3.6" ry="1.3"/><ellipse cx="136" cy="35.6" rx="4.2" ry="1.5"/>
+    <ellipse cx="72" cy="36.4" rx="3" ry="1.1"/>
+  </g>
+  <g fill="#A9803F" opacity=".35">
+    <ellipse cx="44" cy="27.6" rx="1.5" ry=".8" transform="rotate(-16 44 27.6)"/>
+    <ellipse cx="47.4" cy="29.4" rx="1.5" ry=".8" transform="rotate(-16 47.4 29.4)"/>
+    <ellipse cx="118" cy="28.4" rx="1.5" ry=".8" transform="rotate(14 118 28.4)"/>
+    <ellipse cx="114.6" cy="30.2" rx="1.5" ry=".8" transform="rotate(14 114.6 30.2)"/>
+  </g>
+  <!-- Court lines, pressed into the sand. -->
+  <g stroke="#F6F2E6" stroke-width=".55" fill="none" opacity=".7">
+    <path d="M18 37.6 L44 22.6 L116 22.6 L142 37.6"/>
+    <path d="M30 30.2 L130 30.2"/>
+  </g>
+  <!-- The net. -->
+  <g>
+    <path d="M43.4 24 L43.4 8.6 L44.8 8.6 L44.8 24 Z" fill="#8A6A44"/>
+    <path d="M115.2 24 L115.2 8.6 L116.6 8.6 L116.6 24 Z" fill="#8A6A44"/>
+    <g class="hang">
+      <path d="M44.4 8.8 L115.6 8.8 L115.6 10.4 L44.4 10.4 Z" fill="#F6F2E6"/>
+      <path d="M44.4 17.8 L115.6 17.8 L115.6 18.8 L44.4 18.8 Z" fill="#F6F2E6" opacity=".85"/>
+      <g stroke="#F1EDE0" stroke-width=".28" opacity=".8">
+        <path d="M48 10.4 L48 17.8"/><path d="M52 10.4 L52 17.8"/><path d="M56 10.4 L56 17.8"/>
+        <path d="M60 10.4 L60 17.8"/><path d="M64 10.4 L64 17.8"/><path d="M68 10.4 L68 17.8"/>
+        <path d="M72 10.4 L72 17.8"/><path d="M76 10.4 L76 17.8"/><path d="M80 10.4 L80 17.8"/>
+        <path d="M84 10.4 L84 17.8"/><path d="M88 10.4 L88 17.8"/><path d="M92 10.4 L92 17.8"/>
+        <path d="M96 10.4 L96 17.8"/><path d="M100 10.4 L100 17.8"/><path d="M104 10.4 L104 17.8"/>
+        <path d="M108 10.4 L108 17.8"/><path d="M112 10.4 L112 17.8"/>
+        <path d="M44.4 12 L115.6 12"/><path d="M44.4 14 L115.6 14"/><path d="M44.4 16 L115.6 16"/>
+      </g>
+    </g>
+  </g>
+  <!-- The ball, up and coming down. -->
+  <ellipse class="drop" cx="80" cy="27.2" rx="3.6" ry="1.1" fill="#A9803F"/>
+  <g class="volley">
+    <g class="turnball" transform="translate(80 5.4)">
+    <circle cx="0" cy="0" r="4.2" fill="url(#vball)"/>
+    <g fill="none" stroke="#2C6E9E" stroke-width=".7" stroke-linecap="round">
+      <path d="M-4.2 -.6 C-2 -1.4 -.4 -2.6 .6 -4.1"/>
+      <path d="M-3.6 1.6 C-1.4 .8 .4 -.2 1.8 -1.8"/>
+      <path d="M1.5 4 C2.4 2 3.4 .4 4.2 -1"/>
+      <path d="M-1 4.1 C.2 2.4 1.4 1 3.2 .2"/>
+    </g>
+    <circle cx="0" cy="0" r="4.2" fill="none" stroke="#B4BFC9" stroke-width=".4"/>
+    <path d="M-3 -2.4 C-2.2 -3.2 -1.2 -3.7 -.2 -3.9" fill="none" stroke="#FFFFFF"
+          stroke-width=".8" opacity=".7" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

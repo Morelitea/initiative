@@ -1,5 +1,6 @@
 export {
   buildComment,
+  buildReactionGroup,
   buildRecentActivityEntry,
   resetCounter as resetCommentCounter,
 } from "./comment.factory";
@@ -59,6 +60,12 @@ export {
   buildRecentQueueItem,
   resetRecentCounter,
 } from "./recent.factory";
+export {
+  buildSearchHit,
+  buildSearchResults,
+  buildSearchSuggestion,
+  resetCounter as resetSearchCounter,
+} from "./search.factory";
 export { buildTag, buildTagSummary, resetCounter as resetTagCounter } from "./tag.factory";
 export {
   buildTask,
@@ -67,8 +74,10 @@ export {
   resetCounter as resetTaskCounter,
 } from "./task.factory";
 export {
+  buildOwnedDecoration,
   buildUser,
   buildUserGuildMember,
+  buildUserProfile,
   buildUserPublic,
   buildUserSummary,
   resetCounter as resetUserCounter,
@@ -85,6 +94,7 @@ import { resetCounter as resetProjectCounter } from "./project.factory";
 import { resetCounter as resetPropertyCounter } from "./properties";
 import { resetCounter as resetQueueCounter } from "./queue.factory";
 import { resetRecentCounter } from "./recent.factory";
+import { resetCounter as resetSearchCounter } from "./search.factory";
 import { resetCounter as resetTagCounter } from "./tag.factory";
 import { resetCounter as resetTaskCounter } from "./task.factory";
 import { resetCounter as resetUserCounter } from "./user.factory";
@@ -108,4 +118,5 @@ export function resetFactories(): void {
   resetRecentCounter();
   resetMarketplaceCounter();
   resetFilterPresetCounter();
+  resetSearchCounter();
 }

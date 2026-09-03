@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Magnet</title>
+  <!-- Poles up, and the field going the way it goes: out of the red, round,
+       and into the blue. -->
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2=".3">
+      <stop offset="0%" stop-color="#C4CAD2"/><stop offset="42%" stop-color="#8A9098"/>
+      <stop offset="100%" stop-color="#5E646C"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+
+  <!-- The field, arcing pole to pole. -->
+  <g stroke="#7FD4FF" fill="none" stroke-linecap="round">
+    <path d="M16 19 C16 12.4 32 12.4 32 19" stroke-width="1.15" opacity=".75"/>
+    <path d="M16 19 C13.4 8.4 34.6 8.4 32 19" stroke-width="1" opacity=".5"/>
+    <path d="M16 19 C10.6 4.6 37.4 4.6 32 19" stroke-width=".85" opacity=".3"/>
+  </g>
+
+  <!-- The horseshoe: legs up, bend at the bottom. -->
+  <path d="M12 19 L12 27 A12 12 0 0 0 36 27 L36 19 L28 19 L28 27 A4 4 0 0 1 20 27 L20 19 Z"
+        fill="url(#steel)"/>
+  <path d="M12 19 L12 27 A12 12 0 0 0 16 35.6 L18.4 30.6 A8 8 0 0 1 16 27 L16 19 Z"
+        fill="#D8DDE4" opacity=".45"/>
+  <path d="M12 19 L12 27 A12 12 0 0 0 36 27 L36 19 L28 19 L28 27 A4 4 0 0 1 20 27 L20 19 Z"
+        fill="none" stroke="#3E444C" stroke-width=".7"/>
+
+  <!-- The poles. -->
+  <path d="M12 13.4 C12 12.6 12.6 12 13.4 12 L18.6 12 C19.4 12 20 12.6 20 13.4
+           L20 19 L12 19 Z" fill="#C0221E"/>
+  <path d="M28 13.4 C28 12.6 28.6 12 29.4 12 L34.6 12 C35.4 12 36 12.6 36 13.4
+           L36 19 L28 19 L28 13.4 Z" fill="#2E6BC8"/>
+  <path d="M12 13.4 C12 12.6 12.6 12 13.4 12 L15 12 L15 19 L12 19 Z" fill="#E05650"
+        opacity=".7"/>
+  <path d="M28 13.4 C28 12.6 28.6 12 29.4 12 L31 12 L31 19 L28 19 Z" fill="#5E9AE8"
+        opacity=".7"/>
+  <g fill="#F2F6FA" opacity=".9">
+    <path d="M14.4 14.4 L17.6 14.4 L17.6 15.4 L14.4 15.4 Z"/>
+    <path d="M30.4 14.4 L33.6 14.4 L33.6 15.4 L30.4 15.4 Z"/>
+    <path d="M31.4 13.4 L32.6 13.4 L32.6 16.4 L31.4 16.4 Z"/>
+  </g>
+</svg>

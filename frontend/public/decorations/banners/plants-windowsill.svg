@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Windowsill</title>
+  <!-- The sill that got away from somebody: everything has outgrown its pot and
+       the trailing one has reached the floor. -->
+  <style>
+    /* A rustle rather than a lean: each plant on its own beat, pivoting where
+       it is actually rooted. */
+    .sway { animation: breathe 3.1s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 100% }
+    .s2 { animation-duration: 2.4s; animation-delay: -1.1s;
+          transform-origin: 50% 0 }
+    .s3 { animation-duration: 3.8s; animation-delay: -2.3s }
+    @keyframes breathe { from { transform: rotate(-3.2deg) scaleY(.994) }
+                         to { transform: rotate(3.2deg) scaleY(1.008) } }
+    .mote { animation: float 15s linear infinite }
+    .m2 { animation-delay: -5s } .m3 { animation-delay: -10s }
+    @keyframes float {
+      0% { transform: translate(0,0); opacity: 0 }
+      25% { opacity: .5 }
+      100% { transform: translate(6px,-14px); opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) { .sway, .mote { animation: none } }
+    /* Each plant on its own timing, so the sill does not sway as one object. */
+    .shake { animation-name: rustle; animation-timing-function: ease-in-out;
+             animation-iteration-count: infinite; animation-direction: alternate;
+             transform-box: fill-box; transform-origin: 50% 100% }
+    @keyframes rustle { from { transform: rotate(-2.4deg) scaleY(.99) }
+                        to { transform: rotate(2.4deg) scaleY(1.01) } }
+    .leanleft { animation: reach 17s ease-in-out infinite alternate;
+                transform-box: view-box; transform-origin: 80px 40px }
+    @keyframes reach { from { transform: skewX(-.7deg) } to { transform: skewX(.7deg) } }
+    .sunbeam { animation: creep 21s ease-in-out infinite alternate }
+    @keyframes creep { from { transform: translateX(-9px); opacity: .3 }
+                       to { transform: translateX(9px); opacity: .58 } }
+    @media (prefers-reduced-motion: reduce) {
+      .leanleft, .sunbeam { animation: none } }
+    .dust { animation: swim 19s linear infinite }
+    .d2 { animation-delay: -6.4s } .d3 { animation-delay: -12.8s }
+    @keyframes swim { 0% { transform: translate(0,0); opacity: 0 }
+                      25% { opacity: .55 }
+                      100% { transform: translate(-7px,-15px); opacity: 0 } }
+    .drip { animation: bead 11s ease-in infinite }
+    @keyframes bead { 0%,62% { transform: translateY(0); opacity: 0 }
+                      66% { opacity: .8 }
+                      86%,100% { transform: translateY(7px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .dust, .drip { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="sillbeam" x1="0" y1="0" x2=".6" y2="1">
+      <stop offset="0%" stop-color="#FFF0C8" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFF0C8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="wallP" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4DCCA"/><stop offset="100%" stop-color="#C9BFA6"/>
+    </linearGradient>
+    <linearGradient id="outside" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#BFE0F0"/><stop offset="70%" stop-color="#E8F2E0"/>
+      <stop offset="100%" stop-color="#A8C88C"/>
+    </linearGradient>
+    <linearGradient id="terracotta" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#C97A4E"/><stop offset="55%" stop-color="#A85A32"/>
+      <stop offset="100%" stop-color="#7E401E"/>
+    </linearGradient>
+    <radialGradient id="sunP" cx=".5" cy=".2" r=".9">
+      <stop offset="0%" stop-color="#FFF6DC" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFF6DC" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#wallP)"/>
+  <!-- The window. -->
+  <path d="M22 0 L138 0 L138 26 L22 26 Z" fill="url(#outside)"/>
+  <g fill="#8FB878" opacity=".5">
+    <ellipse cx="44" cy="22" rx="14" ry="7"/><ellipse cx="96" cy="24" rx="18" ry="6"/>
+    <ellipse cx="126" cy="21" rx="10" ry="5"/>
+  </g>
+  <g fill="#FFFFFF" opacity=".7">
+    <ellipse cx="52" cy="7" rx="9" ry="3.4"/><ellipse cx="108" cy="5" rx="11" ry="3.8"/>
+  </g>
+  <g stroke="#8A7A5E" stroke-width="1.8" fill="none">
+    <path d="M22 0 L138 0 L138 26 L22 26 Z"/><path d="M80 0 L80 26"/><path d="M22 12 L138 12"/>
+  </g>
+  <path d="M22 26 L138 26 L142 30 L18 30 Z" fill="#B9A88A"/>
+  <path d="M18 30 L142 30 L142 31.6 L18 31.6 Z" fill="#8A7A5E"/>
+  <path d="M18 30 L142 30 L160 40 L0 40 Z" fill="url(#sunP)"/>
+
+  <!-- A monstera, too big for the pot. -->
+  <g class="sway">
+    <path d="M28 30 L44 30 L42 21.6 L30 21.6 Z" fill="url(#terracotta)"/>
+    <path d="M27 22.6 L45 22.6 L45 20.6 L27 20.6 Z" fill="#C97A4E"/>
+    <g stroke="#2E5B34" stroke-width=".9" fill="none" stroke-linecap="round">
+      <path d="M36 21 C34 17 30 14.6 27 13.6"/><path d="M36 21 C37 17 40 14 43 12.6"/>
+      <path d="M36 21 C36 17.6 35.4 14.4 34 11.6"/>
+    </g>
+    <g fill="#3F7A3D">
+      <path d="M27 13.6 C23 12 21 8.6 22 5.6 C25.6 6 28.6 8.4 29.6 11.6 C29.2 12.6 28.2 13.4 27 13.6 Z"/>
+      <path d="M43 12.6 C47.4 11.4 49.6 8 48.6 4.8 C45 5.2 42 7.8 41 11.2 C41.4 12 42.2 12.6 43 12.6 Z"/>
+      <path d="M34 11.6 C32.4 7.6 33.4 3.6 36.4 1.6 C38.6 4.4 39 8.4 37.6 11.8
+               C36.6 12.2 35 12.2 34 11.6 Z"/>
+    </g>
+    <g fill="#E4DCCA" opacity=".55">
+      <ellipse cx="24.6" cy="9.4" rx="1.4" ry=".7" transform="rotate(-30 24.6 9.4)"/>
+      <ellipse cx="46" cy="8.6" rx="1.4" ry=".7" transform="rotate(30 46 8.6)"/>
+      <ellipse cx="36" cy="6.6" rx="1.2" ry=".7"/>
+    </g>
+  </g>
+
+  <!-- A trailing one, which has reached the floor. -->
+  <g>
+    <path d="M104 30 L120 30 L118.6 22 L105.4 22 Z" fill="url(#terracotta)"/>
+    <path d="M103 23 L121 23 L121 21 L103 21 Z" fill="#C97A4E"/>
+    <g class="sway s2" stroke="#4A8A46" stroke-width=".8" fill="none" stroke-linecap="round">
+      <path d="M108 21.4 C104 24 101 28.4 100 34 C99.4 37 99.6 39 100.4 40"/>
+      <path d="M114 21.4 C116 25 117.6 30 117.6 35.4 C117.6 37.6 117.2 39 116.4 40"/>
+      <path d="M111 21 C110 25.4 109.4 31 110 36.4"/>
+    </g>
+    <g class="sway s2" fill="#5C9E52">
+      <ellipse cx="103.4" cy="26.4" rx="2.2" ry="1.5" transform="rotate(-40 103.4 26.4)"/>
+      <ellipse cx="101" cy="30.6" rx="2.4" ry="1.6" transform="rotate(-70 101 30.6)"/>
+      <ellipse cx="99.6" cy="35.4" rx="2.2" ry="1.5" transform="rotate(-80 99.6 35.4)"/>
+      <ellipse cx="116.4" cy="26.6" rx="2.2" ry="1.5" transform="rotate(40 116.4 26.6)"/>
+      <ellipse cx="117.6" cy="31.4" rx="2.4" ry="1.6" transform="rotate(70 117.6 31.4)"/>
+      <ellipse cx="117.2" cy="36.4" rx="2.2" ry="1.5" transform="rotate(80 117.2 36.4)"/>
+      <ellipse cx="109.6" cy="27.6" rx="2" ry="1.4"/><ellipse cx="109.6" cy="32.6" rx="2.2" ry="1.5"/>
+      <ellipse cx="110.4" cy="37" rx="2" ry="1.4"/>
+    </g>
+  </g>
+
+  <!-- And one that just needs cutting back. -->
+  <g class="sway s3">
+    <path d="M62 30 L76 30 L74.6 23 L63.4 23 Z" fill="#8A8474"/>
+    <path d="M61.4 24 L76.6 24 L76.6 22.2 L61.4 22.2 Z" fill="#9E9888"/>
+    <g stroke="#3F7A3D" stroke-width=".8" fill="none" stroke-linecap="round">
+      <path d="M69 22 C66 19 63 17.4 60 17"/><path d="M69 22 C72 19 75 17.6 78 17.4"/>
+      <path d="M69 22 C69 18.6 68.6 15.6 67.6 13"/>
+      <path d="M69 22 C70.6 19 73 16.6 75.6 15"/>
+    </g>
+    <g fill="#6EA85A">
+      <ellipse cx="61" cy="17.4" rx="3" ry="1.8" transform="rotate(-16 61 17.4)"/>
+      <ellipse cx="77.4" cy="17.6" rx="3" ry="1.8" transform="rotate(16 77.4 17.6)"/>
+      <ellipse cx="67.6" cy="12.6" rx="1.8" ry="3" transform="rotate(-8 67.6 12.6)"/>
+      <ellipse cx="75.6" cy="15" rx="2.6" ry="1.6" transform="rotate(-32 75.6 15)"/>
+      <ellipse cx="64.4" cy="19.6" rx="2.4" ry="1.5" transform="rotate(-24 64.4 19.6)"/>
+      <ellipse cx="73.4" cy="19.6" rx="2.4" ry="1.5" transform="rotate(24 73.4 19.6)"/>
+    </g>
+  </g>
+  <!-- A cutting in a jar, which is how the next one starts. -->
+  <g>
+    <path d="M86 30 L94 30 L93.4 25 L86.6 25 Z" fill="#CFE4EC" opacity=".8"/>
+    <path d="M86.8 28.4 L93.2 28.4 L93.4 25 L86.6 25 Z" fill="#9FC8D8" opacity=".7"/>
+    <g stroke="#4A8A46" stroke-width=".7" fill="none" stroke-linecap="round">
+      <path d="M90 25.6 C89.4 22.6 88 20.6 86 19.4"/>
+    </g>
+    <ellipse cx="85.6" cy="19" rx="2" ry="1.3" fill="#5C9E52" transform="rotate(-20 85.6 19)"/>
+    <ellipse cx="89.4" cy="22.4" rx="1.6" ry="1" fill="#5C9E52" transform="rotate(-40 89.4 22.4)"/>
+  </g>
+  <g fill="#FFF6DC">
+    <circle class="mote" cx="50" cy="30" r=".32" opacity=".5"/>
+    <circle class="mote m2" cx="88" cy="34" r=".28" opacity=".45"/>
+    <circle class="mote m3" cx="126" cy="32" r=".3" opacity=".4"/>
+  </g>
+  <rect class="sunbeam" x="0" y="0" width="160" height="40" fill="url(#sillbeam)"/>
+  <g fill="#FFF3D2">
+    <circle class="dust" cx="52" cy="26" r=".3" opacity=".5"/>
+    <circle class="dust d2" cx="88" cy="22" r=".26" opacity=".45"/>
+    <circle class="dust d3" cx="116" cy="28" r=".28" opacity=".4"/>
+  </g>
+  <ellipse class="drip" cx="70" cy="30" rx=".5" ry=".8" fill="#BFE0E8" opacity=".8"/>
+</svg>

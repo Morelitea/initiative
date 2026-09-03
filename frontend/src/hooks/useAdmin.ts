@@ -6,6 +6,7 @@ import {
   adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
   adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
   checkUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGet,
+  clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete,
   deleteUserApiV1AdminUsersUserIdDelete,
   exportPlatformUsersCsvApiV1AdminUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
@@ -236,6 +237,19 @@ export const useAdminSetSuspension = (options?: MutationOpts<UserRead, SetSuspen
           suspended,
           reason: reason || null,
         }),
+      invalidate: () => invalidateAdminUsers(),
+    },
+    options
+  );
+
+/** Let an account answer the age question again (``users.age_unblock``).
+ *  For the case that is nearly all of them: a mistyped year. It clears the
+ *  record that the question was answered and nothing else — the date was never
+ *  kept, so there is nothing else to clear. */
+export const useAdminClearAgeBlock = (options?: MutationOpts<UserRead, number>) =>
+  useApiMutation<UserRead, number>(
+    {
+      mutationFn: (userId) => clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId),
       invalidate: () => invalidateAdminUsers(),
     },
     options

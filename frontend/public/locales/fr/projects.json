@@ -1,6 +1,6 @@
 {
   "title": "Projets",
-  "subtitle": "Suivez les initiatives et collaborez avec votre groupe.",
+  "subtitle": "Suivez les initiatives et collaborez avec votre communauté.",
   "addProject": "Ajouter un projet",
   "loading": "Chargement des projets…",
   "loadError": "Impossible de charger les projets.",
@@ -12,15 +12,15 @@
   "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
   "myProjects": {
     "title": "Mes projets",
-    "subtitle": "Projets auxquels vous avez accès dans tous vos groupes.",
+    "subtitle": "Projets auxquels vous avez accès dans tous vos communautés.",
     "empty": "Vous ne faites encore partie d'aucun projet.",
     "loadError": "Impossible de charger vos projets.",
     "searchPlaceholder": "Rechercher des projets...",
-    "filterByGuild": "Filtrer par groupe",
-    "allGuilds": "Tous les groupes",
-    "noGuilds": "Aucun groupe disponible",
+    "filterByGuild": "Filtrer par communauté",
+    "allGuilds": "Tous les communautés",
+    "noGuilds": "Aucune communauté disponible",
     "columns": {
-      "guild": "Groupe",
+      "guild": "Communauté",
       "project": "Projet",
       "initiative": "Initiative",
       "tasks": "Tâches",

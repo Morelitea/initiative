@@ -1,74 +1,25 @@
 "use client";
 
-import { CodeExtension } from "@lexical/code";
-import { CodePrismExtension } from "@lexical/code-prism";
-import {
-  AutoFocusExtension,
-  ClearEditorExtension,
-  DecoratorTextExtension,
-  HorizontalRuleExtension,
-  SelectionAlwaysOnDisplayExtension,
-} from "@lexical/extension";
-import { HashtagExtension } from "@lexical/hashtag";
-import { HistoryExtension } from "@lexical/history";
-import {
-  AutoLinkExtension,
-  ClickableLinkExtension,
-  createLinkMatcherWithRegExp,
-  LinkExtension,
-} from "@lexical/link";
-import { CheckListExtension, ListExtension } from "@lexical/list";
-import { OverflowNode } from "@lexical/overflow";
 import { LexicalCollaboration } from "@lexical/react/LexicalCollaborationContext";
 import { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
 import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import { RichTextExtension } from "@lexical/rich-text";
-import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
-import {
-  configExtension,
-  defineExtension,
-  type EditorState,
-  type SerializedEditorState,
-} from "lexical";
+import type { EditorState, SerializedEditorState } from "lexical";
 import { Loader2 } from "lucide-react";
 import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
-import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
-import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
-import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
-import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-extension";
-import { LayoutExtension } from "@/components/ui/editor/extensions/layout-extension";
-import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/list-max-indent-level-extension";
-import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
-import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
-import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
-import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
-import { WikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
-import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
-import { validateUrl } from "@/components/ui/editor/utils/url";
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { SmartChipScope } from "@/hooks/useSmartChips";
 import { getUserColorHsl } from "@/lib/userColor";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import type { CollaborationProvider } from "@/lib/yjs/CollaborationProvider";
 
+import { documentExtension } from "./document-extension";
 import { Plugins } from "./plugins";
-
-const URL_REGEX =
-  /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/;
-
-const EMAIL_REGEX =
-  /(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/;
-
-const AUTO_LINK_MATCHERS = [
-  createLinkMatcherWithRegExp(URL_REGEX, (text) =>
-    text.startsWith("http") ? text : `https://${text}`
-  ),
-  createLinkMatcherWithRegExp(EMAIL_REGEX, (text) => `mailto:${text}`),
-];
 
 export interface EditorProps {
   editorState?: EditorState;
@@ -83,8 +34,13 @@ export interface EditorProps {
   trackChanges?: boolean;
   isSynced?: boolean;
   initiativeId?: number | null;
+  /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
+  supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
-  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
+  onCreateReferencedThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }
 
 export function Editor({
@@ -100,8 +56,9 @@ export function Editor({
   trackChanges,
   isSynced = true,
   initiativeId = null,
+  supportsEntityMentions = false,
   onWikilinkNavigate,
-  onWikilinkCreate,
+  onCreateReferencedThing,
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
@@ -128,66 +85,19 @@ export function Editor({
   const initialEditorStateRef = useRef(editorState);
   const initialEditorSerializedStateRef = useRef(editorSerializedState);
 
-  const appExtension = useMemo(() => {
-    const wasCollaborative = initialCollabRef.current;
-    const initState = initialEditorStateRef.current;
-    const initSerialized = initialEditorSerializedStateRef.current;
-
-    return defineExtension({
-      name: "@initiative/document-editor",
-      namespace: "Editor",
-      nodes: [
-        OverflowNode,
-        TableNode,
-        TableCellNode,
-        TableRowNode,
-        MentionNode,
-        TweetNode,
-        YouTubeNode,
-        WikilinkNode,
-      ],
-      theme: editorTheme,
-      editable: !initialReadOnlyRef.current,
-      onError: (error) => console.error(error),
-      // In collaborative mode, leave the initial state empty.
-      // CollaborationPlugin owns the initial state via its initialEditorState prop.
-      $initialEditorState: wasCollaborative
-        ? null
-        : initState
-          ? initState
-          : initSerialized
-            ? JSON.stringify(initSerialized)
-            : null,
-      dependencies: [
-        RichTextExtension,
-        AutoFocusExtension,
-        SelectionAlwaysOnDisplayExtension,
-        // History is owned by Yjs in collaborative mode; only register HistoryExtension otherwise.
-        ...(wasCollaborative ? [] : [HistoryExtension]),
-        configExtension(LinkExtension, {
-          validateUrl,
-          attributes: { rel: "noopener noreferrer", target: "_blank" },
-        }),
-        configExtension(AutoLinkExtension, { matchers: AUTO_LINK_MATCHERS }),
-        ClickableLinkExtension,
-        ListExtension,
-        CheckListExtension,
-        HorizontalRuleExtension,
-        ClearEditorExtension,
-        DecoratorTextExtension,
-        HashtagExtension,
-        CodeExtension,
-        CodePrismExtension,
-        EmojisExtension,
-        ImagesExtension,
-        KeywordsExtension,
-        LayoutExtension,
-        HeadingAnchorExtension,
-        ListMaxIndentLevelExtension,
-        MarkdownShortcutsExtension,
-      ],
-    });
-  }, []);
+  const appExtension = useMemo(
+    () =>
+      documentExtension({
+        collaborative: initialCollabRef.current,
+        editable: !initialReadOnlyRef.current,
+        initialEditorState:
+          initialEditorStateRef.current ??
+          (initialEditorSerializedStateRef.current
+            ? JSON.stringify(initialEditorSerializedStateRef.current)
+            : null),
+      }),
+    []
+  );
 
   return (
     <div
@@ -204,43 +114,49 @@ export function Editor({
           </div>
         </div>
       )}
-      <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
-        <TooltipProvider>
-          <Plugins
-            showToolbar={showToolbar}
-            readOnly={readOnly}
-            collaborative={useCollaborativeMode}
-            cursorsContainerRef={cursorsContainerRef}
-            initiativeId={initiativeId}
-            onWikilinkNavigate={onWikilinkNavigate}
-            onWikilinkCreate={onWikilinkCreate}
-          />
-
-          {useCollaborativeMode && providerFactory && (
-            <LexicalCollaboration>
-              <CollaborationPlugin
-                id="main"
-                providerFactory={providerFactory}
-                initialEditorState={initialEditorStateForCollab}
-                shouldBootstrap={true}
-                username={userName}
-                cursorColor={userColor.current}
-                cursorsContainerRef={cursorsContainerRef}
-              />
-            </LexicalCollaboration>
-          )}
-
-          {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
-            <OnChangePlugin
-              ignoreSelectionChange={true}
-              onChange={(editorState) => {
-                onChange?.(editorState);
-                onSerializedChange?.(editorState.toJSON());
-              }}
+      {/* Outside the composer on purpose: chips and references render as Lexical
+          decorators, which the composer portals in itself. Only something above
+          it is an ancestor of all of them. */}
+      <SmartChipScope>
+        <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
+          <TooltipProvider>
+            <Plugins
+              showToolbar={showToolbar}
+              readOnly={readOnly}
+              collaborative={useCollaborativeMode}
+              cursorsContainerRef={cursorsContainerRef}
+              initiativeId={initiativeId}
+              supportsEntityMentions={supportsEntityMentions}
+              onWikilinkNavigate={onWikilinkNavigate}
+              onCreateReferencedThing={onCreateReferencedThing}
             />
-          )}
-        </TooltipProvider>
-      </LexicalExtensionComposer>
+
+            {useCollaborativeMode && providerFactory && (
+              <LexicalCollaboration>
+                <CollaborationPlugin
+                  id="main"
+                  providerFactory={providerFactory}
+                  initialEditorState={initialEditorStateForCollab}
+                  shouldBootstrap={true}
+                  username={userName}
+                  cursorColor={userColor.current}
+                  cursorsContainerRef={cursorsContainerRef}
+                />
+              </LexicalCollaboration>
+            )}
+
+            {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
+              <OnChangePlugin
+                ignoreSelectionChange={true}
+                onChange={(editorState) => {
+                  onChange?.(editorState);
+                  onSerializedChange?.(editorState.toJSON());
+                }}
+              />
+            )}
+          </TooltipProvider>
+        </LexicalExtensionComposer>
+      </SmartChipScope>
     </div>
   );
 }

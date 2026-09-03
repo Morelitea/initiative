@@ -5,24 +5,22 @@ import {
   type MenuTextMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import {
-  $getNearestNodeFromDOMNode,
-  $getNodeByKey,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  CLICK_COMMAND,
-  COMMAND_PRIORITY_LOW,
   type LexicalEditor,
   type TextNode,
 } from "lexical";
 import { FileText, Plus } from "lucide-react";
-import { type JSX, useCallback, useEffect, useMemo, useState } from "react";
+import { type JSX, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
+import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
+import { useInitiative } from "@/hooks/useInitiatives";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
+import { linkableToolTypes } from "@/lib/references";
 
 // Regex to match [[ followed by any characters (for partial wikilinks)
 const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
@@ -89,12 +87,21 @@ class WikilinkTypeaheadOption extends MenuOption {
   title: string;
   documentId: number | null;
   isCreateNew: boolean;
+  /** What kind of thing this names. A row still to be created is a document:
+   *  it is the one tool a name and an initiative are enough to make. */
+  entityType: SearchEntityType;
 
-  constructor(title: string, documentId: number | null, isCreateNew = false) {
-    super(title);
+  constructor(
+    title: string,
+    documentId: number | null,
+    isCreateNew = false,
+    entityType: SearchEntityType = SearchEntityType.document
+  ) {
+    super(`${entityType}-${documentId ?? "new"}-${title}`);
     this.title = title;
     this.documentId = documentId;
     this.isCreateNew = isCreateNew;
+    this.entityType = entityType;
   }
 }
 
@@ -104,55 +111,34 @@ function useWikilinkSearch(
   queryString: string | null,
   initiativeId: number | null
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
-  const guildId = useActiveGuildId();
-  const [results, setResults] = useState<DocumentAutocomplete[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (queryString === null || queryString.length === 0 || initiativeId === null) {
-      setResults([]);
-      return;
-    }
-
-    let cancelled = false;
-    const fetchDocuments = async () => {
-      setIsLoading(true);
-      try {
-        const docs = await autocompleteDocuments(guildId, {
-          initiative_id: initiativeId,
-          q: queryString,
-          limit: SUGGESTION_LIST_LENGTH_LIMIT,
-        });
-        if (!cancelled) {
-          setResults(docs);
-        }
-      } catch (error) {
-        console.error("Failed to fetch documents for wikilink autocomplete:", error);
-        if (!cancelled) {
-          setResults([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    // Debounce the API call
-    const timeoutId = setTimeout(fetchDocuments, 150);
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [queryString, initiativeId, guildId]);
+  // The shared lookup, narrowed to this initiative's live documents. A
+  // wikilink points at a document to read, not at a blueprint.
+  // `[[ ]]` reaches the TOOLS THIS INITIATIVE HAS — derived, so a seventh is
+  // linkable the day it exists and one switched off is not offered at all.
+  // Everything smaller than a tool (a task, an event) is reached with `#`:
+  // those cannot be made from a name alone, which is the whole difference
+  // between the two triggers.
+  const { data: initiative } = useInitiative(initiativeId);
+  const linkable = useMemo(() => linkableToolTypes(initiative), [initiative]);
+  const { data, isFetching } = useGuildSearchSuggest(queryString ?? "", {
+    types: linkable,
+    initiative_id: initiativeId ?? undefined,
+    template: false,
+    limit: SUGGESTION_LIST_LENGTH_LIMIT,
+    enabled: Boolean(queryString) && initiativeId !== null,
+  });
+  const results = useMemo(() => data ?? [], [data]);
+  const isLoading = isFetching;
 
   const options = useMemo(() => {
-    const docOptions = results.map((doc) => new WikilinkTypeaheadOption(doc.name, doc.id, false));
+    const docOptions = results.map(
+      (hit) => new WikilinkTypeaheadOption(hit.title, hit.entity_id, false, hit.entity_type)
+    );
 
     // Add "Create new document" option if query doesn't exactly match any result
     if (queryString && queryString.trim().length > 0) {
       const normalizedQuery = queryString.trim().toLowerCase();
-      const exactMatch = results.some((doc) => doc.name.toLowerCase() === normalizedQuery);
+      const exactMatch = results.some((doc) => doc.title.toLowerCase() === normalizedQuery);
       if (!exactMatch) {
         docOptions.push(new WikilinkTypeaheadOption(queryString.trim(), null, true));
       }
@@ -167,73 +153,24 @@ function useWikilinkSearch(
 export interface WikilinksPluginProps {
   initiativeId: number | null;
   onNavigate?: (documentId: number) => void;
-  onCreateDocument?: (title: string, onCreated: (documentId: number) => void) => void;
+  /** Asked to make what `[[ ]]` could not find. The caller opens the dialog
+   *  that knows which tools this initiative has; it answers with the reference
+   *  to drop in. */
+  onCreateThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }
 
 export function WikilinksPlugin({
   initiativeId,
   onNavigate,
-  onCreateDocument,
+  onCreateThing,
 }: WikilinksPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
 
   const { options, isLoading } = useWikilinkSearch(queryString, initiativeId);
-
-  // Register click handler for wikilinks
-  useEffect(() => {
-    return editor.registerCommand(
-      CLICK_COMMAND,
-      (event: MouseEvent) => {
-        const target = event.target as HTMLElement;
-
-        // Check if clicked element is a wikilink
-        if (!target.hasAttribute("data-lexical-wikilink")) {
-          return false;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-
-        const documentIdAttr = target.getAttribute("data-document-id");
-
-        if (documentIdAttr) {
-          // Resolved wikilink - navigate
-          const documentId = parseInt(documentIdAttr, 10);
-          if (!Number.isNaN(documentId)) {
-            onNavigate?.(documentId);
-          }
-        } else {
-          // Unresolved wikilink - offer to create document
-          const title = target.textContent || "";
-          if (title && onCreateDocument) {
-            // Find the wikilink node to pass an update callback
-            editor.getEditorState().read(() => {
-              const node = $getNearestNodeFromDOMNode(target);
-              if ($isWikilinkNode(node)) {
-                const nodeKey = node.getKey();
-                onCreateDocument(title, (newDocumentId: number) => {
-                  editor.update(() => {
-                    const wikilinkNode = $getNodeByKey(nodeKey);
-                    if ($isWikilinkNode(wikilinkNode)) {
-                      const updatedWikilink = $createWikilinkNode(
-                        wikilinkNode.getDocumentTitle(),
-                        newDocumentId
-                      );
-                      wikilinkNode.replace(updatedWikilink);
-                    }
-                  });
-                });
-              }
-            });
-          }
-        }
-
-        return true;
-      },
-      COMMAND_PRIORITY_LOW
-    );
-  }, [editor, onNavigate, onCreateDocument]);
 
   const onSelectOption = useCallback(
     (
@@ -245,8 +182,27 @@ export function WikilinksPlugin({
       const trailingToCleanup = pendingTrailingCleanup;
       pendingTrailingCleanup = null;
 
+      // Nothing matched, and `[[ ]]` is the trigger that can make one. The
+      // dialog owns which kind and whether this writer may; the reference
+      // comes back here to go in the sentence.
+      if (selectedOption.isCreateNew) {
+        closeMenu();
+        onCreateThing?.(selectedOption.title, (entityType, entityId, name) => {
+          editor.update(() => {
+            const made = $createEntityMentionNode(entityType, entityId, name);
+            if (nodeToReplace) nodeToReplace.replace(made);
+            made.selectNext();
+          });
+        });
+        return;
+      }
+
       editor.update(() => {
-        const wikilinkNode = $createWikilinkNode(selectedOption.title, selectedOption.documentId);
+        const wikilinkNode = $createEntityMentionNode(
+          selectedOption.entityType,
+          selectedOption.documentId ?? 0,
+          selectedOption.title
+        );
         if (nodeToReplace) {
           nodeToReplace.replace(wikilinkNode);
         }
@@ -267,11 +223,11 @@ export function WikilinksPlugin({
           }
         }
 
-        wikilinkNode.select();
+        wikilinkNode.selectNext();
         closeMenu();
       });
     },
-    [editor]
+    [editor, onCreateThing]
   );
 
   const checkForTriggerMatch = useCallback(
@@ -319,7 +275,7 @@ export function WikilinksPlugin({
           return createPortal(
             <div className="absolute z-10 w-[300px] rounded-md border bg-popover p-2 text-popover-foreground shadow-md">
               <span className="text-muted-foreground text-sm">
-                Type to search or create a new document
+                Type to search, or make what is not there yet
               </span>
             </div>,
             anchorElementRef.current

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Jack-o'-lantern</title>
+  <!-- A gourd is lobes and a stem is a twist, so none of it is drawn on a
+       grid; only the cuts are straight, because a knife is. -->
+  <defs>
+    <radialGradient id="gourd" cx=".36" cy=".28" r=".82">
+      <stop offset="0%" stop-color="#FFA845"/>
+      <stop offset="55%" stop-color="#E8730C"/>
+      <stop offset="100%" stop-color="#A34805"/>
+    </radialGradient>
+    <radialGradient id="lit" cx=".5" cy=".45" r=".6">
+      <stop offset="0%" stop-color="#FFF3C4"/>
+      <stop offset="100%" stop-color="#FFB020"/>
+    </radialGradient>
+    <radialGradient id="spill" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FF9C2A" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#FF9C2A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#140A1F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#3A1F52" stroke-width="2"/>
+  <circle cx="24" cy="27" r="19" fill="url(#spill)"/>
+  <!-- Stem, and the tendril off it. -->
+  <path d="M22.8 15 C22.4 12.6 22.6 10.8 23.8 9.4 C24.7 10.3 25 11.4 24.7 12.5
+           C25.8 11.5 27.1 11.3 28.4 11.8 C26.8 12.7 25.7 13.8 25.3 15 Z" fill="#3F6B2B"/>
+  <path d="M23.8 9.4 C24.4 10.4 24.7 11.4 24.7 12.5" fill="none" stroke="#2D4E1E" stroke-width=".7"/>
+  <path d="M26.6 12 C29 10.7 30.9 11.2 31.4 12.7 C31.8 13.9 31 14.9 29.9 14.8
+           C29.1 14.7 28.7 14 29.1 13.4" fill="none" stroke="#4F8036" stroke-width="1.1"
+        stroke-linecap="round"/>
+  <!-- The gourd. -->
+  <path d="M24 14.6 C31.5 14.6 37.5 19.6 37.5 26.5 C37.5 33.1 32.3 37.7 24 37.7
+           C15.7 37.7 10.5 33.1 10.5 26.5 C10.5 19.6 16.5 14.6 24 14.6 Z" fill="url(#gourd)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M18.3 15.6 C15.5 18.8 14.1 22.5 14.1 26.3 C14.1 30.1 15.5 33.7 18.1 36.4"
+          stroke="#B85806" stroke-width="1.2" opacity=".55"/>
+    <path d="M29.7 15.6 C32.5 18.8 33.9 22.5 33.9 26.3 C33.9 30.1 32.5 33.7 29.9 36.4"
+          stroke="#B85806" stroke-width="1.2" opacity=".55"/>
+    <path d="M21.4 14.9 C19.4 18.3 18.4 22.3 18.4 26.3 C18.4 30.4 19.4 34.3 21.2 37.5"
+          stroke="#FFB964" stroke-width="1" opacity=".3"/>
+  </g>
+  <ellipse cx="17.6" cy="19.4" rx="4.2" ry="2.4" transform="rotate(-38 17.6 19.4)"
+           fill="#FFCC80" opacity=".2"/>
+  <!-- Cut, and lit from inside. -->
+  <g fill="url(#lit)">
+    <path d="M17.2 23.4 L22.6 23.4 L19.9 27.6 Z"/>
+    <path d="M30.8 23.4 L25.4 23.4 L28.1 27.6 Z"/>
+    <path d="M24 26.6 L25.7 29.4 L22.3 29.4 Z"/>
+    <path d="M15.4 30.6 L32.6 30.6 L30.5 34.8 L27.7 32.1 L24.4 34.9 L21 32.1 L17.5 34.7 Z"/>
+  </g>
+  <!-- A thread of web across the corner, which is the pack's whole idea. -->
+  <g stroke="#B9A7D6" stroke-opacity=".5" stroke-width=".9" fill="none" stroke-linecap="round">
+    <path d="M3.6 12.6 C7 8.6 10.4 5.6 14.6 3.4"/>
+    <path d="M4.4 17 C8.6 11.6 13.2 7.2 18.6 4"/>
+    <path d="M5.6 7.2 C9 9.6 10.4 13 9.8 16.6"/>
+    <path d="M10.4 4.2 C13.8 7 15 10.8 14.2 14.8"/>
+  </g>
+</svg>

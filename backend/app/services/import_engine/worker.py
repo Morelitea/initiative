@@ -28,9 +28,10 @@ from app.db import session as db_session
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.notification import NotificationType
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.import_engine import engine as import_engine
+from app.services.platform import accounts as accounts_service
 from app.services.import_engine.contract import ImportEngineError
 from app.services.platform import user_notifications
 
@@ -170,7 +171,9 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
     """Re-validate the staged payload and apply it as the job's creator."""
     from app.api.deps import establish_guild_access
 
-    user = (await session.exec(select(User).where(User.id == job.created_by))).first()
+    # The session is routed into the guild here, which is not somewhere an
+    # account may be read; the creator comes off the system engine instead.
+    user = await accounts_service.load_one(job.created_by)
     if user is None or user.status != UserStatus.active:
         raise ImportEngineError(ImportEngineMessages.IMPORT_CREATOR_INACTIVE)
 

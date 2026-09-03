@@ -8,6 +8,10 @@
  * its own source hook here (a component boundary per group keeps the rules of
  * hooks happy). A new tool adds one entry — the drift test asserts every
  * palette-enabled tool has one.
+ *
+ * These groups are what the palette shows while BROWSING. Once there is
+ * something to search for, the guild index answers instead, across every kind
+ * of thing at once.
  */
 
 import type { ReactNode } from "react";
@@ -37,8 +41,6 @@ export interface PaletteItem {
 export interface PaletteSourceContext {
   /** Only fetch while the palette is open for an authenticated user. */
   enabled: boolean;
-  /** Server-side search once the input has enough characters (documents). */
-  search?: string;
 }
 
 export interface ToolPaletteSource {
@@ -72,13 +74,10 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
   },
   [Tool.document]: {
     useHeading: () => useGroupHeading(Tool.document),
-    useItems: ({ enabled, search }) => {
-      // Default to the 25 most recently updated; swap to a server-side name
-      // search once the input has ≥2 characters.
-      const query = useDocumentsList(
-        { page_size: 25, ...(search ? { search } : {}) },
-        { enabled, staleTime: 60_000 }
-      );
+    useItems: ({ enabled }) => {
+      // The 25 most recently updated. Narrowing by what was typed is the
+      // index's job now, and it answers for every tool at once.
+      const query = useDocumentsList({ page_size: 25 }, { enabled, staleTime: 60_000 });
       return (query.data?.items ?? []).map((doc) => {
         const DocIcon = getDocumentIcon(
           doc.document_type,

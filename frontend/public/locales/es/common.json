@@ -97,6 +97,10 @@
     "tags": "Etiquetas",
     "tagsDescription": "Agrega etiquetas para organizar y filtrar.",
     "tagsNoAccess": "Necesitas acceso de escritura para administrar etiquetas.",
+    "comments": "Comentarios",
+    "commentsDescription": "Desactiva los comentarios de este elemento. Los comentarios ya publicados se conservan y vuelven a aparecer si los activas de nuevo.",
+    "commentsToggle": "Desactivar comentarios",
+    "commentsError": "No se pudo guardar la configuración de comentarios.",
     "permissionsUpdated": "Permisos actualizados",
     "dangerZone": "Zona de peligro",
     "dangerZoneDescription": "Acciones destructivas. Los elementos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención.",
@@ -104,7 +108,9 @@
     "deleteConfirmDescription": "Se enviará a la papelera. Puedes restaurarlo desde Configuración → Papelera antes de que finalice el período de retención.",
     "deleted": "«{{name}}» eliminado",
     "notFound": "No encontrado",
-    "loadError": "No se pudo cargar este elemento."
+    "loadError": "No se pudo cargar este elemento.",
+    "permissionRequired": "Permiso requerido",
+    "permissionRequiredDescription": "No tienes acceso a esta sección de esta configuración."
   },
   "toolbar": {
     "filters": "Filtros",
@@ -115,5 +121,24 @@
     "selectItems": "Seleccionar elementos",
     "view": "Vista",
     "details": "Detalles"
+  },
+  "emojiPicker": {
+    "searchPlaceholder": "Buscar emoji…",
+    "empty": "No se encontraron emojis.",
+    "prompt": "Selecciona un emoji…"
+  },
+  "reactions": {
+    "add": "Añadir una reacción",
+    "chipLabel_one": "{{emoji}}, {{count}} reacción",
+    "chipLabel_other": "{{emoji}}, {{count}} reacciones",
+    "countOnly_one": "{{count}} reacción",
+    "countOnly_other": "{{count}} reacciones",
+    "namesAndMore_one": "{{names}} y {{count}} persona más",
+    "namesAndMore_other": "{{names}} y {{count}} personas más",
+    "error": "No se pudo guardar tu reacción."
+  },
+  "pagination": {
+    "perPage": "Por página:",
+    "rangeOf": "{{start}}–{{end}} de {{total}}"
   }
 }

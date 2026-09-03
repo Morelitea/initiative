@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Cat</title>
+  <circle cx="24" cy="24" r="23" fill="#2E2116"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8A33A" stroke-width="2"/>
+  <path d="M9.4 17.6 L8.6 6.6 L17.6 12.4 Z" fill="#E8A33A"/>
+  <path d="M38.6 17.6 L39.4 6.6 L30.4 12.4 Z" fill="#E8A33A"/>
+  <path d="M11.4 15.4 L11 9.6 L15.8 12.6 Z" fill="#E0837A"/>
+  <path d="M36.6 15.4 L37 9.6 L32.2 12.6 Z" fill="#E0837A"/>
+  <path d="M24 10.6 C33 10.6 39 17 39 25 C39 33.4 32.6 39.4 24 39.4 C15.4 39.4 9 33.4 9 25
+           C9 17 15 10.6 24 10.6 Z" fill="#F0B558"/>
+  <path d="M24 10.6 C33 10.6 39 17 39 25 C39 33.4 32.6 39.4 24 39.4 C29 35.4 31.4 30.4 31.4 25
+           C31.4 19 29 14 24 10.6 Z" fill="#D8963A" opacity=".5"/>
+  <g fill="#2E2116">
+    <path d="M14.4 22 C15.6 20 18.4 20 19.6 22 C18.4 23.6 15.6 23.6 14.4 22 Z"/>
+    <path d="M28.4 22 C29.6 20 32.4 20 33.6 22 C32.4 23.6 29.6 23.6 28.4 22 Z"/>
+  </g>
+  <g fill="#F6E8B0">
+    <circle cx="16.4" cy="21.4" r=".7"/><circle cx="30.4" cy="21.4" r=".7"/>
+  </g>
+  <path d="M24 26.6 L26.4 28.4 L21.6 28.4 Z" fill="#E0837A"/>
+  <path d="M24 28.4 L24 30.4" stroke="#2E2116" stroke-width=".8"/>
+  <path d="M24 30.4 C22.6 32.4 19.6 32 19 29.6" fill="none" stroke="#2E2116" stroke-width=".8"
+        stroke-linecap="round"/>
+  <path d="M24 30.4 C25.4 32.4 28.4 32 29 29.6" fill="none" stroke="#2E2116" stroke-width=".8"
+        stroke-linecap="round"/>
+  <g stroke="#2E2116" stroke-width=".5" opacity=".5">
+    <path d="M18.6 28 L9.6 26.4"/><path d="M18.6 29.6 L9.4 30.6"/>
+    <path d="M29.4 28 L38.4 26.4"/><path d="M29.4 29.6 L38.6 30.6"/>
+  </g></svg>

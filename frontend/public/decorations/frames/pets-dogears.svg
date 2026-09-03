@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Dog ears</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: the ears hang over the sides of the picture from a crease at
+       the top, flare out and turn back in at the tip, and swing a little. -->
+  <defs>
+    <linearGradient id="dgFur" x1=".1" y1="0" x2=".9" y2=".9">
+      <stop offset="0%" stop-color="#D9A868"/><stop offset="46%" stop-color="#A87340"/>
+      <stop offset="100%" stop-color="#6B4420"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .flopL { animation: dgSwing 3.4s ease-in-out infinite alternate;
+             transform-box: view-box; transform-origin: 42px 24px }
+    .flopR { animation: dgSwing 4.1s ease-in-out infinite alternate-reverse;
+             transform-box: view-box; transform-origin: 86px 24px }
+    @keyframes dgSwing { from { transform: rotate(-3deg) } to { transform: rotate(3deg) } }
+    @media (prefers-reduced-motion: reduce) { .flopL, .flopR { animation: none } }
+  </style>
+
+  <g class="flopL">
+    <path d="M46.4 20.4 A47 47 0 0 0 22.5 41.9 C14.6 52.4 10 66.4 10.4 79.4 C10.8 92.6 17.4 101.6 26.4 100.4 C33.4 99.4 36 90 35.4 78 C34.8 61 33.4 40 46.4 20.4 Z" fill="url(#dgFur)"/>
+    <path d="M40 30 C29 44 22 62 22.6 78 C23 89 26.4 95.6 30.6 95 C34 91 34.6 82 34 71 C33.4 56 35 41 40 30 Z" fill="#6B4420" opacity=".3"/>
+    <path d="M12.4 84 C15 96 22 102 30 99 C24.4 104.4 14.6 99.6 12.4 84 Z" fill="#EBCFA4" opacity=".45"/>
+    <path d="M44.6 22.6 C38 30 32.6 39.4 29 49" fill="none" stroke="#5C3A1B" stroke-width="1.4" opacity=".45"
+          stroke-linecap="round"/>
+  </g>
+  <g class="flopR"><g transform="translate(128 0) scale(-1 1)">
+    <path d="M46.4 20.4 A47 47 0 0 0 22.5 41.9 C14.6 52.4 10 66.4 10.4 79.4 C10.8 92.6 17.4 101.6 26.4 100.4 C33.4 99.4 36 90 35.4 78 C34.8 61 33.4 40 46.4 20.4 Z" fill="url(#dgFur)"/>
+    <path d="M40 30 C29 44 22 62 22.6 78 C23 89 26.4 95.6 30.6 95 C34 91 34.6 82 34 71 C33.4 56 35 41 40 30 Z" fill="#6B4420" opacity=".3"/>
+    <path d="M12.4 84 C15 96 22 102 30 99 C24.4 104.4 14.6 99.6 12.4 84 Z" fill="#EBCFA4" opacity=".45"/>
+    <path d="M44.6 22.6 C38 30 32.6 39.4 29 49" fill="none" stroke="#5C3A1B" stroke-width="1.4" opacity=".45"
+          stroke-linecap="round"/>
+  </g></g>
+
+  <path d="M46.4 20.4 A47 47 0 0 1 81.6 20.4 C74.6 13.6 68.6 11.4 64 11.4
+           C59.4 11.4 53.4 13.6 46.4 20.4 Z" fill="url(#dgFur)"/>
+  <path d="M50 17.4 C55 14.2 59.6 12.8 64 12.8 C68.4 12.8 73 14.2 78 17.4
+           C73 15.4 68.4 14.6 64 14.6 C59.6 14.6 55 15.4 50 17.4 Z" fill="#EBCFA4"
+        opacity=".4"/>
+</svg>

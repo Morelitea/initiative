@@ -50,6 +50,14 @@ _IN_APP_ONLY = {
     NotificationType.username_changed,
     NotificationType.account_suspended,
     NotificationType.account_unsuspended,
+    # Connections and message requests. They belong in the inbox beside the
+    # contacts page that answers them, and a channel of their own would mean a
+    # native release — so they wait for the one that ships direct messages, when
+    # there is something to interrupt somebody for.
+    NotificationType.connection_requested,
+    NotificationType.connection_accepted,
+    NotificationType.message_request_received,
+    NotificationType.message_request_accepted,
 }
 
 

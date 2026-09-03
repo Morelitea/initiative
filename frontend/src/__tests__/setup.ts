@@ -137,6 +137,27 @@ if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = () => {};
 }
 
+// jsdom has no layout engine, so a Range cannot measure itself. The document
+// editor measures the caret to place its floating toolbars.
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () =>
+    ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
+}
+if (!Range.prototype.getBoundingClientRect) {
+  Range.prototype.getBoundingClientRect = () =>
+    ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+}
+
 // jsdom's Blob implements arrayBuffer() but not stream(). MSW hands mocked
 // blob bodies to Node's Response constructor, which calls stream() on them.
 if (typeof Blob.prototype.stream !== "function") {

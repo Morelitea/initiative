@@ -6,7 +6,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
 
 
 class ProjectFavorite(SQLModel, table=True):
@@ -22,5 +22,10 @@ class ProjectFavorite(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    user: Optional["User"] = Relationship(back_populates="favorite_projects")
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(ProjectFavorite.user_id) == MemberProfile.id",
+            "viewonly": True,
+        }
+    )
     project: Optional["Project"] = Relationship(back_populates="favorite_entries")

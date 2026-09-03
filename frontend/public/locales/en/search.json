@@ -1,0 +1,37 @@
+{
+  "title": "Search",
+  "titleInGuild": "Search {{guildName}}",
+  "placeholder": "Search {{guildName}}",
+  "seeAll": "See all",
+  "prompt": {
+    "title": "Search this community",
+    "description": "Find anything by its name, or by what is written inside it."
+  },
+  "empty": {
+    "title": "No results for “{{query}}”",
+    "description": "Check the spelling, or try a different word."
+  },
+  "tabs": {
+    "tool": "Tools",
+    "member": "Members",
+    "comment": "Comments",
+    "tag": "Tags"
+  },
+  "types": {
+    "project": "Project",
+    "task": "Task",
+    "document": "Document",
+    "queue": "Queue",
+    "queue_item": "Queue item",
+    "counter_group": "Counter group",
+    "counter": "Counter",
+    "calendar": "Calendar",
+    "calendar_event": "Event",
+    "dashboard": "Dashboard",
+    "tag": "Tag",
+    "comment": "Comment"
+  },
+  "switchHint": "Tab to switch",
+  "closeMatches": "Nothing matches “{{query}}” exactly. These are the closest.",
+  "includeArchived": "Include archived"
+}

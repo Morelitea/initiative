@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Stage lights</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: the truss hangs across the top of the picture and the beams
+       fall through it, so the wearer is lit rather than framed. The beams are
+       kept faint on purpose — they cross a face, and colour on a face has to
+       stay a wash. -->
+  <defs>
+    <linearGradient id="slHouse" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#12131A"/><stop offset="100%" stop-color="#242231"/>
+    </linearGradient>
+    <linearGradient id="slFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFF" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFF" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="slBeamFade"><rect width="128" height="128" fill="url(#slFade)"/></mask>
+    <clipPath id="slDonut"><path d="M64 0 A64 64 0 1 0 64 128 A64 64 0 1 0 64 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z" clip-rule="evenodd"/></clipPath>
+  </defs>
+  <style>
+    .beam { transform-box: view-box; transform-origin: var(--x) 24px;
+            animation: slSweep 9s ease-in-out infinite }
+    .b1 { animation-delay: -2.2s } .b2 { animation-delay: -4.5s } .b3 { animation-delay: -6.8s }
+    @keyframes slSweep {
+      0%, 100% { transform: rotate(-13deg) } 50% { transform: rotate(13deg) }
+    }
+    .glow { animation: slPulse 2.6s ease-in-out infinite }
+    .g1 { animation-delay: -.65s } .g2 { animation-delay: -1.3s } .g3 { animation-delay: -1.95s }
+    @keyframes slPulse { 0%, 100% { opacity: .45 } 50% { opacity: 1 } }
+    .haze { animation: slDrift 14s linear infinite; transform-box: view-box }
+    @keyframes slDrift {
+      0% { opacity: 0; transform: translateX(-30px) } 40% { opacity: .35 }
+      70% { opacity: .35 } 100% { opacity: 0; transform: translateX(30px) }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .beam, .glow, .haze { animation: none } .haze { opacity: .2 }
+    }
+  </style>
+
+  <g clip-path="url(#slDonut)"><rect width="128" height="128" fill="url(#slHouse)"/></g>
+
+  <g mask="url(#slBeamFade)" opacity=".5"><g class="beam b0" style="--x:20px"><path d="M16 24 L-10 128 L50 128 L24 24 Z" fill="#E24C8F"/></g><g class="beam b1" style="--x:48px"><path d="M44 24 L18 128 L78 128 L52 24 Z" fill="#3FC7E0"/></g><g class="beam b2" style="--x:80px"><path d="M76 24 L50 128 L110 128 L84 24 Z" fill="#F0A93C"/></g><g class="beam b3" style="--x:108px"><path d="M104 24 L78 128 L138 128 L112 24 Z" fill="#6BD46B"/></g></g>
+  <ellipse class="haze" cx="64" cy="76" rx="46" ry="9" fill="#CBB6E8" opacity=".3"/>
+
+  <g fill="#3A3F4A">
+    <path d="M-4 3 L132 3 L132 6 L-4 6 Z"/><path d="M-4 11 L132 11 L132 14 L-4 14 Z"/>
+  </g>
+  <g fill="none" stroke="#4B515E" stroke-width="1.6"><path d="M-4 4 L3 13 M3 4 L-4 13M3 4 L10 13 M10 4 L3 13M10 4 L17 13 M17 4 L10 13M17 4 L24 13 M24 4 L17 13M24 4 L31 13 M31 4 L24 13M31 4 L38 13 M38 4 L31 13M38 4 L45 13 M45 4 L38 13M45 4 L52 13 M52 4 L45 13M52 4 L59 13 M59 4 L52 13M59 4 L66 13 M66 4 L59 13M66 4 L73 13 M73 4 L66 13M73 4 L80 13 M80 4 L73 13M80 4 L87 13 M87 4 L80 13M87 4 L94 13 M94 4 L87 13M94 4 L101 13 M101 4 L94 13M101 4 L108 13 M108 4 L101 13M108 4 L115 13 M115 4 L108 13M115 4 L122 13 M122 4 L115 13M122 4 L129 13 M129 4 L122 13M129 4 L136 13 M136 4 L129 13"/></g>
+  <g fill="none" stroke="#6E7583" stroke-width=".8" opacity=".7">
+    <path d="M-4 3.6 L132 3.6 M-4 11.6 L132 11.6"/>
+  </g>
+  <g><path d="M14 13 L26 13 L25 24 L15 24 Z" fill="#2B2F38"/><path d="M14.6 22.4 L25.4 22.4 L25 24.6 L15 24.6 Z" fill="#E24C8F"/><circle class="glow g0" cx="20" cy="24" r="4" fill="#E24C8F"/></g><g><path d="M42 13 L54 13 L53 24 L43 24 Z" fill="#2B2F38"/><path d="M42.6 22.4 L53.4 22.4 L53 24.6 L43 24.6 Z" fill="#3FC7E0"/><circle class="glow g1" cx="48" cy="24" r="4" fill="#3FC7E0"/></g><g><path d="M74 13 L86 13 L85 24 L75 24 Z" fill="#2B2F38"/><path d="M74.6 22.4 L85.4 22.4 L85 24.6 L75 24.6 Z" fill="#F0A93C"/><circle class="glow g2" cx="80" cy="24" r="4" fill="#F0A93C"/></g><g><path d="M102 13 L114 13 L113 24 L103 24 Z" fill="#2B2F38"/><path d="M102.6 22.4 L113.4 22.4 L113 24.6 L103 24.6 Z" fill="#6BD46B"/><circle class="glow g3" cx="108" cy="24" r="4" fill="#6BD46B"/></g>
+</svg>

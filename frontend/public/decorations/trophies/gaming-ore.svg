@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Ore block</title>
+  <circle cx="24" cy="24" r="23" fill="#120C1E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7A5FA8" stroke-width="2"/>
+  <defs>
+    <linearGradient id="oreface" x1="0" y1="0" x2=".6" y2="1">
+      <stop offset="0%" stop-color="#8A8EA0"/><stop offset="100%" stop-color="#5A5E70"/>
+    </linearGradient>
+  </defs>
+  <!-- One block, in the projection a voxel world is always drawn in. -->
+  <path d="M24 8 L40 16 L24 24 L8 16 Z" fill="#9EA2B4"/>
+  <path d="M8 16 L24 24 L24 40 L8 32 Z" fill="#5A5E70"/>
+  <path d="M40 16 L24 24 L24 40 L40 32 Z" fill="url(#oreface)"/>
+  <!-- What is in it. -->
+  <g fill="#39E8FF">
+    <path d="M14 21.4 L18 23.4 L18 27.4 L14 25.4 Z"/>
+    <path d="M16.4 29 L19.4 30.5 L19.4 33.5 L16.4 32 Z"/>
+    <path d="M28.4 24.6 L32.4 22.6 L32.4 26.6 L28.4 28.6 Z"/>
+    <path d="M30 31 L33 29.5 L33 32.5 L30 34 Z"/>
+    <path d="M22 13.4 L26 15.4 L22 17.4 L18 15.4 Z"/>
+  </g>
+  <g fill="#A8F6FF" opacity=".7">
+    <path d="M14 21.4 L18 23.4 L18 24.6 L14 22.6 Z"/>
+    <path d="M28.4 24.6 L32.4 22.6 L32.4 23.8 L28.4 25.8 Z"/>
+  </g>
+</svg>

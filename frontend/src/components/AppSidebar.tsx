@@ -22,6 +22,7 @@ import { AppsSection } from "@/components/sidebar/AppsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
+import { SidebarSearchButton } from "@/components/sidebar/SidebarSearchButton";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
 import { Button } from "@/components/ui/button";
@@ -61,11 +62,9 @@ import { guildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
-import { getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 
 export const AppSidebar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
   const { activeGuild, activeGuildId } = useGuilds();
   const isMobile = useIsMobile();
@@ -86,7 +85,7 @@ export const AppSidebar = () => {
   const showAdminDashboard = canAccessAdminDashboard(user);
 
   // Determine sidebar mode from route
-  const isGuildRoute = location.pathname.startsWith("/g/");
+  const isGuildRoute = location.pathname.startsWith("/c/");
   // The community directory brings its own: what narrows it belongs beside the
   // cards it narrows, not on the page with them. Only where there is a
   // directory to narrow, though — where the owner runs none, the page says so
@@ -101,7 +100,7 @@ export const AppSidebar = () => {
   // Which project row to highlight. A project is addressed inside its
   // initiative, so the pattern has to carry that segment too.
   const activeProjectId = useMemo(() => {
-    const match = location.pathname.match(/^\/g\/\d+\/i\/\d+\/projects\/(\d+)/);
+    const match = location.pathname.match(/^\/c\/\d+\/i\/\d+\/projects\/(\d+)/);
     return match ? parseInt(match[1], 10) : null;
   }, [location.pathname]);
 
@@ -109,7 +108,7 @@ export const AppSidebar = () => {
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   // The guild tree (initiatives/projects/documents/queues/counters/tags) is
-  // only rendered on /g/ routes, and only there does the server-held guild
+  // only rendered on /c/ routes, and only there does the server-held guild
   // context line up with it — on personal pages these guild-scoped queries
   // would 409 (no context) and cache errors that linger as zeroed counts.
   // Gate them all on actually being in the guild UI.
@@ -230,9 +229,6 @@ export const AppSidebar = () => {
 
   // Your own account, so your own name if you set one — and your handle, not
   // your address, when you have not.
-  const userDisplayName = getUserDisplayName(user);
-  const userInitials = useMemo(() => getInitialsForUser(user), [user]);
-  const avatarSrc = resolveUploadUrl(user?.avatar_url);
 
   // Fetch tags for the tag browser
   const tagsQuery = useTags({ enabled: guildTreeEnabled });
@@ -336,21 +332,29 @@ export const AppSidebar = () => {
             ) : (
               <>
                 <SidebarHeader
-                  className="gap-0 border-b p-0"
+                  className="gap-0 p-0"
                   style={{ paddingTop: "var(--safe-area-inset-top)" }}
                 >
-                  <div className="flex h-12 min-w-0 items-center justify-between gap-2 px-2.5">
-                    <h2 className="min-w-0 flex-1 truncate font-semibold text-lg">
-                      {activeGuild?.name ?? t("selectGuild")}
-                    </h2>
-                    {activeGuild && isGuildAdmin && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
-                        <Link to={gp("/settings")} aria-label={t("guildSettings")}>
-                          <Settings className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    )}
+                  {/* The rule goes on the wrapper, not the h-12 row, so the
+                      row is a full 3rem and the border sits below it — the
+                      recents bar across the top of the page is built the same
+                      way, and a border inside the box would leave the two 1px
+                      out of line. */}
+                  <div className="border-b">
+                    <div className="flex h-12 min-w-0 items-center justify-between gap-2 px-2.5">
+                      <h2 className="min-w-0 flex-1 truncate font-semibold text-lg">
+                        {activeGuild?.name ?? t("selectGuild")}
+                      </h2>
+                      {activeGuild && isGuildAdmin && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+                          <Link to={gp("/settings")} aria-label={t("guildSettings")}>
+                            <Settings className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                  <SidebarSearchButton guildName={activeGuild?.name} />
                 </SidebarHeader>
 
                 <Tabs defaultValue="initiatives" className="flex flex-1 flex-col overflow-hidden">
@@ -622,20 +626,17 @@ export const AppSidebar = () => {
         </div>
 
         <SidebarUserFooter
-          userId={user?.id ?? null}
-          userDisplayName={userDisplayName}
-          userInitials={userInitials}
-          avatarSrc={avatarSrc}
+          user={user}
           isGuildAdmin={isGuildAdmin}
           canManagePlatformConfig={showPlatformSettings}
           canAccessAdminDashboard={showAdminDashboard}
           activeGuildId={activeGuildId}
-          hasUser={Boolean(user)}
           currentVersion={currentVersion}
           latestVersion={latestVersion ?? null}
           hasUpdate={Boolean(hasUpdate)}
           isLoadingVersion={isLoadingVersion}
           onLogout={logout}
+          refreshUser={refreshUser}
         />
       </div>
     </Sidebar>

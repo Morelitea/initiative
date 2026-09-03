@@ -9,13 +9,19 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sqlmodel import select
+
+from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
+from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_initiative,
     create_project,
+    create_task_status,
     create_user,
     get_auth_headers,
 )
@@ -168,3 +174,275 @@ async def test_default_seeded_statuses_have_category_colors(
     assert by_category[TaskStatusCategory.todo].icon == "circle-pause"
     assert by_category[TaskStatusCategory.done].color == "#34D399"
     assert by_category[TaskStatusCategory.done].icon == "circle-check"
+
+
+# ---------------------------------------------------------------------------
+# GET /initiatives/{initiative_id}/task-statuses/ — the columns an initiative
+# offers, aggregated over the projects the caller can read.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_collapse_across_projects(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    second = await create_project(session, a.initiative, a.user, name="Second")
+    for project in (a.project, second):
+        await create_task_status(
+            session,
+            project,
+            name="Backlog",
+            category=TaskStatusCategory.backlog,
+            position=0,
+        )
+    await create_task_status(
+        session,
+        a.project,
+        name="Blocked",
+        category=TaskStatusCategory.todo,
+        position=1,
+        color="#FBBF24",
+        icon="circle-pause",
+    )
+
+    response = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/task-statuses/"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # Ordered by board position: the shared Backlog column, then Blocked.
+    assert body == [
+        {
+            "name": "Backlog",
+            "category": "backlog",
+            "color": "#94A3B8",
+            "icon": "circle-dashed",
+            "project_count": 2,
+            "projects_total": 2,
+        },
+        {
+            "name": "Blocked",
+            "category": "todo",
+            "color": "#FBBF24",
+            "icon": "circle-pause",
+            "project_count": 1,
+            "projects_total": 2,
+        },
+    ]
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_separate_same_name_by_category(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_task_status(
+        session, a.project, name="Review", category=TaskStatusCategory.todo, position=0
+    )
+    await create_task_status(
+        session,
+        a.project,
+        name="Review",
+        category=TaskStatusCategory.done,
+        position=1,
+    )
+
+    response = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/task-statuses/"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [(entry["name"], entry["category"]) for entry in body] == [
+        ("Review", "todo"),
+        ("Review", "done"),
+    ]
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_only_cover_readable_projects(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    await create_task_status(
+        session, owner.project, name="Unshared", category=TaskStatusCategory.todo
+    )
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    theirs = await create_project(session, owner.initiative, member.user, name="Theirs")
+    await create_task_status(
+        session, theirs, name="Shared", category=TaskStatusCategory.todo
+    )
+
+    response = await client.get(
+        member.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
+        headers=member.headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # The project they hold no grant on contributes neither a column nor a
+    # project to the total.
+    assert [entry["name"] for entry in body] == ["Shared"]
+    assert body[0]["projects_total"] == 1
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_skip_archived_and_template_projects(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_task_status(
+        session, a.project, name="Active", category=TaskStatusCategory.todo
+    )
+    archived = await create_project(
+        session, a.initiative, a.user, name="Archived", is_archived=True
+    )
+    await create_task_status(
+        session, archived, name="Archived Only", category=TaskStatusCategory.todo
+    )
+    template = await create_project(
+        session, a.initiative, a.user, name="Template", is_template=True
+    )
+    await create_task_status(
+        session, template, name="Template Only", category=TaskStatusCategory.todo
+    )
+
+    response = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/task-statuses/"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [entry["name"] for entry in body] == ["Active"]
+    assert body[0]["projects_total"] == 1
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_empty_when_no_readable_projects(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+
+    response = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/task-statuses/"), headers=a.headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_cover_the_guild_for_an_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    await create_task_status(
+        session, owner.project, name="Unshared", category=TaskStatusCategory.todo
+    )
+    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+
+    response = await client.get(
+        admin.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
+        headers=admin.headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [entry["name"] for entry in body] == ["Unshared"]
+    assert body[0]["projects_total"] == 1
+
+
+async def _grant_full_access(session: AsyncSession, initiative, user) -> None:
+    """Turn on "Full access" for the role ``user`` holds in ``initiative``."""
+    await route_session_to_guild(session, initiative.guild_id)
+    membership = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == initiative.id,
+                InitiativeMember.user_id == user.id,
+            )
+        )
+    ).one()
+    role = await session.get(InitiativeRoleModel, membership.role_id)
+    assert role is not None
+    role.override_share_restrictions = True
+    session.add(role)
+    await session.commit()
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_cover_the_initiative_on_full_access(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    await create_task_status(
+        session, owner.project, name="Unshared", category=TaskStatusCategory.todo
+    )
+    manager = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="project_manager",
+    )
+    await _grant_full_access(session, owner.initiative, manager.user)
+
+    response = await client.get(
+        manager.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
+        headers=manager.headers,
+    )
+
+    # Full access reaches every project in the initiative, so the column shows
+    # up here exactly as it would when opening that project directly.
+    assert response.status_code == 200
+    body = response.json()
+    assert [entry["name"] for entry in body] == ["Unshared"]
+    assert body[0]["project_count"] == 1
+    assert body[0]["projects_total"] == 1
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_refused_to_a_non_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    await create_task_status(
+        session, owner.project, name="Unshared", category=TaskStatusCategory.todo
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+
+    response = await client.get(
+        outsider.g(f"/initiatives/{owner.initiative.id}/task-statuses/"),
+        headers=outsider.headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"
+
+
+@pytest.mark.integration
+async def test_initiative_statuses_404_for_an_unknown_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    response = await client.get(
+        a.g("/initiatives/999999/task-statuses/"), headers=a.headers
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "INITIATIVE_NOT_FOUND"

@@ -4,6 +4,7 @@
     "subtitle": "Verwalte dein Profil, deine Oberflächeneinstellungen und Benachrichtigungen.",
     "tabs": {
       "profile": "Profil",
+      "account": "Konto",
       "interface": "Oberfläche",
       "notifications": "Benachrichtigungen",
       "ai": "KI",
@@ -16,21 +17,21 @@
     "goToLogin": "Zur Anmeldung"
   },
   "guildLayout": {
-    "title": "Gilden-Einstellungen",
-    "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Gilden-Details.",
+    "title": "Community-Einstellungen",
+    "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Community-Details.",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
     "restricted": {
       "read_only": {
         "label": "Schreibgeschützt",
-        "message": "Diese Gilde ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+        "message": "Diese Community ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
       },
       "suspended": {
         "label": "Gesperrt",
-        "message": "Diese Gilde ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+        "message": "Diese Community ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
       }
     },
     "tabs": {
-      "guild": "Gilde",
+      "guild": "Community",
       "ai": "KI",
       "users": "Benutzer",
       "initiatives": "Initiativen",
@@ -42,9 +43,8 @@
     }
   },
   "profile": {
-    "subtitle": "Halte deine Kontodaten aktuell.",
-    "cardTitle": "Persönliche Informationen",
-    "cardDescription": "Aktualisiere deinen Namen, dein Passwort und deinen Avatar.",
+    "cardTitle": "Wie du erscheinst",
+    "cardDescription": "Dein Bild, der Name, den Communitys mit Klarnamen verwenden, und woran du gerade bist.",
     "emailLabel": "E-Mail",
     "emailHelp": "E-Mail-Adressen können nicht geändert werden.",
     "fullNameLabel": "Vollständiger Name",
@@ -55,10 +55,6 @@
     "newPasswordLabel": "Neues Passwort",
     "confirmPasswordLabel": "Passwort bestätigen",
     "passwordPlaceholder": "••••••••",
-    "timezoneLabel": "Zeitzone",
-    "timezonePlaceholder": "Zeitzone auswählen",
-    "timezoneEmpty": "Keine Zeitzone gefunden.",
-    "timezoneHelp": "Wird für Fälligkeitsdaten, tägliche Erinnerungen und die Berechnung wiederkehrender Aufgaben verwendet. Bei deiner Registrierung aus deinem Browser erkannt; ändere sie hier, falls sie falsch ist.",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Hochladen",
     "avatarUrlTab": "URL",
@@ -79,7 +75,17 @@
       "unreadable": "Dieses Bild konnte nicht gelesen werden."
     },
     "usernameLabel": "Benutzername",
-    "usernameHelp": "So sehen dich andere. Für eine Änderung wende dich an eine Moderatorin oder einen Moderator."
+    "usernameHelp": "So sehen dich andere. Für eine Änderung wende dich an eine Moderatorin oder einen Moderator.",
+    "statusLabel": "Status",
+    "statusPlaceholder": "Woran arbeitest du gerade?",
+    "statusEmojiPlaceholder": "Emoji",
+    "statusHelp": "Steht auf deinem Profil, das jede und jeder öffnen kann.",
+    "pictureTitle": "Dein Bild",
+    "pictureDescription": "Lad eines hoch oder verlink eines. Es wird gespeichert, sobald du es auswählst.",
+    "timezoneLabel": "Zeitzone",
+    "timezonePlaceholder": "Zeitzone auswählen",
+    "timezoneEmpty": "Keine Zeitzone gefunden.",
+    "timezoneHelp": "Wird für Fälligkeiten, tägliche Erinnerungen und wiederkehrende Aufgaben verwendet. Bei der Registrierung aus deinem Browser übernommen; korrigier sie hier, falls sie falsch ist."
   },
   "security": {
     "devicesTitle": "Angemeldete Geräte",
@@ -111,9 +117,9 @@
     "expirationHelp": "Lass das Feld leer für einen Schlüssel, der nie abläuft.",
     "readOnlyLabel": "Nur Lesen",
     "readOnlyHelp": "Der Schlüssel kann Daten lesen, aber niemals etwas erstellen, ändern oder löschen. Empfohlen für Automatisierungen und Integrationen.",
-    "guildLabel": "Gildenzugriff",
-    "guildAllGuilds": "Alle meine Gilden",
-    "guildHelp": "Beschränke den Schlüssel auf eine einzige Gilde. Er kann dann nicht auf Daten anderer Gilden zugreifen.",
+    "guildLabel": "Community-Zugriff",
+    "guildAllGuilds": "Alle meine Communitys",
+    "guildHelp": "Beschränke den Schlüssel auf eine einzige Community. Er kann dann nicht auf Daten anderer Communitys zugreifen.",
     "generateButton": "API-Schlüssel generieren",
     "generating": "Wird generiert…",
     "nameRequired": "Name ist erforderlich",
@@ -135,7 +141,7 @@
     "statusExpired": "Abgelaufen",
     "statusDisabled": "Deaktiviert",
     "scopeReadOnly": "Nur Lesen",
-    "scopeGuild": "Gilde: {{guild}}",
+    "scopeGuild": "Community: {{guild}}",
     "scopeFull": "Voller Zugriff",
     "never": "Nie",
     "deleteButton": "Löschen",
@@ -160,30 +166,30 @@
     "httpWarning": "Es wird ein unverschlüsselter HTTP-Endpunkt verwendet. Konfiguriere TLS/HTTPS für den Produktivbetrieb."
   },
   "guildAI": {
-    "title": "Gilden-KI",
-    "adminOnly": "Nur Gildenadmins können KI-Verbindungen verwalten. Um deinen eigenen Schlüssel festzulegen, öffne „KI“ in deinen Profileinstellungen.",
-    "connectionsTitle": "Gilden-Verbindungen",
-    "connectionsDescription": "Definiere die KI-Verbindungen, die Mitglieder dieser Gilde verwenden können.",
+    "title": "Community-KI",
+    "adminOnly": "Nur Community-Admins können KI-Verbindungen verwalten. Um deinen eigenen Schlüssel festzulegen, öffne „KI“ in deinen Profileinstellungen.",
+    "connectionsTitle": "Community-Verbindungen",
+    "connectionsDescription": "Definiere die KI-Verbindungen, die Mitglieder dieser Community verwenden können.",
     "disabledDescription": "KI-Funktionen sind für die Plattform deaktiviert.",
     "managedByPlatform": "KI-Verbindungen werden auf Plattformebene verwaltet. Mitglieder legen ihren eigenen Schlüssel in ihren Profileinstellungen fest."
   },
   "platformAI": {
     "title": "Plattform-KI",
-    "description": "Lege fest, wie KI plattformweit konfiguriert wird. Wie bei der Anmeldung wird KI entweder von der Plattform oder von jeder Gilde verwaltet – niemals von beiden.",
+    "description": "Lege fest, wie KI plattformweit konfiguriert wird. Wie bei der Anmeldung wird KI entweder von der Plattform oder von jeder Community verwaltet – niemals von beiden.",
     "adminOnly": "Nur Plattform-Eigentümer können die KI-Einstellungen der Plattform verwalten.",
     "modeLabel": "KI-Konfigurationsmodus",
     "mode_disabled": "Deaktiviert",
     "mode_disabled_description": "KI-Funktionen sind für alle deaktiviert.",
     "mode_platform": "Von der Plattform verwaltet",
-    "mode_platform_description": "Du definierst die KI-Verbindungen, die jede Gilde verwendet.",
-    "mode_guild": "Von der Gilde verwaltet",
-    "mode_guild_description": "Jeder Gildenadmin definiert eigene KI-Verbindungen.",
+    "mode_platform_description": "Du definierst die KI-Verbindungen, die jede Community verwendet.",
+    "mode_guild": "Von der Community verwaltet",
+    "mode_guild_description": "Jeder Community-Admin definiert eigene KI-Verbindungen.",
     "saveMode": "Speichern",
     "savingMode": "Wird gespeichert…",
     "modeSaved": "KI-Einstellungen aktualisiert",
     "modeSaveError": "KI-Einstellungen konnten nicht aktualisiert werden",
     "connectionsTitle": "Plattform-Verbindungen",
-    "connectionsDescription": "Definiere die KI-Verbindungen, die jede Gilde verwendet."
+    "connectionsDescription": "Definiere die KI-Verbindungen, die jede Community verwendet."
   },
   "interface": {
     "title": "Oberflächeneinstellungen",
@@ -228,7 +234,9 @@
       "label": "Bildschirm aktiv halten",
       "description": "Verhindert, dass sich der Bildschirm dieses Geräts verdunkelt oder sperrt, solange die App geöffnet ist. Diese Einstellung wird nur auf diesem Gerät gespeichert.",
       "unsupported": "Dein Browser unterstützt das Aktivhalten des Bildschirms nicht."
-    }
+    },
+    "completionTitle": "Wenn du eine Aufgabe abschließt",
+    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst."
   },
   "notifications": {
     "title": "Benachrichtigungseinstellungen",
@@ -261,6 +269,8 @@
       "taskAssignmentsDescription": "Stündliche Zusammenfassung, wenn andere dir Aufgaben zuweisen.",
       "mentions": "Erwähnungen",
       "mentionsDescription": "Wenn dich jemand erwähnt oder deine Arbeit kommentiert.",
+      "commentReactions": "Reaktionen",
+      "commentReactionsDescription": "Eine regelmäßige Übersicht, wenn andere auf deine Kommentare reagieren.",
       "newProject": "Neues Projekt in der Initiative",
       "newProjectDescription": "Wenn in deinen Initiativen Projekte erstellt werden.",
       "overdueTasks": "Überfällige Aufgaben",
@@ -279,20 +289,19 @@
       "hour_other": "{{count}} Stunden vorher",
       "day_one": "{{count}} Tag vorher",
       "day_other": "{{count}} Tage vorher"
-    }
+    },
+    "scheduleTitle": "Tägliche Erinnerung",
+    "scheduleDescription": "Wann die Erinnerung an Überfälliges rausgeht – und nach welcher Uhr.",
+    "channelsTitle": "Worüber du hörst",
+    "channelsDescription": "Wähl je Art von Neuigkeit einen Kanal. Glocken-Benachrichtigungen kommen so oder so."
   },
   "dangerZone": {
     "serverConnection": "Serververbindung",
     "connectedTo": "Derzeit verbunden mit {{hostname}}.",
-    "disconnectTitle": "Vom Server trennen",
     "disconnectDescription": "Melde dich ab und trenne die Verbindung zu diesem Server. Du kannst dich danach mit einem anderen Server verbinden.",
     "disconnectButton": "Trennen",
-    "title": "Gefahrenzone",
-    "subtitle": "Unwiderrufliche und destruktive Aktionen für dein Konto.",
-    "deleteTitle": "Konto löschen",
-    "deleteDescription": "Lösche dein Konto dauerhaft oder deaktiviere es vorübergehend. Diese Aktion betrifft deine Projekte, Dokumente und andere Inhalte.",
     "deactivateTitle": "Konto deaktivieren",
-    "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Gilde entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Administrator kann dein Konto später wieder aktivieren.",
+    "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Administrator kann dein Konto später wieder aktivieren.",
     "permanentDeleteTitle": "Konto dauerhaft löschen",
     "permanentDeleteDescription": "Entferne dein Konto vollständig aus dem System. Projekte werden an andere Benutzer übertragen. Kommentare und Dokumente bleiben erhalten, zeigen aber „[Gelöschter Benutzer]“ an. <bold>Dies kann nicht rückgängig gemacht werden.</bold>",
     "permanentDeleteDescriptionText": "Entferne dein Konto vollständig aus dem System. Projekte werden an andere Benutzer übertragen. Kommentare und Dokumente bleiben erhalten, zeigen aber „[Gelöschter Benutzer]“ an.",
@@ -324,7 +333,7 @@
     "blockersTitle": "Blockierungen",
     "blockersDescription": "Die folgenden Probleme müssen behoben werden, bevor du dein Konto löschen kannst:",
     "warningsTitle": "Warnungen",
-    "lastAdminGuilds": "Du bist der letzte Administrator in diesen Gilden. Du musst ein anderes Mitglied befördern oder austreten, bevor du löschen kannst.",
+    "lastAdminGuilds": "Du bist der letzte Administrator in diesen Communitys. Du musst ein anderes Mitglied befördern oder austreten, bevor du löschen kannst.",
     "transferTitle": "Eigene Projekte übertragen",
     "transferDescription": "Du besitzt die folgenden Projekte. Wähle für jedes einen neuen Eigentümer:",
     "transferSelectPlaceholder": "Neuen Eigentümer auswählen",
@@ -344,7 +353,7 @@
     "confirmDeletionDescription": "Kontolöschung bestätigen",
     "confirmDeactivationDescription": "Kontodeaktivierung bestätigen",
     "deactivateLabel": "Mein Konto deaktivieren (Administratoren können es später für dich aktivieren)",
-    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Gilde entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Plattformadministrator kann dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateRadioDescription": "Du kannst dich nicht anmelden und wirst aus jeder Community entfernt, in der du bist – ein erneuter Beitritt erfordert eine neue Einladung. Ein Plattformadministrator kann dein Konto auf Anfrage wieder aktivieren. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteLabel": "Mein Konto löschen (meine persönlichen Informationen entfernen)",
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
@@ -358,7 +367,7 @@
     "selectNewOwnersDeactivate": "Wähle neue Eigentümer für deine Projekte aus, bevor du mit der Kontodeaktivierung fortfährst.",
     "selectNewOwnerPlaceholder": "Neuen Eigentümer auswählen…",
     "actionSerious": "Diese Aktion ist schwerwiegend:",
-    "deactivateConfirmDescription": "Dein Konto wird deaktiviert. Du kannst dich nicht anmelden, bis ein Administrator dein Konto wieder aktiviert. Du wirst aus jeder Gilde entfernt, der du angehörst, und ein erneuter Beitritt erfordert eine neue Einladung. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
+    "deactivateConfirmDescription": "Dein Konto wird deaktiviert. Du kannst dich nicht anmelden, bis ein Administrator dein Konto wieder aktiviert. Du wirst aus jeder Community entfernt, der du angehörst, und ein erneuter Beitritt erfordert eine neue Einladung. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten.",
     "softDeleteConfirmDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt. Du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "confirmPasswordLabel": "Bestätige dein Passwort",
     "enterPassword": "Gib dein Passwort ein",
@@ -499,7 +508,7 @@
     "postLoginRedirect": "Weiterleitung nach Anmeldung:",
     "mobileCallback": "Callback der mobilen App:",
     "mappingsTitle": "OIDC-Claim-Zuordnungen",
-    "mappingsDescription": "Ordne Claim-Werte von deinem Identitätsanbieter Gilden- und Initiativen-Mitgliedschaften zu.",
+    "mappingsDescription": "Ordne Claim-Werte von deinem Identitätsanbieter Community- und Initiativen-Mitgliedschaften zu.",
     "claimPathCardTitle": "OIDC-Claim-Pfad",
     "claimPathCardDescription": "Pfad in Punktnotation zum Claim-Array im OIDC-Token. Gängige Pfade:",
     "claimPathLabel": "Claim-Pfad",
@@ -512,23 +521,23 @@
     "claimPathSuccess": "Claim-Pfad aktualisiert",
     "claimPathError": "Claim-Pfad konnte nicht aktualisiert werden",
     "rulesTitle": "Zuordnungsregeln",
-    "rulesDescription": "Ordne OIDC-Claim-Werte Gilden- und Initiativen-Mitgliedschaften zu.",
+    "rulesDescription": "Ordne OIDC-Claim-Werte Community- und Initiativen-Mitgliedschaften zu.",
     "addRule": "Regel hinzufügen",
     "addMapping": "Zuordnung hinzufügen",
     "noRules": "Noch keine Zuordnungsregeln konfiguriert.",
-    "noMappings": "Keine Zuordnungen konfiguriert. Füge eine Zuordnung hinzu, um Benutzer automatisch Gilden und Initiativen zuzuweisen, wenn sie sich über OIDC anmelden.",
+    "noMappings": "Keine Zuordnungen konfiguriert. Füge eine Zuordnung hinzu, um Benutzer automatisch Communitys und Initiativen zuzuweisen, wenn sie sich über OIDC anmelden.",
     "loadingMappings": "Claim-Zuordnungen werden geladen…",
     "mappingsLoadError": "Claim-Zuordnungen konnten nicht geladen werden.",
     "mappingClaimValue": "Claim-Wert",
     "mappingClaimValuePlaceholder": "z. B. engineering-team",
     "mappingTargetType": "Zieltyp",
-    "mappingTargetGuild": "Nur Gilde",
-    "mappingTargetInitiative": "Gilde + Initiative",
-    "mappingTargetTypeGuild": "Gilde",
+    "mappingTargetGuild": "Nur Community",
+    "mappingTargetInitiative": "Community + Initiative",
+    "mappingTargetTypeGuild": "Community",
     "mappingTargetTypeInitiative": "Initiative",
-    "mappingGuild": "Gilde",
-    "mappingGuildPlaceholder": "Gilde auswählen",
-    "mappingGuildRole": "Gildenrolle",
+    "mappingGuild": "Community",
+    "mappingGuildPlaceholder": "Community auswählen",
+    "mappingGuildRole": "Community-Rolle",
     "mappingInitiative": "Initiative",
     "mappingInitiativePlaceholder": "Initiative auswählen",
     "mappingInitiativeRole": "Initiativenrolle",
@@ -548,8 +557,8 @@
     "mappingColumnClaim": "Claim-Wert",
     "mappingColumnType": "Typ",
     "mappingColumnTarget": "Ziel",
-    "mappingColumnGuild": "Gilde",
-    "mappingColumnGuildRole": "Gildenrolle",
+    "mappingColumnGuild": "Community",
+    "mappingColumnGuildRole": "Community-Rolle",
     "mappingColumnRole": "Rolle",
     "mappingColumnInitiative": "Initiative",
     "mappingColumnInitiativeRole": "Initiativenrolle",
@@ -558,14 +567,14 @@
     "mappingAdd": "Hinzufügen",
     "mappingRoleMember": "Mitglied",
     "mappingRoleAdmin": "Administrator",
-    "mappingSelectGuildFirst": "Zuerst Gilde auswählen",
+    "mappingSelectGuildFirst": "Zuerst Community auswählen",
     "mappingSelectInitiativeFirst": "Zuerst Initiative auswählen",
     "loadingOptions": "Optionen werden geladen…",
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
     "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
     "scope": {
       "platformLabel": "Plattformweite Anmeldung",
-      "guildLabel": "Anmeldung pro Gilde"
+      "guildLabel": "Anmeldung pro Community"
     }
   },
   "platformUsers": {
@@ -615,10 +624,10 @@
       "owner": "Eigentümer"
     },
     "roleDescriptions": {
-      "member": "Standardzugriff auf die eigenen Gilden. Keine plattformweiten Berechtigungen.",
-      "support": "Schreibgeschützte Plattformeinsicht (Benutzer, Gilden, Audit) und kann zeitlich begrenzten Zugriff auf eine Gilde anfordern.",
+      "member": "Standardzugriff auf die eigenen Communitys. Keine plattformweiten Berechtigungen.",
+      "support": "Schreibgeschützte Plattformeinsicht (Benutzer, Communitys, Audit) und kann zeitlich begrenzten Zugriff auf eine Community anfordern.",
       "moderator": "Alles, was Support kann, plus Benutzerverwaltung (Sperren/Wiederaktivieren) und Inhaltsmoderation.",
-      "operator": "Verwaltet Benutzer, Gilden und Rollen plattformweit, mit gildenübergreifendem Datenzugriff, und genehmigt Zugriffsanfragen.",
+      "operator": "Verwaltet Benutzer, Communitys und Rollen plattformweit, mit Community-übergreifendem Datenzugriff, und genehmigt Zugriffsanfragen.",
       "owner": "Vollständige Kontrolle, einschließlich der app-weiten Konfiguration (Authentifizierung, Branding, E-Mail, KI). Die einzige Rolle, die die Konfiguration verwalten kann."
     },
     "changeRoleTitle": "Plattformrolle ändern",
@@ -631,9 +640,11 @@
     "suspend": "Sperren",
     "unsuspend": "Sperre aufheben",
     "suspendTitle": "{{handle}} sperren?",
-    "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Gilde erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
+    "suspendBody": "Es geht nichts verloren — Mitgliedschaften, Freigaben und alle Inhalte bleiben — aber bis zur Aufhebung ist keine Community erreichbar. Die Anmeldung am eigenen Konto bleibt möglich, dort wird deine Begründung angezeigt.",
     "suspendReasonLabel": "Begründung (wird angezeigt)",
-    "actionError": "Das hat nicht geklappt. Bitte erneut versuchen."
+    "actionError": "Das hat nicht geklappt. Bitte erneut versuchen.",
+    "clearAgeBlock": "Altersfrage zurücksetzen",
+    "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden."
   },
   "adminDeleteUser": {
     "title": "Benutzer löschen",
@@ -660,7 +671,7 @@
     "blockersTitle": "Blockierungen",
     "blockersDescription": "Die folgenden Probleme müssen behoben werden, bevor dieser Benutzer gelöscht werden kann:",
     "warningsTitle": "Warnungen",
-    "guildBlockerTitle": "Letzter Administrator in Gilde: {{guildName}}",
+    "guildBlockerTitle": "Letzter Administrator in Community: {{guildName}}",
     "guildBlockerDescription": "Ein anderes Mitglied zum Administrator befördern:",
     "initiativeBlockerTitle": "Einziger Projektmanager in: {{initiativeName}}",
     "initiativeBlockerDescription": "Ein anderes Mitglied zum Projektmanager befördern:",
@@ -669,10 +680,10 @@
     "promoting": "Wird befördert…",
     "promoteSuccess": "Rolle aktualisiert",
     "promoteError": "Rolle konnte nicht aktualisiert werden",
-    "deleteGuild": "Gilde löschen",
-    "deleteGuildConfirm": "Gilde „{{guildName}}“ löschen? Dadurch werden alle Gilden-Daten dauerhaft gelöscht.",
-    "deleteGuildSuccess": "Gilde gelöscht",
-    "deleteGuildError": "Gilde konnte nicht gelöscht werden",
+    "deleteGuild": "Community löschen",
+    "deleteGuildConfirm": "Community „{{guildName}}“ löschen? Dadurch werden alle Community-Daten dauerhaft gelöscht.",
+    "deleteGuildSuccess": "Community gelöscht",
+    "deleteGuildError": "Community konnte nicht gelöscht werden",
     "deleteInitiative": "Initiative löschen",
     "deleteInitiativeConfirm": "Initiative „{{initiativeName}}“ löschen? Sie und alle ihre Projekte, Aufgaben, Dokumente, Warteschlangen und Termine werden in den Papierkorb verschoben. Du kannst den gesamten Baum unter Einstellungen → Papierkorb wiederherstellen, bevor der Aufbewahrungszeitraum endet.",
     "deleteInitiativeSuccess": "Initiative gelöscht",
@@ -699,12 +710,12 @@
   },
   "accessGrants": {
     "title": "Zugriffsanfragen",
-    "description": "Fordere zeitlich begrenzten Zugriff auf eine Gilde an, deren Mitglied du nicht bist, und genehmige ihn.",
+    "description": "Fordere zeitlich begrenzten Zugriff auf eine Community an, deren Mitglied du nicht bist, und genehmige ihn.",
     "requestTitle": "Zugriff anfordern",
-    "requestDescription": "Fordere temporären, eingeschränkten Zugriff auf eine Gilde an. Genehmiger gewähren ihn und er läuft automatisch ab.",
+    "requestDescription": "Fordere temporären, eingeschränkten Zugriff auf eine Community an. Genehmiger gewähren ihn und er läuft automatisch ab.",
     "breakGlass": {
       "title": "Notfallzugriff",
-      "description": "Notfallzugriff auf eine Gilde selbst gewähren – sofort genehmigt, auf diese Gilde beschränkt und automatisch ablaufend. Lese- & Schreibzugriff entspricht einem vollen Gilden-Admin. Jeder Notfallzugriff wird protokolliert.",
+      "description": "Notfallzugriff auf eine Community selbst gewähren – sofort genehmigt, auf diese Community beschränkt und automatisch ablaufend. Lese- & Schreibzugriff entspricht einem vollen Community-Admin. Jeder Notfallzugriff wird protokolliert.",
       "reasonPlaceholder": "Warum du Notfallzugriff brauchst (z. B. Vorfall #123)",
       "submit": "Notfallzugriff",
       "activated": "Notfallzugriff aktiviert",
@@ -712,7 +723,7 @@
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",
-    "guildIdLabel": "Gilden-ID",
+    "guildIdLabel": "Community-ID",
     "guildIdPlaceholder": "z. B. 42",
     "levelLabel": "Zugriffsebene",
     "levelRead": "Nur Lesen",
@@ -752,7 +763,7 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, das Community-Verzeichnis, KI, Gildenspeicher und App-Dienste für die gesamte Plattform.",
+    "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail, das Community-Verzeichnis, KI, Community-Speicher und App-Dienste für die gesamte Plattform.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
@@ -798,16 +809,16 @@
       "signature_mismatch": "Die App hat mit einem anderen gemeinsamen Geheimnis geantwortet. Prüfe, ob beide Seiten dasselbe verwenden."
     },
     "disabledBadge": "Deaktiviert",
-    "disabledHelp": "Diese App ist für jede Gilde gestoppt, die sie installiert hat. Es wurde nichts gelöscht.",
-    "mandatoryBadge": "In jeder Gilde",
-    "mandatoryHelp": "Wird automatisch in jeder Gilde installiert. Gildenadministratorinnen und -administratoren können sie weder entfernen noch abschalten.",
+    "disabledHelp": "Diese App ist für jede Community gestoppt, die sie installiert hat. Es wurde nichts gelöscht.",
+    "mandatoryBadge": "In jeder Community",
+    "mandatoryHelp": "Wird automatisch in jeder Community installiert. Community-Administratorinnen und -administratoren können sie weder entfernen noch abschalten.",
     "delegationBadge": "Handelt als Mitglieder",
     "delegationHelp": "Diese App darf die API als echtes Mitglied aufrufen – mit dessen eigenen Berechtigungen.",
     "delegationJwksLabel": "Signaturschlüssel für Delegation (JWKS)",
     "delegationJwksHelp": "Der öffentliche Teil des Schlüssels, mit dem diese App Delegations-Token signiert. Füge den Schlüsselsatz ein, den die App veröffentlicht; zwei Einträge bedeuten, dass gerade rotiert wird. Ein leeres Feld entfernt ihn.",
     "delegationJwksInvalid": "Das ist kein gültiges JSON.",
     "appDirectoryLabel": "Andere Apps finden (App-Verzeichnis)",
-    "appDirectoryHelp": "Diese App darf erfragen, wo eine andere in derselben Gilde installierte App antwortet. Erfordert zusätzlich Delegation: Ein Automatisierungsdienst hat beides, denn genau dafür ist er da – im Auftrag einer App bei einer anderen zu handeln.",
+    "appDirectoryHelp": "Diese App darf erfragen, wo eine andere in derselben Community installierte App antwortet. Erfordert zusätzlich Delegation: Ein Automatisierungsdienst hat beides, denn genau dafür ist er da – im Auftrag einer App bei einer anderen zu handeln.",
     "appDirectoryBadge": "Findet andere Apps",
     "createTitle": "App-Dienst hinzufügen",
     "editTitle": "App-Dienst bearbeiten",
@@ -837,7 +848,7 @@
     "grantsTitle": "Vom Betreiber verliehene Befugnisse",
     "grantsHelp": "Nur du kannst sie verleihen. Eine App kann sie sich niemals selbst zusprechen.",
     "delegationLabel": "Als Mitglieder handeln (Delegation)",
-    "mandatoryLabel": "In jeder Gilde installieren",
+    "mandatoryLabel": "In jeder Community installieren",
     "created": "App-Dienst registriert.",
     "saved": "App-Dienst aktualisiert.",
     "deleted": "App-Dienst gelöscht.",
@@ -849,10 +860,10 @@
     "verifyError": "Der App-Dienst konnte nicht überprüft werden.",
     "toggleError": "Der App-Dienst konnte nicht geändert werden.",
     "disableTitle": "{{name}} deaktivieren?",
-    "disableDescription": "Jede Gilde, die diese App installiert hat, erreicht sie sofort nicht mehr – Daten, Konfiguration, Ereignisse und eingebettete Seiten werden abgelehnt. Es wird nichts gelöscht, und du kannst sie jederzeit wieder einschalten.",
+    "disableDescription": "Jede Community, die diese App installiert hat, erreicht sie sofort nicht mehr – Daten, Konfiguration, Ereignisse und eingebettete Seiten werden abgelehnt. Es wird nichts gelöscht, und du kannst sie jederzeit wieder einschalten.",
     "disableConfirm": "App-Dienst deaktivieren",
     "deleteTitle": "{{name}} löschen?",
-    "deleteDescription": "Die Registrierung und das hinterlegte gemeinsame Geheimnis werden endgültig entfernt. Jede Gilde, die diese App installiert hat, erreicht sie nicht mehr, und für ein erneutes Hinzufügen musst du das Geheimnis noch einmal eingeben.",
+    "deleteDescription": "Die Registrierung und das hinterlegte gemeinsame Geheimnis werden endgültig entfernt. Jede Community, die diese App installiert hat, erreicht sie nicht mehr, und für ein erneutes Hinzufügen musst du das Geheimnis noch einmal eingeben.",
     "deleteConfirmLabel": "Zum Bestätigen die App-Kennung eingeben",
     "manifestChangedTitle": "{{name}} beschreibt sich jetzt anders",
     "manifestChangedDescription": "Das Manifest dieser App entspricht nicht mehr dem bei der Registrierung hinterlegten Stand; Funktionen, Verbindungen oder eingebettete Seiten können sich also geändert haben. Beim Annehmen wird das neue Manifest übernommen und die App als überprüft markiert. Nimm es nur an, wenn du mit dieser Änderung gerechnet hast.",
@@ -864,17 +875,18 @@
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff",
-      "guilds": "Gilden",
-      "audit": "Prüfprotokoll"
+      "guilds": "Communitys",
+      "audit": "Prüfprotokoll",
+      "announcements": "Ankündigungen"
     }
   },
   "guilds": {
-    "title": "Gilden-Limits",
-    "description": "Lege pro Gilde Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Gilden-Limits zu verwalten.",
-    "loading": "Gilden werden geladen…",
-    "loadError": "Gilden konnten nicht geladen werden. Bitte versuche es erneut.",
-    "filterByName": "Gilden nach Namen filtern",
+    "title": "Community-Limits",
+    "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
+    "loading": "Communitys werden geladen…",
+    "loadError": "Communitys konnten nicht geladen werden. Bitte versuche es erneut.",
+    "filterByName": "Communitys nach Namen filtern",
     "unlimitedPlaceholder": "Unbegrenzt",
     "helpText": "Speicherlimits sind in GB; Benutzerlimits sind eine Mitgliederzahl. Beide werden automatisch gespeichert – lass ein Feld leer für unbegrenzt.",
     "limitInputLabel": "Speicherlimit für {{name}} in GB",
@@ -886,10 +898,10 @@
     "usersSaveError": "Das Benutzerlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
     "statusInputLabel": "Status für {{name}}",
     "statusSaved": "Status für {{name}} aktualisiert.",
-    "statusSaveError": "Der Gildenstatus konnte nicht aktualisiert werden. Bitte versuche es erneut.",
-    "guildAuthInputLabel": "Gildenspezifische Anmeldung für {{name}}",
-    "guildAuthOn": "Gildenspezifische Anmeldung für {{name}} aktiviert.",
-    "guildAuthOff": "Gildenspezifische Anmeldung für {{name}} deaktiviert. Bestehende Mitglieder melden sich weiterhin an; es werden keine neuen Konten angelegt.",
+    "statusSaveError": "Der Community-Status konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "guildAuthInputLabel": "Community-spezifische Anmeldung für {{name}}",
+    "guildAuthOn": "Community-spezifische Anmeldung für {{name}} aktiviert.",
+    "guildAuthOff": "Community-spezifische Anmeldung für {{name}} deaktiviert. Bestehende Mitglieder melden sich weiterhin an; es werden keine neuen Konten angelegt.",
     "status": {
       "active": "Aktiv",
       "read_only": "Schreibgeschützt",
@@ -897,16 +909,16 @@
     },
     "suspendConfirm": {
       "title": "{{name}} sperren?",
-      "description": "Mitglieder verlieren jeglichen Zugriff und die Gilde verschwindet aus ihrer Liste. Es wird nichts gelöscht und du kannst sie jederzeit reaktivieren; Betreiber behalten den Zugriff über eine Break-Glass-Berechtigung.",
-      "confirm": "Gilde sperren"
+      "description": "Mitglieder verlieren jeglichen Zugriff und die Community verschwindet aus ihrer Liste. Es wird nichts gelöscht und du kannst sie jederzeit reaktivieren; Betreiber behalten den Zugriff über eine Break-Glass-Berechtigung.",
+      "confirm": "Community sperren"
     },
     "columns": {
       "id": "ID",
-      "guild": "Gilde",
+      "guild": "Community",
       "members": "Mitglieder",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
-      "guildAuth": "Gildenanmeldung",
+      "guildAuth": "Community-Anmeldung",
       "status": "Status",
       "billing": "Abrechnung"
     },
@@ -970,22 +982,22 @@
   "guildAuth": {
     "registry": {
       "title": "Identitätsanbieter",
-      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Gilde anmelden. Werden von den Admins dieser Gilde konfiguriert und gelten nur hier.",
+      "description": "Die Single-Sign-on-Anbieter, mit denen sich die Mitglieder dieser Community anmelden. Werden von den Admins dieser Community konfiguriert und gelten nur hier.",
       "dialogDescription": "OpenID-Connect-Details. Die Callback-URL beim IdP ist /api/v1/auth/g/{{guildId}}/{slug}/callback auf diesem Server."
     },
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
-      "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Gilde an und führt sie direkt in die Gilde.",
+      "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
       "copy": "Link kopieren",
       "copied": "Anmeldelink kopiert"
     },
     "policy": {
       "title": "Anmeldeanforderung",
-      "description": "Lege fest, mit welcher Anmeldung eine Sitzung erfolgt sein muss, bevor sie auf diese Gilde zugreifen kann.",
+      "description": "Lege fest, mit welcher Anmeldung eine Sitzung erfolgt sein muss, bevor sie auf diese Community zugreifen kann.",
       "openLabel": "Offen",
-      "openHelp": "Jedes angemeldete Mitglied kann auf diese Gilde zugreifen.",
+      "openHelp": "Jedes angemeldete Mitglied kann auf diese Community zugreifen.",
       "requiredLabel": "Single Sign-on erforderlich",
-      "requiredHelp": "Mitglieder können erst nach der Anmeldung über den ausgewählten Anbieter auf diese Gilde zugreifen.",
+      "requiredHelp": "Mitglieder können erst nach der Anmeldung über den ausgewählten Anbieter auf diese Community zugreifen.",
       "providerPlaceholder": "Anbieter auswählen …",
       "noProviders": "Es sind noch keine Anbieter konfiguriert. Füge unten unter Identitätsanbieter einen hinzu und mache ihn dann hier verpflichtend.",
       "saved": "Anmeldeanforderung gespeichert",
@@ -1058,8 +1070,8 @@
     "saveError": "Verbindung konnte nicht gespeichert werden",
     "newTitle": "Neue Verbindung",
     "editTitle": "Verbindung bearbeiten",
-    "platformDialogDescription": "Jede Gilde kann diese Verbindung verwenden.",
-    "guildDialogDescription": "Mitglieder dieser Gilde können diese Verbindung verwenden.",
+    "platformDialogDescription": "Jede Community kann diese Verbindung verwenden.",
+    "guildDialogDescription": "Mitglieder dieser Community können diese Verbindung verwenden.",
     "labelLabel": "Bezeichnung",
     "labelPlaceholder": "z. B. Team OpenAI",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1079,7 +1091,7 @@
   },
   "memberAI": {
     "title": "Meine KI",
-    "description": "Sieh alle KI-Verbindungen, die dir in deinen Gilden zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
+    "description": "Sieh alle KI-Verbindungen, die dir in deinen Communitys zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
     "noneAvailable": "Dir sind noch keine KI-Verbindungen verfügbar.",
     "managedByAdmin": "Von deinem Admin verwaltet – verwendet einen gemeinsamen Schlüssel.",
     "selected": "In Verwendung",
@@ -1101,14 +1113,19 @@
   },
   "community": {
     "title": "Community-Verzeichnis",
-    "description": "Erlaube Gilden, sich dort einzutragen, wo alle Angemeldeten sie finden und ohne Einladung beitreten können.",
+    "description": "Erlaube Communitys, sich dort einzutragen, wo alle Angemeldeten sie finden und ohne Einladung beitreten können.",
     "toggleLabel": "Community-Verzeichnis betreiben",
-    "helpText": "Solange dies aktiv ist, können Gildenadministratoren ihre Gilde in den Gildeneinstellungen eintragen, und „Einer Community beitreten“ erscheint neben den Gilden aller. Ist es deaktiviert, gibt es nichts zu durchsuchen und keine Gilde kann sich eintragen.",
-    "reversibleNote": "Deaktivieren blendet das Verzeichnis aus; die Einträge der Gilden bleiben bestehen. Wird es wieder aktiviert, sind dieselben Gilden erneut gelistet.",
+    "helpText": "Solange dies aktiv ist, können Community-Administratoren ihre Community in den Community-Einstellungen eintragen, und „Einer Community beitreten“ erscheint neben den Communitys aller. Ist es deaktiviert, gibt es nichts zu durchsuchen und keine Community kann sich eintragen.",
+    "reversibleNote": "Deaktivieren blendet das Verzeichnis aus; die Einträge der Communitys bleiben bestehen. Wird es wieder aktiviert, sind dieselben Communitys erneut gelistet.",
     "enabledToast": "Das Community-Verzeichnis ist aktiv.",
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben."
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
+    "ageGateLabel": "Mitglieder bestätigen lassen, dass sie mindestens 13 sind",
+    "ageGateHelpText": "Solange dies aktiv ist, wird jede Person in einer gelisteten Community einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
+    "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",
+    "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird erneut um eine Altersbestätigung gebeten – auch nicht bei einem späteren Beitritt zu einer gelisteten Community.",
+    "ageGateOffConfirm": "Hier sind alle mindestens 18"
   },
   "audit": {
     "title": "Prüfprotokoll",
@@ -1124,5 +1141,12 @@
     "actions": {
       "user.avatar_removed": "Profilbild entfernt"
     }
+  },
+  "account": {
+    "identityTitle": "Deine Anmeldung",
+    "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
+    "passwordTitle": "Passwort",
+    "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
+    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
   }
 }

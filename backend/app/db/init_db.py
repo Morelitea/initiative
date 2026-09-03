@@ -20,6 +20,7 @@ from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import guilds as guilds_service
 from app.core import usernames
 
@@ -54,13 +55,15 @@ async def init_owner() -> None:
             email_verified=True,
         )
         session.add(user)
+        await session.flush()
+        await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         await session.commit()
 
         # ...and their guild the same way the API does: create the shared rows,
         # commit, then provision the schema and seed its content (settings +
         # default initiative). No bespoke seeding path — it's a real guild.
         guild = await guilds_service.create_guild(
-            session, name="Primary Guild", creator=user
+            session, name="Primary Community", creator=user
         )
         await session.commit()
         # Capture ids before the seed: the rollback in the failure path expires the

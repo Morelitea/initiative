@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Bunsen burner</title>
+  <circle cx="24" cy="24" r="23" fill="#16233A"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B84B" stroke-width="2"/>
+  <path d="M15 40 L33 40 L33 37 C33 35.6 32 35 30.6 35 L17.4 35 C16 35 15 35.6 15 37 Z"
+        fill="#8A9098"/>
+  <path d="M15 40 L33 40 L33 38.6 L15 38.6 Z" fill="#5E646C"/>
+  <path d="M22 35 L26 35 L26 20 L22 20 Z" fill="#B8BEC6"/>
+  <path d="M22 35 L23.4 35 L23.4 20 L22 20 Z" fill="#E4E8EE"/>
+  <path d="M21 26 L27 26 L27 28.4 L21 28.4 Z" fill="#6E747C"/>
+  <path d="M24 4.6 C28.6 9.4 29.6 14.4 27.6 18 C26.6 19.8 25.4 20.4 24 20.4
+           C22.6 20.4 21.4 19.8 20.4 18 C18.4 14.4 19.4 9.4 24 4.6 Z" fill="#3E8ED0"/>
+  <path d="M24 9.6 C26.6 12.6 27.2 15.6 26 17.8 C25.4 18.8 24.8 19.2 24 19.2
+           C23.2 19.2 22.6 18.8 22 17.8 C20.8 15.6 21.4 12.6 24 9.6 Z" fill="#9FD8F2"/>
+  <path d="M24 14 C25.2 15.6 25.4 17 24.8 18.2 C24.6 18.7 24.3 18.9 24 18.9
+           C23.7 18.9 23.4 18.7 23.2 18.2 C22.6 17 22.8 15.6 24 14 Z" fill="#F2E8B4"/>
+</svg>

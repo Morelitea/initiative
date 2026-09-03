@@ -22,7 +22,7 @@ from app.db.query import (
     parse_conditions,
     parse_sort_fields,
 )
-from app.schemas.query import FilterOp, SortDir
+from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -49,11 +49,11 @@ from app.models.tenant.task import (
 from app.models.tenant.tag import Tag, TaskTag
 from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.tenant.task import (
-    TaskAutocomplete,
     TaskCreate,
     TaskListRead,
     TaskListResponse,
@@ -79,6 +79,7 @@ from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import filter_presets as filter_presets_service
@@ -741,7 +742,11 @@ async def _set_task_assignees(
         ).all()
     )
 
-    stmt = select(User).where(User.id.in_(tuple(unique_ids))) if unique_ids else None
+    stmt = (
+        select(MemberProfile).where(MemberProfile.id.in_(tuple(unique_ids)))
+        if unique_ids
+        else None
+    )
 
     if stmt is not None:
         result = await session.exec(stmt)
@@ -978,22 +983,60 @@ async def _ensure_can_manage(
     return project
 
 
+def _confining_project_id(
+    conditions: list[FilterCondition | FilterGroup],
+) -> Optional[int]:
+    """The single project this request is narrowed to, or ``None``.
+
+    Only a plain top-level equality on one id confines a request to a project.
+    ``project_id != 5`` and ``project_id NOT IN []`` both name a value while
+    leaving the request spanning every other project in the community, so the
+    scope question they ask is the cross-initiative one — and the answer to
+    "which rows may this reader see" must not turn on a value the filter is
+    about to discard.
+
+    Deliberately stricter than :func:`extract_condition_value`, which reports a
+    value for any of those shapes: this one decides access, and the only shape
+    that decides it is the one that actually holds for every row returned.
+    """
+    for cond in conditions:
+        if isinstance(cond, FilterGroup) or cond.field != "project_id":
+            continue
+        if cond.negate or cond.op is not FilterOp.eq:
+            return None
+        if isinstance(cond.value, (list, tuple, set)):
+            return None
+        try:
+            return int(cond.value)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 async def _allowed_project_ids(
     session: SessionDep,
     user: User,
     guild_id: int,
     *,
     include_templates: bool = False,
+    project_id: Optional[int] = None,
 ) -> Optional[set[int]]:
     """Project ids whose tasks this request may see.
 
-    The set stays explicitly guild-scoped either way; ``dac_scope_clause`` adds
-    the sharing gate, which is a no-op for a request that reaches the whole
-    guild — such a request sees tasks in every project of the guild, like a
-    member of every initiative.
+    The set stays explicitly guild-scoped either way; the sharing gate on top of
+    it follows the scope being asked about, the same rule the tool listings
+    follow. Confined to one project, the question is the reader's standing in
+    the initiative holding it, and a guild admin's reaches all of it. Spanning
+    them — the tag browse, the community calendar's task markers — the question
+    is what has been shared with the reader, so the answer matches the events
+    those markers sit beside.
     """
     conditions = [
         permissions_service.dac_scope_clause(
+            Tool.project, Project.id, user.id, guild_id=guild_id
+        )
+        if project_id is not None
+        else permissions_service.granted_scope_clause(
             Tool.project, Project.id, user.id, guild_id=guild_id
         ),
         Initiative.guild_id == guild_id,
@@ -1346,6 +1389,9 @@ async def _guild_task_query_builder(
         current_user,
         guild_id,
         include_templates=q.project_id is not None,
+        # Access takes the strict reading, not the one that decides whether
+        # templates join the set.
+        project_id=_confining_project_id(q.user_conditions),
     )
     if allowed_ids is not None:
         if not allowed_ids:
@@ -1796,55 +1842,6 @@ async def list_tasks(
     )
 
 
-@router.get("/autocomplete", response_model=List[TaskAutocomplete])
-async def autocomplete_tasks(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(
-        default=None,
-        description="Restrict to one initiative. Omit to search the whole guild.",
-    ),
-    q: str = Query(default=""),
-    limit: int = Query(default=10, ge=1, le=50),
-) -> List[TaskAutocomplete]:
-    """Search tasks by title for autocomplete/pickers.
-
-    Returns lightweight task info (id, title) for typeahead — it skips the
-    eager-load chains and per-page annotation query the full list endpoint
-    runs. Visibility matches the task list: only tasks in projects the caller
-    can access come back (RLS hides content of initiatives the caller isn't in).
-
-    An empty ``q`` matches everything, so a picker that opens before the user
-    types gets the most recently updated tasks. Archived tasks are excluded.
-    """
-    q_parsed = await _parse_task_list_query(session, None, None, None)
-    build = await _guild_task_query_builder(
-        session,
-        current_user,
-        guild_context.guild_id,
-        q=q_parsed,
-        include_archived=False,
-    )
-    if build is None:
-        return []
-
-    stmt = build(select(Task.id, Task.title))
-    if initiative_id is not None:
-        stmt = stmt.where(Project.initiative_id == initiative_id)
-    normalized = q.strip().lower()
-    if normalized:
-        # autoescape so a literal % or _ in the query matches itself rather
-        # than acting as a wildcard.
-        stmt = stmt.where(func.lower(Task.title).contains(normalized, autoescape=True))
-    stmt = stmt.order_by(Task.updated_at.desc()).limit(limit)
-
-    result = await session.exec(stmt)
-    return [
-        TaskAutocomplete(id=task_id, title=title) for task_id, title in result.all()
-    ]
-
-
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
 async def create_task(
     task_in: TaskCreate,
@@ -1908,7 +1905,10 @@ async def create_task(
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
     if project and task.assignees:
-        for assignee in task.assignees:
+        assignees = await accounts_service.load_all(
+            [assignee.id for assignee in task.assignees]
+        )
+        for assignee in assignees:
             await notifications_service.enqueue_task_assignment_event(
                 session,
                 task=task,
@@ -2050,7 +2050,7 @@ async def update_task(
         task, task.task_status.category if task.task_status else None, now=now
     )
 
-    new_assignees: list[User] = []
+    new_assignees: list[MemberProfile] = []
     if assignee_ids is not None:
         existing_assignee_ids = {assignee.id for assignee in task.assignees}
         await _set_task_assignees(session, task, assignee_ids)
@@ -2069,7 +2069,10 @@ async def update_task(
     )
 
     if new_assignees and project:
-        for assignee in new_assignees:
+        newly_assigned = await accounts_service.load_all(
+            [assignee.id for assignee in new_assignees]
+        )
+        for assignee in newly_assigned:
             await notifications_service.enqueue_task_assignment_event(
                 session,
                 task=task,
@@ -2511,6 +2514,7 @@ async def reorder_tasks(
             .selectinload(Initiative.guild),
             selectinload(Task.assignees),
             selectinload(Task.task_status),
+            selectinload(Task.creator),
         )
         .where(Task.id.in_(tuple(affected_ids)))
         .order_by(Task.position.asc(), Task.id.asc())

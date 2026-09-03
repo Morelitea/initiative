@@ -190,6 +190,27 @@ async def update_interface_settings(
     )
 
 
+@router.get("/community", response_model=CommunitySettingsResponse)
+async def read_community_settings(
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> CommunitySettingsResponse:
+    """The three community-wide decisions, for the owner's settings page.
+
+    The two switches are also on ``GET /config``, which is where every signed-in
+    page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
+    — the server applies it when an account is made — so it is served here,
+    behind the capability that writes it, rather than added to everyone's boot
+    payload.
+    """
+    settings_obj = await app_settings_service.get_app_settings(session)
+    return CommunitySettingsResponse(
+        community_directory_enabled=settings_obj.community_directory_enabled,
+        age_gate_enabled=settings_obj.community_age_gate_enabled,
+        default_dm_policy=settings_obj.default_dm_policy,
+    )
+
+
 @router.put("/community", response_model=CommunitySettingsResponse)
 async def update_community_settings(
     payload: CommunitySettingsUpdate,
@@ -206,13 +227,27 @@ async def update_community_settings(
     Switching it off hides the directory and refuses new listings; it does not
     clear the opt-in a guild already made, so switching it back on restores the
     same set of listed guilds.
+
+    ``default_dm_policy`` is the third decision here and behaves like the
+    second: omitted, it is left alone. It is the policy a newly created account
+    starts on, and changing it moves no existing account.
+
+    ``age_gate_enabled`` is the second switch: whether an account must confirm
+    it belongs to somebody 13 or older before it takes a place in a listed
+    guild. Turning it off is the owner asserting that every account on this
+    deployment already belongs to an adult, which is why it is a deliberate
+    write and not a side effect of the first — omitting it leaves it alone.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
         community_directory_enabled=payload.community_directory_enabled,
+        community_age_gate_enabled=payload.age_gate_enabled,
+        default_dm_policy=payload.default_dm_policy,
     )
     return CommunitySettingsResponse(
         community_directory_enabled=settings_obj.community_directory_enabled,
+        age_gate_enabled=settings_obj.community_age_gate_enabled,
+        default_dm_policy=settings_obj.default_dm_policy,
     )
 
 

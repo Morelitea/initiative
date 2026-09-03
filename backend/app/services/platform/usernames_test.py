@@ -28,6 +28,16 @@ class TestAllocate:
             assert (name, number) not in taken
             taken.add((name, number))
 
+    async def test_skips_a_number_already_behind_the_name(self, session, monkeypatch):
+        """Every draw lands on the one number already held, so the free-number
+        scan is what answers — a handle is the pair, and the pair is unique."""
+        await create_user(session, username="jordan", discriminator=1234)
+        monkeypatch.setattr(usernames, "random_discriminator", lambda: 1234)
+
+        _, number = await username_service.allocate(session, name="jordan")
+
+        assert number != 1234
+
     async def test_refuses_a_name_it_cannot_store(self, session):
         with pytest.raises(UsernameError) as exc:
             await username_service.allocate(session, name="admin")
@@ -122,9 +132,13 @@ class TestInsertWithHandle:
 
         held = await create_user(session, username="racer", discriminator=4242)
 
-        # Every draw lands on the number already held, until the retry has
-        # marked it taken and moves on.
-        draws = iter([4242, 4242, 777])
+        # The read that finds which numbers are taken ran before the other
+        # registration landed, so the number it draws first looks free.
+        async def nothing_taken(session, name):
+            return set()
+
+        monkeypatch.setattr(username_service, "_taken", nothing_taken)
+        draws = iter([4242, 777])
         monkeypatch.setattr(usernames, "random_discriminator", lambda: next(draws))
 
         user = User(

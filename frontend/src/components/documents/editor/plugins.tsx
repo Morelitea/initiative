@@ -2,7 +2,9 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import { type RefObject, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import { ActionsPlugin } from "@/components/ui/editor/plugins/actions/actions-plugin";
@@ -22,9 +24,10 @@ import { AutoEmbedPlugin } from "@/components/ui/editor/plugins/embeds/auto-embe
 import { TwitterPlugin } from "@/components/ui/editor/plugins/embeds/twitter-plugin";
 import { YouTubePlugin } from "@/components/ui/editor/plugins/embeds/youtube-plugin";
 import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-plugin";
+import { EntityMentionsPlugin } from "@/components/ui/editor/plugins/entity-mentions-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
-import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
+import { LegacyNodesPlugin } from "@/components/ui/editor/plugins/legacy-nodes-plugin";
 import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
@@ -39,10 +42,12 @@ import { ImagePickerPlugin } from "@/components/ui/editor/plugins/picker/image-p
 import { NumberedListPickerPlugin } from "@/components/ui/editor/plugins/picker/numbered-list-picker-plugin";
 import { ParagraphPickerPlugin } from "@/components/ui/editor/plugins/picker/paragraph-picker-plugin";
 import { QuotePickerPlugin } from "@/components/ui/editor/plugins/picker/quote-picker-plugin";
+import { SmartChipPickerPlugins } from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
 import {
   DynamicTablePickerPlugin,
   TablePickerPlugin,
 } from "@/components/ui/editor/plugins/picker/table-picker-plugin";
+import { SmartChipRefsPlugin } from "@/components/ui/editor/plugins/smart-chip-refs-plugin";
 import { TabFocusPlugin } from "@/components/ui/editor/plugins/tab-focus-plugin";
 import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
 import { FormatBulletedList } from "@/components/ui/editor/plugins/toolbar/block-format/format-bulleted-list";
@@ -57,6 +62,7 @@ import { InsertColumnsLayout } from "@/components/ui/editor/plugins/toolbar/bloc
 import { InsertEmbeds } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-embeds";
 import { InsertHorizontalRule } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-horizontal-rule";
 import { InsertImage } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-image";
+import { InsertSmartChip } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-smart-chip";
 import { InsertTable } from "@/components/ui/editor/plugins/toolbar/block-insert/insert-table";
 import { BlockInsertPlugin } from "@/components/ui/editor/plugins/toolbar/block-insert-plugin";
 import { ClearFormattingToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/clear-formatting-toolbar-plugin";
@@ -82,17 +88,26 @@ export function Plugins({
   collaborative = false,
   cursorsContainerRef,
   initiativeId = null,
+  supportsEntityMentions = false,
   onWikilinkNavigate,
-  onWikilinkCreate,
+  onCreateReferencedThing,
 }: {
   showToolbar?: boolean;
   readOnly?: boolean;
   collaborative?: boolean;
   cursorsContainerRef?: RefObject<HTMLDivElement>;
   initiativeId?: number | null;
+  /** Whether this is a standard document — prose with a caret. `#` is offered
+   *  only here: a whiteboard and a spreadsheet are not written into, and a file
+   *  or a linked page has no body of its own to write in. */
+  supportsEntityMentions?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
-  onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
+  onCreateReferencedThing?: (
+    name: string,
+    onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+  ) => void;
 }) {
+  const { t } = useTranslation("documents");
   const [editor] = useLexicalComposerContext();
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
@@ -120,7 +135,7 @@ export function Plugins({
           {({ blockType }) => (
             <>
               {/* Desktop toolbar - all options inline */}
-              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted/20 p-1 lg:flex">
+              <div className="vertical-align-middle sticky top-0 z-10 hidden flex-wrap items-center gap-2 overflow-auto border-b bg-muted p-1 lg:flex">
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -156,13 +171,14 @@ export function Plugins({
                       <InsertTable />
                       <InsertColumnsLayout />
                       <InsertEmbeds />
+                      {supportsEntityMentions && <InsertSmartChip initiativeId={initiativeId} />}
                     </BlockInsertPlugin>
                   </>
                 )}
               </div>
 
               {/* Compact toolbar - overflow menu */}
-              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted/20 p-1 lg:hidden">
+              <div className="vertical-align-middle sticky top-0 z-10 flex items-center gap-2 border-b bg-muted p-1 lg:hidden">
                 <HistoryToolbarPlugin />
                 <Separator orientation="vertical" className="h-7!" />
                 <BlockFormatDropDown>
@@ -174,7 +190,14 @@ export function Plugins({
                   <FormatCodeBlock />
                   <FormatQuote />
                 </BlockFormatDropDown>
-                {blockType === "code" ? <CodeLanguageToolbarPlugin /> : <ToolbarOverflowMenu />}
+                {blockType === "code" ? (
+                  <CodeLanguageToolbarPlugin />
+                ) : (
+                  <ToolbarOverflowMenu
+                    initiativeId={initiativeId}
+                    supportsSmartChips={supportsEntityMentions}
+                  />
+                )}
               </div>
             </>
           )}
@@ -201,11 +224,14 @@ export function Plugins({
         <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />
         <TabIndentationPlugin />
 
+        <LegacyNodesPlugin />
         <MentionsPlugin initiativeId={initiativeId ?? undefined} />
+        {supportsEntityMentions && <SmartChipRefsPlugin />}
+        {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}
         <WikilinksPlugin
           initiativeId={initiativeId}
           onNavigate={onWikilinkNavigate}
-          onCreateDocument={onWikilinkCreate}
+          onCreateThing={onCreateReferencedThing}
         />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
 
@@ -233,6 +259,8 @@ export function Plugins({
             EmbedsPickerPlugin({ embed: "tweet" }),
             EmbedsPickerPlugin({ embed: "youtube-video" }),
             ImagePickerPlugin(),
+            // Live chips, offered where `#` is: prose only.
+            ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
             ColumnsLayoutPickerPlugin(),
             AlignmentPickerPlugin({ alignment: "left" }),
             AlignmentPickerPlugin({ alignment: "center" }),
@@ -252,12 +280,6 @@ export function Plugins({
           isLinkEditMode={isLinkEditMode}
           setIsLinkEditMode={setIsLinkEditMode}
         />
-        <FloatingWikilinkEditorPlugin
-          anchorElem={floatingAnchorElem}
-          initiativeId={initiativeId}
-          onNavigate={onWikilinkNavigate}
-          onCreateDocument={onWikilinkCreate}
-        />
         <FloatingTextFormatToolbarPlugin
           anchorElem={floatingAnchorElem}
           setIsLinkEditMode={setIsLinkEditMode}
@@ -265,7 +287,7 @@ export function Plugins({
       </div>
       {showToolbar && (
         <ActionsPlugin>
-          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted/20 p-1">
+          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted p-1">
             <div className="flex flex-1 justify-start"></div>
             <div>
               <CounterCharacterPlugin charset="UTF-16" />

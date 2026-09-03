@@ -63,3 +63,23 @@ class TaskStatusReorderItem(SanitizedBaseModel):
 
 class TaskStatusReorderRequest(SanitizedBaseModel):
     items: List[TaskStatusReorderItem]
+
+
+class InitiativeTaskStatusRead(SanitizedBaseModel):
+    """A status column as it appears across one initiative's projects.
+
+    Entries are aggregated by ``(name, category)``, so the same column
+    configured in several projects collapses to a single row; ``color`` and
+    ``icon`` come from the first project that defines it. ``project_count`` is
+    how many of the projects the caller can read carry the column, out of
+    ``projects_total``.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    name: str
+    category: TaskStatusCategory
+    color: str
+    icon: str
+    project_count: int
+    projects_total: int

@@ -59,17 +59,61 @@ const ROBOT_TYPE_BY_TYPE: Record<ChesterToastType, RobotToastType> = {
   loading: "info",
 };
 
+/**
+ * Auto-dismiss timing.
+ *
+ * robot-toast only starts its auto-close timer once the typewriter animation
+ * finishes, so `autoClose` is the dwell time *after* the message is fully on
+ * screen — not the total time it is visible. We budget a total reading time
+ * from the content and hand robot-toast whatever is left once typing is done.
+ *
+ * The budget is a fixed cost for noticing the toast plus a per-character
+ * reading allowance (50ms/char, roughly 240 wpm), clamped so short messages
+ * still linger long enough to register and long ones don't camp on screen.
+ */
+const NOTICE_MS = 1_200;
+const MS_PER_CHAR = 50;
+const MAX_TOTAL_MS = 10_000;
+/** Extra budget when the toast carries a button the reader may want to press. */
+const ACTION_MS = 2_000;
+/** Never leave less than this much time after the message finishes typing. */
+const MIN_DWELL_MS = 1_200;
+/** Floor on total on-screen time, per type — warnings and errors sit longer. */
+const MIN_TOTAL_MS_BY_TYPE: Record<ChesterToastType, number> = {
+  default: 3_000,
+  success: 3_000,
+  info: 3_000,
+  loading: 3_000,
+  warning: 4_500,
+  error: 5_000,
+};
+
+/** Dwell time (ms) to hand robot-toast for a message it will type at `typeSpeed`. */
+const computeAutoClose = (
+  message: string,
+  type: ChesterToastType,
+  typeSpeed: number,
+  hasAction: boolean
+): number => {
+  const budget = NOTICE_MS + message.length * MS_PER_CHAR + (hasAction ? ACTION_MS : 0);
+  const total = Math.min(Math.max(budget, MIN_TOTAL_MS_BY_TYPE[type]), MAX_TOTAL_MS);
+  const typingMs = message.length * typeSpeed;
+  return Math.max(total - typingMs, MIN_DWELL_MS);
+};
+
 const buildInput = (
   message: string,
   type: ChesterToastType,
   opts?: ChesterToastOptions
 ): RobotToastOptions => {
+  const text = opts?.description ? `${message}\n${opts.description}` : message;
+  const typeSpeed = opts?.typeSpeed ?? 20;
   const input: RobotToastOptions = {
-    message: opts?.description ? `${message}\n${opts.description}` : message,
+    message: text,
     type: ROBOT_TYPE_BY_TYPE[type],
     robotVariant: opts?.robotVariant ?? VARIANT_BY_TYPE[type],
     position: opts?.position ?? "bottom-center",
-    typeSpeed: opts?.typeSpeed ?? 20,
+    typeSpeed,
     // Cap how many toasts are visible at once; the rest queue and appear as
     // slots free up (robot-toast reads this per call, falling back to its
     // unlimited default otherwise).
@@ -77,6 +121,8 @@ const buildInput = (
   };
   if (opts?.duration !== undefined) {
     input.autoClose = Number.isFinite(opts.duration) ? opts.duration : false;
+  } else {
+    input.autoClose = computeAutoClose(text, type, typeSpeed, Boolean(opts?.action));
   }
   if (opts?.action) {
     input.buttons = [{ label: opts.action.label, onClick: opts.action.onClick }];
@@ -166,4 +212,5 @@ toast.promise = async <T>(
   }
 };
 
-export { toast };
+export type { ChesterToastOptions, ChesterToastType };
+export { computeAutoClose, toast };

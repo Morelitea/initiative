@@ -7,7 +7,7 @@ import secrets
 
 from sqlalchemy import Integer, bindparam, func, or_, text
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlmodel import select, delete
+from sqlmodel import col, select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.role_context import set_guild_shows_member_names
@@ -28,6 +28,9 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
 from app.services.platform import billing_ping
+
+from app.services.platform import account_stream
+from app.services.platform import contact_grants as contact_grants_service
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,10 @@ class CommunityListingError(Exception):
 
 class CommunityDirectoryDisabledError(Exception):
     """Raised when the deployment runs no community directory at all."""
+
+
+class AgeConfirmationRequiredError(Exception):
+    """The caller has not confirmed their age and asked to join a listed guild."""
 
 
 class BannerColorError(Exception):
@@ -139,8 +146,8 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
     guild = await _persist_new_guild(
         session,
         Guild(
-            name="Primary Guild",
-            description="Default guild",
+            name="Primary Community",
+            description="Default community",
             created_at=now,
             updated_at=now,
         ),
@@ -230,6 +237,11 @@ async def ensure_membership(
     )
     session.add(membership)
     await session.flush()
+    # Belonging somewhere new can change what this account is asked for — a
+    # listed community asks its members their age — and the person may have
+    # had nothing to do with arriving here. Their open tabs re-read the
+    # account once this commits.
+    account_stream.queue_account_signal(session, user_id, "membership")
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
@@ -252,11 +264,10 @@ async def enroll_new_member_in_auto_join_initiatives(
     onboarding hook rather than a sweep: someone who was already in the guild
     is returned earlier and is never re-enrolled.
 
-    A guild admin is skipped. They already reach every initiative in their guild
-    by standing, and the built-in ``member`` role is one they must never hold
-    (see ``_guard_guild_admin_role``) — so for them there is nothing to grant and
-    a row to avoid. This also covers guild creation, where the admin membership
-    is written before the guild's schema exists at all.
+    A guild admin is skipped. Their membership row is written before the guild's
+    schema exists at all — guild creation is the case — and their standing
+    already reaches every initiative, so nothing here is theirs to be handed.
+    They pick which initiatives they navigate by joining them.
 
     The initiatives live in the guild's schema and the join paths that reach here
     run on the system engine with ``search_path = public``, so the work is done
@@ -282,6 +293,54 @@ async def enroll_new_member_in_auto_join_initiatives(
         logger.exception(
             "auto-join: user %s joined guild %s but was enrolled in none of its "
             "auto-join initiatives",
+            user_id,
+            guild_id,
+        )
+
+
+async def align_admin_initiative_roles(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user_id: int,
+    role: GuildRole,
+) -> None:
+    """Bring a freshly promoted guild admin's initiative rows up to their standing.
+
+    A guild admin's membership row carries a manager role, which every write
+    path settles for itself. A promotion changes the guild role and nothing
+    else, so the rows the person already held are reconciled here — the one
+    moment their standing changes underneath rows that already exist.
+
+    Only a promotion to admin does anything; a demotion leaves the manager role
+    in place, which is an ordinary initiative role for an ordinary member to
+    hold, and taking it away would be a second decision nobody asked for.
+
+    The initiatives live in the guild's schema and this runs on the system
+    engine with ``search_path = public``, so the work is done through a routed
+    excursion that hands the session back as it found it. The whole excursion
+    sits inside a savepoint: the role change is the thing being asked for, and
+    reconciling rows underneath it must never be what makes it fail. Flush-only;
+    the caller owns the transaction.
+    """
+    if role != GuildRole.admin:
+        return
+    from app.db.session import guild_schema_context
+    from app.services.tenant import initiatives as initiatives_service
+
+    try:
+        async with session.begin_nested():
+            async with guild_schema_context(session, guild_id=guild_id):
+                # A second savepoint so a failure unwinds before the excursion
+                # restores the caller's context, rather than during it.
+                async with session.begin_nested():
+                    await initiatives_service.align_guild_admin_membership_roles(
+                        session, guild_id=guild_id, user_id=user_id
+                    )
+    except Exception:
+        logger.exception(
+            "admin promotion: user %s became an admin of guild %s but their "
+            "existing initiative roles were not reconciled",
             user_id,
             guild_id,
         )
@@ -726,6 +785,11 @@ async def update_guild(
             await assert_community_directory_enabled(session)
         guild.is_community = is_community
         updated = True
+        # Listing a community — or taking it back off the shelf — changes what
+        # is asked of everybody already in it, none of whom did anything. The
+        # one fan-out this channel has, and it is addressed to the members who
+        # are actually here rather than to the whole roster.
+        await _signal_members_present(session, guild_id=guild.id)
     if categories_provided:
         normalized = normalize_categories(categories)
         if guild.categories != normalized:
@@ -1007,6 +1071,32 @@ async def redeem_invite_for_user(
     return guild
 
 
+async def _signal_members_present(session: AsyncSession, *, guild_id: int) -> None:
+    """Poke this guild's members whose tabs this worker is holding.
+
+    A guild may have thousands of members and almost none of them are at a
+    keyboard right now, so the roster is narrowed to the sockets this process
+    has before anything is queued: the cost is the people who are here, not the
+    people who exist. Everyone else re-reads their account when they next
+    arrive, which is the same moment they would have seen the change anyway.
+
+    Other workers' members are reached by their own listeners off the bus, so
+    what looks process-local here is not.
+    """
+    from app.services.platform.user_stream import stream as user_sockets
+
+    here = user_sockets.connected_users()
+    if not here:
+        return
+    rows = await session.exec(
+        select(GuildMembership.user_id).where(
+            GuildMembership.guild_id == guild_id,
+            col(GuildMembership.user_id).in_(here),
+        )
+    )
+    account_stream.queue_for_members(session, rows.all(), "community")
+
+
 async def assert_community_directory_enabled(session: AsyncSession) -> None:
     """Raise unless the platform owner has switched the directory on.
 
@@ -1091,6 +1181,111 @@ async def is_listed_in_directory(session: AsyncSession, *, guild_id: int) -> boo
     for condition in community_listing_filters():
         statement = statement.where(condition)
     return bool((await session.exec(statement)).one())
+
+
+async def age_confirmation_outstanding(
+    session: AsyncSession,
+    *,
+    user: User,
+) -> bool:
+    """Whether this account owes the deployment an age confirmation.
+
+    True when the deployment asks for one, the account has not given one, and
+    it belongs to at least one guild that is listed right now. That last clause
+    is why this is asked rather than stored: a guild lists itself long after
+    its members joined, and every member it already had owes the confirmation
+    from that moment — as does anyone a group sync or an admin put there, who
+    was never shown a form to tick.
+
+    Which guilds count is ``community_listing_filters()``, the same list the
+    directory and the join it authorizes ask, so a guild that leaves the shelf
+    stops holding anybody to this in the same instant.
+
+    Reads another shape of the caller's own membership rows, so it wants a
+    session that can see ``guilds`` unfiltered (the system engine) or the
+    caller's own platform-tier session, which is scoped to exactly these rows.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if user.age_confirmed_at is not None:
+        return False
+    settings_row = await app_settings_service.get_app_settings(session)
+    # Two switches, both off-ramps: a deployment with no directory lists no
+    # guild for anyone to be in, and an owner may have asserted that every
+    # account here belongs to an adult.
+    if not (
+        settings_row.community_directory_enabled
+        and settings_row.community_age_gate_enabled
+    ):
+        return False
+    # One row is the whole answer — this is asked on every read of the caller's
+    # own account until they answer, so it stops at the first listed guild
+    # rather than counting them.
+    statement = (
+        select(GuildMembership.guild_id)
+        .join(Guild, Guild.id == GuildMembership.guild_id)
+        .join(
+            GuildAdministration, GuildAdministration.guild_id == Guild.id, isouter=True
+        )
+        .where(GuildMembership.user_id == user.id, *community_listing_filters())
+        .limit(1)
+    )
+    return (await session.exec(statement)).first() is not None
+
+
+async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:
+    """Raise unless this account may take a place in a listed guild.
+
+    The directory's Join button asks first and this backs it, so ticking the
+    box is what joins rather than what is checked afterwards. Every other way
+    into a listed guild — an invite, a group sync, an admin adding somebody —
+    lands the membership and is caught by
+    :func:`age_confirmation_outstanding` instead, which is the enforcement:
+    there is nobody at a keyboard on those paths to answer a question.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    if user.age_confirmed_at is not None:
+        return
+    if not await app_settings_service.community_age_gate_enabled(session):
+        return
+    raise AgeConfirmationRequiredError(GuildMessages.AGE_CONFIRMATION_REQUIRED)
+
+
+async def list_profile_communities(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> list[Guild]:
+    """The listed communities one account belongs to, for their profile.
+
+    Which guilds may appear is ``community_listing_filters()`` — the same list
+    the directory, the join it authorizes and the images it publishes all ask,
+    so a guild that leaves the shelf leaves every profile in the same instant.
+    A guild someone is in that never opted in is nobody else's business and is
+    not here.
+
+    Needs a session that can see another account's ``guild_memberships`` (the
+    system engine): the request path is scoped to the caller's own rows, and
+    the question is about somebody else. Nothing from inside a guild's schema
+    is read — only the identity it published by opting in.
+    """
+    from app.services.platform import app_settings as app_settings_service
+
+    # A deployment with the directory off publishes no communities at all, so
+    # there is nothing a profile could name.
+    if not await app_settings_service.community_directory_enabled(session):
+        return []
+    stmt = (
+        select(Guild)
+        .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+        .join(
+            GuildAdministration, GuildAdministration.guild_id == Guild.id, isouter=True
+        )
+        .where(GuildMembership.user_id == user_id, *community_listing_filters())
+        .order_by(Guild.name.asc())
+    )
+    return list((await session.exec(stmt)).unique().all())
 
 
 async def list_community_guilds(
@@ -1199,6 +1394,9 @@ async def join_community_guild(
     # joined by asking for it directly either.
     if not await is_listed_in_directory(session, guild_id=guild_id):
         raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+    # Asked before the seat is taken, so the box is what joins rather than
+    # something checked once they are already in.
+    await assert_age_confirmed(session, user=user)
     # Capacity is enforced inside ensure_membership, which is also where a
     # repeat join short-circuits to the existing membership.
     await ensure_membership(
@@ -1279,7 +1477,16 @@ async def remove_user_from_guild(
     # which pings only on a genuine insert (a no-op remove of a non-member
     # must not nudge billing).
     if result.rowcount:
+        # Same reason as the insert side: what is asked of this account can
+        # change with where it belongs, and leaving is not always their doing.
+        account_stream.queue_account_signal(session, user_id, "membership")
         billing_ping.notify_membership_changed(guild_id)
+        # This community was a leg of can_ask for everyone they shared it with,
+        # so every open channel that rested on it is re-tested — one survives if
+        # the pair connected, which is what a connection is for. Queued rather
+        # than run here: the sweep reads the state this delete leaves behind,
+        # and this delete is not committed yet.
+        contact_grants_service.queue_stale_grant_sweep(session, user_id)
 
 
 async def adopt_guild_name_display(session: AsyncSession, *, guild_id: int) -> None:

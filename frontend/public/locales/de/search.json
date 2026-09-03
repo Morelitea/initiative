@@ -1,0 +1,37 @@
+{
+  "title": "Suche",
+  "titleInGuild": "{{guildName}} durchsuchen",
+  "placeholder": "{{guildName}} durchsuchen",
+  "seeAll": "Alle anzeigen",
+  "prompt": {
+    "title": "Diese Community durchsuchen",
+    "description": "Finde alles über seinen Namen oder über das, was darin steht."
+  },
+  "empty": {
+    "title": "Keine Ergebnisse für „{{query}}“",
+    "description": "Prüfe die Schreibweise oder versuche ein anderes Wort."
+  },
+  "tabs": {
+    "tool": "Werkzeuge",
+    "member": "Mitglieder",
+    "comment": "Kommentare",
+    "tag": "Tags"
+  },
+  "types": {
+    "project": "Projekt",
+    "task": "Aufgabe",
+    "document": "Dokument",
+    "queue": "Ablauf",
+    "queue_item": "Ablaufelement",
+    "counter_group": "Zählergruppe",
+    "counter": "Zähler",
+    "calendar": "Kalender",
+    "calendar_event": "Termin",
+    "dashboard": "Dashboard",
+    "tag": "Tag",
+    "comment": "Kommentar"
+  },
+  "switchHint": "Tab zum Wechseln",
+  "closeMatches": "Nichts passt genau zu „{{query}}“. Das hier kommt am nächsten.",
+  "includeArchived": "Archiviertes einbeziehen"
+}

@@ -1,0 +1,94 @@
+{
+  "uid": "TY9JK60NV1YJPR",
+  "public_id": "core.soundcheck",
+  "kind": "profile_pack",
+  "name": "Soundcheck",
+  "publisher": "Initiative",
+  "description": "A stage before the doors open, and everything you play on it.",
+  "long_description": "A meter jumping, a field at night, and a line of music with the place being played lit as it goes past. Put the headphones on, step into the beams, be the side that is playing, or let a record turn around you. Then eight to wear: guitar, keys, sax, violin, mic, drums, turntable, and the cassette a band hands you when they really want you to hear it.",
+  "avatar_url": "/decorations/banners/music-soundcheck.svg",
+  "images": [],
+  "version": "1.5.0",
+  "release_notes": "Headphones, stage lights and a tape that turns.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "music.soundcheck",
+        "slot": "banner",
+        "name": "Soundcheck"
+      },
+      {
+        "id": "music.vinyl",
+        "slot": "frame",
+        "name": "Vinyl"
+      },
+      {
+        "id": "music.cassette",
+        "slot": "trophy",
+        "name": "Cassette"
+      },
+      {
+        "id": "music.festival",
+        "slot": "banner",
+        "name": "Festival"
+      },
+      {
+        "id": "music.guitar",
+        "slot": "trophy",
+        "name": "Electric guitar"
+      },
+      {
+        "id": "music.keys",
+        "slot": "trophy",
+        "name": "Keys"
+      },
+      {
+        "id": "music.sax",
+        "slot": "trophy",
+        "name": "Saxophone"
+      },
+      {
+        "id": "music.violin",
+        "slot": "trophy",
+        "name": "Violin"
+      },
+      {
+        "id": "music.mic",
+        "slot": "trophy",
+        "name": "Microphone"
+      },
+      {
+        "id": "music.drums",
+        "slot": "trophy",
+        "name": "Drum kit"
+      },
+      {
+        "id": "music.sheet",
+        "slot": "banner",
+        "name": "Sheet music"
+      },
+      {
+        "id": "music.turntable",
+        "slot": "trophy",
+        "name": "Turntable"
+      },
+      {
+        "id": "music.headphones",
+        "slot": "frame",
+        "name": "Headphones"
+      },
+      {
+        "id": "music.stagelights",
+        "slot": "frame",
+        "name": "Stage lights"
+      },
+      {
+        "id": "music.mixtape",
+        "slot": "frame",
+        "name": "Mixtape"
+      }
+    ]
+  }
+}

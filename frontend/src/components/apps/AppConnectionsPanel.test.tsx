@@ -41,7 +41,7 @@ const base: AppConnection = {
   blocked: false,
 };
 
-/** The guild's own credential, granted at the vendor rather than typed. */
+/** The community's own credential, granted at the vendor rather than typed. */
 const vendorFlow: AppConnection = {
   ...base,
   connect_path: "/install/github",
@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.stubGlobal("open", opened);
 });
 
-describe("a guild credential granted at the vendor", () => {
+describe("a community credential granted at the vendor", () => {
   it("offers a button rather than a form", async () => {
     render(vendorFlow);
 
@@ -112,12 +112,14 @@ describe("a guild credential granted at the vendor", () => {
   it("tells a member who cannot manage it what they are waiting on", async () => {
     render(vendorFlow, false);
 
-    expect(await screen.findByText(/guild admin still has to set this up/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/community admin still has to set this up/i)
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
   });
 });
 
-describe("a guild credential that is typed", () => {
+describe("a community credential that is typed", () => {
   it("still draws its form, and no vendor button", async () => {
     render(typed);
 

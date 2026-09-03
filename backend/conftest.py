@@ -133,6 +133,49 @@ TEST_STATEMENT_TIMEOUT = "30s"
 BACKEND_DIR = Path(__file__).resolve().parent
 
 
+# --- `-n auto` is bounded by MEMORY, not just cores --------------------------
+# A worker is not a thread: it imports the whole app and opens its own engines
+# and pools, and was measured at ~500MB resident, with its Postgres backends and
+# the WAL its writes generate on top of that. So on a 16-core machine plain
+# `-n auto` asks for ~8GB of workers before Postgres or an editor gets a byte,
+# and a fixed-ceiling host (a WSL2 VM is the one that bites here) dies partway
+# through the suite instead of finishing it.
+#
+# Cores stay the upper bound; memory becomes the second one. Budget half of
+# MemTotal for workers -- the other half is Postgres, its page cache, and
+# whatever else is running -- and divide by the per-worker cost. Set
+# PYTEST_XDIST_AUTO_NUM_WORKERS to override on a host that knows better: xdist
+# reads that variable in its own implementation of this hook, so returning None
+# here hands the decision straight back to it.
+_WORKER_MEMORY_BUDGET_MB = 900
+
+
+def _mem_total_mb() -> int | None:
+    """Total RAM in MB, or None where /proc/meminfo isn't readable."""
+    try:
+        with open("/proc/meminfo") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) // 1024
+    except OSError:
+        pass
+    return None
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_xdist_auto_num_workers(config: "pytest.Config") -> int | None:
+    if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
+        return None  # explicit override; let xdist's own hook answer
+    if hasattr(os, "sched_getaffinity"):
+        cores = len(os.sched_getaffinity(0))
+    else:
+        cores = os.cpu_count() or 1
+    mem_total = _mem_total_mb()
+    if mem_total is None:
+        return None  # unknown host; xdist's core count is as good a guess as any
+    return max(1, min(cores, (mem_total // 2) // _WORKER_MEMORY_BUDGET_MB))
+
+
 async def connect_su_postgres() -> asyncpg.Connection:
     """Test-infra superuser connection to the always-present ``postgres`` DB.
 
@@ -146,6 +189,22 @@ async def connect_su_postgres() -> asyncpg.Connection:
         host=_app_db.hostname,
         port=_app_db.port or 5432,
         database="postgres",
+    )
+
+
+async def connect_su_test_db() -> asyncpg.Connection:
+    """Test-infra superuser connection to THIS worker's test database.
+
+    Same credentials as :func:`connect_su_postgres`, pointed at the database the
+    suite runs against — for the install-time DDL that requires superuser and
+    that infrastructure, not the app, performs.
+    """
+    return await asyncpg.connect(
+        user=_su_user,
+        password=_su_password,
+        host=_app_db.hostname,
+        port=_app_db.port or 5432,
+        database=TEST_DB_NAME,
     )
 
 
@@ -177,6 +236,27 @@ async def _ensure_test_database() -> None:
                 # than spin 12x and mask it behind a generic RuntimeError.
                 await asyncio.sleep(0.5)
         raise RuntimeError(f"could not create test database {TEST_DB_NAME!r}")
+    finally:
+        await conn.close()
+
+
+async def _install_search_operator() -> None:
+    """Install the search match operator + operator class in the test database.
+
+    Infrastructure installs these once per database as a superuser
+    (``scripts/create-search-operator.sql``); the suite is that infrastructure
+    for its own database, the same way it sources its own superuser. Without
+    them the index falls back to the stock operator — a different plan than
+    production runs, so the tests would not be exercising what ships.
+    """
+    sql = (Path(__file__).parent / "scripts" / "create-search-operator.sql").read_text()
+    # psql meta-commands and the trailing verification SELECT are for humans.
+    body = "\n".join(
+        line for line in sql.splitlines() if not line.startswith("\\")
+    ).split("-- 4. Confirm.")[0]
+    conn = await connect_su_test_db()
+    try:
+        await conn.execute(body)
     finally:
         await conn.close()
 
@@ -233,6 +313,9 @@ async def _migrate_under_lock() -> None:
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
         await _ensure_test_database()
+        # Before migrations: the search-index migration chooses its operator
+        # class based on whether these objects are present.
+        await _install_search_operator()
         await asyncio.to_thread(_alembic_upgrade_head)
     finally:
         await lock_conn.close()  # closing the connection releases the advisory lock
@@ -378,6 +461,23 @@ def _reset_app_registration_cache():
     invalidate_registrations()
     yield
     invalidate_registrations()
+
+
+@pytest.fixture(autouse=True)
+def _reset_presence_roll():
+    """Start and end every test with nobody online.
+
+    How a person appears is answered from a process-global roll fed by the
+    sockets this process holds (see ``app.services.platform.presence``). Test
+    databases RESTART IDENTITY per test, so user ids repeat — and a test that
+    leaves a socket registered would hand its user id to whoever gets that id
+    next, which reads as a stranger being online.
+    """
+    from app.services.platform import presence
+
+    presence.online = presence.OnlineRoll()
+    yield
+    presence.online = presence.OnlineRoll()
 
 
 @pytest.fixture(autouse=True)

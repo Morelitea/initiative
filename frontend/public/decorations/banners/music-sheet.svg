@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Sheet music</title>
+  <!-- A line of music with the place being played lit as it goes. The notes are
+       drawn twice: once in ink, once in gold behind a moving window, so the
+       gold shows only where the playhead is. -->
+  <style>
+    .play { animation: read 9s linear infinite }
+    @keyframes read { from { transform: translateX(-24px) }
+                      to { transform: translateX(184px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .play { animation: none; transform: translateX(70px) } }
+  </style>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FBF5E4"/><stop offset="60%" stop-color="#F2E9D2"/>
+      <stop offset="100%" stop-color="#E4D7B8"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F2B01E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#F2B01E" stop-opacity=".28"/>
+      <stop offset="100%" stop-color="#F2B01E" stop-opacity="0"/>
+    </linearGradient>
+    <!-- The window the gold copy is seen through, moved by the same animation. -->
+    <mask id="head">
+      <rect x="0" y="0" width="160" height="40" fill="#000"/>
+      <g class="play">
+        <rect x="0" y="0" width="24" height="40" fill="#fff"/>
+      </g>
+    </mask>
+  </defs>
+  <rect width="160" height="40" fill="url(#paper)"/>
+  <!-- Foxing, the way old paper goes. -->
+  <g fill="#C9AE7A" opacity=".14">
+    <ellipse cx="18" cy="6" rx="14" ry="4"/><ellipse cx="96" cy="35" rx="20" ry="5"/>
+    <ellipse cx="142" cy="9" rx="12" ry="3.4"/>
+  </g>
+
+  <!-- The stave. -->
+  <g stroke="#6B6252" stroke-width=".55" fill="none">
+    <path d="M0 12 L160 12"/><path d="M0 15 L160 15"/><path d="M0 18 L160 18"/>
+    <path d="M0 21 L160 21"/><path d="M0 24 L160 24"/>
+  </g>
+  <!-- Bar lines. -->
+  <g stroke="#6B6252" stroke-width=".7" fill="none">
+    <path d="M52 12 L52 24"/><path d="M89 12 L89 24"/><path d="M126 12 L126 24"/>
+  </g>
+
+  <!-- A treble clef, drawn as one stroke. -->
+  <path d="M9.4 28.6 C6.4 28.2 5.4 26.2 6.6 24.8 C7.8 23.4 10 24 10.2 25.8
+           C10.4 27.8 9 29.4 7 30.4 M9.6 27.4 C8.8 21.4 8 16.6 8 13.4
+           C8 9.4 9.2 6.4 11 6.4 C12.6 6.4 13.4 8.4 13.4 11
+           C13.4 15.4 10.6 19 7.4 21.6 C4.8 23.8 3.4 25.6 3.4 27.6
+           C3.4 30.4 5.6 32 8.4 32 C11.4 32 13.6 30 13.6 27.2
+           C13.6 24.6 11.8 22.8 9.4 22.8"
+        fill="none" stroke="#26303F" stroke-width="1.15" stroke-linecap="round"/>
+
+  <!-- The notes, in ink. -->
+  <g>
+      <ellipse cx="20" cy="21.0" rx="2.6" ry="1.9" transform="rotate(-18 20 21.0)" fill="#26303F"/><path d="M22.2 21.0 L22.2 12.0" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="27" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 27 19.5)" fill="#26303F"/><path d="M29.2 19.5 L29.2 10.5" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="34" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 34 18.0)" fill="#26303F"/><path d="M36.2 18.0 L36.2 9.0" stroke="#26303F" stroke-width="1" fill="none"/><ellipse cx="39" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 39 16.5)" fill="#26303F"/><path d="M41.2 16.5 L41.2 7.5" stroke="#26303F" stroke-width="1" fill="none"/><path d="M36.2 9.0 L41.2 7.5 L41.2 9.3 L36.2 10.8 Z" fill="#26303F"/>
+      <ellipse cx="46" cy="15.0" rx="2.6" ry="1.9" transform="rotate(-18 46 15.0)" fill="none" stroke="#26303F" stroke-width="1"/><path d="M43.8 15.0 L43.8 24.0" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="57" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 57 16.5)" fill="#26303F"/><path d="M59.2 16.5 L59.2 7.5" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="64" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 64 18.0)" fill="#26303F"/><path d="M66.2 18.0 L66.2 9.0" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="71" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 71 19.5)" fill="#26303F"/><path d="M73.2 19.5 L73.2 10.5" stroke="#26303F" stroke-width="1" fill="none"/><ellipse cx="76" cy="21.0" rx="2.6" ry="1.9" transform="rotate(-18 76 21.0)" fill="#26303F"/><path d="M78.2 21.0 L78.2 12.0" stroke="#26303F" stroke-width="1" fill="none"/><path d="M73.2 10.5 L78.2 12.0 L78.2 13.8 L73.2 12.3 Z" fill="#26303F"/>
+      <ellipse cx="83" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 83 18.0)" fill="none" stroke="#26303F" stroke-width="1"/><path d="M85.2 18.0 L85.2 9.0" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="94" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 94 16.5)" fill="#26303F"/><path d="M96.2 16.5 L96.2 7.5" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="101" cy="15.0" rx="2.6" ry="1.9" transform="rotate(-18 101 15.0)" fill="#26303F"/><path d="M98.8 15.0 L98.8 24.0" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="108" cy="13.5" rx="2.6" ry="1.9" transform="rotate(-18 108 13.5)" fill="#26303F"/><path d="M105.8 13.5 L105.8 22.5" stroke="#26303F" stroke-width="1" fill="none"/><ellipse cx="113" cy="15.0" rx="2.6" ry="1.9" transform="rotate(-18 113 15.0)" fill="#26303F"/><path d="M110.8 15.0 L110.8 24.0" stroke="#26303F" stroke-width="1" fill="none"/><path d="M105.8 22.5 L110.8 24.0 L110.8 22.2 L105.8 20.7 Z" fill="#26303F"/>
+      <ellipse cx="120" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 120 16.5)" fill="none" stroke="#26303F" stroke-width="1"/><path d="M122.2 16.5 L122.2 7.5" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="131" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 131 18.0)" fill="#26303F"/><path d="M133.2 18.0 L133.2 9.0" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="138" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 138 19.5)" fill="#26303F"/><path d="M140.2 19.5 L140.2 10.5" stroke="#26303F" stroke-width="1" fill="none"/>
+      <ellipse cx="145" cy="21.0" rx="2.6" ry="1.9" transform="rotate(-18 145 21.0)" fill="#26303F"/><path d="M147.2 21.0 L147.2 12.0" stroke="#26303F" stroke-width="1" fill="none"/><ellipse cx="150" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 150 19.5)" fill="#26303F"/><path d="M152.2 19.5 L152.2 10.5" stroke="#26303F" stroke-width="1" fill="none"/><path d="M147.2 12.0 L152.2 10.5 L152.2 12.3 L147.2 13.8 Z" fill="#26303F"/>
+  </g>
+  <!-- The same notes in gold, seen only through the playhead's window. -->
+  <g mask="url(#head)">
+      <ellipse cx="20" cy="21.0" rx="2.6" ry="1.9" transform="rotate(-18 20 21.0)" fill="#F2B01E"/><path d="M22.2 21.0 L22.2 12.0" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="27" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 27 19.5)" fill="#F2B01E"/><path d="M29.2 19.5 L29.2 10.5" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="34" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 34 18.0)" fill="#F2B01E"/><path d="M36.2 18.0 L36.2 9.0" stroke="#F2B01E" stroke-width="1" fill="none"/><ellipse cx="39" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 39 16.5)" fill="#F2B01E"/><path d="M41.2 16.5 L41.2 7.5" stroke="#F2B01E" stroke-width="1" fill="none"/><path d="M36.2 9.0 L41.2 7.5 L41.2 9.3 L36.2 10.8 Z" fill="#F2B01E"/>
+      <ellipse cx="46" cy="15.0" rx="2.6" ry="1.9" transform="rotate(-18 46 15.0)" fill="none" stroke="#F2B01E" stroke-width="1"/><path d="M43.8 15.0 L43.8 24.0" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="57" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 57 16.5)" fill="#F2B01E"/><path d="M59.2 16.5 L59.2 7.5" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="64" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 64 18.0)" fill="#F2B01E"/><path d="M66.2 18.0 L66.2 9.0" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="71" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 71 19.5)" fill="#F2B01E"/><path d="M73.2 19.5 L73.2 10.5" stroke="#F2B01E" stroke-width="1" fill="none"/><ellipse cx="76" cy="21.0" rx="2.6" ry="1.9" transform="rotate(-18 76 21.0)" fill="#F2B01E"/><path d="M78.2 21.0 L78.2 12.0" stroke="#F2B01E" stroke-width="1" fill="none"/><path d="M73.2 10.5 L78.2 12.0 L78.2 13.8 L73.2 12.3 Z" fill="#F2B01E"/>
+      <ellipse cx="83" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 83 18.0)" fill="none" stroke="#F2B01E" stroke-width="1"/><path d="M85.2 18.0 L85.2 9.0" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="94" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 94 16.5)" fill="#F2B01E"/><path d="M96.2 16.5 L96.2 7.5" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="101" cy="15.0" rx="2.6" ry="1.9" transform="rotate(-18 101 15.0)" fill="#F2B01E"/><path d="M98.8 15.0 L98.8 24.0" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="108" cy="13.5" rx="2.6" ry="1.9" transform="rotate(-18 108 13.5)" fill="#F2B01E"/><path d="M105.8 13.5 L105.8 22.5" stroke="#F2B01E" stroke-width="1" fill="none"/><ellipse cx="113" cy="15.0" rx="2.6" ry="1.9" transform="rotate(-18 113 15.0)" fill="#F2B01E"/><path d="M110.8 15.0 L110.8 24.0" stroke="#F2B01E" stroke-width="1" fill="none"/><path d="M105.8 22.5 L110.8 24.0 L110.8 22.2 L105.8 20.7 Z" fill="#F2B01E"/>
+      <ellipse cx="120" cy="16.5" rx="2.6" ry="1.9" transform="rotate(-18 120 16.5)" fill="none" stroke="#F2B01E" stroke-width="1"/><path d="M122.2 16.5 L122.2 7.5" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="131" cy="18.0" rx="2.6" ry="1.9" transform="rotate(-18 131 18.0)" fill="#F2B01E"/><path d="M133.2 18.0 L133.2 9.0" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="138" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 138 19.5)" fill="#F2B01E"/><path d="M140.2 19.5 L140.2 10.5" stroke="#F2B01E" stroke-width="1" fill="none"/>
+      <ellipse cx="145" cy="21.0" rx="2.6" ry="1.9" transform="rotate(-18 145 21.0)" fill="#F2B01E"/><path d="M147.2 21.0 L147.2 12.0" stroke="#F2B01E" stroke-width="1" fill="none"/><ellipse cx="150" cy="19.5" rx="2.6" ry="1.9" transform="rotate(-18 150 19.5)" fill="#F2B01E"/><path d="M152.2 19.5 L152.2 10.5" stroke="#F2B01E" stroke-width="1" fill="none"/><path d="M147.2 12.0 L152.2 10.5 L152.2 12.3 L147.2 13.8 Z" fill="#F2B01E"/>
+  </g>
+
+  <!-- The playhead itself. -->
+  <g class="play">
+    <rect x="0" y="0" width="24" height="40" fill="url(#glow)"/>
+    <path d="M12 5 L12 31" stroke="#F2B01E" stroke-width=".7" opacity=".8"/>
+  </g>
+</svg>

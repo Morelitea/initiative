@@ -149,7 +149,7 @@
     "all_document": "Todas las hojas de cálculo",
     "appEndpoint": "Qué lee",
     "appEndpointPlaceholder": "Elige una lectura…",
-    "appNotInstalled": "Esta aplicación no está instalada en este gremio.",
+    "appNotInstalled": "Esta aplicación no está instalada en esta comunidad.",
     "appParamPlaceholder": "Elige…",
     "appParamNeedsSibling": "Elige primero el valor de arriba.",
     "appParamListHint": "Separa los valores con comas."
@@ -164,7 +164,6 @@
     "needsBinding": "Elegirás exactamente qué muestra después de añadirlo.",
     "add": "Añadir {{widget}}"
   },
-  "browseMarketplace": "Explorar el mercado",
   "timeline": {
     "collapse": "Plegar {{name}}",
     "expand": "Desplegar {{name}}",

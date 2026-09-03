@@ -1,6 +1,16 @@
 /**
  * Centralized query-key invalidation helpers.
  *
+ * NAMING — the UI calls these "communities"; the code calls them guilds.
+ * Communities ended up being used far more broadly than the gaming guilds the
+ * name was picked for, so the product renamed them. The rename stopped at the
+ * user-visible strings: the database, the API, the generated client and every
+ * identifier below still say `guild`, because moving those means a schema
+ * migration across every tenant. Treat `guild` in code and `community` in copy
+ * as the same thing. This is deliberate and permanent, not a half-finished
+ * rename -- if you are adding UI, say community; if you are adding a query,
+ * follow the `guild` that is already here.
+ *
  * Orval generates URL-based query keys (e.g. ["/api/v1/tags/"]). This module
  * provides domain-specific helpers that use `predicate`-based matching so a
  * single invalidation call can reach both list and detail keys.
@@ -22,6 +32,7 @@
  * an explicit `Promise.all` — two boundary-respecting calls, never one matcher
  * that blurs the line.
  */
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
@@ -90,6 +101,11 @@ const invalidateResourceAndMe = (resource: string) =>
     invalidateGuildPrefix(`/api/v1/${resource}`),
     invalidatePersonalPrefix(`/api/v1/me/${resource}`),
   ]);
+
+// ── Announcements (platform) ─────────────────────────────────────────────────
+
+/** Both the reader's queue and the authoring list — one write moves both. */
+export const invalidateAnnouncements = () => invalidatePersonalPrefix("/api/v1/announcements");
 
 // ── Tags (guild) ──────────────────────────────────────────────────────────────
 
@@ -307,8 +323,17 @@ export const invalidateGuildInvites = (guildId: number) =>
   invalidatePersonalExact([`/api/v1/guilds/${guildId}/invites`]);
 
 // ── Guild Switch ──────────────────────────────────────────────────────────────
-// Keys that are NOT guild-scoped and should survive a guild switch
-const GLOBAL_KEY_PREFIXES = ["/api/v1/guilds", "/api/v1/users/me", "/api/v1/version"];
+// Keys that are NOT guild-scoped and should survive a guild switch.
+// `/api/v1/recents` is one of them: the recents bar is a cross-guild personal
+// list, so switching community neither changes its contents nor invalidates
+// them. Resetting it made the bar blank and refetch on every switch, dropping
+// tabs that belong to the community being left as well as the one arriving.
+const GLOBAL_KEY_PREFIXES = [
+  "/api/v1/guilds",
+  "/api/v1/users/me",
+  "/api/v1/version",
+  "/api/v1/recents",
+];
 
 /** Remove all guild-scoped query data so stale cross-guild results are never shown. */
 export const resetGuildScopedQueries = () =>
@@ -396,3 +421,38 @@ export const invalidateInitiativeMembership = () =>
     invalidateAllCalendars(),
     invalidateAllDashboards(),
   ]);
+
+// ── One tool entity (guild, cross-tool) ─────────────────────────────────────────
+// What every generic per-tool mutation — set tags, flip the comment switch —
+// has to refresh: that tool's list and detail queries. `Record<Tool, …>` so a
+// new Tool member fails to compile until it declares its invalidation. Declared
+// last so it can compose the per-resource helpers above.
+
+const TOOL_INVALIDATORS: Record<Tool, (id: number) => void> = {
+  [Tool.project]: (id) => {
+    void invalidateProject(id);
+    void invalidateAllProjects();
+  },
+  [Tool.document]: (id) => {
+    void invalidateDocument(id);
+    void invalidateAllDocuments();
+  },
+  [Tool.queue]: (id) => {
+    void invalidateQueue(id);
+    void invalidateAllQueues();
+  },
+  [Tool.counter_group]: (id) => {
+    void invalidateCounterGroup(id);
+    void invalidateAllCounterGroups();
+  },
+  [Tool.calendar]: (id) => {
+    void invalidateCalendar(id);
+    void invalidateAllCalendars();
+  },
+  [Tool.dashboard]: (id) => {
+    void invalidateDashboard(id);
+    void invalidateAllDashboards();
+  },
+};
+
+export const invalidateTool = (tool: Tool, id: number) => TOOL_INVALIDATORS[tool](id);

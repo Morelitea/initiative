@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Dice tower</title>
+  <!-- The table an hour into it: the map out, two dice already thrown, and one
+       still going. It lands on twenty, because this is a picture. -->
+  <style>
+    /* The settled twenty is the resting state, so a renderer that never
+       animates — or a reader who asked for less motion — gets the good frame
+       rather than a blank die. */
+    .face { opacity: 0 }
+    .f20 { opacity: 1 }
+    .f1  { animation: face1 4.8s steps(1, end) infinite }
+    .f2  { animation: face2 4.8s steps(1, end) infinite }
+    .f3  { animation: face3 4.8s steps(1, end) infinite }
+    .f20 { animation: face20 4.8s steps(1, end) infinite }
+    @keyframes face1  { 0%,8% { opacity: 1 } 9%,100% { opacity: 0 } }
+    @keyframes face2  { 0%,9% { opacity: 0 } 10%,17% { opacity: 1 } 18%,100% { opacity: 0 } }
+    @keyframes face3  { 0%,18% { opacity: 0 } 19%,26% { opacity: 1 } 27%,100% { opacity: 0 } }
+    @keyframes face20 { 0%,27% { opacity: 0 } 28%,100% { opacity: 1 } }
+    .die { animation: hop 4.8s cubic-bezier(.3,0,.4,1) infinite;
+           transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes hop {
+      0%   { transform: translate(-19px,-11px) rotate(-150deg) }
+      10%  { transform: translate(-11px,1px) rotate(-70deg) }
+      18%  { transform: translate(-5px,-4px) rotate(-30deg) }
+      26%  { transform: translate(0,0) rotate(0deg) }
+      31%  { transform: translate(.8px,-1.2px) rotate(6deg) }
+      36%,100% { transform: translate(0,0) rotate(0deg) }
+    }
+    .spark { animation: pop 4.8s ease-out infinite;
+             transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes pop {
+      0%,26% { transform: scale(.2); opacity: 0 }
+      30%    { transform: scale(1); opacity: .9 }
+      46%,100% { transform: scale(1.7); opacity: 0 }
+    }
+    .mote { animation: rise 13s linear infinite }
+    .m2 { animation-delay: -4.4s } .m3 { animation-delay: -8.8s }
+    @keyframes rise {
+      0% { transform: translate(0,0); opacity: 0 }
+      25% { opacity: .55 }
+      100% { transform: translate(-3px,-20px); opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .f1, .f2, .f3, .f20, .die, .spark, .mote { animation: none }
+      .f20 { opacity: 1 }
+    }
+  </style>
+  <defs>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B0714"/><stop offset="100%" stop-color="#1A1024"/>
+    </linearGradient>
+    <linearGradient id="oak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A2E18"/><stop offset="100%" stop-color="#6B4526"/>
+    </linearGradient>
+    <radialGradient id="lamplight" cx=".5" cy=".2" r=".9">
+      <stop offset="0%" stop-color="#FFD79A" stop-opacity=".38"/>
+      <stop offset="55%" stop-color="#FFB35A" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#FFB35A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="facet" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#F2EEFF"/><stop offset="100%" stop-color="#C6B8F0"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#room)"/>
+  <ellipse cx="80" cy="2" rx="66" ry="30" fill="url(#lamplight)"/>
+  <!-- The table. -->
+  <path d="M0 14 C30 10.6 60 9.4 80 9.4 C100 9.4 130 10.6 160 14 L160 40 L0 40 Z"
+        fill="url(#oak)"/>
+  <path d="M0 14 C30 10.6 60 9.4 80 9.4 C100 9.4 130 10.6 160 14 L160 14.9
+           C130 11.5 100 10.3 80 10.3 C60 10.3 30 11.5 0 14.9 Z" fill="#8A5C33"/>
+  <g stroke="#3A2410" stroke-width=".35" opacity=".5" fill="none">
+    <path d="M0 22 C40 19.6 120 19.6 160 22"/><path d="M0 30 C40 28 120 28 160 30"/>
+  </g>
+
+  <!-- The tower: a chute with a tray at the foot of it. -->
+  <g>
+    <path d="M116 34 L146 34 L143 13 L119 13 Z" fill="#4A2E18"/>
+    <path d="M116 34 L128 34 L127 13 L119 13 Z" fill="#6B4526"/>
+    <path d="M119 13 L143 13 L144.4 10 L117.6 10 Z" fill="#7A5330"/>
+    <path d="M117.6 10 L144.4 10 L144.4 11 L117.6 11 Z" fill="#A87C48"/>
+    <path d="M121.4 30.6 L140.6 30.6 L140.2 26 L121.8 26 Z" fill="#1A1024"/>
+    <g stroke="#3A2410" stroke-width=".45" opacity=".7" fill="none">
+      <path d="M118.4 19 L143.6 19"/><path d="M117.6 25 L144.4 25"/>
+    </g>
+    <path d="M112 38 L150 38 L148 33.4 L114 33.4 Z" fill="#5A3A20"/>
+    <path d="M112 38 L150 38 L150 39.2 L112 39.2 Z" fill="#3A2410"/>
+    <path d="M114.6 34.4 L147.4 34.4 L147.4 35.2 L114.6 35.2 Z" fill="#8A6034" opacity=".7"/>
+  </g>
+
+  <!-- The map, held down at the corners. -->
+  <g transform="rotate(-3 40 26)">
+    <path d="M12 15 L68 15 L70 36 L10 36 Z" fill="#E8DCBE"/>
+    <path d="M12 15 L68 15 L68.4 16 L11.8 16 Z" fill="#F6EDD6"/>
+    <g fill="none" stroke="#B49E74" stroke-width=".4">
+      <path d="M18 20 L26 18 L34 20 L34 25 L26 27 L18 25 Z"/>
+      <path d="M34 20 L42 18 L50 20 L50 25 L42 27 L34 25 Z"/>
+      <path d="M50 20 L58 18 L64 20 L64 25 L58 27 L50 25 Z"/>
+      <path d="M22 27 L30 25 L38 27 L38 32 L30 34 L22 32 Z"/>
+      <path d="M38 27 L46 25 L54 27 L54 32 L46 34 L38 32 Z"/>
+    </g>
+    <path d="M14 31 C24 27.6 40 29 52 25.4 C60 23 66 23.6 69 24.4" fill="none"
+          stroke="#8A6A44" stroke-width=".7"/>
+    <g fill="#8A3A2E">
+      <circle cx="30" cy="22.4" r=".8"/><circle cx="52" cy="29.4" r=".7"/>
+    </g>
+    <g fill="#C4A87A">
+      <circle cx="13.6" cy="16.6" r="1"/><circle cx="66.4" cy="16.6" r="1"/>
+      <circle cx="11.6" cy="34.6" r="1"/><circle cx="68.4" cy="34.6" r="1"/>
+    </g>
+  </g>
+
+  <!-- Two settled, one still going. -->
+  <path d="M84.00 25.45 L87.10 27.00 L84.00 28.55 L80.90 27.00 Z" fill="#9E7AE0"/><path d="M80.90 27.00 L84.00 28.55 L84.00 31.65 L80.90 30.10 Z" fill="#6B4AB0"/><path d="M87.10 27.00 L84.00 28.55 L84.00 31.65 L87.10 30.10 Z" fill="#54388E"/><ellipse cx="84.00" cy="26.50" rx="0.40" ry="0.29" fill="#2A1750"/><ellipse cx="84.99" cy="27.00" rx="0.40" ry="0.29" fill="#2A1750"/><ellipse cx="84.00" cy="27.00" rx="0.40" ry="0.29" fill="#2A1750"/><ellipse cx="83.01" cy="27.00" rx="0.40" ry="0.29" fill="#2A1750"/><ellipse cx="84.00" cy="27.50" rx="0.40" ry="0.29" fill="#2A1750"/><ellipse cx="81.95" cy="28.58" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="82.45" cy="29.32" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="82.95" cy="30.07" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="86.05" cy="28.58" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="85.05" cy="29.08" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="86.05" cy="29.08" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="85.05" cy="29.57" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="86.05" cy="29.57" rx="0.37" ry="0.27" fill="#2A1750"/><ellipse cx="85.05" cy="30.07" rx="0.37" ry="0.27" fill="#2A1750"/>
+  <path d="M92.60 29.15 L95.10 30.40 L92.60 31.65 L90.10 30.40 Z" fill="#9E7AE0"/><path d="M90.10 30.40 L92.60 31.65 L92.60 34.15 L90.10 32.90 Z" fill="#6B4AB0"/><path d="M95.10 30.40 L92.60 31.65 L92.60 34.15 L95.10 32.90 Z" fill="#54388E"/><ellipse cx="92.60" cy="30.00" rx="0.33" ry="0.23" fill="#2A1750"/><ellipse cx="92.60" cy="30.80" rx="0.33" ry="0.23" fill="#2A1750"/><ellipse cx="90.95" cy="31.67" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="91.75" cy="32.08" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="90.95" cy="32.07" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="91.75" cy="32.48" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="90.95" cy="32.47" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="91.75" cy="32.88" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="94.25" cy="31.67" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="93.45" cy="32.08" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="94.25" cy="32.47" rx="0.30" ry="0.22" fill="#2A1750"/><ellipse cx="93.45" cy="32.88" rx="0.30" ry="0.22" fill="#2A1750"/>
+  <g class="die">
+    <ellipse cx="102.5" cy="35" rx="5.2" ry="1.5" fill="#0B0714" opacity=".5"/>
+    <path d="M102.00 24.00 L106.85 26.80 L104.91 27.92 Z" fill="#5E3AA8"/><path d="M106.85 26.80 L106.85 32.40 L104.91 27.92 Z" fill="#4A2E86"/><path d="M106.85 32.40 L102.00 35.20 L102.00 32.96 Z" fill="#3E2570"/><path d="M102.00 35.20 L97.15 32.40 L102.00 32.96 Z" fill="#35205E"/><path d="M97.15 32.40 L97.15 26.80 L99.09 27.92 Z" fill="#4A2E86"/><path d="M97.15 26.80 L102.00 24.00 L99.09 27.92 Z" fill="#54329A"/><path d="M104.91 27.92 L99.09 27.92 L102.00 24.00 Z" fill="#6B44B8"/><path d="M104.91 27.92 L102.00 32.96 L106.85 32.40 Z" fill="#4A2E86"/><path d="M102.00 32.96 L99.09 27.92 L97.15 32.40 Z" fill="#40276E"/><path d="M102.00 32.96 L104.91 27.92 L99.09 27.92 Z" fill="#7A52C8"/><g stroke="#2A1750" stroke-width=".28" opacity=".65" stroke-linejoin="round"><path d="M102.00 24.00 L106.85 26.80 L104.91 27.92 Z" fill="none"/><path d="M106.85 26.80 L106.85 32.40 L104.91 27.92 Z" fill="none"/><path d="M106.85 32.40 L102.00 35.20 L102.00 32.96 Z" fill="none"/><path d="M102.00 35.20 L97.15 32.40 L102.00 32.96 Z" fill="none"/><path d="M97.15 32.40 L97.15 26.80 L99.09 27.92 Z" fill="none"/><path d="M97.15 26.80 L102.00 24.00 L99.09 27.92 Z" fill="none"/><path d="M104.91 27.92 L99.09 27.92 L102.00 24.00 Z" fill="none"/><path d="M104.91 27.92 L102.00 32.96 L106.85 32.40 Z" fill="none"/><path d="M102.00 32.96 L99.09 27.92 L97.15 32.40 Z" fill="none"/><path d="M102.00 32.96 L104.91 27.92 L99.09 27.92 Z" fill="none"/></g><path d="M102.00 24.00 L106.85 26.80 L106.85 32.40 L102.00 35.20 L97.15 32.40 L97.15 26.80 Z" fill="none" stroke="#241246" stroke-width=".5" stroke-linejoin="round"/>
+    <text x="102.00" y="30.95" font-family="Georgia, serif"
+          font-size="3.6" font-weight="700" text-anchor="middle"
+          fill="#F2ECFF" class="face f20">20</text>
+    <text x="102.00" y="30.95" font-family="Georgia, serif"
+          font-size="3.6" font-weight="700" text-anchor="middle"
+          fill="#F2ECFF" class="face f1">7</text>
+    <text x="102.00" y="30.95" font-family="Georgia, serif"
+          font-size="3.6" font-weight="700" text-anchor="middle"
+          fill="#F2ECFF" class="face f2">13</text>
+    <text x="102.00" y="30.95" font-family="Georgia, serif"
+          font-size="3.6" font-weight="700" text-anchor="middle"
+          fill="#F2ECFF" class="face f3">4</text>
+  </g>
+  <g class="spark" fill="none" stroke="#FFE7A8" stroke-width=".5" stroke-linecap="round">
+    <path d="M102 22.6 L102 20.6"/><path d="M96.6 24.4 L95 23"/>
+    <path d="M107.4 24.4 L109 23"/><path d="M95.4 29 L93.4 28.6"/>
+    <path d="M108.6 29 L110.6 28.6"/>
+  </g>
+  <g fill="#FFE7C2">
+    <circle class="mote" cx="70" cy="20" r=".3" opacity=".5"/>
+    <circle class="mote m2" cx="96" cy="17" r=".26" opacity=".45"/>
+    <circle class="mote m3" cx="130" cy="22" r=".28" opacity=".4"/>
+  </g>
+</svg>

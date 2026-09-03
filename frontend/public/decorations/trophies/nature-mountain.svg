@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Mountain</title>
+  <circle cx="24" cy="24" r="23" fill="#0F1A22"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#4E7A6E" stroke-width="2"/>
+  <path d="M4 38 L18 14 L26 27 L31 20 L44 38 Z" fill="#4E6478"/>
+  <path d="M18 14 L26 27 L21.4 27 L14.6 20 Z" fill="#6E8496"/>
+  <path d="M31 20 L44 38 L34 38 L27.6 24.6 Z" fill="#3E5468"/>
+  <path d="M18 14 L22.4 21.4 L20 20.6 L17.4 22.4 L15.4 20.4 L13.4 22 Z" fill="#F2F8FC"/>
+  <path d="M31 20 L34.4 24.6 L32.6 24 L30.6 25.4 L29 23.6 Z" fill="#F2F8FC"/>
+  <path d="M4 38 L44 38 L44 40.6 L4 40.6 Z" fill="#2E4A44"/>
+  <g fill="#2E4A44">
+    <path d="M8 38 C8 34 9.4 31.4 11 30 C12.6 31.4 14 34 14 38 Z"/>
+    <path d="M36 38 C36 34.6 37.2 32.4 38.6 31.2 C40 32.4 41.2 34.6 41.2 38 Z"/>
+  </g>
+  <circle cx="35" cy="11" r="4.4" fill="#F6E8C0" opacity=".85"/></svg>

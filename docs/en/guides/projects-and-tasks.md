@@ -28,7 +28,9 @@ Both are personal conveniences — they don't change anything for other people.
 
 ## Adding tasks
 
-Click **Create task** (or **Add Task**) on a project board. The quick form just needs a **title** to get going. Want more detail right away? Expand **Advanced details** to fill in the rest before saving.
+Click **Create task** (or **Add Task**) on a project board. The quick form just needs a **title** and a description to get going. Want more detail right away? Expand **Advanced details**, which holds the rest in named sections — **Tracking**, **Schedule**, **People & labels**, and any custom **Properties** your initiative has set up.
+
+Editing a task later lays out the same sections in the same order, so there's one shape to learn rather than two. Above them sit the two actions you reach for most, with everything else behind a **…** menu.
 
 A task can hold:
 
@@ -113,13 +115,16 @@ Set up a project the way you like it, then save it as a **template** (in **Proje
 
 You can **export a project** (as a portable file) to keep an offline copy or move it elsewhere. It can be brought back in later, so it doubles as a backup of a single project.
 
+!!! note "People are named by handle"
+    An export identifies assignees, event attendees and person-typed properties by **handle** — `foobar#1234` — because a handle is the same in every community and an email address is not. An import matches people back the same way. Anything exported before this became true won't match its people on import; export it again and the new file will.
+
 ## Archiving and deleting
 
 - **Archive** hides a finished project without losing anything; unarchive to bring it back.
-- **Delete** sends it to the guild **Trash**, where an admin can restore it until the retention period passes.
+- **Delete** sends it to the community **Trash**, where an admin can restore it until the retention period passes.
 
 ## Related
 
 - [Task views](task-views.md) — Table, Kanban, and Calendar.
 - [Tags](tags.md) — labeling and filtering.
-- [Your space](your-space.md) — see all your tasks across every project and guild.
+- [Your space](your-space.md) — see all your tasks across every project and community.

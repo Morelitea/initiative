@@ -161,6 +161,58 @@ def test_every_tool_is_commentable():
     assert set(COMMENT_TARGET_FIELDS) == set(COMMENT_PARENT_COLUMNS)
 
 
+def test_every_tool_carries_the_comment_switch():
+    # Every tool can turn its own thread off: the column on the content table
+    # and the flag on the read schema are spelled the same on all six, and the
+    # generic route that sets it takes the Tool enum as its path param. A new
+    # tool that forgets the mixin — or a read schema that never exposes it —
+    # fails here.
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.main import app
+    from app.models.tenant._mixins import CommentsToggleMixin
+    from app.services.tenant.comments import TOOL_COMMENT_TARGETS
+
+    for tool, target in TOOL_COMMENT_TARGETS.items():
+        assert issubclass(target.model, CommentsToggleMixin), tool
+        columns = {c.name for c in sa_inspect(target.model).persist_selectable.columns}
+        assert "comments_disabled" in columns, tool
+
+    routes = {getattr(route, "path", "") for route in app.routes}
+    assert any(path.endswith("/tools/{tool}/{tool_id}/comments") for path in routes)
+
+
+def test_every_tool_read_schema_reports_the_comment_switch():
+    # The frontend hides a thread by reading this flag off the entity it has
+    # already loaded, so every tool's detail response must carry it. Read from
+    # the served OpenAPI schema — the response models the routes actually
+    # return — rather than a hand-kept list of schema classes.
+    import re
+
+    from app.main import app
+
+    schema = app.openapi()
+    for tool in Tool:
+        segment = tool.plural.replace("_", "-")
+        pattern = re.compile(
+            r"^/api/v1/g/\{guild_id\}/" + re.escape(segment) + r"/\{\w+\}$"
+        )
+        detail = next(
+            (
+                path
+                for path, ops in schema["paths"].items()
+                if pattern.match(path) and "get" in ops
+            ),
+            None,
+        )
+        assert detail is not None, tool
+        ref = schema["paths"][detail]["get"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["$ref"]
+        model = schema["components"]["schemas"][ref.rsplit("/", 1)[-1]]
+        assert "comments_disabled" in model["properties"], tool
+
+
 def test_tag_link_specs_carry_the_uniform_contract():
     # Every taggable entity honors the structural contract everything derives
     # from: an ``entity.tag_links`` relationship to its junction, a

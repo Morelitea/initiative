@@ -43,6 +43,7 @@ from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.trash import (
     EntityType,
     RestoreResponse,
@@ -100,7 +101,7 @@ async def _resolve_display_name(
         return "Deleted user"
     if user_id in cache:
         return cache[user_id]
-    user = await session.get(User, user_id)
+    user = await session.get(MemberProfile, user_id)
     if user is None:
         display = f"Deleted user #{user_id}"
     else:

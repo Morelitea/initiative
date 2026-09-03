@@ -1,12 +1,15 @@
 import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
-import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
-import { Suspense, useMemo, useState } from "react";
+import { Loader2, LogOut, Plus, Settings, Ticket, UserCog } from "lucide-react";
+import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
+import { AnnouncementCenter } from "@/components/announcements/AnnouncementCenter";
+import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { ChooseHandle } from "@/components/ChooseHandle";
-import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
+import { CommandCenter } from "@/components/CommandCenter";
+import { ConfirmAge } from "@/components/ConfirmAge";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
 import { Galaxy } from "@/components/icons/Galaxy";
@@ -19,13 +22,12 @@ import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { VersionDialog } from "@/components/VersionDialog";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import {
@@ -78,18 +80,15 @@ export const Route = createFileRoute("/_serverRequired/_authenticated")({
 
 function AppLayout() {
   // ALL hooks must be called before any conditional returns
-  const { t } = useTranslation("command");
   const { user, loading, logout } = useAuth();
-  const isMac = useMemo(
-    () => typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent),
-    []
-  );
-  const shortcutLabel = isMac ? "\u2318K" : "Ctrl+K";
   const { guilds, loading: guildsLoading, canCreateGuilds, createGuild } = useGuilds();
   const location = useLocation();
   const { updateAvailable, closeDialog } = useVersionCheck();
 
   useRealtimeUpdates();
+  // Personal, cross-guild, and mounted here rather than beside the bell so it
+  // survives the bell unmounting with a collapsed sidebar.
+  useNotificationStream();
   usePushNotifications();
   useBackButton();
 
@@ -110,6 +109,14 @@ function AppLayout() {
   // here, before anything else: it is how everyone else will see them.
   if (!loading && user && !user.username_chosen) {
     return <ChooseHandle />;
+  }
+
+  // Already in a community the whole deployment can browse, without having
+  // said how old they are. Every way into a listed guild that had nobody at a
+  // keyboard to ask lands here — and so does anyone who was already a member
+  // when their guild listed itself.
+  if (!loading && user && user.age_confirmation_required) {
+    return <ConfirmAge />;
   }
 
   // Now we can have conditional returns
@@ -229,34 +236,23 @@ function AppLayout() {
                 className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
                 style={{ paddingTop: "var(--safe-area-inset-top)" }}
               >
-                <div className="hidden h-12 lg:flex">
-                  {/* Mobile hamburger now lives in BottomNav; this desktop-only
-                      row keeps search + recents. */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-12 w-12 shrink-0 rounded-none border-r"
-                        onClick={() => getOpenCommandCenter()?.()}
-                        aria-label={t("shortcutTooltip", { shortcut: shortcutLabel })}
-                      >
-                        <Search className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{shortcutLabel}</TooltipContent>
-                  </Tooltip>
-                  <div className="min-w-0 flex-1">
-                    <RecentTabsBar
-                      items={recentItems}
-                      loading={recentQuery.isLoading}
-                      activeKey={activeRecentKey}
-                      onClose={handleClearRecent}
-                      onCloseOthers={handleCloseOtherRecents}
-                      onCloseAll={handleCloseAllRecents}
-                    />
+                {/* Mobile hamburger lives in BottomNav and search now lives in
+                    the sidebar, so this desktop-only row is just recents — and
+                    with nothing recent it takes up no room at all. */}
+                {(recentQuery.isLoading || (recentItems?.length ?? 0) > 0) && (
+                  <div className="hidden h-12 lg:flex">
+                    <div className="min-w-0 flex-1">
+                      <RecentTabsBar
+                        items={recentItems}
+                        loading={recentQuery.isLoading}
+                        activeKey={activeRecentKey}
+                        onClose={handleClearRecent}
+                        onCloseOthers={handleCloseOtherRecents}
+                        onCloseAll={handleCloseAllRecents}
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
                 <GuildAccessBanner />
               </div>
               <div className="flex flex-1 justify-between">
@@ -283,13 +279,14 @@ function AppLayout() {
             <BottomNav />
           </SidebarProvider>
         </div>
-        <VersionDialog
-          mode="update"
+        <UpdateAnnouncementDialog
           open={updateAvailable.show}
-          currentVersion={updateAvailable.version}
-          newVersion={updateAvailable.version}
+          version={updateAvailable.version}
           onClose={closeDialog}
         />
+        {/* Server-side notices queue behind the update prompt: an update is
+            about the page the reader is looking at, so it goes first. */}
+        <AnnouncementCenter enabled={!updateAvailable.show} />
       </div>
     </CreateActionProvider>
   );

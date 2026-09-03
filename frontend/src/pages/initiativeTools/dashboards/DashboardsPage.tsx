@@ -1,5 +1,5 @@
-import { Link, useRouter } from "@tanstack/react-router";
-import { Loader2, Plus, Store } from "lucide-react";
+import { useRouter } from "@tanstack/react-router";
+import { Loader2, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,10 +11,10 @@ import { CreateDashboardDialog } from "@/components/initiativeTools/dashboards/C
 import { DashboardCard } from "@/components/initiativeTools/dashboards/DashboardCard";
 import { DashboardsFilterBar } from "@/components/initiativeTools/dashboards/DashboardsFilterBar";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDashboardsList } from "@/hooks/useDashboards";
 import { useGridSelection } from "@/hooks/useGridSelection";
@@ -78,7 +78,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
     });
   };
 
-  const selection = useGridSelection<(typeof dashboards)[number]>();
+  const selection = useGridSelection<(typeof dashboards)[number]>(dashboards);
 
   return (
     <div className="space-y-6">
@@ -96,16 +96,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
             </Button>
           ) : null
         }
-        menuItems={
-          canCreateDashboards ? (
-            <DropdownMenuItem asChild>
-              <Link to={gp("/marketplace")} search={{ kind: "dashboard" }}>
-                <Store className="h-4 w-4" />
-                {t("browseMarketplace")}
-              </Link>
-            </DropdownMenuItem>
-          ) : null
-        }
+        trailing={canCreateDashboards ? <BrowseMarketplaceButton tool={Tool.dashboard} /> : null}
         onEnterSelection={!selection.active && dashboards.length > 0 ? selection.enter : undefined}
       />
 
@@ -138,7 +129,7 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
                 key={dashboard.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(dashboard.id)}
-                onToggle={() => selection.toggle(dashboard)}
+                onToggle={(options) => selection.toggle(dashboard, options)}
                 label={dashboard.name}
               >
                 <DashboardCard dashboard={dashboard} />
@@ -154,10 +145,15 @@ export const DashboardsView = ({ fixedInitiativeId, canCreate }: DashboardsViewP
             <CardTitle>{t("noDashboards")}</CardTitle>
             <CardDescription>{t("noDashboardsDescription")}</CardDescription>
           </CardHeader>
-          <CardContent className="flex gap-2">
+          <CardContent className="flex flex-wrap gap-2">
             <Button onClick={() => setCreateOpen(true)} disabled={!canCreateDashboards}>
               {t("createFirst")}
             </Button>
+            {/* The other way to end up with one, said where the answer is
+                needed: an initiative with no dashboards yet. */}
+            {canCreateDashboards ? (
+              <BrowseMarketplaceButton tool={Tool.dashboard} size="default" />
+            ) : null}
           </CardContent>
         </Card>
       )}

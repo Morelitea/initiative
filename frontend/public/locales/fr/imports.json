@@ -13,7 +13,7 @@
     "start": "Lancer l'import",
     "pick": {
       "prompt": "Choisir un fichier de sauvegarde",
-      "hint": "Un .zip exporté depuis une sauvegarde de guilde ou d'initiative d'Initiative.",
+      "hint": "Un .zip exporté depuis une sauvegarde de communauté ou d'initiative d'Initiative.",
       "notZip": "Ce fichier n'est pas une sauvegarde Initiative valide.",
       "readFailed": "Impossible de lire ce fichier de sauvegarde. Il est peut-être corrompu.",
       "tooLarge": "Ce fichier dépasse la limite de téléversement de {{limit}}.",
@@ -42,7 +42,7 @@
     },
     "progress": {
       "title": "Import en cours…",
-      "note": "Cela peut prendre un moment. Vous pouvez fermer cette fenêtre — vous recevrez une notification, et le rapport reste disponible dans les paramètres de la guilde."
+      "note": "Cela peut prendre un moment. Vous pouvez fermer cette fenêtre — vous recevrez une notification, et le rapport reste disponible dans les paramètres de la communauté."
     },
     "report": {
       "title": "Import terminé",
@@ -51,7 +51,7 @@
       "initiativesCreated_other": "{{count}} initiatives créées",
       "perTool": "{{created}} créés · {{failed}} échoués · {{skipped}} ignorés",
       "assets": "{{restored}} fichiers restaurés, {{deduped}} déjà présents",
-      "unmatchedEmails": "Certaines personnes n'ont pas pu être associées par e-mail : {{emails}}",
+      "unmatchedHandles": "Certaines personnes n'ont pas pu être associées par identifiant : {{handles}}",
       "failedEntries": "Éléments non importés :",
       "nothing": "Rien n'a été importé."
     }
@@ -71,8 +71,8 @@
     "importing": "Import en cours…",
     "success": "« {{name}} » importé.",
     "queued": "Import lancé — vous recevrez une notification quand il sera terminé.",
-    "warningUnmatched_one": "{{count}} personne n'a pas pu être associée par e-mail : {{emails}}",
-    "warningUnmatched_other": "{{count}} personnes n'ont pas pu être associées par e-mail : {{emails}}",
+    "warningUnmatched_one": "{{count}} personne n'a pas pu être associée par identifiant : {{handles}}",
+    "warningUnmatched_other": "{{count}} personnes n'ont pas pu être associées par identifiant : {{handles}}",
     "error": "L'import a échoué."
   },
   "entry": {
@@ -108,7 +108,7 @@
   },
   "dataTab": {
     "importTitle": "Importer une sauvegarde",
-    "importDescription": "Restaurez un zip de sauvegarde d'initiative ou de guilde. Chaque initiative sauvegardée est créée comme une nouvelle initiative — rien d'existant n'est modifié.",
+    "importDescription": "Restaurez un zip de sauvegarde d'initiative ou de communauté. Chaque initiative sauvegardée est créée comme une nouvelle initiative — rien d'existant n'est modifié.",
     "open": "Importer…"
   }
 }

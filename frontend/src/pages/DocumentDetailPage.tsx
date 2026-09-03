@@ -30,8 +30,8 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import { CommentSection } from "@/components/comments/CommentSection";
-import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
+import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
 import { DocumentExportMenu } from "@/components/documents/DocumentExportMenu";
 import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/DocumentSidePanel";
@@ -39,9 +39,9 @@ import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
+import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagPicker } from "@/components/tags/TagPicker";
-import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -78,7 +78,6 @@ import type { ProviderAwareness } from "@lexical/yjs";
 import type * as Y from "yjs";
 
 import type {
-  CommentRead,
   DocumentProjectLink,
   PropertyDefinitionRead,
   PropertySummary,
@@ -113,6 +112,7 @@ import { uploadAttachment } from "@/lib/attachmentUtils";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { supportsEntityMentions } from "@/lib/mentions";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
@@ -208,7 +208,9 @@ export const DocumentDetailPage = () => {
   // Wikilink dialog state
   const [wikilinkDialogOpen, setWikilinkDialogOpen] = useState(false);
   const [wikilinkTitle, setWikilinkTitle] = useState("");
-  const wikilinkUpdateCallbackRef = useRef<((documentId: number) => void) | null>(null);
+  const wikilinkUpdateCallbackRef = useRef<
+    ((entityType: SearchEntityType, entityId: number, name: string) => void) | null
+  >(null);
 
   // Network status for offline detection
   const { isOnline } = useNetworkStatus();
@@ -237,12 +239,6 @@ export const DocumentDetailPage = () => {
       });
       setCollaborationEnabled(false);
     },
-  });
-
-  const commentsQueryParams = { document_id: parsedId };
-  const commentsCache = useCommentsCache(commentsQueryParams);
-  const commentsQuery = useComments(commentsQueryParams, {
-    enabled: Number.isFinite(parsedId),
   });
 
   const document = documentQuery.data;
@@ -411,7 +407,7 @@ export const DocumentDetailPage = () => {
   // Whether the user can create documents in this document's initiative —
   // via the shared access helper, so guild admins and PAM grantees are
   // included regardless of any membership row.
-  const canCreateDocuments = useMemo(() => {
+  const _canCreateDocuments = useMemo(() => {
     if (!document?.initiative) {
       return false;
     }
@@ -428,59 +424,19 @@ export const DocumentDetailPage = () => {
     [navigate, gp, initiativeId]
   );
 
-  // Wikilink create handler - opens dialog and stores update callback
-  const handleWikilinkCreate = useCallback(
-    (docTitle: string, onCreated: (documentId: number) => void) => {
-      setWikilinkTitle(docTitle);
+  // `[[ ]]` found nothing and offered to make it. The dialog owns which kind
+  // and whether this writer may; the reference it answers with goes straight
+  // into the sentence, so making something never costs the writer their place.
+  const handleCreateReferencedThing = useCallback(
+    (
+      name: string,
+      onCreated: (entityType: SearchEntityType, entityId: number, name: string) => void
+    ) => {
+      setWikilinkTitle(name);
       wikilinkUpdateCallbackRef.current = onCreated;
       setWikilinkDialogOpen(true);
     },
     []
-  );
-
-  // After creating document via wikilink, update the wikilink then navigate
-  const handleWikilinkDocumentCreated = useCallback(
-    (newDocumentId: number) => {
-      // Update the wikilink with the new document ID before navigating
-      if (wikilinkUpdateCallbackRef.current) {
-        wikilinkUpdateCallbackRef.current(newDocumentId);
-        wikilinkUpdateCallbackRef.current = null;
-      }
-      // Capture collaboration state and document ID NOW, before navigation changes them
-      const wasCollaborating = collaboratingRef.current;
-      const sourceDocumentId = parsedId;
-      // Explicitly sync content before navigating to ensure wikilinks are saved
-      // Use setTimeout(0) to allow OnChangePlugin to fire first
-      setTimeout(() => {
-        // Sync directly using captured values (they may have changed by now)
-        const stored = contentStateRef.current;
-        if (
-          wasCollaborating &&
-          token &&
-          activeGuildId &&
-          stored &&
-          stored.documentId === sourceDocumentId
-        ) {
-          // Header-less auth (cookie on web, scoped upload token on native) —
-          // the long-lived session JWT must never ride in a URL. The guild
-          // rides in the path (`/g/{guildId}/`), like every other guild call.
-          const syncUrl = resolveHeaderlessApiUrl(
-            `/api/v1/g/${activeGuildId}/collaboration/documents/${sourceDocumentId}/sync-content`
-          );
-          fetch(syncUrl, {
-            method: "POST",
-            body: JSON.stringify(stored.content),
-            headers: { "Content-Type": "application/json" },
-            keepalive: true,
-            credentials: "include",
-          }).catch(() => {});
-        }
-        void navigate({
-          to: gp(toolDetailRoute(Tool.document, initiativeId, newDocumentId)),
-        });
-      }, 0);
-    },
-    [navigate, gp, token, activeGuildId, parsedId, initiativeId]
   );
 
   const updateDocumentCommentCount = (delta: number) => {
@@ -489,20 +445,6 @@ export const DocumentDetailPage = () => {
       const nextCount = Math.max(0, (previous.comment_count ?? 0) + delta);
       return { ...previous, comment_count: nextCount };
     });
-  };
-
-  const handleCommentCreated = (comment: CommentRead) => {
-    commentsCache.addComment(comment);
-    updateDocumentCommentCount(1);
-  };
-
-  const handleCommentDeleted = (commentId: number) => {
-    commentsCache.removeComment(commentId);
-    updateDocumentCommentCount(-1);
-  };
-
-  const handleCommentUpdated = (updatedComment: CommentRead) => {
-    commentsCache.updateComment(updatedComment);
   };
 
   const saveDocument = useUpdateDocument(parsedId, {
@@ -1026,6 +968,7 @@ export const DocumentDetailPage = () => {
   }
 
   const attachedProjects: DocumentProjectLink[] = document.projects ?? [];
+  const showSummaryTab = document.document_type === "native" && isAIEnabled;
 
   return (
     <div className="space-y-6">
@@ -1057,15 +1000,17 @@ export const DocumentDetailPage = () => {
               </Link>
             </Button>
           )}
-          <Button
-            variant={sidePanel.isOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={sidePanel.toggle}
-            title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
-          >
-            <PanelRight className="h-4 w-4" />
-            <span className="sr-only">{t("detail.togglePanel")}</span>
-          </Button>
+          {showSummaryTab && (
+            <Button
+              variant={sidePanel.isOpen ? "secondary" : "outline"}
+              size="sm"
+              onClick={sidePanel.toggle}
+              title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
+            >
+              <PanelRight className="h-4 w-4" />
+              <span className="sr-only">{t("detail.togglePanel")}</span>
+            </Button>
+          )}
         </div>
       </div>
       <div className="space-y-2">
@@ -1414,8 +1359,9 @@ export const DocumentDetailPage = () => {
                   isSynced={collaboration.isSynced}
                   // Wikilinks support
                   initiativeId={document.initiative_id}
+                  supportsEntityMentions={supportsEntityMentions(document.document_type)}
                   onWikilinkNavigate={handleWikilinkNavigate}
-                  onWikilinkCreate={handleWikilinkCreate}
+                  onCreateReferencedThing={handleCreateReferencedThing}
                 />
               )}
             </Suspense>
@@ -1527,49 +1473,47 @@ export const DocumentDetailPage = () => {
 
         {/* Backlinks - documents that link to this one */}
         <DocumentBacklinks documentId={parsedId} />
+
+        {/* The thread, at the width of the document it is about — the same
+            place every other tool puts it. */}
+        <ToolCommentsPanel
+          tool={Tool.document}
+          entity={document}
+          canModerate={commentsCanModerate}
+          onCountChange={updateDocumentCommentCount}
+        />
       </div>
 
-      {/* Side panel for AI summary and comments */}
-      <DocumentSidePanel
-        isOpen={sidePanel.isOpen}
-        onOpenChange={sidePanel.setIsOpen}
-        showSummaryTab={document.document_type === "native" && isAIEnabled}
-        summaryContent={
-          <DocumentSummary
-            documentId={parsedId}
-            summary={aiSummary}
-            onSummaryChange={setAiSummary}
-          />
-        }
-        commentsContent={
-          <>
-            {commentsQuery.isError && (
-              <p className="mb-4 text-destructive text-sm">{t("detail.commentsLoadError")}</p>
-            )}
-            <CommentSection
-              entityType="document"
-              entityId={parsedId}
-              comments={commentsQuery.data ?? []}
-              isLoading={commentsQuery.isLoading}
-              onCommentCreated={handleCommentCreated}
-              onCommentDeleted={handleCommentDeleted}
-              onCommentUpdated={handleCommentUpdated}
-              canModerate={commentsCanModerate}
-              initiativeId={document.initiative_id}
+      {/* Side panel for the AI summary */}
+      {showSummaryTab && (
+        <DocumentSidePanel
+          isOpen={sidePanel.isOpen}
+          onOpenChange={sidePanel.setIsOpen}
+          summaryContent={
+            <DocumentSummary
+              documentId={parsedId}
+              summary={aiSummary}
+              onSummaryChange={setAiSummary}
             />
-          </>
-        }
-      />
+          }
+        />
+      )}
 
-      {/* Wikilink create document dialog */}
-      <CreateWikilinkDocumentDialog
-        open={wikilinkDialogOpen}
-        onOpenChange={setWikilinkDialogOpen}
-        title={wikilinkTitle}
-        initiativeId={document.initiative_id}
-        canCreate={canCreateDocuments}
-        onCreated={handleWikilinkDocumentCreated}
-      />
+      {wikilinkDialogOpen && (
+        <CreateReferencedThingDialog
+          name={wikilinkTitle}
+          initiativeId={document.initiative_id}
+          onCreated={(made) => {
+            wikilinkUpdateCallbackRef.current?.(made.entityType, made.entityId, made.name);
+            wikilinkUpdateCallbackRef.current = null;
+            setWikilinkDialogOpen(false);
+          }}
+          onClose={() => {
+            wikilinkUpdateCallbackRef.current = null;
+            setWikilinkDialogOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

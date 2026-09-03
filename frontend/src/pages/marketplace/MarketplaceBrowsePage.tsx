@@ -26,7 +26,10 @@ import { useGuildApps } from "@/hooks/useGuildApps";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
 
 const PAGE_SIZE = 24;
-/** One line per shelf, so a new kind shows its own rather than the dashboards'. */
+/** One line per shelf, so a new kind shows its own rather than the dashboards'.
+ *  Partial because not every listing kind is a shelf a guild installs from —
+ *  the route keeps those off this page, and anything without a line of its own
+ *  falls back to the dashboards'. */
 const SUBTITLE_KEYS = {
   [ListingKind.dashboard]: "subtitle",
   [ListingKind.app]: "subtitleApps",
@@ -87,7 +90,9 @@ export function MarketplaceBrowsePage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground text-sm">{t(SUBTITLE_KEYS[kind])}</p>
+        <p className="text-muted-foreground text-sm">
+          {t(SUBTITLE_KEYS[kind as keyof typeof SUBTITLE_KEYS] ?? "subtitle")}
+        </p>
       </div>
 
       <Input

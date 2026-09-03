@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Typewriter</title>
+  <circle cx="24" cy="24" r="23" fill="#2C1D0F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#6B4526" stroke-width="2"/>
+  <path d="M8 40 L40 40 L40 43 L8 43 Z" fill="#1E1A16"/>
+  <path d="M9 30 L39 30 C40.2 30 41 30.8 41 32 L41 39 C41 40.2 40.2 41 39 41
+           L9 41 C7.8 41 7 40.2 7 39 L7 32 C7 30.8 7.8 30 9 30 Z" fill="#3A3630"/>
+  <path d="M9 30 L39 30 C40.2 30 41 30.8 41 32 L7 32 C7 30.8 7.8 30 9 30 Z" fill="#565048"/>
+  <g fill="#E8E2D6">
+    <rect x="10.6" y="33" width="3.4" height="2.4" rx=".8"/>
+    <rect x="15.6" y="33" width="3.4" height="2.4" rx=".8"/>
+    <rect x="20.6" y="33" width="3.4" height="2.4" rx=".8"/>
+    <rect x="25.6" y="33" width="3.4" height="2.4" rx=".8"/>
+    <rect x="30.6" y="33" width="3.4" height="2.4" rx=".8"/>
+    <rect x="13" y="36.6" width="3.4" height="2.4" rx=".8"/>
+    <rect x="18" y="36.6" width="3.4" height="2.4" rx=".8"/>
+    <rect x="23" y="36.6" width="3.4" height="2.4" rx=".8"/>
+    <rect x="28" y="36.6" width="3.4" height="2.4" rx=".8"/>
+  </g>
+  <path d="M12 30 L36 30 L34 22 L14 22 Z" fill="#2A2622"/>
+  <g stroke="#8A857E" stroke-width=".8">
+    <path d="M17 29 L16 23"/><path d="M20 29 L19.4 23"/><path d="M23 29 L23 23"/>
+    <path d="M26 29 L26.6 23"/><path d="M29 29 L30 23"/>
+  </g>
+  <path d="M10 22 L38 22 C39 22 39.6 22.6 39.6 23.4 C39.6 24.2 39 24.8 38 24.8
+           L10 24.8 C9 24.8 8.4 24.2 8.4 23.4 C8.4 22.6 9 22 10 22 Z" fill="#4E4842"/>
+  <circle cx="8" cy="23.4" r="2.4" fill="#5E5850"/><circle cx="40" cy="23.4" r="2.4" fill="#5E5850"/>
+  <path d="M15 22 L33 22 L33 8 C33 7 32.4 6.4 31.4 6.4 L16.6 6.4 C15.6 6.4 15 7 15 8 Z"
+        fill="#F2EDE0"/>
+  <g stroke="#C9BFA6" stroke-width=".7">
+    <path d="M18 11 L30 11"/><path d="M18 14 L30 14"/><path d="M18 17 L27 17"/>
+  </g></svg>

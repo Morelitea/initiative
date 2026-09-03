@@ -14,7 +14,7 @@ Initiative is configured with **environment variables** (set in your `docker-com
 | Variable | What it does | Default |
 |---|---|---|
 | `SECRET_KEY` | Signs sessions **and** encrypts sensitive stored data. Set a strong, unique value and keep it safe. | *required* |
-| `DATABASE_URL` | Provisioning connection — migrations and guild/role creation (`app_provisioner`, not a superuser). | *required* |
+| `DATABASE_URL` | Provisioning connection — migrations and community/role creation (`app_provisioner`, not a superuser). | *required* |
 | `DATABASE_URL_APP` | Security-enforced connection for normal requests (`app_user`). | *required* |
 | `DATABASE_URL_ADMIN` | Connection for migrations and background jobs (`app_admin`). | *required* |
 | `APP_URL` | Your public base URL. Needed for single-sign-on callbacks and correct links. | — |
@@ -26,17 +26,25 @@ See [Installation](installation.md#the-three-database-connections) for how the t
 | Variable | What it does | Default |
 |---|---|---|
 | `ENABLE_PUBLIC_REGISTRATION` | Allow people to register without an invite link. Set `false` for invite-only. | `true` |
-| `DISABLE_GUILD_CREATION` | Stop regular users from creating new guilds (they must be invited to one). | `false` |
+| `DISABLE_GUILD_CREATION` | Stop regular users from creating new communities (they must be invited to one). | `false` |
 
 These two together let you run anything from a fully open community server to a locked-down, invite-only, single-organization deployment.
 
 ### The community directory
 
-Guilds can also list themselves publicly, so people find and join them without an invite. That whole feature is **off** until you turn it on, from **Settings → Platform → Community** as the [owner](platform-roles.md).
+Communities can also list themselves publicly, so people find and join them without an invite. That whole feature is **off** until you turn it on, from **Settings → Platform → Community** as the [owner](platform-roles.md).
 
-While it's off there is nothing to browse, nobody can join a guild without an invite, and the listing control doesn't appear in guild settings at all. Turning it off again later hides the directory rather than un-listing anyone: switch it back on and the same guilds are there.
+While it's off there is nothing to browse, nobody can join a community without an invite, and the listing control doesn't appear in community settings at all. Turning it off again later hides the directory rather than un-listing anyone: switch it back on and the same communities are there.
 
-Listing is then each guild admin's own decision: they pick the guild's categories and certify that it holds no adult or illegal content. Initiative refuses to list a guild with room for only a single member. See [Listing your guild](../guides/guilds.md#listing-your-guild-administrators).
+Listing is then each community admin's own decision: they pick the community's categories and certify that it holds no adult or illegal content. Initiative refuses to list a community with room for only a single member. See [Listing your community](../guides/communities.md#listing-your-community-administrators).
+
+### Asking members their age
+
+Because a listed community is open to people its members haven't met, Initiative asks anyone joining one to confirm they're **13 or older**, once. The date of birth they give is used to work out the answer and then discarded — the account records only that they answered — and only the parts of Initiative open to strangers ask at all. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+
+The question sits under the same **Settings → Platform → Community** tab, as **Ask members to confirm they are 13 or older**, and is on by default. Turn it off only on a deployment where you already know every account belongs to an adult — Initiative asks you to confirm that, because nobody is asked again afterwards, including people who join a listed community later.
+
+Someone who answers "not old enough yet" keeps that answer, so the question isn't asked until it comes out right. The usual cause is a mistyped year; support staff and above can reset it from the [admin dashboard](platform-roles.md#managing-platform-users).
 
 ## Running behind a reverse proxy
 

@@ -356,12 +356,7 @@ export function CounterGroupDetailPage() {
         </DndContext>
       )}
 
-      <ToolCommentsPanel
-        entityType={Tool.counter_group}
-        entityId={group.id}
-        initiativeId={group.initiative_id ?? 0}
-        canModerate={!!canWrite}
-      />
+      <ToolCommentsPanel tool={Tool.counter_group} entity={group} canModerate={!!canWrite} />
 
       {canWrite && (
         <CounterFormDialog

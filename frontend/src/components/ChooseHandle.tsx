@@ -4,13 +4,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { slugifyUsername } from "@/lib/usernames";
@@ -60,7 +54,7 @@ export const ChooseHandle = () => {
               suggestion={suggestion}
               disabled={submitting}
             />
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-destructive text-sm">{error}</p>}
             <Button type="submit" className="w-full" disabled={submitting || !username.trim()}>
               {submitting ? t("common:submitting") : t("chooseHandle.submit")}
             </Button>

@@ -4,6 +4,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Index,
@@ -12,11 +13,10 @@ from sqlalchemy import (
     String,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
-from app.models.tenant.initiative import InitiativeMember
-from app.models.tenant.task import TaskAssignee
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import GuildMembership
@@ -54,6 +54,39 @@ class UserStatus(str, Enum):
     anonymized = "anonymized"
 
 
+class Presence(str, Enum):
+    """How a person appears to everyone else.
+
+    Both halves of one idea, which is why it is one enum: what a person picks
+    for themselves, and what a reader of their name is shown. The picked value
+    is a standing preference on the account; the shown value is that preference
+    narrowed by what the process can see — whether they have Initiative open at
+    all, and whether anyone has touched it lately — which is decided in one
+    place (``app.services.platform.presence``).
+
+    ``idle`` is the one a person may either pick or be given: left on
+    ``online``, an account that goes quiet is shown it anyway, and picking it
+    outright is how someone says they would rather look that way regardless.
+
+    Not to be confused with ``UserStatus`` (the account's standing, which is not
+    the account holder's to write) or ``custom_status`` (the line they wrote).
+    """
+
+    #: Follow the connection: shown while a tab is open, and not otherwise.
+    online = "online"
+    #: Open, but with no sign of anyone at the keyboard for a while — the
+    #: state for stepping away, whether or not you said so. The one that is
+    #: inferred as well as picked: it is what ``online`` becomes on its own
+    #: after a long enough quiet, and what someone picks to look that way
+    #: whether or not they are.
+    idle = "idle"
+    #: Here, and would rather not be interrupted.
+    busy = "busy"
+    #: Shown to nobody, whether or not a tab is open. Also what a reader is
+    #: told about anyone who has nothing open.
+    offline = "offline"
+
+
 #: The statuses that may hold a session. A suspended account signs in — that is
 #: how its holder reaches their own account, and how they can be told why —
 #: and is stopped at every guild instead.
@@ -72,6 +105,19 @@ class User(SQLModel, table=True):
             text("lower(username)"),
             "discriminator",
             unique=True,
+        ),
+        # The bound on the status line, held where the line is stored as well
+        # as where it is parsed — see
+        # ``app.schemas.platform.user.STATUS_TEXT_MAX_LENGTH``.
+        CheckConstraint(
+            "char_length(custom_status->>'text') <= 40",
+            name="ck_users_custom_status_text_length",
+        ),
+        # One question, two answers, never both. An account that confirmed is
+        # not also blocked, and one that is blocked never got to confirm.
+        CheckConstraint(
+            "age_confirmed_at IS NULL OR age_below_minimum_at IS NULL",
+            name="ck_users_age_answer",
         ),
     )
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -132,6 +178,36 @@ class User(SQLModel, table=True):
         default=1,
         sa_column=Column(Integer, nullable=False, server_default="1"),
     )
+    #: What this person is up to, in their own words: an emoji, a short line,
+    #: or both, as ``{"emoji": ..., "text": ...}``. One column rather than two,
+    #: because it is one thing a person sets and one thing every surface that
+    #: names them renders. Distinct from ``status`` above, which is the
+    #: account's standing and is not theirs to write. The shape is
+    #: ``app.schemas.platform.user.CustomStatus``.
+    custom_status: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    #: How this person wants to appear to everyone else — see ``Presence``.
+    #: A standing preference rather than live state: the live half is which
+    #: sockets are open, which no column could hold.
+    presence: Presence = Field(
+        default=Presence.online,
+        sa_column=Column(
+            SQLEnum(Presence, name="user_presence"),
+            nullable=False,
+            server_default=Presence.online.value,
+        ),
+    )
+    #: How this person's profile is dressed: a banner, a frame around the
+    #: picture, trophies under it. Each is an id naming a catalog entry
+    #: the client resolves to artwork it already ships — never an upload, so a
+    #: decorated profile costs a guild none of its storage. The shape is
+    #: ``app.schemas.platform.user.ProfileDecorations``.
+    profile_decorations: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
     week_starts_on: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
@@ -147,6 +223,26 @@ class User(SQLModel, table=True):
     email_verified: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    #: When this account said it belongs to somebody at least 13 years old.
+    #: NULL means it never has. A timestamp rather than a flag because the
+    #: record of *when* is the point: it is what a deployment running a
+    #: community directory keeps for every account in a listed guild.
+    #: Whether it is asked for at all is the platform owner's switch
+    #: (``AppSetting.community_age_gate_enabled``).
+    age_confirmed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    #: When this account answered the age question as being under the minimum.
+    #: NULL means it never has. The date it gave is not kept — this records
+    #: only that the answer was given, which is what stops the question being
+    #: asked again until somebody with the standing to put it right lifts it.
+    #: Never set at the same time as ``age_confirmed_at``; the two are the two
+    #: answers to one question (``ck_users_age_answer``).
+    age_below_minimum_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     timezone: str = Field(
         default="UTC",
@@ -176,6 +272,13 @@ class User(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # Reactions get their own gate rather than riding on ``*_mentions``: a
+    # reaction is a far lighter signal than being named, and someone who wants
+    # to hear about mentions may well not want to hear about every thumbs-up.
+    email_comment_reactions: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     push_initiative_addition: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
@@ -193,6 +296,10 @@ class User(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
     push_mentions: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_comment_reactions: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
@@ -264,39 +371,19 @@ class User(SQLModel, table=True):
 
         return decrypt_field(self.email_encrypted, SALT_EMAIL)
 
-    # Relationships into GUILD-SCOPED tables carry passive_deletes="all": their
-    # rows live in per-guild schemas, so the ORM must never load or cascade
-    # them from the platform context at ``session.delete(user)`` time (the
-    # tables don't exist in ``public``). hard_delete_user cleans them
-    # explicitly, routed into each guild's schema (Phase 1).
-    tasks_assigned: List["Task"] = Relationship(
-        back_populates="assignees",
-        link_model=TaskAssignee,
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
-    # No delete cascade here (unlike guild_memberships): hard_delete_user
-    # removes the guild-schema rows itself, and SQLAlchemy disallows
-    # passive_deletes="all" together with delete-orphan.
-    initiative_memberships: List["InitiativeMember"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
+    # An account has no standing view of guild content. What refers to a person
+    # from inside a guild schema — an assignment, a membership, an ordering, a
+    # favourite — is reached from that content, through ``MemberProfile``, on a
+    # session routed into the guild that holds it. ``hard_delete_user`` clears
+    # those rows itself, guild by guild.
+    #
+    # ``guild_memberships`` is the exception, and stays: it is a ``public``
+    # table, and the cascade here is what removes a deleted account's
+    # memberships.
     guild_memberships: List["GuildMembership"] = Relationship(
-        back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    project_orders: List["ProjectOrder"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
     api_keys: List["UserApiKey"] = Relationship(back_populates="user")
-    favorite_projects: List["ProjectFavorite"] = Relationship(
-        back_populates="user",
-        sa_relationship_kwargs={"passive_deletes": "all"},
-    )
 
 
-from app.models.tenant.task import Task  # noqa: E402  # isort:skip
-from app.models.tenant.project_order import ProjectOrder  # noqa: E402  # isort:skip
 from app.models.platform.api_key import UserApiKey  # noqa: E402  # isort:skip
-from app.models.tenant.project_activity import ProjectFavorite  # noqa: E402  # isort:skip

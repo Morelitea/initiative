@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Stage</title>
+  <!-- The house before and after: the curtain runs in, holds, and goes out
+       again, on a loop nobody has to sit through. -->
+  <style>
+    .spot { animation: wander 11s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 0 }
+    @keyframes wander { from { transform: rotate(-4deg) } to { transform: rotate(4deg) } }
+    .foot { animation: warm 5s ease-in-out infinite }
+    .f2 { animation-delay: -1.6s } .f3 { animation-delay: -3.2s }
+    @keyframes warm { 0%,100% { opacity: 1 } 50% { opacity: .78 } }
+    .dust { animation: float 14s linear infinite }
+    .d2 { animation-delay: -4.6s } .d3 { animation-delay: -9.2s }
+    @keyframes float {
+      0% { transform: translate(0,0); opacity: 0 }
+      25% { opacity: .5 }
+      100% { transform: translate(4px,-18px); opacity: 0 }
+    }
+    .legL { animation: drawL 18s ease-in-out infinite }
+    .legR { animation: drawR 18s ease-in-out infinite }
+    @keyframes drawL { 0%,34% { transform: translateX(0) }
+                       48%,62% { transform: translateX(51px) }
+                       76%,100% { transform: translateX(0) } }
+    @keyframes drawR { 0%,34% { transform: translateX(0) }
+                       48%,62% { transform: translateX(-51px) }
+                       76%,100% { transform: translateX(0) } }
+    /* The ropes let go while the house is in, and take hold again after. */
+    .tie { animation: untie 18s ease-in-out infinite }
+    @keyframes untie { 0%,34% { opacity: 1 } 46%,64% { opacity: 0 } 76%,100% { opacity: 1 } }
+    @media (prefers-reduced-motion: reduce) {
+      .spot, .foot, .dust, .legL, .legR, .tie { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="velvet" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#5E0F1A"/><stop offset="45%" stop-color="#8E1B28"/>
+      <stop offset="100%" stop-color="#4A0B14"/>
+    </linearGradient>
+    <linearGradient id="boards" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7A5330"/><stop offset="100%" stop-color="#4A2E18"/>
+    </linearGradient>
+    <radialGradient id="pool" cx=".5" cy="0" r="1">
+      <stop offset="0%" stop-color="#FFF3D2" stop-opacity=".38"/>
+      <stop offset="100%" stop-color="#FFF3D2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="#170910"/>
+  <!-- Upstage, and the boards. -->
+  <path d="M0 6 L160 6 L160 26 L0 26 Z" fill="#2A0D14"/>
+  <path d="M0 26 L160 26 L160 40 L0 40 Z" fill="url(#boards)"/>
+  <g stroke="#3A2210" stroke-width=".45" opacity=".7">
+    <path d="M0 30 L160 30"/><path d="M0 35 L160 35"/>
+    <path d="M30 26 L24 40"/><path d="M62 26 L58 40"/><path d="M98 26 L102 40"/>
+    <path d="M130 26 L136 40"/>
+  </g>
+  <!-- The spot, off a bar somewhere out front. -->
+  <g class="spot">
+    <path d="M74 0 L86 0 L104 28 L56 28 Z" fill="url(#pool)"/>
+  </g>
+  <ellipse cx="80" cy="27.6" rx="20" ry="4" fill="#FFF3D2" opacity=".14"/>
+  <!-- The lip and its lamps, which the curtain has to be able to cover. -->
+  <!-- Footlights, along the lip. -->
+  <path d="M0 26 L160 26 L160 27 L0 27 Z" fill="#8A6034"/>
+  <g>
+    <g class="foot"><ellipse cx="44" cy="26" rx="2.2" ry="1.2" fill="#FFE0A8"/>
+      <ellipse cx="44" cy="26" rx="6" ry="3" fill="#FFD79A" opacity=".2"/></g>
+    <g class="foot f2"><ellipse cx="62" cy="26" rx="2.2" ry="1.2" fill="#FFE0A8"/>
+      <ellipse cx="62" cy="26" rx="6" ry="3" fill="#FFD79A" opacity=".2"/></g>
+    <g class="foot f3"><ellipse cx="80" cy="26" rx="2.2" ry="1.2" fill="#FFE0A8"/>
+      <ellipse cx="80" cy="26" rx="6" ry="3" fill="#FFD79A" opacity=".2"/></g>
+    <g class="foot f2"><ellipse cx="98" cy="26" rx="2.2" ry="1.2" fill="#FFE0A8"/>
+      <ellipse cx="98" cy="26" rx="6" ry="3" fill="#FFD79A" opacity=".2"/></g>
+    <g class="foot"><ellipse cx="116" cy="26" rx="2.2" ry="1.2" fill="#FFE0A8"/>
+      <ellipse cx="116" cy="26" rx="6" ry="3" fill="#FFD79A" opacity=".2"/></g>
+  </g>
+  <g fill="#FFF3D2">
+    <circle class="dust" cx="70" cy="22" r=".32" opacity=".5"/>
+    <circle class="dust d2" cx="88" cy="20" r=".28" opacity=".45"/>
+    <circle class="dust d3" cx="80" cy="24" r=".3" opacity=".4"/>
+  </g>
+  <!-- The legs, running off either side so a closed house has no gap in it. -->
+  <g class="legL">
+    <path d="M-52 0 L34 0 C30 12 30 26 34 40 L-52 40 Z" fill="url(#velvet)"/>
+    <g fill="#3E0810" opacity=".5">
+      <path d="M6 0 C4 12 4 26 6 39.4 L10 39.4 C8 26 8 12 10 0 Z"/>
+      <path d="M18 0 C15.6 12 15.6 26 18 39.6 L22 39.6 C19.6 26 19.6 12 22 0 Z"/>
+      <path d="M28 0 C25.4 12 25.4 26 28 39.8 L31 39.8 C28.6 26 28.6 12 31 0 Z"/>
+    </g>
+  </g>
+  <g class="legR">
+    <path d="M212 0 L126 0 C130 12 130 26 126 40 L212 40 Z" fill="url(#velvet)"/>
+    <g fill="#3E0810" opacity=".5">
+      <path d="M154 0 C156 12 156 26 154 39.4 L150 39.4 C152 26 152 12 150 0 Z"/>
+      <path d="M142 0 C144.4 12 144.4 26 142 39.6 L138 39.6 C140.4 26 140.4 12 138 0 Z"/>
+      <path d="M132 0 C134.6 12 134.6 26 132 39.8 L129 39.8 C131.4 26 131.4 12 129 0 Z"/>
+    </g>
+  </g>
+  <!-- The ropes that hold them back, on the wall where ropes live. -->
+  <g class="tie">
+    <g stroke="#C9A063" stroke-width="1" fill="none">
+      <path d="M28 16 C24 18.6 20 19 16 18.4"/>
+      <path d="M132 16 C136 18.6 140 19 144 18.4"/>
+    </g>
+    <g fill="#C9A063">
+      <circle cx="15" cy="18.4" r="1.5"/><path d="M13.8 19.6 L16.2 19.6 L15.6 22.6 L14.4 22.6 Z"/>
+      <circle cx="145" cy="18.4" r="1.5"/><path d="M143.8 19.6 L146.2 19.6 L145.6 22.6 L144.4 22.6 Z"/>
+    </g>
+  </g>
+  <!-- The border hangs downstage of them, so it stays in front. -->
+  <path d="M0 0 L160 0 L160 7.6 C120 10.6 40 10.6 0 7.6 Z" fill="url(#velvet)"/>
+  <g fill="#3E0810" opacity=".45">
+    <path d="M12 0 L16 0 L16 8.6 L12 8.4 Z"/><path d="M36 0 L40 0 L40 9.6 L36 9.4 Z"/>
+    <path d="M60 0 L64 0 L64 10 L60 9.9 Z"/><path d="M96 0 L100 0 L100 9.9 L96 10 Z"/>
+    <path d="M120 0 L124 0 L124 9.4 L120 9.6 Z"/><path d="M144 0 L148 0 L148 8.4 L144 8.6 Z"/>
+  </g>
+  <!-- The border, and the legs either side of it. -->
+</svg>

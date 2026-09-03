@@ -60,7 +60,7 @@ interface GuildMutationConfig<TData, TVariables> {
 
 /**
  * Guild-scoped variant of {@link useApiMutation}: threads the active guild id
- * (derived from the `/g/{guildId}` route) into `mutationFn`. Domain hooks stay
+ * (derived from the `/c/{guildId}` route) into `mutationFn`. Domain hooks stay
  * as thin named wrappers so their public signatures are unchanged.
  */
 export function useGuildMutation<TData, TVariables = void>(

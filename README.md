@@ -1,6 +1,13 @@
 # Initiative
 
-Collaborative project management for people who never wanted to become project managers — small groups, small businesses, event coordinators, clubs, families, and anyone else who needs to organize work with other people.
+[![User Guide](https://img.shields.io/badge/📖_User_Guide-Learn_how_to_use_Initiative-6f42c1?style=for-the-badge)](https://morelitea.github.io/initiative/)
+
+[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/Morelitea/initiative?sort=semver)](https://github.com/Morelitea/initiative/releases)
+[![License](https://img.shields.io/github/license/Morelitea/initiative)](https://github.com/Morelitea/initiative/blob/main/LICENSE)
+[![Docker](https://img.shields.io/docker/v/morelitea/initiative?sort=semver\&label=Docker)](https://hub.docker.com/r/morelitea/initiative)
+
+
 
 > **Pre-release software** — this project hasn't reached v1.0.0 yet. The API may change between minor releases.
 
@@ -10,145 +17,54 @@ Collaborative project management for people who never wanted to become project m
 
 ## What is Initiative?
 
-Most project management software assumes you've already learned project management. Initiative doesn't. You can be productive on day one knowing exactly one thing: a **board with tasks on it**. Everything else waits until you need it.
+**Initiative is a shared workspace for organizing the things a group needs to get done.** Projects, tasks, documents, calendars, and other tools all live together, so you don't have to stitch your work across a dozen different apps.
 
-That matters because the people doing the coordinating usually aren't specialists. They're the owner of a five-person business who can't justify hiring a coordinator. The person running the neighborhood fundraiser. The parent keeping a household's plans in one place. The volunteer who ended up with the spreadsheet.
+It's designed for **small businesses, clubs, committees, event teams, families, and other groups** that need to coordinate work without becoming project-management experts.
 
-Initiative is built on three ideas:
+Start with a board and a few tasks. As your needs grow, add the tools you need — and leave everything else out of the way.
 
-- **It grows with you.** Start with one board. Add a calendar when you start scheduling, a document when you start writing things down, a dashboard when you start reporting. Nothing you haven't asked for gets in your way.
-- **You decide exactly who sees what.** Each group's data sits in its own database schema, and the layers inside it are enforced by the database itself — not just hidden in the interface. Someone who isn't part of an effort doesn't see a locked door; they see nothing at all.
-- **The tools come from the community.** The exact thing your group needs usually already exists, because someone with the same problem built it. Dashboards and apps are installed from a marketplace, not commissioned from a developer — and whoever runs your Initiative decides which ones it offers.
+Initiative also gives you fine-grained control over **who can see and change your work**, and a marketplace lets you add ready-made apps and dashboards built by other groups.
 
-And it's built in the open — publicly, with contributions and feedback shaping what gets made.
+**It's project management that starts simple and grows with you.**
 
 ---
 
-## Key Features
+## Roadmap
 
-### Guilds — your group's own space
+### Where we are
 
-A **guild** is one organization's space: a business, a club, a committee, a household. Everything that group works on lives inside it, and guilds never see each other — even on the same server.
+Initiative is already a full-featured workspace for groups:
 
-- **A structural boundary, not a filter**: every guild gets its **own PostgreSQL schema**, provisioned when the guild is created. A request is routed into one guild's schema and cannot address another's tables at all
-- **Layered inside that**: within the schema, Row Level Security enforces the initiative, role, and sharing layers on every statement — so the boundary between two efforts in the *same* guild is a database boundary too
-- **Belong to as many as you like**: your work team and your volunteer committee are two guilds, one click apart
-- **Invite links**: share a link with an optional expiry date and usage limit
-- **Controlled creation**: optionally restrict who can create guilds
+* **Tasks & projects** with Kanban, Table, Calendar, and other views
+* **Collaborative documents** including rich text, spreadsheets, and whiteboards with real-time editing
+* **Calendars, bulletin boards, queues, counters, dashboards, and more**
+* A curated **marketplace** of ready-made apps and dashboards
+* **Notifications** and BYOK AI integration
+* **Self-hosting** with Docker and support for multiple guilds
 
-**Guild settings:**
-<img width="1905" height="1050" alt="Guild settings" src="https://github.com/user-attachments/assets/656b7d08-0a91-48be-868c-29f545a32165" />
+### What's next
 
-### Initiatives — one effort at a time
+**🧩 More apps, more possibilities**
+We're continuing to build the marketplace and the ecosystem around it — more dashboards, more useful apps, and better ways for groups to build and share their own.
 
-An **initiative** gathers everything belonging to a single effort: a product launch, a spring event, a client, a season. Projects, documents, calendars, and dashboards all live inside one.
+**🌎 A more connected community**
+Initiative is becoming more than a place for private work. We're adding **public content, user profiles, and community features** that make it possible to discover what other people and groups are building.
 
-This is also the privacy boundary that matters most day to day. **If someone isn't in an initiative, its contents don't exist for them** — not greyed out, not "access denied," simply not there.
+**✨ Polish everything**
+Accessibility, UX improvements, performance, testing, and the countless little things that make Initiative nicer to use.
 
-- **Everything for one effort in one place**: projects, documents, tools, and the people involved
-- **Add only who belongs**: the summer event team never sees the spring event's budget
-- **Custom boards**: drag-and-drop Kanban with statuses you define
-- **Color-coded**: tell your efforts apart at a glance
+**🔌 Connect to the rest of your world**
+Better APIs, integrations, templates, and apps that securely connect Initiative to the tools your group already uses.
 
-**Initiatives page:**
-<img width="1905" height="1049" alt="Initiatives page" src="https://github.com/user-attachments/assets/3ea4f727-4f84-4e75-b860-a5bb17cb9e49" />
+### Where we're headed
 
-### Sharing that reads like a sentence
+Initiative is **bootstrapped by two people**, and we're building it for the long haul — not toward an acquisition, IPO, or enterprise sales machine.
 
-Add someone to the guild. Add them to the initiative. Give them a role. Share the specific things they need. Each step narrows the last, and you can stop at any of them.
+The core application stays **AGPL-licensed and open source**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services.
 
-- **Initiative roles**: bundle permissions into roles that match how your group actually works — "Coordinator," "Volunteer," "Client"
-- **Per-item sharing**: give view, edit, or owner access on a single project or document
-- **Share with a role**: hand access to a whole role at once instead of one person at a time
-- **Bulk edits**: select several items in a list and change who can reach them in one step
+We're also building **Initiative Cloud** for groups who don't want to manage their own infrastructure, with paid features like hosted apps, automations, and other conveniences that make Initiative easier to run.
 
-For how these boundaries are enforced under the hood, see [SECURITY.md](SECURITY.md).
-
-**Initiative role permissions:**
-<img width="1920" height="1080" alt="Initiative role permissions" src="https://github.com/user-attachments/assets/5ee163da-207a-4f57-a95c-659f423eb688" />
-
-**Project/Document access control:**
-<img width="1920" height="1079" alt="Project DAC permissions" src="https://github.com/user-attachments/assets/135a733e-3a2b-4cbc-aa66-b1eaf6234d75" />
-
-### Tasks, seen the way you think
-
-The same work, shown however makes sense to you — a list, a board, or a calendar. No one has to adopt someone else's way of looking at it.
-
-- **Multiple views**: Table, Kanban, and Calendar, with row virtualization for large datasets
-- **Priority levels**: low, medium, high, and urgent with visual indicators
-- **Flexible scheduling**: start dates, due dates, and recurring tasks
-- **Subtasks**: break down bigger work with completion tracking
-- **Multiple assignees**: several people on one task, each finishing their own part
-- **Server-side pagination & sorting**: multi-column sort with advanced filtering
-- **My Tasks**: your own work from every guild, in one place
-
-**Project Kanban view (Table, Kanban, and Calendar views supported):**
-<img width="1905" height="1050" alt="Project Kanban view" src="https://github.com/user-attachments/assets/26d169c7-0415-4ea8-b81d-bd1b8f9a0576" />
-
-**Task details:**
-<img width="1905" height="1050" alt="Task details" src="https://github.com/user-attachments/assets/cdea8e20-a157-48cb-b5bb-2fdd1f5d5228" />
-
-### Documents you write together
-
-- **Rich text editing**: full-featured editor with JSONB storage
-- **Spreadsheets**: formulas, number formats, frozen headers, CSV/XLSX import and export
-- **Whiteboards**: a free-form Excalidraw canvas for diagrams and visual planning, with live multiplayer cursors and PNG/SVG export
-- **Live collaboration**: real-time multi-user editing over WebSocket
-- **File documents**: upload PDFs, DOCX, and more, with permission-gated downloads
-- **Templates**: save a starting point and reuse it
-- **Threaded comments**: discuss in place, in nested threads
-
-**Document editor:**
-<img width="1905" height="1050" alt="Document editor" src="https://github.com/user-attachments/assets/b7118ed4-01c1-4ac5-b6b7-c1185455e2a2" />
-
-### Tools you add when you need them
-
-Each initiative can turn on extra tools — none of them are in your way until you ask for them:
-
-- **Calendar & events** — schedule things, invite people, collect RSVPs, send reminders
-- **Queues** — track whose turn it is, for rotations, rosters, and running orders
-- **Counters** — track numbers that go up and down: scores, tallies, budgets
-- **Dashboards** — a canvas of charts, numbers, and timelines built from your own data
-
-### A marketplace of ready-made tools
-
-The dashboards and apps your group needs are usually the ones another group already needed. Initiative ships a **marketplace**: browse a listing, add it to an initiative or your guild, rename it, and it's yours. Every listing shows who published it, and updates are opt-in.
-
-**Every marketplace is curated.** A deployment offers the listings that ship with Initiative, plus the ones its **platform owner has added and approved** — nothing appears in your marketplace that the person running your server didn't put there. If you self-host, that person is you.
-
-- **Dashboards** — add a ready-made reporting canvas to an initiative
-- **Apps** — add something the whole guild shares; only guild admins can install them
-- **Sandboxed** — marketplace widgets run in an isolated runtime with no access to your credentials or the page around them
-- **Curate your own** — point Initiative at a directory of listing files and those listings appear alongside the built-ins, with no fork and no rebuild. Anyone can write one; what reaches your marketplace is your call (see [Publishing your own listings](docs/en/admin/publishing-listings.md))
-
-### Command Center
-
-Press `Cmd+K` / `Ctrl+K` to jump to any project, task, document, or page with fuzzy search. Also available from the sidebar, or a 3-finger tap on mobile.
-
-### Authentication
-
-- **Email & password** or **OpenID Connect (OIDC) SSO** — connect the identity provider you already use
-- **OIDC claim-to-role mapping**: assign guild and initiative memberships automatically from provider claims
-- **Encryption at rest** for sensitive data — see [SECURITY.md](SECURITY.md) for the full architecture
-
-### Notifications
-
-- **Real-time updates**: WebSocket-based live updates for collaborative work
-- **Per-channel preferences**: independent email and mobile push toggles per category
-- **Overdue task digests**: configurable email digests
-- **Mobile push**: Firebase Cloud Messaging for iOS and Android
-
-### AI Integration
-
-- **Bring Your Own Key (BYOK)**: configure keys for OpenAI, Anthropic, Ollama, or OpenAI-compatible APIs
-- **Hierarchical settings**: platform, guild, and user-level configuration with override controls
-- **AI-assisted work**: generate task descriptions, subtasks, and document summaries
-
-### Internationalization
-
-- Full i18n support with a namespace per feature area
-- English, Spanish, German, and French locales included (community translations welcome)
-- Locale-aware AI content generation
+**Build something useful. Share it. Find something someone else built. Make Initiative your own.**
 
 ---
 
@@ -184,6 +100,9 @@ docker-compose up -d
 3. Create your first guild and start inviting people
 
 See [Key Environment Variables](#key-environment-variables) for full configuration options.
+
+> [!CAUTION]
+> **Do not use `dev` images for production or customer deployments.** `dev` contains experimental work that may not make it into a stable release. Use `latest` or a tagged release from `main`.
 
 ### Docker Hub Images
 
@@ -301,48 +220,6 @@ The surface is curated and **default-deny** — only the following are exposed. 
 
 ---
 
-## How we build
-
-Initiative is developed in public. The issues, the pull requests, the design discussions, and the mistakes are all here in the open, and the roadmap moves in response to what people actually ask for.
-
-Two commitments shape the work:
-
-- **Nobody should need a course to use this.** If a feature can't be explained in a sentence to someone who has never used project management software, it isn't finished.
-- **People think differently, and the software should meet them there.** The same work can be read as a board, a table, a calendar, or a timeline. Keyboard navigation, screen-reader labels, light and dark themes, plain-language documentation, and full localization are part of building a feature, not a follow-up to it.
-
-Improvements to the [help site](docs/en/index.md) are as welcome as improvements to the code.
-
----
-
-## Roadmap
-
-### Current status
-
-Most core features are implemented and in use:
-
-- Task management across Kanban, Table, and Calendar views
-- Collaborative documents — rich text, spreadsheets, and whiteboards — with real-time editing
-- Calendars, queues, counters, and dashboards
-- A curated marketplace of ready-made dashboards and apps
-- Notifications and BYOK AI integration
-- Self-hosted via Docker, with multi-guild support
-
-### Focus for upcoming iterations
-
-- **Iterate and polish** — debugging, UX refinements, accessibility
-- **Stability** — standardized testing across the board, CI/CD improvements
-- **Build your own add-on apps** — a published template for building and hosting an app of your own, so a self-hoster can extend Initiative the same way we do
-- **A richer marketplace** — more listings, and apps that connect Initiative securely to the other tools your group already uses
-- **More templates** and improved API endpoints for integrations
-
-### Long-term
-
-- The app in this repository is the whole app, and stays AGPL-licensed.
-- Some add-on apps are built to run as hosted services rather than inside the container, and are distributed separately. The app template above is how you build your own on the same footing.
-- Initiative stays aimed at small groups, small businesses, and communities — not at enterprises with a dedicated PMO.
-
----
-
 ## Technology Stack
 
 | Layer | Technologies |
@@ -354,30 +231,13 @@ Most core features are implemented and in use:
 
 ---
 
-## Development
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full development setup, testing, code style, and how to submit pull requests.
-
-**Quick start**: Open the project in VS Code and run **Tasks: Run Task** > **`dev:setup`** from the Command Palette. This starts Postgres, runs migrations, seeds test data, and launches both servers. Login with `admin@example.com` / `changeme`.
-
----
-
-## Documentation
-
-- **[Help site](docs/en/index.md)** — guides for everyone using Initiative, plus the administrator handbook
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Development setup, testing, code style, submitting PRs
-- **[SECURITY.md](SECURITY.md)** — Security philosophy and vulnerability reporting
-- **[CHANGELOG.md](CHANGELOG.md)** — Release history
-- **[Docker Hub](https://hub.docker.com/r/morelitea/initiative)** — Published images
-- **API docs** — Available at `/api/v1/docs` when running (Swagger UI)
-
----
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details. PRs must target the `dev` branch.
 
 By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md).
+
+**Quick start**: Open the project in VS Code and run **Tasks: Run Task** > **`dev:setup`** from the Command Palette. This starts Postgres, runs migrations, seeds test data, and launches both servers. Login with `admin@example.com` / `changeme`.
 
 ## Security
 

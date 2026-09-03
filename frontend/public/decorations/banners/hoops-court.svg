@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Court</title>
+  <!-- The rim, straight on and dead centre, with the paint running away from
+       it — the half of the court a phone still shows. -->
+  <style>
+    .swing { animation: sway 2.8s ease-in-out infinite alternate;
+             transform-box: fill-box; transform-origin: 50% 0 }
+    @keyframes sway { from { transform: rotate(-2.5deg) } to { transform: rotate(2.5deg) } }
+    /* Up off the right wing, down through the rim, out of the bottom of the
+       net. */
+    .shot { animation: arc 4.2s ease-in infinite }
+    @keyframes arc {
+      0%   { transform: translate(30px,15px); opacity: 0 }
+      8%   { opacity: 1 }
+      38%  { transform: translate(15px,-6.5px) }
+      56%  { transform: translate(1px,-6px) }
+      68%  { transform: translate(0,0) }
+      80%  { transform: translate(0,6px) }
+      90%  { transform: translate(0,11px); opacity: 1 }
+      96%  { transform: translate(0,14px); opacity: 0 }
+      100% { transform: translate(30px,15px); opacity: 0 }
+    }
+    .rolls { animation: rolling 1.4s linear infinite;
+             transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes rolling { to { transform: rotate(360deg) } }
+    /* The net only moves when something has just gone through it. */
+    .swish { animation: kick 4.2s ease-out infinite;
+             transform-box: fill-box; transform-origin: 50% 0 }
+    @keyframes kick {
+      0%,66% { transform: scaleY(1) rotate(0deg) }
+      72%    { transform: scaleY(1.12) rotate(0deg) }
+      80%    { transform: scaleY(.96) rotate(1.5deg) }
+      88%    { transform: scaleY(1.03) rotate(-1deg) }
+      100%   { transform: scaleY(1) rotate(0deg) }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .swing, .shot, .rolls, .swish { animation: none }
+    }
+  </style>
+  <defs>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B97C3E"/><stop offset="100%" stop-color="#8E5726"/>
+    </linearGradient>
+    <linearGradient id="board" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F4F7FA" stop-opacity=".92"/>
+      <stop offset="100%" stop-color="#CBD8E4" stop-opacity=".88"/>
+    </linearGradient>
+    <radialGradient id="spot" cx=".5" cy="0" r="1">
+      <stop offset="0%" stop-color="#FFE9C4" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#FFE9C4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="orb" cx=".35" cy=".3" r=".82">
+      <stop offset="0%" stop-color="#F0994A"/><stop offset="65%" stop-color="#D2701F"/>
+      <stop offset="100%" stop-color="#94480E"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="#160F0C"/>
+  <!-- The dark of the arena, and the few rows you can make out. -->
+  <g fill="#241812">
+    <path d="M0 0 L160 0 L160 15 L0 15 Z"/>
+  </g>
+  <g stroke="#33231A" stroke-width=".5">
+    <path d="M0 4 L160 4"/><path d="M0 7 L160 7"/><path d="M0 10 L160 10"/>
+  </g>
+  <g fill="#3E2C20">
+    <circle cx="16" cy="5.6" r=".4"/><circle cx="36" cy="8.6" r=".36"/>
+    <circle cx="120" cy="5.2" r=".4"/><circle cx="142" cy="8.8" r=".36"/>
+    <circle cx="54" cy="3.4" r=".34"/><circle cx="106" cy="3.6" r=".34"/>
+  </g>
+  <!-- Floor. -->
+  <path d="M0 15 L160 15 L160 40 L0 40 Z" fill="url(#floor)"/>
+  <g stroke="#7A4A20" stroke-width=".35" opacity=".55">
+    <path d="M0 18 L160 18"/><path d="M0 21.4 L160 21.4"/><path d="M0 25.4 L160 25.4"/>
+    <path d="M0 30 L160 30"/><path d="M0 35.4 L160 35.4"/>
+    <path d="M24 15 L18 40"/><path d="M62 15 L56 40"/><path d="M100 15 L106 40"/>
+    <path d="M138 15 L144 40"/>
+  </g>
+  <path d="M0 15 L160 15 L160 40 L0 40 Z" fill="url(#spot)"/>
+  <!-- The paint, the arc and the free-throw circle. -->
+  <path d="M69 15.6 L91 15.6 L98 34 L62 34 Z" fill="#8A4C1C" opacity=".55"/>
+  <g fill="none" stroke="#F4EFE6" stroke-width=".7" opacity=".85">
+    <path d="M69 15.6 L91 15.6 L98 34 L62 34 Z"/>
+    <ellipse cx="80" cy="34" rx="18" ry="4.6"/>
+    <path d="M20 15.6 C20 27 46 35.4 80 35.4 C114 35.4 140 27 140 15.6" stroke-width=".8"/>
+    <path d="M0 15.6 L160 15.6"/>
+  </g>
+  <!-- Backboard, rim and net. -->
+  <path d="M80 4.4 L80 6.6" stroke="#4A5560" stroke-width="1" stroke-linecap="round"/>
+  <path d="M68 6.4 L92 6.4 L92 14.4 L68 14.4 Z" fill="url(#board)"/>
+  <path d="M68 6.4 L92 6.4 L92 14.4 L68 14.4 Z" fill="none" stroke="#5A6874" stroke-width=".7"/>
+  <path d="M75.4 10 L84.6 10 L84.6 14 L75.4 14 Z" fill="none" stroke="#C4302B" stroke-width=".7"/>
+  <path d="M69.4 7.4 L90.6 7.4" stroke="#FFFFFF" stroke-width=".4" opacity=".6"/>
+  <g class="swing">
+    <ellipse cx="80" cy="15" rx="6.2" ry="1.6" fill="none" stroke="#E2620E" stroke-width="1.1"/>
+    <g class="swish" stroke="#F2F4F0" stroke-width=".38" fill="none" opacity=".9">
+      <path d="M74.2 15.4 C75 17.8 76.4 19.6 80 20.4"/>
+      <path d="M77 16.4 C77.4 18.4 78.2 19.8 80 20.4"/>
+      <path d="M80 16.6 L80 20.4"/>
+      <path d="M83 16.4 C82.6 18.4 81.8 19.8 80 20.4"/>
+      <path d="M85.8 15.4 C85 17.8 83.6 19.6 80 20.4"/>
+      <path d="M75.6 17.2 C78.4 18 81.6 18 84.4 17.2"/>
+      <path d="M77 19 C78.6 19.4 81.4 19.4 83 19"/>
+    </g>
+  </g>
+  <!-- The shot. -->
+  <g stroke="#F4EFE6" stroke-width=".4" fill="none" stroke-dasharray="1.4 2.2" opacity=".3">
+    <path d="M124 26 C118 14 104 8 90 7.6"/>
+  </g>
+  <g class="shot">
+    <g class="rolls" transform="translate(80 15.4)">
+    <circle cx="0" cy="0" r="3.4" fill="url(#orb)"/>
+    <g stroke="#1E1410" stroke-width=".4" fill="none" stroke-linecap="round">
+      <path d="M-3.4 0 L3.4 0"/><path d="M0 -3.4 L0 3.4"/>
+      <path d="M-2.5 -2.3 C-1 -.8 -1 .8 -2.5 2.3"/>
+      <path d="M2.5 -2.3 C1 -.8 1 .8 2.5 2.3"/>
+    </g>
+    <path d="M-2.4 -2 C-1.6 -2.7 -.6 -3.1 .4 -3.2" fill="none" stroke="#FFD3A0"
+          stroke-width=".55" opacity=".55" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

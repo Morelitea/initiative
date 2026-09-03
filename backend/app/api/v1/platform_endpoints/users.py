@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import (
@@ -13,7 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import String, cast, func, or_
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
@@ -32,8 +32,8 @@ from app.api.v1.platform_endpoints.session_cookies import (
 )
 from app.core.config import settings
 from app.core.password_policy import enforce_password_policy
-from app.core import usernames
 from app.core.user_display import handle_of
+from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.rate_limit import get_inet_client_ip
 from app.core.security import (
@@ -51,11 +51,26 @@ from app.core.user_input_validators import (
 from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
+from app.models.platform.guild_image import GuildImageVariant
 from app.models.tenant.initiative import InitiativeMember
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import Presence, User, UserStatus
+from app.models.tenant.reaction_digest import ReactionDigestItem
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.schemas.platform.guild import (
+    CommunityGuildRead,
+    GuildBannerRead,
+    GuildCategory,
+)
 from app.schemas.platform.user import (
+    AgeConfirmation,
+    DecorationPack,
+    DecorationPackListResponse,
+    OwnedDecoration,
+    OwnedDecorationsResponse,
+    ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
+    UserProfile,
     UserRead,
     UserSelfUpdate,
     UserSummary,
@@ -87,11 +102,19 @@ from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import guilds as guilds_service
+from app.services.platform import guild_images as images_service
+from app.services.realtime import manager as realtime_manager
+from app.services.platform import presence
 from app.services.platform import usernames as username_service
 from app.services.platform.guilds import adopt_guild_name_display
 from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.models.platform.user_profile_view import (
+    MemberProfile,
+    user_profiles,
+)
 from app.services.platform import user_avatars as user_avatars_service
+from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import csv_export
@@ -140,6 +163,12 @@ async def read_users_me(
     payload.has_federated_identity = await has_federated_identity(
         session, user_id=current_user.id
     )
+    # The standing age gate. Costs a query only for an account that has not
+    # confirmed on a deployment that asks — it short-circuits on the column
+    # for everyone else, and stops for good once they answer.
+    payload.age_confirmation_required = (
+        await guilds_service.age_confirmation_outstanding(session, user=current_user)
+    )
     return payload
 
 
@@ -171,13 +200,13 @@ async def list_users(
     guild_context: GuildContextDep,
 ) -> List[UserGuildMember]:
     stmt = (
-        select(User, GuildMembership.role, GuildMembership.oidc_managed)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
-        .order_by(User.created_at.asc())
+        .order_by(MemberProfile.created_at.asc())
     )
     result = await session.exec(stmt)
     rows = result.all()
@@ -226,35 +255,28 @@ async def search_users(
     rehydrating stored ids into names/avatars) rather than searching.
     """
     base = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(MemberProfile)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
     )
     shows_names = bool(guild_context.guild.show_member_names)
+    #: Set while searching by name, and then what the page is ordered by.
+    closest = None
     if search and (term := search.strip()):
-        name_part, number = usernames.parse_handle(term)
-        if number is not None:
-            # The whole handle was typed: this member, not a family of them.
-            base = base.where(
-                func.lower(User.username) == name_part.lower(),
-                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
-            )
-        else:
-            matches = User.username.ilike(f"%{name_part}%")
-            if shows_names:
-                # A name is searchable exactly where it is showable.
-                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
-            base = base.where(matches)
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        base = base.where(matches)
     if user_id:
-        base = base.where(User.id.in_(user_id))
+        base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    order = (User.full_name.asc(),) if shows_names else ()
     data_stmt = base.order_by(
-        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+        *users_service.member_order(closest, shows_names=shows_names),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
     )
 
     users, total_count, actual_page = await paginated_query(
@@ -271,15 +293,280 @@ async def search_users(
     )
 
 
+@router.get("/me/decorations", response_model=OwnedDecorationsResponse)
+async def list_my_decorations(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> OwnedDecorationsResponse:
+    """Everything the caller may dress their profile in.
+
+    What ships with the app plus what this account acquired, which is what the
+    pickers on Settings > Profile offer and exactly what the write path
+    accepts. Own-row: ``public.user_decorations`` is readable only by the
+    account whose library it is.
+    """
+    return OwnedDecorationsResponse(
+        items=await profile_decorations_service.owned_decorations(
+            session, current_user.id
+        )
+    )
+
+
+async def _pack_or_404(
+    session: AsyncSession, uid: str
+) -> profile_decorations_service.Pack:
+    pack = await profile_decorations_service.pack_by_uid(session, uid)
+    if pack is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=UserMessages.DECORATION_PACK_NOT_FOUND,
+        )
+    return pack
+
+
+def _pack_entry(
+    pack: profile_decorations_service.Pack, *, installed: bool
+) -> DecorationPack:
+    listing = pack.listing
+    return DecorationPack(
+        uid=listing.uid,
+        public_id=listing.public_id,
+        name=listing.name,
+        publisher=listing.publisher,
+        description=listing.description,
+        avatar_url=listing.avatar_url,
+        contents=[
+            OwnedDecoration(id=decoration_id, kind=kind, name=None, source=listing.uid)
+            for decoration_id, kind in pack.decorations.items()
+        ],
+        installed=installed,
+    )
+
+
+@router.get("/me/decoration-packs", response_model=DecorationPackListResponse)
+async def list_decoration_packs(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPackListResponse:
+    """The store: every profile pack this deployment offers, and which you have.
+
+    The shelf is the marketplace catalog, so a pack that ships with the build
+    and one published to it read the same here.
+    """
+    installed = await profile_decorations_service.installed_pack_ids(
+        session, current_user.id
+    )
+    packs = await profile_decorations_service.available_packs(session)
+    return DecorationPackListResponse(
+        items=[_pack_entry(pack, installed=pack.uid in installed) for pack in packs]
+    )
+
+
+@router.post("/me/decoration-packs/{uid}", response_model=DecorationPack)
+async def install_decoration_pack(
+    uid: str,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPack:
+    """Take a pack, putting its decorations in your library.
+
+    The catalog is read on the request path; the grant is written on the system
+    engine, because a grant is issued rather than self-served — the request path
+    holds no write verb on ``public.user_decorations``. What makes it the
+    caller's own is that the only account it ever names is theirs.
+    """
+    pack = await _pack_or_404(session, uid)
+    conflicting = await profile_decorations_service.install_pack(
+        admin_session, user_id=current_user.id, pack=pack
+    )
+    if conflicting:
+        # Another pack already gave this library one of these ids. A decoration
+        # id names one thing, so the row belongs to whoever granted it first
+        # and this install would have been a partial one reported as whole.
+        await admin_session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.DECORATION_ALREADY_GRANTED,
+        )
+    await admin_session.commit()
+    return _pack_entry(pack, installed=True)
+
+
+@router.delete("/me/decoration-packs/{uid}", response_model=DecorationPack)
+async def remove_decoration_pack(
+    uid: str,
+    session: UserSessionDep,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> DecorationPack:
+    """Give a pack back, taking its decorations out of your library.
+
+    Anything from it that was being worn comes off in the same transaction —
+    a profile must not be left wearing what the account no longer has, and
+    two commits would leave a window where it was.
+    """
+    pack = await _pack_or_404(session, uid)
+    await profile_decorations_service.remove_pack(
+        admin_session, user_id=current_user.id, pack=pack
+    )
+    await admin_session.commit()
+    return _pack_entry(pack, installed=False)
+
+
+@router.get("/{handle}/profile", response_model=UserProfile)
+async def read_user_profile(
+    handle: str,
+    session: UserSessionDep,
+    _current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserProfile:
+    """One person's profile, addressed by their handle.
+
+    ``jordan1234`` — the name and the number it is always written with, run
+    together. ``#`` never survives a URL, and the number's four digits are
+    fixed width, so the two come apart again exactly.
+
+    A profile is public and has no guild in it: it carries the handle, the
+    face, the status, the look and how they appear, and it is the same page
+    whoever opens it. That is why it is not reached through a guild — no
+    part of the answer depends on one.
+
+    Read from ``public.user_profiles``, the view that *is* the public
+    projection: which columns are public is decided by the view and the column
+    grant behind it (migration 0214), not here. An ordinary platform-tier
+    session, RLS enforced. A suspended account has no profile.
+    """
+    parsed = usernames.parse_url_handle(handle)
+    if parsed is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    name, discriminator = parsed
+    # Named one by one rather than as the whole view: a single-entity select
+    # comes back scalarized to its first column.
+    stmt = select(
+        user_profiles.c.id,
+        user_profiles.c.username,
+        user_profiles.c.discriminator,
+        user_profiles.c.avatar_url,
+        user_profiles.c.status,
+        user_profiles.c.custom_status,
+        user_profiles.c.profile_decorations,
+        user_profiles.c.created_at,
+    ).where(
+        func.lower(user_profiles.c.username) == name,
+        user_profiles.c.discriminator == discriminator,
+        users_service.visible_to_other_people(user_profiles.c.status),
+    )
+    row = (await session.exec(stmt)).first()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    return UserProfile(
+        id=row.id,
+        username=row.username,
+        discriminator=row.discriminator,
+        avatar_url=row.avatar_url,
+        status=row.status,
+        custom_status=row.custom_status or {},
+        profile_decorations=row.profile_decorations or {},
+        presence=presence.online.presence_of(row.id),
+        joined_at=row.created_at,
+    )
+
+
+@router.get("/{handle}/communities", response_model=List[CommunityGuildRead])
+async def read_user_communities(
+    handle: str,
+    admin_session: AdminSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> List[CommunityGuildRead]:
+    """The listed communities one person belongs to.
+
+    A separate read from the profile on purpose: the profile is the public
+    projection of ``public.users`` and this is not about that row at all. It
+    also cannot run on the same session — ``guild_memberships`` is scoped to
+    the caller's own rows on the request path, and the question is about
+    somebody else — so it takes the system engine, exactly as the directory
+    does, with the same service-side filters deciding what may appear.
+
+    Only guilds that opted into the directory. One someone is in that did not
+    is nobody else's business, and does not appear here for anyone.
+    """
+    parsed = usernames.parse_url_handle(handle)
+    if parsed is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+    name, discriminator = parsed
+    subject = (
+        await admin_session.exec(
+            select(User).where(
+                func.lower(User.username) == name,
+                User.discriminator == discriminator,
+                users_service.visible_to_other_people(User.status),
+            )
+        )
+    ).first()
+    if subject is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AuthMessages.USER_NOT_FOUND,
+        )
+
+    guilds = await guilds_service.list_profile_communities(
+        admin_session, user_id=subject.id
+    )
+    mine = {
+        row.guild_id
+        for row in (
+            await admin_session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.user_id == current_user.id
+                )
+            )
+        ).all()
+    }
+    online = realtime_manager.present_counts(guild.id for guild in guilds)
+    # Digests only, in one query: a card names its pictures, never carries them.
+    images = await images_service.image_urls(
+        admin_session,
+        [guild.id for guild in guilds],
+        GuildImageVariant.icon,
+        GuildImageVariant.card,
+    )
+    return [
+        CommunityGuildRead(
+            id=guild.id,
+            name=guild.name,
+            description=guild.description,
+            icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
+            banner=GuildBannerRead(
+                image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
+                **guild.banner,
+            ),
+            categories=[GuildCategory(value) for value in guild.categories],
+            online_count=online.get(guild.id, 0),
+            already_member=guild.id in mine,
+        )
+        for guild in guilds
+    ]
+
+
+#: A guild exports what it knows about its own members. An account's platform
+#: tier and whether it has confirmed its address are the platform's business,
+#: not a guild's, so neither is a column here.
 _GUILD_CSV_HEADERS = [
     "user_id",
     "handle",
     "full_name",
     "guild_role",
-    "platform_role",
     "oidc_managed",
     "status",
-    "email_verified",
     "created_at",
     "initiative_roles",
 ]
@@ -295,13 +582,13 @@ async def export_users_csv(
     restrict the export to a subset. Without `user_id`, all visible members are
     included. Guild-admin only."""
     stmt = (
-        select(User, GuildMembership.role, GuildMembership.oidc_managed)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
+        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_managed)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(GuildMembership.guild_id == guild_context.guild_id)
-        .order_by(User.created_at.asc())
+        .order_by(MemberProfile.created_at.asc())
     )
     if user_id:
-        stmt = stmt.where(User.id.in_(user_id))
+        stmt = stmt.where(MemberProfile.id.in_(user_id))
     result = await session.exec(stmt)
     rows = result.all()
 
@@ -322,10 +609,8 @@ async def export_users_csv(
                 handle_of(user),
                 (user.full_name or "") if shows_names else "",
                 guild_role.value,
-                user.role.value if hasattr(user.role, "value") else user.role,
                 oidc_managed,
                 user.status.value if hasattr(user.status, "value") else user.status,
-                user.email_verified,
                 user.created_at.isoformat() if user.created_at else "",
                 csv_export.format_initiative_roles(user),
             ]
@@ -353,25 +638,37 @@ async def export_users_csv(
     )
 
 
-def _assignment_digest_turned_off(user: User, update_data: dict) -> bool:
-    """Whether this update leaves the user wanting no assignment digest at all.
+#: The digest queues a preference update can empty: the two channel fields
+#: that feed each one, and the table it drains. One entry per digest, so a new
+#: digest is cleaned up on opt-out by being listed here.
+_DIGEST_QUEUES: tuple[tuple[str, str, type], ...] = (
+    ("email_task_assignment", "push_task_assignment", TaskAssignmentDigestItem),
+    ("email_comment_reactions", "push_comment_reactions", ReactionDigestItem),
+)
 
-    Email and push share one queue, so it is discarded only on the transition
-    to both being off — never when just one channel is switched off.
+
+def _emptied_digest_queues(user: User, update_data: dict) -> list[type]:
+    """The queue tables this update leaves nobody wanting.
+
+    Email and push share one queue per digest, so it is discarded only on the
+    transition to BOTH being off — never when just one channel is switched off.
     """
 
-    def _next(field: str, current: bool) -> bool | None:
+    def _next(field: str) -> bool | None:
         value = update_data.get(field)
-        return current if value is None else value
+        return getattr(user, field) if value is None else value
 
-    was_on = notifications_service.wants_assignment_digest(
-        user.email_task_assignment, user.push_task_assignment
-    )
-    now_on = notifications_service.wants_assignment_digest(
-        _next("email_task_assignment", user.email_task_assignment),
-        _next("push_task_assignment", user.push_task_assignment),
-    )
-    return was_on and not now_on
+    emptied: list[type] = []
+    for email_field, push_field, model in _DIGEST_QUEUES:
+        was_on = notifications_service.wants_digest(
+            getattr(user, email_field), getattr(user, push_field)
+        )
+        now_on = notifications_service.wants_digest(
+            _next(email_field), _next(push_field)
+        )
+        if was_on and not now_on:
+            emptied.append(model)
+    return emptied
 
 
 @router.patch("/me/username", response_model=UserRead)
@@ -409,6 +706,93 @@ async def claim_my_username(
     return UserRead.model_validate(current_user)
 
 
+#: The age below which somebody may not take part in the parts of the platform
+#: that are open to people they have not met.
+MINIMUM_AGE_YEARS = 13
+
+#: A bound on what counts as a date somebody could have been born on. Not a
+#: judgement about anyone — it is what separates a real answer from a typo.
+MAX_PLAUSIBLE_AGE_YEARS = 120
+
+
+def _years_since(birthdate: date, today: date) -> int:
+    """Whole years between two dates — an age, counted the way people count it.
+
+    A birthday that has not come round yet this year does not count, which is
+    the whole of the arithmetic.
+    """
+    had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
+    return today.year - birthdate.year - (0 if had_birthday else 1)
+
+
+@router.post("/me/age-confirmation", response_model=UserRead)
+async def confirm_my_age(
+    payload: AgeConfirmation,
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UserRead:
+    """Answer, once, whether this account is old enough for the open parts.
+
+    Asked of every account that belongs to a community anyone on the deployment
+    can find. The answer lives on the account rather than per community: it is a
+    fact about the person, and the second listed community they join asks
+    nothing.
+
+    **The date is not kept.** It is read here, compared against the minimum, and
+    goes out of scope with the request — there is no column for it, nothing logs
+    it, and no audit record carries it. What is written is a timestamp saying
+    the question was answered, which is what shows the deployment asked.
+
+    The comparison is the server's because it is the one that decides. A client
+    could work out the same answer, and a client's answer is not evidence.
+
+    Saying it again is not an error and does not move the timestamp — the record
+    is when they first answered.
+
+    **An answer of "under age" also stands.** It is recorded — the fact, not the
+    date — and the question is not asked again, because a question you can
+    re-answer until it comes out right is not one. Putting it right takes
+    somebody with ``users.age_unblock``, which is a support ticket rather than
+    an appeal to the same form.
+    """
+    if current_user.age_below_minimum_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
+
+    today = datetime.now(timezone.utc).date()
+    if payload.birthdate > today or payload.birthdate < today.replace(
+        year=today.year - MAX_PLAUSIBLE_AGE_YEARS
+    ):
+        # Not a date anybody was born on. Refused separately from being too
+        # young, so the reply says which it was.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_INVALID_BIRTHDATE,
+        )
+    if _years_since(payload.birthdate, today) < MINIMUM_AGE_YEARS:
+        # Recorded before the refusal, so the answer holds: what is written is
+        # that they answered under age, never the date they gave.
+        current_user.age_below_minimum_at = datetime.now(timezone.utc)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_BELOW_MINIMUM,
+        )
+
+    if current_user.age_confirmed_at is None:
+        current_user.age_confirmed_at = datetime.now(timezone.utc)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
+        await session.refresh(current_user)
+
+    return UserRead.model_validate(current_user)
+
+
 @router.patch("/me", response_model=UserRead)
 async def update_users_me(
     request: Request,
@@ -429,15 +813,16 @@ async def update_users_me(
         payload.has_federated_identity = is_sso_account
         return payload
 
-    if _assignment_digest_turned_off(current_user, update_data):
-        # The digest queue is guild-scoped, so it must be cleared inside each
+    emptied_queues = _emptied_digest_queues(current_user, update_data)
+    if emptied_queues:
+        # A digest queue is guild-scoped, so it must be cleared inside each
         # of the user's guild schemas — before any mutation below, because the
         # fan-out expunges the identity map (per-schema ids collide). Restore
         # the platform context and re-fetch the user afterwards; the deletes
         # ride this request's transaction and commit with it.
         user_id = current_user.id
-        await notifications_service.clear_task_assignment_queue_across_guilds(
-            session, user_id
+        await notifications_service.clear_digest_queue_across_guilds(
+            session, user_id, emptied_queues
         )
         await set_rls_context(session, user_id=user_id)
         current_user = (
@@ -604,11 +989,51 @@ async def update_users_me(
         )
     if "locale" in update_data:
         current_user.locale = update_data["locale"]
+    if "custom_status" in update_data:
+        # Already held to shape by ``CustomStatus``; ``None`` is the status
+        # taken off, which is the empty object rather than a null column.
+        current_user.custom_status = update_data["custom_status"] or {}
+    if "presence" in update_data:
+        # The column is the standing preference. The roll is told separately
+        # below, once the write is safely down.
+        current_user.presence = Presence(update_data["presence"])
+    if "profile_decorations" in update_data:
+        # The payload validated it into ``ProfileDecorations``, so what lands
+        # in the column is a known set of keys holding catalog ids and nothing
+        # else. ``None`` is the bare profile.
+        decorations = user_in.profile_decorations or ProfileDecorations()
+        worn = decorations.worn()
+        if worn:
+            # The same row lock giving a pack back takes, and taken before the
+            # library is read: the check and the write then sit in one
+            # serialized window, so the two orderings are the only ones —
+            # either this look is saved and the pack is given back after
+            # (undressing it), or the pack goes first and this is refused.
+            await session.exec(
+                select(User.id).where(User.id == current_user.id).with_for_update()
+            )
+            # You wear what you have. The library is the authority for both
+            # halves of that — whether the account has the decoration at all,
+            # and whether it has it for the slot it is being put in.
+            owned = await profile_decorations_service.owned_kinds(
+                session, current_user.id
+            )
+            if profile_decorations_service.unwearable(worn, owned):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=UserMessages.DECORATION_NOT_OWNED,
+                )
+        current_user.profile_decorations = decorations.model_dump()
 
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
     await session.refresh(current_user)
+    if "presence" in update_data:
+        # A change made from an open tab takes effect for readers immediately,
+        # rather than at the next reconnect. Told after the commit, so nothing
+        # is shown on the strength of a write that did not land.
+        presence.online.chose(current_user.id, current_user.presence)
     # Platform path — no initiative_roles enrichment (see read_users_me).
     # The SPA replaces its auth state with this response, so carry the same
     # linked-identity signal /users/me serves.
@@ -698,7 +1123,7 @@ async def get_my_initiative_members(
     guild_id: Annotated[int, Query()],
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Sequence[User]:
+) -> Sequence[MemberProfile]:
     """List members of an initiative the current user belongs to.
 
     Used by the account-deletion transfer-target picker. ``guild_id`` is
@@ -726,13 +1151,13 @@ async def get_my_initiative_members(
     # Deactivated users are also excluded: their account is locked and
     # they can't act as an owner until reactivated.
     stmt = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(
             InitiativeMember.initiative_id == initiative_id,
-            User.status == UserStatus.active,
+            MemberProfile.status == UserStatus.active,
         )
-        .order_by(User.full_name, User.id)
+        .order_by(MemberProfile.full_name, MemberProfile.id)
     )
     result = await session.exec(stmt)
     return result.all()
@@ -1043,6 +1468,7 @@ async def transfer_ownership(
 async def delete_user(
     user_id: int,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> None:
@@ -1060,8 +1486,13 @@ async def delete_user(
         guild_role="admin",
     )
 
-    # Use FOR UPDATE to prevent race condition when checking last admin
-    if await users_service.is_last_platform_admin(session, user_id, for_update=True):
+    # A platform question — whether the platform would be left with no config
+    # manager — so it is asked on the system engine rather than through the
+    # guild role this request has assumed. FOR UPDATE to prevent a race with a
+    # concurrent platform-role change.
+    if await users_service.is_last_platform_admin(
+        admin_session, user_id, for_update=True
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.CANNOT_REMOVE_LAST_ADMIN,

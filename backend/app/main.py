@@ -81,6 +81,8 @@ async def lifespan(app: FastAPI):
         verify_effective_shared_grants,
         verify_engine_identities,
         warn_if_privileged_database_url,
+        backfill_guild_search,
+        warn_if_search_operator_missing,
     )
 
     # Before the heals: name the three DB logins in the log, and warn loudly
@@ -102,6 +104,7 @@ async def lifespan(app: FastAPI):
     # GRANTs when a deployment's URLs connect as other logins.
     await verify_effective_shared_grants()
     await warn_if_privileged_database_url()
+    await warn_if_search_operator_missing()
     if settings.BILLING_URL and not billing_support_handoff_enabled():
         # The Guilds tab shows its billing button whenever a portal URL is set;
         # without the signing pair every click fails closed (503).
@@ -128,6 +131,9 @@ async def lifespan(app: FastAPI):
             backfill.skipped,
             backfill.total,
         )
+    # After the schemas, never before: the sweep writes through functions and
+    # into a table whose shape the pass above is what brings up to date.
+    await backfill_guild_search()
     # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
     # matching the object-store layout. Local-only, idempotent, self-disabling —
     # a no-op once converted, so packaged deploys convert themselves on boot.
@@ -141,6 +147,18 @@ async def lifespan(app: FastAPI):
     from app.db.secret_key_rotation import maybe_rotate_at_startup
 
     await maybe_rotate_at_startup()
+    # Note what this deployment is running, and what it was running before.
+    # An announcement meant for people upgrading past some release has no way
+    # to know that from a publication date; this pair is how it finds out.
+    try:
+        async with AdminSessionLocal() as version_session:
+            previous = await app_settings_service.record_running_version(
+                version_session, version=__version__
+            )
+        if previous and previous != __version__:
+            logger.info("upgraded from %s to %s", previous, __version__)
+    except Exception:  # pragma: no cover - never hold up boot for bookkeeping
+        logger.exception("could not record the running version")
     # First-owner bootstrap (FIRST_OWNER_EMAIL / FIRST_OWNER_PASSWORD): create
     # the owner and their guild on first boot so a self-hosted instance is
     # usable straight from `docker run` with two env vars.
@@ -265,9 +283,18 @@ async def lifespan(app: FastAPI):
 
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
+    # The per-user signal channel's cross-worker bus. Starting it is
+    # fire-and-forget by design: it maintains its own connection in the
+    # background and a deployment that cannot reach it still delivers every
+    # frame to the sockets this process holds.
+    from app.services.platform import user_stream_bus
+
+    await user_stream_bus.start()
+
     try:
         yield
     finally:
+        await user_stream_bus.stop()
         # Shutdown: cancel the background notification tasks.
         tasks = getattr(app.state, "notification_tasks", [])
         for task in tasks:

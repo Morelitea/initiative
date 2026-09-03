@@ -15,18 +15,22 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    CommentsToggleMixin,
+    CreatedByMixin,
+    SoftDeleteMixin,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import Tag
     from app.models.tenant.document import Document
     from app.models.tenant.task import Task
     from app.models.tenant.resource_grant import ResourceGrant
 
 
-class Queue(CreatedByMixin, SoftDeleteMixin, table=True):
+class Queue(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped queue for turn/priority tracking."""
 
     __tablename__ = "queues"
@@ -144,8 +148,11 @@ class QueueItem(CreatedByMixin, SoftDeleteMixin, table=True):
         back_populates="items",
         sa_relationship_kwargs={"foreign_keys": "[QueueItem.queue_id]"},
     )
-    user: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[QueueItem.user_id]"},
+    user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(QueueItem.user_id) == MemberProfile.id",
+            "viewonly": True,
+        },
     )
     tag_links: List["QueueItemTag"] = Relationship(
         back_populates="queue_item",

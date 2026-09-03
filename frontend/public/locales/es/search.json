@@ -1,0 +1,37 @@
+{
+  "title": "Buscar",
+  "titleInGuild": "Buscar en {{guildName}}",
+  "placeholder": "Buscar en {{guildName}}",
+  "seeAll": "Ver todo",
+  "prompt": {
+    "title": "Buscar en esta comunidad",
+    "description": "Encuentra cualquier cosa por su nombre o por lo que contiene."
+  },
+  "empty": {
+    "title": "Sin resultados para «{{query}}»",
+    "description": "Revisa la ortografía o prueba con otra palabra."
+  },
+  "tabs": {
+    "tool": "Herramientas",
+    "member": "Miembros",
+    "comment": "Comentarios",
+    "tag": "Etiquetas"
+  },
+  "types": {
+    "project": "Proyecto",
+    "task": "Tarea",
+    "document": "Documento",
+    "queue": "Cola",
+    "queue_item": "Elemento de cola",
+    "counter_group": "Grupo de contadores",
+    "counter": "Contador",
+    "calendar": "Calendario",
+    "calendar_event": "Evento",
+    "dashboard": "Panel",
+    "tag": "Etiqueta",
+    "comment": "Comentario"
+  },
+  "switchHint": "Tab para cambiar",
+  "closeMatches": "Nada coincide exactamente con «{{query}}». Esto es lo más parecido.",
+  "includeArchived": "Incluir archivados"
+}

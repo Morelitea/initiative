@@ -97,6 +97,10 @@
     "tags": "Tags",
     "tagsDescription": "Füge Tags hinzu, um zu organisieren und zu filtern.",
     "tagsNoAccess": "Du benötigst Schreibzugriff, um Tags zu verwalten.",
+    "comments": "Kommentare",
+    "commentsDescription": "Deaktiviere den Kommentarbereich für dieses Element. Bereits verfasste Kommentare bleiben erhalten und erscheinen wieder, sobald du ihn erneut aktivierst.",
+    "commentsToggle": "Kommentare deaktivieren",
+    "commentsError": "Die Kommentareinstellung konnte nicht gespeichert werden.",
     "permissionsUpdated": "Berechtigungen aktualisiert",
     "dangerZone": "Gefahrenzone",
     "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Elemente landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
@@ -104,7 +108,9 @@
     "deleteConfirmDescription": "Das Element wird in den Papierkorb verschoben. Du kannst es unter Einstellungen → Papierkorb wiederherstellen, bevor der Aufbewahrungszeitraum endet.",
     "deleted": "„{{name}}“ gelöscht",
     "notFound": "Nicht gefunden",
-    "loadError": "Dieses Element konnte nicht geladen werden."
+    "loadError": "Dieses Element konnte nicht geladen werden.",
+    "permissionRequired": "Berechtigung erforderlich",
+    "permissionRequiredDescription": "Du hast keinen Zugriff auf diesen Bereich dieser Einstellungen."
   },
   "toolbar": {
     "filters": "Filter",
@@ -115,5 +121,24 @@
     "selectItems": "Elemente auswählen",
     "view": "Ansicht",
     "details": "Details"
+  },
+  "emojiPicker": {
+    "searchPlaceholder": "Emoji suchen…",
+    "empty": "Keine Emojis gefunden.",
+    "prompt": "Emoji auswählen…"
+  },
+  "reactions": {
+    "add": "Reaktion hinzufügen",
+    "chipLabel_one": "{{emoji}}, {{count}} Reaktion",
+    "chipLabel_other": "{{emoji}}, {{count}} Reaktionen",
+    "countOnly_one": "{{count}} Reaktion",
+    "countOnly_other": "{{count}} Reaktionen",
+    "namesAndMore_one": "{{names}} und {{count}} weitere Person",
+    "namesAndMore_other": "{{names}} und {{count}} weitere Personen",
+    "error": "Deine Reaktion konnte nicht gespeichert werden."
+  },
+  "pagination": {
+    "perPage": "Pro Seite:",
+    "rangeOf": "{{start}}–{{end}} von {{total}}"
   }
 }

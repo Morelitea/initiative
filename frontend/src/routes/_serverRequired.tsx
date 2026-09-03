@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, redirect, useSearch } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
+import { UpdateAnnouncementDialog } from "@/components/announcements/UpdateAnnouncementDialog";
 import { NativeUpdateRequiredDialog } from "@/components/NativeUpdateRequiredDialog";
-import { VersionDialog } from "@/components/VersionDialog";
 import { useNativeUpdate } from "@/hooks/useNativeUpdate";
 import { useServer } from "@/hooks/useServer";
 
@@ -68,11 +68,9 @@ function ServerRequiredLayout() {
   return (
     <>
       <Outlet />
-      <VersionDialog
-        mode="update"
+      <UpdateAnnouncementDialog
         open={updateReady.show}
-        currentVersion={updateReady.version}
-        newVersion={updateReady.version}
+        version={updateReady.version}
         onClose={dismissUpdate}
         onReload={() => void applyUpdate()}
       />

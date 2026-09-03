@@ -68,6 +68,11 @@ class AppConfig(BaseModel):
     # control. Unlike the fields above this one is a database setting rather
     # than an env var, so it changes without a redeploy.
     community_directory_enabled: bool
+    # Whether this deployment asks an account to confirm it is 13 or older
+    # before it belongs to a listed guild. The SPA reads it to decide whether
+    # the directory's Join button asks first; the server refuses either way, so
+    # this is which question gets asked and not whether the rule applies.
+    community_age_gate_enabled: bool
 
 
 _SUPPORTED_CAPTCHA_PROVIDERS = {"hcaptcha", "turnstile", "recaptcha"}
@@ -108,4 +113,5 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         billing=billing,
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
+        community_age_gate_enabled=app_settings.community_age_gate_enabled,
     )

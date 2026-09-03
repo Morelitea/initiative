@@ -184,15 +184,15 @@ export function EnvelopeImportDialog({
           initiative_id: Number(initiativeId),
         },
       })) as
-        | { result: { entity_title: string; unmatched_emails: string[] } }
+        | { result: { entity_title: string; unmatched_handles: string[] } }
         | { id: number; status: string };
       if ("result" in response) {
         toast.success(t("imports:envelope.success", { name: response.result.entity_title }));
-        if (response.result.unmatched_emails.length > 0) {
+        if (response.result.unmatched_handles.length > 0) {
           toast.warning(
             t("imports:envelope.warningUnmatched", {
-              count: response.result.unmatched_emails.length,
-              emails: response.result.unmatched_emails.join(", "),
+              count: response.result.unmatched_handles.length,
+              handles: response.result.unmatched_handles.join(", "),
             })
           );
         }

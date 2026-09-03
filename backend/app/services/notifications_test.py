@@ -46,11 +46,13 @@ from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_comment,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_initiative_member,
     create_project,
+    create_task,
     create_user,
 )
 
@@ -976,3 +978,354 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
     await set_rls_context(session)
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2
+
+
+# ---------------------------------------------------------------------------
+# Reaction digest
+# ---------------------------------------------------------------------------
+
+
+async def _reaction_item_in_new_guild(
+    session: AsyncSession, user: User, *, label: str, emoji: str = "👍"
+):
+    """Queue a reaction digest item for ``user`` in a brand-new guild."""
+    from app.models.tenant.reaction_digest import ReactionDigestItem
+
+    # A prior call left the session in a guild-member context; reset so the new
+    # guild INSERT into public.guilds isn't RLS-denied.
+    await set_rls_context(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user, name=label)
+    project = await create_project(session, initiative, user, name=f"{label} Project")
+    task = await create_task(session, project)
+    # A real comment: the queue row is gated through the thing that was
+    # reacted to, so it cannot be queued against an id that resolves nowhere.
+    comment = await create_comment(session, user, task=task, content=f"{label} thread")
+
+    await set_rls_context(session, user_id=user.id, guild_id=guild.id)
+    session.add(
+        ReactionDigestItem(
+            user_id=user.id,
+            reaction_id=None,
+            target_type="comment",
+            target_id=comment.id,
+            emoji=emoji,
+            target_path=f"/projects/{project.id}/tasks/{task.id}",
+            context_title=f"{label} thread",
+            reactor_name="reactor#0001",
+        )
+    )
+    await session.commit()
+    return guild
+
+
+@pytest.mark.integration
+async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
+    session: AsyncSession, monkeypatch
+):
+    """The reaction digest runs on the same engine as the assignment digest,
+    so it must show the same cross-guild behaviour: gather from every guild the
+    user belongs to, send once, mark processed in each schema."""
+    from app.models.tenant.reaction_digest import ReactionDigestItem
+    from app.services.notifications import _run_reaction_digest_pass
+
+    user = await create_user(session, email="reaction-digest@example.com")
+    guild_a = await _reaction_item_in_new_guild(session, user, label="Alpha")
+    guild_b = await _reaction_item_in_new_guild(session, user, label="Beta", emoji="🎉")
+
+    captured: dict = {}
+
+    async def _capture_email(sess, recipient, reactions):
+        captured["user_id"] = recipient.id
+        captured["emoji"] = {r["emoji"] for r in reactions}
+
+    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+
+    assert captured.get("user_id") == user.id
+    assert captured.get("emoji") == {"👍", "🎉"}
+
+    for guild_id in (guild_a.id, guild_b.id):
+        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+        pending = (
+            await session.exec(
+                select(ReactionDigestItem).where(
+                    ReactionDigestItem.processed_at.is_(None)
+                )
+            )
+        ).all()
+        assert pending == [], f"guild {guild_id} items not marked processed"
+
+
+@pytest.mark.integration
+async def test_reaction_digest_waits_for_the_flurry_to_end(
+    session: AsyncSession, monkeypatch
+):
+    """Reactions arrive in bursts more than anything else in the app, so the
+    quiet period matters most here."""
+    from app.services.notifications import _run_reaction_digest_pass
+
+    user = await create_user(session, email="reaction-debounce@example.com")
+    await _reaction_item_in_new_guild(session, user, label="Alpha")
+
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, reactions):
+        sent.append(len(reactions))
+
+    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
+    assert sent == []
+
+    await _reaction_item_in_new_guild(session, user, label="Beta", emoji="🚀")
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2
+    )
+    assert sent == []
+
+    session.expunge_all()
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+    assert sent == [2]
+
+
+@pytest.mark.integration
+async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monkeypatch):
+    """The reaction gate is its own: switching reactions off must not need the
+    mention or assignment preferences touched, and must not silence them."""
+    from app.services.notifications import _run_reaction_digest_pass
+
+    user = await create_user(
+        session,
+        email="reaction-optout@example.com",
+        email_comment_reactions=False,
+        push_comment_reactions=False,
+    )
+    await _reaction_item_in_new_guild(session, user, label="Alpha")
+
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, reactions):
+        sent.append(len(reactions))
+
+    monkeypatch.setattr(email_service, "send_reaction_digest_email", _capture_email)
+    pushes = _capture_push(monkeypatch)
+
+    await set_rls_context(session)
+    await _run_reaction_digest_pass(
+        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    )
+    assert sent == []
+    assert pushes == []
+
+
+@pytest.mark.unit
+class TestReactionBellRollup:
+    """The payload arithmetic behind the rolled-up bell line, including what it
+    makes of a line written before reactions rolled up at all."""
+
+    def test_a_pre_rollup_line_counts_as_the_one_reaction_it_named(self):
+        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+
+        legacy = {
+            "emoji": "\N{THUMBS UP SIGN}",
+            "reactor_name": "@ada",
+            "reactor_id": 7,
+        }
+        assert _rolled_up_count(legacy) == 1
+        assert _rolled_up_reactions(legacy) == [
+            {
+                "id": None,
+                "emoji": "\N{THUMBS UP SIGN}",
+                "reactor_id": 7,
+                "reactor_name": "@ada",
+            }
+        ]
+
+    def test_an_empty_payload_stands_for_nothing(self):
+        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+
+        assert _rolled_up_count({}) == 0
+        assert _rolled_up_reactions({}) == []
+
+    def test_the_named_reactions_are_capped_but_the_counts_are_not(self):
+        """The detail rolls off; what the sentence says must not. A line that
+        forgot its oldest reactions still knows how big its crowd is."""
+        from app.services.notifications import (
+            MAX_ROLLED_UP_REACTIONS,
+            _reaction_line,
+        )
+
+        entries = [
+            {
+                "id": i,
+                "emoji": "\N{PARTY POPPER}",
+                "reactor_id": i,
+                "reactor_name": f"@u{i}",
+            }
+            for i in range(MAX_ROLLED_UP_REACTIONS + 5)
+        ]
+        line = _reaction_line(
+            entries,
+            count=len(entries),
+            reactor_ids=[entry["reactor_id"] for entry in entries],
+            context_title="a task",
+            target_path="/go/task/1",
+            smart_link=None,
+            target_type="comment",
+            target_id=1,
+            guild_id=3,
+        )
+        assert line["count"] == MAX_ROLLED_UP_REACTIONS + 5
+        assert line["reactor_count"] == MAX_ROLLED_UP_REACTIONS + 5
+        assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
+        # The cap drops the oldest, so the newest reactor is still the one named.
+        assert line["reactor_id"] == entries[-1]["reactor_id"]
+
+    def test_the_roster_keeps_growing_after_the_detail_rolls_off(self):
+        """A cap on the roster would be a cap on the truth — the count would
+        freeze on exactly the comment where the number matters most."""
+        from app.services.notifications import (
+            MAX_ROLLED_UP_REACTIONS,
+            _reaction_line,
+        )
+
+        crowd = list(range(MAX_ROLLED_UP_REACTIONS * 10))
+        line = _reaction_line(
+            [
+                {
+                    "id": i,
+                    "emoji": "\N{PARTY POPPER}",
+                    "reactor_id": i,
+                    "reactor_name": f"@u{i}",
+                }
+                for i in crowd
+            ],
+            count=len(crowd),
+            reactor_ids=crowd,
+            context_title="a task",
+            target_path="/go/task/1",
+            smart_link=None,
+            target_type="comment",
+            target_id=1,
+            guild_id=3,
+        )
+        assert line["reactor_count"] == len(crowd)
+        assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
+
+    def test_a_pre_roster_line_reads_its_crowd_off_the_reactions_it_kept(self):
+        from app.services.notifications import _rolled_up_reactor_ids
+
+        assert _rolled_up_reactor_ids(
+            {
+                "reactions": [
+                    {"id": 1, "emoji": "a", "reactor_id": 2, "reactor_name": "@bob"},
+                    {"id": 2, "emoji": "b", "reactor_id": 2, "reactor_name": "@bob"},
+                    {"id": 3, "emoji": "c", "reactor_id": 5, "reactor_name": "@ada"},
+                ]
+            }
+        ) == [2, 5]
+        # And one written before rollups at all still names its one reactor.
+        assert _rolled_up_reactor_ids(
+            {"emoji": "\N{THUMBS UP SIGN}", "reactor_id": 7, "reactor_name": "@ada"}
+        ) == [7]
+
+    def test_a_pre_rollup_gesture_is_matched_by_who_reacted_and_with_what(self):
+        """Such a line carries no reaction id, so an un-react would never match
+        it on id alone and the line would keep claiming the reaction stands."""
+        from app.services.notifications import _matches_withdrawn
+
+        legacy = {
+            "id": None,
+            "emoji": "\N{THUMBS UP SIGN}",
+            "reactor_id": 7,
+            "reactor_name": "@ada",
+        }
+        assert _matches_withdrawn(
+            legacy, reaction_id=99, reactor_id=7, emoji="\N{THUMBS UP SIGN}"
+        )
+        assert not _matches_withdrawn(
+            legacy, reaction_id=99, reactor_id=8, emoji="\N{THUMBS UP SIGN}"
+        )
+        assert not _matches_withdrawn(
+            legacy, reaction_id=99, reactor_id=7, emoji="\N{PARTY POPPER}"
+        )
+        # A gesture that knows its own id is matched by it, and only by it.
+        known = {**legacy, "id": 99}
+        assert _matches_withdrawn(
+            known, reaction_id=99, reactor_id=0, emoji="\N{PARTY POPPER}"
+        )
+        assert not _matches_withdrawn(
+            known, reaction_id=98, reactor_id=7, emoji="\N{THUMBS UP SIGN}"
+        )
+
+
+@pytest.mark.integration
+async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
+    session: AsyncSession,
+):
+    """Roster membership is answered off the detail, so it can only be answered
+    while the detail is complete. Past the cap, the absence of a reactor from
+    what the line still remembers is not proof they have left it."""
+    from app.models.platform.notification import NotificationType
+    from app.services.notifications import (
+        MAX_ROLLED_UP_REACTIONS,
+        withdraw_reaction_event,
+    )
+    from app.services.platform import user_notifications
+
+    author = await create_user(session, email="rollup-rolled-off@example.com")
+    bob = 2
+    # 25 gestures counted, only the newest 20 remembered: bob's first has
+    # rolled off the detail, his second is the newest entry.
+    kept = [
+        {"id": 100 + i, "emoji": "\N{PARTY POPPER}", "reactor_id": 10 + i}
+        for i in range(MAX_ROLLED_UP_REACTIONS - 1)
+    ] + [{"id": 999, "emoji": "\N{THUMBS UP SIGN}", "reactor_id": bob}]
+    roster = [bob] + [10 + i for i in range(24)]
+    line = await user_notifications.create_notification(
+        session,
+        user_id=author.id,
+        notification_type=NotificationType.comment_reaction,
+        data={
+            "guild_id": 1,
+            "target_type": "comment",
+            "target_id": 5,
+            "count": 25,
+            "reactor_count": len(roster),
+            "reactor_ids": roster,
+            "reactions": kept,
+        },
+    )
+    await session.flush()
+
+    await withdraw_reaction_event(
+        session,
+        author_id=author.id,
+        reaction_id=999,
+        reactor_id=bob,
+        emoji="\N{THUMBS UP SIGN}",
+        target_type="comment",
+        target_id=5,
+        guild_id=1,
+    )
+
+    assert line.data["count"] == 24
+    # Bob keeps his place: the gesture that proves he is still here rolled off
+    # the detail long ago, and the line must not read his absence from it as
+    # him leaving.
+    assert bob in line.data["reactor_ids"]
+    assert line.data["reactor_count"] == 25

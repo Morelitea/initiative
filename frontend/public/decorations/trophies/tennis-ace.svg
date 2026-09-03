@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Racket</title>
+  <defs>
+    <clipPath id="bed"><ellipse cx="0" cy="0" rx="9.4" ry="11.6"/></clipPath>
+    <radialGradient id="fz" cx=".34" cy=".3" r=".85">
+      <stop offset="0%" stop-color="#E9F76A"/><stop offset="70%" stop-color="#CFE229"/>
+      <stop offset="100%" stop-color="#94A312"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#12301F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#1C4A2E" stroke-width="2"/>
+  <g transform="translate(26 20) rotate(34)">
+    <ellipse cx="0" cy="0" rx="9.4" ry="11.6" fill="#0E1B12" opacity=".55"/>
+    <g clip-path="url(#bed)" stroke="#EDE9DC" stroke-width=".7" opacity=".9">
+      <path d="M-8 -12 L-8 12"/><path d="M-5.4 -12 L-5.4 12"/><path d="M-2.7 -12 L-2.7 12"/>
+      <path d="M0 -12 L0 12"/><path d="M2.7 -12 L2.7 12"/><path d="M5.4 -12 L5.4 12"/>
+      <path d="M8 -12 L8 12"/>
+      <path d="M-10 -9.6 L10 -9.6"/><path d="M-10 -6.4 L10 -6.4"/><path d="M-10 -3.2 L10 -3.2"/>
+      <path d="M-10 0 L10 0"/><path d="M-10 3.2 L10 3.2"/><path d="M-10 6.4 L10 6.4"/>
+      <path d="M-10 9.6 L10 9.6"/>
+    </g>
+    <ellipse cx="0" cy="0" rx="9.4" ry="11.6" fill="none" stroke="#1B1E22" stroke-width="2.6"/>
+    <ellipse cx="0" cy="0" rx="9.4" ry="11.6" fill="none" stroke="#4A525C" stroke-width=".7"/>
+    <path d="M-5.6 10.4 L-3 17.4" stroke="#1B1E22" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M5.6 10.4 L3 17.4" stroke="#1B1E22" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M-2.6 16.4 L2.6 16.4 C3.6 16.4 4 17.2 4 18.4 L4 26 C4 27.4 -4 27.4 -4 26
+             L-4 18.4 C-4 17.2 -3.6 16.4 -2.6 16.4 Z" fill="#2A2F33"/>
+    <g stroke="#43494F" stroke-width=".5">
+      <path d="M-4 19.6 L4 20.6"/><path d="M-4 22 L4 23"/><path d="M-4 24.4 L4 25.4"/>
+    </g>
+  </g>
+  <circle cx="14.4" cy="33.6" r="5.6" fill="url(#fz)"/>
+  <path d="M9.4 31.2 C11.8 30.6 14.4 31.6 15.8 33.8 C16.6 35 17.6 35.8 18.8 36.2" fill="none"
+        stroke="#F4F1E8" stroke-width=".9" stroke-linecap="round"/>
+  <path d="M11.4 38.4 C12 36.2 13.4 33.4 15.2 31.6 C16.6 30.2 18 29.4 19.4 29.2" fill="none"
+        stroke="#F4F1E8" stroke-width=".9" stroke-linecap="round"/>
+  <path d="M11 31.6 C11.8 30.6 13 30 14.2 29.8" fill="none" stroke="#FBFFD0" stroke-width="1"
+        opacity=".6" stroke-linecap="round"/>
+</svg>

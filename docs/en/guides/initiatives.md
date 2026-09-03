@@ -4,7 +4,7 @@ icon: lucide/folders
 
 # Working with initiatives
 
-An **initiative** is a folder for a big effort inside your guild. It gathers the projects, documents, and tools for that effort, and it's where you decide *who's involved*. This guide covers creating initiatives, adding people, and setting up roles.
+An **initiative** is a folder for a big effort inside your community. It gathers the projects, documents, and tools for that effort, and it's where you decide *who's involved*. This guide covers creating initiatives, adding people, and setting up roles.
 
 New to the idea? See [How Initiative is organized](../concepts/index.md) first.
 
@@ -21,7 +21,7 @@ Your new initiative appears in the sidebar. Click to expand it and you'll see it
 ![Creating an initiative](../images/initiatives/create-initiative.png)
 
 !!! info "The Default Initiative"
-    Every guild starts with a **Default Initiative** so there's always somewhere to begin. You can rename it and use it like any other — but it can't be deleted, so your guild is never left without a home for new work.
+    Every community starts with a **Default Initiative** so there's always somewhere to begin. You can rename it and use it like any other — but it can't be deleted, so your community is never left without a home for new work.
 
 ## The initiative dashboard
 
@@ -32,28 +32,28 @@ Clicking an initiative's **title** in the sidebar opens its **dashboard** — an
 An initiative's **contents** are visible only to its **members**. To bring people in by hand:
 
 1. Open the initiative and go to its **settings → Members**.
-2. **Add** people from your guild.
+2. **Add** people from your community.
 3. Give each person a **role** (see below).
 
-An invite-only initiative isn't just closed to people who aren't in it — it isn't there for them at all. No "no entry" sign, no name in a list: nothing. This is how an initiative keeps sensitive work private to the people involved, even from other members of the same guild.
+An invite-only initiative isn't just closed to people who aren't in it — it isn't there for them at all. No "no entry" sign, no name in a list: nothing. This is how an initiative keeps sensitive work private to the people involved, even from other members of the same community.
 
-An initiative that invites the guild in (below) is listed by name, description, and size so people can find it — but that's all a non-member sees. Its projects, documents, and everything else stay out of reach until they actually join.
+An initiative that invites the community in (below) is listed by name, description, and size so people can find it — but that's all a non-member sees. Its projects, documents, and everything else stay out of reach until they actually join.
 
 ## How people join an initiative
 
-Being added by hand isn't the only way in. Each initiative decides for itself how people from the guild may join it, under **settings → Details → Joining**:
+Being added by hand isn't the only way in. Each initiative decides for itself how people from the community may join it, under **settings → Details → Joining**:
 
 | Setting | What it means |
 |---|---|
 | **Invite only** | Nobody joins on their own. A manager adds them. This is the default, and what every initiative made before this feature still uses. |
-| **By request** | Listed for the guild to see. Someone asks to join, and a manager approves or declines. |
-| **Anyone can join** | Listed for the guild to see, and any member joins in one click. |
+| **By request** | Listed for the community to see. Someone asks to join, and a manager approves or declines. |
+| **Anyone can join** | Listed for the community to see, and any member joins in one click. |
 
 ![Choosing how people join an initiative](../images/initiatives/join-policy.png)
 
-Anything that isn't invite-only appears in the **Initiatives** section of the guild's front page — its name, colour, description, and how many people are in it — split into the ones you're already in and the ones you could join.
+Anything that isn't invite-only appears in the **Initiatives** section of the community's front page — its name, colour, description, and how many people are in it — split into the ones you're already in and the ones you could join.
 
-![The initiative list on a guild's front page](../images/initiatives/guild-home-initiatives.png)
+![The initiative list on a community's front page](../images/initiatives/community-home-initiatives.png)
 
 Whichever way someone arrives, they get the built-in **member** role — view-only on the always-on tools — and sharing still decides each project and document inside. Opening an initiative up doesn't expose anything that was private to it; it only changes who may walk in.
 
@@ -69,17 +69,25 @@ Being declined isn't a ban. The person can ask again, and only one request of th
 
 ### Adding everyone automatically
 
-A guild admin can go one step further and mark an **anyone can join** initiative as **auto-join**. From then on, everyone who arrives in the guild — by invite, from the [community directory](guilds.md#finding-a-guild-to-join), or through single sign-on — lands in it already a member, with nothing to click.
+A community admin can go one step further and mark an **anyone can join** initiative as **auto-join**. From then on, everyone who arrives in the community — by invite, from the [community directory](communities.md#finding-a-community-to-join), or through single sign-on — lands in it already a member, with nothing to click.
 
-This is how you stop a newcomer meeting an empty guild. It's worth having at least one for any guild that lists itself publicly.
+This is how you stop a newcomer meeting an empty community. It's worth having at least one for any community that lists itself publicly.
 
 Two things to know:
 
-- It applies to people arriving **from now on**. It doesn't reach back and add everyone already in the guild.
+- It applies to people arriving **from now on**. It doesn't reach back and add everyone already in the community.
 - Only an **anyone can join** initiative can carry it, so auto-join never hands out access that the person couldn't have given themselves from the list a moment later.
 
-!!! tip "Guild admins are already everywhere"
-    A guild admin reaches every initiative in their guild by virtue of being an admin, so they're not enrolled as ordinary members and don't appear in these lists as needing to join.
+### Community admins join like everyone else
+
+A community admin has authority over every initiative in their community — but authority isn't navigation. Their sidebar and the community's front page show **the initiatives they're actually in**, then the ones on offer, exactly as anyone else sees it. An admin drowning in a hundred initiatives they've never opened can't find the three they work in.
+
+To put an initiative in front of themselves, an admin joins it from the community's front page. They walk straight in whatever the initiative's joining setting says — no request, no waiting — and land on the **project manager** role their standing already implies. **Community settings → Initiatives** still lists every initiative in the community, and taking the project manager role there does the same thing.
+
+None of this changes what an admin may *do*. Opening a single initiative still shows them all of its work.
+
+!!! tip "Adding an admin to your initiative"
+    A project manager can add a community admin to an initiative like anybody else — the member picker offers them, and they arrive on the project manager role, which is the only role their standing allows here.
 
 ## Roles and what they unlock
 
@@ -112,14 +120,16 @@ There's a full walkthrough of roles and how they combine with sharing in [Initia
 Open an initiative's **settings** to find:
 
 - **Details** — name, color, description, and **Joining** (how people may join; see [How people join an initiative](#how-people-join-an-initiative)).
-- **Members** — who's in, and their roles.
+- **Members** — who's in, their roles, and any waiting join requests.
 - **Roles** — create roles and set their permissions.
+- **Properties** — the custom fields this initiative's tasks, documents and events can carry.
+- **Export** — download the initiative's data (managers and above).
 - **Danger zone** — archive, unarchive, or delete the initiative.
 
 ### Archiving vs. deleting
 
 - **Archive** tucks an initiative away when an effort is finished, without losing anything. Archived initiatives are hidden from the main view but can be brought back at any time. Good for "the spring play is over, but keep the records."
-- **Delete** sends the initiative — and everything in it — to the guild's **Trash**, where an admin can still restore the whole thing until the retention period ends. After that, it's gone for good.
+- **Delete** sends the initiative — and everything in it — to the community's **Trash**, where an admin can still restore the whole thing until the retention period ends. After that, it's gone for good.
 
 ## Related
 

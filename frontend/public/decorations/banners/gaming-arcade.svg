@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Arcade</title>
+  <!-- A dark room and a bright screen, which is what the hobby actually looks
+       like from the sofa. What is on the screen is nobody's game in particular:
+       a horizon, a grid running away, and a ship over it. -->
+  <style>
+    .grid { animation: run 2.6s linear infinite }
+    @keyframes run { to { transform: translateY(6px) } }
+    .ship { animation: bank 5s ease-in-out infinite alternate }
+    @keyframes bank { from { transform: translate(-9px,1px) } to { transform: translate(9px,-1px) } }
+    .coin { animation: flip 2.2s ease-in-out infinite;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes flip { 0%,100% { transform: scaleX(1) } 50% { transform: scaleX(.12) } }
+    .scan { animation: sweep 7s linear infinite }
+    @keyframes sweep { from { transform: translateY(-20px) } to { transform: translateY(22px) } }
+    .glowpulse { animation: breathe 4.4s ease-in-out infinite }
+    @keyframes breathe { 0%,100% { opacity: .5 } 50% { opacity: .85 } }
+    .led { animation: blink 1.8s steps(1,end) infinite }
+    .l2 { animation-delay: -.9s }
+    @keyframes blink { 0%,50% { opacity: 1 } 51%,100% { opacity: .2 } }
+    @media (prefers-reduced-motion: reduce) {
+      .grid, .ship, .coin, .scan, .glowpulse, .led { animation: none }
+    }
+  </style>
+  <defs>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B0714"/><stop offset="100%" stop-color="#160E22"/>
+    </linearGradient>
+    <linearGradient id="crt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#150A26"/><stop offset="55%" stop-color="#2A0F43"/>
+      <stop offset="100%" stop-color="#4A1355"/>
+    </linearGradient>
+    <radialGradient id="spill" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#B14BE0" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="#B14BE0" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="screen">
+      <rect x="52" y="4.4" width="56" height="21" rx="1.6"/>
+    </clipPath>
+  </defs>
+  <rect width="160" height="40" fill="url(#room)"/>
+  <ellipse class="glowpulse" cx="80" cy="15" rx="72" ry="24" fill="url(#spill)"/>
+
+  <!-- The screen. -->
+  <rect x="50.6" y="3" width="58.8" height="23.8" rx="2.4" fill="#1B1626"/>
+  <rect x="50.6" y="3" width="58.8" height="23.8" rx="2.4" fill="none" stroke="#3A3050"
+        stroke-width=".6"/>
+  <rect x="52" y="4.4" width="56" height="21" rx="1.6" fill="url(#crt)"/>
+  <g clip-path="url(#screen)">
+    <!-- Horizon, and the grid running away under it. -->
+    <path d="M52 14.6 L108 14.6" stroke="#FF5FD2" stroke-width=".5" opacity=".8"/>
+    <circle cx="80" cy="14.6" r="6.4" fill="#FF5FD2" opacity=".22"/>
+    <circle cx="80" cy="14.6" r="4" fill="#FFB0EA" opacity=".3"/>
+    <g class="grid" stroke="#39E8FF" stroke-width=".4" opacity=".75" fill="none">
+      <path d="M52 17 L108 17"/><path d="M52 19 L108 19"/><path d="M50 21.6 L110 21.6"/>
+      <path d="M48 25 L112 25"/><path d="M46 29.2 L114 29.2"/>
+    </g>
+    <g stroke="#39E8FF" stroke-width=".4" opacity=".55" fill="none">
+      <path d="M80 14.6 L54 25.4"/><path d="M80 14.6 L64 25.4"/><path d="M80 14.6 L73 25.4"/>
+      <path d="M80 14.6 L80 25.4"/><path d="M80 14.6 L87 25.4"/><path d="M80 14.6 L96 25.4"/>
+      <path d="M80 14.6 L106 25.4"/>
+    </g>
+    <!-- A ship over it, and a thing worth collecting. -->
+    <g class="ship">
+      <path d="M80 8.6 L84.4 13.4 L80 12.2 L75.6 13.4 Z" fill="#EAF6FF"/>
+      <path d="M80 8.6 L84.4 13.4 L80 12.2 Z" fill="#9AD8FF"/>
+      <path d="M78.6 13 L81.4 13 L80.8 14.6 L79.2 14.6 Z" fill="#FF9B3D"/>
+    </g>
+    <g class="coin">
+      <circle cx="98" cy="9.4" r="2" fill="#FFC83D"/>
+      <circle cx="98" cy="9.4" r="1.2" fill="#FFE79B"/>
+    </g>
+    <!-- What the game is telling you. -->
+    <g fill="#EAF6FF" opacity=".9">
+      <rect x="55" y="6.4" width="1.6" height="1.6" rx=".3"/>
+      <rect x="57.4" y="6.4" width="1.6" height="1.6" rx=".3"/>
+      <rect x="59.8" y="6.4" width="1.6" height="1.6" rx=".3" opacity=".3"/>
+    </g>
+    <rect x="55" y="9.4" width="14" height="1.6" rx=".8" fill="#1B2A3E"/>
+    <rect x="55" y="9.4" width="9.4" height="1.6" rx=".8" fill="#39E8FF"/>
+    <g class="scan" opacity=".2">
+      <rect x="52" y="4.4" width="56" height="2.4" fill="#FFFFFF"/>
+    </g>
+  </g>
+  <g stroke="#0E0A18" stroke-width=".35" opacity=".55">
+    <path d="M52 6 L108 6"/><path d="M52 8 L108 8"/><path d="M52 10 L108 10"/>
+    <path d="M52 12 L108 12"/><path d="M52 14 L108 14"/><path d="M52 16 L108 16"/>
+    <path d="M52 18 L108 18"/><path d="M52 20 L108 20"/><path d="M52 22 L108 22"/>
+    <path d="M52 24 L108 24"/>
+  </g>
+  <circle class="led" cx="106.4" cy="25.4" r=".5" fill="#4CE08A"/>
+
+  <!-- The desk, and what is on it. -->
+  <path d="M0 28.8 L160 28.8 L160 40 L0 40 Z" fill="#160F1E"/>
+  <path d="M0 28.8 L160 28.8 L160 29.6 L0 29.6 Z" fill="#2A1E3A"/>
+  <path d="M74 26.8 L86 26.8 L88 28.8 L72 28.8 Z" fill="#241A32"/>
+  <!-- The controller, in the near dark. -->
+  <g transform="translate(80 34)">
+    <path d="M-13 -3.4 C-8 -5 8 -5 13 -3.4 C15.6 -2.4 16.6 1.4 15 3.6
+             C13.6 5.6 10.6 5.2 8.4 3.4 C6.6 2 5 1.4 0 1.4 C-5 1.4 -6.6 2 -8.4 3.4
+             C-10.6 5.2 -13.6 5.6 -15 3.6 C-16.6 1.4 -15.6 -2.4 -13 -3.4 Z"
+          fill="#241A32"/>
+    <path d="M-13 -3.4 C-8 -5 8 -5 13 -3.4 C13.6 -3.2 14 -2.8 14.4 -2.2
+             C8 -3.6 -8 -3.6 -14.4 -2.2 C-14 -2.8 -13.6 -3.2 -13 -3.4 Z" fill="#3A2B52"/>
+    <g fill="#7A5FA8">
+      <path d="M-9.4 -1.8 L-6.6 -1.8 L-6.6 -.6 L-9.4 -.6 Z"/>
+      <path d="M-8.6 -2.6 L-7.4 -2.6 L-7.4 .2 L-8.6 .2 Z"/>
+    </g>
+    <g>
+      <circle class="led" cx="7.4" cy="-2" r=".85" fill="#FF5FD2"/>
+      <circle class="led l2" cx="9.6" cy="-.4" r=".85" fill="#39E8FF"/>
+      <circle cx="5.2" cy="-.4" r=".85" fill="#4CE08A"/>
+      <circle cx="7.4" cy="1.2" r=".85" fill="#FFC83D"/>
+    </g>
+    <circle cx="-2.6" cy="1" r="1.5" fill="#3A2B52"/>
+    <circle cx="2.6" cy="1" r="1.5" fill="#3A2B52"/>
+  </g>
+  <!-- Two more of them, off in the dark where somebody else is sitting. -->
+  <g fill="#1E1630">
+    <ellipse cx="20" cy="33" rx="9" ry="3.4"/>
+    <ellipse cx="140" cy="34" rx="10" ry="3.8"/>
+  </g>
+</svg>

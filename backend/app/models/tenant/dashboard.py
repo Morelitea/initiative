@@ -6,16 +6,20 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    CommentsToggleMixin,
+    CreatedByMixin,
+    SoftDeleteMixin,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.tag import Tag
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
 
 
-class Dashboard(CreatedByMixin, SoftDeleteMixin, table=True):
+class Dashboard(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """An initiative's dashboard: a canvas of widgets over existing data.
 
     ``definition`` is the validated, declarative body — layout plus widgets and
@@ -76,8 +80,11 @@ class Dashboard(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     initiative: Optional["Initiative"] = Relationship()
-    creator: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "Dashboard.created_by"}
+    creator: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(Dashboard.created_by) == MemberProfile.id",
+            "viewonly": True,
+        }
     )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={

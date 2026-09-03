@@ -1,0 +1,64 @@
+{
+  "uid": "A7QN3ZY5RK9DBV",
+  "public_id": "core.tea",
+  "kind": "profile_pack",
+  "name": "Tea",
+  "publisher": "Initiative",
+  "description": "For anyone with opinions about water temperature.",
+  "long_description": "A pot that has sat exactly long enough, terraces at the hour the mist has not lifted, and the maddest tea party in English. Sit in a cup or put porcelain round your picture, then wear a pot, a bag, a bowl of matcha and a cup of your own. Loose-leaf people welcome. Bag people also welcome.",
+  "avatar_url": "/decorations/banners/tea-service.svg",
+  "images": [],
+  "version": "1.4.0",
+  "release_notes": "A cup to sit in, in place of the ring of leaves.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "tea.service",
+        "slot": "banner",
+        "name": "Tea service"
+      },
+      {
+        "id": "tea.cup",
+        "slot": "trophy",
+        "name": "Cup"
+      },
+      {
+        "id": "tea.garden",
+        "slot": "banner",
+        "name": "Tea garden"
+      },
+      {
+        "id": "tea.porcelain",
+        "slot": "frame",
+        "name": "Porcelain"
+      },
+      {
+        "id": "tea.bag",
+        "slot": "trophy",
+        "name": "Tea bag"
+      },
+      {
+        "id": "tea.pot",
+        "slot": "trophy",
+        "name": "Teapot"
+      },
+      {
+        "id": "tea.matcha",
+        "slot": "trophy",
+        "name": "Matcha"
+      },
+      {
+        "id": "tea.party",
+        "slot": "banner",
+        "name": "A mad tea party"
+      },
+      {
+        "id": "tea.teacup",
+        "slot": "frame",
+        "name": "Cup of tea"
+      }
+    ]
+  }
+}

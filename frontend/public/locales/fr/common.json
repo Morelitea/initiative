@@ -97,6 +97,10 @@
     "tags": "Étiquettes",
     "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer.",
     "tagsNoAccess": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes.",
+    "comments": "Commentaires",
+    "commentsDescription": "Désactivez le fil de commentaires de cet élément. Les commentaires déjà publiés sont conservés et réapparaissent si vous le réactivez.",
+    "commentsToggle": "Désactiver les commentaires",
+    "commentsError": "Le réglage des commentaires n'a pas pu être enregistré.",
     "permissionsUpdated": "Permissions mises à jour",
     "dangerZone": "Zone de danger",
     "dangerZoneDescription": "Actions destructrices. Les éléments supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
@@ -104,7 +108,9 @@
     "deleteConfirmDescription": "L'élément sera envoyé à la corbeille. Vous pouvez le restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "deleted": "« {{name}} » supprimé",
     "notFound": "Introuvable",
-    "loadError": "Impossible de charger cet élément."
+    "loadError": "Impossible de charger cet élément.",
+    "permissionRequired": "Permission requise",
+    "permissionRequiredDescription": "Vous n'avez pas accès à cette section de ces paramètres."
   },
   "toolbar": {
     "filters": "Filtres",
@@ -115,5 +121,24 @@
     "selectItems": "Sélectionner des éléments",
     "view": "Affichage",
     "details": "Détails"
+  },
+  "emojiPicker": {
+    "searchPlaceholder": "Rechercher un emoji…",
+    "empty": "Aucun emoji trouvé.",
+    "prompt": "Sélectionnez un emoji…"
+  },
+  "reactions": {
+    "add": "Ajouter une réaction",
+    "chipLabel_one": "{{emoji}}, {{count}} réaction",
+    "chipLabel_other": "{{emoji}}, {{count}} réactions",
+    "countOnly_one": "{{count}} réaction",
+    "countOnly_other": "{{count}} réactions",
+    "namesAndMore_one": "{{names}} et {{count}} autre",
+    "namesAndMore_other": "{{names}} et {{count}} autres",
+    "error": "Votre réaction n'a pas pu être enregistrée."
+  },
+  "pagination": {
+    "perPage": "Par page :",
+    "rangeOf": "{{start}}–{{end}} sur {{total}}"
   }
 }

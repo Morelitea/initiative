@@ -6,7 +6,7 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentSettingsAdvancedTab } from "@/components/documents/settings/DocumentSettingsAdvancedTab";
 import { DocumentSettingsDetailsTab } from "@/components/documents/settings/DocumentSettingsDetailsTab";
 import { DocumentSettingsDialogs } from "@/components/documents/settings/DocumentSettingsDialogs";
-import { ToolSettingsPage } from "@/components/tools/settings/ToolSettingsPage";
+import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
   useCopyDocumentToInitiative,
   useDeleteDocument,
@@ -129,7 +129,7 @@ export const DocumentSettingsPage = () => {
   };
 
   return (
-    <ToolSettingsPage
+    <ToolSettingsLayout
       tool={Tool.document}
       // A document's name is edited in the editor rather than here, and it
       // carries no description field.
@@ -187,6 +187,6 @@ export const DocumentSettingsPage = () => {
           isLoadingInitiatives={initiativesQuery.isLoading}
         />
       )}
-    </ToolSettingsPage>
+    </ToolSettingsLayout>
   );
 };

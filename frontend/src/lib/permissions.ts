@@ -12,11 +12,13 @@ import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 export const Capability = {
   usersRead: "users.read",
+  usersAgeUnblock: "users.age_unblock",
   usersManage: "users.manage",
   usersDelete: "users.delete",
   rolesAssign: "roles.assign",
   guildsRead: "guilds.read",
   guildsManage: "guilds.manage",
+  announcementsManage: "announcements.manage",
   contentModerate: "content.moderate",
   auditRead: "audit.read",
   dataBypass: "data.bypass",
@@ -54,8 +56,10 @@ const PLATFORM_SETTINGS_CAPABILITIES: Capability[] = [
  * users + time-bound access grants). */
 const ADMIN_DASHBOARD_CAPABILITIES: Capability[] = [
   Capability.usersRead,
+  Capability.usersAgeUnblock,
   Capability.usersManage,
   Capability.guildsManage,
+  Capability.announcementsManage,
   Capability.contentModerate,
   Capability.auditRead,
   Capability.accessRequest,

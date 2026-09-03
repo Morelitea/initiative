@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <style>
+    .hour { animation: pass 34s ease-in-out infinite alternate }
+    @keyframes pass { from { transform: translateX(-22px); opacity: .28 }
+                      to { transform: translateX(22px); opacity: .5 } }
+    /* The garden is raked, held, and smoothed over again. Each mark carries
+       its own length, so a short ring is drawn no faster than a long one. */
+    .rake { animation-duration: 30s; animation-timing-function: ease-in-out;
+            animation-iteration-count: infinite }
+    @keyframes rake0 {
+      0%,4% { stroke-dashoffset: var(--l); opacity: 0 }
+      5% { opacity: .9 }
+      17%,86% { stroke-dashoffset: 0; opacity: .9 }
+      95%,100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    @keyframes rake1 {
+      0%,12% { stroke-dashoffset: var(--l); opacity: 0 }
+      13% { opacity: .9 }
+      25%,86% { stroke-dashoffset: 0; opacity: .9 }
+      95%,100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    @keyframes rake2 {
+      0%,20% { stroke-dashoffset: var(--l); opacity: 0 }
+      21% { opacity: .9 }
+      33%,86% { stroke-dashoffset: 0; opacity: .9 }
+      95%,100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    @keyframes rake3 {
+      0%,28% { stroke-dashoffset: var(--l); opacity: 0 }
+      29% { opacity: .9 }
+      41%,86% { stroke-dashoffset: 0; opacity: .9 }
+      95%,100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    @keyframes rake4 {
+      0%,36% { stroke-dashoffset: var(--l); opacity: 0 }
+      37% { opacity: .9 }
+      49%,86% { stroke-dashoffset: 0; opacity: .9 }
+      95%,100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    @keyframes rake5 {
+      0%,44% { stroke-dashoffset: var(--l); opacity: 0 }
+      45% { opacity: .9 }
+      57%,86% { stroke-dashoffset: 0; opacity: .9 }
+      95%,100% { stroke-dashoffset: 0; opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hour { animation: none }
+      .rake { animation: none; stroke-dashoffset: 0; opacity: .9 } }
+  </style>
+  <title>Raked sand</title>
+  <!-- The whole garden, and the twenty minutes it took. -->
+  <defs>
+    <linearGradient id="daylong" x1="0" y1="0" x2="1" y2=".4">
+      <stop offset="0%" stop-color="#FFF0C8" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#FFF0C8" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFF0C8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="grit" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4DED0"/><stop offset="100%" stop-color="#C4BCA8"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#grit)"/>
+  <path d="M0 0 L160 0 L160 6 L0 6 Z" fill="#5A4A32"/>
+  <path d="M0 5 L160 5 L160 6.6 L0 6.6 Z" fill="#7A6444"/>
+  <g fill="none" stroke="#A9A192" stroke-width=".55">
+    <ellipse class="rake" style="--l:79.6; stroke-dasharray:79.6; animation-name:rake2" cx="46" cy="22" rx="16" ry="9"/>
+    <ellipse class="rake" style="--l:104.9; stroke-dasharray:104.9; animation-name:rake3" cx="46" cy="22" rx="21" ry="12"/>
+    <ellipse class="rake" style="--l:130.3; stroke-dasharray:130.3; animation-name:rake4" cx="46" cy="22" rx="26" ry="15"/>
+    <ellipse class="rake" style="--l:156.2; stroke-dasharray:156.2; animation-name:rake5" cx="46" cy="22" rx="31" ry="18"/>
+    <ellipse class="rake" style="--l:63.8; stroke-dasharray:63.8; animation-name:rake3" cx="112" cy="27" rx="13" ry="7"/>
+    <ellipse class="rake" style="--l:89.2; stroke-dasharray:89.2; animation-name:rake4" cx="112" cy="27" rx="18" ry="10"/>
+    <ellipse class="rake" style="--l:114.6; stroke-dasharray:114.6; animation-name:rake5" cx="112" cy="27" rx="23" ry="13"/>
+    <path class="rake" style="--l:160.0; stroke-dasharray:160.0; animation-name:rake0" d="M0 11 C30 9.6 130 9.6 160 11"/>
+    <path class="rake" style="--l:160.0; stroke-dasharray:160.0; animation-name:rake0" d="M0 15 C30 13.4 130 13.4 160 15"/>
+    <path class="rake" style="--l:160.0; stroke-dasharray:160.0; animation-name:rake1" d="M0 37 C40 35.6 120 35.6 160 37"/>
+  </g>
+  <g>
+    <path d="M38 22.6 C40.6 17.6 48 16.6 52 20 C54.4 22 53.6 24.6 50 25.4
+             C43.4 27 39 25.4 38 22.6 Z" fill="#6E6A62"/>
+    <path d="M39 21.6 C41.6 17.6 48.4 17 51.4 19.6 C47 18.4 42 19.6 39 21.6 Z" fill="#8B867C"/>
+    <path d="M104 27.6 C106 24.6 111 24 113.6 26 C115.4 27.4 114.6 29 112 29.6
+             C107.6 30.6 104.6 29.6 104 27.6 Z" fill="#6E6A62"/>
+    <path d="M104.6 27 C106.4 24.4 111 24 113.2 25.6 C110 25 106.6 25.8 104.6 27 Z"
+          fill="#8B867C"/>
+    <path d="M132 20 C133.4 17.6 137 17.2 139 18.6 C140.4 19.6 139.8 20.9 137.8 21.4
+             C134.6 22.2 132.4 21.4 132 20 Z" fill="#6E6A62"/>
+  </g>
+  <g fill="#3F6B2B" opacity=".85">
+    <ellipse cx="14" cy="9" rx="6" ry="2.6"/><ellipse cx="150" cy="8.6" rx="7" ry="2.8"/>
+  </g>
+  <g stroke="#4A3119" stroke-width="1" fill="none" stroke-linecap="round">
+    <path d="M14 9 L14 6.6"/><path d="M150 8.6 L150 6.6"/>
+  </g>  <rect class="hour" x="0" y="0" width="160" height="40" fill="url(#daylong)"/>
+</svg>

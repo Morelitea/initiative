@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Observatory</title>
+  <!-- A banner is cropped to the middle of its width on a phone and dissolved
+       from about two thirds down on every screen, so the dome stands dead
+       centre, the sky carries the detail, and the valley below it is allowed
+       to disappear. -->
+  <style>
+    .tw { animation: blink 4.2s ease-in-out infinite }
+    .t2 { animation-delay: -.9s } .t3 { animation-delay: -1.8s }
+    .t4 { animation-delay: -2.7s } .t5 { animation-delay: -3.6s }
+    @keyframes blink { 0%,100% { opacity: 1 } 55% { opacity: .25 } }
+    /* Three shells, three speeds. The tilt sits on a wrapper the animation
+       cannot reach — a CSS transform replaces the attribute outright — and the
+       origin is pinned to the view box, so it resolves against the drawing
+       rather than against each group's own bounding box. */
+    .shell { transform-box: view-box; transform-origin: 44px 10px }
+    .s1 { animation: spin 26s linear infinite }
+    .s2 { animation: spin 34s linear infinite reverse }
+    .s3 { animation: spin 44s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    .pulse { animation: throb 3.4s ease-in-out infinite }
+    @keyframes throb { 0%,100% { opacity: .6 } 50% { opacity: 1 } }
+    .mist { animation: drift 26s ease-in-out infinite alternate }
+    @keyframes drift { from { transform: translateX(-3px) } to { transform: translateX(3px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .tw, .s1, .s2, .s3, .pulse, .mist { animation: none }
+    }
+  </style>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#02040C"/>
+      <stop offset="55%" stop-color="#080F22"/>
+      <stop offset="100%" stop-color="#16294C"/>
+    </linearGradient>
+    <radialGradient id="milky" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#93ACEC" stop-opacity=".28"/>
+      <stop offset="55%" stop-color="#5C77BE" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#5C77BE" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="domeLight" x1="0" y1="0" x2="1" y2=".6">
+      <stop offset="0%" stop-color="#5A82C0"/>
+      <stop offset="45%" stop-color="#2C4272"/>
+      <stop offset="100%" stop-color="#121D38"/>
+    </linearGradient>
+    <radialGradient id="planet" cx=".36" cy=".3" r=".85">
+      <stop offset="0%" stop-color="#F0D5A2"/>
+      <stop offset="60%" stop-color="#C79A5E"/>
+      <stop offset="100%" stop-color="#7E5730"/>
+    </radialGradient>
+    <radialGradient id="lamp" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FFCF7A" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#FFCF7A" stop-opacity="0"/>
+    </radialGradient>
+    <!-- One fir, drawn once: layered boughs with a taper, its base at 0,0. -->
+    <path id="pine" d="M0 0 C-1.5 -.4 -2.2 -.8 -2.6 -1.4 C-1.9 -1.5 -1.5 -1.6 -1.2 -1.8
+                       C-2 -2.2 -2.4 -2.6 -2.7 -3.2 C-2 -3.2 -1.5 -3.3 -1.1 -3.5
+                       C-1.7 -4 -2 -4.6 -2.1 -5.2 C-1.4 -5.1 -1 -5.2 -.7 -5.4
+                       C-1 -6.2 -.7 -7.2 0 -8 C.7 -7.2 1 -6.2 .7 -5.4
+                       C1 -5.2 1.4 -5.1 2.1 -5.2 C2 -4.6 1.7 -4 1.1 -3.5
+                       C1.5 -3.3 2 -3.2 2.7 -3.2 C2.4 -2.6 2 -2.2 1.2 -1.8
+                       C1.5 -1.6 1.9 -1.5 2.6 -1.4 C2.2 -.8 1.5 -.4 0 0 Z"/>
+  </defs>
+
+  <rect width="160" height="40" fill="url(#sky)"/>
+  <!-- The galaxy, on the diagonal, with the dust lane through it. -->
+  <ellipse cx="78" cy="13" rx="88" ry="9.5" transform="rotate(-8 78 13)" fill="url(#milky)"/>
+  <ellipse cx="78" cy="14.4" rx="80" ry="1.9" transform="rotate(-8 78 14.4)" fill="#050A18"
+           opacity=".5"/>
+
+  <!-- Stars, at the sizes a sky actually has them in. -->
+  <g fill="#DCE8FF">
+    <circle cx="6" cy="4" r=".35" opacity=".8"/><circle cx="13" cy="9" r=".25" opacity=".6"/>
+    <circle cx="19" cy="3" r=".3" opacity=".7"/><circle cx="24" cy="14" r=".22" opacity=".5"/>
+    <circle class="tw" cx="30" cy="6" r=".4"/><circle cx="36" cy="11" r=".25" opacity=".6"/>
+    <circle cx="41" cy="3" r=".3" opacity=".7"/>
+    <circle class="tw t2" cx="52" cy="5" r=".35"/><circle cx="57" cy="16" r=".22" opacity=".5"/>
+    <circle cx="62" cy="8" r=".3" opacity=".65"/><circle cx="66" cy="3" r=".25" opacity=".6"/>
+    <circle cx="71" cy="7" r=".3" opacity=".7"/>
+    <circle class="tw t3" cx="76" cy="4" r=".35"/><circle cx="84" cy="6" r=".28" opacity=".65"/>
+    <circle cx="90" cy="3" r=".3" opacity=".7"/><circle cx="95" cy="10" r=".25" opacity=".6"/>
+    <circle class="tw t4" cx="99" cy="5" r=".35"/><circle cx="104" cy="15" r=".22" opacity=".5"/>
+    <circle cx="108" cy="3" r=".3" opacity=".7"/><circle cx="113" cy="17" r=".25" opacity=".55"/>
+    <circle cx="118" cy="13" r=".22" opacity=".5"/><circle cx="124" cy="4" r=".3" opacity=".7"/>
+    <circle cx="131" cy="14" r=".28" opacity=".6"/>
+    <circle class="tw t5" cx="136" cy="7" r=".35"/><circle cx="141" cy="12" r=".25" opacity=".55"/>
+    <circle cx="145" cy="3" r=".3" opacity=".7"/><circle cx="151" cy="9" r=".35" opacity=".8"/>
+    <circle cx="156" cy="5" r=".25" opacity=".6"/><circle cx="158" cy="16" r=".22" opacity=".5"/>
+    <circle cx="9" cy="17" r=".22" opacity=".45"/><circle cx="16" cy="21" r=".2" opacity=".4"/>
+    <circle cx="45" cy="19" r=".22" opacity=".45"/><circle cx="60" cy="21" r=".2" opacity=".4"/>
+    <circle cx="100" cy="20" r=".22" opacity=".45"/><circle cx="127" cy="20" r=".2" opacity=".4"/>
+    <circle cx="148" cy="18" r=".22" opacity=".45"/>
+  </g>
+  <!-- The two bright enough to have points on them. -->
+  <g fill="#F2F7FF" opacity=".7">
+    <path d="M30 3.8 C30.26 5.6 30.36 5.9 32.4 6.3 C30.36 6.7 30.26 7 30 8.8 C29.74 7 29.64 6.7 27.6 6.3 C29.64 5.9 29.74 5.6 30 3.8 Z"/>
+    <path d="M136 5 C136.22 6.5 136.3 6.75 138 7.1 C136.3 7.45 136.22 7.7 136 9.2 C135.78 7.7 135.7 7.45 134 7.1 C135.7 6.75 135.78 6.5 136 5 Z"/>
+  </g>
+
+  <!-- The shell diagram, drawn the way a constellation is: the same figure a
+       lab notebook has in its margin, joined up in stars. -->
+  <g>
+    <g transform="rotate(0 44 10)"><g class="shell s1">
+      <ellipse cx="44" cy="10" rx="11.6" ry="3.8" fill="none" stroke="#4E86C6" stroke-width=".4"
+               opacity=".38"/>
+      <circle cx="55.6" cy="10" r="1.1" fill="#7FD4FF" opacity=".22"/>
+      <circle cx="55.6" cy="10" r=".45" fill="#BFEBFF"/>
+    </g></g>
+    <g transform="rotate(62 44 10)"><g class="shell s2">
+      <ellipse cx="44" cy="10" rx="11.6" ry="3.8" fill="none" stroke="#4E86C6" stroke-width=".4"
+               opacity=".38"/>
+      <circle cx="32.4" cy="10" r="1.1" fill="#7FD4FF" opacity=".22"/>
+      <circle cx="32.4" cy="10" r=".45" fill="#BFEBFF"/>
+    </g></g>
+    <g transform="rotate(124 44 10)"><g class="shell s3">
+      <ellipse cx="44" cy="10" rx="11.6" ry="3.8" fill="none" stroke="#4E86C6" stroke-width=".4"
+               opacity=".38"/>
+      <circle cx="55.6" cy="10" r="1.1" fill="#A8E9FF" opacity=".22"/>
+      <circle cx="55.6" cy="10" r=".45" fill="#EAF8FF"/>
+    </g></g>
+    <g class="pulse">
+      <circle cx="44" cy="10" r="1.8" fill="#7FD4FF" opacity=".2"/>
+      <circle cx="44" cy="10" r=".7" fill="#EAF8FF"/>
+    </g>
+  </g>
+
+  <!-- A ringed planet, low in the east, which is what the telescope is on. -->
+  <g transform="rotate(-16 120 9)">
+    <ellipse cx="120" cy="9" rx="7.6" ry="2.3" fill="none" stroke="#B7975F" stroke-width="1"
+             opacity=".8"/>
+  </g>
+  <circle cx="120" cy="9" r="3.9" fill="url(#planet)"/>
+  <path d="M116.6 7 C118.6 6.4 121.4 6.4 123.4 7" fill="none" stroke="#8A6237" stroke-width=".5"
+        opacity=".5"/>
+  <path d="M116.4 10.4 C118.6 11 121.6 11 123.6 10.4" fill="none" stroke="#8A6237" stroke-width=".6"
+        opacity=".45"/>
+  <g transform="rotate(-16 120 9)">
+    <path d="M112.4 9 A7.6 2.3 0 0 0 127.6 9" fill="none" stroke="#E0C793" stroke-width="1.1"/>
+    <path d="M112.4 9 A7.6 2.3 0 0 0 127.6 9" fill="none" stroke="#8A6237" stroke-width=".35"
+          opacity=".8"/>
+  </g>
+
+  <!-- The ridge the dome stands on. -->
+  <path d="M0 25.6 C14 23.4 26 25.8 38 24.8 C50 23.8 58 25.6 68 25 C80 24.2 92 26.2 104 25.2
+           C118 24 132 25.8 146 24.6 C152 24.1 156 24.6 160 24.2 L160 40 L0 40 Z"
+        fill="#0B1730"/>
+  <path d="M0 25.6 C14 23.4 26 25.8 38 24.8 C50 23.8 58 25.6 68 25 C80 24.2 92 26.2 104 25.2
+           C118 24 132 25.8 146 24.6 C152 24.1 156 24.6 160 24.2"
+        fill="none" stroke="#2A4778" stroke-width=".5" opacity=".7"/>
+  <g fill="#050A16">
+    <use href="#pine" transform="translate(12 25) scale(1.1)"/>
+    <use href="#pine" transform="translate(17.6 24.7) scale(.85)"/>
+    <use href="#pine" transform="translate(23 25.2) scale(1.25)"/>
+    <use href="#pine" transform="translate(29 24.9) scale(.95)"/>
+    <use href="#pine" transform="translate(44 25) scale(1)"/>
+    <use href="#pine" transform="translate(49 24.8) scale(.8)"/>
+    <use href="#pine" transform="translate(96 25.4) scale(1.15)"/>
+    <use href="#pine" transform="translate(101 25.2) scale(.9)"/>
+    <use href="#pine" transform="translate(106 25) scale(1.3)"/>
+    <use href="#pine" transform="translate(132 25.4) scale(1)"/>
+    <use href="#pine" transform="translate(138 25.2) scale(1.35)"/>
+    <use href="#pine" transform="translate(143.6 25) scale(.9)"/>
+    <use href="#pine" transform="translate(149 24.8) scale(1.15)"/>
+  </g>
+
+  <!-- The observatory: a drum, a dome with its shutter open, and the barrel
+       coming out of it. -->
+  <g>
+    <ellipse cx="80" cy="25.8" rx="11.4" ry="1.5" fill="#0B1730"/>
+    <path d="M73.2 25.8 L73.2 18 L86.8 18 L86.8 25.8 Z" fill="#16264A"/>
+    <path d="M83 25.8 L83 18 L86.8 18 L86.8 25.8 Z" fill="#0D1730"/>
+    <path d="M73.2 18 L73.2 25.8" fill="none" stroke="#2E4B80" stroke-width=".45" opacity=".8"/>
+    <path d="M71.8 26 L88.2 26 L88.2 25 L71.8 25 Z" fill="#101C36"/>
+    <path d="M71.8 18.2 A8.2 8.2 0 0 1 88.2 18.2 A8.2 1.9 0 0 1 71.8 18.2 Z" fill="url(#domeLight)"/>
+    <g fill="none" stroke="#0C1730" stroke-width=".45" opacity=".55">
+      <path d="M80 10 C76.6 11.3 73.8 14.2 72.4 17.6"/>
+      <path d="M80 10 C83.4 11.3 86.2 14.2 87.6 17.6"/>
+      <path d="M71.8 18.2 A8.2 1.9 0 0 1 88.2 18.2"/>
+    </g>
+    <!-- The slit, and the dark of the room behind it. -->
+    <path d="M80 10 C83.2 11.1 86 13.5 87.5 16.8 C86.4 17.5 85.3 17.9 84.2 18.1
+             C83.6 14.6 82.1 11.7 80 10 Z" fill="#060B18"/>
+    <path d="M80 10 C82.1 11.7 83.6 14.6 84.2 18.1 C83.5 18.2 82.9 18.2 82.3 18.1
+             C81.9 14.7 80.9 12.1 79.4 10.4 Z" fill="#31497B" opacity=".7"/>
+    <path d="M71.9 17.2 A8.2 8.2 0 0 1 76.6 10.9" fill="none" stroke="#8FB4F0" stroke-width=".5"
+          opacity=".45"/>
+    <!-- Barrel, aimed east at the planet. -->
+    <g stroke-linecap="round">
+      <path d="M83 15.6 L91.2 8.4" stroke="#93A9CE" stroke-width="2.5"/>
+      <path d="M83.6 16.4 L91.6 9.2" stroke="#4A5F86" stroke-width=".9" opacity=".8"/>
+      <path d="M82.8 14.4 L90.4 7.8" stroke="#C6D6F2" stroke-width=".65" opacity=".7"/>
+    </g>
+    <circle cx="91.4" cy="8.2" r="1.4" fill="#0B1730"/>
+    <circle cx="91.4" cy="8.2" r="1.4" fill="none" stroke="#CFE3FF" stroke-width=".45"/>
+    <circle cx="91" cy="7.8" r=".45" fill="#EAF8FF" opacity=".8"/>
+    <!-- The lights somebody left on: two windows and the door. -->
+    <ellipse cx="79.6" cy="25.6" rx="5.4" ry="2" fill="url(#lamp)"/>
+    <g fill="#FFCF7A">
+      <path d="M75.4 21.8 L75.4 20.6 A.6 .6 0 0 1 76.6 20.6 L76.6 21.8 Z"/>
+      <path d="M78.6 21.8 L78.6 20.6 A.6 .6 0 0 1 79.8 20.6 L79.8 21.8 Z" opacity=".6"/>
+      <path d="M79 25.8 L79 23.7 A1 1 0 0 1 81 23.7 L81 25.8 Z"/>
+    </g>
+    <path d="M79 24.7 L81 24.7" stroke="#B8853C" stroke-width=".28"/>
+  </g>
+
+  <!-- Valley mist, and the near ridge the page dissolves into. -->
+  <ellipse class="mist" cx="58" cy="27.8" rx="52" ry="2.4" fill="#25406E" opacity=".22"/>
+  <ellipse class="mist" cx="118" cy="28.6" rx="44" ry="2" fill="#25406E" opacity=".18"/>
+  <path d="M0 30.4 C20 28 40 31 62 29.8 C86 28.4 108 31.2 130 30 C144 29.2 152 30.2 160 29.6
+           L160 40 L0 40 Z" fill="#02050D"/>
+  <g fill="#01030A">
+    <use href="#pine" transform="translate(5 30.4) scale(1.9)"/>
+    <use href="#pine" transform="translate(12 30.1) scale(1.5)"/>
+    <use href="#pine" transform="translate(150 30.1) scale(1.7)"/>
+    <use href="#pine" transform="translate(157 29.8) scale(2.1)"/>
+  </g>
+</svg>

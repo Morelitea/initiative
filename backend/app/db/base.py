@@ -1,5 +1,10 @@
 """Import all models for Alembic or metadata creation."""
 
+from app.models.platform.announcement import (
+    Announcement,
+    AnnouncementImage,
+    AnnouncementReadReceipt,
+)
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
@@ -13,8 +18,13 @@ from app.models.tenant.filter_preset import ProjectFilterPreset
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, Subtask
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
+
+# Registers ``MemberProfile`` in the mapper registry — the tenant
+# relationships that name a person resolve it by name.
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.platform.api_key import UserApiKey
 from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
@@ -46,6 +56,7 @@ from app.models.tenant.calendar_event import (
     CalendarEventDocument,
 )
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.counter import (
@@ -53,7 +64,13 @@ from app.models.tenant.counter import (
     CounterGroup,
 )
 from app.models.tenant.upload import Upload
+from app.models.platform.user_decoration import UserDecoration
+from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user_view_preference import UserViewPreference
+from app.models.platform.user_dm_settings import UserDmSettings
+from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+from app.models.platform.contact_grant import ContactGrant
+from app.models.platform.user_ignore import UserIgnore
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -68,6 +85,8 @@ from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.tenant.reaction import Reaction
+from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
@@ -85,7 +104,11 @@ from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 
 __all__ = [
+    "Announcement",
+    "AnnouncementImage",
+    "AnnouncementReadReceipt",
     "User",
+    "MemberProfile",
     "AccessGrant",
     "AuthProvider",
     "AuthProviderSecret",
@@ -113,6 +136,7 @@ __all__ = [
     "InitiativeMember",
     "UserApiKey",
     "ProjectFavorite",
+    "ProjectOrder",
     "RecentView",
     "Comment",
     "Document",
@@ -140,19 +164,28 @@ __all__ = [
     "CalendarEventTag",
     "CalendarEventDocument",
     "EventOutbox",
+    "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
     "DashboardTag",
     "Counter",
     "CounterGroup",
     "Upload",
+    "UserDecoration",
+    "ProfileFavorite",
     "UserViewPreference",
+    "UserDmSettings",
+    "UserDmGuildOptout",
+    "ContactGrant",
+    "UserIgnore",
     "UserToken",
     "PushToken",
     "AutoDelegationJti",
     "BillingEventLog",
     "BillingJti",
     "TaskAssignmentDigestItem",
+    "Reaction",
+    "ReactionDigestItem",
     "WebhookDelivery",
     "WebhookSubscription",
     "AppServiceRegistration",

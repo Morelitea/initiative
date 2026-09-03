@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Vinyl</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts.
+       The record is an annulus, not a disc — the picture plays the label. -->
+  <style>
+    .disc { animation: spin 6s linear infinite; transform-box: view-box; transform-origin: 64px 64px }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .disc { animation: none } }
+  </style>
+  <g class="disc">
+    <path fill="#14121c" fill-rule="evenodd"
+          d="M2 64 a62 62 0 1 0 124 0 a62 62 0 1 0 -124 0 Z
+             M14 64 a50 50 0 1 0 100 0 a50 50 0 1 0 -100 0 Z"/>
+    <!-- Grooves. The gaps in them are what make the spin visible at all. -->
+    <g fill="none" stroke="#332c47" stroke-width="1">
+      <circle cx="64" cy="64" r="53"/>
+      <circle cx="64" cy="64" r="56"/>
+      <circle cx="64" cy="64" r="59"/>
+    </g>
+    <g fill="none" stroke="#453c5e" stroke-width="1" stroke-dasharray="24 10">
+      <circle cx="64" cy="64" r="54.5"/>
+      <circle cx="64" cy="64" r="60.5"/>
+    </g>
+    <!-- The sheen you only see when it turns. -->
+    <path d="M64 2 A62 62 0 0 1 126 64 L114 64 A50 50 0 0 0 64 14 Z" fill="#8d7fb8" opacity=".45"/>
+    <path d="M64 126 A62 62 0 0 1 2 64 L14 64 A50 50 0 0 0 64 114 Z" fill="#8d7fb8" opacity=".18"/>
+  </g>
+  <!-- The label's edge, hard against the picture. -->
+  <circle cx="64" cy="64" r="51" fill="none" stroke="#f0567a" stroke-width="2"/>
+  <circle cx="64" cy="64" r="61.5" fill="none" stroke="#0a0a14" stroke-width="1"/>
+</svg>

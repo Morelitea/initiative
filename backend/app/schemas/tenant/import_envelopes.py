@@ -50,7 +50,7 @@ class EnvelopePropertyValue(SanitizedBaseModel):
     value_number: Optional[float] = None
     value_boolean: Optional[bool] = None
     value_json: Any = None
-    value_email: Optional[str] = None
+    value_handle: Optional[str] = None
 
 
 class DocumentEnvelope(_EnvelopeBase):
@@ -121,7 +121,9 @@ class EventEnvelopeAttendee(SanitizedBaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: Optional[str] = None
-    email: Optional[str] = None
+    #: ``foobar#1234`` — the handle names one account and is what the export
+    #: writes. An address is not a person's identifier here.
+    handle: Optional[str] = None
     rsvp: str = "pending"
 
 

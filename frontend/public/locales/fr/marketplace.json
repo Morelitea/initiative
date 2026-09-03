@@ -3,6 +3,7 @@
   "subtitle": "Des tableaux de bord prêts à l'emploi, à ajouter à une initiative.",
   "searchPlaceholder": "Rechercher dans le catalogue…",
   "backToMarketplace": "Retour au catalogue",
+  "browse": "Parcourir le catalogue",
   "card": {
     "installed": "Installé",
     "version": "v{{version}}",
@@ -52,6 +53,6 @@
     "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
   },
   "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé.",
-  "subtitleApps": "Les applications ajoutent quelque chose que toute la guilde partage. Seuls les administrateurs de la guilde peuvent les ajouter.",
-  "subtitleAuto": "Les automatisations s'exécutent en arrière-plan pour toute la guilde."
+  "subtitleApps": "Les applications ajoutent quelque chose que toute la communauté partage. Seuls les administrateurs de la communauté peuvent les ajouter.",
+  "subtitleAuto": "Les automatisations s'exécutent en arrière-plan pour toute la communauté."
 }

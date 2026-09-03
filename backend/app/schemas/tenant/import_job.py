@@ -95,5 +95,5 @@ class BackupImportResult(SanitizedBaseModel):
     assets_restored: int = 0
     assets_deduped: int = 0
     asset_bytes: int = 0
-    unmatched_emails: list[str] = []
+    unmatched_handles: list[str] = []
     warnings: list[str] = []

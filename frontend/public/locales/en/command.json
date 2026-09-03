@@ -11,7 +11,8 @@
     "queues": "Queues",
     "counterGroups": "Counter Groups",
     "calendars": "Calendars",
-    "dashboards": "Dashboards"
+    "dashboards": "Dashboards",
+    "results": "Results"
   },
   "actions": {
     "addTask": "Add Task",
@@ -23,9 +24,10 @@
     "myCalendar": "My Calendar",
     "myProjects": "My Projects",
     "myDocuments": "My Documents",
+    "myContacts": "My Contacts",
     "myStats": "My Stats",
     "userSettings": "User Settings",
-    "guildSettings": "Guild Settings",
+    "guildSettings": "Community Settings",
     "allProjects": "All Projects",
     "allDocuments": "All Documents",
     "allInitiatives": "All Initiatives",
@@ -38,5 +40,6 @@
     "project": "Project",
     "task": "Task",
     "document": "Document"
-  }
+  },
+  "seeAllResults": "See all results for “{{query}}”"
 }

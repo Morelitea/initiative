@@ -3,6 +3,7 @@
   "subtitle": "Fertige Dashboards, die du einer Initiative hinzufügen kannst.",
   "searchPlaceholder": "Marktplatz durchsuchen…",
   "backToMarketplace": "Zurück zum Marktplatz",
+  "browse": "Marktplatz durchsuchen",
   "card": {
     "installed": "Installiert",
     "version": "v{{version}}",
@@ -52,6 +53,6 @@
     "description": "Der Katalog konnte nicht geladen werden. Versuche es gleich noch einmal."
   },
   "installedUnknown": "Es konnte nicht geprüft werden, welche davon du bereits hast – deshalb ist unten nichts als installiert markiert.",
-  "subtitleApps": "Apps ergänzen etwas, das die ganze Gilde teilt. Nur Gildenadmins können sie hinzufügen.",
-  "subtitleAuto": "Automatisierungen laufen im Hintergrund für die ganze Gilde."
+  "subtitleApps": "Apps ergänzen etwas, das die ganze Community teilt. Nur Community-Admins können sie hinzufügen.",
+  "subtitleAuto": "Automatisierungen laufen im Hintergrund für die ganze Community."
 }

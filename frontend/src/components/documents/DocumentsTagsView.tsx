@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { DocumentCard } from "@/components/documents/DocumentCard";
-import { PaginationBar } from "@/components/documents/PaginationBar";
+import { PaginationBar } from "@/components/PaginationBar";
 import { TagTreeView } from "@/components/tags/TagTreeView";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import type { GridToggleOptions } from "@/hooks/useGridSelection";
 
 export interface DocumentsTagsViewProps {
   documents: DocumentSummary[];
@@ -27,7 +28,7 @@ export interface DocumentsTagsViewProps {
    * cards become checkboxes while active. */
   selectionActive?: boolean;
   selectedDocumentIds?: Set<number>;
-  onToggleDocument?: (document: DocumentSummary) => void;
+  onToggleDocument?: (document: DocumentSummary, options?: GridToggleOptions) => void;
 }
 
 export const DocumentsTagsView = ({
@@ -102,7 +103,7 @@ export const DocumentsTagsView = ({
                   key={document.id}
                   active={selectionActive}
                   selected={selectedDocumentIds?.has(document.id) ?? false}
-                  onToggle={() => onToggleDocument?.(document)}
+                  onToggle={(options) => onToggleDocument?.(document, options)}
                   label={document.name}
                 >
                   <DocumentCard document={document} />

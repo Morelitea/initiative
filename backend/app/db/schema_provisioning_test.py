@@ -14,6 +14,7 @@ from sqlalchemy.exc import ProgrammingError
 import app.db.schema_provisioning as schema_provisioning
 from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
+    apply_template_rls,
     backfill_guild_schemas,
     drop_guild_schema,
     guild_readonly_role_name,
@@ -413,6 +414,11 @@ async def test_guild_schema_matches_guild_template(engine):
     FKs are intentionally absent (soft refs). This catches any fidelity gap in the
     live-reflection renderer."""
     schema = guild_schema_name(_GID_DRIFT)
+    # What a migration cannot render — RLS, capture, search — reaches the
+    # template from the registry at boot, and a test does not boot. Bring the
+    # canonical copy up to date first, or every registry-rendered object reads
+    # as drift in the schema that has one and the template that does not.
+    await apply_template_rls()
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, _GID_DRIFT)
@@ -475,12 +481,13 @@ async def test_guild_schema_matches_guild_template(engine):
                 return sorted(
                     re.sub(r"\bON \w+\.", "ON ", x.d)  # strip table schema
                     for x in r
-                    # Change-capture triggers are rendered from the registry at
-                    # provisioning time, not owned by Alembic — the same
-                    # treatment RLS policies get here, and for the same reason:
-                    # comparing them would assert the template carries a frozen
-                    # snapshot of whatever the registry said.
-                    if not x.n.startswith("capture_")
+                    # Change-capture and search-index triggers are rendered
+                    # from their registries at provisioning time, not owned by
+                    # Alembic — the same treatment RLS policies get here, and
+                    # for the same reason: comparing them would assert the
+                    # template carries a frozen snapshot of whatever the
+                    # registry said.
+                    if not x.n.startswith(("capture_", "search_"))
                 )
 
             drift = []

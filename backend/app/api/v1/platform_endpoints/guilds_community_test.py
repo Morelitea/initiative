@@ -29,6 +29,7 @@ from app.testing.factories import (
     get_auth_headers,
     guild_administration,
 )
+from app.core.usernames import url_handle
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -1079,3 +1080,515 @@ async def test_repeat_community_join_does_not_duplicate_enrolment(
         )
     ).all()
     assert len(rows) == 1
+
+
+@pytest.mark.integration
+async def test_a_profile_names_only_the_listed_communities(
+    client: AsyncClient, session: AsyncSession
+):
+    """A profile says which shelves someone is on, and nothing about the
+    guilds they are in that never opted onto one."""
+    subject = await create_user(session, username="tinker")
+    reader = await create_user(session)
+    listed = await _list_as_community(session, await create_guild(session))
+    private = await create_guild(session)
+    for guild in (listed, private):
+        await create_guild_membership(session, user=subject, guild=guild)
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/communities",
+        headers=get_auth_headers(reader),
+    )
+
+    assert response.status_code == 200
+    assert [row["name"] for row in response.json()] == [listed.name]
+
+
+@pytest.mark.integration
+async def test_a_profile_names_no_communities_where_the_directory_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """Nothing is published on a deployment that publishes nothing."""
+    subject = await create_user(session, username="tinker")
+    reader = await create_user(session)
+    listed = await _list_as_community(session, await create_guild(session))
+    await create_guild_membership(session, user=subject, guild=listed)
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False
+    )
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/communities",
+        headers=get_auth_headers(reader),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# The age gate: who is asked, who is not, and what the answer is worth.
+# ---------------------------------------------------------------------------
+
+
+def _birthdate_for_age(years: int) -> str:
+    """A date somebody of this age could have been born on, as ISO text."""
+    from datetime import datetime, timezone
+
+    today = datetime.now(timezone.utc).date()
+    return today.replace(year=today.year - years).isoformat()
+
+
+#: Comfortably past the minimum, for the tests that are not about the boundary.
+ADULT_BIRTHDATE = _birthdate_for_age(30)
+
+
+async def test_join_refuses_an_account_that_has_not_confirmed_its_age(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(session, email="minor@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_AGE_CONFIRMATION_REQUIRED"
+    membership = (
+        await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == guild.id,
+                GuildMembership.user_id == user.id,
+            )
+        )
+    ).one_or_none()
+    assert membership is None
+
+
+async def test_confirming_age_lets_the_same_account_join(
+    client: AsyncClient, session: AsyncSession
+):
+    """The whole loop: refused, tick the box, join."""
+    user = await create_user(session, email="joiner@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    headers = get_auth_headers(user)
+
+    refused = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+    assert refused.status_code == 403
+
+    confirmed = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=headers,
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["age_confirmed_at"] is not None
+
+    joined = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+    assert joined.status_code == 200
+    assert joined.json()["id"] == guild.id
+
+
+async def test_join_allows_an_unconfirmed_account_when_the_gate_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """An owner who asserts every account here is an adult is not asking."""
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=True, community_age_gate_enabled=False
+    )
+    user = await create_user(session, email="adult@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=get_auth_headers(user)
+    )
+
+    assert response.status_code == 200
+
+
+async def test_unconfirmed_member_of_a_listed_guild_is_asked_on_next_read(
+    client: AsyncClient, session: AsyncSession
+):
+    """The catch-all: a membership that arrived without anyone to ask.
+
+    Written straight to the table the way a group sync or an admin would, so
+    the join endpoint's refusal is not what is under test here.
+    """
+    user = await create_user(session, email="synced@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    session.add(
+        GuildMembership(guild_id=guild.id, user_id=user.id, role=GuildRole.member)
+    )
+    await session.commit()
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(user))
+
+    assert response.status_code == 200
+    assert response.json()["age_confirmation_required"] is True
+
+
+async def test_unlisted_guild_asks_nobody_their_age(
+    client: AsyncClient, session: AsyncSession
+):
+    """A private guild is not a public community, so the gate never applies."""
+    user = await create_user(
+        session, email="private@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Just Us")
+    await create_guild_membership(session, user=user, guild=guild)
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(user))
+
+    assert response.status_code == 200
+    assert response.json()["age_confirmation_required"] is False
+
+
+async def test_listing_a_guild_asks_the_members_it_already_had(
+    client: AsyncClient, session: AsyncSession
+):
+    """The gate is asked, not stored: it follows the guild onto the shelf."""
+    user = await create_user(session, email="early@example.com", age_confirmed_at=None)
+    guild = await create_guild(session, name="Open Table")
+    await create_guild_membership(session, user=user, guild=guild)
+    headers = get_auth_headers(user)
+
+    before = await client.get("/api/v1/users/me", headers=headers)
+    assert before.json()["age_confirmation_required"] is False
+
+    await _list_as_community(session, guild)
+
+    after = await client.get("/api/v1/users/me", headers=headers)
+    assert after.json()["age_confirmation_required"] is True
+
+
+async def test_confirmation_clears_the_standing_gate(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(
+        session, email="answers@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await create_guild_membership(session, user=user, guild=guild)
+    headers = get_auth_headers(user)
+
+    assert (await client.get("/api/v1/users/me", headers=headers)).json()[
+        "age_confirmation_required"
+    ] is True
+
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=headers,
+    )
+
+    assert (await client.get("/api/v1/users/me", headers=headers)).json()[
+        "age_confirmation_required"
+    ] is False
+
+
+async def test_somebody_too_young_confirms_nothing(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(
+        session, email="declines@example.com", age_confirmed_at=None
+    )
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(11)},
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_AGE_BELOW_MINIMUM"
+    await session.refresh(user)
+    assert user.age_confirmed_at is None
+
+
+async def test_confirming_twice_keeps_the_first_answer(
+    client: AsyncClient, session: AsyncSession
+):
+    """The record is when they first said it, not when they last clicked."""
+    user = await create_user(
+        session, email="repeats@example.com", age_confirmed_at=None
+    )
+    headers = get_auth_headers(user)
+
+    first = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=headers,
+    )
+    second = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=headers,
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["age_confirmed_at"] == second.json()["age_confirmed_at"]
+
+
+async def test_directory_off_asks_nobody(client: AsyncClient, session: AsyncSession):
+    """With no directory there is no listed guild for anyone to be asked about."""
+    user = await create_user(
+        session, email="nowhere@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    await create_guild_membership(session, user=user, guild=guild)
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False
+    )
+
+    response = await client.get("/api/v1/users/me", headers=get_auth_headers(user))
+
+    assert response.json()["age_confirmation_required"] is False
+
+
+async def test_the_birthday_itself_counts(client: AsyncClient, session: AsyncSession):
+    """Thirteen today is thirteen — the boundary belongs to the person on it."""
+    user = await create_user(session, email="today@example.com", age_confirmed_at=None)
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(13)},
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 200
+
+
+async def test_the_day_before_the_birthday_does_not(
+    client: AsyncClient, session: AsyncSession
+):
+    """A birthday that has not come round yet is a year that has not happened."""
+    from datetime import datetime, timedelta, timezone
+
+    today = datetime.now(timezone.utc).date()
+    # Thirteen tomorrow, so twelve today.
+    almost = today.replace(year=today.year - 13) + timedelta(days=1)
+    user = await create_user(
+        session, email="tomorrow@example.com", age_confirmed_at=None
+    )
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": almost.isoformat()},
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "USER_AGE_BELOW_MINIMUM"
+
+
+async def test_a_date_nobody_was_born_on_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    """Separately from being too young, so the reply says which it was."""
+    from datetime import datetime, timedelta, timezone
+
+    today = datetime.now(timezone.utc).date()
+    user = await create_user(session, email="typo@example.com", age_confirmed_at=None)
+    headers = get_auth_headers(user)
+
+    future = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": (today + timedelta(days=1)).isoformat()},
+        headers=headers,
+    )
+    ancient = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(200)},
+        headers=headers,
+    )
+
+    assert future.status_code == 422
+    assert future.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
+    assert ancient.status_code == 422
+    assert ancient.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
+
+
+async def test_the_date_is_not_kept_anywhere(
+    client: AsyncClient, session: AsyncSession
+):
+    """The promise the surface makes: we asked, we did not write it down.
+
+    Checked against the row rather than against intent — every column of the
+    account is searched for the date that was just sent, and the only thing the
+    confirmation may leave behind is the timestamp saying it happened.
+    """
+    user = await create_user(
+        session, email="private@example.com", age_confirmed_at=None
+    )
+    birthdate = _birthdate_for_age(30)
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": birthdate},
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 200
+
+    # Nothing in the reply carries it back either.
+    assert birthdate not in response.text
+
+    await session.refresh(user)
+    assert user.age_confirmed_at is not None
+    stored = {
+        column: getattr(user, column)
+        for column in user.__table__.columns.keys()  # noqa: SIM118
+    }
+    year, month, day = birthdate.split("-")
+    for column, value in stored.items():
+        rendered = str(value)
+        assert birthdate not in rendered, f"users.{column} holds the date"
+        # The date reshaped is still the date.
+        assert f"{day}/{month}/{year}" not in rendered, f"users.{column} holds the date"
+
+
+async def test_answering_under_age_is_recorded_without_the_date(
+    client: AsyncClient, session: AsyncSession
+):
+    """The fact, not the birthday — the promise holds on this path too."""
+    user = await create_user(session, email="young@example.com", age_confirmed_at=None)
+    birthdate = _birthdate_for_age(9)
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": birthdate},
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 422
+    await session.refresh(user)
+    assert user.age_below_minimum_at is not None
+    assert user.age_confirmed_at is None
+    for column in user.__table__.columns.keys():  # noqa: SIM118
+        assert birthdate not in str(getattr(user, column))
+
+
+async def test_the_answer_stands_against_a_second_try(
+    client: AsyncClient, session: AsyncSession
+):
+    """A question you can re-answer until it comes out right is not a question."""
+    user = await create_user(session, email="retry@example.com", age_confirmed_at=None)
+    headers = get_auth_headers(user)
+
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=headers,
+    )
+    second = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=headers,
+    )
+
+    assert second.status_code == 409
+    assert second.json()["detail"] == "USER_AGE_ANSWER_STANDS"
+    await session.refresh(user)
+    assert user.age_confirmed_at is None
+
+
+async def test_a_blocked_account_still_cannot_join(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(
+        session, email="blocked@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    headers = get_auth_headers(user)
+
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=headers,
+    )
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_AGE_CONFIRMATION_REQUIRED"
+
+
+async def test_support_can_let_them_answer_again(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The way back from a mistyped year, at the lowest rung that has it."""
+    from app.models.platform.user import UserRole
+
+    subject = await create_user(
+        session, email="typo@example.com", age_confirmed_at=None
+    )
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=get_auth_headers(subject),
+    )
+    await session.refresh(subject)
+    assert subject.age_below_minimum_at is not None
+
+    support = await acting_user(UserRole.support.value)
+    cleared = await client.delete(
+        f"/api/v1/admin/users/{subject.id}/age-block", headers=support.headers
+    )
+    assert cleared.status_code == 200
+
+    # And the question is answerable again, from scratch.
+    retry = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=get_auth_headers(subject),
+    )
+    assert retry.status_code == 200
+
+
+async def test_an_ordinary_member_cannot_lift_an_age_block(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    subject = await create_user(
+        session, email="subject@example.com", age_confirmed_at=None
+    )
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=get_auth_headers(subject),
+    )
+
+    nobody = await acting_user("member")
+    response = await client.delete(
+        f"/api/v1/admin/users/{subject.id}/age-block", headers=nobody.headers
+    )
+
+    assert response.status_code == 403
+
+
+async def test_lifting_a_block_that_is_not_there_says_so(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    from app.models.platform.user import UserRole
+
+    subject = await create_user(session, email="fine@example.com")
+    support = await acting_user(UserRole.support.value)
+
+    response = await client.delete(
+        f"/api/v1/admin/users/{subject.id}/age-block", headers=support.headers
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_AGE_NOT_BLOCKED"

@@ -103,7 +103,7 @@ describe("InitiativeDirectory", () => {
     ]);
 
     // The title is the way in — there is no second button saying the same.
-    expect(await screen.findByRole("link", { name: "Apollo" })).toHaveAttribute("href", "/g/1/i/7");
+    expect(await screen.findByRole("link", { name: "Apollo" })).toHaveAttribute("href", "/c/1/i/7");
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
@@ -131,15 +131,15 @@ describe("InitiativeDirectory", () => {
     expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
   });
 
-  it("hands a guild admin the whole guild, entered by standing", async () => {
+  it("does not file an initiative an admin has not joined as theirs", async () => {
     renderPage(
       () => (
         <InitiativeDirectory
           entries={[
             buildInitiativeDirectoryEntry({
               id: 11,
-              name: "Hidden",
-              join_policy: "private",
+              name: "Knockable",
+              join_policy: "request",
               is_member: false,
             }),
           ]}
@@ -148,13 +148,14 @@ describe("InitiativeDirectory", () => {
       { guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) } }
     );
 
-    // A private initiative the admin is not in is theirs to reach, not on
-    // offer: it sits in their own group, badged with why, title as the way in.
-    expect(await screen.findByRole("heading", { name: "Your initiatives" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Open to join" })).not.toBeInTheDocument();
-    expect(screen.getByText("Admin")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Hidden" })).toHaveAttribute("href", "/g/1/i/11");
-    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+    // Their authority over the guild is unchanged; this page just stops
+    // standing in for it. The card is on offer, and an admin walks in rather
+    // than knocking, so it carries Join and not Request to join.
+    expect(await screen.findByRole("heading", { name: "Open to join" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your initiatives" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request to join" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Knockable" })).not.toBeInTheDocument();
   });
 
   it("still offers an admin an open initiative they are not in", async () => {
@@ -368,7 +369,7 @@ describe("InitiativeDirectory", () => {
     // And it leads to the queue itself, which is a route of its own.
     expect(screen.getByRole("link", { name: "3 waiting to join" })).toHaveAttribute(
       "href",
-      "/g/1/i/7/settings/members"
+      "/c/1/i/7/settings/members"
     );
   });
 

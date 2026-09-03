@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Floodlights</title>
+  <!-- The halfway line and the ball on the spot, dead centre, because that is
+       the part of the picture a phone keeps. -->
+  <style>
+    .flare { animation: buzz 5s ease-in-out infinite }
+    .f2 { animation-delay: -2.4s }
+    @keyframes buzz { 0%,100% { opacity: .9 } 45% { opacity: .72 } }
+    /* The ball is rolled from one side to the other and back. How far it
+       turns is how far it went: 76 units of pitch over a 2.9-unit ball is a
+       little over four turns. */
+    .roll { animation: across 9s ease-in-out infinite alternate }
+    @keyframes across { from { transform: translateX(-38px) } to { transform: translateX(38px) } }
+    .turn { animation: spin 9s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(1500deg) } }
+    .moth { animation: flutter 7s ease-in-out infinite alternate }
+    .m2 { animation-delay: -3.5s }
+    @keyframes flutter { from { transform: translate(0,0) } to { transform: translate(3px,-2px) } }
+    @media (prefers-reduced-motion: reduce) { .flare, .moth, .roll, .turn { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="skyF" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#050B12"/><stop offset="100%" stop-color="#0B2220"/>
+    </linearGradient>
+    <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#14401F"/><stop offset="100%" stop-color="#0B2A15"/>
+    </linearGradient>
+    <radialGradient id="lamp" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#EAF4FF" stop-opacity=".75"/>
+      <stop offset="35%" stop-color="#BFE0FF" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#BFE0FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pool" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#DFF3D9" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#DFF3D9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#skyF)"/>
+
+  <!-- Stands: rows of empty seats, and the few people who came early. -->
+  <path d="M0 9.4 L0 3.6 C40 2.4 120 2.4 160 3.6 L160 9.4 Z" fill="#0A1620"/>
+  <g stroke="#132433" stroke-width=".45">
+    <path d="M0 4.6 C40 3.5 120 3.5 160 4.6"/><path d="M0 5.8 C40 4.8 120 4.8 160 5.8"/>
+    <path d="M0 7 C40 6.1 120 6.1 160 7"/><path d="M0 8.2 C40 7.4 120 7.4 160 8.2"/>
+  </g>
+  <g fill="#22384C">
+    <circle cx="18" cy="5.2" r=".35"/><circle cx="34" cy="7.4" r=".3"/>
+    <circle cx="57" cy="4.4" r=".32"/><circle cx="72" cy="6.6" r=".3"/>
+    <circle cx="96" cy="5" r=".34"/><circle cx="112" cy="7.8" r=".3"/>
+    <circle cx="131" cy="4.8" r=".32"/><circle cx="146" cy="6.8" r=".3"/>
+  </g>
+  <path d="M0 9.4 L160 9.4 L160 11.2 L0 11.2 Z" fill="#0D1D14"/>
+  <g stroke="#16301F" stroke-width=".4">
+    <path d="M20 9.5 L20 11.1"/><path d="M44 9.5 L44 11.1"/><path d="M68 9.5 L68 11.1"/>
+    <path d="M92 9.5 L92 11.1"/><path d="M116 9.5 L116 11.1"/><path d="M140 9.5 L140 11.1"/>
+  </g>
+
+  <!-- The pitch, mown in stripes that widen as they come towards you. -->
+  <path d="M0 11.2 L160 11.2 L160 40 L0 40 Z" fill="url(#turf)"/>
+  <g fill="#17512A" opacity=".85">
+    <path d="M14 11.2 L27 11.2 L22 40 L2 40 Z"/>
+    <path d="M40 11.2 L53 11.2 L54 40 L34 40 Z"/>
+    <path d="M66 11.2 L79 11.2 L86 40 L66 40 Z"/>
+    <path d="M92 11.2 L105 11.2 L118 40 L98 40 Z"/>
+    <path d="M118 11.2 L131 11.2 L150 40 L130 40 Z"/>
+    <path d="M144 11.2 L157 11.2 L160 26 L160 40 L162 40 Z"/>
+  </g>
+  <ellipse cx="80" cy="22" rx="70" ry="18" fill="url(#pool)"/>
+
+  <!-- Markings: the far touchline, the halfway line, the circle and the spot. -->
+  <g fill="none" stroke="#EDF3EA" stroke-linecap="round" opacity=".85">
+    <path d="M0 12.2 L160 12.2" stroke-width=".7"/>
+    <path d="M80 12.2 L80 40" stroke-width=".8"/>
+    <ellipse cx="80" cy="19.6" rx="26" ry="8.2" stroke-width=".8"/>
+    <path d="M0 22 L14 22 L14 12.4" stroke-width=".7"/>
+    <path d="M160 22 L146 22 L146 12.4" stroke-width=".7"/>
+    <path d="M14 17.6 C18 18.6 18 20.8 14 21.8" stroke-width=".65"/>
+    <path d="M146 17.6 C142 18.6 142 20.8 146 21.8" stroke-width=".65"/>
+  </g>
+  <ellipse cx="80" cy="19.6" rx=".55" ry=".28" fill="#EDF3EA"/>
+
+  <!-- Pylons, and what they throw. -->
+  <g>
+    <circle class="flare" cx="46" cy="1.6" r="13" fill="url(#lamp)"/>
+    <circle class="flare f2" cx="114" cy="1.6" r="13" fill="url(#lamp)"/>
+    <g fill="#0A1620">
+      <path d="M18.4 9.4 L19.4 4 L20.6 4 L21.6 9.4 Z"/>
+      <path d="M138.4 9.4 L139.4 4 L140.6 4 L141.6 9.4 Z"/>
+      <path d="M15.4 4.2 L24.6 4.2 L24.6 1 L15.4 1 Z"/>
+      <path d="M135.4 4.2 L144.6 4.2 L144.6 1 L135.4 1 Z"/>
+    </g>
+    <g fill="#F6FBFF">
+      <rect x="42.2" y="1.6" width="1.6" height="1.1" rx=".3"/>
+      <rect x="44.6" y="1.6" width="1.6" height="1.1" rx=".3"/>
+      <rect x="47" y="1.6" width="1.6" height="1.1" rx=".3"/>
+      <rect x="49.4" y="1.6" width="1" height="1.1" rx=".3"/>
+      <rect x="110.2" y="1.6" width="1.6" height="1.1" rx=".3"/>
+      <rect x="112.6" y="1.6" width="1.6" height="1.1" rx=".3"/>
+      <rect x="115" y="1.6" width="1.6" height="1.1" rx=".3"/>
+      <rect x="117.4" y="1.6" width="1" height="1.1" rx=".3"/>
+    </g>
+  </g>
+  <g fill="#D8E6F2" opacity=".5">
+    <ellipse class="moth" cx="53" cy="4.6" rx=".35" ry=".22"/>
+    <ellipse class="moth m2" cx="107" cy="3.4" rx=".3" ry=".2"/>
+  </g>
+
+  <!-- The ball, rolled across and back. -->
+  <g class="roll">
+    <ellipse cx="80.2" cy="21.4" rx="3" ry=".9" fill="#061208" opacity=".45"/>
+    <g class="turn">
+      <circle cx="80" cy="18.8" r="2.9" fill="#F4F6F1"/>
+      <circle cx="80" cy="18.8" r="2.9" fill="none" stroke="#C3CDBE" stroke-width=".3"/>
+      <path d="M80 17.1 L81.6 18.3 L81 20.2 L79 20.2 L78.4 18.3 Z" fill="#171C18"/>
+      <g stroke="#171C18" stroke-width=".3" fill="none" stroke-linecap="round">
+        <path d="M80 17.1 L80 15.9"/><path d="M81.6 18.3 L82.8 17.9"/>
+        <path d="M81 20.2 L81.9 21.2"/><path d="M79 20.2 L78.1 21.2"/>
+        <path d="M78.4 18.3 L77.2 17.9"/>
+      </g>
+    </g>
+  </g>
+</svg>

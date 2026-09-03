@@ -12,7 +12,7 @@ Think of it like a building with nested spaces:
 
 ```mermaid
 graph TD
-  G["🏠 Guild<br/>(your group's workspace)"]
+  G["🏠 Community<br/>(your group's workspace)"]
   I1["📁 Initiative<br/>(a big effort)"]
   I2["📁 Initiative"]
   P1["📋 Project<br/>(a task board)"]
@@ -32,26 +32,26 @@ graph TD
 
 From biggest to smallest:
 
-1. **Guild** — the whole workspace for one group of people.
-2. **Initiative** — a folder inside a guild for one big effort.
+1. **Community** — the whole workspace for one group of people.
+2. **Initiative** — a folder inside a community for one big effort.
 3. **Projects, documents, and tools** — the actual work, kept inside an initiative.
 4. **Tasks** — the individual to-dos on a project's board.
 
 Let's take them one at a time.
 
 !!! tip "You don't have to set all this up"
-    Creating a guild gives you an initiative and somewhere to put your first project straight away. Most groups run on one guild, one initiative, and a couple of projects for a long time — and only reach for the rest when a real need turns up.
+    Creating a community gives you an initiative and somewhere to put your first project straight away. Most groups run on one community, one initiative, and a couple of projects for a long time — and only reach for the rest when a real need turns up.
 
-## Guild — your group's workspace
+## Community — your group's workspace
 
-A **guild** is the outermost container: one separate space for one group of people. Your business, your volunteer committee, and your neighborhood association would each be their own guild.
+A **community** is the outermost container: one separate space for one group of people. Your business, your volunteer committee, and your neighborhood association would each be their own community.
 
-Guilds don't mix. Nothing in one guild is visible from another, even on the same server. You can belong to several guilds and switch between them from the guild rail down the left edge of the screen — but each is its own sealed world.
+Communities don't mix. Nothing in one community is visible from another, even on the same server. You can belong to several communities and switch between them from the community rail down the left edge of the screen — but each is its own sealed world.
 
-Within a guild there are just two member levels: **admin** (runs the place) and **member** (takes part). More in [Working with guilds](../guides/guilds.md).
+Within a community there are just two member levels: **admin** (runs the place) and **member** (takes part). More in [Working with communities](../guides/communities.md).
 
 !!! example "A real example"
-    *"Riverside Players"* is a community theater group. They make one guild for everything they do together. Inside it, they'll create initiatives for each production.
+    *"Riverside Players"* is a community theater group. They make one community for everything they do together. Inside it, they'll create initiatives for each production.
 
 ## Initiative — a big effort
 
@@ -62,7 +62,7 @@ Why have this middle layer? Because real groups juggle several efforts at once, 
 !!! example "Continuing the example"
     Riverside Players creates an initiative called *"Spring Play: Our Town."* Inside it go the rehearsal-schedule project, the budget spreadsheet, the script document, and the performance calendar. Only the people working on the spring play are added to it — the folks doing the *summer* show don't need to see it.
 
-Every guild comes with one **Default Initiative** so you always have somewhere to start. You can add as many more as you need.
+Every community comes with one **Default Initiative** so you always have somewhere to start. You can add as many more as you need.
 
 People are added to an initiative as **members**, and each member is given a **role** (like "Director" or "Cast") that decides which kinds of tools they can use. See [Initiative roles](../sharing/initiative-roles.md).
 
@@ -93,7 +93,7 @@ Some of what a group needs isn't in the list above, and doesn't have to be. Init
 
 What's on offer is what ships with Initiative plus what the person running your server has approved — so the catalog is curated by someone you can ask about it.
 
-Dashboards land in an initiative like any other tool. Apps are added at the guild level by a guild admin, because they add something the whole guild shares. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+Dashboards land in an initiative like any other tool. Apps are added at the community level by a community admin, because they add something the whole community shares. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
 
 ## The other half: people and access
 
@@ -101,15 +101,15 @@ Everything above is about *where things live*. The other half of the picture is 
 
 | Layer | The question it answers |
 |---|---|
-| **Guild** | Are you a member of this group at all? |
+| **Community** | Are you a member of this group at all? |
 | **Initiative** | Are you part of this particular effort? |
 | **Initiative role** | What kinds of tools are you allowed to use here? |
 | **Sharing** | For *this specific* project or document, can you view it, edit it, or own it? |
 
-Each layer sits inside the one above it. You can only reach a document if you're in its guild, *and* in its initiative, *and* it's been shared with you. The practical upshot: the only people who ever see something are the people you deliberately put in front of it. We explain this in friendly detail in [Sharing & access](../sharing/index.md), and in technical depth in [Security & privacy](../security/index.md).
+Each layer sits inside the one above it. You can only reach a document if you're in its community, *and* in its initiative, *and* it's been shared with you. The practical upshot: the only people who ever see something are the people you deliberately put in front of it. We explain this in friendly detail in [Sharing & access](../sharing/index.md), and in technical depth in [Security & privacy](../security/index.md).
 
 ??? techspec "For the technically minded — these four layers are enforced in the database"
-    The four layers above aren't just interface conveniences. The **guild** layer is structural: each guild's content lives in its own PostgreSQL schema, and a request is routed into one guild's schema and can't address another's. The **initiative**, **role**, and **sharing** layers are enforced inside that schema by PostgreSQL's row-level security, evaluated on every statement — so a bug in the app can't quietly hand someone data they shouldn't see. There are also two overrides: a **guild administrator** always has full access within their own guild, and platform staff can be granted **temporary, time-limited, audited** access for support — never a standing back door. The full model is in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+    The four layers above aren't just interface conveniences. The **community** layer is structural: each community's content lives in its own PostgreSQL schema, and a request is routed into one community's schema and can't address another's. The **initiative**, **role**, and **sharing** layers are enforced inside that schema by PostgreSQL's row-level security, evaluated on every statement — so a bug in the app can't quietly hand someone data they shouldn't see. There are also two overrides: a **community administrator** always has full access within their own community, and platform staff can be granted **temporary, time-limited, audited** access for support — never a standing back door. The full model is in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Where to go next
 

@@ -155,7 +155,16 @@ _COMMANDS = (
 # happened rather than deciding it a second time — including a change that ends
 # the writer's own access, which it must still be able to record. Who may READ
 # the log is unchanged: the initiative gate, via the other three policies.
-_TRIGGER_WRITTEN_INSERT: dict[str, str] = {"event_outbox": "pg_trigger_depth() > 0"}
+_TRIGGER_WRITTEN_INSERT: dict[str, str] = {
+    "event_outbox": "pg_trigger_depth() > 0",
+    # The search index is derived: rows arrive from the refresh trigger as a
+    # consequence of a content write that already cleared its own table's gate.
+    # The reindex sweep routes as the guild admin, which is the second leg.
+    "search_entries": (
+        "pg_trigger_depth() > 0 OR "
+        "current_setting('app.current_guild_role'::text, true) = 'admin'::text"
+    ),
+}
 
 
 def _table_block(table: str, path: InitiativePath) -> str:

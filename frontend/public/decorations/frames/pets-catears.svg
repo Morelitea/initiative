@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Cat ears</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: the ears sit on the picture rather than round it. Each is one
+       shape with a bowed outer edge and a hollow inside it, and the fur along
+       the base is what keeps them from looking stuck on. -->
+  <defs>
+    <linearGradient id="ctFur" x1="0" y1="1" x2=".25" y2="0">
+      <stop offset="0%" stop-color="#8C837B"/><stop offset="55%" stop-color="#645C56"/>
+      <stop offset="100%" stop-color="#3E3833"/>
+    </linearGradient>
+    <linearGradient id="ctPinna" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#E9A9B2"/><stop offset="100%" stop-color="#C77C88"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .earL { animation: ctTwitchL 7.5s ease-in-out infinite;
+            transform-box: view-box; transform-origin: 35px 28px }
+    .earR { animation: ctTwitchR 9.4s ease-in-out infinite;
+            transform-box: view-box; transform-origin: 93px 28px }
+    @keyframes ctTwitchL { 0%, 76%, 100% { transform: rotate(0) }
+      80% { transform: rotate(-8deg) } 85% { transform: rotate(2deg) }
+      90% { transform: rotate(-2deg) } }
+    @keyframes ctTwitchR { 0%, 64%, 100% { transform: rotate(0) }
+      68% { transform: rotate(9deg) } 74% { transform: rotate(-2deg) }
+      80% { transform: rotate(3deg) } }
+    .tail { animation: ctFlick 6.2s ease-in-out infinite alternate;
+            transform-box: view-box; transform-origin: 98px 122px }
+    @keyframes ctFlick { from { transform: rotate(-6deg) } to { transform: rotate(9deg) } }
+    @media (prefers-reduced-motion: reduce) { .earL, .earR, .tail { animation: none } }
+  </style>
+
+  <g class="tail">
+    <path d="M96.7 126.2 L98.2 126.1 L99.6 126.0 L101.0 125.9 L102.3 125.6 L103.6 125.4 L104.9 125.1 L106.2 124.7 L107.4 124.3 L108.6 123.9 L109.7 123.4 L110.8 122.8 L111.9 122.3 L112.9 121.6 L113.9 121.0 L114.9 120.3 L115.8 119.5 L116.7 118.7 L117.5 117.9 L118.3 117.1 L119.0 116.2 L119.7 115.3 L120.4 114.4 L121.0 113.4 L121.5 112.4 L122.1 111.4 L122.5 110.4 L123.0 109.4 L123.3 108.3 L123.7 107.2 L124.0 106.2 L124.2 105.1 L124.5 103.9 L124.6 102.8 L124.7 101.7 L124.8 100.5 L124.9 99.4 L124.9 98.2 L124.8 97.0 L124.7 95.9 L124.6 94.7 L124.4 93.5 L124.2 92.3 L123.9 91.2 L123.6 90.0 L123.2 88.8 L122.8 87.6 L122.4 86.4 L121.9 85.3 A2.0 2.0 0 0 1 118.1 86.7 L118.5 87.8 L118.8 88.9 L119.0 89.9 L119.2 91.0 L119.4 92.0 L119.5 93.1 L119.6 94.1 L119.7 95.1 L119.7 96.1 L119.6 97.1 L119.6 98.1 L119.5 99.0 L119.3 100.0 L119.2 100.9 L119.0 101.8 L118.7 102.7 L118.5 103.5 L118.2 104.3 L117.8 105.1 L117.5 105.9 L117.1 106.7 L116.6 107.4 L116.2 108.1 L115.7 108.8 L115.2 109.5 L114.7 110.1 L114.1 110.7 L113.6 111.3 L113.0 111.8 L112.3 112.3 L111.7 112.8 L111.0 113.2 L110.3 113.7 L109.6 114.0 L108.9 114.4 L108.1 114.7 L107.3 115.0 L106.5 115.3 L105.7 115.5 L104.9 115.7 L104.0 115.8 L103.1 116.0 L102.2 116.0 L101.3 116.1 L100.3 116.1 L99.3 116.0 L98.3 116.0 L97.3 115.8 Z" fill="url(#ctFur)"/>
+    <path d="M96.9 123.4 L98.2 123.4 L99.5 123.3 L100.8 123.2 L102.0 123.1 L103.2 122.9 L104.4 122.6 L105.6 122.3 L106.7 122.0 L107.8 121.6 L108.9 121.2 L109.9 120.7 L110.9 120.2 L111.8 119.7 L112.8 119.1 L113.7 118.5 L114.5 117.8 L115.3 117.1 L116.1 116.4 L116.8 115.6 L117.5 114.9 L118.2 114.0 L118.8 113.2 L119.4 112.3 L120.0 111.5 L120.5 110.5 L120.9 109.6 L121.4 108.6 L121.7 107.7 L122.1 106.7 L122.4 105.7 L122.7 104.6 L122.9 103.6 L123.1 102.5 L123.2 101.5 L123.3 100.4 L123.4 99.3 L123.4 98.2 L123.4 97.1 L123.3 95.9 L123.2 94.8 L123.1 93.7 L122.9 92.5 L122.7 91.4 L122.4 90.3 L122.1 89.1 L121.7 88.0 L121.3 86.8 L120.8 85.7 A0.9 0.9 0 0 1 119.2 86.3 L119.5 87.4 L119.9 88.5 L120.2 89.6 L120.4 90.7 L120.6 91.8 L120.8 92.9 L120.9 94.0 L121.0 95.0 L121.0 96.1 L121.1 97.1 L121.0 98.1 L120.9 99.1 L120.8 100.1 L120.7 101.1 L120.5 102.1 L120.3 103.0 L120.0 103.9 L119.7 104.8 L119.4 105.7 L119.1 106.6 L118.7 107.4 L118.2 108.2 L117.8 109.0 L117.3 109.8 L116.8 110.5 L116.2 111.3 L115.6 111.9 L115.0 112.6 L114.4 113.2 L113.7 113.8 L113.0 114.4 L112.3 114.9 L111.6 115.4 L110.8 115.9 L110.0 116.3 L109.1 116.8 L108.3 117.1 L107.4 117.5 L106.5 117.8 L105.6 118.0 L104.6 118.2 L103.6 118.4 L102.6 118.6 L101.5 118.7 L100.5 118.7 L99.4 118.7 L98.3 118.7 L97.1 118.6 Z" fill="#8C837B" opacity=".35"/>
+  </g>
+
+  <g fill="none" stroke="url(#ctFur)" stroke-width="4.6" stroke-linecap="round"><path d="M24.6 41.4 Q22.1 35.7 28.3 35.9"/><path d="M28.3 35.9 Q26.6 29.9 32.8 31.0"/><path d="M32.8 31.0 Q32.0 24.8 38.0 26.8"/><path d="M38.0 26.8 Q38.1 20.5 43.7 23.4"/><path d="M43.7 23.4 Q44.7 17.2 49.8 20.9"/><path d="M99.7 35.9 Q105.9 35.7 103.4 41.4"/><path d="M95.2 31.0 Q101.4 29.9 99.7 35.9"/><path d="M90.0 26.8 Q96.0 24.8 95.2 31.0"/><path d="M84.3 23.4 Q89.9 20.5 90.0 26.8"/><path d="M78.2 20.9 Q83.3 17.2 84.3 23.4"/></g>
+
+  <g class="earL"><g transform="translate(35.05 28.25) rotate(-39)">
+    <path d="M-12.6 1 C-14.2 -11 -12 -21.4 -8.2 -28.6 C-7.2 -30.6 -4.8 -30.8 -3.8 -29 C0.6 -20.6 8.4 -9.6 12.6 1 Z" fill="url(#ctFur)"/>
+    <path d="M-8.2 -1.6 C-9.4 -11.2 -7.6 -19.4 -5.2 -24.4 C-4.6 -25.7 -3.4 -25.7 -2.9 -24.4 C-0.2 -18.2 4.8 -8.6 7.6 -1.6 Z" fill="url(#ctPinna)"/>
+    <path d="M-8.2 -28.6 C-7.2 -30.6 -4.8 -30.8 -3.8 -29 C-4.6 -25.6 -6.4 -25.4 -8.2 -28.6 Z" fill="#2E2A26" opacity=".55"/>
+    <g fill="none" stroke="#EFE6DC" stroke-width=".9" stroke-linecap="round" opacity=".7">
+      <path d="M5.4 -3.6 C1.6 -6.4 -1 -11 -2.6 -16 M2.2 -4.2 C-0.6 -8.6 -2.4 -13.4 -3.4 -18.6 M-1 -4.6 C-2.8 -9.6 -3.8 -14.8 -4 -20"/>
+    </g>
+  </g></g>
+  <g class="earR"><g transform="translate(92.95 28.25) scale(-1 1) rotate(-39)">
+    <path d="M-12.6 1 C-14.2 -11 -12 -21.4 -8.2 -28.6 C-7.2 -30.6 -4.8 -30.8 -3.8 -29 C0.6 -20.6 8.4 -9.6 12.6 1 Z" fill="url(#ctFur)"/>
+    <path d="M-8.2 -1.6 C-9.4 -11.2 -7.6 -19.4 -5.2 -24.4 C-4.6 -25.7 -3.4 -25.7 -2.9 -24.4 C-0.2 -18.2 4.8 -8.6 7.6 -1.6 Z" fill="url(#ctPinna)"/>
+    <path d="M-8.2 -28.6 C-7.2 -30.6 -4.8 -30.8 -3.8 -29 C-4.6 -25.6 -6.4 -25.4 -8.2 -28.6 Z" fill="#2E2A26" opacity=".55"/>
+    <g fill="none" stroke="#EFE6DC" stroke-width=".9" stroke-linecap="round" opacity=".7">
+      <path d="M5.4 -3.6 C1.6 -6.4 -1 -11 -2.6 -16 M2.2 -4.2 C-0.6 -8.6 -2.4 -13.4 -3.4 -18.6 M-1 -4.6 C-2.8 -9.6 -3.8 -14.8 -4 -20"/>
+    </g>
+  </g></g>
+</svg>

@@ -14,6 +14,7 @@ from app.core.encryption import (
 from app.core.pam_context import has_active_grant
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.user_dm_settings import DmPolicy
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
 
@@ -131,6 +132,35 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     return app_settings
 
 
+async def record_running_version(session: AsyncSession, *, version: str) -> str | None:
+    """Roll the deployment's version pair forward, and say what it was before.
+
+    Called once at boot. When the running version differs from what was last
+    recorded, the old value becomes ``previous_version`` — which is what tells
+    a notice meant for people upgrading past some release whether this
+    deployment is one of them. A fresh install has neither, and that is the
+    honest answer: it never upgraded from anything.
+
+    Idempotent across restarts on the same version: the pair only moves when
+    the running version actually changed.
+    """
+    settings_row = await _ensure_app_settings(session)
+    if settings_row.last_seen_version == version:
+        return settings_row.previous_version
+    if not await _session_can_write_app_settings(session):
+        return settings_row.previous_version
+    settings_row.previous_version = settings_row.last_seen_version
+    settings_row.last_seen_version = version
+    await _write_app_settings(session, settings_row)
+    return settings_row.previous_version
+
+
+async def previous_running_version(session: AsyncSession) -> str | None:
+    """What this deployment was running before its current version, if anything."""
+    settings_row = await _ensure_app_settings(session)
+    return settings_row.previous_version
+
+
 async def get_app_settings(
     session: AsyncSession, *, force_refresh: bool = False
 ) -> AppSetting:
@@ -169,19 +199,47 @@ async def community_directory_enabled(session: AsyncSession) -> bool:
     return bool(settings_row.community_directory_enabled)
 
 
+async def community_age_gate_enabled(session: AsyncSession) -> bool:
+    """Whether an account must confirm its age to belong to a listed guild.
+
+    The one read of the switch, for the same reason
+    :func:`community_directory_enabled` is: the two places that ask — the join
+    that refuses, and the standing check that routes an unconfirmed account to
+    the screen — must agree at every moment.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.community_age_gate_enabled)
+
+
 async def update_community_settings(
     session: AsyncSession,
     *,
     community_directory_enabled: bool,
+    community_age_gate_enabled: bool | None = None,
+    default_dm_policy: "DmPolicy | None" = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
 
     Switching it off leaves every guild's own opt-in exactly as it was: the
     listings simply have nowhere to appear until it is switched back on, so an
     operator flipping this twice does not silently unpublish anybody.
+
+    ``default_dm_policy`` is a third, and the same rule applies: it is the
+    policy a newly created account starts on, read once when the account is
+    made. Changing it moves no existing account — raising it would open
+    accounts that never chose to be open, and lowering it would revoke channels
+    people are using.
+
+    ``community_age_gate_enabled`` is a second, independent decision and is
+    left alone when omitted: an owner who has asserted that every account here
+    belongs to an adult has not un-asserted it by toggling the directory.
     """
     settings_row = await _ensure_app_settings(session)
     settings_row.community_directory_enabled = bool(community_directory_enabled)
+    if community_age_gate_enabled is not None:
+        settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
+    if default_dm_policy is not None:
+        settings_row.default_dm_policy = default_dm_policy
     session.add(settings_row)
     await session.commit()
     await session.refresh(settings_row)

@@ -61,6 +61,11 @@
     "reply": {
       "title": "Réponse à votre commentaire",
       "body": "{{actor}} a répondu à votre commentaire sur {{context}}"
+    },
+    "reaction": {
+      "title": "Nouvelle réaction",
+      "body_one": "{{actor}} a réagi {{emoji}} à votre commentaire sur {{context}}",
+      "body_other": "{{count}} nouvelles réactions à vos publications, dont {{emoji}} de {{actor}}"
     }
   },
   "event": {

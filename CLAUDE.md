@@ -176,6 +176,74 @@ git log --oneline --grep="bump version" -n 1
 - ❌ Do NOT add changelog entries for minor refactoring or internal changes
 - ❌ Do NOT put new changes under an already-released version number
 
+### Announcements
+
+The changelog is the record; an **announcement** is the interruption. It is a
+dialog in front of somebody who did not ask for it, so the bar is "they have to
+act, or they will be confused" — a breaking change, a setting that moved, a
+feature nobody would find. Everything else belongs in the changelog only.
+
+Two sources, one surface:
+
+- **Authored** — written by an operator under Settings › Admin › Announcements
+  (`announcements.manage`, operator and above). Use these for anything specific
+  to one deployment ("we are upgrading on Sunday").
+- **Compiled in** — declared in
+  [`backend/app/core/builtin_announcements.py`](backend/app/core/builtin_announcements.py)
+  and shipped with the release. Use these when *every* deployment needs to hear
+  it and no operator would know to type it.
+
+**Adding a built-in.** One entry in `BUILTIN_ANNOUNCEMENTS`, and nothing else:
+
+```python
+BuiltinAnnouncement(
+    slug="0-65-guild-admin-settings-moved",   # permanent — see below
+    title="Guild settings have moved",
+    category=AnnouncementCategory.breaking,
+    published_at=datetime(2026, 9, 2, tzinfo=timezone.utc),
+    sections=(
+        AnnouncementSection(heading="What changed", body="…", image_url="…"),
+        AnnouncementSection(starts_page=True, heading="What to do", body="…"),
+    ),
+)
+```
+
+- The **slug is permanent**: it is what a reader's dismissal is recorded
+  against (`builtin:<slug>`), so changing it re-shows the notice to everyone who
+  had already dealt with it.
+- **Pictures** are static assets in `frontend/public/announcement-images/`,
+  referenced as `/announcement-images/<file>.png`. A built-in cannot upload
+  anything — there is no database at build time — and
+  `builtin_announcements_test` fails if a referenced file is not in the repo or
+  has no alt text.
+- **Retiring one** is deleting the entry and shipping that. The stale receipts
+  it leaves behind are harmless.
+- `published_at` must be **at or before the release date**, or nobody sees it:
+  a future date reads as scheduled.
+
+**Choosing conditions.** Every one of these narrows the audience; the default
+is "everybody, immediately", which is usually wrong for a notice worth shipping.
+
+| Field | Use it when |
+|---|---|
+| `audience_accounts` | The notice is about a transition. `existing` for a change people lived through; `new` for an onboarding tip; `everyone` (default) for news that stands on its own. |
+| `only_upgrading_from_below` | Built-ins only. Names the release the notice is about, so a fresh install — which was never on the old behaviour — is not told. Read from the deployment's recorded previous version. |
+| `min_platform_role` | The thing that changed is behind a platform rung. (A capability would be more precise; that is not built yet.) |
+| `guild_admins_only` | Only people who administer a community can act on it. |
+| `trigger_route` | It explains a screen. The notice waits for a matching path (`*` one segment, `**` the rest) instead of queueing at sign-in. |
+| `dismissals_required` | Missing it would cost somebody real work. Two or three, never more; it comes back until acknowledged that many times. |
+| `expires_at` | It stops being true on a date. An end date retires it from the archive as well as the queue. |
+
+**Announcement text is not translated.** Sections are markdown written once and
+shown as-is — only the dialog's own chrome goes through i18n. Write in English
+and keep it short.
+
+**Seeing one locally.** The registry is read at import, so a new entry needs the
+backend to reload. It then has to survive its own conditions: a built-in with
+`only_upgrading_from_below` shows nothing on a dev database that has only ever
+run one version, and one for `existing` accounts shows nothing to an account
+created after its `published_at`.
+
 ### Docker Builds with Specific Versions
 
 Build Docker images with version labels:
@@ -195,9 +263,9 @@ All user-facing strings must be externalized for localization. **Never hardcode 
 
 Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
 
-**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `guildHome`, `calendars`, `properties`, `queues`, `trash`
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counterGroups`, `dashboards`, `guildHome`, `calendars`, `properties`, `queues`, `trash`, `search`, `comments`, `announcements`
 
-Each tool owns the namespace named after its camel plural (`projects`, `documents`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `guildHome` is the guild front page, which is not a tool.
+Each tool owns the namespace named after its camel plural (`projects`, `documents`, `queues`, `counterGroups`, `calendars`, `dashboards`) — `lib/tools.test.ts` fails if one is missing. `guildHome` is the guild front page, which is not a tool. `comments` is the cross-tool comment surface (composer, thread, mention help); it is not owned by `documents`, which is where it used to live.
 
 **Rules:**
 
@@ -265,6 +333,22 @@ files run serially by default. A 16-worker run was measured holding ~60 Postgres
 connections, so if several checkouts test at once, give the local
 `docker-compose.yml` db service headroom (it is gitignored, so this is a local
 edit): `command: [postgres, -c, max_connections=300, -c, shared_buffers=256MB]`.
+
+`auto` is bounded by **memory as well as cores**: a worker imports the whole app
+and opens its own engines, ~500MB resident each, so `conftest.py`'s
+`pytest_xdist_auto_num_workers` budgets half of MemTotal at 900MB per worker and
+takes the lower of that and the core count (16 cores + 16GB RAM → 8 workers).
+Override with `PYTEST_XDIST_AUTO_NUM_WORKERS` on a host that knows better.
+
+The suite is also the cluster's heaviest **writer** — a TRUNCATE per test and a
+CREATE/DROP of a ~60-table schema per guild test — and what that fills is WAL,
+not table data (per-worker databases sit near 100MB; `pg_wal` was measured at
+2.5GB). Writing it grows the page cache, which is what makes a WSL2 VM balloon
+past its ceiling and die mid-run. The local `docker-compose.yml` db service
+therefore also runs with `fsync=off`, `full_page_writes=off`,
+`synchronous_commit=off`, `wal_level=minimal`, `max_wal_senders=0` and
+`max_wal_size=512MB` — safe for a cluster holding only the dev database and
+throwaway test databases, and not something to copy into any deployment.
 
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:

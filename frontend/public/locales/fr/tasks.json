@@ -23,9 +23,9 @@
     "priorityLabel": "Priorité",
     "allPriorities": "Toutes les priorités",
     "noPriorities": "Aucune priorité disponible",
-    "filterByGuild": "Filtrer par groupe",
-    "allGuilds": "Tous les groupes",
-    "noGuilds": "Aucun groupe disponible",
+    "filterByGuild": "Filtrer par communauté",
+    "allGuilds": "Tous les communautés",
+    "noGuilds": "Aucune communauté disponible",
     "filterPlaceholder": "Filtrer les tâches..."
   },
   "columns": {
@@ -35,7 +35,7 @@
     "startDate": "Date de début",
     "dueDate": "Date d'échéance",
     "dateWindow": "Fenêtre de dates",
-    "guild": "Groupe",
+    "guild": "Communauté",
     "projectPath": "Chemin du projet",
     "priority": "Priorité",
     "tags": "Étiquettes",
@@ -46,7 +46,7 @@
     "markInProgress": "Marquer la tâche comme en cours"
   },
   "errors": {
-    "guildContext": "Impossible de déterminer le contexte du groupe pour cette tâche.",
+    "guildContext": "Impossible de déterminer le contexte de la communauté pour cette tâche.",
     "statusUpdate": "Impossible de mettre à jour le statut de la tâche.",
     "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé."
   },
@@ -63,12 +63,8 @@
     "noAccessDescription": "Vous n'avez pas la permission de consulter cette tâche. Demandez à un gestionnaire de projet de vous accorder l'accès.",
     "backToProjects": "← Retour aux projets",
     "loadProjectError": "Impossible de charger le contexte du projet pour cette tâche.",
-    "statusBadge": "Statut",
     "createdBy": "Créée par {{name}} · {{time}}",
     "createdAt": "Créée {{time}}",
-    "subtitle": "Modifiez chaque détail de cette tâche.",
-    "detailsTitle": "Détails de la tâche",
-    "detailsDescription": "Mettez à jour les champs ci-dessous et enregistrez vos modifications.",
     "readOnlyNoAccess": "Vous n'avez qu'un accès en lecture à ce projet, les champs de la tâche sont donc désactivés.",
     "readOnlyArchived": "Ce projet est archivé. Désarchivez-le depuis les paramètres du projet pour modifier les tâches.",
     "titleLabel": "Titre",
@@ -141,26 +137,26 @@
     "title": "Mes tâches",
     "subtitle": "Tout ce qui vous est assigné dans tous les projets.",
     "addTask": "Ajouter une tâche",
-    "noGuild": "Aucun groupe",
+    "noGuild": "Aucune communauté",
     "loadError": "Impossible de charger vos tâches.",
     "groupByDate": "Date",
-    "groupByGuild": "Groupe"
+    "groupByGuild": "Communauté"
   },
   "myCalendar": {
     "title": "Mon calendrier",
-    "subtitle": "Tâches et événements dans tous vos groupes.",
+    "subtitle": "Tâches et événements dans tous vos communautés.",
     "loadError": "Impossible de charger les données du calendrier.",
     "typeEvents": "Événements",
     "typeTasks": "Tâches"
   },
   "createdTasks": {
     "title": "Tâches que j'ai créées",
-    "subtitle": "Les tâches que vous avez créées dans tous vos groupes.",
+    "subtitle": "Les tâches que vous avez créées dans tous vos communautés.",
     "addTask": "Ajouter une tâche",
     "empty": "Vous n'avez pas encore créé de tâches.",
     "loadError": "Impossible de charger vos tâches créées.",
     "groupByDate": "Date",
-    "groupByGuild": "Groupe"
+    "groupByGuild": "Communauté"
   },
   "tagTasks": {
     "loadError": "Impossible de charger les tâches."
@@ -207,7 +203,7 @@
   },
   "move": {
     "title": "Déplacer la tâche vers un autre projet",
-    "description": "Sélectionnez un projet de destination dans le groupe actuel. Vous ne pouvez déplacer des tâches que vers des projets où vous avez la permission de créer du travail.",
+    "description": "Sélectionnez un projet de destination dans la communauté actuel. Vous ne pouvez déplacer des tâches que vers des projets où vous avez la permission de créer du travail.",
     "loadError": "Impossible de charger les projets accessibles en écriture.",
     "loading": "Chargement des projets disponibles…",
     "noProjects": "Vous n'avez pas encore d'autres projets accessibles en écriture.",
@@ -239,10 +235,10 @@
     "title": "Ajouter une tâche",
     "description": "Sélectionnez un projet pour créer une nouvelle tâche.",
     "lastUsed": "Dernier utilisé",
-    "selectGuild": "Sélectionnez un groupe",
+    "selectGuild": "Sélectionnez une communauté",
     "selectInitiative": "Sélectionnez une initiative",
     "selectProject": "Sélectionnez un projet",
-    "noInitiatives": "Aucune initiative trouvée dans ce groupe.",
+    "noInitiatives": "Aucune initiative trouvée dans cette communauté.",
     "noProjects": "Aucun projet trouvé dans cette initiative.",
     "loading": "Chargement…",
     "back": "Retour",
@@ -289,6 +285,11 @@
     "startDateLabel": "Date de début",
     "dueDateLabel": "Date d'échéance",
     "tagsLabel": "Étiquettes",
-    "tagsPlaceholder": "Ajouter des étiquettes"
+    "tagsPlaceholder": "Ajouter des étiquettes",
+    "sections": {
+      "tracking": "Suivi",
+      "schedule": "Planification",
+      "people": "Personnes et étiquettes"
+    }
   }
 }

@@ -62,7 +62,6 @@ from app.models.tenant.tag import Tag, DocumentTag
 from app.models.platform.user import User
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.document import (
-    DocumentAutocomplete,
     DocumentBacklink,
     DocumentCountsResponse,
     DocumentCreate,
@@ -90,7 +89,9 @@ from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
+from app.services.tenant import search as search_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
@@ -351,8 +352,12 @@ def _build_visible_docs_filters(
     """
     conditions = [
         Initiative.guild_id == guild_id,
-        permissions_service.dac_scope_clause(
-            Tool.document, Document.id, user_id, guild_id=guild_id
+        permissions_service.listing_scope_clause(
+            Tool.document,
+            Document.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
         ),
     ]
 
@@ -368,10 +373,9 @@ def _build_visible_docs_filters(
     if document_type is not None:
         conditions.append(Document.document_type == document_type)
 
-    if search:
-        normalized = search.strip().lower()
-        if normalized:
-            conditions.append(func.lower(Document.name).contains(normalized))
+    name_match = search_service.tool_search_clause(Tool.document, Document.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     if tag_ids:
         tag_subquery = (
@@ -459,10 +463,9 @@ async def _list_global_documents(
         session, current_user.id, restrict_to=guild_ids
     )
     conditions = [Document.created_by == current_user.id]
-    if search:
-        normalized = search.strip().lower()
-        if normalized:
-            conditions.append(func.lower(Document.name).contains(normalized))
+    name_match = search_service.tool_search_clause(Tool.document, Document.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     async def _fetch(
         guild_session: AsyncSession, _guild_id: int
@@ -800,74 +803,6 @@ async def list_documents(
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
-
-
-@router.get("/autocomplete", response_model=List[DocumentAutocomplete])
-async def autocomplete_documents(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(
-        default=None,
-        description=(
-            "Restrict to one initiative. Omit to search the whole guild — "
-            "templates are picked guild-wide."
-        ),
-    ),
-    q: str = Query(default=""),
-    is_template: Optional[bool] = Query(
-        default=None, description="Filter to template (or non-template) documents"
-    ),
-    document_type: Optional[DocumentType] = Query(
-        default=None, description="Filter by document type"
-    ),
-    limit: int = Query(default=10, ge=1, le=20),
-) -> List[DocumentAutocomplete]:
-    """Search documents by name for autocomplete/wikilinks and pickers.
-
-    Returns lightweight document info (id, name, updated_at, document_type)
-    for typeahead. Scoped to one initiative when ``initiative_id`` is given,
-    otherwise to the whole guild. Visibility matches the document list —
-    only documents the caller can access come back.
-
-    An empty ``q`` matches everything, so a picker that opens before the user
-    types gets the most recently updated documents rather than an error. The
-    result is bounded by ``limit`` either way.
-    """
-    if initiative_id is not None:
-        await _get_initiative_or_404(
-            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
-        )
-
-    conditions = _build_visible_docs_filters(
-        guild_context.guild_id,
-        current_user.id,
-        initiative_id=initiative_id,
-        search=q,
-        is_template=is_template,
-        document_type=document_type,
-    )
-
-    stmt = (
-        select(Document)
-        .join(Document.initiative)
-        .where(*conditions)
-        .order_by(Document.updated_at.desc())
-        .limit(limit)
-    )
-
-    result = await session.exec(stmt)
-    documents = result.all()
-
-    return [
-        DocumentAutocomplete(
-            id=doc.id,
-            name=doc.name,
-            updated_at=doc.updated_at,
-            document_type=doc.document_type,
-        )
-        for doc in documents
-    ]
 
 
 async def _check_duplicate_name(
@@ -1762,13 +1697,17 @@ async def notify_mentions(
             guild_id=guild_context.guild_id,
         )
     memberships = getattr(initiative, "memberships", []) or []
-    member_map = {
-        membership.user_id: membership.user
-        for membership in memberships
-        if membership.user
+    member_ids = {
+        membership.user_id for membership in memberships if membership.user_id
     }
+    # Who to tell is a question about their account, so it is asked where an
+    # account may be read.
+    recipients = await accounts_service.load(
+        (user_id for user_id in mentioned_user_ids if user_id in member_ids),
+        excluding_ignorers_of=current_user.id,
+    )
     for user_id in mentioned_user_ids:
-        mentioned_user = member_map.get(user_id)
+        mentioned_user = recipients.get(user_id)
         if not mentioned_user:
             continue
         await notifications_service.notify_document_mention(

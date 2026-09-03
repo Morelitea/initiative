@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { QueueItemRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   ENTITY_PICKER_PAGE_SIZE,
   type LinkedEntity,
 } from "@/components/initiativeTools/queues/LinkedEntityPicker";
-import { useDocumentAutocomplete } from "@/hooks/useDocuments";
-import { useTaskAutocomplete } from "@/hooks/useTasks";
+import { useGuildSearchSuggest } from "@/hooks/useSearch";
 
 const DEFAULT_COLOR = "#6366F1";
 
@@ -89,24 +89,29 @@ export const useQueueItemForm = ({ open, initiativeId, item }: UseQueueItemFormA
   // item ships its own linked user, which saves the picker a lookup.
   const selectedUser = item?.user ?? null;
 
-  // Document picker — server typeahead, only while the picker is open.
-  const docsQuery = useDocumentAutocomplete(initiativeId, docSearch, {
-    enabled: open && docPickerOpen,
+  // Both pickers ask the one lookup the whole app searches through, narrowed
+  // to this initiative and to live work — a queue item links to something
+  // being done, not to a blueprint or something already put away.
+  const docsQuery = useGuildSearchSuggest(docSearch, {
+    types: [SearchEntityType.document],
+    initiative_id: initiativeId,
+    template: false,
     limit: ENTITY_PICKER_PAGE_SIZE,
+    enabled: open && docPickerOpen,
   });
   const docResults = useMemo(
-    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.id, title: doc.name })),
+    () => (docsQuery.data ?? []).map((doc) => ({ id: doc.entity_id, title: doc.title })),
     [docsQuery.data]
   );
 
-  // Task picker — server typeahead over titles within this initiative.
-  const tasksQuery = useTaskAutocomplete(taskSearch, {
-    initiativeId,
-    enabled: open && taskPickerOpen,
+  const tasksQuery = useGuildSearchSuggest(taskSearch, {
+    types: [SearchEntityType.task],
+    initiative_id: initiativeId,
     limit: ENTITY_PICKER_PAGE_SIZE,
+    enabled: open && taskPickerOpen,
   });
   const taskResults = useMemo(
-    () => (tasksQuery.data ?? []).map((task) => ({ id: task.id, title: task.title })),
+    () => (tasksQuery.data ?? []).map((task) => ({ id: task.entity_id, title: task.title })),
     [tasksQuery.data]
   );
 

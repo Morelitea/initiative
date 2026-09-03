@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Festival</title>
+  <!-- Last song, and everybody knows it. -->
+  <style>
+    .beam2 { animation: sweep 7s ease-in-out infinite alternate;
+             transform-box: fill-box; transform-origin: 50% 0 }
+    .b2 { animation-duration: 9s; animation-delay: -3s }
+    @keyframes sweep { from { transform: rotate(-9deg) } to { transform: rotate(9deg) } }
+    .hand { animation: wave 2.4s ease-in-out infinite alternate;
+            transform-box: fill-box; transform-origin: 50% 100% }
+    .h2 { animation-duration: 3.1s } .h3 { animation-duration: 2.8s; animation-delay: -1s }
+    @keyframes wave { from { transform: rotate(-6deg) } to { transform: rotate(6deg) } }
+    @media (prefers-reduced-motion: reduce) { .beam2, .hand { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="dusk3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1B1B3E"/><stop offset="55%" stop-color="#7A3A6E"/>
+      <stop offset="100%" stop-color="#E8733A"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#dusk3)"/>
+  <circle cx="80" cy="24" r="7" fill="#FFD79A" opacity=".85"/>
+  <circle cx="80" cy="24" r="15" fill="#FFD79A" opacity=".14"/>
+  <!-- Rig, and what comes off it. -->
+  <path d="M0 5 L160 5 L160 7 L0 7 Z" fill="#141026"/>
+  <g stroke="#241E3E" stroke-width=".5">
+    <path d="M6 5.2 L14 6.8"/><path d="M14 5.2 L22 6.8"/><path d="M138 5.2 L146 6.8"/>
+    <path d="M146 5.2 L154 6.8"/>
+  </g>
+  <g class="beam2"><path d="M46 7 L56 7 L74 30 L28 30 Z" fill="#F0567A" opacity=".1"/></g>
+  <g class="beam2 b2"><path d="M104 7 L114 7 L132 30 L86 30 Z" fill="#7FD4FF" opacity=".09"/></g>
+  <g fill="#141026">
+    <path d="M42 7 L48 7 L47 10 L43 10 Z"/><path d="M76 7 L82 7 L81 10 L77 10 Z"/>
+    <path d="M112 7 L118 7 L117 10 L113 10 Z"/>
+  </g>
+  <g fill="#FFD79A" opacity=".85">
+    <ellipse cx="45" cy="10" rx="1.6" ry=".5"/><ellipse cx="79" cy="10" rx="1.6" ry=".5"/>
+    <ellipse cx="115" cy="10" rx="1.6" ry=".5"/>
+  </g>
+  <!-- The stage, small and far off. -->
+  <path d="M56 30 L104 30 L104 22 L56 22 Z" fill="#100C20"/>
+  <g fill="#241E3E">
+    <ellipse cx="70" cy="26.6" rx="2.6" ry="4"/><ellipse cx="80" cy="25.6" rx="2.4" ry="4.4"/>
+    <ellipse cx="90" cy="26.6" rx="2.6" ry="4"/>
+  </g>
+  <!-- The crowd, in silhouette, hands up. -->
+  <path d="M0 30 L160 30 L160 40 L0 40 Z" fill="#0C0918"/>
+  <g fill="#0C0918">
+    <circle cx="8" cy="30" r="3.4"/><circle cx="20" cy="31" r="3"/><circle cx="32" cy="29.6" r="3.6"/>
+    <circle cx="44" cy="31.4" r="3.2"/><circle cx="56" cy="30" r="3.4"/><circle cx="68" cy="31.4" r="3"/>
+    <circle cx="80" cy="30.4" r="3.6"/><circle cx="92" cy="31.4" r="3"/><circle cx="104" cy="30" r="3.4"/>
+    <circle cx="116" cy="31.4" r="3.2"/><circle cx="128" cy="29.6" r="3.6"/><circle cx="140" cy="31" r="3"/>
+    <circle cx="152" cy="30" r="3.4"/>
+  </g>
+  <g stroke="#0C0918" stroke-width="1.6" stroke-linecap="round" fill="none">
+    <path class="hand" d="M14 32 L12 25"/><path class="hand h2" d="M26 32 L28 24.6"/>
+    <path class="hand h3" d="M38 32 L36 25.4"/><path class="hand" d="M50 32 L52 25"/>
+    <path class="hand h2" d="M62 32 L60 24.6"/><path class="hand h3" d="M74 32 L76 25.4"/>
+    <path class="hand" d="M86 32 L84 25"/><path class="hand h2" d="M98 32 L100 24.6"/>
+    <path class="hand h3" d="M110 32 L108 25.4"/><path class="hand" d="M122 32 L124 25"/>
+    <path class="hand h2" d="M134 32 L132 25"/><path class="hand h3" d="M146 32 L148 25.4"/>
+  </g>
+  <g fill="#FFD79A" opacity=".7">
+    <circle cx="24" cy="27" r=".5"/><circle cx="66" cy="26" r=".45"/><circle cx="118" cy="27" r=".5"/>
+  </g></svg>

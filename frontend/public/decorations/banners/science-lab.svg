@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Lab bench</title>
+  <!-- Mid-experiment, which is where a bench spends its life. -->
+  <style>
+    .bub { animation: rise 4s ease-in infinite }
+    .b2 { animation-delay: -1.4s } .b3 { animation-delay: -2.8s }
+    @keyframes rise { 0% { transform: translateY(0); opacity: 0 } 25% { opacity: .8 }
+                      100% { transform: translateY(-6px); opacity: 0 } }
+    .blink { animation: tick 2.6s steps(1,end) infinite }
+    @keyframes tick { 0%,50% { opacity: 1 } 51%,100% { opacity: .25 } }
+    /* The trace, running off the left of its own screen and round again. */
+    .trace { animation: sweep 3.2s linear infinite }
+    @keyframes sweep { from { transform: translateX(0) } to { transform: translateX(-11px) } }
+    .readout { animation: scroll 5.5s linear infinite }
+    @keyframes scroll { from { transform: translateY(0) } to { transform: translateY(-6px) } }
+    .boil { animation: roll 3.2s ease-in infinite }
+    .o2 { animation-delay: -1.1s } .o3 { animation-delay: -2.2s } .o4 { animation-delay: -.6s }
+    @keyframes roll { 0% { transform: translateY(0) scale(.4); opacity: 0 }
+                      30% { opacity: .85 }
+                      100% { transform: translateY(-7px) scale(1.15); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) {
+      .bub, .blink, .trace, .readout, .boil { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="labwall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A1024"/><stop offset="100%" stop-color="#15203C"/>
+    </linearGradient>
+    <linearGradient id="brew2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3E8CC8"/><stop offset="100%" stop-color="#17457A"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#labwall)"/>
+  <path d="M0 26 L160 26 L160 29 L0 29 Z" fill="#2A3550"/>
+  <path d="M0 26 L160 26 L160 26.8 L0 26.8 Z" fill="#4A5A80"/>
+  <path d="M0 12 L46 12 L46 13.6 L0 13.6 Z" fill="#2A3550"/>
+  <g>
+    <path d="M6 12 L12 12 L12 5 L6 5 Z" fill="#8FC7EE" opacity=".4"/>
+    <path d="M6.6 11.4 L11.4 11.4 L11.4 8 L6.6 8 Z" fill="#2F6EA8"/>
+    <g fill="#9FE2FF">
+      <circle class="boil" cx="8.2" cy="10.6" r=".42"/>
+      <circle class="boil o3" cx="9.8" cy="11" r=".34"/>
+    </g>
+    <path d="M16 12 L22 12 L22 6.6 L16 6.6 Z" fill="#8FC7EE" opacity=".4"/>
+    <path d="M16.6 11.4 L21.4 11.4 L21.4 9 L16.6 9 Z" fill="#4EBE8A"/>
+    <g fill="#A8F0C8">
+      <circle class="boil o2" cx="18.2" cy="10.8" r=".38"/>
+      <circle class="boil o4" cx="19.9" cy="11" r=".3"/>
+    </g>
+    <path d="M26 12 L34 12 L34 4 L26 4 Z" fill="#1E2A44"/>
+    <clipPath id="wallScreen"><rect x="26" y="4" width="8" height="8"/></clipPath>
+    <g clip-path="url(#wallScreen)">
+      <g class="readout" stroke="#7FD4FF" stroke-width=".5" opacity=".8">
+        <path d="M27.4 6 L32.6 6"/><path d="M27.4 8 L32.6 8"/><path d="M27.4 10 L30.6 10"/>
+        <path d="M27.4 12 L32.6 12"/><path d="M27.4 14 L31.4 14"/><path d="M27.4 16 L32.6 16"/>
+      </g>
+    </g>
+  </g>
+  <!-- Microscope. -->
+  <g transform="translate(30 26) scale(.8)">
+    <path d="M-14 0 L14 0 L14 2 L-14 2 Z" fill="#4A86BE"/>
+    <path d="M-9 -4 L9 -4 L11 0 L-11 0 Z" fill="#2F6EA8"/>
+    <path d="M-2 -18 L2 -18 L2 -6 L-2 -6 Z" fill="#4A86BE"/>
+    <path d="M-6 -7 L6 -7 L6 -4 L-6 -4 Z" fill="#8FC7EE"/>
+    <path d="M2 -28 C7 -28 10 -25 10 -21 C10 -18 8 -16 5 -15" fill="none"
+          stroke="#8FC7EE" stroke-width="3"/>
+    <path d="M3 -16 L7 -16 L6 -9 L4 -9 Z" fill="#4A86BE"/>
+    <circle cx="10" cy="-26" r="3" fill="#CFE9FF"/>
+  </g>
+  <!-- Flasks, one bubbling over a burner. -->
+  <g transform="translate(74 26)">
+    <path d="M-4 -16 L4 -16 L4 -9 L9 0 C10 2 8.6 4 6 4 L-6 4 C-8.6 4 -10 2 -9 0 L-4 -9 Z"
+          fill="#CFE9FF" opacity=".3"/>
+    <path d="M-6.6 -3 C-4 -2 4 -2 6.6 -3 L9 0 C10 2 8.6 4 6 4 L-6 4 C-8.6 4 -10 2 -9 0 Z"
+          fill="url(#brew2)"/>
+    <g fill="#9FE2FF">
+      <circle class="bub" cx="-2" cy="1" r=".8"/><circle class="bub b2" cx="2.6" cy="2" r=".6"/>
+      <circle class="bub b3" cx="0" cy="0" r=".5"/>
+    </g>
+    <path d="M-4 -16 L4 -16 L4 -9 L9 0 C10 2 8.6 4 6 4 L-6 4 C-8.6 4 -10 2 -9 0 L-4 -9 Z"
+          fill="none" stroke="#9CC8EE" stroke-width=".8"/>
+    <path d="M-6 5 L6 5 L6 6.4 L-6 6.4 Z" fill="#4A5A80"/>
+    <path d="M-2.6 6.4 C-2.6 8.4 -1.4 9.4 0 9.4 C1.4 9.4 2.6 8.4 2.6 6.4 Z" fill="#E8730C"/>
+  </g>
+  <g transform="translate(96 26)">
+    <path d="M-5 -12 C-5 -6 -7 -3 -7 0 C-7 2.6 -5 4 -2 4 L2 4 C5 4 7 2.6 7 0
+             C7 -3 5 -6 5 -12 Z" fill="#CFE9FF" opacity=".3"/>
+    <path d="M-6.4 -1 C-3.4 0 3.4 0 6.4 -1 C6.8 .4 6.4 2 5 3 C3.4 4 -3.4 4 -5 3
+             C-6.4 2 -6.8 .4 -6.4 -1 Z" fill="#4EBE8A"/>
+    <path d="M-5 -12 L5 -12 L5 -13.6 L-5 -13.6 Z" fill="#9CC8EE"/>
+    <g fill="#A8F0C8">
+      <circle class="boil" cx="-2.4" cy="1.4" r=".75"/>
+      <circle class="boil o2" cx="1.8" cy="2.2" r=".6"/>
+      <circle class="boil o3" cx="0" cy=".6" r=".5"/>
+      <circle class="boil o4" cx="3.4" cy="1" r=".42"/>
+    </g>
+  </g>
+  <!-- Petri dishes, and a reader with a light on it. -->
+  <g>
+    <ellipse cx="118" cy="24" rx="7" ry="2.2" fill="#CFE9FF" opacity=".35"/>
+    <ellipse cx="118" cy="23.6" rx="5.4" ry="1.6" fill="#8ABF4E" opacity=".6"/>
+    <ellipse cx="130" cy="25" rx="6" ry="2" fill="#CFE9FF" opacity=".35"/>
+    <ellipse cx="130" cy="24.6" rx="4.6" ry="1.4" fill="#E8A33A" opacity=".55"/>
+  </g>
+  <g>
+    <path d="M142 26 L156 26 L156 16 C156 15 155.4 14.4 154.4 14.4 L143.6 14.4
+             C142.6 14.4 142 15 142 16 Z" fill="#1E2A44"/>
+    <path d="M143.6 16 L154.4 16 L154.4 21 L143.6 21 Z" fill="#0E1830"/>
+    <clipPath id="scope"><rect x="143.6" y="16" width="10.8" height="5"/></clipPath>
+    <g clip-path="url(#scope)">
+      <path class="trace" d="M143 19.6 C144.4 17 146 20.6 147.4 18 C148.8 15.4 150 19.6 151.4 18
+                             C152.8 16.4 154 20.6 155.4 18 C156.8 15.4 158 19.6 159.4 18
+                             C160.8 16.4 162 20.6 163.4 18"
+            fill="none" stroke="#7FD4FF" stroke-width=".6"/>
+    </g>
+    <circle class="blink" cx="145" cy="23.6" r="1" fill="#4CE08A"/>
+  </g>
+  <path d="M0 29 L160 29 L160 40 L0 40 Z" fill="#0E1428"/></svg>

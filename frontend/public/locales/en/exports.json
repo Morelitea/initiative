@@ -25,7 +25,7 @@
   },
   "wizard": {
     "titleInitiative": "Export initiative",
-    "titleGuild": "Export guild",
+    "titleGuild": "Export community",
     "back": "Back",
     "next": "Next",
     "start": "Start export",
@@ -64,11 +64,11 @@
     },
     "progress": {
       "title": "Preparing your export…",
-      "note": "This can take a while. You can close this dialog — the download arrives as a notification, and finished exports can be re-downloaded from guild settings."
+      "note": "This can take a while. You can close this dialog — the download arrives as a notification, and finished exports can be re-downloaded from community settings."
     },
     "done": {
       "title": "Export ready",
-      "note": "Your download has started. You can re-download it from guild settings until it expires."
+      "note": "Your download has started. You can re-download it from community settings until it expires."
     },
     "failed": {
       "title": "Export failed",
@@ -76,7 +76,7 @@
     }
   },
   "entry": {
-    "guildTitle": "Export this guild",
+    "guildTitle": "Export this community",
     "guildDescription": "Download every initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
     "initiativeTitle": "Export this initiative",
     "initiativeDescription": "Download this initiative's data as an importable backup or an à-la-carte report. Sharing rules apply: the export contains what you can see.",
@@ -84,7 +84,7 @@
   },
   "table": {
     "title": "Recent exports",
-    "description": "Finished exports can be re-downloaded until they expire (7 days). Guild admins see every member's exports.",
+    "description": "Finished exports can be re-downloaded until they expire (7 days). Community admins see every member's exports.",
     "columns": {
       "export": "Export",
       "status": "Status",
@@ -107,7 +107,7 @@
       "counter-group": "Counter group",
       "calendar-event": "Calendar",
       "initiative": "Initiative",
-      "guild": "Guild"
+      "guild": "Community"
     },
     "download": "Download",
     "empty": "No exports yet.",

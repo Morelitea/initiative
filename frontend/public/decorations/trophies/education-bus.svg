@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>School bus</title>
+  <circle cx="24" cy="24" r="23" fill="#16233A"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B84B" stroke-width="2"/>
+  <path d="M6 20 L30 20 C34 20 40 23 41.4 27.4 L41.4 33 C41.4 34 40.6 34.6 39.6 34.6
+           L7 34.6 C6 34.6 5.4 34 5.4 33 L5.4 21.6 C5.4 20.6 5.6 20 6 20 Z" fill="#F2C230"/>
+  <path d="M5.4 30.4 L41.4 30.4 L41.4 32.4 L5.4 32.4 Z" fill="#2B2B2B"/>
+  <g fill="#BFE4F2">
+    <path d="M8.4 22.6 L14 22.6 L14 27.6 L8.4 27.6 Z"/>
+    <path d="M16 22.6 L21.6 22.6 L21.6 27.6 L16 27.6 Z"/>
+    <path d="M23.6 22.6 L29.2 22.6 L29.2 27.6 L23.6 27.6 Z"/>
+    <path d="M31.2 23.4 C34.4 24 37.6 25.8 39 27.6 L31.2 27.6 Z"/>
+  </g>
+  <g fill="#2B2B2B">
+    <circle cx="13" cy="34.6" r="3.6"/><circle cx="34" cy="34.6" r="3.6"/>
+  </g>
+  <g fill="#8A9098"><circle cx="13" cy="34.6" r="1.5"/><circle cx="34" cy="34.6" r="1.5"/></g>
+  <path d="M3 24.6 L6 24.6 L6 29 L3 29 Z" fill="#C0392B"/>
+  <path d="M3.4 25.4 L5.6 25.4 L5.6 28.2 L3.4 28.2 Z" fill="#FBEFD9" opacity=".7"/>
+  <circle cx="40.4" cy="22" r="1.4" fill="#F2C230"/>
+</svg>

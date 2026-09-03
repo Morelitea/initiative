@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Reading glasses</title>
+  <circle cx="24" cy="24" r="23" fill="#2C1D0F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#6B4526" stroke-width="2"/>
+  <g fill="none" stroke="#3A3630" stroke-width="2.4">
+    <circle cx="14.6" cy="26" r="7.4"/><circle cx="33.4" cy="26" r="7.4"/>
+    <path d="M22 24.6 C23 23.4 25 23.4 26 24.6"/>
+    <path d="M7.4 23.4 C5.4 21.6 4 20 3.4 18.4"/>
+    <path d="M40.6 23.4 C42.6 21.6 44 20 44.6 18.4"/>
+  </g>
+  <g fill="#BFD8E4" opacity=".45">
+    <circle cx="14.6" cy="26" r="6.2"/><circle cx="33.4" cy="26" r="6.2"/>
+  </g>
+  <g stroke="#FFFFFF" stroke-width="1.4" opacity=".5" stroke-linecap="round">
+    <path d="M10.6 22.6 C11.6 21.4 13 20.6 14.4 20.4"/>
+    <path d="M29.4 22.6 C30.4 21.4 31.8 20.6 33.2 20.4"/>
+  </g></svg>

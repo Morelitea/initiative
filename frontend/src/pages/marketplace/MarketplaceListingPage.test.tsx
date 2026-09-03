@@ -48,12 +48,12 @@ vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
 const appListing = () =>
   ({
     uid: "GLDCAL00000001",
-    public_id: "core.guild-calendar",
+    public_id: "core.community-calendar",
     kind: "app",
     source: "builtin",
-    name: "Guild calendar",
+    name: "Community calendar",
     publisher: "Initiative",
-    description: "The guild's own events.",
+    description: "The community's own events.",
     avatar_url: "/marketplace/cal.svg",
     images: [],
     installs_count: 0,
@@ -81,7 +81,7 @@ beforeEach(() => {
 describe("MarketplaceListingPage", () => {
   it("returns to the shelf it was opened from", async () => {
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
-    await screen.findByRole("heading", { name: "Guild calendar" });
+    await screen.findByRole("heading", { name: "Community calendar" });
     expect(backHref()).toContain("kind=app");
   });
 
@@ -99,7 +99,7 @@ describe("MarketplaceListingPage", () => {
     // Arrived without a shelf in the URL: the listing itself says which one it
     // belongs to.
     renderPage(MarketplaceListingPage);
-    await screen.findByRole("heading", { name: "Guild calendar" });
+    await screen.findByRole("heading", { name: "Community calendar" });
     expect(backHref()).toContain("kind=app");
   });
 
@@ -107,7 +107,7 @@ describe("MarketplaceListingPage", () => {
     // The same sentence the card showed, on the page where the decision is
     // actually made.
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
-    await screen.findByRole("heading", { name: "Guild calendar" });
+    await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.getByText("by Initiative")).toBeInTheDocument();
   });
 
@@ -118,13 +118,13 @@ describe("MarketplaceListingPage", () => {
       publisher: "Acme Widgets",
     } as unknown as MarketplaceListingDetail;
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
-    await screen.findByRole("heading", { name: "Guild calendar" });
+    await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.getByText("by Acme Widgets")).toBeInTheDocument();
   });
 
   it("offers no canvas preview for an app", async () => {
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
-    await screen.findByRole("heading", { name: "Guild calendar" });
+    await screen.findByRole("heading", { name: "Community calendar" });
     // An app mounts a tool; there is no definition to draw.
     expect(screen.queryByText("Preview")).toBeNull();
   });
@@ -133,10 +133,10 @@ describe("MarketplaceListingPage", () => {
     guildRole = "member";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
-    expect(await screen.findByText("Ask a guild admin to add this app.")).toBeInTheDocument();
+    expect(await screen.findByText("Ask a community admin to add this app.")).toBeInTheDocument();
     // The button is present but refuses, rather than being hidden: seeing what
     // the app offers is the point of letting them in here.
-    expect(screen.getByRole("button", { name: /Add to guild/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
   });
 
   it("says an app is already installed instead of offering it again", async () => {
@@ -144,16 +144,16 @@ describe("MarketplaceListingPage", () => {
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
     expect(await screen.findByText("Installed")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Add to guild/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add to community/ })).toBeNull();
   });
 
-  it("does not tell a member to ask for an app the guild already has", async () => {
+  it("does not tell a member to ask for an app the community already has", async () => {
     guildRole = "member";
     installedUids = ["GLDCAL00000001"];
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
     expect(await screen.findByText("Installed")).toBeInTheDocument();
-    expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask a community admin to add this app.")).toBeNull();
   });
 
   it("does not guess at installed state while it is still loading", async () => {
@@ -162,10 +162,10 @@ describe("MarketplaceListingPage", () => {
     installsState = "loading";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
-    await screen.findByRole("heading", { name: "Guild calendar" });
+    await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.queryByText("Installed")).toBeNull();
-    expect(screen.getByRole("button", { name: /Add to guild/ })).toBeDisabled();
-    expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
+    expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
+    expect(screen.queryByText("Ask a community admin to add this app.")).toBeNull();
   });
 
   it("says so when it could not check, rather than implying not installed", async () => {
@@ -178,7 +178,7 @@ describe("MarketplaceListingPage", () => {
     ).toBeInTheDocument();
     // The "go ask an admin" line asserts the guild does not have it, which is
     // exactly what failed to load.
-    expect(screen.queryByText("Ask a guild admin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask a community admin to add this app.")).toBeNull();
   });
 
   it("does not offer an admin an install it cannot rule out as a duplicate", async () => {
@@ -187,7 +187,7 @@ describe("MarketplaceListingPage", () => {
     installsState = "error";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
-    await screen.findByRole("heading", { name: "Guild calendar" });
-    expect(screen.getByRole("button", { name: /Add to guild/ })).toBeDisabled();
+    await screen.findByRole("heading", { name: "Community calendar" });
+    expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
   });
 });

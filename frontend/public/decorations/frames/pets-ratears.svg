@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Rat ears</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: two big round ears set high on the picture, cupped forward,
+       with the thin tail coming up the side. They swivel to what they heard. -->
+  <defs>
+    <radialGradient id="rtFur" cx=".38" cy=".3" r=".8">
+      <stop offset="0%" stop-color="#A79A8E"/><stop offset="60%" stop-color="#7E7268"/>
+      <stop offset="100%" stop-color="#544B44"/>
+    </radialGradient>
+    <radialGradient id="rtPinna" cx=".42" cy=".36" r=".75">
+      <stop offset="0%" stop-color="#F0BAC0"/><stop offset="70%" stop-color="#D794A0"/>
+      <stop offset="100%" stop-color="#A96B78"/>
+    </radialGradient>
+    <linearGradient id="rtTail" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#C79A9C"/><stop offset="100%" stop-color="#8E6A6C"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .rearL { animation: rtTurnL 6.8s ease-in-out infinite;
+             transform-box: view-box; transform-origin: 30px 33px }
+    .rearR { animation: rtTurnR 8.6s ease-in-out infinite;
+             transform-box: view-box; transform-origin: 98px 33px }
+    @keyframes rtTurnL { 0%, 70%, 100% { transform: rotate(0) }
+      75% { transform: rotate(-7deg) } 82% { transform: rotate(2deg) } }
+    @keyframes rtTurnR { 0%, 58%, 100% { transform: rotate(0) }
+      63% { transform: rotate(7deg) } 71% { transform: rotate(-2deg) } }
+    .rtail { animation: rtCurl 7.4s ease-in-out infinite alternate;
+             transform-box: view-box; transform-origin: 97px 121px }
+    @keyframes rtCurl { from { transform: rotate(-5deg) } to { transform: rotate(8deg) } }
+    @media (prefers-reduced-motion: reduce) { .rearL, .rearR, .rtail { animation: none } }
+  </style>
+
+  <g class="rtail">
+    <path d="M96.3 123.0 L97.8 122.7 L99.4 122.5 L100.9 122.1 L102.3 121.8 L103.7 121.3 L105.1 120.9 L106.4 120.3 L107.6 119.8 L108.8 119.2 L110.0 118.5 L111.1 117.8 L112.2 117.1 L113.2 116.4 L114.1 115.6 L115.0 114.7 L115.9 113.9 L116.7 113.0 L117.4 112.1 L118.1 111.2 L118.7 110.2 L119.3 109.2 L119.8 108.2 L120.3 107.2 L120.7 106.2 L121.0 105.1 L121.3 104.1 L121.5 103.0 L121.7 101.9 L121.8 100.8 L121.8 99.7 L121.8 98.6 L121.7 97.6 L121.6 96.5 L121.4 95.4 L121.2 94.3 L120.9 93.2 L120.5 92.2 L120.1 91.1 L119.6 90.1 L119.0 89.0 L118.4 88.0 L117.8 87.0 L117.0 86.0 L116.3 85.1 L115.4 84.1 L114.5 83.2 L113.5 82.3 L112.5 81.4 A0.8 0.8 0 0 1 111.5 82.6 L112.4 83.5 L113.2 84.4 L114.0 85.3 L114.8 86.2 L115.4 87.2 L116.0 88.1 L116.6 89.1 L117.0 90.0 L117.5 91.0 L117.8 92.0 L118.1 92.9 L118.4 93.9 L118.6 94.9 L118.7 95.8 L118.8 96.8 L118.9 97.7 L118.8 98.6 L118.8 99.6 L118.7 100.5 L118.5 101.4 L118.3 102.3 L118.0 103.1 L117.7 104.0 L117.3 104.8 L116.9 105.7 L116.5 106.5 L116.0 107.3 L115.5 108.0 L114.9 108.8 L114.3 109.5 L113.6 110.2 L112.9 110.8 L112.1 111.5 L111.3 112.1 L110.5 112.7 L109.6 113.2 L108.7 113.8 L107.7 114.3 L106.7 114.7 L105.6 115.1 L104.5 115.5 L103.4 115.9 L102.2 116.2 L101.0 116.4 L99.8 116.7 L98.5 116.8 L97.1 117.0 L95.7 117.0 Z" fill="url(#rtTail)"/>
+    <g fill="none" stroke="#6E5254" stroke-width=".5" opacity=".5">
+      <path d="M103 118.4 L103.6 122.6 M110 117.4 L110.4 121.6 M116 114.6 L117.2 118.4
+               M120.6 110 L122.6 113 M123.4 104 L126 105.6 M124.2 97.6 L126.6 98
+               M122.4 91.6 L124.6 90.6 M118.6 87 L120 85.4"/>
+    </g>
+  </g>
+
+  <g class="rearL">
+    <circle cx="30.4" cy="32.6" r="13.6" fill="url(#rtFur)"/>
+    <circle cx="31.8" cy="33.8" r="10.2" fill="url(#rtPinna)"/>
+    <path d="M23.6 40.6 C26.6 44.4 34.6 44.8 39.2 41.6 C36 45.6 26.4 45.6 23.6 40.6 Z"
+          fill="#3E3833" opacity=".35"/>
+    <path d="M22.4 25 C25.4 21.6 31.6 20.4 36.6 22.6" fill="none" stroke="#BDB1A4"
+          stroke-width="1.2" opacity=".55" stroke-linecap="round"/>
+  </g>
+  <g class="rearR"><g transform="translate(128 0) scale(-1 1)">
+    <circle cx="30.4" cy="32.6" r="13.6" fill="url(#rtFur)"/>
+    <circle cx="31.8" cy="33.8" r="10.2" fill="url(#rtPinna)"/>
+    <path d="M23.6 40.6 C26.6 44.4 34.6 44.8 39.2 41.6 C36 45.6 26.4 45.6 23.6 40.6 Z"
+          fill="#3E3833" opacity=".35"/>
+    <path d="M22.4 25 C25.4 21.6 31.6 20.4 36.6 22.6" fill="none" stroke="#BDB1A4"
+          stroke-width="1.2" opacity=".55" stroke-linecap="round"/>
+  </g></g>
+</svg>

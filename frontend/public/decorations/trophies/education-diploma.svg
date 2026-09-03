@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Diploma</title>
+  <circle cx="24" cy="24" r="23" fill="#16233A"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B84B" stroke-width="2"/>
+  <g transform="rotate(-12 24 24)">
+    <path d="M8 15 C8 12.4 9.8 11 12 11 L36 11 C38.2 11 40 12.4 40 15 L40 33
+             C40 35.6 38.2 37 36 37 L12 37 C9.8 37 8 35.6 8 33 Z" fill="#F4EEDD"/>
+    <path d="M8 15 C8 12.4 9.8 11 12 11 L14 11 C11.8 11 10 12.4 10 15 L10 33
+             C10 35.6 11.8 37 14 37 L12 37 C9.8 37 8 35.6 8 33 Z" fill="#D8CFB6"/>
+    <g stroke="#A89878" stroke-width="1" stroke-linecap="round">
+      <path d="M14 17.4 L34 17.4 M14 21 L34 21 M14 24.6 L30 24.6 M14 28.2 L34 28.2
+               M14 31.8 L26 31.8"/>
+    </g>
+    <path d="M36 11 C38.2 11 40 12.4 40 15 L40 33 C40 35.6 38.2 37 36 37
+             C38.2 35.6 38.4 33.4 38.4 24 C38.4 14.6 38.2 12.4 36 11 Z" fill="#E4DCC4"/>
+  </g>
+  <path d="M18 30 C22 27 26 27 30 30 L30 41 L24 36.6 L18 41 Z" fill="#C0392B"/>
+  <path d="M24 27.6 C27 27.6 29 28.6 30 30 L30 33 C28.4 31.4 26.4 30.6 24 30.6
+           C21.6 30.6 19.6 31.4 18 33 L18 30 C19 28.6 21 27.6 24 27.6 Z" fill="#8E2018"/>
+</svg>

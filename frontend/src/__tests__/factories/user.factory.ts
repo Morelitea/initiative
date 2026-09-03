@@ -1,5 +1,7 @@
 import type {
+  OwnedDecoration,
   UserGuildMember,
+  UserProfile,
   UserPublic,
   UserRead,
   UserRole,
@@ -99,6 +101,11 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     username: `user-${counter}`,
     discriminator: 1000 + counter,
     username_chosen: true,
+    // Answered, like the handle: a test that is not about the age gate should
+    // never meet it. The gate's own tests override these two.
+    age_confirmed_at: "2026-01-01T00:00:00Z",
+    age_confirmation_required: false,
+    age_below_minimum_at: null,
     full_name: `User ${counter}`,
     avatar_url: null,
     role: "member",
@@ -108,6 +115,8 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
+    custom_status: { emoji: null, text: null },
+    profile_decorations: { banner: null, frame: null, trophies: [] },
     week_starts_on: 0,
     timezone: "America/New_York",
     ...overrides,
@@ -122,13 +131,35 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
     discriminator: 1000 + counter,
     full_name: `User ${counter}`,
     avatar_url: null,
-    role: "member",
     guild_role: "member",
     oidc_managed: false,
     status: "active",
-    email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     initiative_roles: [],
     ...overrides,
   };
+}
+
+/** A member's profile, as the rest of their guild sees them. Bare by default —
+ *  no status and nothing worn — so a test that asserts on a decoration has to
+ *  have put it there. */
+export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {
+  counter++;
+  return {
+    id: counter,
+    username: `user-${counter}`,
+    discriminator: 1000 + counter,
+    avatar_url: null,
+    status: "active",
+    custom_status: { emoji: null, text: null },
+    profile_decorations: { banner: null, frame: null, trophies: [] },
+    presence: "offline",
+    joined_at: "2026-01-15T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/** One decoration in somebody's library. Shipped (no pack) by default. */
+export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
+  return { id: "core.aurora", kind: "banner", source: null, ...overrides };
 }

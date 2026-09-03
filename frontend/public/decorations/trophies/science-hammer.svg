@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Rock hammer</title>
+  <circle cx="24" cy="24" r="23" fill="#050914"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#123055" stroke-width="2"/>
+  <g transform="rotate(-32 24 24)">
+    <path d="M22 14 L26 14 L26 42 C26 43 25 43.6 24 43.6 C23 43.6 22 43 22 42 Z"
+          fill="#8A6034"/>
+    <g stroke="#6E4A24" stroke-width=".6">
+      <path d="M22.4 28 L25.6 28"/><path d="M22.4 32 L25.6 32"/><path d="M22.4 36 L25.6 36"/>
+    </g>
+    <path d="M10 10 L38 10 C39 10 39.6 10.6 39.6 11.6 L39.6 15.4 C39.6 16.4 39 17 38 17
+             L10 17 C9 17 8.4 16.4 8.4 15.4 L8.4 11.6 C8.4 10.6 9 10 10 10 Z" fill="#8A9098"/>
+    <path d="M10 10 L38 10 C39 10 39.6 10.6 39.6 11.6 L8.4 11.6 C8.4 10.6 9 10 10 10 Z"
+          fill="#C4CAD2"/>
+    <path d="M39.6 12 L45.4 13 L45.4 14.6 L39.6 15.4 Z" fill="#6E747C"/>
+    <path d="M8.4 12 L2.6 11 L2.6 16 L8.4 15.4 Z" fill="#6E747C"/>
+  </g>
+  <g fill="#8FC7EE" opacity=".5">
+    <circle cx="12" cy="36" r="1.4"/><circle cx="16" cy="39" r="1"/>
+  </g></svg>

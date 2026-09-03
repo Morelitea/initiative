@@ -1,7 +1,7 @@
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import String, cast, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
@@ -31,15 +31,16 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskAssignee
-from app.core import usernames
 from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
     InitiativeDirectoryEntry,
     InitiativeJoinRequestCreate,
     InitiativeJoinRequestRead,
+    InitiativeListScope,
     InitiativeMemberAdd,
     InitiativeMemberUpdate,
     InitiativeRead,
@@ -58,6 +59,7 @@ from app.schemas.platform.user import (
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
@@ -70,6 +72,12 @@ GuildAdminContext = Annotated[
 ]
 
 router = APIRouter()
+
+
+def _reaches_whole_guild(guild_context: GuildContext) -> bool:
+    """Whether this request reads every initiative in the guild without holding
+    a membership row: a guild admin, or a live PAM / break-glass grantee."""
+    return guild_context.is_pam or rls_service.is_guild_admin(guild_context.role)
 
 
 async def _get_initiative_or_404(
@@ -148,23 +156,23 @@ async def _guard_guild_admin_role(
     guild_id: int,
     target_user_id: int,
     role: InitiativeRoleModel | None,
-    guild_membership: GuildMembership | None = None,
 ) -> None:
     """Restrict which initiative roles a guild admin may be assigned.
 
     A guild admin already has complete access to every initiative in their
-    guild (see ``role_context.is_request_guild_admin``), so they are implicit
-    full-access members. They may *additionally* hold a manager role — purely
-    for manager-style features like notifications — but must never be assigned a
-    standard member or custom role. This keeps the admin's standing access
-    distinct from per-initiative DAC and is enforced server-side for safety.
+    guild (see ``role_context.is_request_guild_admin``), so their membership
+    row carries a manager role — purely for manager-style features like
+    notifications — and never a standard member or custom one. Every route that
+    *creates* a row settles that itself
+    (:func:`initiatives_service.resolve_membership_role`); this is the backstop
+    for the one route that only ever changes an existing role, where silently
+    substituting would answer a question nobody asked.
     """
     if role is not None and role.is_manager:
         return  # manager role is the one allowed elevation for an admin
-    membership = guild_membership or await guilds_service.get_membership(
+    if await initiatives_service.is_guild_admin_member(
         session, guild_id=guild_id, user_id=target_user_id
-    )
-    if membership and membership.role == GuildRole.admin:
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.GUILD_ADMIN_ROLE_RESTRICTED,
@@ -198,17 +206,45 @@ async def list_initiatives(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    scope: Annotated[InitiativeListScope, Query()] = InitiativeListScope.member,
 ) -> List[InitiativeRead]:
+    """The initiatives the caller belongs to, or — for a guild admin asking for
+    ``scope=guild`` — every initiative in the guild.
+
+    The default is the caller's own workspace: what the sidebar and the
+    initiative pickers show. A guild admin's authority over their whole guild is
+    unchanged; it simply no longer decides what appears in their navigation.
+    They bring an initiative into it by taking the project manager role from the
+    guild-settings initiative table, which is also what ``scope=guild`` feeds.
+    """
+    if scope is InitiativeListScope.guild and not rls_service.is_guild_admin(
+        guild_context.role
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+        )
+
     # `initiatives` is a structural table (not initiative-RLS-gated), so scope it
-    # in the query with the ONE access rule — initiative_scope_clause defers to
-    # public.initiative_access (admin OR PAM OR member, from the request GUCs),
-    # the same predicate the content-table RLS uses — instead of re-deriving the
-    # admin/PAM/member split here.
+    # in the query. The guild-wide listing uses the ONE access rule —
+    # initiative_scope_clause defers to public.initiative_access (admin OR PAM OR
+    # member, from the request GUCs), the same predicate the content-table RLS
+    # uses. A time-bound grantee holds no memberships in the guild, so their
+    # session stays on that predicate too: the grant is what they navigate by.
+    if scope is InitiativeListScope.guild or guild_context.is_pam:
+        scope_clause = initiative_scope_clause(current_user.id, Initiative.id)
+    else:
+        scope_clause = Initiative.id.in_(
+            select(InitiativeMember.initiative_id).where(
+                InitiativeMember.user_id == current_user.id
+            )
+        )
+
     statement = (
         select(Initiative)
         .where(
             Initiative.guild_id == guild_context.guild_id,
-            initiative_scope_clause(current_user.id, Initiative.id),
+            scope_clause,
         )
         .options(
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
@@ -233,8 +269,10 @@ async def list_initiative_directory(
     Open to every guild member — it lists only what each initiative published
     about itself (name, description, colour, roster size), never its content.
     Initiatives whose policy is ``private`` are listed only to their own
-    members — and to guild admins, whose standing already reaches every
-    initiative in the guild.
+    members, guild admins included: an admin's authority over the guild is
+    unchanged, but the front page shows what they are in and what is on offer,
+    read the same way for everyone. ``/initiatives/?scope=guild`` is the
+    whole-guild listing, and guild settings is where it is managed.
 
     Declared before ``/{initiative_id}`` so the literal path wins the match.
     """
@@ -242,7 +280,7 @@ async def list_initiative_directory(
         session,
         guild_id=guild_context.guild_id,
         user_id=current_user.id,
-        include_unlisted=rls_service.is_guild_admin(guild_context.role),
+        is_guild_admin=rls_service.is_guild_admin(guild_context.role),
     )
 
 
@@ -258,6 +296,11 @@ async def join_initiative(
     Idempotent: already being a member is a success, not a conflict. Any other
     join policy answers 403 — the same answer for ``private`` and ``request``,
     so it says only "not by this route".
+
+    A guild admin walks in whatever the policy says, and on the manager role:
+    the queue exists to exercise an authority they already hold, and staffing
+    themselves onto an initiative is how they bring it into their own
+    navigation. It is the same act as ticking themselves in guild settings.
     """
     # A scoped grantee reaches this guild for a window; the membership row this
     # would create has no end date, so joining is for real guild members.
@@ -270,7 +313,9 @@ async def join_initiative(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    if not initiatives_service.is_self_joinable(initiative):
+    if not initiatives_service.is_self_joinable(
+        initiative
+    ) and not rls_service.is_guild_admin(guild_context.role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.NOT_JOINABLE,
@@ -359,22 +404,10 @@ async def _resolve_join_request(
     request = await _load_pending_join_request(
         session, request_id=request_id, initiative_id=initiative_id
     )
-    requester = (
-        await session.exec(select(User).where(User.id == request.user_id))
-    ).one_or_none()
+    requester = await accounts_service.load_one(request.user_id)
     if requester is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    if approved:
-        # A guild admin is an implicit full-access member and must never hold a
-        # standard member role; if the requester was promoted while the request
-        # sat in the queue, say so rather than writing the row.
-        await _guard_guild_admin_role(
-            session,
-            guild_id=initiative.guild_id,
-            target_user_id=request.user_id,
-            role=None,
         )
     try:
         await initiatives_service.resolve_join_request(
@@ -445,9 +478,9 @@ async def create_join_request(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.NOT_REQUESTABLE,
         )
-    # A guild admin already reaches every initiative in their guild, so there is
-    # nothing here to ask for — and the membership row an approval would write
-    # is one they must never hold (see ``_guard_guild_admin_role``).
+    # A guild admin holds the authority this queue exercises, so they walk in
+    # (``POST /join``, which takes them whatever the policy says) rather than
+    # knocking and waiting for a member to answer.
     if rls_service.is_guild_admin(guild_context.role):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -477,12 +510,10 @@ async def create_join_request(
         session, initiative_id=initiative_id
     )
     if manager_ids:
-        managers = (
-            await session.exec(select(User).where(User.id.in_(tuple(manager_ids))))
-        ).all()
+        managers = await accounts_service.load_all(list(manager_ids))
         await notifications_service.notify_initiative_join_requested(
             session,
-            list(managers),
+            managers,
             request_id=request_id,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
@@ -646,8 +677,10 @@ async def get_initiative(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
         )
-    # Check access: must be guild admin or initiative member
-    if not rls_service.is_guild_admin(guild_context.role):
+    # Reachable by an initiative member, by a guild admin (the same override the
+    # RLS admin leg grants), and by a PAM / break-glass grantee — who holds no
+    # membership row in this guild and reads it through the grant for its window.
+    if not _reaches_whole_guild(guild_context):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(
@@ -841,8 +874,8 @@ async def list_initiative_roles(
         initiative_id, session, guild_context.guild_id
     )
 
-    # Check access: must be guild admin or initiative member
-    if not rls_service.is_guild_admin(guild_context.role):
+    # Same readership as the initiative itself: member, guild admin, or grantee.
+    if not _reaches_whole_guild(guild_context):
         is_member = any(m.user_id == current_user.id for m in initiative.memberships)
         if not is_member:
             raise HTTPException(
@@ -1163,7 +1196,7 @@ async def get_initiative_members(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> Sequence[User]:
+) -> Sequence[MemberProfile]:
     """Get all members of an initiative."""
     await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
@@ -1192,13 +1225,13 @@ async def get_initiative_members(
 
     # Get all initiative members
     stmt = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(
             InitiativeMember.initiative_id == initiative_id,
             users_service.visible_to_other_people(),
         )
-        .order_by(User.username, User.discriminator, User.id)
+        .order_by(MemberProfile.username, MemberProfile.discriminator, MemberProfile.id)
     )
     result = await session.exec(stmt)
     return result.all()
@@ -1247,35 +1280,27 @@ async def search_initiative_members(
         )
 
     base = (
-        select(User)
-        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        select(MemberProfile)
+        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
         .where(
             InitiativeMember.initiative_id == initiative_id,
             users_service.visible_to_other_people(),
         )
     )
     shows_names = bool(guild_context.guild.show_member_names)
+    closest = None
     if search and (term := search.strip()):
-        # Matches what this guild renders. A substring filter over a field the
-        # guild does not show would be that field, read one query at a time.
-        name_part, number = usernames.parse_handle(term)
-        if number is not None:
-            base = base.where(
-                func.lower(User.username) == name_part.lower(),
-                func.lpad(cast(User.discriminator, String), 4, "0").like(f"{number}%"),
-            )
-        else:
-            matches = User.username.ilike(f"%{name_part}%")
-            if shows_names:
-                matches = or_(matches, User.full_name.ilike(f"%{name_part}%"))
-            base = base.where(matches)
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        base = base.where(matches)
     if user_id:
-        base = base.where(User.id.in_(user_id))
+        base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    order = (User.full_name.asc(),) if shows_names else ()
     data_stmt = base.order_by(
-        *order, User.username.asc(), User.discriminator.asc(), User.id.asc()
+        *users_service.member_order(closest, shows_names=shows_names),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
     )
 
     users, total_count, actual_page = await paginated_query(
@@ -1304,7 +1329,12 @@ async def add_initiative_member(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> InitiativeRead:
-    """Add a member to an initiative or update their role."""
+    """Add a member to an initiative or update their role.
+
+    Any project manager may bring in any member of the guild, guild admins
+    included — an admin simply lands on the manager role their standing already
+    implies, whatever role the invite named.
+    """
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
@@ -1315,7 +1345,9 @@ async def add_initiative_member(
         guild_role=guild_context.role,
     )
 
-    user_stmt = await session.exec(select(User).where(User.id == payload.user_id))
+    user_stmt = await session.exec(
+        select(MemberProfile).where(MemberProfile.id == payload.user_id)
+    )
     user = user_stmt.one_or_none()
     if not user:
         raise HTTPException(
@@ -1332,38 +1364,34 @@ async def add_initiative_member(
             detail=InitiativeMessages.USER_NOT_IN_GUILD,
         )
 
-    # Get the role to assign (default to member role if not specified)
-    role_id = payload.role_id
-    if role_id is None:
-        resolved_role = await initiatives_service.get_member_role(
-            session, initiative_id=initiative_id
-        )
-        if not resolved_role:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
-            )
-        role_id = resolved_role.id
-    else:
+    requested_role = None
+    if payload.role_id is not None:
         # Verify role exists and belongs to this initiative
-        resolved_role = await initiatives_service.get_role_by_id(
-            session, role_id=role_id, initiative_id=initiative_id
+        requested_role = await initiatives_service.get_role_by_id(
+            session, role_id=payload.role_id, initiative_id=initiative_id
         )
-        if not resolved_role:
+        if not requested_role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=InitiativeMessages.ROLE_NOT_FOUND,
             )
 
-    # Guild admins are implicit full-access members; they may only be elevated
-    # to a manager role, never assigned a standard member or custom role.
-    await _guard_guild_admin_role(
+    # The role the row actually takes: what was asked for, the built-in member
+    # role when nothing was, or the manager role for a guild admin — whose
+    # standing already reaches the initiative. Settling it here is what lets a
+    # project manager invite an admin without knowing they are one.
+    resolved_role = await initiatives_service.resolve_membership_role(
         session,
-        guild_id=initiative.guild_id,
-        target_user_id=payload.user_id,
-        role=resolved_role,
-        guild_membership=guild_membership,
+        initiative=initiative,
+        user_id=payload.user_id,
+        requested=requested_role,
     )
+    if not resolved_role:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=InitiativeMessages.MEMBER_ROLE_NOT_FOUND,
+        )
+    role_id = resolved_role.id
 
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
@@ -1407,10 +1435,10 @@ async def add_initiative_member(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    if created:
+    if created and (recipient := await accounts_service.load_one(user.id)):
         await notifications_service.notify_initiative_membership(
             session,
-            user,
+            recipient,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
             guild_id=initiative.guild_id,

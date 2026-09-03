@@ -160,6 +160,12 @@ class Settings(BaseSettings):
         str  # Non-superuser connection for RLS-enforced queries (required)
     )
     DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
+    # Where to hold the realtime signal channel's own connection. ``LISTEN`` is
+    # session state and so wants a connection of its own, apart from the pooled
+    # engines above. Unset (the common case) it uses ``DATABASE_URL``; set it
+    # where the app reaches Postgres through something that pools per
+    # transaction, which cannot hold a subscription open.
+    DATABASE_URL_LISTEN: str | None = None
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption

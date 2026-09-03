@@ -333,23 +333,29 @@ async def test_list_projects_search_filters_by_name(
 
 
 @pytest.mark.integration
-async def test_list_projects_search_treats_wildcards_literally(
+async def test_list_projects_search_with_no_searchable_term_matches_nothing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A LIKE metacharacter in ``search`` matches itself, not any character."""
+    """Punctuation is not a word, so there is nothing for it to match.
+
+    Searching is indexed now, and an index holds words. A bare ``%`` used to be
+    matched literally as a substring; it now matches nothing — which reads
+    better than the unfiltered list, where the filter looks ignored.
+    """
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    percent = await create_project(
-        session, admin.initiative, admin.user, name="50% done"
-    )
+    await create_project(session, admin.initiative, admin.user, name="50% done")
     await create_project(session, admin.initiative, admin.user, name="Beta")
 
     response = await client.get(admin.g("/projects/?search=%25"), headers=admin.headers)
 
     assert response.status_code == 200
-    names = {p["name"] for p in response.json()["items"]}
-    # "%" is literal: only the project whose name contains it matches.
-    assert names == {"50% done"}
-    assert response.json()["items"][0]["id"] == percent.id
+    assert response.json()["items"] == []
+
+    # The words around it are what finds it.
+    response = await client.get(
+        admin.g("/projects/?search=done"), headers=admin.headers
+    )
+    assert {p["name"] for p in response.json()["items"]} == {"50% done"}
 
 
 @pytest.mark.integration
@@ -1681,13 +1687,14 @@ async def test_project_counts_by_initiative(
     )
     await create_project(session, other_initiative, admin.user, name="Other project")
 
-    # Guild admin: every non-archived, non-template project, grouped.
+    # Guild admin: the counts span initiatives, so they count what reaches
+    # the reader — the admin's own project in each, not the member's beside it.
     response = await client.get(
         admin.g("/projects/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
     assert response.json()["counts"] == {
-        str(admin.initiative.id): 2,
+        str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
 

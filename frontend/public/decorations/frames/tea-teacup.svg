@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Cup of tea</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring. The cup stands in front of the picture from the lip down, so
+       whoever wears it is sitting in it. The steam goes up past the edges,
+       which is the part of a picture nobody's face is in. -->
+  <defs>
+    <linearGradient id="tcChina" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0%" stop-color="#FBF7EE"/>
+      <stop offset="46%" stop-color="#E7DFCD"/>
+      <stop offset="100%" stop-color="#A6997E"/>
+    </linearGradient>
+    <linearGradient id="tcSaucer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F4EEE0"/><stop offset="100%" stop-color="#B0A489"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .wisp { animation: tcRise 7s ease-in-out infinite; transform-box: view-box; }
+    .w2 { animation-delay: -1.8s } .w3 { animation-delay: -3.5s } .w4 { animation-delay: -5.2s }
+    @keyframes tcRise {
+      0%, 100% { opacity: .12; transform: translate(0, 4px) }
+      50%      { opacity: .5;  transform: translate(-1.5px, -4px) }
+    }
+    @media (prefers-reduced-motion: reduce) { .wisp { animation: none; opacity: .34 } }
+  </style>
+
+  <g fill="none" stroke="#FFFCF4" stroke-width="1.9" stroke-linecap="round">
+    <path class="wisp"    d="M19 72 C13 63 21 55 16 46"/>
+    <path class="wisp w2" d="M29 76 C24 67 30 59 26 51"/>
+    <path class="wisp w3" d="M109 72 C115 63 107 55 112 46"/>
+    <path class="wisp w4" d="M99 76 C104 67 98 59 102 51"/>
+  </g>
+
+  <ellipse cx="64" cy="123" rx="50" ry="6.4" fill="#95886F"/>
+  <ellipse cx="64" cy="121.4" rx="50" ry="6.4" fill="url(#tcSaucer)"/>
+  <ellipse cx="64" cy="121" rx="27" ry="3.2" fill="#CFC5AE"/>
+
+  <g fill="none" stroke-linecap="round">
+    <path d="M14 76 C4 76 1.5 86 4 94 C7 102 14 105 22 103" stroke="#A6997E" stroke-width="8.6"/>
+    <path d="M14 76 C4 76 1.5 86 4 94 C7 102 14 105 22 103" stroke="#EDE5D3" stroke-width="6"/>
+    <path d="M13 78 C6 79 4 86 5.2 93" stroke="#FDFAF3" stroke-width="1.5" opacity=".85"/>
+  </g>
+
+  <path d="M12 70 C12 74.7 35.3 78.5 64 78.5 C92.7 78.5 116 74.7 116 70
+           C115 94 106 110 86 116 L42 116 C22 110 13 94 12 70 Z"
+        fill="url(#tcChina)"/>
+  <ellipse cx="64" cy="116" rx="22" ry="3.4" fill="#9C8F76" opacity=".55"/>
+  <path d="M19 80 C21 95 28 106 40 112" fill="none" stroke="#FFFFFF" stroke-width="2.6"
+        opacity=".34" stroke-linecap="round"/>
+  <path d="M13.2 81 C13.2 85.7 37 90 64 90 C91 90 114.8 85.7 114.8 81" fill="none"
+        stroke="#8A6034" stroke-width="1.1" opacity=".45"/>
+  <path d="M12 70 C12 74.7 35.3 78.5 64 78.5 C92.7 78.5 116 74.7 116 70" fill="none"
+        stroke="#FBF7EE" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M12 70 C12 74.7 35.3 78.5 64 78.5 C92.7 78.5 116 74.7 116 70" fill="none"
+        stroke="#C9A227" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

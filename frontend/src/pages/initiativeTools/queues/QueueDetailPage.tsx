@@ -352,12 +352,7 @@ export function QueueDetailPage() {
         )}
       </div>
 
-      <ToolCommentsPanel
-        entityType={Tool.queue}
-        entityId={queue.id}
-        initiativeId={queue.initiative_id ?? 0}
-        canModerate={canEdit}
-      />
+      <ToolCommentsPanel tool={Tool.queue} entity={queue} canModerate={canEdit} />
 
       {/* Add Item Dialog */}
       <AddQueueItemDialog

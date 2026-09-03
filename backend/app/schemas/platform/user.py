@@ -1,13 +1,33 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, computed_field, model_validator
+from pydantic import (
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
 
 from app.core.capabilities import Capability, capabilities_for
+from app.core.emoji import validate_emoji
+from app.core.profile_decorations import (
+    DATED_DECORATIONS,
+    MAX_FRAME_TINTS,
+    MIN_GRAD_YEAR,
+    TINTABLE_FRAMES,
+    TROPHY,
+    BANNER,
+    FRAME,
+    max_grad_year,
+    validate_decoration_id,
+    validate_tint,
+)
 from app.core.role_context import guild_shows_member_names
-from app.models.platform.user import UserRole, UserStatus
+from app.models.platform.user import Presence, UserRole, UserStatus
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
@@ -71,7 +91,7 @@ class UserCreate(SanitizedBaseModel):
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
-    full_name: Optional[str] = None
+    full_name: Optional[TitleStr] = None
     # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
@@ -116,15 +136,14 @@ class UserGuildMember(UserPublic):
 
     Carries the membership facts a guild admin manages — guild role, whether
     the membership is OIDC-managed, when the account joined — and none of the
-    account's own: no address, and a name only where the guild shows names. Two
+    account's own: no address, no platform tier, no word on whether the address
+    was ever confirmed, and a name only where the guild shows names. Two
     members are told apart by their handle, which is unique.
     """
 
-    role: UserRole  # Platform role
     guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
     status: UserStatus
-    email_verified: bool
     created_at: datetime
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
@@ -163,6 +182,251 @@ class UserSummaryListResponse(SanitizedBaseModel):
     has_prev: bool
 
 
+#: How long the line beside the emoji may run. Short on purpose: the bubble is
+#: read in a sidebar column and over a picture, so a status is a line, not a
+#: paragraph. Mirrored by the CHECK constraint in migration 20260902_0212 and
+#: by ``STATUS_MAX_LENGTH`` in ``frontend/src/components/user/ProfileStatus``.
+STATUS_TEXT_MAX_LENGTH = 40
+
+
+class CustomStatus(SanitizedBaseModel):
+    """What a person is up to, in their own words.
+
+    One object, stored in one column, because it is one thing a person sets
+    and one thing every surface that names them renders: splitting it in two
+    would mean two reads and two writes for a single line of text.
+
+    Not to be confused with ``UserStatus`` (``users.status``), which is the
+    account's standing — suspended, deactivated — and is not the person's to
+    write.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", json_schema_serialization_defaults_required=True
+    )
+
+    emoji: Optional[str] = None
+    text: Optional[str] = Field(default=None, max_length=STATUS_TEXT_MAX_LENGTH)
+
+    @field_validator("emoji")
+    @classmethod
+    def _check_emoji(cls, value: Optional[str]) -> Optional[str]:
+        """Hold the status emoji to the same shape a reaction's is held to.
+
+        An empty string means "take it off", which is how a picker sends a
+        cleared selection.
+        """
+        if value is None or not value.strip():
+            return None
+        return validate_emoji(value)
+
+    @field_validator("text")
+    @classmethod
+    def _blank_is_none(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else (value.strip() or None)
+
+
+#: How many trophies one profile may wear. A rendering bound — a row of them
+#: under a banner, not a wall.
+MAX_PROFILE_TROPHIES = 6
+
+
+class ProfileDecorations(SanitizedBaseModel):
+    """How a profile is dressed: a banner, a frame, trophies under it.
+
+    Every value is an **id naming a catalog entry**, never an image. The client
+    resolves an id to artwork it already ships, so a decorated profile takes up
+    none of a guild's upload allowance. An id this deployment's catalog doesn't
+    know simply renders nothing, which is what lets a profile keep wearing
+    something the store stopped offering.
+
+    ``extra="forbid"``: the set of things a profile can wear is this list, and
+    a client sending a key that isn't here is told so rather than having it
+    quietly stored and never rendered.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", json_schema_serialization_defaults_required=True
+    )
+
+    banner: Optional[str] = None
+    frame: Optional[str] = None
+    #: The colours the wearer picked for a frame that takes them. Kept beside
+    #: the frame rather than folded into its id, because the id names a catalog
+    #: entry and a colour is not part of what was granted. Ignored — and
+    #: dropped on write — for any frame that is not tintable.
+    frame_tint: List[str] = Field(default_factory=list, max_length=MAX_FRAME_TINTS)
+    trophies: List[str] = Field(default_factory=list, max_length=MAX_PROFILE_TROPHIES)
+    #: The year on a decoration that carries one. Kept beside them for the same
+    #: reason a tint is kept beside its frame: the id names what was granted,
+    #: and the year is the wearer's. The client draws it. Ignored — and dropped
+    #: on write — unless something worn takes a year.
+    grad_year: Optional[int] = None
+
+    @field_validator("banner", "frame")
+    @classmethod
+    def _check_single(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else validate_decoration_id(value)
+
+    @field_validator("frame_tint")
+    @classmethod
+    def _check_tints(cls, value: List[str]) -> List[str]:
+        return [validate_tint(colour) for colour in value]
+
+    @model_validator(mode="after")
+    def _tint_only_what_takes_it(self) -> "ProfileDecorations":
+        """Keep the stored colours honest about the frame they are for.
+
+        A colour on a frame that cannot take one would be state nothing reads
+        and nothing clears — so it is dropped here, and a frame that takes one
+        colour never keeps two.
+        """
+        takes = TINTABLE_FRAMES.get(self.frame or "", 0)
+        if len(self.frame_tint) > takes:
+            object.__setattr__(self, "frame_tint", self.frame_tint[:takes])
+        return self
+
+    @field_validator("grad_year")
+    @classmethod
+    def _check_grad_year(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        if not MIN_GRAD_YEAR <= value <= max_grad_year():
+            raise ValueError(
+                f"Year must be between {MIN_GRAD_YEAR} and {max_grad_year()}"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _year_only_what_takes_it(self) -> "ProfileDecorations":
+        """Drop a year nothing worn would draw, the way a stray tint is dropped."""
+        if self.grad_year is None:
+            return self
+        worn = {self.banner, self.frame, *self.trophies}
+        if not (worn & DATED_DECORATIONS):
+            object.__setattr__(self, "grad_year", None)
+        return self
+
+    @field_validator("trophies")
+    @classmethod
+    def _check_trophies(cls, value: List[str]) -> List[str]:
+        seen: List[str] = []
+        for trophy in value:
+            identifier = validate_decoration_id(trophy)
+            # Wearing the same one twice is a duplicate, not a second trophy.
+            if identifier not in seen:
+                seen.append(identifier)
+        return seen
+
+    def worn(self) -> List[tuple[str, str]]:
+        """``(id, slot)`` for everything this profile is wearing.
+
+        The one place a slot is paired with its id, so the check against a
+        person's library and the shape they wrote it in cannot disagree about
+        which is which.
+        """
+        pairs: List[tuple[str, str]] = []
+        if self.banner:
+            pairs.append((self.banner, BANNER))
+        if self.frame:
+            pairs.append((self.frame, FRAME))
+        pairs.extend((trophy, TROPHY) for trophy in self.trophies)
+        return pairs
+
+
+class OwnedDecoration(SanitizedBaseModel):
+    """One decoration an account may wear, and where it came from.
+
+    ``source`` names the marketplace pack that granted it, and is ``None`` for
+    the ones that ship with the app. The client renders a picker per slot from
+    these, drawing each id with the artwork it has for it and skipping the ones
+    it doesn't.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: str
+    kind: str
+    #: What its publisher called it. Absent for the set that ships with the
+    #: app, whose names are translated in the client.
+    name: Optional[str] = None
+    #: The listing uid of the pack that granted it, or ``None`` for the set
+    #: that ships with the app.
+    source: Optional[str] = None
+
+
+class DecorationPack(SanitizedBaseModel):
+    """One installable set of decorations, and whether this account has it.
+
+    A marketplace listing, so the words are the listing's — its publisher named
+    it, and nobody else can. ``uid`` is the identity: it means this pack on
+    every deployment carrying the catalog, and it is what a granted row records.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    uid: str
+    public_id: str
+    name: str
+    publisher: str
+    description: str
+    #: Artwork for the pack itself, from the listing.
+    avatar_url: Optional[str] = None
+    contents: List[OwnedDecoration]
+    installed: bool = False
+
+
+class DecorationPackListResponse(SanitizedBaseModel):
+    """Every pack this build ships. Small and read all at once — the store is
+    one page."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[DecorationPack]
+
+
+class OwnedDecorationsResponse(SanitizedBaseModel):
+    """A person's whole library, in one read — it is small and it is all
+    needed at once, because the profile form renders every slot together."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[OwnedDecoration]
+
+
+class UserProfile(SanitizedBaseModel):
+    """A person, as anyone can see them.
+
+    A profile is public. It carries the handle — which is the name in this
+    product, unique and never withheld — the face, the line they wrote, the
+    look they picked, how they appear right now, and when they joined. It never
+    carries a real name: ``full_name`` is a guild's business (a guild decides
+    whether it renders names at all), and this shape has no guild in it.
+
+    Nothing here is private to a guild, so nothing here is reached through
+    one. What it does not carry is the whole point of it being its own shape:
+    no address, no roles, no memberships, no preferences.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    username: str
+    discriminator: int
+    avatar_url: Optional[str] = None
+    status: UserStatus = UserStatus.active
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+    #: How this person appears right now — the account, not a guild. What they
+    #: picked, narrowed by whether they have anything open; set by the endpoint
+    #: from the one roll that decides it.
+    presence: Presence = Presence.offline
+    #: When the account was made.
+    joined_at: datetime
+
+
 class UserRead(UserBase):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -174,11 +438,33 @@ class UserRead(UserBase):
     # Whether this account picked its handle. False routes the SPA to the
     # choose-your-handle screen before anything else.
     username_chosen: bool = False
+    #: When this account said it belongs to somebody 13 or older, ``None``
+    #: where it never has. Read by the directory's Join button, which asks
+    #: before it joins rather than letting the server refuse.
+    age_confirmed_at: Optional[datetime] = None
+    #: When this account answered the age question as under the minimum,
+    #: ``None`` where it has not. Turns the confirmation screen from a form
+    #: into an explanation: the answer stands, and putting it right is
+    #: somebody else's to do.
+    age_below_minimum_at: Optional[datetime] = None
+    #: Whether it must say so before it can carry on. True only for an account
+    #: that is already in a listed guild without having confirmed — every other
+    #: way in leaves the membership standing and lands here. False routes
+    #: nowhere; true blocks the app on the confirmation screen, the way
+    #: ``username_chosen`` false routes to the handle screen. Populated by the
+    #: self endpoints (``/users/me`` and ``PATCH /users/me``), which is where
+    #: the SPA reads its own account; defaults false elsewhere.
+    age_confirmation_required: bool = False
     status: UserStatus
     email_verified: bool
     created_at: datetime
     updated_at: datetime
     avatar_url: Optional[str] = None
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
+    #: What this account picked, not what a reader would be shown: on your own
+    #: record this is the setting itself, and the control that writes it.
+    presence: Presence = Presence.online
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     week_starts_on: int = 0
     recent_tabs_limit: int = 20
     timezone: str = "UTC"
@@ -188,11 +474,13 @@ class UserRead(UserBase):
     email_project_added: bool = True
     email_overdue_tasks: bool = True
     email_mentions: bool = True
+    email_comment_reactions: bool = True
     push_initiative_addition: bool = True
     push_task_assignment: bool = True
     push_project_added: bool = True
     push_overdue_tasks: bool = True
     push_mentions: bool = True
+    push_comment_reactions: bool = True
     email_events: bool = True
     push_events: bool = True
     email_event_reminders: bool = True
@@ -242,6 +530,24 @@ class UsernameClaim(SanitizedBaseModel):
     username: str = Field(max_length=64)
 
 
+class AgeConfirmation(SanitizedBaseModel):
+    """Someone saying when they were born, once.
+
+    The date answers one question — are they old enough — and is then gone. It
+    is never written to a column, never logged, and never put in an audit
+    record; there is nowhere in the schema it could be kept. What the account
+    keeps is that the question was answered and when
+    (``users.age_confirmed_at``), which is what a deployment needs to show it
+    asked.
+
+    Asking for a date rather than offering a box to tick is the difference
+    between a question and a formality: a box says what the answer should be
+    before it is given.
+    """
+
+    birthdate: date
+
+
 class UserInitiativeRole(SanitizedBaseModel):
     initiative_id: int
     initiative_name: str
@@ -250,12 +556,18 @@ class UserInitiativeRole(SanitizedBaseModel):
 
 
 class UserSelfUpdate(SanitizedBaseModel):
-    full_name: Optional[str] = None
+    full_name: Optional[TitleStr] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
     avatar_url: Optional[str] = None
+    # Sending ``null`` takes the status off; leaving it out leaves it alone.
+    custom_status: Optional[CustomStatus] = None
+    presence: Optional[Presence] = None
+    # The whole set at once rather than one key at a time: a profile wears a
+    # look, and a partial write would have no way to say "take the frame off".
+    profile_decorations: Optional[ProfileDecorations] = None
     week_starts_on: Optional[int] = None
     recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
@@ -265,11 +577,13 @@ class UserSelfUpdate(SanitizedBaseModel):
     email_project_added: Optional[bool] = None
     email_overdue_tasks: Optional[bool] = None
     email_mentions: Optional[bool] = None
+    email_comment_reactions: Optional[bool] = None
     push_initiative_addition: Optional[bool] = None
     push_task_assignment: Optional[bool] = None
     push_project_added: Optional[bool] = None
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
+    push_comment_reactions: Optional[bool] = None
     email_events: Optional[bool] = None
     push_events: Optional[bool] = None
     email_event_reminders: Optional[bool] = None

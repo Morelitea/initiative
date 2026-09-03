@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Notebook</title>
+  <circle cx="24" cy="24" r="23" fill="#2C1D0F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#6B4526" stroke-width="2"/>
+  <path d="M12 7 L36 7 C37.2 7 38 7.8 38 9 L38 39 C38 40.2 37.2 41 36 41
+           L12 41 C10.8 41 10 40.2 10 39 L10 9 C10 7.8 10.8 7 12 7 Z" fill="#2F5C6E"/>
+  <path d="M14 7 L36 7 C37.2 7 38 7.8 38 9 L38 39 C38 40.2 37.2 41 36 41
+           L14 41 Z" fill="#F2EDE0"/>
+  <g stroke="#C4BCA6" stroke-width=".7">
+    <path d="M18 14 L34 14"/><path d="M18 18 L34 18"/><path d="M18 22 L34 22"/>
+    <path d="M18 26 L34 26"/><path d="M18 30 L31 30"/>
+  </g>
+  <path d="M18 10 L18 41" stroke="#E0A0A8" stroke-width=".8"/>
+  <g fill="#8A857E">
+    <rect x="9" y="10" width="6" height="2" rx="1"/><rect x="9" y="16" width="6" height="2" rx="1"/>
+    <rect x="9" y="22" width="6" height="2" rx="1"/><rect x="9" y="28" width="6" height="2" rx="1"/>
+    <rect x="9" y="34" width="6" height="2" rx="1"/>
+  </g>
+  <path d="M30 6 L33.4 6 L33.4 20 L31.7 17.6 L30 20 Z" fill="#C4302B"/></svg>

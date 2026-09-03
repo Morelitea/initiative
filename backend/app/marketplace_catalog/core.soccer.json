@@ -1,0 +1,139 @@
+{
+  "uid": "7CSHFFZ80HQYHE",
+  "public_id": "core.soccer",
+  "kind": "profile_pack",
+  "name": "Sports",
+  "publisher": "Initiative",
+  "description": "For sports fans, and the ones who actually play.",
+  "long_description": "Soccer, basketball, gridiron, hockey, baseball, volleyball, tennis and fencing. Floodlights, a court, an end zone, a rink, a diamond, sand, clay and a piste — each with the ball going in. Frames made out of the kit itself, and the object to wear. Twenty-four pieces and no season ticket.",
+  "avatar_url": "/decorations/banners/soccer-floodlights.svg",
+  "images": [],
+  "version": "1.3.0",
+  "release_notes": "More in the pack.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "soccer.floodlights",
+        "slot": "banner",
+        "name": "Floodlights"
+      },
+      {
+        "id": "soccer.matchball",
+        "slot": "trophy",
+        "name": "Match ball"
+      },
+      {
+        "id": "hoops.court",
+        "slot": "banner",
+        "name": "Court"
+      },
+      {
+        "id": "hoops.swish",
+        "slot": "trophy",
+        "name": "Swish"
+      },
+      {
+        "id": "gridiron.endzone",
+        "slot": "banner",
+        "name": "End zone"
+      },
+      {
+        "id": "gridiron.pigskin",
+        "slot": "trophy",
+        "name": "Pigskin"
+      },
+      {
+        "id": "hockey.rink",
+        "slot": "banner",
+        "name": "Rink"
+      },
+      {
+        "id": "hockey.puck",
+        "slot": "trophy",
+        "name": "Puck"
+      },
+      {
+        "id": "baseball.diamond",
+        "slot": "banner",
+        "name": "Diamond"
+      },
+      {
+        "id": "baseball.fastball",
+        "slot": "trophy",
+        "name": "Fastball"
+      },
+      {
+        "id": "volleyball.beach",
+        "slot": "banner",
+        "name": "Beach"
+      },
+      {
+        "id": "volleyball.spike",
+        "slot": "trophy",
+        "name": "Spike"
+      },
+      {
+        "id": "tennis.clay",
+        "slot": "banner",
+        "name": "Clay"
+      },
+      {
+        "id": "tennis.ace",
+        "slot": "trophy",
+        "name": "Racket"
+      },
+      {
+        "id": "fencing.piste",
+        "slot": "banner",
+        "name": "Piste"
+      },
+      {
+        "id": "fencing.engarde",
+        "slot": "trophy",
+        "name": "En garde"
+      },
+      {
+        "id": "soccer.panels",
+        "slot": "frame",
+        "name": "Panels"
+      },
+      {
+        "id": "gridiron.laces",
+        "slot": "frame",
+        "name": "Laces"
+      },
+      {
+        "id": "hockey.faceoff",
+        "slot": "frame",
+        "name": "Face-off"
+      },
+      {
+        "id": "baseball.stitching",
+        "slot": "frame",
+        "name": "Stitching"
+      },
+      {
+        "id": "hoops.seams",
+        "slot": "frame",
+        "name": "Seams"
+      },
+      {
+        "id": "volleyball.net",
+        "slot": "frame",
+        "name": "Net"
+      },
+      {
+        "id": "tennis.strings",
+        "slot": "frame",
+        "name": "Strings"
+      },
+      {
+        "id": "fencing.blade",
+        "slot": "frame",
+        "name": "Blade"
+      }
+    ]
+  }
+}

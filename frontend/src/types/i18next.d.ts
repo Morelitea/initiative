@@ -1,11 +1,14 @@
 import "i18next";
 
 import type access from "../../public/locales/en/access.json";
+import type announcements from "../../public/locales/en/announcements.json";
 import type apps from "../../public/locales/en/apps.json";
 import type auth from "../../public/locales/en/auth.json";
 import type calendars from "../../public/locales/en/calendars.json";
 import type command from "../../public/locales/en/command.json";
+import type comments from "../../public/locales/en/comments.json";
 import type common from "../../public/locales/en/common.json";
+import type contacts from "../../public/locales/en/contacts.json";
 import type counterGroups from "../../public/locales/en/counterGroups.json";
 import type dashboards from "../../public/locales/en/dashboards.json";
 import type dates from "../../public/locales/en/dates.json";
@@ -21,9 +24,11 @@ import type landing from "../../public/locales/en/landing.json";
 import type marketplace from "../../public/locales/en/marketplace.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
+import type profiles from "../../public/locales/en/profiles.json";
 import type projects from "../../public/locales/en/projects.json";
 import type properties from "../../public/locales/en/properties.json";
 import type queues from "../../public/locales/en/queues.json";
+import type search from "../../public/locales/en/search.json";
 import type settings from "../../public/locales/en/settings.json";
 import type stats from "../../public/locales/en/stats.json";
 import type tags from "../../public/locales/en/tags.json";
@@ -38,6 +43,7 @@ declare module "i18next" {
     returnObjects: false;
     resources: {
       access: typeof access;
+      announcements: typeof announcements;
       auth: typeof auth;
       command: typeof command;
       common: typeof common;
@@ -46,6 +52,8 @@ declare module "i18next" {
       marketplace: typeof marketplace;
       dashboards: typeof dashboards;
       dates: typeof dates;
+      comments: typeof comments;
+      contacts: typeof contacts;
       documents: typeof documents;
       errors: typeof errors;
       exports: typeof exports_;
@@ -58,9 +66,11 @@ declare module "i18next" {
       landing: typeof landing;
       nav: typeof nav;
       notifications: typeof notifications;
+      profiles: typeof profiles;
       projects: typeof projects;
       properties: typeof properties;
       queues: typeof queues;
+      search: typeof search;
       settings: typeof settings;
       stats: typeof stats;
       tags: typeof tags;

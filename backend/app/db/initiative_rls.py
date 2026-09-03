@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from app.core.reactions import ReactionTarget
 from app.core.tools import RECENTABLE_TOOLS, Tool
 
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
@@ -63,6 +64,18 @@ _GUILD_ADMIN = "current_setting('app.current_guild_role'::text, true) = 'admin':
 
 def _access(initiative_expr: str, write: bool) -> str:
     return f"public.initiative_access({initiative_expr}, {_UID}, {'true' if write else 'false'})"
+
+
+def _resource_access(table: str, write: bool) -> str:
+    """The sharing decision for a row that stores which resource governs it.
+
+    ``dac_tool``/``dac_id`` name that resource — often a parent — so the check
+    needs no join. A NULL ``dac_tool`` means the row answers to no sharing.
+    """
+    return (
+        f"public.resource_access({table}.dac_tool, {table}.dac_id, {_UID}, "
+        f"{table}.initiative_id, {'true' if write else 'false'})"
+    )
 
 
 def direct() -> InitiativePath:
@@ -186,6 +199,12 @@ _COMMENT_PARENTS: tuple[tuple[str, str, str, str], ...] = (
 )
 
 
+#: The comment columns naming a parent, in declaration order. Search reads this
+#: to work out which tool's sharing governs a comment, so the parent set is
+#: stated once and the two derivations cannot disagree.
+COMMENT_PARENT_COLUMNS: tuple[str, ...] = tuple(col for col, *_ in _COMMENT_PARENTS)
+
+
 def comments_path() -> InitiativePath:
     """Comments hang off exactly one parent — a task or any tool entity —
     declared once in ``_COMMENT_PARENTS`` and rendered here both ways."""
@@ -205,6 +224,43 @@ def comments_path() -> InitiativePath:
             for col, frm, tie, init in _COMMENT_PARENTS
         )
         return f"COALESCE({lookups})"
+
+    return InitiativePath(predicate=build, initiative_expr=locate)
+
+
+def reactions_path() -> InitiativePath:
+    """A reaction is reached by whoever can reach the thing it is on.
+
+    Polymorphic over ``(target_type, target_id)``, so each kind is one EXISTS
+    leg into the target's table, and the target's OWN path decides — for a
+    comment that is the multi-parent predicate declared just above, reused here
+    rather than restated. A new reactable kind adds a leg by adding a
+    ``ReactionTarget`` member; nothing about the gate is written twice.
+    """
+    legs: dict[ReactionTarget, InitiativePath] = {
+        ReactionTarget.comment: comments_path(),
+    }
+
+    def build(t: str, w: bool) -> str:
+        return (
+            "("
+            + " OR ".join(
+                f"({t}.target_type = '{target.value}' AND EXISTS ("
+                f"SELECT 1 FROM {target.table} rt WHERE rt.id = {t}.target_id "
+                f"AND {path.predicate('rt', w)}))"
+                for target, path in legs.items()
+            )
+            + ")"
+        )
+
+    def locate(r: str) -> str:
+        arms = " ".join(
+            f"WHEN '{target.value}' THEN "
+            f"(SELECT {path.initiative_expr('rt')} FROM {target.table} rt "  # noqa: S608
+            f"WHERE rt.id = {r}.target_id)"
+            for target, path in legs.items()
+        )
+        return f"(CASE {r}.target_type {arms} END)"
 
     return InitiativePath(predicate=build, initiative_expr=locate)
 
@@ -235,6 +291,30 @@ def webhook_subscription_path() -> InitiativePath:
             f"(CASE WHEN {t}.initiative_id IS NULL "
             f"THEN {_GUILD_ADMIN} "
             f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
+
+
+def search_entries_path() -> InitiativePath:
+    """The search index is reached exactly like the content it describes.
+
+    It stores ``initiative_id`` directly, so unlike ``recent_views`` this needs
+    no per-type EXISTS join — the row was stamped with its source's initiative
+    by the same registry that renders that source's own policies.
+
+    A NULL initiative is the guild-level case (a tag, a guild calendar): the
+    initiative gate has nothing to decide, and these are rows every member
+    already sees everywhere else in the app. It is not an ungated leg — a row
+    carrying a ``dac_tool`` still answers to sharing, and reaching this schema
+    at all is the guild gate.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.initiative_id IS NULL "
+            f"THEN true "
+            f"ELSE {_access(f'{t}.initiative_id', w)} END)"
+            f" AND {_resource_access(t, w)}"
         ),
         initiative_expr=lambda r: f"{r}.initiative_id",
     )
@@ -303,6 +383,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # Reading is the question this path answers; writing is the capture
     # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
     "event_outbox": direct(),
+    # The search index. Derived from the content tables, and gated like them.
+    "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
     # One hop -> projects
@@ -354,10 +436,15 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     ),
     # Multi-parent
     "comments": comments_path(),
+    # Polymorphic over what it is on; gated by that thing's own path.
+    "reactions": reactions_path(),
     # Per-user state, scoped via the entity it points at
     "project_orders": via("projects", "project_id"),
     "project_favorites": via("projects", "project_id"),
     "task_assignment_digest_items": via("projects", "project_id"),
+    # Same polymorphic target columns as the reactions themselves, so the
+    # queued line is gated exactly like the gesture it describes.
+    "reaction_digest_items": reactions_path(),
     "event_reminder_dispatches": via_event_calendar("event_id"),
     "recent_views": recent_views_path(),
 }
@@ -435,6 +522,25 @@ def grants_report_on_their_resource() -> ReportsAs:
     )
 
 
+def reactions_report_on_their_target() -> ReportsAs:
+    """A reaction is a facet OF what it is on — report it there.
+
+    The reaction row's own id resolves to no route (there is no
+    ``/reactions/{id}`` to re-read), where the comment it lands on already has
+    one. So the event says "this comment changed, facet: reactions" and the
+    subscriber re-reads the comment, whose read carries the current counts.
+    """
+    arms = " ".join(
+        f"WHEN '{target.value}' THEN '{target.table}'" for target in ReactionTarget
+    )
+    return ReportsAs(
+        resource_types=frozenset(target.table for target in ReactionTarget),
+        id_expr=lambda r: f"{r}.target_id",
+        facet="reactions",
+        type_expr=lambda r: f"(CASE {r}.target_type {arms} END)",
+    )
+
+
 def _role_initiative(r: str) -> str:
     """The initiative a row's ``initiative_role_id`` belongs to."""
     return (
@@ -477,9 +583,11 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
+    "search_entries": Silent("derived index, rebuilt from the content it mirrors"),
     "project_orders": Silent("one member's own ordering state"),
     "project_favorites": Silent("one member's own pinning state"),
     "task_assignment_digest_items": Silent("internal digest bookkeeping"),
+    "reaction_digest_items": Silent("internal digest bookkeeping"),
     "event_reminder_dispatches": Silent("internal reminder bookkeeping"),
     "webhook_subscriptions": Silent(
         "integration config; it reports on content, not on itself"
@@ -538,6 +646,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
         reports_as=reports_as("documents", "document_id", "versions")
     ),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
+    "reactions": Emit(reports_as=reactions_report_on_their_target()),
 }
 
 _SILENT: frozenset[str] = frozenset(

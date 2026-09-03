@@ -2,8 +2,8 @@
   "page": {
     "title": "Mis estadísticas",
     "subtitle": "Rastrea tu productividad y métricas de finalización de tareas",
-    "guildFilterPlaceholder": "Seleccionar gremio",
-    "allGuilds": "Todos los gremios",
+    "guildFilterPlaceholder": "Seleccionar comunidad",
+    "allGuilds": "Todas las comunidades",
     "loading": "Cargando estadísticas\u2026",
     "error": "No se pudieron cargar las estadísticas. Inténtalo más tarde."
   },
@@ -34,9 +34,9 @@
     "completed": "Completadas"
   },
   "guildBreakdown": {
-    "title": "Tareas por gremio",
-    "description": "Desglose de tareas completadas por gremio",
-    "noData": "No hay datos de gremio disponibles"
+    "title": "Tareas por comunidad",
+    "description": "Desglose de tareas completadas por comunidad",
+    "noData": "No hay datos de comunidad disponibles"
   },
   "heatmap": {
     "title": "Mapa de actividad",

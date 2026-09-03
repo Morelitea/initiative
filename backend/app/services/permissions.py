@@ -203,12 +203,49 @@ def request_bypasses_dac(
     return request_overrides_sharing(initiative_id)
 
 
+def granted_scope_clause(
+    tool: Tool,
+    id_col: ColumnElement[int],
+    user_id: int,
+    *,
+    guild_id: int | None,
+    access: str = "read",
+) -> ColumnElement[bool]:
+    """The WHERE leg for a listing that **spans initiatives** — the cross-guild
+    ``/me/*`` views and a guild-wide tool list, which is the guild home's table.
+
+    Such a list is answered by what has been granted to the reader: a grant
+    naming them, one on an initiative role they hold, or one shared with every
+    member of an initiative they are in. Guild-admin standing is not a leg here.
+    An admin's authority still reaches every initiative in their community, and
+    every gate that acts on one still honours it; what a list spanning
+    initiatives shows is what reaches the reader, the same way their sidebar and
+    the community front page list the initiatives they joined.
+
+    That is also why ``initiative_id`` is absent from this signature where
+    :func:`dac_scope_clause` has one: the initiative "Full access" override
+    answers for one initiative at a time, and a list spanning them has no single
+    initiative to ask about.
+
+    A PAM or break-glass grantee keeps their window. They hold no membership row
+    and no grant, so the grant legs would answer nothing at all — the grant is
+    what they navigate by, exactly as it is in the initiative listing.
+
+    Use :func:`dac_scope_clause` for a statement already confined to one
+    initiative, where the reader's standing in that initiative is the question.
+    """
+    if grant_satisfies(guild_id, access=access):
+        return true()
+    return id_col.in_(_granted_resource_ids(tool, user_id))
+
+
 def dac_scope_clause(
     tool: Tool,
     id_col: ColumnElement[int],
     user_id: int,
     *,
     guild_id: int | None,
+    initiative_id: int | None = None,
     access: str = "read",
 ) -> ColumnElement[bool]:
     """The WHERE leg narrowing ``id_col`` to the ``tool`` rows this request may see.
@@ -223,13 +260,51 @@ def dac_scope_clause(
     a listing wants the default ``read``, and a grant covers only the level it
     was issued at.
 
-    The initiative "Full access" override is deliberately not folded in: it is
-    per-initiative, so it cannot collapse to one guild-wide answer, and no
-    listing path applies it today.
+    ``initiative_id`` folds in the initiative "Full access" override, which
+    answers for one initiative at a time. Pass it only from a statement already
+    confined to that one initiative, which is the case in which the override and
+    the statement agree on scope. Omitting it matches the per-row check
+    (:func:`compute_permission`) for every other leg.
+
+    A listing that spans initiatives wants :func:`granted_scope_clause` instead:
+    guild-admin standing answers "may I reach it", which is the right question
+    for one initiative and the wrong one for a list across them.
     """
-    if request_bypasses_dac(guild_id, access=access):
+    if request_bypasses_dac(guild_id, initiative_id=initiative_id, access=access):
         return true()
     return id_col.in_(_granted_resource_ids(tool, user_id))
+
+
+def listing_scope_clause(
+    tool: Tool,
+    id_col: ColumnElement[int],
+    user_id: int,
+    *,
+    guild_id: int | None,
+    initiative_id: int | None = None,
+    access: str = "read",
+) -> ColumnElement[bool]:
+    """The WHERE leg for a tool listing, picking the rule its scope calls for.
+
+    Confined to one initiative, the question is the reader's standing there, and
+    a guild admin's reaches all of it — :func:`dac_scope_clause`.
+
+    Spanning initiatives — the community front page's table, the sidebar's tool
+    lists, the cross-guild ``/me/*`` views — the question is what has been
+    granted to the reader, so :func:`granted_scope_clause` answers it. This is
+    the listing-shaped form of the same rule the initiative listing follows: an
+    admin navigates what reaches them, and reaches everything else the moment
+    they ask for one initiative by name.
+
+    The initiative "Full access" override stays out of the confined branch, as
+    it already was at every call site here; folding it into listings is a
+    separate decision from choosing between these two rules.
+    """
+    if initiative_id is None:
+        return granted_scope_clause(
+            tool, id_col, user_id, guild_id=guild_id, access=access
+        )
+    return dac_scope_clause(tool, id_col, user_id, guild_id=guild_id, access=access)
 
 
 # ── Generic DAC engine (registry-driven) ─────────────────────────

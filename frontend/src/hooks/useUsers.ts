@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
 import type {
@@ -16,9 +16,17 @@ import {
   approveUserApiV1GGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
   exportUsersCsvApiV1GGuildIdUsersExportCsvGet,
+  getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
+  getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
   getListUsersApiV1GGuildIdUsersGetQueryKey,
+  installDecorationPackApiV1UsersMeDecorationPacksUidPost,
   listUsersApiV1GGuildIdUsersGet,
+  removeDecorationPackApiV1UsersMeDecorationPacksUidDelete,
   updateUsersMeApiV1UsersMePatch,
+  useListDecorationPacksApiV1UsersMeDecorationPacksGet,
+  useListMyDecorationsApiV1UsersMeDecorationsGet,
+  useReadUserCommunitiesApiV1UsersHandleCommunitiesGet,
+  useReadUserProfileApiV1UsersHandleProfileGet,
   useSearchUsersApiV1GGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
@@ -54,8 +62,12 @@ export const USER_SEARCH_PAGE_SIZE = 25;
 export const USER_ID_LOOKUP_MAX = 100;
 
 export interface UserSearchOptions {
-  /** Case-insensitive substring match on the member's name. */
+  /** Matches a member's name — by what it contains, and by how close it is, so
+   *  a name typed nearly right still finds the person. */
   search?: string;
+  /** Which page of the match to read. Defaults to the first, which is all a
+   *  typeahead ever wants; the search page reads further. */
+  page?: number;
   /** Resolve these specific members instead of browsing the roster — how a
    *  picker turns stored ids back into names/avatars. Narrows the same scoped
    *  set, so an id outside it simply doesn't come back. */
@@ -76,6 +88,98 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
 });
 
 /**
+ * One person's profile, by their handle as it appears in a URL
+ * (``jordan1234`` — see ``getUrlHandle``).
+ *
+ * Public and community-independent: the same page whoever opens it, so there
+ * is no guild in the call.
+ */
+/**
+ * The listed communities one person belongs to.
+ *
+ * Its own read rather than part of the profile: the profile is the public
+ * projection of the account row, and this is about guilds. It also changes far
+ * more slowly than a status or a presence dot, so it is held longer.
+ */
+export const useUserCommunities = (handle: string | null | undefined) =>
+  useReadUserCommunitiesApiV1UsersHandleCommunitiesGet(handle as string, {
+    query: { enabled: Boolean(handle), staleTime: 5 * 60_000 },
+  });
+
+export const useUserProfile = (handle: string | null | undefined) =>
+  useReadUserProfileApiV1UsersHandleProfileGet(handle as string, {
+    query: {
+      enabled: Boolean(handle),
+      // A profile changes without the reader doing anything — the subject
+      // signs off, edits their status, changes what they are wearing — and
+      // this page is outside the community tree, so no realtime socket is
+      // going to tell it. Nor does the app refetch on focus. So it asks again
+      // on a timer, which pauses while the tab is in the background.
+      staleTime: 30_000,
+      refetchInterval: 60_000,
+    },
+  });
+
+/**
+ * The decoration store: every pack this build ships, and which you have.
+ *
+ * The catalog is fixed per build and the answer changes only when you take or
+ * give back a pack, so it is held until a mutation says otherwise.
+ */
+export const useDecorationPacks = () =>
+  useListDecorationPacksApiV1UsersMeDecorationPacksGet({
+    query: { staleTime: 5 * 60_000 },
+  });
+
+/** Taking a pack, and giving one back. Both change what the pickers may offer
+ *  and what the profile is wearing, so both refresh all three. */
+const useDecorationPackMutation = (
+  run: (packId: string) => Promise<unknown>,
+  options?: MutationOpts<unknown, string>
+) => {
+  const queryClient = useQueryClient();
+  return useApiMutation<unknown, string>(
+    {
+      mutationFn: run,
+      invalidate: () => {
+        void queryClient.invalidateQueries({
+          queryKey: getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey(),
+        });
+        // Giving a pack back can take pieces off the profile server-side, so
+        // the account the form reads from has changed too.
+        void invalidateCurrentUser();
+      },
+    },
+    options
+  );
+};
+
+export const useInstallDecorationPack = (options?: MutationOpts<unknown, string>) =>
+  useDecorationPackMutation(
+    (packId) => installDecorationPackApiV1UsersMeDecorationPacksUidPost(packId),
+    options
+  );
+
+export const useRemoveDecorationPack = (options?: MutationOpts<unknown, string>) =>
+  useDecorationPackMutation(
+    (packId) => removeDecorationPackApiV1UsersMeDecorationPacksUidDelete(packId),
+    options
+  );
+
+/**
+ * What the signed-in account may dress its profile in — what ships with the
+ * app plus whatever it has acquired. Drives the pickers on Settings > Profile;
+ * a library changes only when a pack is installed, so it is held a good while.
+ */
+export const useMyDecorations = () =>
+  useListMyDecorationsApiV1UsersMeDecorationsGet({
+    query: { staleTime: 5 * 60_000 },
+  });
+
+/**
  * Slim, server-side member typeahead for the active guild. Returns
  * {@link UserSummary} rows (id, name, avatar, status) for a bounded page —
  * the replacement for loading the whole roster via {@link useUsers} and
@@ -83,6 +187,7 @@ const memberSearchParams = (search: string | undefined, userIds: number[] | unde
  */
 export const useUserSearch = ({
   search,
+  page,
   userIds,
   pageSize = USER_SEARCH_PAGE_SIZE,
   enabled = true,
@@ -92,7 +197,11 @@ export const useUserSearch = ({
   const guildId = guildIdOverride ?? activeGuildId;
   return useSearchUsersApiV1GGuildIdUsersSearchGet(
     guildId,
-    { ...memberSearchParams(search, userIds), page_size: pageSize },
+    {
+      ...memberSearchParams(search, userIds),
+      page_size: pageSize,
+      ...(page != null ? { page } : {}),
+    },
     {
       query: {
         enabled: enabled && guildId != null,
@@ -125,7 +234,10 @@ export const useInitiativeMemberSearch = (
   return useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet(
     guildId,
     initiativeId as number,
-    { ...memberSearchParams(search, userIds), page_size: pageSize },
+    {
+      ...memberSearchParams(search, userIds),
+      page_size: pageSize,
+    },
     {
       query: {
         enabled: enabled && guildId != null && initiativeId != null,
@@ -157,7 +269,10 @@ export const useProjectMemberSearch = (
   return useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
     guildId,
     projectId as number,
-    { ...memberSearchParams(search, userIds), page_size: pageSize },
+    {
+      ...memberSearchParams(search, userIds),
+      page_size: pageSize,
+    },
     {
       query: {
         enabled: enabled && guildId != null && projectId != null,

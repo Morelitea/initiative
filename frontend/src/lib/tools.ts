@@ -45,7 +45,7 @@ import type {
   InitiativeRead,
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
 
 /**
  * The icon each tool renders with everywhere (sidebar, recents, palette,
@@ -89,6 +89,23 @@ export const NON_EXPORTABLE_TOOLS: ReadonlySet<Tool> = new Set([
 /** Tools with an export-engine source (single + bulk selection export), and
  *  equally the tools whose envelope can be imported. */
 export const BULK_EXPORT_TOOLS = TOOLS.filter((t) => !NON_EXPORTABLE_TOOLS.has(t));
+
+/**
+ * Tools the marketplace has a shelf for, and the listing kind that carries
+ * them. Stated as an inclusion — a tool has nothing to browse until the
+ * catalog can hold its content — and as a map rather than a set so a browse
+ * link addresses that tool's own shelf instead of the default one.
+ *
+ * The kinds mirror backend `LISTING_KINDS`. Not every kind belongs here: `app`
+ * installs at guild scope (the sidebar's apps section and guild settings own
+ * that link), and `auto` names a vocabulary entry nothing installs yet.
+ */
+export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {
+  [Tool.dashboard]: ListingKind.dashboard,
+};
+
+/** Which marketplace shelf a tool's list links to, or null when it has none. */
+export const toolListingKind = (tool: Tool): ListingKind | null => TOOL_LISTING_KINDS[tool] ?? null;
 
 /**
  * Sidebar display order within an initiative. Projects render last because the
@@ -136,7 +153,7 @@ export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(t
 
 // ---------------------------------------------------------------------------
 // Routes — a tool entity's URL names the whole chain it belongs to:
-// /g/{guild}/i/{initiative}/{tool}/{id}. There is no guild-wide tool list; the
+// /c/{guild}/i/{initiative}/{tool}/{id}. There is no guild-wide tool list; the
 // guild home (`/?tool=`) is the cross-initiative browse surface, so a tool's
 // "list" is always one initiative's tab. Every builder here returns a
 // GUILD-relative path — callers prepend the guild prefix with `useGuildPath`.
@@ -170,6 +187,35 @@ export const toolDetailRoute = (tool: Tool, initiativeId: number | null, id: num
 /** Guild-relative settings route, e.g. "/i/12/counter-groups/3/settings". */
 export const toolSettingsRoute = (tool: Tool, initiativeId: number | null, id: number): string =>
   `${toolDetailRoute(tool, initiativeId, id)}/settings`;
+
+/**
+ * The sections every tool's settings page is divided into, in tab-bar order.
+ * Each is a route of its own, so a section can be linked to and bookmarked and
+ * the back button steps through the ones you visited.
+ *
+ * Details is served at `/settings` itself rather than at a `/settings/details`
+ * alias — it is what the page opens on. A tool with a section of its own
+ * (a project's task statuses) adds a route beside these; it does not need an
+ * entry here.
+ */
+export const TOOL_SETTINGS_SECTIONS = ["details", "access", "advanced"] as const;
+
+export type ToolSettingsSection = (typeof TOOL_SETTINGS_SECTIONS)[number];
+
+/** The section a tool's settings open on, addressed as `/settings` itself. */
+export const TOOL_SETTINGS_DEFAULT_SECTION: ToolSettingsSection = "details";
+
+/** Guild-relative route for one section of a tool's settings, e.g.
+ *  "/i/12/counter-groups/3/settings/access". */
+export const toolSettingsSectionRoute = (
+  tool: Tool,
+  initiativeId: number | null,
+  id: number,
+  section: string
+): string => {
+  const base = toolSettingsRoute(tool, initiativeId, id);
+  return section === TOOL_SETTINGS_DEFAULT_SECTION ? base : `${base}/${section}`;
+};
 
 /**
  * Where a tool's entities are browsed ACROSS initiatives: the guild home,
@@ -279,6 +325,19 @@ export const toolMemberViewFlag = (tool: Tool): keyof InitiativeMemberRead =>
 /** Membership create flag, e.g. "can_create_counter_groups". */
 export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
   `can_create_${toolPlural(tool)}` as keyof InitiativeMemberRead;
+
+/**
+ * The shape every tool's read schema shares where comments are concerned: the
+ * row's id, the initiative it lives in (null for a guild-level entity), and its
+ * own comment switch. `tools_test.py` holds every tool's model and read schema
+ * to carrying `comments_disabled`, so a tool entity satisfies this by
+ * construction — which is what lets one panel serve all of them.
+ */
+export interface ToolCommentEntity {
+  id: number;
+  initiative_id?: number | null;
+  comments_disabled?: boolean;
+}
 
 /**
  * The initiative master-switch field for a toggleable tool (same spelling as

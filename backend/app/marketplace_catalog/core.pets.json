@@ -1,0 +1,99 @@
+{
+  "uid": "R4NP7XK2WQ9FTB",
+  "public_id": "core.pets",
+  "kind": "profile_pack",
+  "name": "Pets",
+  "publisher": "Initiative",
+  "description": "For people who will show you the photos unprompted.",
+  "long_description": "A cat whose eyes have found you in the dark, a dog being very good about something, and a horse with an opinion. A collar, or ears — cat ears that turn with a tail up the side, a pair that flop, or the big round ones with a bare tail behind them — and a trophy each for cats, dogs, horses, rats, rabbits, snakes, lizards and hamsters — plus a paw print, for whoever else it is.",
+  "avatar_url": "/decorations/banners/pets-catnap.svg",
+  "images": [],
+  "version": "1.6.0",
+  "release_notes": "Rat ears.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "pets.collar",
+        "slot": "frame",
+        "name": "Collar"
+      },
+      {
+        "id": "pets.paw",
+        "slot": "trophy",
+        "name": "Paw print"
+      },
+      {
+        "id": "pets.cat",
+        "slot": "trophy",
+        "name": "Cat"
+      },
+      {
+        "id": "pets.dog",
+        "slot": "trophy",
+        "name": "Dog"
+      },
+      {
+        "id": "pets.horse",
+        "slot": "trophy",
+        "name": "Horse"
+      },
+      {
+        "id": "pets.rat",
+        "slot": "trophy",
+        "name": "Rat"
+      },
+      {
+        "id": "pets.bunny",
+        "slot": "trophy",
+        "name": "Rabbit"
+      },
+      {
+        "id": "pets.snake",
+        "slot": "trophy",
+        "name": "Snake"
+      },
+      {
+        "id": "pets.lizard",
+        "slot": "trophy",
+        "name": "Lizard"
+      },
+      {
+        "id": "pets.hamster",
+        "slot": "trophy",
+        "name": "Hamster"
+      },
+      {
+        "id": "pets.catnap",
+        "slot": "banner",
+        "name": "After dark"
+      },
+      {
+        "id": "pets.fetch",
+        "slot": "banner",
+        "name": "Good dog"
+      },
+      {
+        "id": "pets.paddock",
+        "slot": "banner",
+        "name": "Paddock"
+      },
+      {
+        "id": "pets.catears",
+        "slot": "frame",
+        "name": "Cat ears"
+      },
+      {
+        "id": "pets.dogears",
+        "slot": "frame",
+        "name": "Dog ears"
+      },
+      {
+        "id": "pets.ratears",
+        "slot": "frame",
+        "name": "Rat ears"
+      }
+    ]
+  }
+}

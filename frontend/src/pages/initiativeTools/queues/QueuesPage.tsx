@@ -7,7 +7,6 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllQueues } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { PaginationBar } from "@/components/documents/PaginationBar";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
@@ -17,6 +16,7 @@ import {
 } from "@/components/initiativeTools/queues/QueuesFilterBar";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { PaginationBar } from "@/components/PaginationBar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
@@ -119,7 +119,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     });
   }, [queuesQuery.data, searchQuery, statusFilter]);
 
-  const selection = useGridSelection<(typeof queues)[number]>();
+  const selection = useGridSelection<(typeof queues)[number]>(queues);
 
   const queueImport = useToolImportAction({
     tool: Tool.queue,
@@ -192,7 +192,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
                 key={queue.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(queue.id)}
-                onToggle={() => selection.toggle(queue)}
+                onToggle={(options) => selection.toggle(queue, options)}
                 label={queue.name}
               >
                 <QueueCard queue={queue} />

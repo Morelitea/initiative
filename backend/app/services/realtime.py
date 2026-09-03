@@ -1,8 +1,11 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, Set, Tuple
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 from fastapi import WebSocket
+
+from app.models.platform.user import Presence
+from app.services.platform import presence
 
 # A room is identified by (guild_id, initiative_id). The guild_id is REQUIRED in
 # the key: initiatives live in per-guild schemas (`guild_<id>.initiatives`, `id
@@ -32,11 +35,13 @@ class ConnectionManager:
     A socket may live in several rooms at once (a user reaches several
     initiatives), so we keep a reverse index for O(1) disconnect.
 
-    It also answers who is *present* in a guild. A socket on this stream is a
-    user with the app open in that guild, which is the thing "online" means, and
-    it is tracked per guild rather than per room: a member of no initiative
-    joins no rooms and is still here. Presence is counted per user, not per
-    socket, so two tabs are one person.
+    It also answers who is *present* in a guild: a socket on this stream is a
+    user with the app open in that guild, tracked per guild rather than per
+    room, because a member of no initiative joins no rooms and is still here.
+    Presence is counted per user, not per socket, so two tabs are one person.
+    Whether a *person* is online at all is a different question and a different
+    object — :mod:`app.services.platform.presence`, which this feeds from the
+    same connect/disconnect and which the notification stream feeds too.
 
     What that count is bounded by is worth stating: this is one process's own
     sockets, held in memory. Where the API runs as more than one worker each
@@ -61,9 +66,15 @@ class ConnectionManager:
         websocket: WebSocket,
         *,
         user_id: int,
+        chosen_presence: Presence = Presence.online,
+        presence_known_at: Optional[float] = None,
     ) -> None:
         """Register an already-accepted socket under each of its initiative rooms,
-        namespaced to ``guild_id``, and mark its user present in that guild."""
+        namespaced to ``guild_id``, and mark its user present in that guild.
+
+        ``presence_known_at`` is when the caller read ``chosen_presence``, so
+        the roll can tell a value read before a change from one read after it.
+        """
         async with self._lock:
             joined = self._socket_rooms.setdefault(websocket, set())
             for initiative_id in initiative_ids:
@@ -73,6 +84,9 @@ class ConnectionManager:
             self._socket_identity[websocket] = (guild_id, user_id)
             present = self._present.setdefault(guild_id, {})
             present[user_id] = present.get(user_id, 0) + 1
+            presence.online.arrived(
+                user_id, chosen_presence, known_at=presence_known_at
+            )
 
     async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a socket from every room it joined, and from its guild's roll."""
@@ -87,6 +101,7 @@ class ConnectionManager:
             if identity is None:
                 return
             guild_id, user_id = identity
+            presence.online.left(user_id)
             present = self._present.get(guild_id)
             if present is None:
                 return
@@ -116,7 +131,11 @@ class ConnectionManager:
         return len(self._rooms.get((guild_id, initiative_id), set()))
 
     def present_count(self, guild_id: int) -> int:
-        """How many distinct users have this guild open on this process."""
+        """How many distinct users have this guild open on this process.
+
+        A count of open tabs, not of dots: how a person chooses to appear is
+        about the person, and this figure is about the guild.
+        """
         return len(self._present.get(guild_id, {}))
 
     def present_counts(self, guild_ids: Iterable[int]) -> Dict[int, int]:

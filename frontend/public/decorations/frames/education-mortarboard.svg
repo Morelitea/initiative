@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Mortarboard</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: the board sits on the picture, on a cap that follows the head,
+       and the tassel hangs off the corner and swings. -->
+  <defs>
+    <linearGradient id="mbCloth" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#3E4A70"/><stop offset="55%" stop-color="#2B3550"/>
+      <stop offset="100%" stop-color="#1A2136"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .tsl { animation: mbSwing 4.2s ease-in-out infinite alternate;
+           transform-box: view-box; transform-origin: 64px 12px }
+    @keyframes mbSwing { from { transform: rotate(-5deg) } to { transform: rotate(6deg) } }
+    @media (prefers-reduced-motion: reduce) { .tsl { animation: none } }
+  </style>
+  <path d="M22 20 C22 34 32 42 46 44 L82 44 C96 42 106 34 106 20 Z" fill="url(#mbCloth)"/>
+  <path d="M22 20 C22 30 26 36 32 40 C28 34 26 28 26 20 Z" fill="#5E6C96" opacity=".5"/>
+  <path d="M64 -6 L124 12 L64 30 L4 12 Z" fill="url(#mbCloth)"/>
+  <path d="M64 -6 L124 12 L64 30 Z" fill="#151B2E" opacity=".55"/>
+  <path d="M64 -4.4 L119 12 L64 28.4 L9 12 Z" fill="none" stroke="#68769E" stroke-width="1"
+        opacity=".55"/>
+  <g class="tsl">
+    <path d="M64 12 C82 14 96 18 104 26 C106 28 106 32 104 34" fill="none" stroke="#E8B84B"
+          stroke-width="2" stroke-linecap="round"/>
+    <path d="M100.4 32 L109 32 L106.6 46 C106.2 47.6 103.2 47.6 102.8 46 Z" fill="#E8B84B"/>
+    <path d="M100.4 32 L109 32 L108.6 34.4 L100.8 34.4 Z" fill="#C79A22"/>
+    <g stroke="#C79A22" stroke-width=".6">
+      <path d="M102.6 35 L102 45 M104.8 35 L104.8 46.4 M107 35 L107.6 45"/>
+    </g>
+  </g>
+  <circle cx="64" cy="12" r="3.2" fill="#E8B84B"/>
+  <circle cx="64" cy="12" r="1.4" fill="#C79A22"/>
+</svg>

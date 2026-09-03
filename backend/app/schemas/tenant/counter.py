@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 
@@ -60,11 +60,11 @@ class CounterBase(SanitizedBaseModel):
 
 
 class CounterCreate(CounterBase):
-    pass
+    name: TitleStr = Field(..., min_length=1, max_length=255)
 
 
 class CounterUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     color: Optional[str] = None
     # ``min``/``max`` are nullable columns — an explicit null clears the bound.
     # The remaining fields back NOT NULL columns, so a null is meaningless; the
@@ -136,6 +136,7 @@ class CounterGroupBase(SanitizedBaseModel):
 
 
 class CounterGroupCreate(CounterGroupBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
@@ -147,12 +148,12 @@ class CounterGroupCreate(CounterGroupBase):
 
 
 class CounterGroupUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
 
 
 class CounterGroupDuplicateRequest(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
 
 
 class CounterGroupSummary(CounterGroupBase):
@@ -166,6 +167,10 @@ class CounterGroupSummary(CounterGroupBase):
     created_by: int
     counter_count: int = 0
     my_permission_level: Optional[str] = None
+    # Advanced setting: when true this entity's comment thread is off — the
+    # UI renders none and the API refuses to read or post one. Tasks are
+    # unaffected; their thread belongs to the task, not to the tool.
+    comments_disabled: bool = False
     tags: List[TagSummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -256,6 +261,7 @@ def serialize_counter_group_summary(
         my_permission_level=my_permission_level,
         created_at=group.created_at,
         updated_at=group.updated_at,
+        comments_disabled=group.comments_disabled,
         tags=tag_summaries(getattr(group, "tag_links", None)),
         grants=serialize_grants(group),
     )

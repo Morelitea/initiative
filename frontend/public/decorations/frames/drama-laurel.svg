@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Laurel</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Two sprays, tied at the bottom and open at the top, which is how a wreath
+       is worn and how it is drawn. -->
+  <path d="M64 0.6 A63.4 63.4 0 1 0 64 127.4 A63.4 63.4 0 1 0 64 0.6 Z M64 13.4 A50.6 50.6 0 1 1 64 114.6 A50.6 50.6 0 1 1 64 13.4 Z" fill="#2A0D14" fill-rule="evenodd" fill-opacity=".55"/>
+  <path d="M46.39 118.21 A57 57 0 0 1 46.39 9.79"
+        fill="none" stroke="#8A6A34" stroke-width="1.6"/>
+  <path d="M81.61 118.21 A57 57 0 0 0 81.61 9.79"
+        fill="none" stroke="#8A6A34" stroke-width="1.6"/>
+  <ellipse cx="46.39" cy="118.21" rx="3.55" ry="1.92" transform="rotate(224 46.39 118.21)" fill="#E0BC85"/><ellipse cx="35.79" cy="113.53" rx="3.46" ry="1.87" transform="rotate(235.67 35.79 113.53)" fill="#C9A063"/><ellipse cx="26.35" cy="106.8" rx="3.36" ry="1.82" transform="rotate(247.33 26.35 106.8)" fill="#E0BC85"/><ellipse cx="18.48" cy="98.3" rx="3.26" ry="1.77" transform="rotate(259 18.48 98.3)" fill="#C9A063"/><ellipse cx="12.48" cy="88.39" rx="3.17" ry="1.72" transform="rotate(270.67 12.48 88.39)" fill="#E0BC85"/><ellipse cx="8.61" cy="77.47" rx="3.07" ry="1.66" transform="rotate(282.33 8.61 77.47)" fill="#C9A063"/><ellipse cx="7.03" cy="65.99" rx="2.98" ry="1.61" transform="rotate(294 7.03 65.99)" fill="#E0BC85"/><ellipse cx="7.81" cy="54.43" rx="2.88" ry="1.56" transform="rotate(305.67 7.81 54.43)" fill="#C9A063"/><ellipse cx="10.91" cy="43.26" rx="2.78" ry="1.51" transform="rotate(317.33 10.91 43.26)" fill="#E0BC85"/><ellipse cx="16.2" cy="32.96" rx="2.69" ry="1.46" transform="rotate(329 16.2 32.96)" fill="#C9A063"/><ellipse cx="23.46" cy="23.93" rx="2.59" ry="1.4" transform="rotate(340.67 23.46 23.93)" fill="#E0BC85"/><ellipse cx="32.4" cy="16.56" rx="2.5" ry="1.35" transform="rotate(352.33 32.4 16.56)" fill="#C9A063"/><ellipse cx="42.65" cy="11.15" rx="2.4" ry="1.3" transform="rotate(364 42.65 11.15)" fill="#E0BC85"/><ellipse cx="81.61" cy="118.21" rx="3.55" ry="1.92" transform="rotate(-44 81.61 118.21)" fill="#E0BC85"/><ellipse cx="92.21" cy="113.53" rx="3.46" ry="1.87" transform="rotate(-55.67 92.21 113.53)" fill="#C9A063"/><ellipse cx="101.65" cy="106.8" rx="3.36" ry="1.82" transform="rotate(-67.33 101.65 106.8)" fill="#E0BC85"/><ellipse cx="109.52" cy="98.3" rx="3.26" ry="1.77" transform="rotate(-79 109.52 98.3)" fill="#C9A063"/><ellipse cx="115.52" cy="88.39" rx="3.17" ry="1.72" transform="rotate(-90.67 115.52 88.39)" fill="#E0BC85"/><ellipse cx="119.39" cy="77.47" rx="3.07" ry="1.66" transform="rotate(-102.33 119.39 77.47)" fill="#C9A063"/><ellipse cx="120.97" cy="65.99" rx="2.98" ry="1.61" transform="rotate(-114 120.97 65.99)" fill="#E0BC85"/><ellipse cx="120.19" cy="54.43" rx="2.88" ry="1.56" transform="rotate(-125.67 120.19 54.43)" fill="#C9A063"/><ellipse cx="117.09" cy="43.26" rx="2.78" ry="1.51" transform="rotate(-137.33 117.09 43.26)" fill="#E0BC85"/><ellipse cx="111.8" cy="32.96" rx="2.69" ry="1.46" transform="rotate(-149 111.8 32.96)" fill="#C9A063"/><ellipse cx="104.54" cy="23.93" rx="2.59" ry="1.4" transform="rotate(-160.67 104.54 23.93)" fill="#E0BC85"/><ellipse cx="95.6" cy="16.56" rx="2.5" ry="1.35" transform="rotate(-172.33 95.6 16.56)" fill="#C9A063"/><ellipse cx="85.35" cy="11.15" rx="2.4" ry="1.3" transform="rotate(-184 85.35 11.15)" fill="#E0BC85"/>
+  <g transform="translate(64 121)">
+    <path d="M-5 -3 C-2 -4.4 2 -4.4 5 -3 L5 1 C2 2.4 -2 2.4 -5 1 Z" fill="#8E1B28"/>
+    <path d="M-4.4 1.4 C-5.4 4 -6.4 5.6 -7.6 6.6 L-3.4 7 C-2.6 5 -2.2 3.2 -2 1.6 Z"
+          fill="#8E1B28"/>
+    <path d="M4.4 1.4 C5.4 4 6.4 5.6 7.6 6.6 L3.4 7 C2.6 5 2.2 3.2 2 1.6 Z" fill="#8E1B28"/>
+  </g>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#5E0F1A" stroke-width="1.6"/>
+</svg>

@@ -7,6 +7,8 @@ subtasks, assignees, and property values.
 """
 
 import pytest
+
+from app.core.user_display import handle_of
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -128,7 +130,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     envelope = await export_service.build_project_export(
         session,
         project_id=source_project.id,
-        exported_by_email=owner.email,
+        exported_by_handle=handle_of(owner),
     )
 
     assert envelope.schema_version == 1
@@ -147,7 +149,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert exported_task.title == "Fix the thing"
     assert [t.name for t in exported_task.tags] == ["blocker"]
     assert [t.color for t in exported_task.tags] == ["#FF0000"]
-    assert exported_task.assignee_emails == ["alice@example.com"]
+    assert exported_task.assignee_handles == [handle_of(assignee)]
     assert {s.content for s in exported_task.subtasks} == {"step 1", "step 2"}
     assert exported_task.property_values[0].property_name == "Severity"
     assert exported_task.property_values[0].value_text == "high"
@@ -169,7 +171,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     )
 
     assert result.task_count == 1
-    assert result.assignee_unmatched_emails == []
+    assert result.assignee_unmatched_handles == []
     assert result.tag_create_count + result.tag_match_count == 1
     assert result.property_create_count == 1
     assert result.assignee_match_count == 1
@@ -201,7 +203,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     new_task = new_project.tasks[0]
     assert new_task.title == "Fix the thing"
     assert {s.content for s in new_task.subtasks} == {"step 1", "step 2"}
-    assert [u.email for u in new_task.assignees] == ["alice@example.com"]
+    assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]
     assert {link.tag.name for link in new_task.tag_links} == {"blocker"}
     assert len(new_task.property_values) == 1
     pv = new_task.property_values[0]
@@ -369,7 +371,7 @@ async def test_unmatched_assignees_reported(session: AsyncSession):
         importer=owner,
     )
     assert result.assignee_match_count == 0
-    assert result.assignee_unmatched_emails == ["alice@example.com"]
+    assert result.assignee_unmatched_handles == [handle_of(assignee)]
 
 
 @pytest.mark.integration
@@ -429,7 +431,7 @@ def test_project_export_task_accepts_legacy_sort_order():
             "status_name": "To Do",
             "sort_order": 1024.0,
             "tags": [],
-            "assignee_emails": [],
+            "assignee_handles": [],
             "subtasks": [],
             "property_values": [],
         }
@@ -443,7 +445,7 @@ def test_project_export_task_accepts_legacy_sort_order():
             "status_name": "To Do",
             "position": 7.5,
             "tags": [],
-            "assignee_emails": [],
+            "assignee_handles": [],
             "subtasks": [],
             "property_values": [],
         }

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
@@ -38,6 +38,7 @@ class DashboardBase(SanitizedBaseModel):
 
 
 class DashboardCreate(DashboardBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None
     # Install from the marketplace instead of authoring: name a catalog listing
@@ -76,7 +77,7 @@ class DashboardInstalledListings(SanitizedBaseModel):
 
 
 class DashboardUpdate(SanitizedBaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = Field(default=None, max_length=2000)
     # Absent = unchanged. Sending either re-runs validation over the pair, so
     # config can never outlive the widgets it configures.
@@ -99,6 +100,10 @@ class DashboardSummary(DashboardBase):
     listing_uid: Optional[str] = None
     listing_version: Optional[str] = None
     my_permission_level: Optional[str] = None
+    # Advanced setting: when true this entity's comment thread is off — the
+    # UI renders none and the API refuses to read or post one. Tasks are
+    # unaffected; their thread belongs to the task, not to the tool.
+    comments_disabled: bool = False
     tags: List[TagSummary] = Field(default_factory=list)
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
@@ -224,6 +229,7 @@ def serialize_dashboard_summary(
             if user_id is not None
             else None
         ),
+        comments_disabled=dashboard.comments_disabled,
         tags=tag_summaries(getattr(dashboard, "tag_links", None)),
         grants=serialize_grants(dashboard),
     )

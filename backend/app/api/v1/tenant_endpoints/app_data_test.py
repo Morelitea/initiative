@@ -146,6 +146,9 @@ def _definition() -> dict:
                         list=True,
                         options_from={"endpoint": LIST_SHOPS, "key": "names"},
                     ),
+                    # Several of a type that is not a string, so the per-entry
+                    # check is about the declared type rather than about text.
+                    _field("floors", "int", list=True),
                 ],
                 "returns": [
                     {"key": "days", "type": "string", "list": True},
@@ -1260,4 +1263,50 @@ class TestListParams:
             headers=a.headers,
         )
         assert response.json()["unavailable"] == "needs-sibling"
+        assert upstream.count == 0
+
+    async def test_several_integers_are_accepted_as_integers(
+        self, client, acting_user, session, upstream
+    ):
+        """`list` says how many, never what kind.
+
+        Each entry is held to the parameter's own declared type, so a caller
+        that sent the strings a form's controls read would be refused here —
+        which is exactly the failure a configured widget would hit on its first
+        draw rather than on save.
+        """
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"floors":[1,2]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 200, response.text
+        # Rendered for the wire the same way a single int is, which is what
+        # keeps one encoding for one type.
+        assert json.loads(upstream.calls[0].content)["params"] == {"floors": ["1", "2"]}
+
+    async def test_a_string_where_an_integer_was_declared_is_refused(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"floors":["1"]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == AppDataMessages.INVALID_PARAMS
+        assert upstream.count == 0
+
+    async def test_a_bool_is_not_an_integer_inside_a_list_either(
+        self, client, acting_user, session, upstream
+    ):
+        a, app, dashboard = await _workspace(session, acting_user)
+
+        response = await client.get(
+            _url(a, app, ORDERS_SUMMARY, dashboard, params='{"floors":[true]}'),
+            headers=a.headers,
+        )
+        assert response.status_code == 400
         assert upstream.count == 0

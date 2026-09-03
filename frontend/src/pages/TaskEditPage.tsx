@@ -7,6 +7,7 @@ import {
   Copy,
   FolderInput,
   Loader2,
+  MoreHorizontal,
   Save,
   SearchX,
   ShieldAlert,
@@ -39,10 +40,16 @@ import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -612,14 +619,26 @@ export const TaskEditPage = () => {
   // otherwise read straight from task.task_status_id so the first render has
   // a value (the useEffect lag previously left the badge blank).
   const effectiveStatusId = statusId ?? task?.task_status_id ?? null;
+
+  // A task keeps the status it was given even after the project drops that
+  // column, and the select can only name a status the list contains. Carry the
+  // task's own snapshot into the options in that case, so the editor still
+  // says what status the task is in rather than falling back to a placeholder.
+  // Not a hook: this sits below the loading guards above, which return early.
+  const statusOptions =
+    task?.task_status &&
+    task.task_status.id === effectiveStatusId &&
+    !taskStatuses.some((item) => item.id === effectiveStatusId)
+      ? [...taskStatuses, task.task_status]
+      : taskStatuses;
   // Prefer the project's status list (authoritative; reflects renames/colors)
   // but fall back to the task's own embedded ``task_status`` snapshot so the
   // badge + select trigger render correctly during the window between
   // "task loaded" and "project statuses loaded" — and as a safety net if
   // the status was archived out of the list since the task was last saved.
-  const currentStatus =
-    taskStatuses.find((item) => item.id === effectiveStatusId) ??
-    (task && task.task_status_id === effectiveStatusId ? task.task_status : null);
+  // Delete and move are excluded: their confirm/move dialogs stay open and
+  // already show the mutation's own loading state.
+  const menuActionPending = duplicateTask.isPending || toggleArchive.isPending;
 
   // Assemble the shared TaskForm value from the page's individual states. The
   // effective* fallbacks keep the form from flashing defaults during the
@@ -727,10 +746,11 @@ export const TaskEditPage = () => {
           { label: title || task?.title },
         ]}
       />
+      {/* The task's title and status are rendered once each, by the form's own
+          title field and status select. This row carries only the byline. */}
+      <h1 className="sr-only">{title || task?.title}</h1>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-semibold text-3xl tracking-tight">{title || task?.title}</h1>
-          <Badge variant="secondary">{currentStatus?.name ?? t("edit.statusBadge")}</Badge>
           {creationMeta ? (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -766,16 +786,11 @@ export const TaskEditPage = () => {
             </TooltipProvider>
           ) : null}
         </div>
-        <p className="text-muted-foreground text-sm">{t("edit.subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-6">
         <Card className="flex-1 shadow-sm sm:min-w-100">
-          <CardHeader>
-            <CardTitle>{t("edit.detailsTitle")}</CardTitle>
-            <CardDescription>{t("edit.detailsDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {isReadOnly && readOnlyMessage ? (
               <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
                 {readOnlyMessage}
@@ -787,7 +802,7 @@ export const TaskEditPage = () => {
                 disabled={isReadOnly}
                 value={formValue}
                 onChange={handleFormChange}
-                statuses={taskStatuses}
+                statuses={statusOptions}
                 projectId={projectId ?? null}
                 initiativeId={project?.initiative_id ?? null}
                 currentUserId={currentUser?.id}
@@ -796,7 +811,10 @@ export const TaskEditPage = () => {
                 recurrenceReferenceDate={dueDate || startDate || task?.due_date || task?.start_date}
               />
 
-              <div className="flex flex-wrap gap-3">
+              {/* Save and cancel are the only actions that earn a button here;
+                  everything else a task supports lives behind the overflow
+                  menu so the row stays readable at any width. */}
+              <div className="flex flex-wrap items-center gap-3">
                 <Button
                   type="submit"
                   disabled={updateTask.isPending || isReadOnly || datesInverted}
@@ -817,67 +835,75 @@ export const TaskEditPage = () => {
                   {t("common:cancel")}
                 </Button>
                 {!isReadOnly ? (
-                  <>
-                    <MoveTaskDialog
-                      trigger={
-                        <Button type="button" variant="secondary" disabled={moveTask.isPending}>
-                          <FolderInput className="h-4 w-4" />
-                          {t("edit.moveToProject")}
-                        </Button>
-                      }
-                      open={isMoveDialogOpen}
-                      onOpenChange={setIsMoveDialogOpen}
-                      projects={writableProjects}
-                      currentProjectId={task?.project_id ?? null}
-                      isLoading={writableProjectsQuery.isLoading}
-                      hasError={Boolean(writableProjectsQuery.isError)}
-                      isSaving={moveTask.isPending}
-                      onConfirm={handleMoveTask}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        duplicateTask.mutate(parsedTaskId);
-                      }}
-                      disabled={duplicateTask.isPending}
-                    >
-                      <Copy className="h-4 w-4" />
-                      {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() =>
-                        toggleArchive.mutate({
-                          taskId: parsedTaskId,
-                          data: { is_archived: !task?.is_archived } as never,
-                        })
-                      }
-                      disabled={toggleArchive.isPending}
-                    >
-                      {task?.is_archived ? (
-                        <>
-                          <ArchiveRestore className="h-4 w-4" />
-                          {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="h-4 w-4" />
-                          {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => setShowDeleteConfirm(true)}
-                      disabled={deleteTask.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
-                    </Button>
-                  </>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      {/* Duplicate and archive dismiss the menu that holds their
+                          own pending label, and neither opens a dialog to carry
+                          one, so the trigger reports their progress instead. */}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="ml-auto"
+                        aria-label={t("common:toolbar.moreActions")}
+                        aria-busy={menuActionPending}
+                      >
+                        {menuActionPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MoreHorizontal className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        disabled={moveTask.isPending}
+                        onSelect={() => setIsMoveDialogOpen(true)}
+                      >
+                        <FolderInput className="h-4 w-4" />
+                        {t("edit.moveToProject")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={duplicateTask.isPending}
+                        onSelect={() => {
+                          duplicateTask.mutate(parsedTaskId);
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                        {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={toggleArchive.isPending}
+                        onSelect={() =>
+                          toggleArchive.mutate({
+                            taskId: parsedTaskId,
+                            data: { is_archived: !task?.is_archived } as never,
+                          })
+                        }
+                      >
+                        {task?.is_archived ? (
+                          <>
+                            <ArchiveRestore className="h-4 w-4" />
+                            {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="h-4 w-4" />
+                            {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={deleteTask.isPending}
+                        onSelect={() => setShowDeleteConfirm(true)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : null}
               </div>
             </form>
@@ -890,22 +916,36 @@ export const TaskEditPage = () => {
             projectId={task?.project_id ?? null}
             canEdit={!isReadOnly}
           />
-          {commentsQuery.isError ? (
-            <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
-          ) : null}
-          <CommentSection
-            entityType="task"
-            entityId={parsedTaskId}
-            comments={commentsQuery.data ?? []}
-            isLoading={commentsQuery.isLoading}
-            onCommentCreated={handleCommentCreated}
-            onCommentDeleted={handleCommentDeleted}
-            onCommentUpdated={handleCommentUpdated}
-            canModerate={canModerateComments}
-            initiativeId={projectQuery.data?.initiative_id ?? 0}
-          />
         </div>
       </div>
+
+      {/* The thread gets the whole row rather than half of one: a conversation
+          read in a column this narrow wraps every reply. */}
+      {commentsQuery.isError ? (
+        <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
+      ) : null}
+      <CommentSection
+        entityType="task"
+        entityId={parsedTaskId}
+        comments={commentsQuery.data ?? []}
+        isLoading={commentsQuery.isLoading}
+        onCommentCreated={handleCommentCreated}
+        onCommentDeleted={handleCommentDeleted}
+        onCommentUpdated={handleCommentUpdated}
+        canModerate={canModerateComments}
+        initiativeId={projectQuery.data?.initiative_id ?? 0}
+      />
+
+      <MoveTaskDialog
+        open={isMoveDialogOpen}
+        onOpenChange={setIsMoveDialogOpen}
+        projects={writableProjects}
+        currentProjectId={task?.project_id ?? null}
+        isLoading={writableProjectsQuery.isLoading}
+        hasError={Boolean(writableProjectsQuery.isError)}
+        isSaving={moveTask.isPending}
+        onConfirm={handleMoveTask}
+      />
 
       <ConfirmDialog
         open={showDeleteConfirm}

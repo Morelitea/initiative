@@ -5,20 +5,24 @@ from pydantic import ConfigDict
 from sqlalchemy import Column, DateTime, String, Text
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    CommentsToggleMixin,
+    CreatedByMixin,
+    SoftDeleteMixin,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar_event import CalendarEvent
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
     from app.models.tenant.tag import Tag
 
 
 DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 
-class Calendar(CreatedByMixin, SoftDeleteMixin, table=True):
+class Calendar(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """Initiative-scoped calendar — the shareable container for events.
 
     A calendar is to events what a project is to tasks: DAC grants attach to
@@ -60,8 +64,11 @@ class Calendar(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="calendars")
-    creator: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Calendar.created_by]"},
+    creator: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(Calendar.created_by) == MemberProfile.id",
+            "viewonly": True,
+        },
     )
     events: List["CalendarEvent"] = Relationship(
         back_populates="calendar",

@@ -5,7 +5,7 @@ from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, T
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
-from app.models.platform.user import User
+from app.models.platform.user_profile_view import MemberProfile
 
 
 class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
@@ -98,9 +98,11 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
     # The API calls this the author; the column is the schema-wide
-    # ``created_by``, which is what a comment's author IS. ``foreign_keys`` is
-    # named rather than inferred so the join survives another user FK landing
-    # on this table.
-    author: User = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Comment.created_by]"},
+    # ``created_by``, which is what a comment's author IS. The join is spelled
+    # out because the target is a view, which carries no foreign key.
+    author: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "foreign(Comment.created_by) == MemberProfile.id",
+            "viewonly": True,
+        },
     )

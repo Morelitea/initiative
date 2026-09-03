@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Graduation cap</title>
+  <circle cx="24" cy="24" r="23" fill="#16233A"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#E8B84B" stroke-width="2"/>
+  <path d="M24 10 L44 18.4 L24 26.8 L4 18.4 Z" fill="#2B3550"/>
+  <path d="M24 10 L44 18.4 L24 26.8 Z" fill="#1C2338"/>
+  <path d="M13 22.6 L13 31 C13 33.6 18 35.6 24 35.6 C30 35.6 35 33.6 35 31 L35 22.6
+           L24 27.2 Z" fill="#3A4668"/>
+  <path d="M24 27.2 L35 22.6 L35 31 C35 33.6 30 35.6 24 35.6 Z" fill="#2B3550"/>
+  <circle cx="24" cy="18.4" r="2.2" fill="#E8B84B"/>
+  <path class="tsl" d="M24 18.4 L38.6 22.4 L38.6 32" fill="none" stroke="#E8B84B"
+        stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M37 31.4 L40.2 31.4 L39.4 37.4 L37.8 37.4 Z" fill="#E8B84B"/>
+</svg>

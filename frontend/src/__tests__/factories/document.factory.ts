@@ -20,6 +20,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     initiative: null,
     projects: [],
     comment_count: 0,
+    comments_disabled: false,
     grants: [],
     my_permission_level: "owner",
     tags: [],

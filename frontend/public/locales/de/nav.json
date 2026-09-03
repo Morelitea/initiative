@@ -1,6 +1,6 @@
 {
-  "selectGuild": "Gilde auswählen",
-  "guildSettings": "Gildeneinstellungen",
+  "selectGuild": "Community auswählen",
+  "guildSettings": "Community-Einstellungen",
   "initiatives": "Initiativen",
   "tags": "Tags",
   "favorites": "Favoriten",
@@ -9,10 +9,12 @@
   "noTagsCreated": "Noch keine Tags erstellt",
   "myAccount": "Mein Konto",
   "home": "Startseite",
+  "myProfile": "Mein Profil",
   "myTasks": "Meine Aufgaben",
   "tasksICreated": "Meine erstellten Aufgaben",
   "myProjects": "Meine Projekte",
   "myDocuments": "Meine Dokumente",
+  "myContacts": "Meine Kontakte",
   "myCalendar": "Mein Kalender",
   "myStats": "Meine Statistiken",
   "userSettings": "Benutzereinstellungen",
@@ -67,12 +69,13 @@
   "navigate": {
     "signInRequired": "Bitte melde dich erneut an, um diesem Link zu folgen.",
     "missingDestination": "Diesem Link fehlen Zielangaben.",
-    "invalidGuildId": "Ungültige Gilden-ID im Link.",
-    "noAccess": "Du hast keinen Zugriff auf diese Gilde.",
-    "switchError": "Gilde für diesen Link konnte nicht gewechselt werden.",
-    "redirecting": "Du wirst zur richtigen Gilde weitergeleitet…",
+    "invalidGuildId": "Ungültige Community-ID im Link.",
+    "noAccess": "Du hast keinen Zugriff auf diese Community.",
+    "switchError": "Community für diesen Link konnte nicht gewechselt werden.",
+    "redirecting": "Du wirst zur richtigen Community weitergeleitet…",
     "finalizing": "Weiterleitung wird abgeschlossen…",
     "goHome": "Zurück zur Startseite"
   },
-  "adminDashboard": "Administrator-Dashboard"
+  "adminDashboard": "Administrator-Dashboard",
+  "pastAnnouncements": "Frühere Ankündigungen"
 }

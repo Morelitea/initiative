@@ -23,9 +23,9 @@
     "priorityLabel": "Priorität",
     "allPriorities": "Alle Prioritäten",
     "noPriorities": "Keine Prioritäten verfügbar",
-    "filterByGuild": "Nach Gilde filtern",
-    "allGuilds": "Alle Gilden",
-    "noGuilds": "Keine Gilden verfügbar",
+    "filterByGuild": "Nach Community filtern",
+    "allGuilds": "Alle Communitys",
+    "noGuilds": "Keine Communitys verfügbar",
     "filterPlaceholder": "Aufgaben filtern..."
   },
   "columns": {
@@ -35,7 +35,7 @@
     "startDate": "Startdatum",
     "dueDate": "Fälligkeitsdatum",
     "dateWindow": "Zeitfenster",
-    "guild": "Gilde",
+    "guild": "Community",
     "projectPath": "Projektpfad",
     "priority": "Priorität",
     "tags": "Tags",
@@ -46,7 +46,7 @@
     "markInProgress": "Aufgabe als in Bearbeitung markieren"
   },
   "errors": {
-    "guildContext": "Der Gildenkontext für diese Aufgabe konnte nicht ermittelt werden.",
+    "guildContext": "Der Community-Kontext für diese Aufgabe konnte nicht ermittelt werden.",
     "statusUpdate": "Aufgabenstatus konnte nicht aktualisiert werden.",
     "statusNoMatch": "Aufgabenstatus konnte nicht aktualisiert werden. Kein passender Status gefunden."
   },
@@ -63,12 +63,8 @@
     "noAccessDescription": "Du hast keine Berechtigung, diese Aufgabe anzuzeigen. Bitte einen Projektleiter, dir Zugriff zu gewähren.",
     "backToProjects": "← Zurück zu den Projekten",
     "loadProjectError": "Der Projektkontext für diese Aufgabe konnte nicht geladen werden.",
-    "statusBadge": "Status",
     "createdBy": "Erstellt von {{name}} · {{time}}",
     "createdAt": "Erstellt {{time}}",
-    "subtitle": "Bearbeite jedes Detail dieser Aufgabe.",
-    "detailsTitle": "Aufgabendetails",
-    "detailsDescription": "Aktualisiere die Felder unten und speichere deine Änderungen.",
     "readOnlyNoAccess": "Du hast nur Lesezugriff auf dieses Projekt, daher sind die Aufgabenfelder deaktiviert.",
     "readOnlyArchived": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Projekteinstellungen auf, um Aufgaben zu bearbeiten.",
     "titleLabel": "Titel",
@@ -141,26 +137,26 @@
     "title": "Meine Aufgaben",
     "subtitle": "Alles, was dir projektübergreifend zugewiesen ist.",
     "addTask": "Aufgabe hinzufügen",
-    "noGuild": "Keine Gilde",
+    "noGuild": "Keine Community",
     "loadError": "Deine Aufgaben konnten nicht geladen werden.",
     "groupByDate": "Datum",
-    "groupByGuild": "Gilde"
+    "groupByGuild": "Community"
   },
   "myCalendar": {
     "title": "Mein Kalender",
-    "subtitle": "Aufgaben und Termine über alle deine Gilden hinweg.",
+    "subtitle": "Aufgaben und Termine über alle deine Communitys hinweg.",
     "loadError": "Kalenderdaten konnten nicht geladen werden.",
     "typeEvents": "Termine",
     "typeTasks": "Aufgaben"
   },
   "createdTasks": {
     "title": "Meine erstellten Aufgaben",
-    "subtitle": "Aufgaben, die du über alle deine Gilden hinweg erstellt hast.",
+    "subtitle": "Aufgaben, die du über alle deine Communitys hinweg erstellt hast.",
     "addTask": "Aufgabe hinzufügen",
     "empty": "Du hast noch keine Aufgaben erstellt.",
     "loadError": "Deine erstellten Aufgaben konnten nicht geladen werden.",
     "groupByDate": "Datum",
-    "groupByGuild": "Gilde"
+    "groupByGuild": "Community"
   },
   "tagTasks": {
     "loadError": "Aufgaben konnten nicht geladen werden."
@@ -207,7 +203,7 @@
   },
   "move": {
     "title": "Aufgabe in ein anderes Projekt verschieben",
-    "description": "Wähle ein Zielprojekt innerhalb der aktuellen Gilde aus. Du kannst Aufgaben nur in Projekte verschieben, in denen du die Berechtigung hast, neue Arbeit zu erstellen.",
+    "description": "Wähle ein Zielprojekt innerhalb der aktuellen Community aus. Du kannst Aufgaben nur in Projekte verschieben, in denen du die Berechtigung hast, neue Arbeit zu erstellen.",
     "loadError": "Beschreibbare Projekte konnten nicht geladen werden.",
     "loading": "Verfügbare Projekte werden geladen…",
     "noProjects": "Du hast noch keine anderen beschreibbaren Projekte verfügbar.",
@@ -239,10 +235,10 @@
     "title": "Aufgabe hinzufügen",
     "description": "Wähle ein Projekt aus, um eine neue Aufgabe zu erstellen.",
     "lastUsed": "Zuletzt verwendet",
-    "selectGuild": "Eine Gilde auswählen",
+    "selectGuild": "Eine Community auswählen",
     "selectInitiative": "Eine Initiative auswählen",
     "selectProject": "Ein Projekt auswählen",
-    "noInitiatives": "Keine Initiativen in dieser Gilde gefunden.",
+    "noInitiatives": "Keine Initiativen in dieser Community gefunden.",
     "noProjects": "Keine Projekte in dieser Initiative gefunden.",
     "loading": "Wird geladen…",
     "back": "Zurück",
@@ -289,6 +285,11 @@
     "startDateLabel": "Startdatum",
     "dueDateLabel": "Fälligkeitsdatum",
     "tagsLabel": "Tags",
-    "tagsPlaceholder": "Tags hinzufügen"
+    "tagsPlaceholder": "Tags hinzufügen",
+    "sections": {
+      "tracking": "Nachverfolgung",
+      "schedule": "Zeitplan",
+      "people": "Personen & Tags"
+    }
   }
 }

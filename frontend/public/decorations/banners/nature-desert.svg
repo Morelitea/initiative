@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Desert</title>
+  <!-- Where the succulents grow without anybody's help: saguaro on the ridge,
+       agave and prickly pear close enough to touch. -->
+  <style>
+    .heat { animation: shimmer 12s ease-in-out infinite alternate }
+    @keyframes shimmer { from { opacity: .3 } to { opacity: .62 } }
+    .sway { animation: lean 13s ease-in-out infinite alternate;
+            transform-box: view-box; transform-origin: 80px 40px }
+    @keyframes lean { from { transform: skewX(-.5deg) } to { transform: skewX(.5deg) } }
+    @media (prefers-reduced-motion: reduce) { .heat, .sway { animation: none } }
+    .heathaze { animation: wobble 16s ease-in-out infinite alternate;
+                transform-box: view-box; transform-origin: 80px 40px }
+    @keyframes wobble { from { transform: translateX(-2px) } to { transform: translateX(2px) } }
+    .sunpulse { animation: beat 9s ease-in-out infinite alternate }
+    @keyframes beat { from { opacity: .75; transform: scale(.97) } to { opacity: 1; transform: scale(1.04) } }
+    @media (prefers-reduced-motion: reduce) { .heathaze, .sunpulse { animation: none } }
+  </style>
+  <defs>
+    <radialGradient id="heatband" cx=".5" cy=".8" r=".6">
+      <stop offset="0%" stop-color="#FFE7B8" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="#FFE7B8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2B672"/><stop offset="42%" stop-color="#F6D6A0"/>
+      <stop offset="100%" stop-color="#EFE0BE"/>
+    </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D8AE78"/><stop offset="100%" stop-color="#B98B54"/>
+    </linearGradient>
+    <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FFF0C8" stop-opacity=".9"/>
+      <stop offset="100%" stop-color="#FFD79A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#dsky)"/>
+  <circle class="heat" cx="118" cy="11" r="16" fill="url(#sun)"/>
+  <circle class="sunpulse" cx="118" cy="11" r="4.2" fill="#FFF2CE" opacity=".85" style="transform-box: fill-box; transform-origin: 50% 50%"/>
+
+  <!-- Mesas, well back. -->
+  <g fill="#C08A6E" opacity=".5">
+    <path d="M0 22 L14 22 L18 15.6 L34 15.6 L38 22 L58 22 L58 26 L0 26 Z"/>
+    <path d="M104 22 L112 22 L115 17.4 L131 17.4 L134 22 L160 22 L160 26 L104 26 Z"/>
+  </g>
+  <g fill="#A8705A" opacity=".45">
+    <path d="M56 24 L66 24 L70 19.4 L84 19.4 L88 24 L108 24 L108 27 L56 27 Z"/>
+  </g>
+
+  <!-- Saguaro, on the middle ground. -->
+  <g fill="#3E7047">
+    <g>
+      <path d="M28 40 L28 21 C28 19.6 28.9 18.8 30 18.8 C31.1 18.8 32 19.6 32 21 L32 40 Z"/>
+      <path d="M28.4 27 C25.4 27 24 25.4 24 23 L24 20.4 C24 19.4 24.7 18.8 25.5 18.8
+               C26.3 18.8 27 19.4 27 20.4 L27 22.8 C27 23.8 27.5 24.2 28.4 24.2 Z"/>
+      <path d="M31.6 29.4 C34.6 29.4 36 27.8 36 25.4 L36 23.4 C36 22.4 36.7 21.8 37.5 21.8
+               C38.3 21.8 39 22.4 39 23.4 L39 25.8 C39 29.4 36.4 32.4 31.6 32.4 Z"/>
+    </g>
+    <g>
+      <path d="M133 40 L133 24.4 C133 23.2 133.8 22.4 134.8 22.4 C135.8 22.4 136.6 23.2 136.6 24.4 L136.6 40 Z"/>
+      <path d="M133.4 30.4 C130.8 30.4 129.6 29 129.6 26.8 L129.6 25 C129.6 24.1 130.2 23.6 130.9 23.6
+               C131.6 23.6 132.2 24.1 132.2 25 L132.2 26.6 C132.2 27.6 132.6 28 133.4 28 Z"/>
+    </g>
+    <path d="M96 40 L96 27.6 C96 26.6 96.7 26 97.5 26 C98.3 26 99 26.6 99 27.6 L99 40 Z"/>
+  </g>
+  <!-- Ribs, the way a saguaro is pleated. -->
+  <g stroke="#2C5434" stroke-width=".34" opacity=".5" fill="none">
+    <path d="M29 40 L29 20.4"/><path d="M31 40 L31 20.4"/>
+    <path d="M134.4 40 L134.4 23.8"/><path d="M135.6 40 L135.6 23.8"/>
+  </g>
+
+  <!-- The floor. -->
+  <path d="M0 30 C24 28.4 48 30.6 80 29.4 C112 28.2 140 30.4 160 29 L160 40 L0 40 Z"
+        fill="url(#sand)"/>
+  <g stroke="#A87A48" stroke-width=".4" opacity=".4" fill="none">
+    <path d="M0 33.4 C30 32.4 60 34 92 33 C120 32.2 142 33.6 160 32.8"/>
+    <path d="M0 36.6 C34 35.6 64 37.2 96 36.2 C126 35.4 146 36.8 160 36"/>
+  </g>
+
+  <g class="sway">
+    <!-- Prickly pear: pads off pads, the way it grows. -->
+    <g transform="translate(52 31)">
+      <g fill="#4E8E52" stroke="#2C5434" stroke-width=".4">
+        <ellipse cx="0" cy="0" rx="4.2" ry="5.4"/>
+        <ellipse cx="-5" cy="-4.6" rx="3.2" ry="4.2" transform="rotate(-24 -5 -4.6)"/>
+        <ellipse cx="4.6" cy="-5.4" rx="3" ry="4" transform="rotate(22 4.6 -5.4)"/>
+        <ellipse cx="-1.4" cy="-9.6" rx="2.4" ry="3.2" transform="rotate(-8 -1.4 -9.6)"/>
+      </g>
+      <g fill="#D8E8C0" opacity=".8">
+        <circle cx="-1.4" cy="-1.6" r=".3"/><circle cx="1.4" cy=".6" r=".3"/>
+        <circle cx="-.4" cy="2.4" r=".3"/><circle cx="-5.4" cy="-5.4" r=".28"/>
+        <circle cx="-4.2" cy="-3" r=".28"/><circle cx="5" cy="-6.2" r=".28"/>
+        <circle cx="3.8" cy="-4" r=".28"/><circle cx="-1.6" cy="-10.4" r=".26"/>
+      </g>
+      <!-- A flower, because it is that time of year. -->
+      <g fill="#F2C230"><circle cx="-1.6" cy="-12.8" r="1.5"/></g>
+      <g fill="#E88A2A"><circle cx="-1.6" cy="-12.8" r=".7"/></g>
+    </g>
+
+    <!-- Agave: one rosette, leaf by leaf. -->
+    <g transform="translate(80 36)">
+      <g fill="#5E9E6E" stroke="#2C5434" stroke-width=".35">
+        <path d="M0 0 C-1.4 -2 -6.4 -5.4 -10.4 -6.4 C-7.4 -3.4 -3 -.8 0 0 Z"/>
+        <path d="M0 0 C-1.6 -2.4 -5 -7.4 -6.6 -11 C-5 -7.6 -1.8 -2.6 0 0 Z"/>
+        <path d="M0 0 C-1.2 -3 -2.6 -8.6 -2.6 -12.6 C-1.4 -8.6 -.4 -3.2 0 0 Z"/>
+        <path d="M0 0 C.6 -3.2 2.2 -8.8 3.6 -12.2 C2.6 -8.4 1 -3 0 0 Z"/>
+        <path d="M0 0 C1.6 -2.6 5.4 -7 8 -9.8 C5.8 -6.4 2 -2.2 0 0 Z"/>
+        <path d="M0 0 C2 -1.6 7 -4.4 11 -5.6 C7.6 -3 3 -.6 0 0 Z"/>
+        <path d="M0 0 C-1.8 -1 -6.6 -2.2 -10.6 -2.2 C-6.8 -.8 -2.6 -.2 0 0 Z"/>
+        <path d="M0 0 C1.8 -.8 6.6 -1.6 10.4 -1.4 C6.8 -.4 2.6 .2 0 0 Z"/>
+      </g>
+      <g fill="#8A3A2E">
+        <circle cx="-10.4" cy="-6.4" r=".3"/><circle cx="-6.6" cy="-11" r=".3"/>
+        <circle cx="-2.6" cy="-12.6" r=".3"/><circle cx="3.6" cy="-12.2" r=".3"/>
+        <circle cx="8" cy="-9.8" r=".3"/><circle cx="11" cy="-5.6" r=".3"/>
+      </g>
+    </g>
+
+    <!-- Barrel cactus, squat and ribbed. -->
+    <g transform="translate(110 34)">
+      <ellipse cx="0" cy="0" rx="5" ry="5.6" fill="#4E8E52" stroke="#2C5434" stroke-width=".4"/>
+      <g stroke="#2C5434" stroke-width=".38" opacity=".65" fill="none">
+        <path d="M0 -5.6 L0 5.6"/><path d="M-2.4 -5.1 C-3 -1.6 -3 1.6 -2.4 5.1"/>
+        <path d="M2.4 -5.1 C3 -1.6 3 1.6 2.4 5.1"/>
+        <path d="M-4.2 -3.6 C-4.6 -1.2 -4.6 1.2 -4.2 3.6"/>
+        <path d="M4.2 -3.6 C4.6 -1.2 4.6 1.2 4.2 3.6"/>
+      </g>
+      <g stroke="#E8D8A8" stroke-width=".3" opacity=".8" fill="none">
+        <path d="M0 -5.6 L0 -6.8"/><path d="M-2.5 -5 L-3.2 -6"/><path d="M2.5 -5 L3.2 -6"/>
+        <path d="M-4.4 -3.4 L-5.4 -4"/><path d="M4.4 -3.4 L5.4 -4"/>
+      </g>
+      <g fill="#E85A3A">
+        <circle cx="-1.4" cy="-6.4" r=".9"/><circle cx="1" cy="-6.6" r=".8"/>
+        <circle cx="-.2" cy="-7.4" r=".7"/>
+      </g>
+    </g>
+
+    <!-- Aloe, near the right edge. -->
+    <g transform="translate(140 37)">
+      <g fill="#6BA86E" stroke="#2C5434" stroke-width=".32">
+        <path d="M0 0 C-1 -2.4 -3.6 -5.6 -5.6 -7 C-4.4 -4 -1.8 -1.2 0 0 Z"/>
+        <path d="M0 0 C-.8 -3 -1.4 -6.6 -1.2 -9 C-.6 -6 -.2 -2.6 0 0 Z"/>
+        <path d="M0 0 C.6 -3 1.8 -6.4 2.8 -8.4 C2.2 -5.6 1 -2.4 0 0 Z"/>
+        <path d="M0 0 C1.4 -2.2 4 -4.8 6 -6 C4.4 -3.4 2 -1 0 0 Z"/>
+      </g>
+      <g fill="#E8F0D0" opacity=".55">
+        <circle cx="-2.6" cy="-3.6" r=".22"/><circle cx="-.8" cy="-4.6" r=".22"/>
+        <circle cx="1.6" cy="-4.4" r=".22"/><circle cx="3.2" cy="-3.2" r=".22"/>
+      </g>
+    </g>
+
+    <!-- Pebbles, and a bit of scrub. -->
+    <g fill="#8A6A44" opacity=".55">
+      <ellipse cx="20" cy="36" rx="2" ry=".8"/><ellipse cx="66" cy="38" rx="2.6" ry="1"/>
+      <ellipse cx="122" cy="37.4" rx="2.2" ry=".9"/><ellipse cx="94" cy="35.4" rx="1.6" ry=".7"/>
+    </g>
+    <g stroke="#9E8A52" stroke-width=".42" fill="none" opacity=".7">
+      <path d="M12 40 C11 37 10 35.6 8.6 34.6"/><path d="M12 40 C12 37 12.6 35.4 13.6 34.4"/>
+      <path d="M12 40 C13 37.4 14.6 36 16 35.4"/>
+      <path d="M152 40 C151 37.4 150 36 148.8 35.2"/><path d="M152 40 C152.2 37.4 153 36 154 35.2"/>
+    </g>
+  </g>
+  <ellipse class="heathaze" cx="80" cy="31" rx="76" ry="6" fill="url(#heatband)"/>
+</svg>

@@ -38,6 +38,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserRole, UserStatus
+from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import usernames as username_service
 
 logger = logging.getLogger(__name__)
@@ -327,6 +328,10 @@ async def _provision(
             )
             session.add(identity)
             await session.flush()
+        # Outside the savepoint, and before the commit: a lost race raises out
+        # of the block above and never reaches this, so there is no row for an
+        # account that was discarded.
+        await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         await session.commit()
         await session.refresh(user)
         await session.refresh(identity)

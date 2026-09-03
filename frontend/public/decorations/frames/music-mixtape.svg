@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Mixtape</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Not a ring: a shell with a window, and the picture is the window. The
+       reels turn in front of it and the tape runs across the bottom, so the
+       wearer is the side that is playing. The label is blank, the way one is
+       before anybody writes on it. -->
+  <defs>
+    <linearGradient id="mtShell" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0%" stop-color="#4A505C"/><stop offset="42%" stop-color="#2C313A"/>
+      <stop offset="100%" stop-color="#171A20"/>
+    </linearGradient>
+    <linearGradient id="mtLabel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6EFDD"/><stop offset="100%" stop-color="#D9CDB2"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .reel { animation: mtSpin 4.5s linear infinite; transform-box: fill-box;
+            transform-origin: center }
+    @keyframes mtSpin { to { transform: rotate(360deg) } }
+    @media (prefers-reduced-motion: reduce) { .reel { animation: none } }
+  </style>
+
+  <path d="M10 0 H118 A10 10 0 0 1 128 10 V118 A10 10 0 0 1 118 128 H10 A10 10 0 0 1 0 118 V10 A10 10 0 0 1 10 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z" fill="url(#mtShell)" fill-rule="evenodd"/>
+  <path d="M64 14 A50 50 0 0 0 20 40" fill="none" stroke="#FFFFFF" stroke-width="2.4" opacity=".13"/>
+  <path d="M10 0 H118 A10 10 0 0 1 128 10 V118 A10 10 0 0 1 118 128 H10 A10 10 0 0 1 0 118 V10 A10 10 0 0 1 10 0 Z M64 14 A50 50 0 1 1 64 114 A50 50 0 1 1 64 14 Z" fill="none" stroke="#0E1015" stroke-width="1.4" fill-rule="evenodd"/>
+
+  <g fill="url(#mtLabel)"><path d="M8 2 H120 A2 2 0 0 1 122 4 V12 H6 V4 A2 2 0 0 1 8 2 Z"/></g>
+  <g fill="none" stroke="#9A8F76" stroke-width=".9" stroke-linecap="round" opacity=".8">
+    <path d="M14 6.4 C24 4.6, 30 8, 40 6 C50 4, 56 8.4, 66 6.4 C76 4.4, 82 8, 92 6.2"/>
+    <path d="M14 10 L58 10"/>
+  </g>
+  <path d="M104 3.6 L118 3.6 L118 10.6 L104 10.6 Z" fill="#C0392B" opacity=".85"/>
+  <text x="111" y="9.6" font-size="6.4" font-family="Georgia, serif" font-weight="bold"
+        text-anchor="middle" fill="#F6EFDD">A</text>
+
+  <path d="M38 101 C48 110, 80 110, 90 101" fill="none" stroke="#241B14" stroke-width="5.2"/>
+  <path d="M38 101 C48 110, 80 110, 90 101" fill="none" stroke="#4A3626" stroke-width="1.6"/>
+  <g class="reel"><circle cx="38" cy="88" r="12.4" fill="#241B14"/><circle cx="38" cy="88" r="12.4" fill="none" stroke="#3E2E22" stroke-width="2.4"/><circle cx="38" cy="88" r="7" fill="#C9CDD4"/><g fill="#8B929C"><path d="M43.53 87.12 L43.53 88.88 L40.60 88.00 Z"/><path d="M41.52 92.35 L40.01 93.23 L39.30 90.25 Z"/><path d="M35.99 93.23 L34.48 92.35 L36.70 90.25 Z"/><path d="M32.47 88.88 L32.47 87.12 L35.40 88.00 Z"/><path d="M34.48 83.65 L35.99 82.77 L36.70 85.75 Z"/><path d="M40.01 82.77 L41.52 83.65 L39.30 85.75 Z"/></g><circle cx="38" cy="88" r="2.4" fill="#2E3138"/><path d="M38 75.6 a12.4 12.4 0 0 1 10.7 6.2" fill="none" stroke="#6B5039" stroke-width="1.6" opacity=".8"/></g>
+  <g class="reel"><circle cx="90" cy="88" r="12.4" fill="#241B14"/><circle cx="90" cy="88" r="12.4" fill="none" stroke="#3E2E22" stroke-width="2.4"/><circle cx="90" cy="88" r="7" fill="#C9CDD4"/><g fill="#8B929C"><path d="M95.53 87.12 L95.53 88.88 L92.60 88.00 Z"/><path d="M93.52 92.35 L92.01 93.23 L91.30 90.25 Z"/><path d="M87.99 93.23 L86.48 92.35 L88.70 90.25 Z"/><path d="M84.47 88.88 L84.47 87.12 L87.40 88.00 Z"/><path d="M86.48 83.65 L87.99 82.77 L88.70 85.75 Z"/><path d="M92.01 82.77 L93.52 83.65 L91.30 85.75 Z"/></g><circle cx="90" cy="88" r="2.4" fill="#2E3138"/><path d="M90 75.6 a12.4 12.4 0 0 1 10.7 6.2" fill="none" stroke="#6B5039" stroke-width="1.6" opacity=".8"/></g>
+
+  <g fill="#171A20">
+    <rect x="56" y="108" width="16" height="12" rx="2"/>
+    <circle cx="24" cy="116" r="4"/><circle cx="104" cy="116" r="4"/>
+  </g>
+  <g fill="#3E434E">
+    <rect x="58" y="110" width="12" height="8" rx="1.4"/>
+    <circle cx="24" cy="116" r="2.2"/><circle cx="104" cy="116" r="2.2"/>
+  </g>
+  <g fill="#5A616D">
+    <circle cx="9" cy="9" r="2"/><circle cx="119" cy="9" r="2"/>
+    <circle cx="9" cy="119" r="2"/><circle cx="119" cy="119" r="2"/>
+  </g>
+</svg>

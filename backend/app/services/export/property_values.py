@@ -10,7 +10,7 @@ all with one rule set:
 - checkbox         → ``value_boolean``
 - date/datetime    → ``value_text`` (ISO 8601)
 - multi_select     → ``value_json``
-- user_reference   → ``value_email``
+- user_reference   → ``value_handle``
 
 Works on any ``*PropertyValue`` model (task/document/calendar-event) — they
 share the value columns and the ``property_definition``/``value_user``
@@ -18,6 +18,8 @@ relationships, which callers must have eager-loaded.
 """
 
 from __future__ import annotations
+
+from app.core.user_display import handle_of
 
 
 def property_export_dict(pv) -> dict:
@@ -41,5 +43,5 @@ def property_export_dict(pv) -> dict:
     elif prop_type == "multi_select":
         record["value_json"] = pv.value_json
     elif prop_type == "user_reference":
-        record["value_email"] = pv.value_user.email if pv.value_user else None
+        record["value_handle"] = handle_of(pv.value_user) if pv.value_user else None
     return record

@@ -49,7 +49,7 @@ Initiative connects to PostgreSQL with **three** connection strings, and it won'
 
 | Variable | Connects as | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `app_provisioner` | Runs migrations, creates guild spaces, and **auto-creates** the two roles below. Not a superuser — the compose file creates this role at first database init. |
+| `DATABASE_URL` | `app_provisioner` | Runs migrations, creates community spaces, and **auto-creates** the two roles below. Not a superuser — the compose file creates this role at first database init. |
 | `DATABASE_URL_APP` | `app_user` | The everyday, security-enforced connection for normal requests. |
 | `DATABASE_URL_ADMIN` | `app_admin` | Migrations and background jobs. |
 

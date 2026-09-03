@@ -6,5 +6,5 @@ import { redirectToActiveGuild } from "@/lib/routeGuards";
 // project page to forward to — the guild home showing projects is the nearest
 // thing a bare /projects can mean.
 export const Route = createFileRoute("/_serverRequired/_authenticated/projects")({
-  beforeLoad: redirectToActiveGuild("/g/$guildId/", { tool: "projects" }),
+  beforeLoad: redirectToActiveGuild("/c/$guildId/", { tool: "projects" }),
 });

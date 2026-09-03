@@ -44,7 +44,9 @@ from app.core.messages import (
     AuthMessages,
     GuildMessages,
     SettingsMessages,
+    UserMessages,
 )
+from app.services.platform import account_stream
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -68,6 +70,9 @@ router = APIRouter()
 # what each operation actually requires.
 UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
 AuditReadDep = Annotated[User, Depends(require_capability(Capability.AUDIT_READ))]
+UsersAgeUnblockDep = Annotated[
+    User, Depends(require_capability(Capability.USERS_AGE_UNBLOCK))
+]
 UsersManageDep = Annotated[User, Depends(require_capability(Capability.USERS_MANAGE))]
 ContentModerateDep = Annotated[
     User, Depends(require_capability(Capability.CONTENT_MODERATE))
@@ -530,6 +535,58 @@ async def get_platform_admin_count(
     return PlatformAdminCountResponse(count=count)
 
 
+@router.delete("/users/{user_id}/age-block", response_model=UserRead)
+async def clear_age_block(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: UsersAgeUnblockDep,
+) -> User:
+    """Let an account answer the age question again.
+
+    An account that answered as under age keeps that answer, and the question
+    is not re-asked — otherwise it is not a question. This is the way back for
+    the case that is nearly all of them: a mistyped year. It clears the record
+    of the answer and nothing else; the account answers again from scratch, and
+    the deployment has no more idea of anybody's birthday than it did before.
+
+    Gated on ``users.age_unblock``, which the support tier holds — the lowest
+    rung, because getting somebody back into their account after a typo is
+    support work rather than a moderation decision. Recorded either way: it is
+    one person restoring another's access, which is exactly the kind of thing
+    a log is for.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+    if user.age_below_minimum_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.AGE_NOT_BLOCKED,
+        )
+
+    user.age_below_minimum_at = None
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_AGE_BLOCK_CLEARED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={},
+    )
+    # The question is theirs to answer again, so their open tabs re-read the
+    # account and meet the form rather than the wall.
+    account_stream.queue_account_signal(session, user_id, "age")
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 @router.patch("/users/{user_id}/platform-role", response_model=UserRead)
 async def update_platform_role(
     user_id: int,
@@ -597,6 +654,9 @@ async def update_platform_role(
     user.role = payload.role
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    # What this account may do just changed, and it was not their doing. Their
+    # open tabs re-read it rather than showing a rung they no longer hold.
+    account_stream.queue_account_signal(session, user_id, "role")
     await session.commit()
     await session.refresh(user)
     # Platform user management stays platform-table-only (see reactivate).
@@ -951,6 +1011,11 @@ async def admin_update_guild_member_role(
 
     target_membership.role = payload.role
     session.add(target_membership)
+    # A promotion changes the guild role underneath initiative rows that already
+    # exist; bring them up to the manager role an admin's row carries.
+    await guilds_service.align_admin_initiative_roles(
+        session, guild_id=guild_id, user_id=user_id, role=payload.role
+    )
     await session.commit()
     # Guild role change (e.g. admin → member) may reduce content access — re-check
     # this user's live content streams immediately (matches the other paths).

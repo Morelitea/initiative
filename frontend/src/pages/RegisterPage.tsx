@@ -3,10 +3,10 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import { UsernameField } from "@/components/UsernameField";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LogoIcon } from "@/components/LogoIcon";
+import { UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,8 +21,8 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { slugifyUsername } from "@/lib/usernames";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { slugifyUsername } from "@/lib/usernames";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;

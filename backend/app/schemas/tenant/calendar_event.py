@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel, TitleStr
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
@@ -95,6 +95,7 @@ class CalendarEventBase(SanitizedBaseModel):
 
 
 class CalendarEventCreate(CalendarEventBase):
+    title: TitleStr = Field(..., min_length=1, max_length=255)
     calendar_id: int
     attendee_ids: Optional[List[int]] = None
     tag_ids: Optional[List[int]] = None
@@ -102,7 +103,7 @@ class CalendarEventCreate(CalendarEventBase):
 
 
 class CalendarEventUpdate(SanitizedBaseModel):
-    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
     location: Optional[str] = Field(default=None, max_length=500)
     start_at: Optional[datetime] = None

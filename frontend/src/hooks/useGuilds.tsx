@@ -1,3 +1,4 @@
+// The UI calls a guild a community — see the NAMING note in `@/api/query-keys`.
 import {
   createContext,
   type ReactNode,
@@ -32,7 +33,7 @@ export type GuildEntry = GuildRead & {
 
 interface GuildContextValue {
   guilds: GuildEntry[];
-  /** This tab's guild, taken from its `/g/{guildId}` URL (the route layout
+  /** This tab's guild, taken from its `/c/{guildId}` URL (the route layout
    * calls syncGuildFromUrl). Per-tab — no server-held context — so two tabs can
    * sit in two different guilds at once. */
   activeGuildId: number | null;
@@ -247,7 +248,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       await apiClient.put("/guilds/order", { guildIds: payload });
     } catch (err) {
       console.error("Failed to save guild order", err);
-      toast.error("Unable to save guild order. Refreshing…");
+      toast.error("Unable to save community order. Refreshing…");
       await refreshGuilds();
     }
   }, [refreshGuilds]);
@@ -298,7 +299,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
   const switchGuild = useCallback(
     async (guildId: number) => {
-      // The guild lives in the URL: callers navigate to /g/{guildId} and the
+      // The guild lives in the URL: callers navigate to /c/{guildId} and the
       // route layout calls syncGuildFromUrl. Here we just move this tab's local
       // state and drop the previous guild's now-wrong cached query data. No
       // server context — per-tab only, so two tabs can hold different guilds.
@@ -313,7 +314,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   );
 
   /**
-   * Adopt the guild from a /g/{guildId} route into this tab's local state
+   * Adopt the guild from a /c/{guildId} route into this tab's local state
    * (rail highlight, redirect targets, query keys). Per-tab only — no server
    * context — so each tab tracks the guild in its own URL.
    */
@@ -326,7 +327,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     await resetGuildScopedQueries();
   }, []);
 
-  // Each browser tab holds its OWN guild, taken from its `/g/{guildId}` URL —
+  // Each browser tab holds its OWN guild, taken from its `/c/{guildId}` URL —
   // tabs do NOT converge. We deliberately do not listen for the guild storage
   // event, so a guild switch in one tab never drags another tab's context with
   // it; that is what lets two tabs sit in two different guilds at once. (The
@@ -377,15 +378,15 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const createGuild = useCallback(
     async ({ name, description }: { name: string; description?: string }) => {
       if (userId === null) {
-        throw new Error("You must be signed in to create a guild.");
+        throw new Error("You must be signed in to create a community.");
       }
       if (!canCreateGuilds) {
-        throw new Error("Guild creation is disabled.");
+        throw new Error("Community creation is disabled.");
       }
 
       const trimmedName = name.trim();
       if (!trimmedName) {
-        throw new Error("Guild name is required.");
+        throw new Error("Community name is required.");
       }
 
       const response = await apiClient.post<GuildRead>("/guilds/", {

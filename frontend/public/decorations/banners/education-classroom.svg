@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Classroom</title>
+  <!-- The wall it all happens on: the letters up over the board, the lesson
+       going on to it, and the small chairs waiting. -->
+  <defs>
+    <linearGradient id="clWall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2E4C6"/><stop offset="100%" stop-color="#DCC79E"/>
+    </linearGradient>
+    <linearGradient id="clSlate" x1="0" y1="0" x2=".4" y2="1">
+      <stop offset="0%" stop-color="#35493D"/><stop offset="100%" stop-color="#22322B"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .ch { fill: none; stroke: #F2F6EE; stroke-width: 1.1; stroke-linecap: round;
+          stroke-linejoin: round; animation: clWrite 11s ease-in-out infinite }
+    @keyframes clWrite { 0%, 92%, 100% { opacity: .12 } 34%, 72% { opacity: .95 } }
+    .mob { animation: clTurn 14s ease-in-out infinite alternate;
+           transform-box: view-box; transform-origin: 150px 0px }
+    @keyframes clTurn { from { transform: rotate(-6deg) } to { transform: rotate(6deg) } }
+    @media (prefers-reduced-motion: reduce) { .ch, .mob { animation: none } .ch { opacity: .7 } }
+  </style>
+  <rect width="160" height="40" fill="url(#clWall)"/>
+  <g><rect x="2.0" y="1.4" width="5" height="5" rx=".8" fill="#E8B84B"/><text x="4.5" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">A</text></g><g><rect x="8.1" y="1.4" width="5" height="5" rx=".8" fill="#7FBF46"/><text x="10.6" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">B</text></g><g><rect x="14.2" y="1.4" width="5" height="5" rx=".8" fill="#3E8ED0"/><text x="16.7" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">C</text></g><g><rect x="20.3" y="1.4" width="5" height="5" rx=".8" fill="#E8843C"/><text x="22.8" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">D</text></g><g><rect x="26.4" y="1.4" width="5" height="5" rx=".8" fill="#B45FC0"/><text x="28.9" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">E</text></g><g><rect x="32.5" y="1.4" width="5" height="5" rx=".8" fill="#E8B84B"/><text x="35.0" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">F</text></g><g><rect x="38.6" y="1.4" width="5" height="5" rx=".8" fill="#7FBF46"/><text x="41.1" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">G</text></g><g><rect x="44.7" y="1.4" width="5" height="5" rx=".8" fill="#3E8ED0"/><text x="47.2" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">H</text></g><g><rect x="50.8" y="1.4" width="5" height="5" rx=".8" fill="#E8843C"/><text x="53.3" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">I</text></g><g><rect x="56.9" y="1.4" width="5" height="5" rx=".8" fill="#B45FC0"/><text x="59.4" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">J</text></g><g><rect x="63.0" y="1.4" width="5" height="5" rx=".8" fill="#E8B84B"/><text x="65.5" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">K</text></g><g><rect x="69.1" y="1.4" width="5" height="5" rx=".8" fill="#7FBF46"/><text x="71.6" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">L</text></g><g><rect x="75.2" y="1.4" width="5" height="5" rx=".8" fill="#3E8ED0"/><text x="77.7" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">M</text></g><g><rect x="81.3" y="1.4" width="5" height="5" rx=".8" fill="#E8843C"/><text x="83.8" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">N</text></g><g><rect x="87.4" y="1.4" width="5" height="5" rx=".8" fill="#B45FC0"/><text x="89.9" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">O</text></g><g><rect x="93.5" y="1.4" width="5" height="5" rx=".8" fill="#E8B84B"/><text x="96.0" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">P</text></g><g><rect x="99.6" y="1.4" width="5" height="5" rx=".8" fill="#7FBF46"/><text x="102.1" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">Q</text></g><g><rect x="105.7" y="1.4" width="5" height="5" rx=".8" fill="#3E8ED0"/><text x="108.2" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">R</text></g><g><rect x="111.8" y="1.4" width="5" height="5" rx=".8" fill="#E8843C"/><text x="114.3" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">S</text></g><g><rect x="117.9" y="1.4" width="5" height="5" rx=".8" fill="#B45FC0"/><text x="120.4" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">T</text></g><g><rect x="124.0" y="1.4" width="5" height="5" rx=".8" fill="#E8B84B"/><text x="126.5" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">U</text></g><g><rect x="130.1" y="1.4" width="5" height="5" rx=".8" fill="#7FBF46"/><text x="132.6" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">V</text></g><g><rect x="136.2" y="1.4" width="5" height="5" rx=".8" fill="#3E8ED0"/><text x="138.7" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">W</text></g><g><rect x="142.3" y="1.4" width="5" height="5" rx=".8" fill="#E8843C"/><text x="144.8" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">X</text></g><g><rect x="148.4" y="1.4" width="5" height="5" rx=".8" fill="#B45FC0"/><text x="150.9" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">Y</text></g><g><rect x="154.5" y="1.4" width="5" height="5" rx=".8" fill="#E8B84B"/><text x="157.0" y="5.5" font-size="3.6" font-family="Georgia, serif" font-weight="bold" text-anchor="middle" fill="#FBF6E8">Z</text></g>
+  <path d="M6 8 L154 8 L154 30 L6 30 Z" fill="#7A5330"/>
+  <path d="M8 10 L152 10 L152 28 L8 28 Z" fill="url(#clSlate)"/>
+  <path d="M8 10 C40 11 60 13 92 11 C120 9.4 140 12 152 10.6 L152 10 L8 10 Z"
+        fill="#4A5E52" opacity=".35"/>
+  <g class="ch" style="animation-delay:0.00s" transform="translate(39.95 22.6) scale(0.9)"><path d="M4.4 -10.2 C0.6 -7.2 0.6 -3 4.4 0.2"/></g><g class="ch" style="animation-delay:0.42s" transform="translate(45.53 22.6) scale(0.9)"><path d="M0.4 -9.2 C3 -10.8 6.4 -9.2 5.4 -6.6 C4.8 -5.2 3.4 -5.6 2.6 -5.5 C4.4 -5.7 6.5 -4.6 6 -2.3 C5.5 -0.2 2 0.9 0 -0.7"/></g><g class="ch" style="animation-delay:0.84s" transform="translate(53.63 22.6) scale(0.9)"><path d="M0.6 -5.2 L6.6 -5.2 M3.6 -8.3 L3.6 -2.1"/></g><g class="ch" style="animation-delay:1.26s" transform="translate(62.99 22.6) scale(0.9)"><path d="M4.9 0.2 L4.9 -10.2 L0.2 -3.2 L6.8 -3.2"/></g><g class="ch" style="animation-delay:1.68s" transform="translate(71.09 22.6) scale(0.9)"><path d="M0.8 -10.2 C4.6 -7.2 4.6 -3 0.8 0.2"/></g><g class="ch" style="animation-delay:2.10s" transform="translate(76.67 22.6) scale(0.9)"><path d="M1 -7.9 L6.2 -2.5 M6.2 -7.9 L1 -2.5"/></g><g class="ch" style="animation-delay:2.52s" transform="translate(86.03 22.6) scale(0.9)"><path d="M5.6 -9.6 C2.6 -10.6 0.6 -8 0.6 -4.6 C0.6 -1.2 2.2 0.6 4 0.3 C5.9 0 6.7 -1.7 6.2 -3.4 C5.7 -5.1 3 -5.6 1 -3.9"/></g><g class="ch" style="animation-delay:2.94s" transform="translate(94.13 22.6) scale(0.9)"><path d="M0.6 -6.7 L6.6 -6.7 M0.6 -3.3 L6.6 -3.3"/></g><g class="ch" style="animation-delay:3.36s" transform="translate(103.85 22.6) scale(0.9)"><path d="M4.9 0.2 L4.9 -10.2 L0.2 -3.2 L6.8 -3.2"/></g><g class="ch" style="animation-delay:3.78s" transform="translate(111.95 22.6) scale(0.9)"><path d="M0.4 -8.8 C1.5 -10.7 5.9 -10.6 6.1 -7.7 C6.3 -5 1.7 -3 0.4 0.2 L6.6 0.2"/></g>
+  <path d="M6 30 L154 30 L154 32.4 L6 32.4 Z" fill="#9C6B3E"/>
+  <path d="M6 30 L154 30 L154 30.8 L6 30.8 Z" fill="#C79A64"/>
+  <g>
+    <path d="M30 31 L40 31 L39.6 32 L30.4 32 Z" fill="#F4F8F0"/>
+    <path d="M46 30.6 L54 30.6 L54 32.2 L46 32.2 Z" fill="#3A3F4A"/>
+    <path d="M110 31 L118 31 L117.6 32 L110.4 32 Z" fill="#E8B84B"/>
+  </g>
+  <g class="mob">
+    <path d="M150 0 L150 6" stroke="#8A9098" stroke-width=".5"/>
+    <path d="M150 6 L146.4 12 L153.6 12 Z" fill="#D9534F"/>
+    <path d="M150 12 L146.4 18 L153.6 18 Z" fill="#3E8ED0"/>
+    <path d="M150 18 L146.4 24 L153.6 24 Z" fill="#E8B84B"/>
+  </g>
+  <g fill="#B4783E">
+    <path d="M12 40 L12 33.4 L24 33.4 L24 40 Z"/><path d="M10 33.4 L26 33.4 L26 34.8 L10 34.8 Z"/>
+    <path d="M40 40 L40 34.6 L52 34.6 L52 40 Z"/><path d="M38 34.6 L54 34.6 L54 36 L38 36 Z"/>
+    <path d="M70 40 L70 33.8 L82 33.8 L82 40 Z"/><path d="M68 33.8 L84 33.8 L84 35.2 L68 35.2 Z"/>
+    <path d="M100 40 L100 34.8 L112 34.8 L112 40 Z"/><path d="M98 34.8 L114 34.8 L114 36.2 L98 36.2 Z"/>
+    <path d="M130 40 L130 34 L142 34 L142 40 Z"/><path d="M128 34 L144 34 L144 35.4 L128 35.4 Z"/>
+  </g>
+  <g fill="#8A5A2E" opacity=".55">
+    <path d="M10 34.8 L26 34.8 L26 35.4 L10 35.4 Z"/><path d="M38 36 L54 36 L54 36.6 L38 36.6 Z"/>
+    <path d="M68 35.2 L84 35.2 L84 35.8 L68 35.8 Z"/><path d="M98 36.2 L114 36.2 L114 36.8 L98 36.8 Z"/>
+    <path d="M128 35.4 L144 35.4 L144 36 L128 36 Z"/>
+  </g>
+</svg>

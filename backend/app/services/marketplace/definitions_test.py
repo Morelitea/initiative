@@ -19,6 +19,10 @@ import pytest
 
 from app.services.marketplace import service_apps
 from app.services.marketplace.definitions import (
+    KIND_AUDIENCE,
+    LISTING_AUDIENCES,
+    LISTING_KINDS,
+    kinds_for_audience,
     APP_KINDS,
     GUILD_INSTALLABLE_APP_KINDS,
     LISTING_SOURCES,
@@ -1207,3 +1211,27 @@ class TestWhereAParametersValuesComeFrom:
             _with_option_source(
                 {"endpoint": LOOKUP_ID, "key": "ids", "needs": {"owner": "org"}}
             )
+
+
+@pytest.mark.unit
+class TestListingAudience:
+    """Who a listing installs to, and what follows from it."""
+
+    def test_every_kind_says_who_it_installs_to(self):
+        # A kind added to the vocabulary without an audience would be offered
+        # by neither marketplace, or by both.
+        assert set(KIND_AUDIENCE) == set(LISTING_KINDS)
+        assert set(KIND_AUDIENCE.values()) <= LISTING_AUDIENCES
+
+    def test_the_two_shelves_do_not_overlap(self):
+        guild = kinds_for_audience("guild")
+        user = kinds_for_audience("user")
+        assert not guild & user
+        assert guild | user == LISTING_KINDS
+
+    def test_a_profile_pack_installs_to_a_person(self):
+        assert kinds_for_audience("user") == {"profile_pack"}
+
+    def test_an_unknown_audience_is_named_rather_than_empty(self):
+        with pytest.raises(ValueError):
+            kinds_for_audience("initiative")

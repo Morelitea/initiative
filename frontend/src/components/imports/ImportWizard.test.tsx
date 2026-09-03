@@ -112,7 +112,7 @@ describe("ImportWizard", () => {
             entries: [],
             assets_restored: 1,
             assets_deduped: 0,
-            unmatched_emails: [],
+            unmatched_handles: [],
           },
         });
       })

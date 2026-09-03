@@ -186,5 +186,14 @@
       "body": "Deine Anfrage, <strong>{{initiativeName}}</strong> beizutreten, wurde abgelehnt.",
       "textBody": "Deine Anfrage, {{initiativeName}} beizutreten, wurde abgelehnt. {{link}}"
     }
+  },
+  "reaction": {
+    "subject": "Neue Reaktionen auf deine Beiträge",
+    "title": "Reaktionsübersicht",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:",
+    "line": "von <strong>{{name}}</strong> auf",
+    "footer": "Öffne Initiative, um die Unterhaltung zu sehen.",
+    "textBody": "Hier ist deine Übersicht der Reaktionen auf deine Beiträge:"
   }
 }

@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -156,6 +157,7 @@ class ProvisioningBundle:
     schema_ddl: str
     rls_ddl: str
     capture_ddl: str
+    search_ddl: str
     stamp: str
 
 
@@ -176,15 +178,30 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
             render_guild_capture_ddl,
         )
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
+        from app.db.search_index import (
+            DEPENDENT_FUNCTION_SQL,
+            SEARCH_FUNCTION_SQL,
+            WRITE_FUNCTION_SQL,
+            render_guild_search_ddl,
+        )
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
         rls_ddl = render_guild_rls_ddl()
         capture_ddl = render_guild_capture_ddl()
+        # Naming the operator class in the rendered text is what makes the
+        # stamp move when it is installed later, so the sweep rebuilds indexes
+        # that were created without it.
+        opclass = f"public.{SEARCH_OPCLASS}" if await search_operator_ready() else None
+        search_ddl = render_guild_search_ddl(opclass)
         digest = hashlib.sha256()
         digest.update(schema_ddl.encode())
         digest.update(rls_ddl.encode())
         digest.update(capture_ddl.encode())
         digest.update(CAPTURE_FUNCTION_SQL.encode())
+        digest.update(search_ddl.encode())
+        digest.update(SEARCH_FUNCTION_SQL.encode())
+        digest.update(WRITE_FUNCTION_SQL.encode())
+        digest.update(DEPENDENT_FUNCTION_SQL.encode())
         digest.update(
             "\n".join(
                 _grant_statements(
@@ -199,6 +216,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
             schema_ddl=schema_ddl,
             rls_ddl=rls_ddl,
             capture_ddl=capture_ddl,
+            search_ddl=search_ddl,
             stamp=f"provisioned:{digest.hexdigest()[:16]}",
         )
         return _bundle
@@ -275,6 +293,36 @@ async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
     )
 
 
+async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
+    """Install the search-index refresh triggers on ``schema``'s indexed tables.
+
+    Same shape as :func:`apply_guild_capture`: re-assert the shared function
+    from the registry (so a change to what is indexed reaches existing installs
+    on the next boot rather than needing a migration per edit), then the
+    per-table triggers, both idempotent.
+    """
+    from app.db.search_index import (
+        DEPENDENT_FUNCTION_SQL,
+        SEARCH_FUNCTION_SQL,
+        WRITE_FUNCTION_SQL,
+    )
+
+    ddl = (await get_provisioning_bundle()).search_ddl
+    raw = await conn.get_raw_connection()
+    # The write function first: both trigger functions call it.
+    await raw.driver_connection.execute(
+        "SET check_function_bodies = false;\n"
+        + WRITE_FUNCTION_SQL
+        + "\n"
+        + SEARCH_FUNCTION_SQL
+        + "\n"
+        + DEPENDENT_FUNCTION_SQL
+    )
+    await raw.driver_connection.execute(
+        f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
+    )
+
+
 async def apply_template_rls() -> None:
     """Re-assert the registry-rendered RLS on ``guild_template``.
 
@@ -288,6 +336,7 @@ async def apply_template_rls() -> None:
     async with db_session.provisioning_engine.begin() as conn:
         await apply_guild_rls(conn, TEMPLATE_SCHEMA)
         await apply_guild_capture(conn, TEMPLATE_SCHEMA)
+        await apply_guild_search(conn, TEMPLATE_SCHEMA)
 
 
 def _grant_statements(
@@ -398,6 +447,7 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     await _exec_batch(conn, _grant_statements(schema, role, ro_role, support_role))
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     await apply_guild_capture(conn, schema)  # change-capture triggers
+    await apply_guild_search(conn, schema)  # search-index refresh triggers
     # Stamp the artifacts' version so the boot back-fill can skip this guild
     # until they change (constant hex literal, safe to inline).
     stamp = (await get_provisioning_bundle()).stamp
@@ -596,6 +646,189 @@ async def warn_if_privileged_database_url() -> None:
             "a SUPERUSER" if rolsuper else "a BYPASSRLS",
             "=" * 70,
         )
+
+
+SEARCH_OPCLASS = "tsvector_search_ops"
+SEARCH_MATCH_FUNCTION = "search_tsmatch"
+
+_SEARCH_OPERATOR_SQL = text(
+    "SELECT "
+    "  EXISTS (SELECT 1 FROM pg_opclass c JOIN pg_namespace n ON n.oid = c.opcnamespace"
+    "          WHERE n.nspname = 'public' AND c.opcname = :opclass) AS opclass_present,"
+    "  coalesce((SELECT p.proleakproof FROM pg_proc p"
+    "            JOIN pg_namespace n ON n.oid = p.pronamespace"
+    "            WHERE n.nspname = 'public' AND p.proname = :fn), false) AS fn_leakproof"
+)
+
+
+#: Cached at boot by :func:`search_operator_ready`. ``False`` until checked, so
+#: a query path that runs before the check falls back to the stock operator —
+#: same rows, no index.
+_search_operator_ready: bool = False
+
+
+def search_operator_available() -> bool:
+    """The cached answer, for the query path (sync, no round trip)."""
+    return _search_operator_ready
+
+
+async def search_operator_ready() -> bool:
+    """Whether guild search can use its index.
+
+    ``scripts/create-search-operator.sql`` installs the match operator and its
+    operator class; both must be present.
+    """
+    async with db_session.provisioning_engine.connect() as conn:
+        row = (
+            await conn.execute(
+                _SEARCH_OPERATOR_SQL,
+                {"opclass": SEARCH_OPCLASS, "fn": SEARCH_MATCH_FUNCTION},
+            )
+        ).one()
+    global _search_operator_ready
+    _search_operator_ready = bool(row.opclass_present and row.fn_leakproof)
+    return _search_operator_ready
+
+
+#: Rows per reindex transaction. Bounded so a large table is walked rather than
+#: rebuilt in one long-running statement, and kept small because each batch
+#: holds row locks on the source table until it commits.
+SEARCH_REINDEX_BATCH = 500
+
+
+async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> int:
+    """Rebuild one guild's search entries when its generation marker is stale.
+
+    The marker is a comment on the guild's ``search_entries``, the same shape
+    as the provisioning stamp on the schema. Adding a source or changing an
+    extraction moves :func:`search_generation`, and this walks each source table
+    in batches, writing through the same function the refresh trigger uses.
+
+    Returns the number of entities rewritten; zero when already current.
+    """
+    from app.db.search_index import reindex_plan, search_generation
+
+    generation = search_generation()
+    async with engine.connect() as conn:
+        current = await conn.scalar(
+            text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
+            {"t": f'"{schema}".search_entries'},
+        )
+    if current == generation and not force:
+        return 0
+
+    written = 0
+    for _entity_type, statement in reindex_plan():
+        cursor = 0
+        while True:
+            async with engine.begin() as conn:
+                # System routing: no user id (so the auth gate reads as a system
+                # session), guild-admin role for the write.
+                await conn.exec_driver_sql(
+                    f"SELECT set_config('search_path', '\"{schema}\", public', true),"
+                    " set_config('app.current_guild_role', 'admin', true),"
+                    " set_config('app.current_user_id', '', true)"
+                )
+                rows = (
+                    await conn.execute(
+                        text(statement),
+                        {
+                            "schema": schema,
+                            "cursor": cursor,
+                            "batch": SEARCH_REINDEX_BATCH,
+                        },
+                    )
+                ).all()
+            if not rows:
+                break
+            cursor = max(r.id for r in rows)
+            written += len(rows)
+
+    async with engine.begin() as conn:
+        await conn.exec_driver_sql(
+            f"COMMENT ON TABLE \"{schema}\".search_entries IS '{generation}'"
+        )
+    return written
+
+
+async def backfill_guild_search() -> int:
+    """Reindex every guild whose search generation is stale.
+
+    Runs after schema provisioning, on its own connections: a guild's content is
+    walked in bounded transactions, so a large install fills in progressively
+    instead of holding one transaction open across the whole sweep.
+    """
+    from sqlalchemy import text as _text
+
+    async with db_session.provisioning_engine.connect() as conn:
+        schemas = [
+            r[0]
+            for r in (
+                await conn.execute(
+                    _text(
+                        "SELECT nspname FROM pg_namespace "
+                        "WHERE nspname LIKE 'guild\\_%' ORDER BY nspname"
+                    )
+                )
+            ).all()
+        ]
+    total = 0
+    for schema in schemas:
+        try:
+            total += await reindex_guild_search(db_session.provisioning_engine, schema)
+        except Exception:
+            logger.exception("search reindex failed for %s", schema)
+    if total:
+        logger.info("search reindex wrote %d entries", total)
+    return total
+
+
+#: Where the install script sits, in the image and in a checkout. The first that
+#: exists is the one the message names, so it names a path the reader has.
+_SEARCH_OPERATOR_SCRIPTS = (
+    Path("/app/scripts/create-search-operator.sql"),
+    Path(__file__).resolve().parents[2] / "scripts" / "create-search-operator.sql",
+)
+
+
+async def warn_if_search_operator_missing() -> None:
+    """Say so, loudly, when the search operator is absent.
+
+    Its absence is not a failure: search returns the same rows either way, and
+    reads more of the index table to do it. Nothing else reports it, so a
+    restore or a major-version upgrade that lost the objects would otherwise
+    show up only as search getting slower.
+
+    Names the database it checked, because a host commonly has more than one and
+    the objects are per-database.
+    """
+    if await search_operator_ready():
+        return
+    database = db_session.provisioning_engine.url.database or "?"
+    script = next(
+        (p for p in _SEARCH_OPERATOR_SCRIPTS if p.exists()),
+        _SEARCH_OPERATOR_SCRIPTS[0],
+    )
+    logger.warning(
+        "\n%s\n"
+        'Guild search is running without its index (database "%s").\n'
+        "Results are unchanged; each search reads more of the index table,\n"
+        "which grows with the guild.\n"
+        "\n"
+        "Installing it is one file, once per database, run as a SUPERUSER —\n"
+        "which the app's own role deliberately is not:\n"
+        "\n"
+        "  psql -U <superuser> -d %s -f %s\n"
+        "\n"
+        "Then restart: the index is rebuilt on the next provisioning sweep.\n"
+        "Re-running is safe.\n"
+        "%s",
+        "=" * 70,
+        database,
+        database,
+        script,
+        "=" * 70,
+    )
 
 
 _EFFECTIVE_BYPASS_SQL = (

@@ -80,7 +80,11 @@ const handleCommentEvent = (data?: Record<string, unknown>) => {
 
 export const useRealtimeUpdates = () => {
   const { token, user, logout } = useAuth();
-  // Key the socket off THIS tab's URL guild (the /g/{guildId} route param), so
+  // Keyed on the id, not the object: an account re-read replaces the object
+  // without changing who is signed in, and rebuilding the socket for that would
+  // drop every subscription over a no-op.
+  const userId = user?.id ?? null;
+  // Key the socket off THIS tab's URL guild (the /c/{guildId} route param), so
   // each tab streams its own guild. On personal routes (/, /me/*) there's no
   // param → null → no socket. The backend authorizes the socket from the same
   // path segment, so the URL is the single source of truth.
@@ -93,7 +97,7 @@ export const useRealtimeUpdates = () => {
   useEffect(() => {
     // The socket is scoped to a single guild — in personal mode there's
     // nothing to subscribe to, and the backend would reject the auth payload.
-    if (!user || routeGuildId === null) {
+    if (userId === null || routeGuildId === null) {
       if (websocketRef.current) {
         websocketRef.current.close();
         websocketRef.current = null;
@@ -105,7 +109,7 @@ export const useRealtimeUpdates = () => {
       authFailureCountRef.current = 0;
       return;
     }
-    // routeGuildId is non-null past the guard; capture for the /g/{guildId}
+    // routeGuildId is non-null past the guard; capture for the /c/{guildId}
     // websocket path used in the connect() closure below.
     const guildId = routeGuildId;
 
@@ -236,5 +240,5 @@ export const useRealtimeUpdates = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, user, routeGuildId, logout]);
+  }, [token, userId, routeGuildId, logout]);
 };

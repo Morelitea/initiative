@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Clay</title>
+  <!-- Terracotta, a service line, and the mark the ball just left on it. -->
+  <style>
+    /* Over the net and back. The clay only puffs on the beat the ball lands. */
+    .rally { animation: over 5.2s linear infinite }
+    @keyframes over {
+      0%   { transform: translate(-30px,7px) }
+      12%  { transform: translate(-20px,-3px) }
+      25%  { transform: translate(-8px,-8px) }
+      37%  { transform: translate(8px,-6px) }
+      50%  { transform: translate(30px,7px) }
+      62%  { transform: translate(20px,-3px) }
+      75%  { transform: translate(8px,-8px) }
+      87%  { transform: translate(-8px,-6px) }
+      100% { transform: translate(-30px,7px) }
+    }
+    .turnball { animation: turning 2.6s linear infinite;
+                transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes turning { to { transform: rotate(360deg) } }
+    .puff { animation: dust 5.2s linear infinite;
+            transform-box: fill-box; transform-origin: 50% 50% }
+    @keyframes dust {
+      0%   { transform: translateX(-30px) scale(.4); opacity: .75 }
+      14%  { transform: translateX(-30px) scale(1.5); opacity: 0 }
+      49%  { transform: translateX(30px) scale(.4); opacity: 0 }
+      50%  { transform: translateX(30px) scale(.4); opacity: .75 }
+      64%  { transform: translateX(30px) scale(1.5); opacity: 0 }
+      100% { transform: translateX(-30px) scale(.4); opacity: 0 }
+    }
+    .mark { animation: fade 5.2s linear infinite }
+    @keyframes fade {
+      0%,49%   { transform: translateX(-30px); opacity: .55 }
+      50%,100% { transform: translateX(30px); opacity: .55 }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rally, .turnball, .puff, .mark { animation: none; opacity: .3 }
+    }
+  </style>
+  <defs>
+    <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C9714A"/><stop offset="100%" stop-color="#A5502C"/>
+    </linearGradient>
+    <linearGradient id="backdrop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#12301F"/><stop offset="100%" stop-color="#1C4A2E"/>
+    </linearGradient>
+    <radialGradient id="fuzz" cx=".35" cy=".3" r=".85">
+      <stop offset="0%" stop-color="#E9F76A"/><stop offset="70%" stop-color="#CFE229"/>
+      <stop offset="100%" stop-color="#9CAB16"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#clay)"/>
+  <!-- The screen behind the court. -->
+  <path d="M0 0 L160 0 L160 11 L0 11 Z" fill="url(#backdrop)"/>
+  <g stroke="#0E2618" stroke-width=".3" opacity=".5">
+    <path d="M0 2.4 L160 2.4"/><path d="M0 4.8 L160 4.8"/><path d="M0 7.2 L160 7.2"/>
+    <path d="M0 9.6 L160 9.6"/>
+    <path d="M20 0 L20 11"/><path d="M50 0 L50 11"/><path d="M80 0 L80 11"/>
+    <path d="M110 0 L110 11"/><path d="M140 0 L140 11"/>
+  </g>
+  <path d="M0 11 L160 11 L160 11.8 L0 11.8 Z" fill="#0B1E13"/>
+  <!-- Clay, swept in arcs. -->
+  <g stroke="#B76040" stroke-width="1.4" fill="none" opacity=".4">
+    <path d="M-4 20 C30 17.6 130 17.6 164 20"/>
+    <path d="M-4 26 C30 22.8 130 22.8 164 26"/>
+    <path d="M-4 33 C30 29 130 29 164 33"/>
+  </g>
+  <!-- The net. -->
+  <g>
+    <path d="M8 22.4 L8 12.4 L9.8 12.4 L9.8 22.4 Z" fill="#2A2F33"/>
+    <path d="M150.2 22.4 L150.2 12.4 L152 12.4 L152 22.4 Z" fill="#2A2F33"/>
+    <path d="M9 13.6 C46 12.8 114 12.8 151 13.6 L151 21.4 C114 20.6 46 20.6 9 21.4 Z"
+          fill="#1E2226" opacity=".38"/>
+    <g stroke="#8C949C" stroke-width=".26" opacity=".55">
+      <path d="M20 13.1 L20 21.1"/><path d="M32 12.9 L32 20.9"/><path d="M44 12.85 L44 20.8"/>
+      <path d="M56 12.8 L56 20.7"/><path d="M68 12.8 L68 20.65"/><path d="M80 12.8 L80 20.6"/>
+      <path d="M92 12.8 L92 20.65"/><path d="M104 12.8 L104 20.7"/><path d="M116 12.85 L116 20.8"/>
+      <path d="M128 12.9 L128 20.9"/><path d="M140 13.1 L140 21.1"/>
+      <path d="M9 15.6 C46 14.9 114 14.9 151 15.6"/>
+      <path d="M9 17.6 C46 16.9 114 16.9 151 17.6"/>
+      <path d="M9 19.5 C46 18.8 114 18.8 151 19.5"/>
+    </g>
+    <path d="M9 12.4 C46 11.6 114 11.6 151 12.4 L151 13.9 C114 13.1 46 13.1 9 13.9 Z"
+          fill="#F2F4F0"/>
+    <path d="M78.6 12.5 L81.4 12.5 L81.4 22.2 L78.6 22.2 Z" fill="#F2F4F0"/>
+  </g>
+  <!-- Lines, chalked on and worn. -->
+  <g stroke="#F4F1E8" fill="none" opacity=".9">
+    <path d="M0 27.6 L160 27.6" stroke-width=".8"/>
+    <path d="M80 27.6 L80 22.4" stroke-width=".6"/>
+    <path d="M22 22.4 L22 40" stroke-width=".7"/>
+    <path d="M138 22.4 L138 40" stroke-width=".7"/>
+    <path d="M0 36.6 L160 36.6" stroke-width=".9"/>
+  </g>
+  <!-- Where it landed, and the clay it lifted. -->
+  <ellipse class="mark" cx="80" cy="27.8" rx="3.2" ry="1.1" fill="#8C4020"
+           transform="rotate(-8 80 27.8)"/>
+  <ellipse class="puff" cx="80" cy="27.4" rx="4" ry="1.6" fill="#D89A78"/>
+  <g class="rally">
+    <g class="turnball" transform="translate(80 21.6)">
+      <circle cx="0" cy="0" r="4" fill="url(#fuzz)"/>
+      <g fill="none" stroke="#F7F5EA" stroke-width=".85">
+        <path d="M-2.8 -2.9 C-1.5 -1.7 -1.5 1.7 -2.8 2.9"/>
+        <path d="M2.8 -2.9 C1.5 -1.7 1.5 1.7 2.8 2.9"/>
+      </g>
+      <circle cx="0" cy="0" r="4" fill="none" stroke="#9CAB16" stroke-width=".35"/>
+      <path d="M-2.9 -2.2 C-2.2 -3 -1.2 -3.5 -.2 -3.7" fill="none" stroke="#FBFFD0"
+            stroke-width=".7" opacity=".6" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

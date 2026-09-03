@@ -11,7 +11,8 @@
     "queues": "Abläufe (Queues)",
     "counterGroups": "Zähler",
     "calendars": "Kalender",
-    "dashboards": "Dashboards"
+    "dashboards": "Dashboards",
+    "results": "Ergebnisse"
   },
   "actions": {
     "addTask": "Aufgabe hinzufügen",
@@ -23,9 +24,10 @@
     "myCalendar": "Mein Kalender",
     "myProjects": "Meine Projekte",
     "myDocuments": "Meine Dokumente",
+    "myContacts": "Meine Kontakte",
     "myStats": "Meine Statistiken",
     "userSettings": "Benutzereinstellungen",
-    "guildSettings": "Gildeneinstellungen",
+    "guildSettings": "Community-Einstellungen",
     "allProjects": "Alle Projekte",
     "allDocuments": "Alle Dokumente",
     "allInitiatives": "Alle Initiativen",
@@ -38,5 +40,6 @@
     "project": "Projekt",
     "task": "Aufgabe",
     "document": "Dokument"
-  }
+  },
+  "seeAllResults": "Alle Ergebnisse für „{{query}}“ anzeigen"
 }

@@ -17,7 +17,7 @@ import {
   isToolVisible,
   useMyInitiativePermissions,
 } from "@/hooks/useInitiativeRoles";
-import { useInitiatives } from "@/hooks/useInitiatives";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
@@ -77,12 +77,11 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     hasValidInitiativeId ? initiativeId : null
   );
 
-  const initiativesQuery = useInitiatives({ enabled: hasValidInitiativeId });
-
-  const initiative =
-    hasValidInitiativeId && initiativesQuery.data
-      ? (initiativesQuery.data.find((item) => item.id === initiativeId) ?? null)
-      : null;
+  // Addressed by id, not picked out of the caller's own list: a guild admin
+  // reaches every initiative in their guild whether or not they have joined it,
+  // and the endpoint answers 404 to anyone the row is not visible to.
+  const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
+  const initiative = initiativeQuery.data ?? null;
   const isGuildAdmin = activeGuild?.role === "admin";
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
   const isInitiativeManager = Boolean(membership?.is_manager);
@@ -118,7 +117,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     return <Navigate to={gp("/")} replace />;
   }
 
-  if (initiativesQuery.isLoading || permissionsLoading || !initiativesQuery.data) {
+  if (initiativeQuery.isLoading || permissionsLoading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>En garde</title>
+  <defs>
+    <linearGradient id="mesh" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5C6675"/><stop offset="100%" stop-color="#333B48"/>
+    </linearGradient>
+    <clipPath id="face">
+      <path d="M13.4 20.6 C13.4 13.6 34.6 13.6 34.6 20.6 L34.6 27.4 C34.6 33.4 30.4 36.6 24 36.6
+               C17.6 36.6 13.4 33.4 13.4 27.4 Z"/>
+    </clipPath>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#0A0B10"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#49556A" stroke-width="2"/>
+  <!-- Two blades, behind. -->
+  <g transform="translate(24 24)">
+    <g transform="rotate(-34)">
+      <path d="M-19 0 L18 -.5 L19.6 0 L18 .5 Z" fill="#AEB7C6"/>
+      <ellipse cx="-20.6" cy="0" rx="2.6" ry="3.4" fill="#C0C8D4"/>
+    </g>
+    <g transform="rotate(-146)">
+      <path d="M-19 0 L18 -.5 L19.6 0 L18 .5 Z" fill="#8E97A6"/>
+      <ellipse cx="-20.6" cy="0" rx="2.6" ry="3.4" fill="#A6AEBC"/>
+    </g>
+  </g>
+  <!-- The mask. -->
+  <path d="M13.4 20.6 C13.4 13.6 34.6 13.6 34.6 20.6 L34.6 27.4 C34.6 33.4 30.4 36.6 24 36.6
+           C17.6 36.6 13.4 33.4 13.4 27.4 Z" fill="url(#mesh)"/>
+  <g clip-path="url(#face)" stroke="#1B2029" stroke-width=".55" opacity=".8">
+    <path d="M16 12 L16 38"/><path d="M18.6 12 L18.6 38"/><path d="M21.2 12 L21.2 38"/>
+    <path d="M23.8 12 L23.8 38"/><path d="M26.4 12 L26.4 38"/><path d="M29 12 L29 38"/>
+    <path d="M31.6 12 L31.6 38"/>
+    <path d="M12 16 L36 16"/><path d="M12 18.6 L36 18.6"/><path d="M12 21.2 L36 21.2"/>
+    <path d="M12 23.8 L36 23.8"/><path d="M12 26.4 L36 26.4"/><path d="M12 29 L36 29"/>
+    <path d="M12 31.6 L36 31.6"/><path d="M12 34.2 L36 34.2"/>
+  </g>
+  <path d="M13.4 20.6 C13.4 13.6 34.6 13.6 34.6 20.6 L34.6 27.4 C34.6 33.4 30.4 36.6 24 36.6
+           C17.6 36.6 13.4 33.4 13.4 27.4 Z" fill="none" stroke="#C0C8D4" stroke-width="1.6"/>
+  <path d="M13.4 27 C17 29 31 29 34.6 27" fill="none" stroke="#C0C8D4" stroke-width="1.2"/>
+  <path d="M15.4 17.6 C18 15.4 22 14.6 26 14.8" fill="none" stroke="#E6ECF5" stroke-width="1"
+        opacity=".45" stroke-linecap="round"/>
+</svg>

@@ -19,6 +19,7 @@ class NotificationType(str, Enum):
     comment_on_task = "comment_on_task"
     comment_on_resource = "comment_on_resource"
     comment_reply = "comment_reply"
+    comment_reaction = "comment_reaction"
     access_grant_requested = "access_grant_requested"
     access_grant_approved = "access_grant_approved"
     access_grant_denied = "access_grant_denied"
@@ -36,6 +37,10 @@ class NotificationType(str, Enum):
     username_changed = "username_changed"
     account_suspended = "account_suspended"
     account_unsuspended = "account_unsuspended"
+    connection_requested = "connection_requested"
+    connection_accepted = "connection_accepted"
+    message_request_received = "message_request_received"
+    message_request_accepted = "message_request_accepted"
 
 
 class Notification(SQLModel, table=True):

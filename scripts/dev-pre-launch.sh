@@ -80,6 +80,18 @@ done
 
 docker compose up db -d --wait
 
+# The search index is built on an operator class, which takes one superuser
+# statement per database — and the app's own role deliberately is not a
+# superuser, so it cannot install it itself. The dev database's superuser is
+# right here, so do it rather than leave every checkout to notice the boot
+# warning and run it by hand. Idempotent; a failure is not fatal, since search
+# works either way.
+if ! docker compose exec -T db psql -q -v ON_ERROR_STOP=1 \
+        -U "${POSTGRES_USER:-initiative}" -d "${POSTGRES_DB:-initiative}" \
+        -f - < backend/scripts/create-search-operator.sql > /dev/null; then
+    echo "Search operator not installed — search still works, without its index." >&2
+fi
+
 # A seed that stopped partway left rows the next one would collide with. Clear
 # them here, before the migrate below puts the primary guild + superuser back.
 if [ -f "$SEED_STATE" ] && grep -q '"seed_incomplete": *true' "$SEED_STATE"; then

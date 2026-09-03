@@ -1,7 +1,7 @@
 {
   "title": "Corbeille",
-  "description": "Les éléments ici seront supprimés définitivement après la période de rétention de la guilde. Restaurez-les à tout moment avant cela.",
-  "scopeGuild": "Tout dans la guilde",
+  "description": "Les éléments ici seront supprimés définitivement après la période de rétention de la communauté. Restaurez-les à tout moment avant cela.",
+  "scopeGuild": "Tout dans la communauté",
   "scopeMine": "Seulement les miens",
   "empty": "La corbeille est vide.",
   "columnType": "Type",

@@ -24,8 +24,8 @@ const INITIATIVE_ID = 7;
 
 function stubInitiative(members: unknown[] = []) {
   server.use(
-    guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members })])
+    guildHttp.get("/initiatives/:id", () =>
+      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))
     )
   );
 }
@@ -42,7 +42,7 @@ const renderLayout = ({
 } = {}) =>
   renderPage(InitiativeSettingsLayout, {
     guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role }) },
-    initialRoute: `/g/$guildId/i/$initiativeId/settings${path}`,
+    initialRoute: `/c/$guildId/i/$initiativeId/settings${path}`,
     routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
     ...(user ? { auth: { user } } : {}),
   });
@@ -67,7 +67,7 @@ describe("InitiativeSettingsLayout", () => {
     await userEvent.click(await screen.findByRole("tab", { name: "Members" }));
 
     // The section is an address, not a piece of component state.
-    expect(router.state.location.pathname).toBe("/g/1/i/7/settings/members");
+    expect(router.state.location.pathname).toBe("/c/1/i/7/settings/members");
   });
 
   it("lights the tab the address names", async () => {
@@ -104,7 +104,7 @@ describe("InitiativeSettingsLayout", () => {
   });
 
   it("says so when the initiative isn't one this reader can see", async () => {
-    server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([])));
+    server.use(guildHttp.get("/initiatives/:id", () => new HttpResponse(null, { status: 404 })));
 
     renderLayout();
 

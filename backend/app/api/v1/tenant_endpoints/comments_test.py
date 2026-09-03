@@ -1,10 +1,7 @@
-"""Endpoint tests for comments across every commentable surface, and for the
-mention search (``/comments/mentions/search``)."""
+"""Endpoint tests for comments across every commentable surface."""
 
 import pytest
-from httpx import AsyncClient
 from sqlalchemy import delete as sa_delete
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import CommentMessages
 from app.core.tools import Tool
@@ -15,11 +12,9 @@ from app.testing import (
     create_counter_group,
     create_dashboard,
     create_document,
-    create_initiative_member,
     create_project,
     create_queue,
     create_task,
-    create_user,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -303,88 +298,6 @@ class TestToolComments:
         assert by_type["task"]["project_id"] == a.project.id
 
 
-@pytest.mark.integration
-async def test_mention_search_users_paginated_with_avatars(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """User mention search returns the paginated envelope; each user item
-    carries an avatar so the picker can render a face."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    for name in ("Alice Ant", "Bob Bee", "Cara Cat"):
-        member = await create_user(session, full_name=name, avatar_base64="data:x")
-        await create_initiative_member(session, admin.initiative, member)
-
-    response = await client.get(
-        admin.g("/comments/mentions/search"),
-        headers=admin.headers,
-        params={
-            "entity_type": "user",
-            "initiative_id": admin.initiative.id,
-            "page_size": 2,
-        },
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    # Envelope shape mirrors the member search endpoints.
-    assert set(body.keys()) == {
-        "items",
-        "total_count",
-        "page",
-        "page_size",
-        "has_next",
-        "has_prev",
-    }
-    assert body["page_size"] == 2
-    assert len(body["items"]) == 2
-    assert body["total_count"] >= 3  # 3 added members (+ maybe the admin)
-    assert body["has_next"] is True
-    item = body["items"][0]
-    assert item["type"] == "user"
-    assert "avatar_url" in item
-
-
-@pytest.mark.integration
-async def test_mention_search_users_filters_by_name(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The `q` param filters user suggestions (case-insensitive)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    for name, handle in (("Alice Ant", "alice-ant"), ("Bob Bee", "bob-bee")):
-        member = await create_user(session, full_name=name, username=handle)
-        await create_initiative_member(session, admin.initiative, member)
-
-    response = await client.get(
-        admin.g("/comments/mentions/search"),
-        headers=admin.headers,
-        params={
-            "entity_type": "user",
-            "initiative_id": admin.initiative.id,
-            "q": "alice",
-        },
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    # This guild takes the default and shows names, so a suggestion is named
-    # by one, with the handle under it to tell two of the same name apart.
-    assert {item["display_text"] for item in body["items"]} == {"Alice Ant"}
-    assert body["items"][0]["subtitle"].startswith("alice-ant#")
-
-
-@pytest.mark.integration
-async def test_mention_search_unknown_initiative_404(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    response = await client.get(
-        admin.g("/comments/mentions/search"),
-        headers=admin.headers,
-        params={"entity_type": "user", "initiative_id": 999999},
-    )
-    assert response.status_code == 404
-
-
 async def test_a_trashed_resource_reads_back_for_its_deleted_event(
     client, session, acting_user
 ):
@@ -469,3 +382,133 @@ async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_
     recent = await client.get(a.g("/comments/recent"), headers=a.headers)
     assert recent.status_code == 200
     assert not any(e["entity_type"] == "queue" for e in recent.json())
+
+
+def _detail_path(tool: Tool, entity_id: int) -> str:
+    """The tool's own detail route — kebab plural, the one spelling every tool
+    endpoint is registered under."""
+    return f"/{tool.plural.replace('_', '-')}/{entity_id}"
+
+
+@pytest.mark.integration
+class TestToolCommentSwitch:
+    """``comments_disabled`` — the advanced setting that takes a tool entity's
+    thread off its page. Set through the generic
+    ``PUT /tools/{tool}/{tool_id}/comments`` route, reported on the entity's own
+    read, and honored by every comment surface."""
+
+    @pytest.mark.parametrize("tool", list(Tool))
+    async def test_switch_hides_the_thread_and_comes_back(
+        self, client, session, acting_user, tool
+    ):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        entity = await _tool_entity(session, tool, a.initiative, a.user)
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Before", _param(tool): entity.id},
+        )
+        assert posted.status_code == 201, posted.text
+
+        detail = await client.get(a.g(_detail_path(tool, entity.id)), headers=a.headers)
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["comments_disabled"] is False
+
+        off = await client.put(
+            a.g(f"/tools/{tool.value}/{entity.id}/comments"),
+            headers=a.headers,
+            json={"comments_disabled": True},
+        )
+        assert off.status_code == 200, off.text
+        assert off.json() == {"comments_disabled": True}
+
+        detail = await client.get(a.g(_detail_path(tool, entity.id)), headers=a.headers)
+        assert detail.json()["comments_disabled"] is True
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
+        )
+        assert listed.status_code == 403
+        assert listed.json()["detail"] == CommentMessages.COMMENTS_DISABLED
+
+        blocked = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "After", _param(tool): entity.id},
+        )
+        assert blocked.status_code == 403
+        assert blocked.json()["detail"] == CommentMessages.COMMENTS_DISABLED
+
+        recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+        assert recent.status_code == 200
+        assert not any(
+            e["entity_type"] == tool.value and e["entity_id"] == entity.id
+            for e in recent.json()
+        )
+
+        # Nothing was deleted: turning it back on restores the thread whole.
+        on = await client.put(
+            a.g(f"/tools/{tool.value}/{entity.id}/comments"),
+            headers=a.headers,
+            json={"comments_disabled": False},
+        )
+        assert on.status_code == 200
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
+        )
+        assert listed.status_code == 200
+        assert [c["content"] for c in listed.json()] == ["Before"]
+
+    async def test_a_project_switch_leaves_task_threads_alone(
+        self, client, session, acting_user
+    ):
+        """Tasks are their own flow: a project with comments off still has task
+        threads."""
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        project = await _tool_entity(session, Tool.project, a.initiative, a.user)
+        task = await create_task(session, project)
+
+        off = await client.put(
+            a.g(f"/tools/{Tool.project.value}/{project.id}/comments"),
+            headers=a.headers,
+            json={"comments_disabled": True},
+        )
+        assert off.status_code == 200, off.text
+
+        posted = await client.post(
+            a.g("/comments/"),
+            headers=a.headers,
+            json={"content": "Still talking", "task_id": task.id},
+        )
+        assert posted.status_code == 201, posted.text
+
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
+        )
+        assert listed.status_code == 200
+        assert [c["content"] for c in listed.json()] == ["Still talking"]
+
+        recent = await client.get(a.g("/comments/recent"), headers=a.headers)
+        assert any(e["entity_type"] == "task" for e in recent.json())
+
+    @pytest.mark.parametrize("tool", list(Tool))
+    async def test_read_access_cannot_flip_the_switch(
+        self, client, session, acting_user, tool
+    ):
+        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        entity = await _tool_entity(session, tool, a.initiative, a.user)
+        b = await acting_user(
+            guild_role=GuildRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        await _grant(session, tool, entity, b.user, ResourceAccessLevel.read)
+
+        denied = await client.put(
+            a.g(f"/tools/{tool.value}/{entity.id}/comments"),
+            headers=b.headers,
+            json={"comments_disabled": True},
+        )
+        assert denied.status_code == 403, denied.text

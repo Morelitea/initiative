@@ -6,6 +6,7 @@ import {
   invalidateAllTasks,
   invalidateGuildMembers,
   invalidateNotifications,
+  resetGuildScopedQueries,
   setInvalidationGuild,
 } from "@/api/query-keys";
 import { queryClient } from "@/lib/queryClient";
@@ -114,6 +115,32 @@ describe("query-keys guild scoping", () => {
       expect(platform()).toBe(true);
       expect(guildAI()).toBe(true);
       expect(otherGuildAI()).toBe(false);
+    });
+  });
+
+  describe("guild switch", () => {
+    // Reset (unlike invalidate) drops the data, so a surviving key is one whose
+    // cached value is still there afterwards.
+    const survives = (key: readonly unknown[]) => {
+      queryClient.setQueryData(key, { seeded: true });
+      return () => queryClient.getQueryData(key) !== undefined;
+    };
+
+    it("drops guild-scoped data but keeps the cross-guild personal keys", async () => {
+      const guildScoped = survives(["/api/v1/g/5/projects/"]);
+      const guildList = survives(["/api/v1/guilds/"]);
+      const currentUser = survives(["/api/v1/users/me"]);
+      const version = survives(["/api/v1/version"]);
+      // The recents bar spans every community, so a switch must not blank it.
+      const recents = survives(["/api/v1/recents/"]);
+
+      await resetGuildScopedQueries();
+
+      expect(guildScoped()).toBe(false);
+      expect(guildList()).toBe(true);
+      expect(currentUser()).toBe(true);
+      expect(version()).toBe(true);
+      expect(recents()).toBe(true);
     });
   });
 });

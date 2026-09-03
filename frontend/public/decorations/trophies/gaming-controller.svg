@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Controller</title>
+  <defs>
+    <linearGradient id="pad" x1=".2" y1="0" x2=".7" y2="1">
+      <stop offset="0%" stop-color="#5A4780"/><stop offset="55%" stop-color="#3A2C54"/>
+      <stop offset="100%" stop-color="#221934"/>
+    </linearGradient>
+    <radialGradient id="neon" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#B14BE0" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#B14BE0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="#120C1E"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7A5FA8" stroke-width="2"/>
+  <circle cx="24" cy="25" r="18" fill="url(#neon)"/>
+  <g transform="translate(24 23)">
+    <!-- Body and the two grips it hangs off. -->
+    <path d="M-6.4 -8.2 C-2 -9.4 2 -9.4 6.4 -8.2 C10.4 -7.2 13.6 -4.6 15 -.6
+             C16.4 3.4 16 8.6 13.6 11.6 C11.4 14.4 7.6 13.6 5.4 10.6
+             C3.8 8.4 2.4 7.2 0 7.2 C-2.4 7.2 -3.8 8.4 -5.4 10.6
+             C-7.6 13.6 -11.4 14.4 -13.6 11.6 C-16 8.6 -16.4 3.4 -15 -.6
+             C-13.6 -4.6 -10.4 -7.2 -6.4 -8.2 Z" fill="url(#pad)"/>
+    <path d="M-6.4 -8.2 C-2 -9.4 2 -9.4 6.4 -8.2 C8.6 -7.6 10.6 -6.4 12.2 -4.6
+             C6.6 -6.8 -6.6 -6.8 -12.2 -4.6 C-10.6 -6.4 -8.6 -7.6 -6.4 -8.2 Z"
+          fill="#7A63B4" opacity=".8"/>
+    <!-- The pad. -->
+    <g fill="#C4B2E8">
+      <path d="M-11.4 -2.2 L-6.6 -2.2 L-6.6 -.2 L-11.4 -.2 Z"/>
+      <path d="M-10 -3.6 L-8 -3.6 L-8 1.2 L-10 1.2 Z"/>
+    </g>
+    <path d="M-9.6 -1.9 L-8.4 -1.9 L-8.4 -.5 L-9.6 -.5 Z" fill="#8E7BC0"/>
+    <!-- Four buttons. -->
+    <circle cx="9" cy="-2.6" r="1.5" fill="#FF5FD2"/>
+    <circle cx="12.2" cy="0" r="1.5" fill="#39E8FF"/>
+    <circle cx="5.8" cy="0" r="1.5" fill="#4CE08A"/>
+    <circle cx="9" cy="2.6" r="1.5" fill="#FFC83D"/>
+    <!-- Two sticks, sunk in their wells. -->
+    <circle cx="-3.6" cy="3.4" r="2.9" fill="#1B1626"/>
+    <circle cx="-3.6" cy="3" r="2" fill="#6B54A0"/>
+    <circle cx="-3.6" cy="2.6" r="1.1" fill="#8E76C4"/>
+    <circle cx="3.6" cy="3.4" r="2.9" fill="#1B1626"/>
+    <circle cx="3.6" cy="3" r="2" fill="#6B54A0"/>
+    <circle cx="3.6" cy="2.6" r="1.1" fill="#8E76C4"/>
+    <!-- Shoulder buttons, over the top edge. -->
+    <path d="M-11.6 -7.4 C-9.6 -9 -6.6 -9.8 -4.4 -9.6 L-4.4 -8.2
+             C-6.6 -8.4 -9.4 -7.8 -11.2 -6.6 Z" fill="#8E76C4"/>
+    <path d="M11.6 -7.4 C9.6 -9 6.6 -9.8 4.4 -9.6 L4.4 -8.2
+             C6.6 -8.4 9.4 -7.8 11.2 -6.6 Z" fill="#8E76C4"/>
+    <!-- A light that says it is on. -->
+    <rect x="-1.6" y="-6.2" width="3.2" height="1" rx=".5" fill="#39E8FF" opacity=".9"/>
+  </g>
+</svg>

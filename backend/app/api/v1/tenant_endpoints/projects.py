@@ -46,12 +46,15 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document, ProjectDocument
 from app.models.tenant.tag import ProjectTag
 from app.api import resource_access
+from app.core.user_display import handle_of
 from app.core.tools import Tool
 from app.services import notifications as notifications_service
+from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
+from app.services.tenant import search as search_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
@@ -529,8 +532,12 @@ def _visible_project_conditions(
     """
     conditions = [
         Initiative.guild_id == guild_id,
-        permissions_service.dac_scope_clause(
-            Tool.project, Project.id, user_id, guild_id=guild_id
+        permissions_service.listing_scope_clause(
+            Tool.project,
+            Project.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
         ),
     ]
     if initiative_id is not None:
@@ -546,12 +553,9 @@ def _visible_project_conditions(
     else:
         conditions.append(Project.is_archived.is_(archived))
 
-    if search and search.strip():
-        # autoescape so a literal % or _ in the query is matched as itself, not
-        # as a LIKE wildcard — keeps the documented substring semantics.
-        conditions.append(
-            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
-        )
+    name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     return conditions
 
@@ -965,17 +969,16 @@ async def _list_global_projects(
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
     ]
-    if search:
-        conditions.append(
-            func.lower(Project.name).contains(search.strip().lower(), autoescape=True)
-        )
+    name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
+    if name_match is not None:
+        conditions.append(name_match)
 
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[ProjectRead]:
         statement = (
             select(Project)
             .where(
                 *conditions,
-                permissions_service.dac_scope_clause(
+                permissions_service.granted_scope_clause(
                     Tool.project, Project.id, current_user.id, guild_id=guild_id
                 ),
             )
@@ -1166,7 +1169,7 @@ async def get_project_counts_by_initiative(
         Initiative.guild_id == guild_context.guild_id,
         Project.is_archived.is_(False),
         Project.is_template.is_(False),
-        permissions_service.dac_scope_clause(
+        permissions_service.granted_scope_clause(
             Tool.project,
             Project.id,
             current_user.id,
@@ -1366,16 +1369,18 @@ async def create_project(
         share_all = any(g.all_initiative_members for g in project_in.grants)
         granted_roles = {g.role_id for g in project_in.grants if g.role_id is not None}
         granted_users = {g.user_id for g in project_in.grants if g.user_id is not None}
-        for membership in project.initiative.memberships:
-            member = membership.user
-            if not member or member.id == current_user.id:
-                continue
-            if not (
+        shared_with = [
+            membership.user_id
+            for membership in project.initiative.memberships
+            if membership.user_id
+            and membership.user_id != current_user.id
+            and (
                 share_all
                 or membership.role_id in granted_roles
                 or membership.user_id in granted_users
-            ):
-                continue
+            )
+        ]
+        for member in await accounts_service.load_all(shared_with):
             await notifications_service.notify_project_added(
                 session,
                 member,
@@ -1485,7 +1490,7 @@ async def duplicate_project(
     # Add read permissions for all initiative members (except owner)
     if source_project.initiative:
         for membership in source_project.initiative.memberships:
-            if membership.user_id != owner_id and membership.user:
+            if membership.user_id is not None and membership.user_id != owner_id:
                 read_permission = ResourceGrant(
                     resource_type="project",
                     resource_id=new_project.id,
@@ -1541,10 +1546,12 @@ async def duplicate_project(
         new_project.id, session, guild_context.guild_id
     )
     if new_project.initiative_id and new_project.initiative:
-        for membership in new_project.initiative.memberships:
-            member = membership.user
-            if not member or member.id == current_user.id:
-                continue
+        notify_ids = [
+            membership.user_id
+            for membership in new_project.initiative.memberships
+            if membership.user_id and membership.user_id != current_user.id
+        ]
+        for member in await accounts_service.load_all(notify_ids):
             await notifications_service.notify_project_added(
                 session,
                 member,
@@ -2224,7 +2231,7 @@ async def build_project_export_for_user(
     """The project-export adapter's build seam: the same access rule and
     envelope as the retired ``GET /{project_id}/export`` route. Cross-row
     references (tags, statuses, properties, assignees) are encoded by string
-    keys (name / email) so the file imports cleanly on another instance.
+    keys (name / handle) so the file imports cleanly on another instance.
     The initiative/guild aggregate export passes ``access="read"`` — its
     deliberate relaxation; standalone exports keep write."""
     project = await _get_project_or_404(project_id, session, guild_id)
@@ -2232,7 +2239,7 @@ async def build_project_export_for_user(
     return await project_export_service.build_project_export(
         session,
         project_id=project.id,
-        exported_by_email=current_user.email,
+        exported_by_handle=handle_of(current_user),
         source_instance_url=app_settings.APP_URL,
     )
 

@@ -478,13 +478,17 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     assert {
         # Read legs: the request path names other people all the time.
         "users_app_user_read",
-        "users_app_guild_base_read",
         "users_platform_read",
         # Write legs: each one scoped to the caller's own row.
         "users_app_user_self_update",
-        "users_app_guild_base_self_update",
         "users_platform_self",
     } <= names
+    # 0221 took the guild path off this table entirely — it reads people from
+    # ``public.guild_member_profiles`` now — so its two legs are gone with it.
+    assert {
+        "users_app_guild_base_read",
+        "users_app_guild_base_self_update",
+    } & names == set()
     # 0202 retired the table-wide floors and the moderator+ update-all leg.
     assert {
         "users_app_floor",

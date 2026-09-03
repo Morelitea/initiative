@@ -2,47 +2,30 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { getItem, setItem } from "@/lib/storage";
 
 const STORAGE_KEY = "document-side-panel-open";
-const TAB_STORAGE_KEY = "document-side-panel-tab";
 
-type PanelTab = "summary" | "comments";
-
+/**
+ * The document's AI summary, in a sheet beside the document.
+ *
+ * Comments used to share this panel as a second tab and no longer do — a thread
+ * is a conversation and belongs at full width under the document, the same
+ * place every other tool puts it, not in a column narrow enough to wrap every
+ * reply.
+ */
 interface DocumentSidePanelProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   summaryContent: ReactNode;
-  commentsContent: ReactNode;
-  showSummaryTab?: boolean;
 }
 
 export const DocumentSidePanel = ({
   isOpen,
   onOpenChange,
   summaryContent,
-  commentsContent,
-  showSummaryTab = true,
 }: DocumentSidePanelProps) => {
   const { t } = useTranslation("documents");
-  const [activeTab, setActiveTab] = useState<PanelTab>(() => {
-    const saved = getItem(TAB_STORAGE_KEY);
-    if (saved === "summary" && showSummaryTab) return "summary";
-    return "comments";
-  });
-
-  // Persist tab selection
-  useEffect(() => {
-    setItem(TAB_STORAGE_KEY, activeTab);
-  }, [activeTab]);
-
-  // If summary tab is hidden but was selected, switch to comments
-  useEffect(() => {
-    if (!showSummaryTab && activeTab === "summary") {
-      setActiveTab("comments");
-    }
-  }, [showSummaryTab, activeTab]);
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -54,42 +37,10 @@ export const DocumentSidePanel = ({
             paddingBottom: "0.75rem",
           }}
         >
-          <SheetTitle className="text-base">{t("sidePanel.title")}</SheetTitle>
+          <SheetTitle className="text-base">{t("sidePanel.summaryTab")}</SheetTitle>
         </SheetHeader>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) => setActiveTab(value as PanelTab)}
-          className="flex flex-1 flex-col overflow-hidden"
-        >
-          {showSummaryTab && (
-            <div className="px-3 pt-3">
-              <TabsBar>
-                <TabsTrigger value="comments">{t("sidePanel.commentsTab")}</TabsTrigger>
-                <TabsTrigger value="summary">{t("sidePanel.summaryTab")}</TabsTrigger>
-              </TabsBar>
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto">
-            <TabsContent
-              value="comments"
-              forceMount
-              className="m-0 h-full p-4 data-[state=inactive]:hidden"
-            >
-              {commentsContent}
-            </TabsContent>
-            {showSummaryTab && (
-              <TabsContent
-                value="summary"
-                forceMount
-                className="m-0 h-full p-4 data-[state=inactive]:hidden"
-              >
-                {summaryContent}
-              </TabsContent>
-            )}
-          </div>
-        </Tabs>
+        <div className="flex-1 overflow-y-auto p-4">{summaryContent}</div>
       </SheetContent>
     </Sheet>
   );

@@ -13,7 +13,6 @@ import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer"
 import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
 import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
-import { WIKILINK } from "@/components/ui/editor/transformers/markdown-wikilink-transformer";
 
 export const MARKDOWN_TRANSFORMERS = [
   TABLE,
@@ -21,7 +20,6 @@ export const MARKDOWN_TRANSFORMERS = [
   IMAGE,
   EMOJI,
   TWEET,
-  WIKILINK,
   CHECK_LIST,
   ...ELEMENT_TRANSFORMERS,
   ...MULTILINE_ELEMENT_TRANSFORMERS,

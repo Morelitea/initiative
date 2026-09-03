@@ -11,7 +11,7 @@ const contextWithGuild = (activeGuildId: number | null) =>
 
 describe("redirectToActiveGuild", () => {
   it("forwards to the active guild's copy of the route", () => {
-    const guard = redirectToActiveGuild("/g/$guildId/projects");
+    const guard = redirectToActiveGuild("/c/$guildId/projects");
     try {
       guard({ context: contextWithGuild(42) });
       expect.unreachable("guard must throw a redirect");
@@ -19,12 +19,12 @@ describe("redirectToActiveGuild", () => {
       expect(isRedirect(error)).toBe(true);
       expect(
         (error as { options: { to: string; params: { guildId: string } } }).options
-      ).toMatchObject({ to: "/g/$guildId/projects", params: { guildId: "42" } });
+      ).toMatchObject({ to: "/c/$guildId/projects", params: { guildId: "42" } });
     }
   });
 
   it("carries the route's search params across", () => {
-    const guard = redirectToActiveGuild("/g/$guildId/tasks");
+    const guard = redirectToActiveGuild("/c/$guildId/tasks");
     try {
       guard({ context: contextWithGuild(7), search: { status: "open" } });
       expect.unreachable("guard must throw a redirect");
@@ -36,7 +36,7 @@ describe("redirectToActiveGuild", () => {
   });
 
   it("falls back to home when no guild is active", () => {
-    const guard = redirectToActiveGuild("/g/$guildId/documents");
+    const guard = redirectToActiveGuild("/c/$guildId/documents");
     try {
       guard({ context: contextWithGuild(null) });
       expect.unreachable("guard must throw a redirect");

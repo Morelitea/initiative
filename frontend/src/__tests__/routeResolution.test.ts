@@ -17,7 +17,7 @@ const router = createRouter({ routeTree });
 /**
  * The id of the innermost route a pathname resolves to.
  *
- * A path under `/g/{id}` with no page behind it still matches the guild
+ * A path under `/c/{id}` with no page behind it still matches the guild
  * *layout*, so "nothing serves this" reads as resolving to `GUILD` rather than
  * to null — that is what the deleted-route cases below assert.
  */
@@ -26,27 +26,27 @@ function resolvedRouteId(pathname: string): string {
   return String(matches.at(-1)?.routeId ?? "__none__");
 }
 
-const GUILD = "/_serverRequired/_authenticated/g/$guildId";
+const GUILD = "/_serverRequired/_authenticated/c/$guildId";
 const INITIATIVE = `${GUILD}/i/$initiativeId`;
 
 describe("initiative route resolution", () => {
   it.each([
-    ["/g/1/i", `${GUILD}/i/`],
-    ["/g/1/i/5", `${INITIATIVE}/`],
-    ["/g/1/i/5/projects", `${INITIATIVE}/projects/`],
-    ["/g/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
-    ["/g/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings`],
-    ["/g/1/i/5/projects/7/tasks/22", `${INITIATIVE}/projects/$projectId/tasks/$taskId`],
-    ["/g/1/i/5/documents/3", `${INITIATIVE}/documents/$documentId/`],
-    ["/g/1/i/5/queues/4", `${INITIATIVE}/queues/$queueId/`],
-    ["/g/1/i/5/counter-groups/6", `${INITIATIVE}/counter-groups/$counterGroupId/`],
+    ["/c/1/i", `${GUILD}/i/`],
+    ["/c/1/i/5", `${INITIATIVE}/`],
+    ["/c/1/i/5/projects", `${INITIATIVE}/projects/`],
+    ["/c/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
+    ["/c/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings/`],
+    ["/c/1/i/5/projects/7/tasks/22", `${INITIATIVE}/projects/$projectId/tasks/$taskId`],
+    ["/c/1/i/5/documents/3", `${INITIATIVE}/documents/$documentId/`],
+    ["/c/1/i/5/queues/4", `${INITIATIVE}/queues/$queueId/`],
+    ["/c/1/i/5/counter-groups/6", `${INITIATIVE}/counter-groups/$counterGroupId/`],
     [
-      "/g/1/i/5/counter-groups/6/counter/9",
+      "/c/1/i/5/counter-groups/6/counter/9",
       `${INITIATIVE}/counter-groups/$counterGroupId/counter/$counterId`,
     ],
-    ["/g/1/i/5/calendars/2", `${INITIATIVE}/calendars/$calendarId/`],
-    ["/g/1/i/5/calendars/2/events/8", `${INITIATIVE}/calendars/$calendarId/events/$eventId/`],
-    ["/g/1/i/5/dashboards/5", `${INITIATIVE}/dashboards/$dashboardId/`],
+    ["/c/1/i/5/calendars/2", `${INITIATIVE}/calendars/$calendarId/`],
+    ["/c/1/i/5/calendars/2/events/8", `${INITIATIVE}/calendars/$calendarId/events/$eventId/`],
+    ["/c/1/i/5/dashboards/5", `${INITIATIVE}/dashboards/$dashboardId/`],
   ])("resolves %s", (pathname, routeId) => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
   });
@@ -55,31 +55,64 @@ describe("initiative route resolution", () => {
   // one, or a ranking that preferred the dynamic sibling, would swallow them.
   it("keeps the initiative's own children ahead of the tool tabs", () => {
     // `/settings` is a layout now; its index serves the details section.
-    expect(resolvedRouteId("/g/1/i/5/settings")).toBe(`${INITIATIVE}/settings/`);
-    expect(resolvedRouteId("/g/1/i/5/apps/3")).toBe(`${INITIATIVE}/apps/$appId`);
+    expect(resolvedRouteId("/c/1/i/5/settings")).toBe(`${INITIATIVE}/settings/`);
+    expect(resolvedRouteId("/c/1/i/5/apps/3")).toBe(`${INITIATIVE}/apps/$appId`);
   });
 
   // Each settings section is an address of its own, so a manager can be linked
   // straight to one (the join-request queue lives under `members`).
   it.each([
-    ["/g/1/i/5/settings/members", `${INITIATIVE}/settings/members`],
-    ["/g/1/i/5/settings/roles", `${INITIATIVE}/settings/roles`],
-    ["/g/1/i/5/settings/properties", `${INITIATIVE}/settings/properties`],
-    ["/g/1/i/5/settings/export", `${INITIATIVE}/settings/export`],
-    ["/g/1/i/5/settings/danger", `${INITIATIVE}/settings/danger`],
+    ["/c/1/i/5/settings/members", `${INITIATIVE}/settings/members`],
+    ["/c/1/i/5/settings/roles", `${INITIATIVE}/settings/roles`],
+    ["/c/1/i/5/settings/properties", `${INITIATIVE}/settings/properties`],
+    ["/c/1/i/5/settings/export", `${INITIATIVE}/settings/export`],
+    ["/c/1/i/5/settings/danger", `${INITIATIVE}/settings/danger`],
   ])("resolves %s", (pathname, routeId) => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
   });
 
+  // A tool's settings sections are addresses too, so a share link can point at
+  // the sharing controls and the back button walks back out of them.
+  it.each([
+    ["/c/1/i/5/projects/7/settings/access", `${INITIATIVE}/projects/$projectId/settings/access`],
+    [
+      "/c/1/i/5/projects/7/settings/task-statuses",
+      `${INITIATIVE}/projects/$projectId/settings/task-statuses`,
+    ],
+    ["/c/1/i/5/queues/4/settings", `${INITIATIVE}/queues/$queueId/settings/`],
+    ["/c/1/i/5/queues/4/settings/advanced", `${INITIATIVE}/queues/$queueId/settings/advanced`],
+    ["/c/1/i/5/documents/3/settings/access", `${INITIATIVE}/documents/$documentId/settings/access`],
+    [
+      "/c/1/i/5/counter-groups/6/settings/advanced",
+      `${INITIATIVE}/counter-groups/$counterGroupId/settings/advanced`,
+    ],
+    [
+      "/c/1/i/5/dashboards/5/settings/access",
+      `${INITIATIVE}/dashboards/$dashboardId/settings/access`,
+    ],
+    ["/c/1/i/5/calendars/2/settings", `${INITIATIVE}/calendars/$calendarId/settings/`],
+    ["/c/1/calendars/2/settings/access", `${GUILD}/calendars/$calendarId/settings/access`],
+  ])("resolves %s", (pathname, routeId) => {
+    expect(resolvedRouteId(pathname)).toBe(routeId);
+  });
+
+  // A calendar's events sit beside its settings sections; neither may swallow
+  // the other.
+  it("keeps a calendar's events clear of its settings sections", () => {
+    expect(resolvedRouteId("/c/1/i/5/calendars/2/events/8/settings")).toBe(
+      `${INITIATIVE}/calendars/$calendarId/events/$eventId/settings`
+    );
+  });
+
   // `gallery` is a static sibling of `$dashboardId` at the same depth.
   it("prefers a static leaf over the id beside it", () => {
-    expect(resolvedRouteId("/g/1/i/5/dashboards/gallery")).toBe(`${INITIATIVE}/dashboards/gallery`);
+    expect(resolvedRouteId("/c/1/i/5/dashboards/gallery")).toBe(`${INITIATIVE}/dashboards/gallery`);
   });
 
   // Only calendars can be guild-level; those keep their pre-initiative routes.
   it("resolves a guild-level calendar and its events", () => {
-    expect(resolvedRouteId("/g/1/calendars/2")).toBe(`${GUILD}/calendars/$calendarId/`);
-    expect(resolvedRouteId("/g/1/calendars/2/events/8")).toBe(
+    expect(resolvedRouteId("/c/1/calendars/2")).toBe(`${GUILD}/calendars/$calendarId/`);
+    expect(resolvedRouteId("/c/1/calendars/2/events/8")).toBe(
       `${GUILD}/calendars/$calendarId/events/$eventId/`
     );
   });
@@ -87,26 +120,26 @@ describe("initiative route resolution", () => {
   // The calendar app's own surface — the guild's calendars, not a roll-up of
   // its initiatives'. That is why this one address survives the list below.
   it("resolves the guild's calendars", () => {
-    expect(resolvedRouteId("/g/1/calendars")).toBe(`${GUILD}/calendars/`);
+    expect(resolvedRouteId("/c/1/calendars")).toBe(`${GUILD}/calendars/`);
   });
 
   it("resolves the entity-reference resolver", () => {
-    expect(resolvedRouteId("/g/1/go/document/42")).toBe(`${GUILD}/go/$refType/$refId`);
+    expect(resolvedRouteId("/c/1/go/document/42")).toBe(`${GUILD}/go/$refType/$refId`);
   });
 
   // Deleted on purpose — the guild home is the cross-initiative browse now.
   it.each([
-    "/g/1/projects",
-    "/g/1/documents",
-    "/g/1/queues",
-    "/g/1/dashboards",
-    "/g/1/counter-groups",
+    "/c/1/projects",
+    "/c/1/documents",
+    "/c/1/queues",
+    "/c/1/dashboards",
+    "/c/1/counter-groups",
     // Sub-entities moved under their parent tool in the same change.
-    "/g/1/tasks/4",
-    "/g/1/calendar-events/8",
+    "/c/1/tasks/4",
+    "/c/1/calendar-events/8",
     // The initiatives tree answers at /i now.
-    "/g/1/initiatives",
-    "/g/1/initiatives/5",
+    "/c/1/initiatives",
+    "/c/1/initiatives/5",
   ])("no longer serves %s", (path) => {
     expect(resolvedRouteId(path)).toBe(GUILD);
   });

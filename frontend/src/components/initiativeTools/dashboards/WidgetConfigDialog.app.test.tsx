@@ -73,6 +73,30 @@ const CATALOG = {
               options_from: { endpoint: "app.acme.shop.list-shops", key: "names" },
             },
             { key: "limit", type: "int", label: { en: "Limit" } },
+            {
+              key: "aisle",
+              type: "string",
+              label: { en: "Aisle" },
+              options_from: {
+                endpoint: "app.acme.shop.list-aisles",
+                key: "codes",
+                needs: { shop: "shop" },
+              },
+            },
+            {
+              key: "tags",
+              type: "string",
+              label: { en: "Tags" },
+              list: true,
+              options_from: { endpoint: "app.acme.shop.list-tags", key: "names" },
+            },
+            {
+              key: "floors",
+              type: "int",
+              label: { en: "Floors" },
+              list: true,
+              options_from: { endpoint: "app.acme.shop.list-floors", key: "numbers" },
+            },
           ],
         },
         { id: REVENUE, visibility: "member", cache_ttl_seconds: 0, params: [] },
@@ -86,6 +110,12 @@ const widget: DefinitionWidget = {
   type: WIDGET_TYPE,
   grid: { x: 0, y: 0, w: 6, h: 4 },
   binding: { source: "app", app_uid: APP_UID, endpoint_id: ORDERS },
+};
+
+/** As the picker adds one: an app widget with nothing chosen yet. */
+const unpointed: DefinitionWidget = {
+  ...widget,
+  binding: { source: "app", app_uid: APP_UID },
 };
 
 const isCatalog = (url: string) => url.endsWith("/apps/widget-catalog");
@@ -114,10 +144,10 @@ beforeEach(() => {
   readWidgetMeta.mockResolvedValue({ name: { en: "Summary" } });
 });
 
-const mount = () =>
+const mount = (which: DefinitionWidget = widget) =>
   renderWithProviders(
     <WidgetConfigDialog
-      widget={widget}
+      widget={which}
       catalog={{ widgets: [], presets: [] }}
       initiativeId={7}
       open
@@ -225,5 +255,166 @@ describe("configuring an app widget", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0][0].binding.endpoint_id).toBe(REVENUE);
     expect(onSave.mock.calls[0][0].binding.params).toBeUndefined();
+  });
+});
+
+describe("what a form must not be able to save", () => {
+  it("will not save an app widget that names no read", async () => {
+    // `endpoint_id` is required where a definition is normalized, so this
+    // would come back 422 — after the dialog had closed, which is the worst
+    // place to learn it. The control that fills it is right there.
+    serve();
+    mount(unpointed);
+
+    await screen.findByRole("combobox", { name: /what it reads/i });
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+  });
+
+  it("saves once a read is chosen", async () => {
+    serve();
+    const user = userEvent.setup();
+    mount(unpointed);
+
+    await user.click(await screen.findByRole("combobox", { name: /what it reads/i }));
+    await user.click(await screen.findByRole("option", { name: ORDERS }));
+
+    const save = screen.getByRole("button", { name: /save/i });
+    expect(save).toBeEnabled();
+    await user.click(save);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].binding.endpoint_id).toBe(ORDERS);
+  });
+});
+
+describe("a parameter that takes several values", () => {
+  it("sends an array rather than a joined string", async () => {
+    // `list` exists so an app does not declare a string and document a comma.
+    // That only holds if an array is what actually travels.
+    serve({
+      menu: [
+        { value: "red", label: null },
+        { value: "blue", label: null },
+      ],
+    });
+    const user = userEvent.setup();
+    mount();
+
+    // Reopened between picks: the menu is a Select that closes on choose, and
+    // what is being asserted is the value it accumulates, not how it stays open.
+    for (const tag of ["red", "blue"]) {
+      await user.click(await screen.findByRole("combobox", { name: /tags/i }));
+      await user.click(await screen.findByRole("option", { name: tag }));
+      await user.keyboard("{Escape}");
+    }
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].binding.params.tags).toEqual(["red", "blue"]);
+  });
+});
+
+describe("a value chosen under another value", () => {
+  it("is dropped when the value it was chosen under changes", async () => {
+    // An aisle belongs to the shop that was chosen when it was picked. Leaving
+    // it behind is how a binding ends up naming an aisle of a shop it no longer
+    // reads — a filter that looks set and matches nothing.
+    serve({
+      menu: [
+        { value: "north", label: null },
+        { value: "south", label: null },
+        { value: "A1", label: null },
+      ],
+    });
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole("combobox", { name: /^shop/i }));
+    await user.click(await screen.findByRole("option", { name: "north" }));
+    await user.click(await screen.findByRole("combobox", { name: /aisle/i }));
+    await user.click(await screen.findByRole("option", { name: "A1" }));
+
+    await user.click(screen.getByRole("combobox", { name: /^shop/i }));
+    await user.click(await screen.findByRole("option", { name: "south" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const saved = onSave.mock.calls[0][0].binding.params;
+    expect(saved.shop).toBe("south");
+    expect(saved.aisle).toBeUndefined();
+  });
+
+  it("is kept when the same value is chosen again", async () => {
+    serve({
+      menu: [
+        { value: "north", label: null },
+        { value: "A1", label: null },
+      ],
+    });
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole("combobox", { name: /^shop/i }));
+    await user.click(await screen.findByRole("option", { name: "north" }));
+    await user.click(await screen.findByRole("combobox", { name: /aisle/i }));
+    await user.click(await screen.findByRole("option", { name: "A1" }));
+
+    await user.click(screen.getByRole("combobox", { name: /^shop/i }));
+    await user.click(await screen.findByRole("option", { name: "north" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].binding.params.aisle).toBe("A1");
+  });
+});
+
+describe("a value's declared type", () => {
+  it("sends integers for an int parameter chosen from a menu", async () => {
+    // Every control reads a string. The proxy holds an `int` parameter to an
+    // actual integer and holds every entry of a `list` one to the same rule, so
+    // a string here is a widget that saves and then fails the first time it is
+    // drawn — with nothing between the two saying so.
+    serve({
+      menu: [
+        { value: "1", label: null },
+        { value: "2", label: null },
+      ],
+    });
+    const user = userEvent.setup();
+    mount();
+
+    for (const floor of ["1", "2"]) {
+      await user.click(await screen.findByRole("combobox", { name: /floors/i }));
+      await user.click(await screen.findByRole("option", { name: floor }));
+      await user.keyboard("{Escape}");
+    }
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].binding.params.floors).toEqual([1, 2]);
+  });
+
+  it("sends an integer for a single int parameter that is typed", async () => {
+    serve();
+    const user = userEvent.setup();
+    mount();
+
+    await user.type(await screen.findByLabelText(/limit/i), "12");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].binding.params.limit).toBe(12);
+  });
+
+  it("keeps a string parameter a string", async () => {
+    serve({ menu: [{ value: "north", label: null }] });
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(await screen.findByRole("combobox", { name: /^shop/i }));
+    await user.click(await screen.findByRole("option", { name: "north" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].binding.params.shop).toBe("north");
   });
 });

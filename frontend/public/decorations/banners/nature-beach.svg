@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Beach</title>
+  <!-- The tide coming in, on the long afternoon it does that for. -->
+  <style>
+    .surf { animation-name: roll; animation-timing-function: linear;
+            animation-iteration-count: infinite }
+    @keyframes roll { from { transform: translateX(0) } to { transform: translateX(-80px) } }
+    .glint { animation: wink 5s ease-in-out infinite alternate }
+    @keyframes wink { from { opacity: .25 } to { opacity: .7 } }
+    .wash { animation: lap 9s ease-in-out infinite alternate }
+    @keyframes lap { from { transform: translateY(0) } to { transform: translateY(1.6px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .surf, .glint, .wash { animation: none } }
+    .sail { animation: cruise 60s linear infinite }
+    @keyframes cruise { 0% { transform: translateX(-14px); opacity: 0 }
+                        6% { opacity: .55 } 94% { opacity: .55 }
+                        100% { transform: translateX(176px); opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .sail { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="bsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4E9ED8"/><stop offset="52%" stop-color="#A8D8EC"/>
+      <stop offset="100%" stop-color="#F2E4C0"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E6E8E"/><stop offset="55%" stop-color="#3A9EB4"/>
+      <stop offset="100%" stop-color="#7ECBD0"/>
+    </linearGradient>
+    <linearGradient id="beach" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EEDCB0"/><stop offset="100%" stop-color="#D8BE8A"/>
+    </linearGradient>
+    <radialGradient id="bsun" cx=".5" cy=".5" r=".5">
+      <stop offset="0%" stop-color="#FFF6D8" stop-opacity=".95"/>
+      <stop offset="100%" stop-color="#FFE0A0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#bsky)"/>
+  <circle cx="104" cy="10" r="15" fill="url(#bsun)"/>
+  <circle cx="104" cy="10" r="4" fill="#FFF8E2" opacity=".92"/>
+  <!-- Cloud, high and thin. -->
+  <g fill="#FFFFFF" opacity=".5">
+    <ellipse cx="34" cy="7.4" rx="13" ry="2.2"/><ellipse cx="42" cy="6" rx="8" ry="1.8"/>
+    <ellipse cx="128" cy="5.6" rx="10" ry="1.8"/>
+  </g>
+  <!-- Gulls. -->
+  <g>
+  </g>
+
+  <!-- Where the water starts. -->
+  <path d="M0 20.6 L160 20.6 L160 33 L0 33 Z" fill="url(#sea)"/>
+  <!-- The sun's road on the water. -->
+  <g class="glint" fill="#FFF6D8">
+    <ellipse cx="104" cy="22.4" rx="7" ry=".5"/><ellipse cx="104" cy="24.4" rx="9" ry=".55"/>
+    <ellipse cx="104" cy="26.6" rx="7.6" ry=".5"/><ellipse cx="104" cy="29" rx="10" ry=".6"/>
+    <ellipse cx="104" cy="31.4" rx="8" ry=".5"/>
+  </g>
+  <!-- Swell, four lines of it, each at its own pace. -->
+  <g>
+    <path class="surf s0" style="animation-duration: 7.0s; animation-delay: 0s"
+          d="M-20 25.6 C0 24.5 20 26.700000000000003 40 25.6 C60 24.5 80 26.700000000000003 100 25.6
+             C120 24.5 140 26.700000000000003 160 25.6 C180 24.5 200 26.700000000000003 220 25.6"
+          fill="none" stroke="#FFFFFF" stroke-width=".55" opacity="0.5"/>
+    <path class="surf s1" style="animation-duration: 8.4s; animation-delay: -2.6s"
+          d="M-20 27.4 C0 26.299999999999997 20 28.5 40 27.4 C60 26.299999999999997 80 28.5 100 27.4
+             C120 26.299999999999997 140 28.5 160 27.4 C180 26.299999999999997 200 28.5 220 27.4"
+          fill="none" stroke="#FFFFFF" stroke-width=".55" opacity="0.6"/>
+    <path class="surf s2" style="animation-duration: 6.2s; animation-delay: -4.1s"
+          d="M-20 29.6 C0 28.5 20 30.700000000000003 40 29.6 C60 28.5 80 30.700000000000003 100 29.6
+             C120 28.5 140 30.700000000000003 160 29.6 C180 28.5 200 30.700000000000003 220 29.6"
+          fill="none" stroke="#FFFFFF" stroke-width=".55" opacity="0.7"/>
+    <path class="surf s3" style="animation-duration: 9.0s; animation-delay: -1.3s"
+          d="M-20 32.2 C0 31.1 20 33.300000000000004 40 32.2 C60 31.1 80 33.300000000000004 100 32.2
+             C120 31.1 140 33.300000000000004 160 32.2 C180 31.1 200 33.300000000000004 220 32.2"
+          fill="none" stroke="#FFFFFF" stroke-width=".55" opacity="0.85"/>
+  </g>
+
+  <!-- The wash, and the sand it keeps redrawing. -->
+  <g class="wash">
+    <path d="M0 33.4 C22 32.2 44 34.2 68 33.2 C92 32.2 116 34 140 32.8 C150 32.4 156 33 160 32.8
+             L160 36 L0 36 Z" fill="#CFEDE8" opacity=".85"/>
+    <path d="M0 33.6 C22 32.4 44 34.4 68 33.4 C92 32.4 116 34.2 140 33 C150 32.6 156 33.2 160 33"
+          fill="none" stroke="#FFFFFF" stroke-width=".6" opacity=".8"/>
+  </g>
+  <path d="M0 35.4 C24 34.6 48 36.2 74 35.4 C100 34.6 128 36 160 35 L160 40 L0 40 Z"
+        fill="url(#beach)"/>
+  <!-- Shells, a stone, and the marks the last wave left. -->
+  <g stroke="#C4A473" stroke-width=".38" fill="none" opacity=".55">
+    <path d="M0 37.4 C26 36.8 52 38 80 37.4 C108 36.8 134 38 160 37.2"/>
+    <path d="M0 38.8 C30 38.2 58 39.2 90 38.6 C118 38.1 140 39 160 38.6"/>
+  </g>
+  <g fill="#F2E2CE" stroke="#C9A87E" stroke-width=".3">
+    <path d="M52 38.4 C51 37.4 51.4 36.4 52.6 36.4 C53.8 36.4 54.2 37.4 53.2 38.4 Z"/>
+    <path d="M112 39 C111.2 38.2 111.5 37.4 112.4 37.4 C113.3 37.4 113.6 38.2 112.8 39 Z"/>
+  </g>
+  <ellipse cx="86" cy="38.6" rx="1.6" ry=".7" fill="#A89478" opacity=".7"/>
+  <g class="sail">
+    <g transform="translate(8 20.2)" fill="#3E5460" opacity=".8">
+      <path d="M0 0 L4.4 0 L3.6 1.2 L.6 1.2 Z"/>
+      <path d="M2.2 -.2 L2.2 -4.4 L4.6 -.2 Z"/>
+      <path d="M1.8 -.4 L1.8 -3.4 L-.2 -.4 Z"/>
+    </g>
+  </g>
+</svg>

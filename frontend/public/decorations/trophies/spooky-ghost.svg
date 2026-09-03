@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Ghost</title>
+  <circle cx="24" cy="24" r="23" fill="#140A1F"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#3A1F52" stroke-width="2"/>
+  <g>
+    <path d="M24 7 C32 7 37 13 37 21.4 L37 38.6 C37 40 35.6 40.6 34.4 39.6
+             L31 36.6 L27.6 39.6 C26.6 40.4 25.4 40.4 24.4 39.6 L21 36.6 L17.6 39.6
+             C16.4 40.6 15 40 15 38.6 L15 21.4 C15 13 20 7 24 7 Z" fill="#EFE9F6"/>
+    <path d="M24 7 C32 7 37 13 37 21.4 L37 38.6 C37 40 35.6 40.6 34.4 39.6 L31 36.6
+             C33 33.4 33.6 28.6 33.6 21.4 C33.6 14.6 30.4 9 26 7.2 Z" fill="#C9C0DC"/>
+    <g fill="#241338">
+      <ellipse cx="19.4" cy="19.4" rx="2.4" ry="3.2"/>
+      <ellipse cx="28.6" cy="19.4" rx="2.4" ry="3.2"/>
+      <ellipse cx="24" cy="27" rx="2.6" ry="3.4"/>
+    </g>
+    <g fill="#FFFFFF" opacity=".7">
+      <circle cx="18.4" cy="18" r=".8"/><circle cx="27.6" cy="18" r=".8"/>
+    </g>
+  </g>
+</svg>

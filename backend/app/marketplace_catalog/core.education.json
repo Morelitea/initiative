@@ -1,0 +1,94 @@
+{
+  "uid": "P8HDR3VK6XN2QW",
+  "public_id": "core.education",
+  "kind": "profile_pack",
+  "name": "Education",
+  "publisher": "Initiative",
+  "description": "Pre-K to postgrad, and everyone keeping it running.",
+  "long_description": "Every room it happens in: the alphabet over a chalkboard with the lesson going on to it, a bench with the burner lit and two flasks working, and the four seconds at the end when the caps go up. A mortarboard on your picture with a tassel that swings, twenty-four crayons laid round it points inward, or slate in an oak frame with the chalk on the ledge. A banner and a trophy that carry the year you finished — you say which, and it offers this one. Then eight to wear, from the blocks to the diploma — an apple, alphabet blocks, the bus, a pencil, a burner, the diploma, the cap, and the year you finished.",
+  "avatar_url": "/decorations/banners/education-classroom.svg",
+  "images": [],
+  "version": "1.2.0",
+  "release_notes": "Three trophies out, and the board does real arithmetic.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "education.classroom",
+        "slot": "banner",
+        "name": "Classroom"
+      },
+      {
+        "id": "education.lab",
+        "slot": "banner",
+        "name": "Science lab"
+      },
+      {
+        "id": "education.commencement",
+        "slot": "banner",
+        "name": "Commencement"
+      },
+      {
+        "id": "education.mortarboard",
+        "slot": "frame",
+        "name": "Mortarboard"
+      },
+      {
+        "id": "education.crayons",
+        "slot": "frame",
+        "name": "Crayons"
+      },
+      {
+        "id": "education.chalkboard",
+        "slot": "frame",
+        "name": "Chalkboard"
+      },
+      {
+        "id": "education.apple",
+        "slot": "trophy",
+        "name": "Apple"
+      },
+      {
+        "id": "education.blocks",
+        "slot": "trophy",
+        "name": "Alphabet blocks"
+      },
+      {
+        "id": "education.bus",
+        "slot": "trophy",
+        "name": "School bus"
+      },
+      {
+        "id": "education.pencil",
+        "slot": "trophy",
+        "name": "Pencil"
+      },
+      {
+        "id": "education.bunsen",
+        "slot": "trophy",
+        "name": "Bunsen burner"
+      },
+      {
+        "id": "education.diploma",
+        "slot": "trophy",
+        "name": "Diploma"
+      },
+      {
+        "id": "education.cap",
+        "slot": "trophy",
+        "name": "Graduation cap"
+      },
+      {
+        "id": "education.gradbanner",
+        "slot": "banner",
+        "name": "Grad"
+      },
+      {
+        "id": "education.gradtrophy",
+        "slot": "trophy",
+        "name": "Grad year"
+      }
+    ]
+  }
+}

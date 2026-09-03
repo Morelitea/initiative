@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.document import Document
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.task import Task
-    from app.models.platform.user import User
+    from app.models.platform.user_profile_view import MemberProfile
 
 
 class PropertyType(str, Enum):
@@ -183,9 +183,12 @@ class DocumentPropertyValue(CreatedByMixin, table=True):
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="document_values"
     )
-    value_user: Optional["User"] = Relationship(
+    value_user: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
-            "foreign_keys": "[DocumentPropertyValue.value_user_id]"
+            "primaryjoin": (
+                "foreign(DocumentPropertyValue.value_user_id) == MemberProfile.id"
+            ),
+            "viewonly": True,
         },
     )
 
@@ -254,8 +257,13 @@ class TaskPropertyValue(CreatedByMixin, table=True):
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="task_values"
     )
-    value_user: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[TaskPropertyValue.value_user_id]"},
+    value_user: Optional["MemberProfile"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "foreign(TaskPropertyValue.value_user_id) == MemberProfile.id"
+            ),
+            "viewonly": True,
+        },
     )
 
 
@@ -325,8 +333,11 @@ class CalendarEventPropertyValue(CreatedByMixin, table=True):
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="event_values"
     )
-    value_user: Optional["User"] = Relationship(
+    value_user: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
-            "foreign_keys": "[CalendarEventPropertyValue.value_user_id]"
+            "primaryjoin": (
+                "foreign(CalendarEventPropertyValue.value_user_id) == MemberProfile.id"
+            ),
+            "viewonly": True,
         },
     )

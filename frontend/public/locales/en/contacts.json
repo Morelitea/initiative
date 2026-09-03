@@ -1,0 +1,39 @@
+{
+  "title": "My Contacts",
+  "subtitle": "Everyone you share a community with, plus anyone you starred.",
+  "favorites": "Favorites",
+  "searchPlaceholder": "Search contacts",
+  "searchLabel": "Search everyone on this page",
+  "clearSearch": "Clear search",
+  "loading": "Loading your contacts…",
+  "columns": {
+    "person": "Person",
+    "name": "Name",
+    "alsoIn": "Also in"
+  },
+  "peopleCount_one": "{{count}} person",
+  "peopleCount_other": "{{count}} people",
+  "pagerLabel": "Pages of {{section}}",
+  "favorite": "Add {{name}} to favorites",
+  "unfavorite": "Remove {{name}} from favorites",
+  "alsoIn": "Also in {{guilds}}",
+  "searching": {
+    "title": "Searching every community",
+    "description": "Each community keeps its own member list, so a search visits them one at a time. Long lists take a few seconds."
+  },
+  "pageError": {
+    "description": "That page didn't load.",
+    "retry": "Try again"
+  },
+  "empty": {
+    "title": "Nobody here yet",
+    "description": "Join a community and the people in it show up here.",
+    "favorites": "Star anyone to keep them at the top of this page.",
+    "guild": "Nobody else is in this community yet."
+  },
+  "noMatches": {
+    "title": "Nobody by that name",
+    "description": "Try a different name, or the whole handle.",
+    "section": "No matches here."
+  }
+}

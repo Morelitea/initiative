@@ -1,0 +1,64 @@
+{
+  "uid": "7VD3XKQ0P6ZBTY",
+  "public_id": "core.spooky",
+  "kind": "profile_pack",
+  "name": "Spooky",
+  "publisher": "Initiative",
+  "description": "For the people who keep October in the calendar all year.",
+  "long_description": "A hollow with something in the trees, an apothecary bench with the burner lit and the cat supervising, and a chorus line of skeletons who have been at it since sundown. A web, a rib cage or wrought iron to frame you; a lantern, a ghost and a bat to wear.",
+  "avatar_url": "/decorations/banners/spooky-hollow.svg",
+  "images": [],
+  "version": "1.2.0",
+  "release_notes": "Skeletons who have been dancing since sundown, and an apothecary bench.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "spooky.hollow",
+        "slot": "banner",
+        "name": "Hollow"
+      },
+      {
+        "id": "spooky.web",
+        "slot": "frame",
+        "name": "Cobweb"
+      },
+      {
+        "id": "spooky.lantern",
+        "slot": "trophy",
+        "name": "Jack-o'-lantern"
+      },
+      {
+        "id": "spooky.witching",
+        "slot": "banner",
+        "name": "Witching hour"
+      },
+      {
+        "id": "spooky.bones",
+        "slot": "frame",
+        "name": "Bones"
+      },
+      {
+        "id": "spooky.ironwork",
+        "slot": "frame",
+        "name": "Ironwork"
+      },
+      {
+        "id": "spooky.ghost",
+        "slot": "trophy",
+        "name": "Ghost"
+      },
+      {
+        "id": "spooky.bat",
+        "slot": "trophy",
+        "name": "Bat"
+      },
+      {
+        "id": "spooky.skeletons",
+        "slot": "banner",
+        "name": "Spooky scary skeletons"
+      }
+    ]
+  }
+}

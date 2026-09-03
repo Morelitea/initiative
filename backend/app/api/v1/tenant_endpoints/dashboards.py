@@ -69,6 +69,7 @@ from app.services.marketplace.installs import (
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
 from app.services.tenant.dashboard_definition import (
     DashboardDefinitionError,
@@ -248,15 +249,16 @@ async def list_dashboards(
         )
 
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.listing_scope_clause(
             Tool.dashboard,
             Dashboard.id,
             current_user.id,
             guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
         )
     )
 
-    name_match = tool_listing.name_search_clause(Dashboard.name, search)
+    name_match = search_service.tool_search_clause(Tool.dashboard, Dashboard.id, search)
     if name_match is not None:
         conditions.append(name_match)
 
@@ -317,7 +319,7 @@ async def get_dashboard_counts_by_initiative(
         ),
     ]
     conditions.append(
-        permissions_service.dac_scope_clause(
+        permissions_service.granted_scope_clause(
             Tool.dashboard,
             Dashboard.id,
             current_user.id,

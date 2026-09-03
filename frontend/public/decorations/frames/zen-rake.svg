@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Raked sand</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Six passes of the rake, and the stone they were raked around. -->
+  <path d="M64 0.6 A63.4 63.4 0 1 0 64 127.4 A63.4 63.4 0 1 0 64 0.6 Z M64 13.4 A50.6 50.6 0 1 1 64 114.6 A50.6 50.6 0 1 1 64 13.4 Z" fill="#D9D3C4" fill-rule="evenodd"/>
+  <circle cx="64" cy="64" r="52.2" fill="none" stroke="#A9A192" stroke-width=".9" opacity=".85"/><circle cx="64" cy="64" r="54.4" fill="none" stroke="#A9A192" stroke-width=".9" opacity=".85"/><circle cx="64" cy="64" r="56.6" fill="none" stroke="#A9A192" stroke-width=".9" opacity=".85"/><circle cx="64" cy="64" r="58.8" fill="none" stroke="#A9A192" stroke-width=".9" opacity=".85"/><circle cx="64" cy="64" r="61" fill="none" stroke="#A9A192" stroke-width=".9" opacity=".85"/><circle cx="64" cy="64" r="63.2" fill="none" stroke="#A9A192" stroke-width=".9" opacity=".85"/>
+  <g>
+    <path d="M56 8 C60 3.4 70 3.4 73.4 8.6 C75 11 74 13 70.6 13.6 C64 14.8 58 13 56 10.6 Z"
+          fill="#6E6A62"/>
+    <path d="M57 7.4 C60.6 4 68.6 4 71.6 7.6 C67.6 6.6 61 6.8 57 7.4 Z" fill="#8B867C"/>
+  </g>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#8E8674" stroke-width="1.6"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#8E8674" stroke-width="1.2"/>
+</svg>

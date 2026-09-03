@@ -11,7 +11,8 @@
     "queues": "Colas",
     "counterGroups": "Grupos de contadores",
     "calendars": "Calendarios",
-    "dashboards": "Paneles"
+    "dashboards": "Paneles",
+    "results": "Resultados"
   },
   "actions": {
     "addTask": "Agregar tarea",
@@ -23,9 +24,10 @@
     "myCalendar": "Mi Calendario",
     "myProjects": "Mis Proyectos",
     "myDocuments": "Mis Documentos",
+    "myContacts": "Mis contactos",
     "myStats": "Mis Estadísticas",
     "userSettings": "Configuración de usuario",
-    "guildSettings": "Configuración del gremio",
+    "guildSettings": "Configuración de la comunidad",
     "allProjects": "Todos los Proyectos",
     "allDocuments": "Todos los Documentos",
     "allInitiatives": "Todas las Iniciativas",
@@ -38,5 +40,6 @@
     "project": "Proyecto",
     "task": "Tarea",
     "document": "Documento"
-  }
+  },
+  "seeAllResults": "Ver todos los resultados de «{{query}}»"
 }

@@ -155,8 +155,10 @@ async def test_get_calendar(client: AsyncClient, acting_user, session):
 
 @pytest.mark.integration
 async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, session):
-    """The list applies calendar sharing: a member sees shared calendars only,
-    a guild admin sees everything (the admin override)."""
+    """The list applies calendar sharing, and it spans initiatives — so it
+    answers what has been shared with the reader, a guild admin included.
+    Naming the initiative is what asks about their standing in it, and that
+    still answers with all of its calendars."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     await _calendars_enabled(session, a.initiative)
     member = await acting_user(
@@ -178,7 +180,14 @@ async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, ses
 
     admin_list = await client.get(admin.g("/calendars/"), headers=admin.headers)
     admin_names = {c["name"] for c in admin_list.json()["items"]}
-    assert {shared.name, secret.name} <= admin_names
+    assert secret.name not in admin_names
+
+    within = await client.get(
+        admin.g(f"/calendars/?initiative_id={a.initiative.id}"),
+        headers=admin.headers,
+    )
+    assert within.status_code == 200, within.text
+    assert {shared.name, secret.name} <= {c["name"] for c in within.json()["items"]}
 
 
 @pytest.mark.integration

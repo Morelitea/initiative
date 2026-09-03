@@ -1,20 +1,20 @@
 {
-  "title": "Gremio",
-  "subtitle": "Todo lo del gremio, una herramienta a la vez.",
-  "toolRail": "Herramientas del gremio",
+  "title": "Comunidad",
+  "subtitle": "Todo lo de la comunidad, una herramienta a la vez.",
+  "toolRail": "Herramientas de la comunidad",
   "loading": "Cargando…",
   "loadError": "No se pudo cargar esta herramienta. Inténtalo de nuevo más tarde.",
-  "guildWide": "Todo el gremio",
+  "guildWide": "Todo la comunidad",
   "searchPlaceholder": "Buscar por nombre…",
   "empty": {
     "title": "Aún no hay nada",
-    "description": "Todavía no existe nada de este tipo en el gremio, o nada se ha compartido contigo."
+    "description": "Todavía no existe nada de este tipo en la comunidad, o nada se ha compartido contigo."
   },
   "emptyState": {
     "title": "Todavía no te has unido a ninguna iniciativa",
-    "description": "Las iniciativas contienen todo lo de un gremio: proyectos, documentos y lo demás. Únete a una para ver su trabajo.",
+    "description": "Las iniciativas contienen todo lo de una comunidad: proyectos, documentos y lo demás. Únete a una para ver su trabajo.",
     "nothingListedTitle": "Nada a lo que unirse todavía",
-    "nothingListedDescription": "Ninguna iniciativa de este gremio está abierta ahora mismo. Un administrador del gremio o un gerente de proyecto puede añadirte."
+    "nothingListedDescription": "Ninguna iniciativa de esta comunidad está abierta ahora mismo. Un administrador de la comunidad o un gerente de proyecto puede añadirte."
   },
   "directory": {
     "title": "Iniciativas",
@@ -35,11 +35,11 @@
     "pendingRequests_one": "{{count}} esperando para unirse",
     "pendingRequests_other": "{{count}} esperando para unirse",
     "policy": {
-      "open": "Abierta a todos los miembros del gremio",
+      "open": "Abierta a todos los miembros de la comunidad",
       "request": "Unirse mediante solicitud",
       "private": "Solo por invitación"
     },
-    "loadError": "No se pudo cargar lo que ofrece este gremio. Inténtalo de nuevo más tarde."
+    "loadError": "No se pudo cargar lo que ofrece esta comunidad. Inténtalo de nuevo más tarde."
   },
   "columns": {
     "name": "Nombre",
@@ -73,7 +73,7 @@
   },
   "recentComments": {
     "title": "Comentarios recientes",
-    "description": "Los últimos comentarios en el gremio",
+    "description": "Los últimos comentarios en la comunidad",
     "noComments": "Aún no hay comentarios",
     "loadError": "No se pudieron cargar los comentarios recientes. Inténtalo de nuevo más tarde.",
     "unknownAuthor": "Desconocido",

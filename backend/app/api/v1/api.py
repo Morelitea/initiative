@@ -15,6 +15,8 @@ from fastapi import APIRouter
 #                          that.
 from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
+    smart_chips,
+    search as guild_search,
     ai_settings,
     app_data,
     attachments,
@@ -38,6 +40,7 @@ from app.api.v1.tenant_endpoints import (
     projects,
     property_definitions,
     queues,
+    reactions,
     recents,
     resource_grants,
     storage,
@@ -51,6 +54,7 @@ from app.api.v1.tenant_endpoints import (
 from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
+    announcements,
     ai_settings as platform_ai_settings,
     app_platform,
     app_services,
@@ -58,6 +62,7 @@ from app.api.v1.platform_endpoints import (
     auth_providers,
     billing,
     config,
+    contacts,
     guild_auth_providers,
     guilds,
     marketplace,
@@ -68,6 +73,7 @@ from app.api.v1.platform_endpoints import (
     user_view_preferences,
     users,
     version,
+    dm,
 )
 
 api_router = APIRouter()
@@ -83,6 +89,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(dm.user_router, prefix="/users", tags=["direct-messages"])
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
@@ -91,6 +98,12 @@ api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
 api_router.include_router(push.router, prefix="/push", tags=["push"])
+# Deployment-wide notices: what changed, who should hear about it, and what
+# each person has already dealt with. Platform-addressed — one announcement
+# reaches every guild — so no guild segment.
+api_router.include_router(
+    announcements.router, prefix="/announcements", tags=["announcements"]
+)
 # Platform / app-wide config (owner-only) and cross-guild PAM management — NOT
 # guild-scoped (AdminSessionDep / capability-gated), so they stay top-level.
 api_router.include_router(
@@ -148,10 +161,12 @@ guild_router = APIRouter(prefix="/g/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
+guild_router.include_router(task_statuses.initiative_router, tags=["task-statuses"])
 guild_router.include_router(filter_presets.router, tags=["filter-presets"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 guild_router.include_router(tasks.subtasks_router, tags=["subtasks"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
+guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
 guild_router.include_router(
     ai_settings.router, prefix="/settings", tags=["ai-settings"]
@@ -210,6 +225,10 @@ guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
+guild_router.include_router(guild_search.router, prefix="/search", tags=["search"])
+guild_router.include_router(
+    smart_chips.router, prefix="/smart-chips", tags=["smart-chips"]
+)
 guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",
@@ -245,4 +264,6 @@ me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
+me_router.include_router(contacts.me_router, tags=["contacts"])
+me_router.include_router(dm.me_router, tags=["direct-messages"])
 api_router.include_router(me_router)

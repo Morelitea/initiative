@@ -61,6 +61,11 @@
     "reply": {
       "title": "Reply to your comment",
       "body": "{{actor}} replied to your comment on {{context}}"
+    },
+    "reaction": {
+      "title": "New reaction",
+      "body_one": "{{actor}} reacted {{emoji}} to your comment on {{context}}",
+      "body_other": "{{count}} new reactions to your posts, including {{emoji}} from {{actor}}"
     }
   },
   "event": {

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Lotus</title>
+  <circle cx="24" cy="24" r="23" fill="#1E2A28"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#7FA86A" stroke-width="2"/>
+  <path d="M24 8 C28 13 30 18.6 30 24 C30 29 28 32.6 24 34.6 C20 32.6 18 29 18 24
+           C18 18.6 20 13 24 8 Z" fill="#F0A8C0"/>
+  <path d="M24 8 C28 13 30 18.6 30 24 C30 29 28 32.6 24 34.6 Z" fill="#D8809E"/>
+  <path d="M14 12.6 C19.6 16 23 20.6 24.4 26 C21.6 30 17.6 32 13 32
+           C11 27.4 11 21.4 14 12.6 Z" fill="#E894B0"/>
+  <path d="M34 12.6 C28.4 16 25 20.6 23.6 26 C26.4 30 30.4 32 35 32
+           C37 27.4 37 21.4 34 12.6 Z" fill="#E894B0"/>
+  <path d="M5 20.6 C12 22 17.6 25.4 21 30.6 C19 34 15.4 35.6 10.6 35.4
+           C7 32.4 5 27.4 5 20.6 Z" fill="#F0A8C0" opacity=".85"/>
+  <path d="M43 20.6 C36 22 30.4 25.4 27 30.6 C29 34 32.6 35.6 37.4 35.4
+           C41 32.4 43 27.4 43 20.6 Z" fill="#F0A8C0" opacity=".85"/>
+  <ellipse cx="24" cy="28" rx="4" ry="3" fill="#F6D98A"/>
+  <g fill="#E8B21C">
+    <circle cx="21.6" cy="27" r=".8"/><circle cx="24" cy="26.4" r=".8"/>
+    <circle cx="26.4" cy="27" r=".8"/>
+  </g>
+  <g stroke="#4E8A6A" stroke-width="1.4" fill="none" opacity=".8">
+    <path d="M6 37.6 C14 35.6 34 35.6 42 37.6"/>
+  </g></svg>

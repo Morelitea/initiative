@@ -33,6 +33,7 @@ from app.core.security import (
     mint_access_token,
 )
 from app.models.platform.app_service_registration import AppServiceRegistration
+from app.core.reactions import ReactionTarget
 from app.models.tenant.calendar import Calendar
 from app.models.platform.marketplace import (
     MarketplaceListing,
@@ -64,6 +65,7 @@ from app.models.tenant.property import (
     TaskPropertyValue,
 )
 from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.reaction import Reaction
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import (
     Subtask,
@@ -122,6 +124,10 @@ async def create_user(
         "username": usernames.random_name(),
         "discriminator": usernames.random_discriminator(),
         "username_chosen": True,
+        # Answered, for the same reason the handle is chosen: a test that is
+        # not about the age gate should never meet it. The gate's own tests
+        # pass ``age_confirmed_at=None`` to get an account that has not.
+        "age_confirmed_at": datetime.now(timezone.utc),
         "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
@@ -151,6 +157,14 @@ async def create_user(
     user = User(**user_data)
 
     session.add(user)
+    await session.flush()
+
+    # Every production path that makes an account seeds its direct-message
+    # policy row, so the factory does too — otherwise a test would be exercising
+    # the "no row at all" fallback rather than what a real account looks like.
+    from app.services.platform import dm_settings as dm_settings_service
+
+    await dm_settings_service.seed_for_new_account(session, user_id=user.id)
 
     if commit:
         await session.commit()
@@ -1154,6 +1168,40 @@ async def create_marketplace_listing(
     return listing
 
 
+async def create_profile_pack(
+    session: AsyncSession,
+    *,
+    uid: str = "TESTPACK000001",
+    public_id: str = "test.pack",
+    slug: str = "test",
+    commit: bool = True,
+    **overrides: Any,
+) -> MarketplaceListing:
+    """A profile-pack listing granting one decoration of each slot.
+
+    ``slug`` namespaces the decoration ids, the way a real pack's do, so two
+    packs in one test never collide. Goes through the real upsert, so the
+    definition is held to the same validator a published pack would be.
+    """
+    return await create_marketplace_listing(
+        session,
+        uid=uid,
+        public_id=public_id,
+        kind="profile_pack",
+        definition={
+            "schema_version": 1,
+            "kind": "profile_pack",
+            "decorations": [
+                {"id": f"{slug}.banner", "slot": "banner", "name": "A banner"},
+                {"id": f"{slug}.frame", "slot": "frame", "name": "A frame"},
+                {"id": f"{slug}.trophy", "slot": "trophy", "name": "A trophy"},
+            ],
+        },
+        commit=commit,
+        **overrides,
+    )
+
+
 async def create_dashboard(
     session: AsyncSession,
     initiative: Initiative,
@@ -1387,6 +1435,39 @@ async def create_comment(
         await session.refresh(comment)
 
     return comment
+
+
+async def create_reaction(
+    session: AsyncSession,
+    user: User,
+    *,
+    comment: Comment,
+    emoji: str = "\N{THUMBS UP SIGN}",
+    commit: bool = True,
+    **overrides: Any,
+) -> Reaction:
+    """Put one person's emoji on one comment.
+
+    Takes the target as a typed keyword rather than a ``(type, id)`` pair so a
+    second reactable kind adds a keyword here and nothing has to remember the
+    string.
+    """
+    await route_session_to_guild(session, comment.guild_id)
+    defaults = {
+        "guild_id": comment.guild_id,
+        "target_type": ReactionTarget.comment.value,
+        "target_id": comment.id,
+        "emoji": emoji,
+        "created_by": user.id,
+    }
+    reaction = Reaction(**{**defaults, **overrides})
+    session.add(reaction)
+
+    if commit:
+        await session.commit()
+        await session.refresh(reaction)
+
+    return reaction
 
 
 async def create_tag(

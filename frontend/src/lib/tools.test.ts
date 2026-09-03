@@ -26,6 +26,7 @@ import {
   SIDEBAR_TOOLS,
   TOGGLEABLE_TOOLS,
   TOOL_ICONS,
+  TOOL_SETTINGS_SECTIONS,
   TOOLS,
   taskRoute,
   toolCamelPlural,
@@ -40,6 +41,7 @@ import {
   toolRefRoute,
   toolRouteSegment,
   toolSettingsRoute,
+  toolSettingsSectionRoute,
   toolViewPermission,
 } from "@/lib/tools";
 
@@ -53,9 +55,9 @@ import trash from "../../public/locales/en/trash.json";
 // Route files (keys only — nothing is loaded). The guild tree holds each
 // tool's tab, detail, and settings routes, nested under their initiative.
 const guildRouteFiles = Object.keys(
-  import.meta.glob("../routes/_serverRequired/_authenticated/g/$guildId/**/*.tsx")
+  import.meta.glob("../routes/_serverRequired/_authenticated/c/$guildId/**/*.tsx")
 );
-const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/g/$guildId/i/$initiativeId";
+const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId";
 // Locale namespace files across every shipped language.
 const localeFiles = Object.keys(import.meta.glob("../../public/locales/*/*.json"));
 const locales = [...new Set(localeFiles.map((f) => f.split("/").at(-2)))];
@@ -210,6 +212,18 @@ describe("tool routes", () => {
     }
   });
 
+  // Every section of a tool's settings is an address, not component state.
+  // A missing file is a tab that navigates to a blank page.
+  it("every tool has a route per settings section", () => {
+    for (const tool of TOOLS) {
+      const settings = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/$${toolParamName(tool)}/settings`;
+      for (const section of TOOL_SETTINGS_SECTIONS) {
+        const file = section === "details" ? `${settings}/index.tsx` : `${settings}/${section}.tsx`;
+        expect(guildRouteFiles, `missing settings section route file ${file}`).toContain(file);
+      }
+    }
+  });
+
   // The tab routes are siblings of the initiative's own static children, so a
   // tool whose segment collided with one would be unreachable.
   it("no tool segment collides with a reserved initiative child route", () => {
@@ -234,6 +248,19 @@ describe("tool route builders", () => {
     expect(toolListRoute(Tool.counter_group, 12)).toBe("/i/12/counter-groups");
     expect(toolDetailRoute(Tool.counter_group, 12, 3)).toBe("/i/12/counter-groups/3");
     expect(toolSettingsRoute(Tool.project, 1, 7)).toBe("/i/1/projects/7/settings");
+  });
+
+  // Details is the settings address itself, not a `/settings/details` alias.
+  it("addresses each settings section", () => {
+    expect(toolSettingsSectionRoute(Tool.project, 1, 7, "details")).toBe(
+      "/i/1/projects/7/settings"
+    );
+    expect(toolSettingsSectionRoute(Tool.project, 1, 7, "access")).toBe(
+      "/i/1/projects/7/settings/access"
+    );
+    expect(toolSettingsSectionRoute(Tool.calendar, null, 3, "advanced")).toBe(
+      "/calendars/3/settings/advanced"
+    );
   });
 
   // Only calendars have guild-level entities (an app installs one). A null

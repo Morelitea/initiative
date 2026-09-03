@@ -75,7 +75,7 @@ class BackupManifest(SanitizedBaseModel):
     schema_version: int = BACKUP_SCHEMA_VERSION
     app_version: str
     exported_at: datetime
-    exported_by_email: Optional[str] = None
+    exported_by_handle: Optional[str] = None
     source_instance_url: Optional[str] = None
     guild: dict[str, Any]
     include_uploads: bool

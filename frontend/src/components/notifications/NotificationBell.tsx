@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -18,6 +19,11 @@ import { normalizeLegacyTarget } from "@/lib/entityResolver";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
+
+// How often the bell asks on its own. The first applies when the push channel
+// is carrying the updates, the second when there is no channel at all.
+const NOTIFICATION_BACKSTOP_INTERVAL_MS = 300_000;
+const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -150,6 +156,53 @@ const accessLevelLabel = (
   return null;
 };
 
+// How many distinct emoji a rolled-up reaction line shows before it stops —
+// the sentence names the reactors, the chips on the comment itself are the
+// full picture.
+const MAX_SHOWN_REACTION_EMOJI = 3;
+
+// A reaction notification rolls up every reaction to the same comment, so the
+// line names the most recent reactor, how many others joined them, and the
+// emoji used. Rows written before the rollup carry their one reaction in the
+// top-level `emoji`/`reactor_name` fields, which read here as a rollup of one.
+const reactionSummary = (
+  data: Record<string, unknown>
+): { reactorName: string | null; emoji: string; others: number } => {
+  const text = (value: unknown): string | null =>
+    typeof value === "string" && value ? value : null;
+  const entries = Array.isArray(data.reactions)
+    ? (data.reactions as Array<Record<string, unknown>>)
+    : [];
+
+  const names = entries
+    .map((entry) => text(entry?.reactor_name))
+    .filter((name): name is string => name !== null);
+  const emoji = entries
+    .map((entry) => text(entry?.emoji))
+    .filter((value): value is string => value !== null);
+
+  const reactorName = text(data.reactor_name) ?? names[names.length - 1] ?? null;
+  const latestEmoji = text(data.emoji);
+  if (emoji.length === 0 && latestEmoji) {
+    emoji.push(latestEmoji);
+  }
+
+  // `reactor_count` counts everyone the line has rolled up, including people
+  // whose reactions have since rolled off the detail it keeps — counting the
+  // names here would understate the crowd on a busy comment. Rows written
+  // before the roster existed only ever had the names, so they use those.
+  const rostered = Number(data.reactor_count);
+  const others = Number.isFinite(rostered)
+    ? Math.max(rostered - 1, 0)
+    : new Set(names.filter((name) => name !== reactorName)).size;
+
+  return {
+    reactorName,
+    emoji: Array.from(new Set(emoji)).slice(0, MAX_SHOWN_REACTION_EMOJI).join(""),
+    others,
+  };
+};
+
 const notificationText = (
   notification: NotificationRead,
   t: (key: string, options?: Record<string, unknown>) => string
@@ -203,6 +256,17 @@ const notificationText = (
         replierName: data.replier_name ?? "Someone",
         contextTitle: data.context_title ?? "an item",
       });
+    case "comment_reaction": {
+      const { reactorName, emoji, others } = reactionSummary(data);
+      const options = {
+        reactorName: reactorName ?? "Someone",
+        emoji,
+        contextTitle: data.context_title ?? "an item",
+      };
+      return others > 0
+        ? t("notifications.commentReactionMulti", { ...options, count: others })
+        : t("notifications.commentReaction", options);
+    }
     case "access_grant_requested": {
       const level = accessLevelLabel(data.access_level, t);
       const requester = data.requester_name ?? "Someone";
@@ -308,9 +372,19 @@ export const NotificationBell = () => {
   // toast keys (tasks:export.*) are available when clicked from the bell.
   const { t } = useTranslation(["guilds", "tasks"]);
   const isEnabled = Boolean(user);
+  const streamConnected = useNotificationStreamConnected();
 
   const notificationsQuery = useNotifications({
-    refetchInterval: 30_000,
+    // The push channel refetches this query the moment the inbox moves, so a
+    // connected tab needs no timer for the common case. It keeps a slow one
+    // anyway: a socket reaches only the process that holds it, so where the API
+    // runs as more than one worker or replica a notification committed
+    // elsewhere signals nothing here, and the backstop bounds how long the
+    // inbox can sit stale. With no socket at all (a proxy that drops upgrades,
+    // an offline tab) it falls back to the original interval.
+    refetchInterval: streamConnected
+      ? NOTIFICATION_BACKSTOP_INTERVAL_MS
+      : NOTIFICATION_POLL_INTERVAL_MS,
     enabled: isEnabled,
   });
 

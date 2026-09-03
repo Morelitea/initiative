@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
@@ -50,6 +50,7 @@ class QueueItemBase(SanitizedBaseModel):
 
 
 class QueueItemCreate(QueueItemBase):
+    label: TitleStr = Field(..., min_length=1, max_length=255)
     user_id: Optional[int] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
@@ -57,7 +58,7 @@ class QueueItemCreate(QueueItemBase):
 
 
 class QueueItemUpdate(SanitizedBaseModel):
-    label: Optional[str] = None
+    label: Optional[TitleStr] = None
     position: Optional[float] = None
     user_id: Optional[int] = None
     color: Optional[str] = None
@@ -114,6 +115,7 @@ class QueueBase(SanitizedBaseModel):
 
 
 class QueueCreate(QueueBase):
+    name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
@@ -125,7 +127,7 @@ class QueueCreate(QueueBase):
 
 
 class QueueUpdate(SanitizedBaseModel):
-    name: Optional[str] = None
+    name: Optional[TitleStr] = None
     description: Optional[str] = None
 
 
@@ -144,6 +146,10 @@ class QueueSummary(QueueBase):
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
+    # Advanced setting: when true this entity's comment thread is off — the
+    # UI renders none and the API refuses to read or post one. Tasks are
+    # unaffected; their thread belongs to the task, not to the tool.
+    comments_disabled: bool = False
     tags: List[TagSummary] = Field(default_factory=list)
     # The full sharing state — every resource_grants row for this queue. Exposed on
     # the summary (not just the detail read) so list views can manage sharing in
@@ -243,6 +249,7 @@ def serialize_queue_summary(
         created_at=queue.created_at,
         updated_at=queue.updated_at,
         my_permission_level=my_permission_level,
+        comments_disabled=queue.comments_disabled,
         tags=tag_summaries(getattr(queue, "tag_links", None)),
         grants=serialize_grants(queue),
     )

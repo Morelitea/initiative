@@ -1,4 +1,3 @@
-import { Upload } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,7 +9,7 @@ import vikunjaIcon from "@/assets/vikunja.svg";
 import { TickTickImportDialog } from "@/components/import/TickTickImportDialog";
 import { TodoistImportDialog } from "@/components/import/TodoistImportDialog";
 import { VikunjaImportDialog } from "@/components/import/VikunjaImportDialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettingsSection } from "@/components/settings/SettingsSection";
 
 interface ImportPlatform {
   id: string;
@@ -84,47 +83,38 @@ export const UserSettingsImportPage = () => {
 
   return (
     <>
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            {t("page.title")}
-          </CardTitle>
-          <CardDescription>{t("page.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {IMPORT_PLATFORMS.map((platform) => (
-              <button
-                key={platform.id}
-                type="button"
-                onClick={() => handlePlatformClick(platform)}
-                disabled={!platform.available}
-                className={`relative flex items-start gap-4 rounded-lg border p-4 text-left transition-colors ${
-                  platform.available
-                    ? "cursor-pointer hover:border-primary hover:bg-accent"
-                    : "cursor-not-allowed opacity-60"
-                }`}
-              >
-                <img src={platform.icon} alt={platform.name} className="h-8 w-8" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium">{platform.name}</h3>
-                    {!platform.available && (
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
-                        {t("page.comingSoon")}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-muted-foreground text-sm">
-                    {t(platform.descriptionKey as never)}
-                  </p>
+      <SettingsSection title={t("page.title")} description={t("page.description")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {IMPORT_PLATFORMS.map((platform) => (
+            <button
+              key={platform.id}
+              type="button"
+              onClick={() => handlePlatformClick(platform)}
+              disabled={!platform.available}
+              className={`relative flex items-start gap-4 rounded-lg border p-4 text-left transition-colors ${
+                platform.available
+                  ? "cursor-pointer hover:border-primary hover:bg-accent"
+                  : "cursor-not-allowed opacity-60"
+              }`}
+            >
+              <img src={platform.icon} alt={platform.name} className="h-8 w-8" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">{platform.name}</h3>
+                  {!platform.available && (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+                      {t("page.comingSoon")}
+                    </span>
+                  )}
                 </div>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                <p className="text-muted-foreground text-sm">
+                  {t(platform.descriptionKey as never)}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </SettingsSection>
 
       <TickTickImportDialog open={ticktickDialogOpen} onOpenChange={setTicktickDialogOpen} />
       <TodoistImportDialog open={todoistDialogOpen} onOpenChange={setTodoistDialogOpen} />

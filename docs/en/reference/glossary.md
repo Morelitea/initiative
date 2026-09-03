@@ -6,21 +6,21 @@ icon: lucide/book-a
 
 The words Initiative uses, in plain language. Terms are listed roughly from the biggest idea to the smallest.
 
-### Guild
+### Community
 
-A **workspace** — one separate space for one group of people and all their work. Guilds never see each other's data. You can belong to several and switch between them. See [Working with guilds](../guides/guilds.md).
+A **workspace** — one separate space for one group of people and all their work. Communities never see each other's data. You can belong to several and switch between them. See [Working with communities](../guides/communities.md).
 
 ### Initiative
 
-A **folder for a big effort** inside a guild. It gathers related projects, documents, and tools, and its contents are only visible to its members. (Yes, the app and the "initiative" feature share a name — context usually makes it clear.) See [Working with initiatives](../guides/initiatives.md).
+A **folder for a big effort** inside a community. It gathers related projects, documents, and tools, and its contents are only visible to its members. (Yes, the app and the "initiative" feature share a name — context usually makes it clear.) See [Working with initiatives](../guides/initiatives.md).
 
 ### Default Initiative
 
-The starter initiative every new guild comes with, so there's always somewhere to begin. It can be renamed but not deleted.
+The starter initiative every new community comes with, so there's always somewhere to begin. It can be renamed but not deleted.
 
 ### Community directory
 
-The public list of guilds that have chosen to be found, browsable by category and joinable without an invite. Off until the server's owner turns it on. See [Finding a guild to join](../guides/guilds.md#finding-a-guild-to-join).
+The public list of communities that have chosen to be found, browsable by category and joinable without an invite. Off until the server's owner turns it on. See [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
 ### Join policy
 
@@ -28,7 +28,7 @@ How an initiative lets people in: **invite only** (a manager adds you), **by req
 
 ### Auto-join
 
-A setting on an "anyone can join" initiative that puts every new arrival in the guild into it automatically, so nobody lands in an empty guild. Applies to people who join from then on.
+A setting on an "anyone can join" initiative that puts every new arrival in the community into it automatically, so nobody lands in an empty community. Applies to people who join from then on.
 
 ### Project
 
@@ -80,11 +80,11 @@ A tool that puts charts, single numbers, and timelines on **one screen**, drawn 
 
 ### Marketplace
 
-The catalog of ready-made **dashboards** and **apps** you can add to your workspace. It holds what ships with Initiative plus what your platform owner has added and approved. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+The catalog of ready-made things you can add. There are two: your **community's**, holding **dashboards** and **apps**, and **yours**, holding **decoration packs**. Both hold what ships with Initiative plus what your platform owner has added and approved. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
 
 ### App
 
-Something added from the marketplace that serves the **whole guild** rather than one initiative. Only guild admins can add or remove one. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
+Something added from the marketplace that serves the **whole community** rather than one initiative. Only community admins can add or remove one. See [Apps & the marketplace](../guides/apps-and-marketplace.md).
 
 ### Widget
 
@@ -92,7 +92,39 @@ A single tile on a dashboard. Widgets from the marketplace run in an isolated sa
 
 ### Listing
 
-One entry in the marketplace — a dashboard or an app, with its name, description, publisher, and version.
+One entry in a marketplace — a dashboard, an app, or a decoration pack — with its name, description, publisher, and version.
+
+### Handle
+
+The name you picked plus a four-digit number, written `jordan#1234`. The number is what lets two people share a name. It's how you're identified everywhere your real name isn't shown, and it addresses your profile page as `/u/jordan1234`.
+
+### Profile
+
+Your own page, at `/u/<handle>`: your picture, handle, status, what you're wearing, how you're around, and the listed communities you're in. Public, and the same page whoever opens it, because it belongs to you rather than to a community. See [Profile & preferences](../account/profile-and-preferences.md#your-profile-page).
+
+### Decoration pack
+
+A set of profile artwork from your marketplace, built around one thing people have in common — banners, frames and trophies, usually several of each. You download one to your collection, then choose what to wear; pieces from different packs mix freely.
+
+### Banner, frame, trophy
+
+The three things a profile wears: the **banner** across the top, the **frame** on your picture (which follows you into the sidebar and onto your comments), and the rail of **trophies** underneath — up to six. See [Decorations](../account/profile-and-preferences.md#decorations).
+
+### Profile status
+
+An emoji, a line about what you're up to, or both, shown on your profile. Not to be confused with a task's **status** above, or with **presence** below.
+
+### Presence
+
+How you're around, shown as a dot under your picture: **online**, **idle**, **busy**, or **offline**. Idle sets itself after a while of nothing happening; offline means nobody sees you as here, whatever you have open. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
+
+### My Contacts
+
+Your personal page listing everyone you share a community with, plus anyone you've starred. See [Your space](../guides/your-space.md#my-contacts).
+
+### Announcement
+
+A notice shown in a dialog to the people using a server — a change to act on, or a maintenance window to plan around. Read past ones from the info icon in the sidebar footer. See [Announcements](../admin/announcements.md).
 
 ### Role (initiative role)
 
@@ -106,17 +138,17 @@ The override held by the built-in **Manager** role: Managers see **everything** 
 
 How much someone can do with a specific project or document: **view** it, **edit** it, or **own** it (edit plus manage who else has access). See [Sharing projects & documents](../sharing/sharing-projects-and-documents.md).
 
-### Member / Admin (guild roles)
+### Member / Admin (community roles)
 
-Within a guild, a **member** takes part, and an **admin** also runs the guild (people, invites, settings). Different from platform roles below.
+Within a community, a **member** takes part, and an **admin** also runs the community (people, invites, settings). Different from platform roles below.
 
 ### Platform roles (Member / Support / Moderator / Operator / Owner)
 
-Server-wide roles that govern the whole installation, not just one guild. The **owner** is the only role that can change server configuration. See [Platform roles](../admin/platform-roles.md).
+Server-wide roles that govern the whole installation, not just one community. The **owner** is the only role that can change server configuration. See [Platform roles](../admin/platform-roles.md).
 
 ### Break-glass
 
-A short-lived, recorded, **emergency** grant that lets an administrator reach a guild they don't belong to — used instead of any permanent back door. See [Platform roles](../admin/platform-roles.md#cross-guild-access-break-glass-and-time-bound-grants).
+A short-lived, recorded, **emergency** grant that lets an administrator reach a community they don't belong to — used instead of any permanent back door. See [Platform roles](../admin/platform-roles.md#cross-community-access-break-glass-and-time-bound-grants).
 
 ### Trash
 

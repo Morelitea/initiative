@@ -1,0 +1,69 @@
+{
+  "uid": "M0X4JT8PW2GHK6",
+  "public_id": "core.books",
+  "kind": "profile_pack",
+  "name": "Books",
+  "publisher": "Initiative",
+  "description": "The to-be-read pile is furniture now.",
+  "long_description": "A shelf of bindings nobody has straightened, a writer at the hour it actually gets done, and somebody who found the right patch of meadow. Spines and pages to frame you, and trophies for the half of you that writes as well as reads: typewriter, quill, notebook, glasses, and a stack that is not getting any smaller.",
+  "avatar_url": "/decorations/banners/books-shelf.svg",
+  "images": [],
+  "version": "1.3.0",
+  "release_notes": "A good place to read.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "books.shelf",
+        "slot": "banner",
+        "name": "Bookshelf"
+      },
+      {
+        "id": "books.pages",
+        "slot": "frame",
+        "name": "Pages"
+      },
+      {
+        "id": "books.stack",
+        "slot": "trophy",
+        "name": "Stack"
+      },
+      {
+        "id": "books.desk",
+        "slot": "banner",
+        "name": "Writing desk"
+      },
+      {
+        "id": "books.spines",
+        "slot": "frame",
+        "name": "Spines"
+      },
+      {
+        "id": "books.typewriter",
+        "slot": "trophy",
+        "name": "Typewriter"
+      },
+      {
+        "id": "books.quill",
+        "slot": "trophy",
+        "name": "Quill and ink"
+      },
+      {
+        "id": "books.glasses",
+        "slot": "trophy",
+        "name": "Reading glasses"
+      },
+      {
+        "id": "books.notebook",
+        "slot": "trophy",
+        "name": "Notebook"
+      },
+      {
+        "id": "books.meadow",
+        "slot": "banner",
+        "name": "A good place to read"
+      }
+    ]
+  }
+}

@@ -4,6 +4,7 @@
     "subtitle": "Gérez votre profil, vos préférences d'interface et vos notifications.",
     "tabs": {
       "profile": "Profil",
+      "account": "Compte",
       "interface": "Interface",
       "notifications": "Notifications",
       "ai": "IA",
@@ -16,21 +17,21 @@
     "goToLogin": "Aller à la connexion"
   },
   "guildLayout": {
-    "title": "Paramètres du groupe",
-    "subtitle": "Gérez les membres de l'espace de travail et les détails du groupe.",
+    "title": "Paramètres de la communauté",
+    "subtitle": "Gérez les membres de l'espace de travail et les détails de la communauté.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
     "restricted": {
       "read_only": {
         "label": "Lecture seule",
-        "message": "Ce groupe est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+        "message": "Cette communauté est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
       },
       "suspended": {
         "label": "Suspendu",
-        "message": "Ce groupe est suspendu et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+        "message": "Cette communauté est suspendue et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
       }
     },
     "tabs": {
-      "guild": "Groupe",
+      "guild": "Communauté",
       "ai": "IA",
       "users": "Utilisateurs",
       "initiatives": "Initiatives",
@@ -42,9 +43,8 @@
     }
   },
   "profile": {
-    "subtitle": "Gardez les détails de votre compte à jour.",
-    "cardTitle": "Informations personnelles",
-    "cardDescription": "Mettez à jour votre nom, mot de passe et avatar.",
+    "cardTitle": "Votre apparence",
+    "cardDescription": "Votre photo, le nom qu'emploieront les communautés qui affichent les vrais noms, et ce que vous faites.",
     "emailLabel": "E-mail",
     "emailHelp": "Les adresses e-mail ne peuvent pas être modifiées.",
     "fullNameLabel": "Nom complet",
@@ -55,10 +55,6 @@
     "newPasswordLabel": "Nouveau mot de passe",
     "confirmPasswordLabel": "Confirmer le mot de passe",
     "passwordPlaceholder": "••••••••",
-    "timezoneLabel": "Fuseau horaire",
-    "timezonePlaceholder": "Sélectionner un fuseau horaire",
-    "timezoneEmpty": "Aucun fuseau horaire trouvé.",
-    "timezoneHelp": "Utilisé pour les échéances, les rappels quotidiens et les calculs de tâches récurrentes. Détecté depuis votre navigateur lors de l'inscription ; modifiez-le ici s'il est incorrect.",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Télécharger",
     "avatarUrlTab": "URL",
@@ -79,7 +75,17 @@
       "unreadable": "Cette image n'a pas pu être lue."
     },
     "usernameLabel": "Nom d'utilisateur",
-    "usernameHelp": "C'est ainsi que les autres vous voient. Pour le modifier, adressez-vous à un modérateur."
+    "usernameHelp": "C'est ainsi que les autres vous voient. Pour le modifier, adressez-vous à un modérateur.",
+    "statusLabel": "Statut",
+    "statusPlaceholder": "Qu'est-ce qui vous occupe ?",
+    "statusEmojiPlaceholder": "Émoji",
+    "statusHelp": "Affiché sur votre profil, que tout le monde peut ouvrir.",
+    "pictureTitle": "Votre photo",
+    "pictureDescription": "Téléversez-en une, ou pointez vers une image. Elle est enregistrée dès que vous la choisissez.",
+    "timezoneLabel": "Fuseau horaire",
+    "timezonePlaceholder": "Sélectionner un fuseau horaire",
+    "timezoneEmpty": "Aucun fuseau horaire trouvé.",
+    "timezoneHelp": "Utilisé pour les échéances, les rappels quotidiens et les tâches récurrentes. Repris de votre navigateur à l'inscription ; corrigez-le ici s'il est faux."
   },
   "security": {
     "devicesTitle": "Appareils connectés",
@@ -111,9 +117,9 @@
     "expirationHelp": "Laissez vide pour une clé qui n'expire jamais.",
     "readOnlyLabel": "Lecture seule",
     "readOnlyHelp": "La clé peut lire des données mais ne peut jamais créer, modifier ni supprimer quoi que ce soit. Recommandé pour les automatisations et les intégrations.",
-    "guildLabel": "Accès au groupe",
-    "guildAllGuilds": "Tous mes groupes",
-    "guildHelp": "Limitez la clé à un seul groupe. Elle ne pourra accéder aux données d'aucun autre groupe.",
+    "guildLabel": "Accès à la communauté",
+    "guildAllGuilds": "Tous mes communautés",
+    "guildHelp": "Limitez la clé à une seule communauté. Elle ne pourra accéder aux données d'aucun autre communauté.",
     "generateButton": "Générer une clé API",
     "generating": "Génération en cours…",
     "nameRequired": "Le nom est requis",
@@ -135,7 +141,7 @@
     "statusExpired": "Expirée",
     "statusDisabled": "Désactivée",
     "scopeReadOnly": "Lecture seule",
-    "scopeGuild": "Groupe : {{guild}}",
+    "scopeGuild": "Communauté : {{guild}}",
     "scopeFull": "Accès complet",
     "never": "Jamais",
     "deleteButton": "Supprimer",
@@ -160,30 +166,30 @@
     "httpWarning": "Un point de terminaison HTTP non chiffré est utilisé. Configurez TLS/HTTPS pour les déploiements en production."
   },
   "guildAI": {
-    "title": "IA de la guilde",
-    "adminOnly": "Seuls les administrateurs de la guilde peuvent gérer les connexions d'IA. Pour définir votre propre clé, ouvrez « IA » dans les paramètres de votre profil.",
-    "connectionsTitle": "Connexions de la guilde",
-    "connectionsDescription": "Définissez les connexions d'IA que les membres de cette guilde peuvent utiliser.",
+    "title": "IA de la communauté",
+    "adminOnly": "Seuls les administrateurs de la communauté peuvent gérer les connexions d'IA. Pour définir votre propre clé, ouvrez « IA » dans les paramètres de votre profil.",
+    "connectionsTitle": "Connexions de la communauté",
+    "connectionsDescription": "Définissez les connexions d'IA que les membres de cette communauté peuvent utiliser.",
     "disabledDescription": "Les fonctionnalités d'IA sont désactivées pour la plateforme.",
     "managedByPlatform": "Les connexions d'IA sont gérées au niveau de la plateforme. Les membres définissent leur propre clé dans les paramètres de leur profil."
   },
   "platformAI": {
     "title": "IA de la plateforme",
-    "description": "Choisissez comment l'IA est configurée sur l'ensemble de la plateforme. Comme pour la connexion, l'IA est gérée soit par la plateforme, soit par chaque guilde, jamais les deux.",
+    "description": "Choisissez comment l'IA est configurée sur l'ensemble de la plateforme. Comme pour la connexion, l'IA est gérée soit par la plateforme, soit par chaque communauté, jamais les deux.",
     "adminOnly": "Seuls les propriétaires de la plateforme peuvent gérer les paramètres d'IA de la plateforme.",
     "modeLabel": "Mode de configuration de l'IA",
     "mode_disabled": "Désactivé",
     "mode_disabled_description": "Les fonctionnalités d'IA sont désactivées pour tout le monde.",
     "mode_platform": "Géré par la plateforme",
-    "mode_platform_description": "Vous définissez les connexions d'IA utilisées par chaque guilde.",
-    "mode_guild": "Géré par la guilde",
-    "mode_guild_description": "Chaque administrateur de guilde définit ses propres connexions d'IA.",
+    "mode_platform_description": "Vous définissez les connexions d'IA utilisées par chaque communauté.",
+    "mode_guild": "Géré par la communauté",
+    "mode_guild_description": "Chaque administrateur de communauté définit ses propres connexions d'IA.",
     "saveMode": "Enregistrer",
     "savingMode": "Enregistrement…",
     "modeSaved": "Paramètres d'IA mis à jour",
     "modeSaveError": "Impossible de mettre à jour les paramètres d'IA",
     "connectionsTitle": "Connexions de la plateforme",
-    "connectionsDescription": "Définissez les connexions d'IA utilisées par chaque guilde."
+    "connectionsDescription": "Définissez les connexions d'IA utilisées par chaque communauté."
   },
   "interface": {
     "title": "Paramètres d'interface",
@@ -228,7 +234,9 @@
       "label": "Garder l'écran allumé",
       "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte. Ce paramètre est enregistré uniquement sur cet appareil.",
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
-    }
+    },
+    "completionTitle": "Quand vous terminez une tâche",
+    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder."
   },
   "notifications": {
     "title": "Paramètres de notifications",
@@ -261,6 +269,8 @@
       "taskAssignmentsDescription": "Récapitulatif horaire lorsque d'autres vous assignent des tâches.",
       "mentions": "Mentions",
       "mentionsDescription": "Lorsque quelqu'un vous mentionne ou commente votre travail.",
+      "commentReactions": "Réactions",
+      "commentReactionsDescription": "Un résumé périodique lorsque d'autres réagissent à vos commentaires.",
       "newProject": "Nouveau projet dans l'initiative",
       "newProjectDescription": "Lorsque des projets sont créés dans vos initiatives.",
       "overdueTasks": "Tâches en retard",
@@ -279,20 +289,19 @@
       "hour_other": "{{count}} heures avant",
       "day_one": "{{count}} jour avant",
       "day_other": "{{count}} jours avant"
-    }
+    },
+    "scheduleTitle": "Rappel quotidien",
+    "scheduleDescription": "Quand part le rappel des retards, et à quelle horloge.",
+    "channelsTitle": "Ce dont on vous informe",
+    "channelsDescription": "Choisissez un canal par type de nouvelle. Les notifications de la cloche arrivent de toute façon."
   },
   "dangerZone": {
     "serverConnection": "Connexion au serveur",
     "connectedTo": "Actuellement connecté à {{hostname}}.",
-    "disconnectTitle": "Se déconnecter du serveur",
     "disconnectDescription": "Se déconnecter du compte et du serveur. Vous pouvez vous connecter à un autre serveur ensuite.",
     "disconnectButton": "Se déconnecter",
-    "title": "Zone de danger",
-    "subtitle": "Actions irréversibles et destructrices pour votre compte.",
-    "deleteTitle": "Supprimer le compte",
-    "deleteDescription": "Supprimez définitivement votre compte ou désactivez-le temporairement. Cette action affecte vos projets, documents et autre contenu.",
     "deactivateTitle": "Désactiver le compte",
-    "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les guildes auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
+    "deactivateDescription": "Désactivez temporairement votre compte. Votre nom, votre e-mail et votre contenu restent intacts, mais vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte ultérieurement.",
     "permanentDeleteTitle": "Supprimer définitivement le compte",
     "permanentDeleteDescription": "Supprimez complètement votre compte du système. Les projets seront transférés à d'autres utilisateurs. Les commentaires et documents resteront mais afficheront « [Utilisateur supprimé] ». <bold>Cette action est irréversible.</bold>",
     "permanentDeleteDescriptionText": "Supprimez complètement votre compte du système. Les projets seront transférés à d'autres utilisateurs. Les commentaires et documents resteront mais afficheront « [Utilisateur supprimé] ».",
@@ -324,7 +333,7 @@
     "blockersTitle": "Blocages",
     "blockersDescription": "Les problèmes suivants doivent être résolus avant de pouvoir supprimer votre compte :",
     "warningsTitle": "Avertissements",
-    "lastAdminGuilds": "Vous êtes le dernier administrateur dans ces groupes. Vous devez promouvoir un autre membre ou partir avant de supprimer.",
+    "lastAdminGuilds": "Vous êtes le dernier administrateur dans ces communautés. Vous devez promouvoir un autre membre ou partir avant de supprimer.",
     "transferTitle": "Transférer les projets détenus",
     "transferDescription": "Vous possédez les projets suivants. Choisissez un nouveau propriétaire pour chacun :",
     "transferSelectPlaceholder": "Sélectionner le nouveau propriétaire",
@@ -369,8 +378,8 @@
     "deactivateSuccess": "Compte désactivé avec succès",
     "deleteSuccess": "Compte supprimé définitivement",
     "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
-    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les guildes auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
-    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les guildes auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter et vous serez retiré de toutes les communautés auxquelles vous appartenez ; les rejoindre nécessitera une nouvelle invitation. Un administrateur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Vous serez retiré de toutes les communautés auxquelles vous appartenez, et les rejoindre nécessitera une nouvelle invitation. Votre nom, e-mail et contenu restent intacts.",
     "softDeleteConfirmDescription": "Votre nom, e-mail et avatar seront supprimés. Vous ne pourrez pas vous connecter. Les commentaires, tâches et autres contenus dont vous êtes l'auteur resteront visibles sous \"Utilisateur supprimé\". Cette action est irréversible.",
     "softDeleteSuccess": "Votre compte a été anonymisé."
   },
@@ -499,7 +508,7 @@
     "postLoginRedirect": "Redirection post-connexion :",
     "mobileCallback": "Callback de l'application mobile :",
     "mappingsTitle": "Correspondances de revendications OIDC",
-    "mappingsDescription": "Associez les valeurs de revendications de votre fournisseur d'identité aux appartenances aux groupes et initiatives.",
+    "mappingsDescription": "Associez les valeurs de revendications de votre fournisseur d'identité aux appartenances aux communautés et initiatives.",
     "claimPathCardTitle": "Chemin de revendication OIDC",
     "claimPathCardDescription": "Chemin en notation pointée vers le tableau de revendications dans le jeton OIDC. Chemins courants :",
     "claimPathLabel": "Chemin de revendication",
@@ -512,23 +521,23 @@
     "claimPathSuccess": "Chemin de revendication mis à jour",
     "claimPathError": "Impossible de mettre à jour le chemin de revendication",
     "rulesTitle": "Règles de correspondance",
-    "rulesDescription": "Associez les valeurs de revendications OIDC aux appartenances aux groupes et initiatives.",
+    "rulesDescription": "Associez les valeurs de revendications OIDC aux appartenances aux communautés et initiatives.",
     "addRule": "Ajouter une règle",
     "addMapping": "Ajouter une correspondance",
     "noRules": "Aucune règle de correspondance configurée pour l'instant.",
-    "noMappings": "Aucune correspondance configurée. Ajoutez une correspondance pour assigner automatiquement les utilisateurs aux groupes et initiatives lorsqu'ils se connectent via OIDC.",
+    "noMappings": "Aucune correspondance configurée. Ajoutez une correspondance pour assigner automatiquement les utilisateurs aux communautés et initiatives lorsqu'ils se connectent via OIDC.",
     "loadingMappings": "Chargement des correspondances de revendications…",
     "mappingsLoadError": "Impossible de charger les correspondances de revendications.",
     "mappingClaimValue": "Valeur de revendication",
     "mappingClaimValuePlaceholder": "ex. : equipe-ingenierie",
     "mappingTargetType": "Type de cible",
-    "mappingTargetGuild": "Groupe uniquement",
-    "mappingTargetInitiative": "Groupe + Initiative",
-    "mappingTargetTypeGuild": "Groupe",
+    "mappingTargetGuild": "Communauté uniquement",
+    "mappingTargetInitiative": "Communauté + Initiative",
+    "mappingTargetTypeGuild": "Communauté",
     "mappingTargetTypeInitiative": "Initiative",
-    "mappingGuild": "Groupe",
-    "mappingGuildPlaceholder": "Sélectionner un groupe",
-    "mappingGuildRole": "Rôle dans le groupe",
+    "mappingGuild": "Communauté",
+    "mappingGuildPlaceholder": "Sélectionner une communauté",
+    "mappingGuildRole": "Rôle dans la communauté",
     "mappingInitiative": "Initiative",
     "mappingInitiativePlaceholder": "Sélectionner une initiative",
     "mappingInitiativeRole": "Rôle dans l'initiative",
@@ -548,8 +557,8 @@
     "mappingColumnClaim": "Valeur de revendication",
     "mappingColumnType": "Type",
     "mappingColumnTarget": "Cible",
-    "mappingColumnGuild": "Groupe",
-    "mappingColumnGuildRole": "Rôle dans le groupe",
+    "mappingColumnGuild": "Communauté",
+    "mappingColumnGuildRole": "Rôle dans la communauté",
     "mappingColumnRole": "Rôle",
     "mappingColumnInitiative": "Initiative",
     "mappingColumnInitiativeRole": "Rôle dans l'initiative",
@@ -558,14 +567,14 @@
     "mappingAdd": "Ajouter",
     "mappingRoleMember": "Membre",
     "mappingRoleAdmin": "Administrateur",
-    "mappingSelectGuildFirst": "Sélectionnez d'abord un groupe",
+    "mappingSelectGuildFirst": "Sélectionnez d'abord une communauté",
     "mappingSelectInitiativeFirst": "Sélectionnez d'abord une initiative",
     "loadingOptions": "Chargement des options…",
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
     "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
     "scope": {
       "platformLabel": "Connexion à l'échelle de la plateforme",
-      "guildLabel": "Connexion par guilde"
+      "guildLabel": "Connexion par communauté"
     }
   },
   "platformUsers": {
@@ -613,10 +622,10 @@
       "owner": "Propriétaire"
     },
     "roleDescriptions": {
-      "member": "Accès standard à ses propres guildes. Aucun privilège au niveau de la plateforme.",
-      "support": "Visibilité en lecture seule de la plateforme (utilisateurs, guildes, audit) et peut demander un accès temporaire à une guilde.",
+      "member": "Accès standard à ses propres communautés. Aucun privilège au niveau de la plateforme.",
+      "support": "Visibilité en lecture seule de la plateforme (utilisateurs, communautés, audit) et peut demander un accès temporaire à une communauté.",
       "moderator": "Tout ce que peut faire le support, plus la gestion des utilisateurs (suspendre/réactiver) et la modération du contenu.",
-      "operator": "Gère les utilisateurs, les guildes et les rôles sur toute la plateforme, avec accès aux données inter-guildes et approuve les demandes d'accès.",
+      "operator": "Gère les utilisateurs, les communautés et les rôles sur toute la plateforme, avec accès aux données inter-communautés et approuve les demandes d'accès.",
       "owner": "Contrôle total, y compris la configuration de toute la plateforme (authentification, personnalisation, email, IA). Le seul rôle pouvant gérer la configuration."
     },
     "changeRoleTitle": "Modifier le rôle de la plateforme",
@@ -631,9 +640,11 @@
     "suspend": "Suspendre",
     "unsuspend": "Lever la suspension",
     "suspendTitle": "Suspendre {{handle}} ?",
-    "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune guilde tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
+    "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune communauté tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
     "suspendReasonLabel": "Motif (qui lui sera montré)",
-    "actionError": "L'opération n'a pas abouti. Réessayez."
+    "actionError": "L'opération n'a pas abouti. Réessayez.",
+    "clearAgeBlock": "Réinitialiser la question d'âge",
+    "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau."
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",
@@ -658,7 +669,7 @@
     "blockersTitle": "Blocages",
     "blockersDescription": "Les problèmes suivants doivent être résolus avant de pouvoir supprimer cet utilisateur :",
     "warningsTitle": "Avertissements",
-    "guildBlockerTitle": "Dernier administrateur dans le groupe : {{guildName}}",
+    "guildBlockerTitle": "Dernier administrateur dans la communauté : {{guildName}}",
     "guildBlockerDescription": "Promouvoir un autre membre en administrateur :",
     "initiativeBlockerTitle": "Seul chef de projet dans : {{initiativeName}}",
     "initiativeBlockerDescription": "Promouvoir un autre membre en chef de projet :",
@@ -667,10 +678,10 @@
     "promoting": "Promotion en cours…",
     "promoteSuccess": "Rôle mis à jour",
     "promoteError": "Impossible de mettre à jour le rôle",
-    "deleteGuild": "Supprimer le groupe",
-    "deleteGuildConfirm": "Supprimer le groupe « {{guildName}} » ? Cela supprimera définitivement toutes les données du groupe.",
-    "deleteGuildSuccess": "Groupe supprimé",
-    "deleteGuildError": "Impossible de supprimer le groupe",
+    "deleteGuild": "Supprimer la communauté",
+    "deleteGuildConfirm": "Supprimer la communauté « {{guildName}} » ? Cela supprimera définitivement toutes les données de la communauté.",
+    "deleteGuildSuccess": "Communauté supprimée",
+    "deleteGuildError": "Impossible de supprimer la communauté",
     "transferTitle": "Transférer les projets détenus",
     "transferDescription": "Cet utilisateur possède les projets suivants. Choisissez un nouveau propriétaire pour chacun :",
     "transferSelectPlaceholder": "Sélectionner le nouveau propriétaire",
@@ -699,12 +710,12 @@
   },
   "accessGrants": {
     "title": "Demandes d'accès",
-    "description": "Demandez et approuvez un accès temporaire à une guilde dont vous n'êtes pas membre.",
+    "description": "Demandez et approuvez un accès temporaire à une communauté dont vous n'êtes pas membre.",
     "requestTitle": "Demander l'accès",
-    "requestDescription": "Demandez un accès temporaire et limité à une guilde. Les approbateurs l'accordent et il expire automatiquement.",
+    "requestDescription": "Demandez un accès temporaire et limité à une communauté. Les approbateurs l'accordent et il expire automatiquement.",
     "breakGlass": {
       "title": "Accès d'urgence",
-      "description": "Accordez-vous un accès d'urgence à une guilde — approuvé instantanément, limité à cette guilde et expirant automatiquement. Lecture et écriture agit comme un administrateur de guilde complet. Chaque accès d'urgence est enregistré.",
+      "description": "Accordez-vous un accès d'urgence à une communauté — approuvé instantanément, limité à cette communauté et expirant automatiquement. Lecture et écriture agit comme un administrateur de communauté complet. Chaque accès d'urgence est enregistré.",
       "reasonPlaceholder": "Pourquoi vous avez besoin d'un accès d'urgence (p. ex. incident n° 123)",
       "submit": "Accès d'urgence",
       "activated": "Accès d'urgence activé",
@@ -712,7 +723,7 @@
     },
     "queueTitle": "Approbations",
     "queueDescription": "Accordez, refusez ou révoquez les demandes d'accès temporaire.",
-    "guildIdLabel": "ID de la guilde",
+    "guildIdLabel": "ID de la communauté",
     "guildIdPlaceholder": "ex. 42",
     "levelLabel": "Niveau d'accès",
     "levelRead": "Lecture seule",
@@ -752,7 +763,7 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'annuaire des communautés, l'IA, le stockage des guildes et les services applicatifs pour toute la plateforme.",
+    "subtitle": "Configurez l'authentification, la personnalisation, l'email, l'annuaire des communautés, l'IA, le stockage des communautés et les services applicatifs pour toute la plateforme.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
@@ -798,16 +809,16 @@
       "signature_mismatch": "L'application a répondu avec un autre secret partagé. Vérifiez que les deux côtés utilisent le même."
     },
     "disabledBadge": "Désactivé",
-    "disabledHelp": "Cette application est arrêtée pour toutes les guildes qui l'ont installée. Rien n'a été supprimé.",
-    "mandatoryBadge": "Dans toutes les guildes",
-    "mandatoryHelp": "Installée automatiquement dans chaque guilde. Les administratrices et administrateurs de guilde ne peuvent ni la retirer ni la désactiver.",
+    "disabledHelp": "Cette application est arrêtée pour toutes les communautés qui l'ont installée. Rien n'a été supprimé.",
+    "mandatoryBadge": "Dans toutes les communautés",
+    "mandatoryHelp": "Installée automatiquement dans chaque communauté. Les administratrices et administrateurs de communauté ne peuvent ni la retirer ni la désactiver.",
     "delegationBadge": "Agit au nom des membres",
     "delegationHelp": "Cette application peut appeler l'API en tant que membre réel, avec les permissions de cette personne.",
     "delegationJwksLabel": "Clés de signature de délégation (JWKS)",
     "delegationJwksHelp": "La moitié publique de la clé avec laquelle cette application signe ses jetons de délégation. Collez le jeu de clés que l'application publie ; deux entrées signifient qu'une rotation est en cours. Vider le champ le supprime.",
     "delegationJwksInvalid": "Ce n'est pas du JSON valide.",
     "appDirectoryLabel": "Trouver d'autres applications (annuaire des applications)",
-    "appDirectoryHelp": "Cette application peut demander où répond une autre application installée dans la même guilde. Exige aussi la délégation : un service d'automatisation détient les deux, car agir pour le compte d'une application auprès d'une autre est précisément sa raison d'être.",
+    "appDirectoryHelp": "Cette application peut demander où répond une autre application installée dans la même communauté. Exige aussi la délégation : un service d'automatisation détient les deux, car agir pour le compte d'une application auprès d'une autre est précisément sa raison d'être.",
     "appDirectoryBadge": "Trouve d'autres applications",
     "createTitle": "Ajouter un service applicatif",
     "editTitle": "Modifier le service applicatif",
@@ -837,7 +848,7 @@
     "grantsTitle": "Pouvoirs accordés par l'exploitant",
     "grantsHelp": "Vous seul pouvez les accorder. Une application ne peut jamais se les attribuer elle-même.",
     "delegationLabel": "Agir au nom des membres (délégation)",
-    "mandatoryLabel": "Installer dans toutes les guildes",
+    "mandatoryLabel": "Installer dans toutes les communautés",
     "created": "Service applicatif enregistré.",
     "saved": "Service applicatif mis à jour.",
     "deleted": "Service applicatif supprimé.",
@@ -849,10 +860,10 @@
     "verifyError": "Impossible de vérifier le service applicatif.",
     "toggleError": "Impossible de modifier le service applicatif.",
     "disableTitle": "Désactiver {{name}} ?",
-    "disableDescription": "Toutes les guildes qui ont installé cette application cessent immédiatement de l'atteindre : données, configuration, événements et pages intégrées sont refusés. Rien n'est supprimé et vous pouvez la réactiver à tout moment.",
+    "disableDescription": "Toutes les communautés qui ont installé cette application cessent immédiatement de l'atteindre : données, configuration, événements et pages intégrées sont refusés. Rien n'est supprimé et vous pouvez la réactiver à tout moment.",
     "disableConfirm": "Désactiver le service",
     "deleteTitle": "Supprimer {{name}} ?",
-    "deleteDescription": "L'enregistrement et son secret partagé sont supprimés définitivement. Toutes les guildes qui ont installé cette application cessent de l'atteindre, et la rajouter suppose de saisir de nouveau le secret.",
+    "deleteDescription": "L'enregistrement et son secret partagé sont supprimés définitivement. Toutes les communautés qui ont installé cette application cessent de l'atteindre, et la rajouter suppose de saisir de nouveau le secret.",
     "deleteConfirmLabel": "Saisissez l'identifiant de l'application pour confirmer",
     "manifestChangedTitle": "{{name}} se décrit désormais différemment",
     "manifestChangedDescription": "Le manifeste de cette application ne correspond plus à celui enregistré lors de son inscription : ses fonctionnalités, ses connexions ou ses pages intégrées ont pu changer. Accepter adopte le nouveau manifeste et marque l'application comme vérifiée. N'acceptez que si vous attendiez ce changement.",
@@ -864,17 +875,18 @@
     "tabs": {
       "users": "Utilisateurs",
       "access": "Accès",
-      "guilds": "Groupes",
-      "audit": "Audit"
+      "guilds": "Communautés",
+      "audit": "Audit",
+      "announcements": "Annonces"
     }
   },
   "guilds": {
-    "title": "Limites par groupe",
-    "description": "Définissez des limites par groupe pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des groupes.",
-    "loading": "Chargement des groupes…",
-    "loadError": "Impossible de charger les groupes. Veuillez réessayer.",
-    "filterByName": "Filtrer les groupes par nom",
+    "title": "Limites par communauté",
+    "description": "Définissez des limites par communauté pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des communautés.",
+    "loading": "Chargement des communautés…",
+    "loadError": "Impossible de charger les communautés. Veuillez réessayer.",
+    "filterByName": "Filtrer les communautés par nom",
     "unlimitedPlaceholder": "Illimité",
     "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
     "limitInputLabel": "Limite de stockage pour {{name}} en Go",
@@ -886,10 +898,10 @@
     "usersSaveError": "Impossible de mettre à jour la limite d'utilisateurs. Veuillez réessayer.",
     "statusInputLabel": "Statut de {{name}}",
     "statusSaved": "Statut de {{name}} mis à jour.",
-    "statusSaveError": "Impossible de mettre à jour le statut du groupe. Veuillez réessayer.",
-    "guildAuthInputLabel": "Connexion par groupe pour {{name}}",
-    "guildAuthOn": "Connexion par groupe activée pour {{name}}.",
-    "guildAuthOff": "Connexion par groupe désactivée pour {{name}}. Les membres existants continuent de se connecter ; aucun nouveau compte n'est créé.",
+    "statusSaveError": "Impossible de mettre à jour le statut de la communauté. Veuillez réessayer.",
+    "guildAuthInputLabel": "Connexion par communauté pour {{name}}",
+    "guildAuthOn": "Connexion par communauté activée pour {{name}}.",
+    "guildAuthOff": "Connexion par communauté désactivée pour {{name}}. Les membres existants continuent de se connecter ; aucun nouveau compte n'est créé.",
     "status": {
       "active": "Actif",
       "read_only": "Lecture seule",
@@ -897,16 +909,16 @@
     },
     "suspendConfirm": {
       "title": "Suspendre {{name}} ?",
-      "description": "Les membres perdent tout accès et le groupe disparaît de leur liste. Rien n'est supprimé et vous pouvez le réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
-      "confirm": "Suspendre le groupe"
+      "description": "Les membres perdent tout accès et la communauté disparaît de leur liste. Rien n'est supprimé et vous pouvez la réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
+      "confirm": "Suspendre la communauté"
     },
     "columns": {
       "id": "ID",
-      "guild": "Groupe",
+      "guild": "Communauté",
       "members": "Membres",
       "users": "Utilisateurs",
       "storageLimit": "Limite de stockage",
-      "guildAuth": "Connexion par groupe",
+      "guildAuth": "Connexion par communauté",
       "status": "Statut",
       "billing": "Facturation"
     },
@@ -970,22 +982,22 @@
   "guildAuth": {
     "registry": {
       "title": "Fournisseurs d'identité",
-      "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette guilde se connectent. Configurés par les admins de cette guilde et appliqués uniquement ici.",
+      "description": "Les fournisseurs d'authentification unique avec lesquels les membres de cette communauté se connectent. Configurés par les admins de cette communauté et appliqués uniquement ici.",
       "dialogDescription": "Détails OpenID Connect. L'URL de callback pour votre IdP est /api/v1/auth/g/{{guildId}}/{slug}/callback sur ce serveur."
     },
     "shareUrl": {
       "title": "Lien de connexion des membres",
-      "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette guilde et les amène directement dans la guilde.",
+      "description": "Partagez ce lien avec les membres — il propose les fournisseurs de connexion de cette communauté et les amène directement dans la communauté.",
       "copy": "Copier le lien",
       "copied": "Lien de connexion copié"
     },
     "policy": {
       "title": "Exigence de connexion",
-      "description": "Contrôlez avec quelle connexion une session doit s'être authentifiée avant de pouvoir accéder à cette guilde.",
+      "description": "Contrôlez avec quelle connexion une session doit s'être authentifiée avant de pouvoir accéder à cette communauté.",
       "openLabel": "Ouvert",
-      "openHelp": "Tout membre connecté peut accéder à cette guilde.",
+      "openHelp": "Tout membre connecté peut accéder à cette communauté.",
       "requiredLabel": "Exiger l'authentification unique",
-      "requiredHelp": "Les membres ne peuvent accéder à cette guilde qu'après s'être connectés avec le fournisseur sélectionné.",
+      "requiredHelp": "Les membres ne peuvent accéder à cette communauté qu'après s'être connectés avec le fournisseur sélectionné.",
       "providerPlaceholder": "Choisir un fournisseur…",
       "noProviders": "Aucun fournisseur n'est configuré pour l'instant. Ajoutez-en un dans Fournisseurs d'identité ci-dessous, puis exigez-le ici.",
       "saved": "Exigence de connexion enregistrée",
@@ -1058,8 +1070,8 @@
     "saveError": "Impossible d'enregistrer la connexion",
     "newTitle": "Nouvelle connexion",
     "editTitle": "Modifier la connexion",
-    "platformDialogDescription": "Toutes les guildes peuvent utiliser cette connexion.",
-    "guildDialogDescription": "Les membres de cette guilde peuvent utiliser cette connexion.",
+    "platformDialogDescription": "Toutes les communautés peuvent utiliser cette connexion.",
+    "guildDialogDescription": "Les membres de cette communauté peuvent utiliser cette connexion.",
     "labelLabel": "Libellé",
     "labelPlaceholder": "p. ex. OpenAI de l'équipe",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1079,7 +1091,7 @@
   },
   "memberAI": {
     "title": "Mon IA",
-    "description": "Consultez toutes les connexions d'IA à votre disposition dans vos guildes. Ajoutez votre propre clé d'API là où c'est autorisé et choisissez celle que vous utilisez.",
+    "description": "Consultez toutes les connexions d'IA à votre disposition dans vos communautés. Ajoutez votre propre clé d'API là où c'est autorisé et choisissez celle que vous utilisez.",
     "noneAvailable": "Aucune connexion d'IA n'est encore à votre disposition.",
     "managedByAdmin": "Gérée par votre administrateur — utilise une clé partagée.",
     "selected": "Utilisée",
@@ -1101,14 +1113,19 @@
   },
   "community": {
     "title": "Annuaire des communautés",
-    "description": "Permettez aux guildes de se référencer là où toute personne connectée peut les trouver et les rejoindre sans invitation.",
+    "description": "Permettez aux communautés de se référencer là où toute personne connectée peut les trouver et les rejoindre sans invitation.",
     "toggleLabel": "Proposer un annuaire des communautés",
-    "helpText": "Tant que c'est activé, un administrateur de guilde peut référencer sa guilde depuis les paramètres de la guilde, et « Rejoindre une communauté » apparaît à côté des guildes de chacun. Une fois désactivé, il n'y a rien à parcourir et aucune guilde ne peut se référencer.",
-    "reversibleNote": "Désactiver masque l'annuaire ; les guildes référencées le restent. En le réactivant, les mêmes guildes réapparaissent.",
+    "helpText": "Tant que c'est activé, un administrateur de communauté peut référencer sa communauté depuis les paramètres de la communauté, et « Rejoindre une communauté » apparaît à côté des communautés de chacun. Une fois désactivé, il n'y a rien à parcourir et aucune communauté ne peut se référencer.",
+    "reversibleNote": "Désactiver masque l'annuaire ; les communautés référencées le restent. En le réactivant, les mêmes communautés réapparaissent.",
     "enabledToast": "L'annuaire des communautés est activé.",
     "disabledToast": "L'annuaire des communautés est désactivé.",
     "saveError": "Impossible de modifier l'annuaire des communautés. Veuillez réessayer.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés."
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour proposer un annuaire des communautés.",
+    "ageGateLabel": "Demander aux membres de confirmer qu'ils ont 13 ans ou plus",
+    "ageGateHelpText": "Tant que ceci est actif, toute personne appartenant à une communauté référencée doit confirmer son âge une fois, et la réponse reste attachée à son compte. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
+    "ageGateOffTitle": "Ne plus demander l'âge des membres ?",
+    "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge, y compris en rejoignant plus tard une communauté référencée.",
+    "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus"
   },
   "audit": {
     "title": "Audit",
@@ -1124,5 +1141,12 @@
     "actions": {
       "user.avatar_removed": "Photo de profil supprimée"
     }
+  },
+  "account": {
+    "identityTitle": "Comment vous vous connectez",
+    "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
+    "passwordTitle": "Mot de passe",
+    "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
+    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
   }
 }

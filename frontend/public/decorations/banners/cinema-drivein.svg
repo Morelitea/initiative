@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Drive-in</title>
+  <!-- Second feature, engines off. -->
+  <style>
+    .reelflick { animation: flick 5s steps(1, end) infinite }
+    @keyframes flick { 0% { opacity: .9 } 12% { opacity: .74 } 26% { opacity: .95 }
+                       41% { opacity: .8 } 55% { opacity: .92 } 68% { opacity: .76 }
+                       83% { opacity: .94 } 100% { opacity: .86 } }
+    .beamer { animation: waver 6s ease-in-out infinite alternate }
+    @keyframes waver { from { opacity: .12 } to { opacity: .22 } }
+    @media (prefers-reduced-motion: reduce) { .reelflick, .beamer { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0E1030"/><stop offset="70%" stop-color="#2A1E44"/>
+      <stop offset="100%" stop-color="#40263E"/>
+    </linearGradient>
+    <linearGradient id="screenlit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E8DCC0"/><stop offset="48%" stop-color="#B4C4D8"/>
+      <stop offset="100%" stop-color="#8A94B4"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#dusk)"/>
+  <g fill="#EAE2F4" opacity=".6">
+    <circle cx="14" cy="5" r=".38"/><circle cx="36" cy="3.4" r=".3"/><circle cx="128" cy="4" r=".34"/>
+    <circle cx="146" cy="7" r=".3"/><circle cx="100" cy="2.6" r=".26"/><circle cx="60" cy="2" r=".24"/>
+  </g>
+  <!-- The screen, doing what a screen does. -->
+  <path d="M42 30 L42 6 L118 6 L118 30 Z" fill="#151228"/>
+  <path class="reelflick" d="M44 28.4 L44 7.6 L116 7.6 L116 28.4 Z" fill="url(#screenlit)"/>
+  <g class="reelflick" opacity=".35">
+    <ellipse cx="70" cy="17" rx="12" ry="7" fill="#3E4468"/>
+    <path d="M92 28.4 L104 12 L116 28.4 Z" fill="#5A6288"/>
+  </g>
+  <g stroke="#0E0A1C" stroke-width="1.6" fill="none">
+    <path d="M46 30 L46 36"/><path d="M114 30 L114 36"/>
+  </g>
+  <!-- The beam, from somewhere behind you. -->
+  <path class="beamer" d="M156 40 L120 8 L118 8 L152 40 Z" fill="#FFF6D8"/>
+  <!-- The lot. -->
+  <path d="M0 33 L160 33 L160 40 L0 40 Z" fill="#241C34"/>
+  <g stroke="#3A3050" stroke-width=".5" opacity=".7">
+    <path d="M10 40 L14 34"/><path d="M36 40 L39 34"/><path d="M62 40 L64 34"/>
+    <path d="M92 40 L92 34"/><path d="M120 40 L118 34"/><path d="M148 40 L144 34"/>
+  </g>
+  <g><g transform="translate(22 37)"><path d="M-7 0 L-7 -2.2 C-7 -2.8 -6.4 -3.2 -5.6 -3.2 L-4 -3.2 L-2.6 -5.2 C-2.2 -5.8 -1.6 -6 -.8 -6 L2.6 -6 C3.4 -6 4 -5.7 4.4 -5.1 L5.6 -3.2 L6.4 -3.2 C7.2 -3.2 7.6 -2.8 7.6 -2.2 L7.6 0 Z" fill="#1A1630"/><path d="M-2.2 -5 L-.8 -3.4 L2.6 -3.4 L1.4 -5 Z" fill="#6A8ED8" opacity=".5"/><circle cx="-4" cy="0" r="1.5" fill="#0E0A1C"/><circle cx="4.4" cy="0" r="1.5" fill="#0E0A1C"/></g><g transform="translate(48 37)"><path d="M-7 0 L-7 -2.2 C-7 -2.8 -6.4 -3.2 -5.6 -3.2 L-4 -3.2 L-2.6 -5.2 C-2.2 -5.8 -1.6 -6 -.8 -6 L2.6 -6 C3.4 -6 4 -5.7 4.4 -5.1 L5.6 -3.2 L6.4 -3.2 C7.2 -3.2 7.6 -2.8 7.6 -2.2 L7.6 0 Z" fill="#1A1630"/><path d="M-2.2 -5 L-.8 -3.4 L2.6 -3.4 L1.4 -5 Z" fill="#8A6AD8" opacity=".5"/><circle cx="-4" cy="0" r="1.5" fill="#0E0A1C"/><circle cx="4.4" cy="0" r="1.5" fill="#0E0A1C"/></g><g transform="translate(74 37)"><path d="M-7 0 L-7 -2.2 C-7 -2.8 -6.4 -3.2 -5.6 -3.2 L-4 -3.2 L-2.6 -5.2 C-2.2 -5.8 -1.6 -6 -.8 -6 L2.6 -6 C3.4 -6 4 -5.7 4.4 -5.1 L5.6 -3.2 L6.4 -3.2 C7.2 -3.2 7.6 -2.8 7.6 -2.2 L7.6 0 Z" fill="#1A1630"/><path d="M-2.2 -5 L-.8 -3.4 L2.6 -3.4 L1.4 -5 Z" fill="#6AD8B4" opacity=".5"/><circle cx="-4" cy="0" r="1.5" fill="#0E0A1C"/><circle cx="4.4" cy="0" r="1.5" fill="#0E0A1C"/></g><g transform="translate(104 37)"><path d="M-7 0 L-7 -2.2 C-7 -2.8 -6.4 -3.2 -5.6 -3.2 L-4 -3.2 L-2.6 -5.2 C-2.2 -5.8 -1.6 -6 -.8 -6 L2.6 -6 C3.4 -6 4 -5.7 4.4 -5.1 L5.6 -3.2 L6.4 -3.2 C7.2 -3.2 7.6 -2.8 7.6 -2.2 L7.6 0 Z" fill="#1A1630"/><path d="M-2.2 -5 L-.8 -3.4 L2.6 -3.4 L1.4 -5 Z" fill="#D8A86A" opacity=".5"/><circle cx="-4" cy="0" r="1.5" fill="#0E0A1C"/><circle cx="4.4" cy="0" r="1.5" fill="#0E0A1C"/></g><g transform="translate(132 37)"><path d="M-7 0 L-7 -2.2 C-7 -2.8 -6.4 -3.2 -5.6 -3.2 L-4 -3.2 L-2.6 -5.2 C-2.2 -5.8 -1.6 -6 -.8 -6 L2.6 -6 C3.4 -6 4 -5.7 4.4 -5.1 L5.6 -3.2 L6.4 -3.2 C7.2 -3.2 7.6 -2.8 7.6 -2.2 L7.6 0 Z" fill="#1A1630"/><path d="M-2.2 -5 L-.8 -3.4 L2.6 -3.4 L1.4 -5 Z" fill="#6A8ED8" opacity=".5"/><circle cx="-4" cy="0" r="1.5" fill="#0E0A1C"/><circle cx="4.4" cy="0" r="1.5" fill="#0E0A1C"/></g></g>
+</svg>

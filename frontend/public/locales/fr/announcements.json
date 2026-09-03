@@ -1,0 +1,130 @@
+{
+  "category": {
+    "release": "Version",
+    "feature": "Nouveauté",
+    "breaking": "Changement cassant",
+    "maintenance": "Maintenance",
+    "security": "Sécurité",
+    "info": "Annonce"
+  },
+  "dialog": {
+    "gotIt": "J'ai compris",
+    "next": "Suivant",
+    "more_one": "{{count}} de plus",
+    "more_other": "{{count}} de plus",
+    "back": "Retour",
+    "continue": "Continuer",
+    "pageOf": "{{current}} sur {{total}}",
+    "showsAgain_one": "sera affichée encore une fois",
+    "showsAgain_other": "sera affichée encore {{count}} fois",
+    "zoomImage": "Voir l'image en grand"
+  },
+  "update": {
+    "title": "La version {{version}} est disponible",
+    "whatsNew": "Nouveautés",
+    "noDetailedChanges": "Aucun détail n'a été indiqué pour cette version.",
+    "viewAllChanges": "Voir tous les changements",
+    "later": "Plus tard",
+    "reloadNow": "Recharger maintenant"
+  },
+  "admin": {
+    "title": "Annonces",
+    "subtitle": "Avis destinés aux personnes qui utilisent cette installation. Chacun s'affiche une fois et reste mémorisé par personne.",
+    "new": "Nouvelle annonce",
+    "newTitle": "Nouvelle annonce",
+    "editTitle": "Modifier l'annonce",
+    "editorSubtitle": "Donnez-lui un titre, puis ajoutez une section par sujet à montrer.",
+    "empty": "Aucune annonce pour l'instant.",
+    "builtin": "Intégrée",
+    "preview": "Aperçu",
+    "untitled": "Annonce sans titre",
+    "saved": "Annonce enregistrée",
+    "saveFailed": "Impossible d'enregistrer l'annonce",
+    "deleted": "Annonce supprimée",
+    "deleteFailed": "Impossible de supprimer l'annonce",
+    "deleteTitle": "Supprimer cette annonce ?",
+    "deleteDescription": "« {{title}} » sera supprimée, ainsi que la trace de sa lecture.",
+    "needsTitleAndSection": "Une annonce a besoin d'un titre et d'au moins une section",
+    "uploadFailed": "Impossible d'envoyer cette image",
+    "publishNow": "Publier maintenant",
+    "makeDraft": "Repasser en brouillon",
+    "addSection": "Ajouter une section",
+    "sectionNumber": "Section {{number}}",
+    "moveUp": "Monter la section",
+    "moveDown": "Descendre la section",
+    "removeSection": "Supprimer la section",
+    "addImage": "Ajouter une image",
+    "replaceImage": "Remplacer l'image",
+    "removeImage": "Retirer l'image",
+    "publishedOn": "Publiée le {{date}}",
+    "notPublished": "Non publiée",
+    "audience": "{{role}} et au-dessus",
+    "guildAdminsOnly": "Administrateurs de communauté uniquement",
+    "status": {
+      "draft": "Brouillon",
+      "scheduled": "Programmée",
+      "live": "Active",
+      "expired": "Expirée"
+    },
+    "roles": {
+      "member": "Tout le monde",
+      "support": "Support",
+      "moderator": "Modérateur",
+      "operator": "Opérateur",
+      "owner": "Propriétaire"
+    },
+    "fields": {
+      "title": "Titre",
+      "titlePlaceholder": "Qu'est-ce qui a changé ?",
+      "category": "Catégorie",
+      "minRole": "Rôle plateforme minimum",
+      "minRoleHint": "Seules les personnes à ce niveau ou au-dessus la voient.",
+      "guildAdminsOnly": "Administrateurs de communauté uniquement",
+      "guildAdminsOnlyHint": "N'afficher que pour celles qui administrent au moins une communauté.",
+      "publishedAt": "Publier le",
+      "expiresAt": "Arrêter de l'afficher le",
+      "expiresHint": "Laissez vide pour continuer à l'afficher. Une date de fin la retire aussi de la page des annonces.",
+      "sections": "Sections",
+      "headingPlaceholder": "Titre de section (facultatif)",
+      "bodyPlaceholder": "Le Markdown est pris en charge",
+      "altPlaceholder": "Décrivez l'image pour les lecteurs d'écran",
+      "timezoneHint": "Les heures sont dans votre fuseau horaire ({{zone}}).",
+      "draftPlaceholder": "Laissez vide pour le garder en brouillon",
+      "dismissalsRequired": "Nombre de confirmations",
+      "dismissalsRequiredHint": "Combien de fois il faut la fermer avant qu'elle cesse de revenir. Laissez 1 sauf si la manquer coûte cher.",
+      "triggerRoute": "Afficher sur la page (facultatif)",
+      "triggerRouteHint": "Laissez vide pour l'afficher tout de suite. Un motif de chemin la retient jusqu'à l'ouverture d'une page correspondante — * est une partie du chemin, ** est le reste.",
+      "audienceAccounts": "Comptes concernés"
+    },
+    "startsPage": "Commencer une nouvelle page",
+    "triggerErrors": {
+      "needsSlash": "Commencez le motif par / — par exemple /c/*/settings.",
+      "whitespace": "Un motif de chemin ne peut pas contenir d'espaces.",
+      "wildcardSegment": "* et ** représentent une partie entière du chemin : ils ne peuvent pas être collés à d'autres caractères.",
+      "doubleStarNotLast": "** représente le reste du chemin, rien ne peut donc le suivre."
+    },
+    "accounts": {
+      "everyone": "Tout le monde",
+      "existing": "Comptes qui existaient à la publication",
+      "new": "Comptes créés depuis"
+    },
+    "accountsHint": {
+      "everyone": "Toute personne dans le public ci-dessus la voit.",
+      "existing": "Pour un changement vécu — qui est arrivé après n'en entend pas parler.",
+      "new": "Pour qui vient d'arriver — un conseil de démarrage, dépassé pour les autres."
+    }
+  },
+  "archive": {
+    "title": "Annonces",
+    "subtitle": "Tout ce qu'Initiative a annoncé, du plus récent au plus ancien.",
+    "empty": "Rien n'a encore été annoncé.",
+    "read": "Lire",
+    "unread": "Non lue",
+    "readLabel": "Lue",
+    "allCaughtUp": "Vous êtes à jour.",
+    "filter": {
+      "all": "Toutes ({{count}})",
+      "unread": "Non lues ({{count}})"
+    }
+  }
+}

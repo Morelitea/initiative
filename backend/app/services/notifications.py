@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import or_, select, delete, update as sa_update
+from sqlalchemy import func, or_, select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
@@ -16,6 +19,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.tenant.reaction_digest import ReactionDigestItem
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -24,6 +28,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
+from app.services.platform import accounts as accounts_service
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
@@ -129,6 +134,15 @@ def _initiative_target_path(initiative_id: int | None) -> str:
     return f"/i/{initiative_id}"
 
 
+# Public spellings of the three path builders above. Another service that
+# addresses the same entity must produce the IDENTICAL path — a notification
+# and a reaction digest pointing at the same comment must land in the same
+# place — so it calls these rather than deriving its own.
+task_target_path = _task_target_path
+document_target_path = _document_target_path
+tool_target_path = _tool_target_path
+
+
 def _recipient_locale(user: User) -> str:
     return getattr(user, "locale", None) or "en"
 
@@ -193,13 +207,8 @@ async def enqueue_task_assignment_event(
 
 
 def wants_assignment_digest(email_pref: bool | None, push_pref: bool | None) -> bool:
-    """Whether a user still wants the assignment digest on either channel.
-
-    One queue backs both, so it may only be discarded once neither is on —
-    clearing it because the email was switched off would silently take the
-    push with it.
-    """
-    return email_pref is not False or push_pref is not False
+    """Whether a user still wants the assignment digest on either channel."""
+    return wants_digest(email_pref, push_pref)
 
 
 async def dequeue_task_assignment_events(
@@ -222,23 +231,32 @@ async def dequeue_task_assignment_events(
     )
 
 
+async def clear_digest_queue_for_user(
+    session: AsyncSession, user_id: int, models: Sequence[type]
+) -> None:
+    """Clear the user's pending items in the CURRENTLY ROUTED guild schema.
+    Callers on the platform path (no guild route) must use
+    :func:`clear_digest_queue_across_guilds` instead."""
+    for model in models:
+        await session.exec(
+            delete(model).where(
+                model.user_id == user_id,
+                model.processed_at.is_(None),
+            )
+        )
+
+
 async def clear_task_assignment_queue_for_user(
     session: AsyncSession, user_id: int
 ) -> None:
-    """Clear the user's pending digest items in the CURRENTLY ROUTED guild
-    schema. Callers on the platform path (no guild route) must use
-    :func:`clear_task_assignment_queue_across_guilds` instead."""
-    stmt = delete(TaskAssignmentDigestItem).where(
-        TaskAssignmentDigestItem.user_id == user_id,
-        TaskAssignmentDigestItem.processed_at.is_(None),
-    )
-    await session.exec(stmt)
+    """The assignment queue alone, in the currently routed guild schema."""
+    await clear_digest_queue_for_user(session, user_id, (TaskAssignmentDigestItem,))
 
 
-async def clear_task_assignment_queue_across_guilds(
-    session: AsyncSession, user_id: int
+async def clear_digest_queue_across_guilds(
+    session: AsyncSession, user_id: int, models: Sequence[type]
 ) -> None:
-    """Platform-path variant: the digest queue is guild-scoped, so visit each
+    """Platform-path variant: a digest queue is guild-scoped, so visit each
     of the user's guild schemas. Leaves the session routed into the last guild
     and the identity map expunged — the caller restores its own context.
     Deletes are flushed, not committed; they ride the caller's transaction."""
@@ -247,13 +265,22 @@ async def clear_task_assignment_queue_across_guilds(
     guild_ids = await cross_guild.member_guild_ids(session, user_id)
 
     async def _clear(routed: AsyncSession, _gid: int) -> list:
-        await clear_task_assignment_queue_for_user(routed, user_id)
+        await clear_digest_queue_for_user(routed, user_id, models)
         return []
 
     # Membership-based hygiene, not content access: must reach every guild
     # the user belongs to, including auth-policy-gated ones.
     await cross_guild.gather_across_guilds(
         session, user_id, guild_ids, _clear, satisfied_providers=SYSTEM_SATISFIED
+    )
+
+
+async def clear_task_assignment_queue_across_guilds(
+    session: AsyncSession, user_id: int
+) -> None:
+    """The assignment queue alone, across every guild the user belongs to."""
+    await clear_digest_queue_across_guilds(
+        session, user_id, (TaskAssignmentDigestItem,)
     )
 
 
@@ -1488,44 +1515,89 @@ async def _send_assignment_push(
     return sent > 0, False
 
 
-def _digest_is_due(timestamps: list[datetime], *, now: datetime) -> bool:
+def _digest_is_due(
+    timestamps: list[datetime],
+    *,
+    now: datetime,
+    quiet_period: timedelta = ASSIGNMENT_QUIET_PERIOD,
+    max_window: timedelta = ASSIGNMENT_MAX_WINDOW,
+) -> bool:
     """Whether a user's queued items have settled enough to send.
 
-    The digest ships once nothing new has arrived for ``ASSIGNMENT_QUIET_PERIOD``
-    — so a lone assignment goes out promptly and a burst arrives as one — or
-    once the oldest item hits ``ASSIGNMENT_MAX_WINDOW``, which stops a steady
-    trickle from deferring it indefinitely.
+    The digest ships once nothing new has arrived for ``quiet_period`` — so a
+    lone item goes out promptly and a burst arrives as one — or once the oldest
+    item hits ``max_window``, which stops a steady trickle from deferring it
+    indefinitely.
     """
     if not timestamps:
         return False
-    return (
-        now - max(timestamps) >= ASSIGNMENT_QUIET_PERIOD
-        or now - min(timestamps) >= ASSIGNMENT_MAX_WINDOW
-    )
+    return now - max(timestamps) >= quiet_period or now - min(timestamps) >= max_window
 
 
-async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Send task-assignment digests to opted-in users as of ``now``.
+@dataclass(frozen=True)
+class DigestSpec:
+    """One digested notification stream, described once.
 
-    Split out from ``process_task_assignment_digests`` so tests can drive it with
-    the test session. Each user's pending digest items live in their own guild
-    schemas, so they're gathered with the user's membership context (no
-    the guild's role) and the items are marked processed back in each schema.
-
-    Email and push ship together from here, on the same trigger, so the two
-    channels tell the same story — see :func:`_digest_is_due` for the timing.
+    Every digest in the app works the same way — queue a row per (recipient,
+    event) in the guild the event happened in, wait for the flurry to settle,
+    then send email and push together off one drain and mark the batch
+    processed. What differs between two of them is only what is stated here, so
+    the machinery below is written once and a new digest is a spec, not a copy.
     """
+
+    #: Log label ("task-digest", "reaction-digest").
+    name: str
+    #: The guild-scoped queue table.
+    model: type
+    #: ``User`` attributes gating each channel. One queue backs both.
+    email_pref: str
+    push_pref: str
+    #: What one queued row looks like to the senders, given the guild schema it
+    #: was found in (which IS the row's guild).
+    row: Callable[[object, int], dict]
+    #: Send the batch. The push half returns ``(delivered, retry_worth_it)``.
+    send_email: Callable[[AsyncSession, User, list[dict]], Awaitable[None]]
+    send_push: Callable[[AsyncSession, User, list[dict]], Awaitable[tuple[bool, bool]]]
+    #: ``User`` column recording when the last one went out, if any. A record,
+    #: never a gate — the send window comes from the queue itself.
+    stamp: str | None = None
+    quiet_period: timedelta = ASSIGNMENT_QUIET_PERIOD
+    max_window: timedelta = ASSIGNMENT_MAX_WINDOW
+
+
+def wants_digest(email_pref: bool | None, push_pref: bool | None) -> bool:
+    """Whether a user still wants a digest on either channel.
+
+    One queue backs both, so it may only be discarded once neither is on —
+    clearing it because the email was switched off would silently take the
+    push with it.
+    """
+    return email_pref is not False or push_pref is not False
+
+
+async def _run_digest_pass(
+    session: AsyncSession, spec: DigestSpec, *, now: datetime
+) -> None:
+    """Send ``spec``'s digest to opted-in users as of ``now``.
+
+    Each user's pending items live in their own guild schemas, so they are
+    gathered with the user's membership context (not the guild's role) and
+    marked processed back in each schema. Email and push ship together, on the
+    same trigger, so the two channels tell the same story — see
+    :func:`_digest_is_due` for the timing.
+    """
+    model = spec.model
     result = await session.exec(
         select(User).where(
             or_(
-                User.email_task_assignment.is_not(False),
-                User.push_task_assignment.is_not(False),
+                getattr(User, spec.email_pref).is_not(False),
+                getattr(User, spec.push_pref).is_not(False),
             )
         )
     )
     users = result.scalars().all()
     if not users:
-        logger.debug("task-digest: no opted-in users")
+        logger.debug("%s: no opted-in users", spec.name)
         return
     # Capture before routing — the gather expunges the identity map. The
     # channel preferences are deliberately NOT snapshotted here; they are read
@@ -1549,12 +1621,12 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             items = (
                 (
                     await routed.exec(
-                        select(TaskAssignmentDigestItem)
+                        select(model)
                         .where(
-                            TaskAssignmentDigestItem.user_id == _uid,
-                            TaskAssignmentDigestItem.processed_at.is_(None),
+                            model.user_id == _uid,
+                            model.processed_at.is_(None),
                         )
-                        .order_by(TaskAssignmentDigestItem.created_at.asc())
+                        .order_by(model.created_at.asc())
                     )
                 )
                 .scalars()
@@ -1562,32 +1634,20 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             )
             _items[gid] = [item.id for item in items]
             _queued.extend(item.created_at for item in items)
-            return [
-                {
-                    "task_title": item.task_title,
-                    "project_name": item.project_name,
-                    "assigned_by_name": item.assigned_by_name,
-                    "link": _build_smart_link(
-                        target_path=_task_target_path(item.task_id, item.project_id),
-                        guild_id=gid,  # the item's guild IS the routed schema
-                    ),
-                    # The push carries one deep link rather than a list; these
-                    # let a digest of one point at its task. Ignored by the
-                    # email, which renders ``link`` per row.
-                    "task_id": item.task_id,
-                    "project_id": item.project_id,
-                    "guild_id": gid,
-                }
-                for item in items
-            ]
+            return [spec.row(item, gid) for item in items]
 
         guild_ids = await member_guild_ids(session, user_id)
         # Digests act on membership (no live session exists here) — the
         # system sentinel clears the guild auth-policy gate.
-        assignments = await gather_across_guilds(
+        batch = await gather_across_guilds(
             session, user_id, guild_ids, _fetch, satisfied_providers=SYSTEM_SATISFIED
         )
-        if not assignments or not _digest_is_due(queued_at, now=now):
+        if not batch or not _digest_is_due(
+            queued_at,
+            now=now,
+            quiet_period=spec.quiet_period,
+            max_window=spec.max_window,
+        ):
             continue
         # Send: re-load the user (gather expunged it) in a shared-table context.
         session.expunge_all()
@@ -1607,26 +1667,22 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         # Re-read the preferences off the row just reloaded, not the snapshot
         # taken before the cross-guild gather: a channel switched off while the
         # gather was running must not still be delivered to.
-        if user.email_task_assignment is not False:
+        if getattr(user, spec.email_pref) is not False:
             try:
-                await email_service.send_task_assignment_digest_email(
-                    session, user, assignments
-                )
+                await spec.send_email(session, user, batch)
                 delivered = True
                 logger.info(
-                    "task-digest: sent %d assignment(s) to user %s",
-                    len(assignments),
-                    email,
+                    "%s: sent %d item(s) to user %s", spec.name, len(batch), email
                 )
             except email_service.EmailNotConfiguredError:
                 logger.warning(
-                    "SMTP not configured; skipping task digest for %s", email
+                    "SMTP not configured; skipping %s for %s", spec.name, email
                 )
             except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send task digest: %s", exc)
+                logger.error("Failed to send %s: %s", spec.name, exc)
                 retry = True
-        if user.push_task_assignment is not False:
-            pushed, push_retry = await _send_assignment_push(session, user, assignments)
+        if getattr(user, spec.push_pref) is not False:
+            pushed, push_retry = await spec.send_push(session, user, batch)
             delivered = delivered or pushed
             retry = retry or push_retry
         if retry and not delivered:
@@ -1638,9 +1694,10 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             # and a duplicate digest is the louder failure. Logged so the loss
             # is visible rather than silent.
             logger.warning(
-                "task-digest: a channel failed after another delivered; "
-                "%d assignment(s) not retried for user %s",
-                len(assignments),
+                "%s: a channel failed after another delivered; "
+                "%d item(s) not retried for user %s",
+                spec.name,
+                len(batch),
                 email,
             )
         # Mark the gathered items processed, back in each guild's schema.
@@ -1655,11 +1712,11 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 satisfied_providers=SYSTEM_SATISFIED,
             )
             await session.exec(
-                sa_update(TaskAssignmentDigestItem)
-                .where(TaskAssignmentDigestItem.id.in_(item_ids))
-                .values(processed_at=now)
+                sa_update(model).where(model.id.in_(item_ids)).values(processed_at=now)
             )
             await session.commit()
+        if spec.stamp is None:
+            continue
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
         user = (
@@ -1667,19 +1724,14 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         ).scalar_one_or_none()
         if user is None:
             continue
-        # A record of when the last digest went out (it is serialized on the
-        # user), not a gate — the send window is derived from the queue itself.
-        user.last_task_assignment_digest_at = now
+        setattr(user, spec.stamp, now)
         session.add(user)
         await session.commit()
 
 
-async def process_task_assignment_digests() -> None:
-    async with AdminSessionLocal() as session:
-        await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
-
-
-async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
+async def _run_gc_pass(
+    session: AsyncSession, models: Sequence[type], *, now: datetime
+) -> None:
     """Drop digest items older than the retention window, guild by guild.
 
     Sent items are bookkeeping once the mail is gone. Unsent items of the same
@@ -1702,18 +1754,445 @@ async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> No
     for guild_id in guild_ids:
         session.expunge_all()
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-        await session.exec(
-            delete(TaskAssignmentDigestItem).where(
-                TaskAssignmentDigestItem.created_at < cutoff
-            )
-        )
+        for model in models:
+            await session.exec(delete(model).where(model.created_at < cutoff))
         await session.commit()
+
+
+# --- Task assignment -------------------------------------------------------
+
+
+def _assignment_row(item, guild_id: int) -> dict:
+    return {
+        "task_title": item.task_title,
+        "project_name": item.project_name,
+        "assigned_by_name": item.assigned_by_name,
+        "link": _build_smart_link(
+            target_path=_task_target_path(item.task_id, item.project_id),
+            guild_id=guild_id,  # the item's guild IS the routed schema
+        ),
+        # The push carries one deep link rather than a list; these let a digest
+        # of one point at its task. Ignored by the email, which renders
+        # ``link`` per row.
+        "task_id": item.task_id,
+        "project_id": item.project_id,
+        "guild_id": guild_id,
+    }
+
+
+ASSIGNMENT_DIGEST = DigestSpec(
+    name="task-digest",
+    model=TaskAssignmentDigestItem,
+    email_pref="email_task_assignment",
+    push_pref="push_task_assignment",
+    row=_assignment_row,
+    send_email=lambda session, user, items: (
+        email_service.send_task_assignment_digest_email(session, user, items)
+    ),
+    send_push=_send_assignment_push,
+    stamp="last_task_assignment_digest_at",
+)
+
+
+async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Send task-assignment digests. Split out from
+    ``process_task_assignment_digests`` so tests can drive it with the test
+    session."""
+    await _run_digest_pass(session, ASSIGNMENT_DIGEST, now=now)
+
+
+async def process_task_assignment_digests() -> None:
+    async with AdminSessionLocal() as session:
+        await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
+
+
+async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
+    await _run_gc_pass(session, (TaskAssignmentDigestItem, ReactionDigestItem), now=now)
 
 
 async def process_assignment_digest_gc() -> None:
     async with AdminSessionLocal() as session:
         await set_rls_context(session)
         await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
+
+
+# --- Reactions -------------------------------------------------------------
+
+
+#: How many individual reactions one rolled-up bell line remembers in detail.
+#: ``count`` above it stays the whole truth; this only bounds how much of the
+#: payload the line carries so a popular comment cannot grow it without limit.
+MAX_ROLLED_UP_REACTIONS = 20
+
+# The roster of distinct reactors is deliberately NOT capped. It is what the
+# sentence counts ("and 12 others"), so a bound on it is a bound on the truth:
+# capping it would freeze the count and understate the crowd on exactly the
+# comment where the number matters most. Unlike the detail above it costs one
+# integer per person, it can only grow to the number of people who can see the
+# comment, and the whole line goes the moment the recipient reads it.
+
+
+def _reaction_rollup_match(reaction, guild_id: int) -> dict[str, object]:
+    """What makes two reactions the same bell line: same guild, same thing
+    reacted to. Emoji and reactor deliberately do not — they are what the one
+    line rolls up."""
+    return {
+        "guild_id": guild_id,
+        "target_type": reaction.target_type,
+        "target_id": reaction.target_id,
+    }
+
+
+def _rolled_up_reactions(data: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The individual reactions a bell line is already carrying."""
+    rolled = data.get("reactions")
+    if isinstance(rolled, list):
+        return [entry for entry in rolled if isinstance(entry, dict)]
+    # A line written before the bell rolled these up names its one reaction in
+    # the top-level fields instead.
+    if data.get("emoji"):
+        return [
+            {
+                "id": None,
+                "emoji": data.get("emoji"),
+                "reactor_id": data.get("reactor_id"),
+                "reactor_name": data.get("reactor_name"),
+            }
+        ]
+    return []
+
+
+def _rolled_up_reactor_ids(data: Mapping[str, Any]) -> list[int]:
+    """The distinct people a bell line has rostered, oldest first.
+
+    A line written before the roster existed answers from the reactions it
+    still remembers, which for such a line is all it ever had.
+    """
+    rostered = data.get("reactor_ids")
+    if isinstance(rostered, list):
+        return [value for value in rostered if isinstance(value, int)]
+    seen: list[int] = []
+    for entry in _rolled_up_reactions(data):
+        reactor_id = entry.get("reactor_id")
+        if isinstance(reactor_id, int) and reactor_id not in seen:
+            seen.append(reactor_id)
+    return seen
+
+
+def _rolled_up_count(data: Mapping[str, Any]) -> int:
+    """How many reactions the line stands for, including any that have rolled
+    past :data:`MAX_ROLLED_UP_REACTIONS`."""
+    try:
+        count = int(data.get("count") or 0)
+    except (TypeError, ValueError):
+        count = 0
+    return count or len(_rolled_up_reactions(data))
+
+
+def _reaction_line(
+    entries: Sequence[dict[str, Any]],
+    *,
+    count: int,
+    reactor_ids: Sequence[int],
+    context_title: str,
+    target_path: str,
+    smart_link: str | None,
+    target_type: str,
+    target_id: int,
+    guild_id: int,
+) -> dict[str, Any]:
+    """One bell payload for every reaction rolled up so far.
+
+    ``emoji`` / ``reactor_name`` / ``reactor_id`` keep naming the most recent
+    one: a client that predates the rollup still renders a true sentence, and
+    the newer client uses them as the reactor it names first. ``reactor_ids``
+    is what the sentence counts, so it outlives the detail entries — a line
+    whose oldest reactions have rolled off still knows how many people are in
+    it.
+    """
+    latest = entries[-1] if entries else {}
+    return {
+        "target_type": target_type,
+        "target_id": target_id,
+        "context_title": context_title,
+        "guild_id": guild_id,
+        "target_path": target_path,
+        "smart_link": smart_link,
+        "emoji": latest.get("emoji"),
+        "reactor_name": latest.get("reactor_name"),
+        "reactor_id": latest.get("reactor_id"),
+        "count": count,
+        "reactor_count": len(reactor_ids),
+        "reactor_ids": list(reactor_ids),
+        "reactions": list(entries[-MAX_ROLLED_UP_REACTIONS:]),
+    }
+
+
+async def _lock_reaction_line(session: AsyncSession, key: str) -> None:
+    """Serialize the read-then-write on one recipient's rolled-up line.
+
+    Two people reacting to the same comment at the same moment would otherwise
+    both find no line to join and write one each. Transaction-scoped, and keyed
+    narrowly enough that only reactions aimed at the same line ever wait.
+    """
+    await session.exec(
+        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
+    )
+
+
+async def enqueue_reaction_event(
+    session: AsyncSession,
+    *,
+    author: User,
+    reactor: User,
+    reaction,
+    context_title: str,
+    target_path: str,
+    guild_id: int,
+) -> None:
+    """Record that someone reacted to something ``author`` wrote.
+
+    Reactions are the lightest signal in the app and they arrive in flurries,
+    so every channel digests them — including the bell, which rolls them up per
+    thing-reacted-to rather than listing one entry per tap. An unread line
+    absorbs the next reaction to the same comment and returns to the top of the
+    inbox; once read, the next reaction starts a fresh line. Email and push
+    wait for the digest worker as before.
+    """
+    if author.id == reactor.id:
+        return
+    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    reactor_name = handle_of(reactor)
+    entry = {
+        "id": reaction.id,
+        "emoji": reaction.emoji,
+        "reactor_id": reactor.id,
+        "reactor_name": reactor_name,
+    }
+    await _lock_reaction_line(
+        session,
+        f"reaction-bell:{guild_id}:{reaction.target_type}:"
+        f"{reaction.target_id}:{author.id}",
+    )
+    existing = await user_notifications.find_unread_by_data(
+        session,
+        user_id=author.id,
+        notification_type=NotificationType.comment_reaction,
+        match=_reaction_rollup_match(reaction, guild_id),
+    )
+    previous: Mapping[str, Any] = (existing.data if existing else None) or {}
+    roster = _rolled_up_reactor_ids(previous)
+    if reactor.id not in roster:
+        roster.append(cast(int, reactor.id))
+    line = _reaction_line(
+        _rolled_up_reactions(previous) + [entry],
+        count=_rolled_up_count(previous) + 1,
+        reactor_ids=roster,
+        context_title=context_title,
+        target_path=target_path,
+        smart_link=smart_link,
+        target_type=reaction.target_type,
+        target_id=reaction.target_id,
+        guild_id=guild_id,
+    )
+    if existing is None:
+        await user_notifications.create_notification(
+            session,
+            user_id=author.id,
+            notification_type=NotificationType.comment_reaction,
+            data=line,
+        )
+    else:
+        await user_notifications.refresh_notification(session, existing, data=line)
+    if wants_digest(author.email_comment_reactions, author.push_comment_reactions):
+        session.add(
+            ReactionDigestItem(
+                user_id=author.id,
+                reaction_id=reaction.id,
+                target_type=reaction.target_type,
+                target_id=reaction.target_id,
+                emoji=reaction.emoji,
+                target_path=target_path,
+                context_title=context_title,
+                reactor_name=reactor_name,
+                reactor_id=reactor.id,
+            )
+        )
+
+
+def _matches_withdrawn(
+    entry: Mapping[str, Any], *, reaction_id: int, reactor_id: int, emoji: str
+) -> bool:
+    """Whether a rolled-up entry is the gesture being taken back.
+
+    Normally the reaction's own id answers it. A line written before the
+    rollup carries no id, so it is matched on who reacted and with what —
+    which for a line holding a single gesture is the same question.
+    """
+    if entry.get("id") == reaction_id:
+        return True
+    return (
+        entry.get("id") is None
+        and entry.get("reactor_id") == reactor_id
+        and entry.get("emoji") == emoji
+    )
+
+
+async def withdraw_reaction_event(
+    session: AsyncSession,
+    *,
+    author_id: int,
+    reaction_id: int,
+    reactor_id: int,
+    emoji: str,
+    target_type: str,
+    target_id: int,
+    guild_id: int,
+) -> None:
+    """Take an un-reacted gesture back out of the unread bell line.
+
+    Un-reacting should leave no trace where the recipient has not looked yet,
+    the same rule the queued digest line follows. Only a line still holding
+    this exact gesture is touched: one the recipient has already read is
+    history, and one that has rolled the gesture past the payload cap can no
+    longer prove it was ever there, so both are left alone rather than
+    decremented on a guess.
+    """
+    await _lock_reaction_line(
+        session,
+        f"reaction-bell:{guild_id}:{target_type}:{target_id}:{author_id}",
+    )
+    existing = await user_notifications.find_unread_by_data(
+        session,
+        user_id=author_id,
+        notification_type=NotificationType.comment_reaction,
+        match={
+            "guild_id": guild_id,
+            "target_type": target_type,
+            "target_id": target_id,
+        },
+    )
+    if existing is None:
+        return
+    previous: Mapping[str, Any] = existing.data or {}
+    entries = _rolled_up_reactions(previous)
+    remaining = [
+        entry
+        for entry in entries
+        if not _matches_withdrawn(
+            entry, reaction_id=reaction_id, reactor_id=reactor_id, emoji=emoji
+        )
+    ]
+    if len(remaining) == len(entries):
+        return
+    count = _rolled_up_count(previous) - 1
+    if count <= 0 or not remaining:
+        await user_notifications.delete_notification(session, existing)
+        return
+    # The reactor leaves the roster only once the line remembers nothing else
+    # of theirs — a second emoji of theirs still counts them as present. That
+    # question can only be answered off the detail, so it is only asked when
+    # the detail is complete: past the cap an older gesture of theirs may have
+    # rolled off, and dropping them on its absence would undercount a crowd
+    # they are still part of.
+    roster = _rolled_up_reactor_ids(previous)
+    line_remembers_every_gesture = len(entries) == _rolled_up_count(previous)
+    if line_remembers_every_gesture and all(
+        entry.get("reactor_id") != reactor_id for entry in remaining
+    ):
+        roster = [rostered for rostered in roster if rostered != reactor_id]
+    await user_notifications.refresh_notification(
+        session,
+        existing,
+        data=_reaction_line(
+            remaining,
+            count=count,
+            reactor_ids=roster,
+            context_title=previous.get("context_title") or "",
+            target_path=previous.get("target_path") or MY_TASKS_TARGET_PATH,
+            smart_link=previous.get("smart_link"),
+            target_type=target_type,
+            target_id=target_id,
+            guild_id=guild_id,
+        ),
+        bump=False,
+    )
+
+
+async def _send_reaction_push(
+    session: AsyncSession, user: User, reactions: list[dict]
+) -> tuple[bool, bool]:
+    """Push a reaction digest. Returns ``(delivered, retry_worth_it)``.
+
+    A digest of one names its emoji and deep-links to what was reacted to; a
+    larger one spans guilds, so it points at My Tasks the way the other
+    cross-guild digests do.
+    """
+    locale = _recipient_locale(user)
+    first = reactions[0]
+    data: dict[str, str] = {
+        "type": NotificationType.comment_reaction.value,
+        "count": str(len(reactions)),
+        "target_path": MY_TASKS_TARGET_PATH,
+    }
+    if len(reactions) == 1 and first.get("guild_id") is not None:
+        data["target_path"] = first["target_path"]
+        data["guild_id"] = str(first["guild_id"])
+    try:
+        sent = await push_notifications.send_push_to_user(
+            session=session,
+            user_id=user.id,
+            notification_type=NotificationType.comment_reaction,
+            title=_nt("comment.reaction.title", locale),
+            body=_nt(
+                "comment.reaction.body",
+                locale,
+                count=len(reactions),
+                actor=first.get("reactor_name") or "",
+                emoji=first.get("emoji") or "",
+                context=first.get("context_title") or "",
+            ),
+            data=data,
+        )
+    except Exception as exc:
+        logger.error("Failed to send reaction digest push: %s", exc, exc_info=True)
+        return False, True
+    return sent > 0, False
+
+
+def _reaction_row(item, guild_id: int) -> dict:
+    return {
+        "emoji": item.emoji,
+        "reactor_name": item.reactor_name,
+        "context_title": item.context_title,
+        "target_path": item.target_path,
+        "link": _build_smart_link(target_path=item.target_path, guild_id=guild_id),
+        "guild_id": guild_id,
+    }
+
+
+REACTION_DIGEST = DigestSpec(
+    name="reaction-digest",
+    model=ReactionDigestItem,
+    email_pref="email_comment_reactions",
+    push_pref="push_comment_reactions",
+    row=_reaction_row,
+    send_email=lambda session, user, items: email_service.send_reaction_digest_email(
+        session, user, items
+    ),
+    send_push=_send_reaction_push,
+)
+
+
+async def _run_reaction_digest_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Send reaction digests. Split out from ``process_reaction_digests`` so
+    tests can drive it with the test session."""
+    await _run_digest_pass(session, REACTION_DIGEST, now=now)
+
+
+async def process_reaction_digests() -> None:
+    async with AdminSessionLocal() as session:
+        await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
 
 
 def _resolve_timezone(value: str | None) -> ZoneInfo:
@@ -1932,15 +2411,10 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
     # Allow events that started within the grace window so a 0-minute
     # ("at the time of the event") reminder still fires on the next poll.
     lower = now - EVENT_REMINDER_GRACE
-    users = (
-        (
-            await session.exec(
-                select(User).where(User.event_reminder_minutes_before.is_not(None))
-            )
-        )
-        .scalars()
-        .all()
-    )
+    # Asked of the system engine, not of this session: the sweep routes into
+    # each guild's schema in turn, and a routed session cannot read an
+    # account's preferences.
+    users = await accounts_service.load_event_reminder_optins()
     candidates = [(u.id, u.event_reminder_minutes_before) for u in users]
     for user_id, minutes in candidates:
         if minutes is None:
@@ -1997,9 +2471,7 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     )
                 )
                 await session.commit()
-                recipient = (
-                    await session.exec(select(User).where(User.id == user_id))
-                ).scalar_one_or_none()
+                recipient = await accounts_service.load_one(user_id)
                 event = (
                     await session.exec(
                         select(CalendarEvent).where(CalendarEvent.id == event_id)

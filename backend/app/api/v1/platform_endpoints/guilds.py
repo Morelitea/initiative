@@ -362,6 +362,12 @@ async def join_community_guild(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc
+    except guilds_service.AgeConfirmationRequiredError as exc:
+        # The one thing the caller can fix by answering, so it is its own code:
+        # the SPA ticks the box and repeats the request.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except guilds_service.GuildCapacityError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
@@ -1288,6 +1294,11 @@ async def update_guild_membership(
 
     target_membership.role = payload.role
     session.add(target_membership)
+    # A promotion changes the guild role underneath initiative rows that already
+    # exist; bring them up to the manager role an admin's row carries.
+    await guilds_service.align_admin_initiative_roles(
+        session, guild_id=guild_id, user_id=user_id, role=payload.role
+    )
     await session.commit()
     # Guild-level access change (e.g. admin → member loses the guild-admin
     # bypass): re-check this user's live content streams now so the change takes

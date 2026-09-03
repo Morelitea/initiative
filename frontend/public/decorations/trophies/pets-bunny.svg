@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48"
+     role="presentation">
+  <title>Rabbit</title>
+  <circle cx="24" cy="24" r="23" fill="#2E2116"/>
+  <circle cx="24" cy="24" r="21" fill="none" stroke="#F2E8D6" stroke-width="2"/>
+  <path d="M15.6 17 C13.4 11 13.4 5.6 15.6 4 C18 4.6 19.6 9.6 19.4 16.6 Z" fill="#F2E8D6"/>
+  <path d="M32.4 17 C34.6 11 34.6 5.6 32.4 4 C30 4.6 28.4 9.6 28.6 16.6 Z" fill="#F2E8D6"/>
+  <path d="M16.4 15.4 C15.2 11.4 15.2 7.6 16.4 6.4 C17.6 7.4 18.4 10.6 18.4 15 Z" fill="#E0A4AA"/>
+  <path d="M31.6 15.4 C32.8 11.4 32.8 7.6 31.6 6.4 C30.4 7.4 29.6 10.6 29.6 15 Z" fill="#E0A4AA"/>
+  <path d="M24 13.4 C32 13.4 37 19.6 37 26.6 C37 34 31.4 39.4 24 39.4 C16.6 39.4 11 34 11 26.6
+           C11 19.6 16 13.4 24 13.4 Z" fill="#FBF5EA"/>
+  <path d="M24 13.4 C32 13.4 37 19.6 37 26.6 C37 34 31.4 39.4 24 39.4 C29 35.6 31.4 31 31.4 26.6
+           C31.4 21.4 29 16.6 24 13.4 Z" fill="#E4DAC8" opacity=".6"/>
+  <g fill="#2E2116">
+    <circle cx="18.4" cy="24.6" r="1.9"/><circle cx="29.6" cy="24.6" r="1.9"/>
+  </g>
+  <g fill="#FFFFFF"><circle cx="19.1" cy="23.9" r=".7"/><circle cx="30.3" cy="23.9" r=".7"/></g>
+  <path d="M24 29.6 L26.4 31.4 L21.6 31.4 Z" fill="#E0A4AA"/>
+  <path d="M24 31.4 L24 33" stroke="#2E2116" stroke-width=".7"/>
+  <path d="M24 33 C22.6 34.6 20.6 34.4 20 32.6" fill="none" stroke="#2E2116" stroke-width=".7"
+        stroke-linecap="round"/>
+  <path d="M24 33 C25.4 34.6 27.4 34.4 28 32.6" fill="none" stroke="#2E2116" stroke-width=".7"
+        stroke-linecap="round"/>
+  <g fill="#FFFFFF">
+    <path d="M21.4 34.6 L23.4 34.6 L23.4 37.4 L21.4 37.4 Z"/>
+    <path d="M24.6 34.6 L26.6 34.6 L26.6 37.4 L24.6 37.4 Z"/>
+  </g></svg>

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>Screening</title>
+  <!-- From the back row: the beam, the dust in it, and everybody's head. -->
+  <style>
+    .flicker { animation: reel 5.5s steps(1, end) infinite }
+    @keyframes reel {
+      0%,24%  { opacity: .9 }
+      25%,49% { opacity: .74 }
+      50%,74% { opacity: .86 }
+      75%,100% { opacity: .68 }
+    }
+    .beamdust { animation: swim 12s linear infinite }
+    .b2 { animation-delay: -4s } .b3 { animation-delay: -8s }
+    @keyframes swim {
+      0% { transform: translate(0,0); opacity: 0 }
+      20% { opacity: .5 }
+      100% { transform: translate(-24px,7px); opacity: 0 }
+    }
+    @media (prefers-reduced-motion: reduce) { .flicker, .beamdust { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="house" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#080610"/><stop offset="100%" stop-color="#140F1E"/>
+    </linearGradient>
+    <linearGradient id="picture" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7FA8C4"/><stop offset="52%" stop-color="#C8D6DE"/>
+      <stop offset="100%" stop-color="#5E6E78"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#house)"/>
+  <!-- The screen. -->
+  <path d="M28 3.4 L132 3.4 L132 25.4 L28 25.4 Z" fill="#1A1626"/>
+  <path class="flicker" d="M30 5 L130 5 L130 23.8 L30 23.8 Z" fill="url(#picture)"/>
+  <g class="flicker">
+    <path d="M30 17.4 C48 15.4 62 16.6 78 15.2 C94 13.8 112 15.4 130 14.2 L130 23.8 L30 23.8 Z"
+          fill="#3E4A52"/>
+    <path d="M30 20.6 C50 19 66 20 84 19 C102 18 116 19.4 130 18.6 L130 23.8 L30 23.8 Z"
+          fill="#2A333A"/>
+    <circle cx="98" cy="10.6" r="3.6" fill="#FFF3D2" opacity=".85"/>
+    <g fill="#242C33">
+      <path d="M44 16.6 C46 12.6 48 10.6 50 10.4 C52 10.6 54 12.6 56 16.6 Z"/>
+      <path d="M58 17 C59.4 14.2 60.8 12.8 62.2 12.6 C63.6 12.8 65 14.2 66.4 17 Z"/>
+    </g>
+    <path d="M30 5 L130 5 L130 6.4 L30 6.4 Z" fill="#0E0B16"/>
+    <path d="M30 22.4 L130 22.4 L130 23.8 L30 23.8 Z" fill="#0E0B16"/>
+  </g>
+  <path d="M28 3.4 L132 3.4 L132 25.4 L28 25.4 Z" fill="none" stroke="#2A2438" stroke-width="1.4"/>
+  <!-- The beam, from behind you. -->
+  <path class="flicker" d="M154 34 L158 30 L132 6 L132 23.4 Z" fill="#EAF2FA" opacity=".07"/>
+  <g fill="#EAF2FA">
+    <circle class="beamdust" cx="150" cy="24" r=".3" opacity=".5"/>
+    <circle class="beamdust b2" cx="146" cy="20" r=".26" opacity=".45"/>
+    <circle class="beamdust b3" cx="152" cy="28" r=".28" opacity=".4"/>
+  </g>
+  <!-- The rows in front of you, getting nearer. -->
+  <g fill="#100C1A">
+    <path d="M0 27.4 C20 26.4 140 26.4 160 27.4 L160 31 L0 31 Z"/>
+  </g>
+  <g fill="#0A0714">
+    <ellipse cx="24" cy="27.2" rx="3.4" ry="2.6"/><ellipse cx="46" cy="26.8" rx="3.2" ry="2.4"/>
+    <ellipse cx="70" cy="27.2" rx="3.4" ry="2.6"/><ellipse cx="94" cy="26.9" rx="3.2" ry="2.5"/>
+    <ellipse cx="118" cy="27.2" rx="3.4" ry="2.6"/><ellipse cx="140" cy="26.8" rx="3.2" ry="2.4"/>
+  </g>
+  <g fill="#0C0918">
+    <path d="M0 32 C22 30.8 138 30.8 160 32 L160 36.4 L0 36.4 Z"/>
+  </g>
+  <g fill="#070511">
+    <ellipse cx="12" cy="31.8" rx="4" ry="3"/><ellipse cx="40" cy="31.4" rx="3.8" ry="2.8"/>
+    <ellipse cx="80" cy="31.8" rx="4.2" ry="3.2"/><ellipse cx="112" cy="31.4" rx="3.8" ry="2.8"/>
+    <ellipse cx="146" cy="31.8" rx="4" ry="3"/>
+  </g>
+  <path d="M0 37 C22 35.6 138 35.6 160 37 L160 40 L0 40 Z" fill="#060410"/>
+  <!-- A tub of popcorn on the arm rest, because somebody always has one. -->
+  <g transform="translate(30 34)">
+    <path d="M-3.4 -3.4 L3.4 -3.4 L2.6 3.4 L-2.6 3.4 Z" fill="#C4302B"/>
+    <g fill="#E8E2D2">
+      <path d="M-3.4 -3.4 L-2.6 -3.4 L-2.1 3.4 L-2.6 3.4 Z"/>
+      <path d="M-.8 -3.4 L0 -3.4 L.2 3.4 L-.4 3.4 Z"/>
+      <path d="M1.8 -3.4 L2.6 -3.4 L2.2 3.4 L1.6 3.4 Z"/>
+    </g>
+    <g fill="#F4E7B8">
+      <circle cx="-2" cy="-3.9" r="1.1"/><circle cx="0" cy="-4.4" r="1.2"/>
+      <circle cx="2" cy="-3.9" r="1.1"/><circle cx="-1" cy="-4.9" r=".9"/>
+      <circle cx="1.2" cy="-5" r="1"/>
+    </g>
+  </g>
+</svg>

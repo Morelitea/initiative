@@ -1,8 +1,10 @@
 from typing import Optional
 
 from sqlalchemy import Boolean, Column, Integer, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
+
+from app.models.platform.user_dm_settings import DmPolicy
 
 # Login posture (platform vs guild) is a deploy-time setting, read from
 # ``settings.AUTH_SCOPE`` — see ``app.core.config.AuthScope``. Platform OIDC
@@ -24,6 +26,20 @@ class AppSetting(SQLModel, table=True):
     dark_accent_color: str = Field(
         default="#60a5fa",
         sa_column=Column(String(20), nullable=False, server_default="#60a5fa"),
+    )
+
+    # What this deployment is running, and what it was running before that.
+    # A notice that only matters to somebody upgrading past a given release has
+    # no way to know that from a publication date — a fresh install of 0.70 was
+    # never on 0.64. The pair is rolled forward at boot: when the running
+    # version differs from ``last_seen_version``, the old value becomes
+    # ``previous_version``. Both are NULL on a fresh install, which is exactly
+    # what "never upgraded from anything" looks like.
+    last_seen_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
+    )
+    previous_version: Optional[str] = Field(
+        default=None, sa_column=Column(String(32), nullable=True)
     )
 
     smtp_host: Optional[str] = Field(
@@ -60,6 +76,30 @@ class AppSetting(SQLModel, table=True):
     community_directory_enabled: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    # Whether an account must say it is 13 or older before it belongs to a
+    # guild listed in that directory. On by default, and only a platform owner
+    # turns it off — doing so is that owner asserting that every account on the
+    # deployment already belongs to an adult, which is a thing an enterprise
+    # rollout knows and a public one does not. Independent of the directory
+    # switch above so the assertion survives the directory being toggled.
+    community_age_gate_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # The direct-message policy a newly created account starts on. Read once,
+    # when the account is created, and copied into its ``user_dm_settings`` row;
+    # changing it later moves nobody, so raising it opens no existing account
+    # and lowering it revokes no channel anybody is using.
+    default_dm_policy: DmPolicy = Field(
+        default=DmPolicy.private,
+        sa_column=Column(
+            SQLEnum(DmPolicy, name="user_dm_policy", create_type=False),
+            nullable=False,
+            server_default=DmPolicy.private.value,
+        ),
     )
 
     # AI config ownership mode: "platform" (the operator's connections apply to

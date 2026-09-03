@@ -5,7 +5,7 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead
@@ -32,6 +32,7 @@ class ProjectBase(SanitizedBaseModel):
 
 
 class ProjectCreate(ProjectBase):
+    name: TitleStr
     owner_id: Optional[int] = None
     initiative_id: Optional[int] = None
     is_template: bool = False
@@ -46,7 +47,7 @@ class ProjectCreate(ProjectBase):
 
 
 class ProjectUpdate(SanitizedBaseModel):
-    name: Optional[str] = None
+    name: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     icon: Optional[str] = None
     is_template: Optional[bool] = None
@@ -61,7 +62,7 @@ class ProjectUpdate(SanitizedBaseModel):
 
 
 class ProjectDuplicateRequest(SanitizedBaseModel):
-    name: Optional[str] = None
+    name: Optional[TitleStr] = None
 
 
 class ProjectTaskSummary(SanitizedBaseModel):
@@ -108,6 +109,10 @@ class ProjectRead(ProjectBase):
     task_statuses: List[TaskStatusRead] = Field(
         default_factory=list, validation_alias="task_statuses_source"
     )
+    # Advanced setting: when true this entity's comment thread is off — the
+    # UI renders none and the API refuses to read or post one. Tasks are
+    # unaffected; their thread belongs to the task, not to the tool.
+    comments_disabled: bool = False
     tags: List[TagSummary] = Field(default_factory=list)
     # The current user's effective level on this resource (what *I* can do).
     my_permission_level: Optional[str] = None

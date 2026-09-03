@@ -1,12 +1,14 @@
-import { cn } from "@/lib/utils";
 import type { DisplayableUser } from "@/lib/userDisplay";
 import { formatDiscriminator, getUserHandle } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 interface UserHandleProps {
   user: DisplayableUser | null | undefined;
   className?: string;
   /** Muting for the number. Override where the surrounding text is already muted. */
   numberClassName?: string;
+  /** Clipping for the name, where the row is narrower than the handle is long. */
+  nameClassName?: string;
 }
 
 /**
@@ -18,11 +20,16 @@ interface UserHandleProps {
  * would give away the only thing that makes a wall of digits readable. For
  * plain text (a title, an export) use `getUserHandle` instead.
  */
-export const UserHandle = ({ user, className, numberClassName }: UserHandleProps) => {
+export const UserHandle = ({
+  user,
+  className,
+  numberClassName,
+  nameClassName,
+}: UserHandleProps) => {
   if (!user?.username) return null;
   return (
     <span className={cn("inline-flex items-baseline", className)} title={getUserHandle(user)}>
-      <span>{user.username}</span>
+      <span className={nameClassName}>{user.username}</span>
       <span className={cn("text-muted-foreground/70", numberClassName)}>
         #{formatDiscriminator(user.discriminator)}
       </span>

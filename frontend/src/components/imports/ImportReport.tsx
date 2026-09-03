@@ -9,13 +9,13 @@ interface BackupResult {
   entries?: Array<{ title: string; tool: string; status: string; error?: string | null }>;
   assets_restored?: number;
   assets_deduped?: number;
-  unmatched_emails?: string[];
+  unmatched_handles?: string[];
 }
 
 interface EnvelopeResult {
   entity_title?: string;
   created?: Record<string, number>;
-  unmatched_emails?: string[];
+  unmatched_handles?: string[];
 }
 
 /** Render a terminal import job's persisted report — backup jobs get the
@@ -89,10 +89,10 @@ export function ImportReport({ job }: { job: ImportJobRead }) {
           })}
         </p>
       )}
-      {(result.unmatched_emails?.length ?? 0) > 0 && (
+      {(result.unmatched_handles?.length ?? 0) > 0 && (
         <p className="text-muted-foreground text-xs">
-          {t("wizard.report.unmatchedEmails", {
-            emails: (result.unmatched_emails ?? []).join(", "),
+          {t("wizard.report.unmatchedHandles", {
+            handles: (result.unmatched_handles ?? []).join(", "),
           })}
         </p>
       )}

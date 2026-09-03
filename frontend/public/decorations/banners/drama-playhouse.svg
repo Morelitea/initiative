@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <style>
+    .cresset { animation: flick 1.9s ease-in-out infinite alternate;
+               transform-box: fill-box; transform-origin: 50% 100% }
+    .c2 { animation-duration: 1.4s } .c3 { animation-duration: 2.3s }
+    @keyframes flick { from { transform: scaleY(.82) scaleX(1.1) }
+                       to { transform: scaleY(1.14) scaleX(.92) } }
+    .sun { animation: cross 26s ease-in-out infinite alternate }
+    @keyframes cross { from { transform: translateX(-14px); opacity: .3 }
+                       to { transform: translateX(14px); opacity: .6 } }
+    @media (prefers-reduced-motion: reduce) { .cresset, .sun { animation: none } }
+  </style>
+  <title>The wooden O</title>
+  <!-- A galleried playhouse, from the yard where you stand. -->
+  <defs>
+    <radialGradient id="yardsun" cx=".5" cy=".2" r=".7">
+      <stop offset="0%" stop-color="#FFE7B8" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#FFE7B8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="skyO" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5A79A8"/><stop offset="100%" stop-color="#C9B48E"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#skyO)"/>
+  <!-- Galleries, curving away either side. -->
+  <path d="M0 40 L0 6 C24 2 48 0 80 0 C112 0 136 2 160 6 L160 40 Z" fill="#E4D3AC"/>
+  <g fill="#C9B48E">
+    <path d="M0 14 C24 10.6 48 9 80 9 C112 9 136 10.6 160 14 L160 21
+             C136 17.6 112 16 80 16 C48 16 24 17.6 0 21 Z"/>
+    <path d="M0 27 C24 23.6 48 22 80 22 C112 22 136 23.6 160 27 L160 32
+             C136 28.6 112 27 80 27 C48 27 24 28.6 0 32 Z"/>
+  </g>
+  <g stroke="#8A6A44" stroke-width="1.4" fill="none">
+    <path d="M0 14 C24 10.6 48 9 80 9 C112 9 136 10.6 160 14"/>
+    <path d="M0 21 C24 17.6 48 16 80 16 C112 16 136 17.6 160 21"/>
+    <path d="M0 27 C24 23.6 48 22 80 22 C112 22 136 23.6 160 27"/>
+    <path d="M0 32 C24 28.6 48 27 80 27 C112 27 136 28.6 160 32"/>
+    <path d="M14 12.4 L14 30.6"/><path d="M34 10.6 L34 28.6"/><path d="M54 9.6 L54 27.4"/>
+    <path d="M106 9.6 L106 27.4"/><path d="M126 10.6 L126 28.6"/><path d="M146 12.4 L146 30.6"/>
+  </g>
+  <g fill="#6B4A2A" opacity=".5">
+    <ellipse cx="24" cy="18.6" rx="2.6" ry="2.2"/><ellipse cx="44" cy="17.4" rx="2.6" ry="2.2"/>
+    <ellipse cx="116" cy="17.4" rx="2.6" ry="2.2"/><ellipse cx="136" cy="18.6" rx="2.6" ry="2.2"/>
+    <ellipse cx="24" cy="30" rx="2.6" ry="2.2"/><ellipse cx="136" cy="30" rx="2.6" ry="2.2"/>
+  </g>
+  <!-- The thrust stage, and the two pillars holding the heavens up. -->
+  <path d="M60 40 L100 40 L100 30 L60 30 Z" fill="#8A6A44"/>
+  <path d="M58 30 L102 30 L102 28.6 L58 28.6 Z" fill="#A87C48"/>
+  <path d="M62 28.6 L66 28.6 L66 8 L62 8 Z" fill="#7A5330"/>
+  <path d="M94 28.6 L98 28.6 L98 8 L94 8 Z" fill="#7A5330"/>
+  <path d="M58 9 L102 9 L102 5.4 L58 5.4 Z" fill="#5E3F22"/>
+  <path d="M58 5.4 L102 5.4 L80 0 Z" fill="#4A3018"/>
+  <g fill="#1E3A5A" opacity=".85">
+    <path d="M66 28.6 L94 28.6 L94 9 L66 9 Z"/>
+  </g>
+  <g fill="#C9A063" opacity=".75">
+    <circle cx="80" cy="14" r="3.4"/>
+    <path d="M80 17.4 C77.4 19.4 76 22 76 25 L84 25 C84 22 82.6 19.4 80 17.4 Z"/>
+  </g>
+  <g fill="#8E1B28">
+    <path d="M66 9 L74 9 C72 15 72 22.6 74 28.6 L66 28.6 Z"/>
+    <path d="M94 9 L86 9 C88 15 88 22.6 86 28.6 L94 28.6 Z"/>
+  </g>
+  <!-- The yard, and the heads in it. -->
+  <g fill="#3A2A18">
+    <circle cx="20" cy="38" r="3.4"/><circle cx="32" cy="39" r="3"/><circle cx="44" cy="37.6" r="3.4"/>
+    <circle cx="116" cy="37.6" r="3.4"/><circle cx="128" cy="39" r="3"/><circle cx="140" cy="38" r="3.4"/>
+  </g>  <ellipse class="sun" cx="80" cy="4" rx="60" ry="22" fill="url(#yardsun)"/>
+  <g>
+    <g transform="translate(18 30)">
+      <path d="M-1 0 L1 0 L.6 -3.4 L-.6 -3.4 Z" fill="#4A3520"/>
+      <path class="cresset" d="M0 -3.4 C-1.6 -5.4 -1.2 -7.4 0 -9 C1.2 -7.4 1.6 -5.4 0 -3.4 Z"
+            fill="#F6A020"/>
+    </g>
+    <g transform="translate(142 30)">
+      <path d="M-1 0 L1 0 L.6 -3.4 L-.6 -3.4 Z" fill="#4A3520"/>
+      <path class="cresset c2" d="M0 -3.4 C-1.6 -5.4 -1.2 -7.4 0 -9 C1.2 -7.4 1.6 -5.4 0 -3.4 Z"
+            fill="#F6A020"/>
+    </g>
+    <g transform="translate(80 34)">
+      <path d="M-.9 0 L.9 0 L.5 -2.8 L-.5 -2.8 Z" fill="#4A3520"/>
+      <path class="cresset c3" d="M0 -2.8 C-1.3 -4.4 -1 -6 0 -7.4 C1 -6 1.3 -4.4 0 -2.8 Z"
+            fill="#F6A020"/>
+    </g>
+  </g>
+</svg>

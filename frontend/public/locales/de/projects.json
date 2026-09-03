@@ -1,6 +1,6 @@
 {
   "title": "Projekte",
-  "subtitle": "Verfolge Initiativen und arbeite mit deiner Gilde zusammen.",
+  "subtitle": "Verfolge Initiativen und arbeite mit deiner Community zusammen.",
   "addProject": "Projekt hinzufügen",
   "loading": "Projekte werden geladen…",
   "loadError": "Projekte konnten nicht geladen werden.",
@@ -12,15 +12,15 @@
   "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
   "myProjects": {
     "title": "Meine Projekte",
-    "subtitle": "Projekte, auf die du in all deinen Gilden Zugriff hast.",
+    "subtitle": "Projekte, auf die du in all deinen Communitys Zugriff hast.",
     "empty": "Du bist noch in keinem Projekt.",
     "loadError": "Deine Projekte konnten nicht geladen werden.",
     "searchPlaceholder": "Projekte suchen...",
-    "filterByGuild": "Nach Gilde filtern",
-    "allGuilds": "Alle Gilden",
-    "noGuilds": "Keine Gilden verfügbar",
+    "filterByGuild": "Nach Community filtern",
+    "allGuilds": "Alle Communitys",
+    "noGuilds": "Keine Communitys verfügbar",
     "columns": {
-      "guild": "Gilde",
+      "guild": "Community",
       "project": "Projekt",
       "initiative": "Initiative",
       "tasks": "Aufgaben",

@@ -7,7 +7,7 @@ icon: lucide/settings
 Your settings are split into two places, depending on whether they affect **you** or affect a **whole group**.
 
 - **User settings** — your personal account and preferences. Open them from your name/avatar at the bottom of the sidebar.
-- **Guild settings** — settings for a whole workspace, available to guild administrators. Covered under [Working with guilds](../guides/guilds.md).
+- **Community settings** — settings for a whole workspace, available to community administrators. Covered under [Working with communities](../guides/communities.md).
 - **Platform settings** — server-wide configuration, for the server's owner. Covered in the [administrator guide](../admin/index.md).
 
 This section is about **your** settings.
@@ -16,10 +16,11 @@ This section is about **your** settings.
 
 | Tab | What it's for |
 |---|---|
-| **Profile** | Your name, password, avatar, and timezone. |
-| **Interface** | Theme, language, week start, task-completion effects, and other look-and-feel choices. |
+| **Profile** | The face other people see: your picture, status, and decorations. |
+| **Account** | How you sign in — your email, your handle, and your password. |
+| **Interface** | Theme, language, timezone, week start, task-completion effects, and other look-and-feel choices. |
 | **Notifications** | What you're notified about, and where. See [Notifications](../guides/notifications.md). |
-| **AI** | Your personal AI settings, if your server allows them. See [AI features](ai-features.md). |
+| **AI** | Your personal AI settings. Only appears if there's an AI connection for you to set up. See [AI features](ai-features.md). |
 | **Import** | Bring tasks in from other tools. See below. |
 | **Security** | Signed-in devices and access keys. See [API keys & integrations](api-keys-and-integrations.md). |
 | **Trash** | Your recently deleted items. |
@@ -29,7 +30,7 @@ This section is about **your** settings.
 
 -   :material-account-cog-outline: __Profile & preferences__
 
-    Your name, password, timezone, theme, and account options.
+    Your profile and decorations, how you sign in, and how the app looks.
 
     [:octicons-arrow-right-24: Profile & preferences](profile-and-preferences.md)
 

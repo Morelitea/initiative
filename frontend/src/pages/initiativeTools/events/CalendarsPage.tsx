@@ -1,6 +1,6 @@
 import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -573,6 +573,30 @@ export const CalendarsView = ({
     [t]
   );
 
+  // Which calendars are drawn — real calendars plus one read-only calendar per
+  // project with tasks in the window. On the app's own surface this is the only
+  // control the page has, so it rides the toolbar row; an initiative's calendar
+  // tab has a panel full of task-shaped filters for it to sit in.
+  const calendarPicker = (
+    <CalendarPanelDropdown
+      calendars={calendars}
+      projectCalendars={projectCalendars}
+      isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
+      isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
+      onToggleCalendar={(calendar) =>
+        setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
+      }
+      onToggleProject={(project) =>
+        setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
+      }
+      settingsPathFor={(calendar) =>
+        gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
+      }
+      canCreate={canCreateCalendars}
+      onCreate={() => setCreateCalendarOpen(true)}
+    />
+  );
+
   const isLoading =
     (entriesQuery.isLoading && !entriesQuery.data) ||
     (calendarsQuery.isLoading && !calendarsQuery.data);
@@ -589,10 +613,21 @@ export const CalendarsView = ({
       )}
 
       <ToolListToolbar
+        leading={guildScope ? calendarPicker : undefined}
         filters={
-          solo
+          /* The app surface's filters were only ever the calendar picker, now
+             on the row itself; the solo deep link has one calendar to narrow. */
+          guildOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
+        }
+        actions={
+          guildScope && canCreateCalendars ? (
+            <Button size="sm" className="h-9" onClick={() => setCreateCalendarOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {t("createCalendar")}
+            </Button>
+          ) : null
         }
         trailing={
           /* Export and tool import aggregate across calendars, which is not
@@ -623,11 +658,11 @@ export const CalendarsView = ({
       />
       {calendarImport.dialog}
 
-      {/* Filters. Most of them are task- and initiative-shaped, so the guild
-          surface keeps only the one that isn't: which calendars are showing.
-          The solo deep link has a single calendar, so it has nothing to
-          narrow. */}
-      {!solo && (
+      {/* Filters — task- and initiative-shaped, every one of them. Neither
+          guild surface holds tasks or an initiative, so they are absent there
+          rather than empty, and the one control those surfaces do want (which
+          calendars are showing) sits on the toolbar row instead. */}
+      {!guildOnly && (
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
@@ -638,76 +673,51 @@ export const CalendarsView = ({
           <div className="flex flex-wrap items-end gap-4">
             {/* Calendar visibility — real calendars + per-project task
                 calendars behind one dropdown, so the grid keeps full width. */}
-            <div className="flex items-end">
-              <CalendarPanelDropdown
-                calendars={calendars}
-                projectCalendars={projectCalendars}
-                isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
-                isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
-                onToggleCalendar={(calendar) =>
-                  setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
-                }
-                onToggleProject={(project) =>
-                  setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
-                }
-                settingsPathFor={(calendar) =>
-                  gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
-                }
-                canCreate={canCreateCalendars}
-                onCreate={() => setCreateCalendarOpen(true)}
+            <div className="flex items-end">{calendarPicker}</div>
+
+            {/* Status filter (for tasks) */}
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByStatusCategory")}
+              </Label>
+              <MultiSelect
+                selectedValues={statusFilters}
+                options={statusOptions}
+                onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
+                placeholder={t("tasks:filters.allStatusCategories")}
+                emptyMessage={t("tasks:filters.noStatusCategories")}
               />
             </div>
 
-            {/* The rest are task- and initiative-shaped: a guild calendar
-                holds neither, so they are absent rather than empty — nothing
-                behind them (the property definitions read) runs here. */}
-            {guildOnly ? null : (
-              <>
-                {/* Status filter (for tasks) */}
-                <div className="w-full sm:w-48 lg:flex-1">
-                  <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                    {t("tasks:filters.filterByStatusCategory")}
-                  </Label>
-                  <MultiSelect
-                    selectedValues={statusFilters}
-                    options={statusOptions}
-                    onChange={(values) => setStatusFilters(values as TaskStatusCategory[])}
-                    placeholder={t("tasks:filters.allStatusCategories")}
-                    emptyMessage={t("tasks:filters.noStatusCategories")}
-                  />
-                </div>
+            {/* Priority filter (for tasks) */}
+            <div className="w-full sm:w-48 lg:flex-1">
+              <Label className="mb-2 block font-medium text-muted-foreground text-xs">
+                {t("tasks:filters.filterByPriority")}
+              </Label>
+              <MultiSelect
+                selectedValues={priorityFilters}
+                options={PRIORITY_ORDER.map((p) => ({
+                  value: p,
+                  label: t(`tasks:priority.${p}` as never),
+                }))}
+                onChange={(values) => setPriorityFilters(values as TaskPriority[])}
+                placeholder={t("tasks:filters.allPriorities")}
+                emptyMessage={t("tasks:filters.noPriorities")}
+              />
+            </div>
 
-                {/* Priority filter (for tasks) */}
-                <div className="w-full sm:w-48 lg:flex-1">
-                  <Label className="mb-2 block font-medium text-muted-foreground text-xs">
-                    {t("tasks:filters.filterByPriority")}
-                  </Label>
-                  <MultiSelect
-                    selectedValues={priorityFilters}
-                    options={PRIORITY_ORDER.map((p) => ({
-                      value: p,
-                      label: t(`tasks:priority.${p}` as never),
-                    }))}
-                    onChange={(values) => setPriorityFilters(values as TaskPriority[])}
-                    placeholder={t("tasks:filters.allPriorities")}
-                    emptyMessage={t("tasks:filters.noPriorities")}
-                  />
-                </div>
-
-                {/* Custom property filters — applied to both events and tasks
+            {/* Custom property filters — applied to both events and tasks
                 rendered on the calendar. Scoped to the active initiative
                 when one is selected, union across accessible initiatives
                 otherwise. Nested inside the same bordered filter container
                 so it lines up with the other controls. */}
-                <div className="w-full">
-                  <PropertyFilter
-                    value={propertyFilters}
-                    onChange={setPropertyFilters}
-                    {...(initiativeId != null ? { initiativeId } : {})}
-                  />
-                </div>
-              </>
-            )}
+            <div className="w-full">
+              <PropertyFilter
+                value={propertyFilters}
+                onChange={setPropertyFilters}
+                {...(initiativeId != null ? { initiativeId } : {})}
+              />
+            </div>
           </div>
         </ToolFilterPanel>
       )}
@@ -810,9 +820,8 @@ export function CalendarFocusPage() {
         soloCalendar={isGuildCalendar ? calendar : undefined}
       />
       <ToolCommentsPanel
-        entityType={Tool.calendar}
-        entityId={calendar.id}
-        initiativeId={calendar.initiative_id ?? 0}
+        tool={Tool.calendar}
+        entity={calendar}
         canModerate={hasWriteAccess(calendar.my_permission_level)}
       />
     </div>

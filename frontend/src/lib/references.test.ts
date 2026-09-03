@@ -1,0 +1,58 @@
+import { describe, expect, it } from "vitest";
+
+import { buildInitiative } from "@/__tests__/factories";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { isCreatableFromName, linkableToolTypes } from "@/lib/references";
+
+const enabled = (overrides = {}) =>
+  buildInitiative({
+    queues_enabled: true,
+    counter_groups_enabled: true,
+    calendars_enabled: true,
+    dashboards_enabled: true,
+    ...overrides,
+  });
+
+describe("what [[ ]] can reach", () => {
+  it("is the tools, derived from the enum", () => {
+    expect(linkableToolTypes(enabled()).sort()).toEqual(Object.values(Tool).map(String).sort());
+  });
+
+  it("leaves out a tool this initiative switched off", () => {
+    const types = linkableToolTypes(enabled({ queues_enabled: false }));
+    expect(types).not.toContain(SearchEntityType.queue);
+    // The rest are untouched.
+    expect(types).toContain(SearchEntityType.calendar);
+  });
+
+  it("keeps the core tools, which have no switch to turn off", () => {
+    const types = linkableToolTypes(enabled({ queues_enabled: false, calendars_enabled: false }));
+    expect(types).toContain(SearchEntityType.project);
+    expect(types).toContain(SearchEntityType.document);
+  });
+
+  it("never reaches what lives inside a tool", () => {
+    // A task needs a project, an event needs a calendar and a time — neither
+    // can be made from a name, so `#` is how you reach them.
+    const types = linkableToolTypes(enabled());
+    expect(types).not.toContain(SearchEntityType.task);
+    expect(types).not.toContain(SearchEntityType.calendar_event);
+    expect(types).not.toContain(SearchEntityType.tag);
+  });
+});
+
+describe("what [[ ]] can create", () => {
+  it("will not put back a tool the initiative turned off", () => {
+    const initiative = enabled({ queues_enabled: false });
+    expect(isCreatableFromName(SearchEntityType.queue, initiative)).toBe(false);
+    expect(isCreatableFromName(SearchEntityType.document, initiative)).toBe(true);
+  });
+
+  it("creates nothing until the initiative is known", () => {
+    expect(isCreatableFromName(SearchEntityType.document, null)).toBe(false);
+  });
+
+  it("creates no task, however it is spelled", () => {
+    expect(isCreatableFromName(SearchEntityType.task, enabled())).toBe(false);
+  });
+});

@@ -119,6 +119,27 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # and anonymization paths — both of which act on someone else's row and so
     # cannot run under the own-row request-path policies.
     "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # A person's decoration library. Grants are issued, never self-served: a
+    # pack install writes the rows and an uninstall removes them, both on the
+    # system engine. The request path only reads its own (SELECT), so every
+    # write verb lives here.
+    "user_decorations": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # My Contacts stars. The request path owns every write under its own-row
+    # policies; the system engine reads and deletes only for erasure, which has
+    # to clear an anonymized account off other people's lists too — the row
+    # survives the husk, so the FK cascade never fires for it.
+    "profile_favorites": frozenset({"SELECT", "DELETE"}),
+    # An account is created on the system engine (registration, invite
+    # redemption, provisioning from an identity provider), and its policy row is
+    # seeded there from the operator default — hence INSERT. The other three are
+    # written on the request path by the account holder; the system engine only
+    # reads them for the guild-lifecycle sweeps and clears them on erasure.
+    "user_dm_settings": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "user_dm_guild_optouts": frozenset({"SELECT", "DELETE"}),
+    "contact_grants": frozenset({"SELECT", "DELETE"}),
+    # SELECT also carries the notification fan-out: who, of a set of
+    # recipients, ignores the actor (see app.services.platform.accounts).
+    "user_ignores": frozenset({"SELECT", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -151,6 +172,17 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # Authoring runs on the system engine because a draft is invisible to the
+    # request path by policy — which is the point of the policy.
+    "announcements": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # Receipts are written by the reader under their own role. The system
+    # engine only ever removes them, when the announcement they name goes.
+    "announcement_reads": frozenset({"SELECT", "DELETE"}),
+    # The system engine stores, touches and prunes the pictures; the request
+    # path reads them under its own role (a signed-in account may fetch any of
+    # them). UPDATE is the dedupe touch — the same bytes uploaded twice keep
+    # one row, and the second upload restarts the orphan clock on it.
+    "announcement_images": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     # Append-only. The system engine writes the record and the board reads it;
     # UPDATE and DELETE are granted to nobody at all, here included, because a
@@ -225,6 +257,18 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # avatar, and the row policies narrow writes to the caller's own. The bare
     # login role reads because the serve endpoint answers before routing.
     "user_avatars": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # A library belongs to a signed-in account, and the bare pre-routing login
+    # role serves nobody in particular.
+    "user_decorations": None,
+    # A contacts list belongs to a signed-in account, and the bare pre-routing
+    # login role serves nobody in particular.
+    "profile_favorites": None,
+    # Read and written on the authenticated platform-tier path, never before a
+    # session is routed.
+    "user_dm_settings": None,
+    "user_dm_guild_optouts": None,
+    "contact_grants": None,
+    "user_ignores": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,
@@ -258,6 +302,11 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # sessions are system-engine-only; the bare login role never touches them
     "auth_sessions": None,
     "notifications": None,
+    # An announcement is shown to a signed-in account, so nothing about it is
+    # read before routing.
+    "announcements": None,
+    "announcement_reads": None,
+    "announcement_images": None,
     "oidc_claim_mappings": None,
     "push_tokens": None,
     "user_view_preferences": None,

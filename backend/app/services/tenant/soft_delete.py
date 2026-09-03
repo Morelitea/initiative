@@ -284,9 +284,16 @@ async def hard_purge_entity(
     """
     from app.services.tenant.documents import unresolve_wikilinks_to_document
     from app.services.tenant.attachments import purge_document_uploads
+    from app.services.tenant.reactions import purge_comment_reactions
 
     descendants = await _gather_descendants(session, entity)
     all_doomed: list[SoftDeleteMixin] = [entity, *descendants]
+
+    # Reactions name their target polymorphically, so no foreign key carries
+    # them out with the comment. Cleared explicitly, before the row goes.
+    doomed_comments = [c for c in all_doomed if isinstance(c, Comment)]
+    if doomed_comments:
+        await purge_comment_reactions(session, doomed_comments)
 
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:

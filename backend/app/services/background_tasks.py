@@ -23,6 +23,7 @@ async def _loop_worker(task_coro, interval: int, name: str) -> None:
 def start_background_tasks() -> list[asyncio.Task]:
     from app.services.notifications import (
         process_assignment_digest_gc,
+        process_reaction_digests,
         process_task_assignment_digests,
         process_overdue_notifications,
         process_event_reminders,
@@ -34,6 +35,10 @@ def start_background_tasks() -> list[asyncio.Task]:
     from app.services.oidc_refresh import (
         process_oidc_refresh_sync,
         OIDC_SYNC_POLL_SECONDS,
+    )
+    from app.services.platform.announcements import (
+        process_announcement_image_purge,
+        IMAGE_PURGE_POLL_SECONDS,
     )
     from app.services.tenant.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
     from app.services.tenant.app_updates import (
@@ -84,9 +89,15 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(
+                process_reaction_digests, DIGEST_POLL_SECONDS, "reaction-digest"
+            )
+        ),
+        # One GC sweep covers every digest queue.
+        asyncio.create_task(
+            _loop_worker(
                 process_assignment_digest_gc,
                 ASSIGNMENT_GC_POLL_SECONDS,
-                "task-digest-gc",
+                "digest-gc",
             )
         ),
         asyncio.create_task(
@@ -106,6 +117,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(process_trash_purges, PURGE_POLL_SECONDS, "trash-purge")
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_announcement_image_purge,
+                IMAGE_PURGE_POLL_SECONDS,
+                "announcement-image-purge",
+            )
         ),
         asyncio.create_task(
             _loop_worker(

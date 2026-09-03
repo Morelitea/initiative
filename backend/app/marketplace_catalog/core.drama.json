@@ -1,0 +1,64 @@
+{
+  "uid": "C2VMB6HX1TFP84",
+  "public_id": "core.drama",
+  "kind": "profile_pack",
+  "name": "Drama",
+  "publisher": "Initiative",
+  "description": "All the world's a stage.",
+  "long_description": "Two houses to play and a marquee out front: a lit stage where the curtain really does close, a wooden O, and SHOWTIME under the searchlights. Velvet or a laurel to frame you, and trophies out of the plays nobody owns any more — the two masks, Yorick, a balcony and a dagger.",
+  "avatar_url": "/decorations/banners/drama-stage.svg",
+  "images": [],
+  "version": "1.4.0",
+  "release_notes": "A marquee where the amphitheatre was.",
+  "definition": {
+    "schema_version": 1,
+    "kind": "profile_pack",
+    "decorations": [
+      {
+        "id": "drama.stage",
+        "slot": "banner",
+        "name": "Stage"
+      },
+      {
+        "id": "drama.curtain",
+        "slot": "frame",
+        "name": "Curtain"
+      },
+      {
+        "id": "drama.masks",
+        "slot": "trophy",
+        "name": "Masks"
+      },
+      {
+        "id": "drama.playhouse",
+        "slot": "banner",
+        "name": "The wooden O"
+      },
+      {
+        "id": "drama.laurel",
+        "slot": "frame",
+        "name": "Laurel"
+      },
+      {
+        "id": "drama.skull",
+        "slot": "trophy",
+        "name": "Yorick"
+      },
+      {
+        "id": "drama.balcony",
+        "slot": "trophy",
+        "name": "Balcony"
+      },
+      {
+        "id": "drama.dagger",
+        "slot": "trophy",
+        "name": "Dagger"
+      },
+      {
+        "id": "drama.showtime",
+        "slot": "banner",
+        "name": "Showtime"
+      }
+    ]
+  }
+}

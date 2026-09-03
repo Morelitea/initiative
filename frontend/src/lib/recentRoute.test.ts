@@ -17,7 +17,7 @@ describe("recentRoute", () => {
       guild_id: 3,
       initiative_id: 5,
     });
-    expect(recentRoute(item)).toBe("/g/3/i/5/projects/7");
+    expect(recentRoute(item)).toBe("/c/3/i/5/projects/7");
   });
 
   // Only calendars can be guild-level (an app installs one).
@@ -28,13 +28,13 @@ describe("recentRoute", () => {
       guild_id: 3,
       initiative_id: null,
     });
-    expect(recentRoute(item)).toBe("/g/3/calendars/9");
+    expect(recentRoute(item)).toBe("/c/3/calendars/9");
   });
 });
 
 describe("getActiveRecentKey", () => {
   it("reads guild, initiative, tool and entity out of a nested path", () => {
-    expect(getActiveRecentKey("/g/3/i/5/counter-groups/7")).toEqual({
+    expect(getActiveRecentKey("/c/3/i/5/counter-groups/7")).toEqual({
       entityType: "counter_group",
       entityId: 7,
       guildId: 3,
@@ -43,7 +43,7 @@ describe("getActiveRecentKey", () => {
   });
 
   it("still matches when the path continues past the entity", () => {
-    expect(getActiveRecentKey("/g/1/i/2/projects/4/tasks/9")).toEqual({
+    expect(getActiveRecentKey("/c/1/i/2/projects/4/tasks/9")).toEqual({
       entityType: "project",
       entityId: 4,
       guildId: 1,
@@ -52,7 +52,7 @@ describe("getActiveRecentKey", () => {
   });
 
   it("reads the guild-level shape with no initiative segment", () => {
-    expect(getActiveRecentKey("/g/1/calendars/12")).toEqual({
+    expect(getActiveRecentKey("/c/1/calendars/12")).toEqual({
       entityType: "calendar",
       entityId: 12,
       guildId: 1,
@@ -61,22 +61,22 @@ describe("getActiveRecentKey", () => {
   });
 
   it("returns null for a path that names no entity", () => {
-    expect(getActiveRecentKey("/g/1/i/2/projects")).toBeNull();
-    expect(getActiveRecentKey("/g/1/i/2")).toBeNull();
-    expect(getActiveRecentKey("/g/1/settings/users")).toBeNull();
+    expect(getActiveRecentKey("/c/1/i/2/projects")).toBeNull();
+    expect(getActiveRecentKey("/c/1/i/2")).toBeNull();
+    expect(getActiveRecentKey("/c/1/settings/users")).toBeNull();
     expect(getActiveRecentKey("/profile")).toBeNull();
     // A tool segment that isn't a tool.
-    expect(getActiveRecentKey("/g/1/i/2/widgets/3")).toBeNull();
+    expect(getActiveRecentKey("/c/1/i/2/widgets/3")).toBeNull();
     // A non-numeric id must not parse as one.
-    expect(getActiveRecentKey("/g/1/i/2/projects/gallery")).toBeNull();
+    expect(getActiveRecentKey("/c/1/i/2/projects/gallery")).toBeNull();
   });
 });
 
 describe("recentKeyMatches", () => {
   it("matches on guild too, since entity ids collide across guilds", () => {
     const item = buildRecentItem({ entity_type: "project", entity_id: 4, guild_id: 1 });
-    expect(recentKeyMatches(getActiveRecentKey("/g/1/i/2/projects/4"), item)).toBe(true);
-    expect(recentKeyMatches(getActiveRecentKey("/g/9/i/2/projects/4"), item)).toBe(false);
+    expect(recentKeyMatches(getActiveRecentKey("/c/1/i/2/projects/4"), item)).toBe(true);
+    expect(recentKeyMatches(getActiveRecentKey("/c/9/i/2/projects/4"), item)).toBe(false);
     expect(recentKeyMatches(null, item)).toBe(false);
   });
 });

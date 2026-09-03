@@ -113,7 +113,9 @@ export const ProjectListPanel = ({
     { value: "list", label: t("view.list"), icon: List },
   ];
 
-  const selection = useGridSelection<ProjectRead>();
+  // Ranges run along the order the cards render in — in selection mode
+  // that's `sortedProjects` (the pinned section is hidden while selecting).
+  const selection = useGridSelection<ProjectRead>(sortedProjects);
   // An archived project refuses sharing changes server-side, so the bulk
   // action is disabled up front rather than failing when the dialog submits.
   // Export is unaffected — it only reads.
@@ -168,7 +170,7 @@ export const ProjectListPanel = ({
           key={project.id}
           active
           selected={selection.selectedIds.has(project.id)}
-          onToggle={() => selection.toggle(project)}
+          onToggle={(options) => selection.toggle(project, options)}
           label={project.name}
         >
           <ProjectItem

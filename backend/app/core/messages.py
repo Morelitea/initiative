@@ -74,6 +74,10 @@ class GuildMessages:
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.
     COMMUNITY_DIRECTORY_DISABLED = "COMMUNITY_DIRECTORY_DISABLED"
+    # The caller has not said they are 13 or older, and the guild they asked to
+    # join is listed in the directory. The deployment's own switch decides
+    # whether this is ever raised at all.
+    AGE_CONFIRMATION_REQUIRED = "GUILD_AGE_CONFIRMATION_REQUIRED"
     # A guild icon or banner rendition that is not one. Each names the rule it
     # broke, so the settings page can say what to do about it rather than
     # "that didn't work".
@@ -318,6 +322,15 @@ class CommentMessages:
     AUTHOR_ONLY_EDIT = "COMMENT_AUTHOR_ONLY_EDIT"
     AUTHOR_ONLY_DELETE = "COMMENT_AUTHOR_ONLY_DELETE"
     NOT_LINKED = "COMMENT_NOT_LINKED"
+    COMMENTS_DISABLED = "COMMENTS_DISABLED"
+
+
+class ReactionMessages:
+    TARGET_NOT_FOUND = "REACTION_TARGET_NOT_FOUND"
+    PERMISSION_DENIED = "REACTION_PERMISSION_DENIED"
+    NOT_FOUND = "REACTION_NOT_FOUND"
+    INVALID_EMOJI = "REACTION_INVALID_EMOJI"
+    TOO_MANY = "REACTION_TOO_MANY"
 
 
 class SettingsMessages:
@@ -405,6 +418,17 @@ class UserMessages:
     API_KEY_READ_ONLY = "USER_API_KEY_READ_ONLY"
     API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_GUILD_FORBIDDEN"
     USERNAME_ALREADY_CHOSEN = "USERNAME_ALREADY_CHOSEN"
+    #: The date given puts this account under the minimum age for the parts of
+    #: the platform that are open to people they have not met.
+    AGE_BELOW_MINIMUM = "USER_AGE_BELOW_MINIMUM"
+    #: A date that is not one somebody could have been born on — in the future,
+    #: or further back than a person lives.
+    AGE_INVALID_BIRTHDATE = "USER_AGE_INVALID_BIRTHDATE"
+    #: The account already answered as under age. The answer stands until
+    #: somebody with the standing to put it right lifts it.
+    AGE_ANSWER_STANDS = "USER_AGE_ANSWER_STANDS"
+    #: Asked to lift an age block on an account that has none.
+    AGE_NOT_BLOCKED = "USER_AGE_NOT_BLOCKED"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"
@@ -430,6 +454,13 @@ class UserMessages:
     # A read payload's ``avatar_url`` is a path this API serves; writing one
     # back would store it as though it were an external picture URL.
     AVATAR_URL_NOT_EXTERNAL = "USER_AVATAR_URL_NOT_EXTERNAL"
+    #: A decoration this account's library does not answer for — one it does
+    #: not have, or one it has for a different slot.
+    DECORATION_NOT_OWNED = "USER_DECORATION_NOT_OWNED"
+    #: A pack id this build does not ship.
+    DECORATION_PACK_NOT_FOUND = "USER_DECORATION_PACK_NOT_FOUND"
+    #: A decoration this library already holds from a different pack.
+    DECORATION_ALREADY_GRANTED = "USER_DECORATION_ALREADY_GRANTED"
 
 
 class ImportMessages:
@@ -489,6 +520,16 @@ class QueryMessages:
 
 class NotificationMessages:
     NOT_FOUND = "NOTIFICATION_NOT_FOUND"
+
+
+class AnnouncementMessages:
+    NOT_FOUND = "ANNOUNCEMENT_NOT_FOUND"
+    # A notice compiled into the app is changed by shipping a release, not by
+    # editing it here.
+    BUILTIN_READ_ONLY = "ANNOUNCEMENT_BUILTIN_READ_ONLY"
+    IMAGE_NOT_FOUND = "ANNOUNCEMENT_IMAGE_NOT_FOUND"
+    IMAGE_TOO_LARGE = "ANNOUNCEMENT_IMAGE_TOO_LARGE"
+    IMAGE_UNSUPPORTED_TYPE = "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE"
 
 
 class CalendarMessages:
@@ -909,3 +950,38 @@ class BillingMessages:
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
     PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"
+
+
+class DirectMessageMessages:
+    """Who may ask to message an account, and who it will not hear from."""
+
+    #: No account with that id that this reader may be shown. Suspended,
+    #: anonymized and ignored accounts all answer the same way.
+    USER_NOT_FOUND = "DM_USER_NOT_FOUND"
+    #: An account that has not answered the age question cannot raise its
+    #: policy above ``private``, and cannot be reached at all.
+    AGE_CONFIRMATION_REQUIRED = "DM_AGE_CONFIRMATION_REQUIRED"
+    CANNOT_IGNORE_SELF = "DM_CANNOT_IGNORE_SELF"
+    #: A community named in a toggle write that this account is not in.
+    NOT_A_MEMBER = "DM_NOT_A_MEMBER"
+
+
+class ContactGrantMessages:
+    """Connections and message requests."""
+
+    #: The pair cannot reach each other right now: a policy that does not admit
+    #: them, an account that is not active, or an age question unanswered. One
+    #: code for every refusal.
+    CANNOT_REACH = "CONTACT_GRANT_CANNOT_REACH"
+    #: Accepting something nobody asked for, or accepting your own request.
+    NO_REQUEST = "CONTACT_GRANT_NO_REQUEST"
+    CANNOT_GRANT_SELF = "CONTACT_GRANT_CANNOT_GRANT_SELF"
+
+
+class ContactMessages:
+    """My Contacts — the starred list on the personal page."""
+
+    #: No account with that id that this reader may be shown. Suspended and
+    #: anonymized accounts answer the same way.
+    USER_NOT_FOUND = "CONTACT_USER_NOT_FOUND"
+    CANNOT_FAVORITE_SELF = "CONTACT_CANNOT_FAVORITE_SELF"

@@ -119,11 +119,13 @@
   "panel": {
     "calendars": "Calendarios",
     "noCalendars": "Aún no hay calendarios",
+    "hiddenCount_one": "{{count}} calendario oculto",
+    "hiddenCount_other": "{{count}} calendarios ocultos",
     "projectTasks": "Tareas de proyectos",
     "calendarSettings": "Configuración de {{name}}"
   },
   "guildScope": {
-    "title": "Calendario del gremio",
+    "title": "Calendario de la comunidad",
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
   }

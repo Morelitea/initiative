@@ -32,6 +32,57 @@ const createProxyConfig = (supportsWebSocket = false) => ({
   ws: supportsWebSocket,
 });
 
+// The emoji picker (frimousse) fetches its dataset at runtime from
+// `${emojibaseUrl}/${locale}/{data,messages}.json`, defaulting to a public CDN.
+// A self-hosted install may have no internet at all, so the files are served
+// from the app itself: copied out of the `emojibase-data` package into
+// `/emojibase/...` at build time, and served straight from node_modules in dev.
+// Only the locales the app actually ships translations for are copied.
+const EMOJI_LOCALES = ["en", "de", "es", "fr"];
+const EMOJI_FILES = ["data.json", "messages.json"];
+const EMOJI_BASE_PATH = "/emojibase";
+
+const emojibaseSource = (locale: string, file: string) =>
+  path.resolve(import.meta.dirname, "node_modules/emojibase-data", locale, file);
+
+const emojibasePlugin = () => ({
+  name: "initiative-emojibase",
+  // Dev: answer the same URLs the build will, without a copy step.
+  configureServer(server: { middlewares: { use: (fn: unknown) => void } }) {
+    server.middlewares.use(
+      (
+        req: { url?: string },
+        res: { setHeader: (k: string, v: string) => void; end: (body?: unknown) => void },
+        next: () => void
+      ) => {
+        // Two gates on the only path here that reads a URL: the pattern
+        // admits no dots or slashes in the locale, and the locale must then be
+        // one this app ships. Anything else falls through to the SPA.
+        const match = req.url?.match(
+          /^\/emojibase\/([a-z-]+)\/(data|messages)\.json$/
+        );
+        if (!match) return next();
+        const [, locale, name] = match;
+        if (!EMOJI_LOCALES.includes(locale)) return next();
+        res.setHeader("Content-Type", "application/json");
+        res.end(fs.readFileSync(emojibaseSource(locale, `${name}.json`)));
+      }
+    );
+  },
+  // Build: emit the files as static assets at their expected paths.
+  generateBundle(this: { emitFile: (f: unknown) => void }) {
+    for (const locale of EMOJI_LOCALES) {
+      for (const file of EMOJI_FILES) {
+        this.emitFile({
+          type: "asset",
+          fileName: `emojibase/${locale}/${file}`,
+          source: fs.readFileSync(emojibaseSource(locale, file), "utf-8"),
+        });
+      }
+    }
+  },
+});
+
 // Use relative paths for Capacitor builds (mobile apps load from file:// or local server)
 const isCapacitorBuild = process.env.CAPACITOR_BUILD === "true";
 
@@ -40,8 +91,19 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(getVersion()),
     __IS_CAPACITOR__: JSON.stringify(isCapacitorBuild),
+    // Absolute, on native too: the Capacitor WebView serves index.html from
+    // its origin root, so a relative URL would resolve against whatever route
+    // the app happens to be on when the picker first opens.
+    __EMOJIBASE_URL__: JSON.stringify(EMOJI_BASE_PATH),
   },
-  plugins: [tanstackRouter(), react(), tailwindcss()],
+  plugins: [
+    // A route's tests sit beside it and export no Route of their own, so the
+    // generator skips them rather than treating each as a missing route.
+    tanstackRouter({ routeFileIgnorePattern: "\\.test\\.[jt]sx?$" }),
+    react(),
+    tailwindcss(),
+    emojibasePlugin(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

@@ -301,15 +301,20 @@ async def get_tag_entities(
 ) -> TaggedEntitiesResponse:
     """Get all entities (tasks, projects, documents) with this tag.
 
-    Only returns entities the user has permission to access.
+    A tag reaches across every initiative in the community, so this listing
+    answers what has been shared with the reader — the same rule the community
+    front page's table and the ``/me/*`` views follow. A guild admin's authority
+    over any one initiative is unchanged; it is asked about by opening that
+    initiative, not by opening a tag.
     """
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
-    # Sharing gate on the project (a no-op for a request that reaches the whole
-    # guild). Two columns name a project here — a task's FK and the project's own
-    # id — so the clause is built against each.
+    # A tag is guild-wide, so what it has been put on spans initiatives: the
+    # sharing gate here asks what reaches the reader, not what their standing
+    # could reach. Two columns name a project — a task's FK and the project's
+    # own id — so the clause is built against each.
     def _project_scope(col: ColumnElement[int]) -> ColumnElement[bool]:
-        return permissions_service.dac_scope_clause(
+        return permissions_service.granted_scope_clause(
             Tool.project, col, current_user.id, guild_id=guild_context.guild_id
         )
 
@@ -357,7 +362,7 @@ async def get_tag_entities(
         for project in projects
     ]
 
-    doc_scope = permissions_service.dac_scope_clause(
+    doc_scope = permissions_service.granted_scope_clause(
         Tool.document,
         Document.id,
         current_user.id,

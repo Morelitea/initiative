@@ -93,6 +93,27 @@ export const emptyTaskFormValue = (overrides: Partial<TaskFormValue> = {}): Task
   ...overrides,
 });
 
+/**
+ * The form's sections, in render order, and the ``TaskFormValue`` keys each
+ * one owns. Every layout is a projection over this — the dialog collapses
+ * all but the first, the page lays them out flat — so a field cannot reach
+ * one surface and be forgotten on the other.
+ *
+ * ``taskForm.sections`` in ``TaskForm.test.tsx`` asserts these keys cover
+ * ``TaskFormValue`` exactly, so adding a field to the value without giving
+ * it a section fails CI.
+ */
+export const TASK_FORM_SECTIONS = [
+  { id: "details", keys: ["title", "description"] },
+  { id: "tracking", keys: ["statusId", "priority"] },
+  { id: "schedule", keys: ["startDate", "dueDate", "recurrence", "recurrenceStrategy"] },
+  { id: "people", keys: ["assigneeIds", "tags"] },
+  { id: "properties", keys: ["properties", "propertyValues"] },
+] as const satisfies readonly {
+  id: string;
+  keys: readonly (keyof TaskFormValue)[];
+}[];
+
 export interface TaskFormProps {
   value: TaskFormValue;
   onChange: (value: TaskFormValue) => void;
@@ -299,8 +320,7 @@ export const TaskForm = ({
   );
 
   const propertiesField = (
-    <section className="space-y-2">
-      <Label>{t("properties:title")}</Label>
+    <div className="space-y-2">
       <PropertyFields
         properties={value.properties}
         values={value.propertyValues}
@@ -315,7 +335,7 @@ export const TaskForm = ({
         onAdd={handlePropertyAdd}
         disabled={disabled || !initiativeId}
       />
-    </section>
+    </div>
   );
 
   const descriptionField = descriptionSlot ?? (
@@ -332,9 +352,13 @@ export const TaskForm = ({
     </div>
   );
 
+  // On the page the title IS the heading — the editor used to render it twice,
+  // once as an <h1> and once as this field, both bound to the same state.
   const titleField = (
     <div className="space-y-2">
-      <Label htmlFor="task-title">{t("taskForm.titleLabel")}</Label>
+      <Label htmlFor="task-title" className={layout === "page" ? "sr-only" : undefined}>
+        {t("taskForm.titleLabel")}
+      </Label>
       <Input
         id="task-title"
         value={value.title}
@@ -343,39 +367,71 @@ export const TaskForm = ({
         required
         disabled={disabled}
         autoFocus={autoFocusTitle}
+        className={
+          layout === "page"
+            ? "h-auto border-0 px-0 font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 md:text-3xl"
+            : undefined
+        }
       />
     </div>
   );
 
-  const advancedFields = (
-    <>
-      {descriptionField}
-      {statusPriority}
-      {dates}
-      {assigneesTags}
-      {recurrenceField}
-      {propertiesField}
-    </>
+  const sectionContent: Record<(typeof TASK_FORM_SECTIONS)[number]["id"], ReactNode> = {
+    details: (
+      <>
+        {titleField}
+        {descriptionField}
+      </>
+    ),
+    tracking: statusPriority,
+    schedule: (
+      <>
+        {dates}
+        {recurrenceField}
+      </>
+    ),
+    people: assigneesTags,
+    properties: propertiesField,
+  };
+
+  // The leading section needs no heading: a title and a description under the
+  // form's own heading announce themselves.
+  const sectionHeading: Record<(typeof TASK_FORM_SECTIONS)[number]["id"], string | null> = {
+    details: null,
+    tracking: t("taskForm.sections.tracking"),
+    schedule: t("taskForm.sections.schedule"),
+    people: t("taskForm.sections.people"),
+    properties: t("properties:title"),
+  };
+
+  const renderSection = ({ id }: (typeof TASK_FORM_SECTIONS)[number]) => (
+    <section key={id} className="space-y-4">
+      {sectionHeading[id] ? (
+        <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+          {sectionHeading[id]}
+        </h2>
+      ) : null}
+      {sectionContent[id]}
+    </section>
   );
+
+  const [leadSection, ...detailSections] = TASK_FORM_SECTIONS;
 
   if (layout === "dialog") {
     return (
       <div className="space-y-4">
-        {titleField}
+        {renderSection(leadSection)}
         <Accordion type="single" collapsible>
           <AccordionItem value="advanced">
             <AccordionTrigger>{t("taskForm.advancedDetails")}</AccordionTrigger>
-            <AccordionContent className="space-y-4">{advancedFields}</AccordionContent>
+            <AccordionContent className="space-y-6">
+              {detailSections.map(renderSection)}
+            </AccordionContent>
           </AccordionItem>
         </Accordion>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {titleField}
-      {advancedFields}
-    </div>
-  );
+  return <div className="space-y-6">{TASK_FORM_SECTIONS.map(renderSection)}</div>;
 };

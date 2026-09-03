@@ -25,7 +25,8 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
   const relativeUpdatedAt = useRelativeTime(document.updated_at);
   const gp = useGuildPath();
   const projectCount = document.projects.length;
-  const commentCount = document.comment_count ?? 0;
+  // A document with comments off shows no thread anywhere, so it shows no count.
+  const commentCount = document.comments_disabled ? null : (document.comment_count ?? 0);
   const isFileDocument = document.document_type === "file";
   const fileTypeLabel = isFileDocument
     ? getFileTypeLabel(document.file_content_type, document.original_filename)
@@ -97,7 +98,9 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
           {smartLinkMatch ? <Badge variant="secondary">{smartLinkMatch.label}</Badge> : null}
           {document.is_template ? <Badge variant="outline">{t("card.template")}</Badge> : null}
           <Badge variant="secondary">{t("card.projects", { count: projectCount })}</Badge>
-          <Badge variant="secondary">{t("card.comments", { count: commentCount })}</Badge>
+          {commentCount !== null && (
+            <Badge variant="secondary">{t("card.comments", { count: commentCount })}</Badge>
+          )}
         </div>
       </div>
       <div className="flex h-full flex-col gap-3 p-4">

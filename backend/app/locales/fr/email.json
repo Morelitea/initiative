@@ -186,5 +186,14 @@
       "body": "Votre demande pour rejoindre <strong>{{initiativeName}}</strong> a été refusée.",
       "textBody": "Votre demande pour rejoindre {{initiativeName}} a été refusée. {{link}}"
     }
+  },
+  "reaction": {
+    "subject": "Nouvelles réactions à vos publications",
+    "title": "Résumé des réactions",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "body": "Voici le résumé des réactions à vos publications :",
+    "line": "de <strong>{{name}}</strong> sur",
+    "footer": "Ouvrez Initiative pour voir la conversation.",
+    "textBody": "Voici le résumé des réactions à vos publications :"
   }
 }

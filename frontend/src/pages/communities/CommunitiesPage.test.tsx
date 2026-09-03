@@ -10,7 +10,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildBanner } from "@/__tests__/factories";
+import { buildBanner, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -27,11 +27,12 @@ vi.mock("@/hooks/useCommunities", () => ({
 
 // Whether this deployment has a directory at all is the platform owner's
 // setting; everything below is about one that does, bar the test that says so.
-const config = vi.hoisted(() => ({ communityDirectory: true }));
+const config = vi.hoisted(() => ({ communityDirectory: true, ageGate: true }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({
     communityDirectoryEnabled: config.communityDirectory,
+    communityAgeGateEnabled: config.ageGate,
     isLoading: false,
   }),
 }));
@@ -49,8 +50,15 @@ const community = (overrides: Partial<CommunityGuildRead> = {}): CommunityGuildR
   ...overrides,
 });
 
-const renderDirectory = (search: Record<string, unknown> = {}) =>
-  renderPage(CommunitiesPage, { initialRoute: "/communities", routerSearch: search });
+const renderDirectory = (
+  search: Record<string, unknown> = {},
+  auth?: { user: ReturnType<typeof buildUser> }
+) =>
+  renderPage(CommunitiesPage, {
+    initialRoute: "/communities",
+    routerSearch: search,
+    ...(auth ? { auth } : {}),
+  });
 
 /** The infinite-query shape the page reads: pages of items plus the paging
  *  flags. `total` is how many matched, so it can exceed what is loaded. */
@@ -67,6 +75,7 @@ const directoryResult = (items: CommunityGuildRead[], overrides: Record<string, 
 beforeEach(() => {
   vi.clearAllMocks();
   config.communityDirectory = true;
+  config.ageGate = true;
   directoryFor.mockReturnValue(directoryResult([community()]));
 });
 
@@ -255,6 +264,51 @@ describe("CommunitiesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
     await waitFor(() => expect(join).toHaveBeenCalledWith(1));
+  });
+
+  it("asks an unconfirmed account its age before joining, not after", async () => {
+    join.mockResolvedValue({ id: 1 });
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(await screen.findByText("How old are you?")).toBeInTheDocument();
+    // Nothing joined on the strength of an unanswered question.
+    expect(join).not.toHaveBeenCalled();
+  });
+
+  it("forgets a birthdate that was typed and then backed out of", async () => {
+    // The dialog is kept mounted by the card, so nothing unmounts to clear
+    // this — and a date left behind contradicts the note under the field.
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+    await userEvent.click(await screen.findByLabelText("Date of birth"));
+    await userEvent.type(await screen.findByLabelText("Type or pick a date"), "1990-05-04{Enter}");
+    await userEvent.keyboard("{Escape}");
+    expect(await screen.findByLabelText("Date of birth")).toHaveTextContent("May 4, 1990");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(await screen.findByLabelText("Date of birth")).toHaveTextContent(
+      "Pick your date of birth"
+    );
+    expect(join).not.toHaveBeenCalled();
+  });
+
+  it("joins without asking where the deployment does not ask", async () => {
+    config.ageGate = false;
+    join.mockResolvedValue({ id: 1 });
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    await waitFor(() => expect(join).toHaveBeenCalledWith(1));
+    expect(screen.queryByText("How old are you?")).not.toBeInTheDocument();
   });
 
   it("offers a way in, not a second join, for a guild already joined", async () => {

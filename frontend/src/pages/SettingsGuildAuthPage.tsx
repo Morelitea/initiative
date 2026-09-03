@@ -146,7 +146,7 @@ export const SettingsGuildAuthPage = () => {
   // the app's own origin on web, or the configured server on native).
   const { getServerOrigin } = useServer();
   const urlBase = getServerOrigin() ?? window.location.origin;
-  const memberLoginUrl = `${urlBase}/guild/${guildId}/login`;
+  const memberLoginUrl = `${urlBase}/community/${guildId}/login`;
   const copyMemberLoginUrl = async () => {
     try {
       await navigator.clipboard.writeText(memberLoginUrl);

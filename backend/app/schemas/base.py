@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 from enum import Enum
 from functools import lru_cache
-from typing import Annotated, Any, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Final, get_args, get_origin, get_type_hints
 
 import nh3
 from pydantic import BaseModel, model_validator
@@ -35,6 +35,27 @@ RichTextStr = Annotated[str, _RichTextMarker()]
 
 RawTextStr = Annotated[str, _RawTextMarker()]
 """str that opts out of sanitization AND the length cap (large/opaque data)."""
+
+
+# ``#`` and ``@`` are syntax wherever a name is written or read back. A comment
+# body spells a mention ``@[Name](12)`` or ``#task[Title](3)``; a handle renders
+# ``foobar#1234``, and a member search splits its term on the ``#`` to read the
+# number after it. A name is the thing those forms point AT, so it does not also
+# get to contain them.
+RESERVED_SIGILS: Final = frozenset("#@")
+
+#: Flat code raised for a name carrying one, mapped in ``errors.json``.
+RESERVED_SIGIL_CODE: Final = "RESERVED_SIGIL_IN_NAME"
+
+
+class _SigilFreeMarker:
+    """Marker: field is a name or title, and is held to :data:`RESERVED_SIGILS`."""
+
+
+TitleStr = Annotated[str, _SigilFreeMarker()]
+"""str for a name/title a person types: sanitized, and rejected if it holds a
+reserved sigil. Read schemas deliberately do NOT use it — a row stored before
+the rule has to stay readable."""
 
 
 def _strip_to_plain_text(value: str) -> str:
@@ -71,39 +92,51 @@ def _strip_to_plain_text(value: str) -> str:
     return html.unescape(nh3.clean(decoded, tags=set(), attributes={}))
 
 
-def _annotation_has_opt_out(annotation: Any) -> bool:
-    """True if a sanitization opt-out marker appears anywhere in the annotation,
-    including nested inside ``Optional[...]`` / ``Union[...]``."""
+def _annotation_has_marker(annotation: Any, marker: type) -> bool:
+    """True if ``marker`` appears anywhere in the annotation, including nested
+    inside ``Optional[...]`` / ``Union[...]``."""
     if get_origin(annotation) is Annotated:
         args = get_args(annotation)
-        if any(isinstance(m, _SanitizeOptOut) for m in args[1:]):
+        if any(isinstance(m, marker) for m in args[1:]):
             return True
-        return _annotation_has_opt_out(args[0])
+        return _annotation_has_marker(args[0], marker)
     if get_origin(annotation) is not None:
-        return any(_annotation_has_opt_out(a) for a in get_args(annotation))
+        return any(_annotation_has_marker(a, marker) for a in get_args(annotation))
     return False
 
 
 @lru_cache(maxsize=None)
-def _opt_out_fields(cls: type) -> frozenset[str]:
-    """Field names exempt from sanitization (RichTextStr/RawTextStr), resolved
-    once per model. ``field_info.metadata`` only carries *top-level* Annotated
-    metadata, so a marker nested in ``Optional[...]`` is invisible there — we
-    walk the resolved annotations instead. Falls back to the top-level metadata
-    if the annotations can't be introspected (e.g. an unresolved forward ref)."""
+def _fields_marked(cls: type, marker: type) -> frozenset[str]:
+    """Field names carrying ``marker``, resolved once per model.
+
+    ``field_info.metadata`` only carries *top-level* Annotated metadata, so a
+    marker nested in ``Optional[...]`` is invisible there — we walk the resolved
+    annotations instead. Falls back to the top-level metadata if the annotations
+    can't be introspected (e.g. an unresolved forward ref)."""
     try:
         hints = get_type_hints(cls, include_extras=True)
     except Exception:
         return frozenset(
             name
             for name, fi in cls.model_fields.items()
-            if any(isinstance(m, _SanitizeOptOut) for m in fi.metadata)
+            if any(isinstance(m, marker) for m in fi.metadata)
         )
     return frozenset(
         name
         for name in cls.model_fields
-        if name in hints and _annotation_has_opt_out(hints[name])
+        if name in hints and _annotation_has_marker(hints[name], marker)
     )
+
+
+def _opt_out_fields(cls: type) -> frozenset[str]:
+    """Field names exempt from sanitization (RichTextStr/RawTextStr)."""
+    return _fields_marked(cls, _SanitizeOptOut)
+
+
+def sigil_free_fields(cls: type) -> frozenset[str]:
+    """Field names declared :data:`TitleStr`. Public so the drift test can ask a
+    schema what it holds to the rule rather than keeping a second list."""
+    return _fields_marked(cls, _SigilFreeMarker)
 
 
 def _is_enum_type(annotation: Any) -> bool:
@@ -126,6 +159,8 @@ class SanitizedBaseModel(BaseModel):
     :data:`MAX_PLAIN_TEXT_LENGTH` characters. Fields typed :data:`RichTextStr`
     (rich text) or :data:`RawTextStr` (large or opaque data) opt out of both,
     even when wrapped in ``Optional[...]``. Enum-typed fields are skipped.
+
+    Fields typed :data:`TitleStr` additionally reject :data:`RESERVED_SIGILS`.
     """
 
     @model_validator(mode="before")
@@ -134,6 +169,7 @@ class SanitizedBaseModel(BaseModel):
         if not isinstance(data, dict):
             return data
         exempt = _opt_out_fields(cls)
+        sigil_free = sigil_free_fields(cls)
         for field_name, field_info in cls.model_fields.items():
             if field_name in exempt:
                 continue
@@ -146,5 +182,9 @@ class SanitizedBaseModel(BaseModel):
                         f"{field_name} exceeds the maximum length of "
                         f"{MAX_PLAIN_TEXT_LENGTH} characters"
                     )
-                data[field_name] = _strip_to_plain_text(value)
+                cleaned = _strip_to_plain_text(value)
+                # Checked on the stripped value, which is what gets stored.
+                if field_name in sigil_free and RESERVED_SIGILS.intersection(cleaned):
+                    raise ValueError(RESERVED_SIGIL_CODE)
+                data[field_name] = cleaned
         return data

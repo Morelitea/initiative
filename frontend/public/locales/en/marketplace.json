@@ -3,6 +3,7 @@
   "subtitle": "Ready-made dashboards you can add to an initiative.",
   "searchPlaceholder": "Search the marketplace…",
   "backToMarketplace": "Back to the marketplace",
+  "browse": "Browse the marketplace",
   "card": {
     "installed": "Installed",
     "version": "v{{version}}",
@@ -52,6 +53,6 @@
     "description": "The catalog could not be reached. Try again in a moment."
   },
   "installedUnknown": "Couldn't check which of these you already have, so nothing below is marked as installed.",
-  "subtitleApps": "Apps add something the whole guild shares. Only guild admins can add them.",
-  "subtitleAuto": "Automations run in the background for the whole guild."
+  "subtitleApps": "Apps add something the whole community shares. Only community admins can add them.",
+  "subtitleAuto": "Automations run in the background for the whole community."
 }

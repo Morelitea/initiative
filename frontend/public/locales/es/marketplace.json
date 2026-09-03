@@ -3,6 +3,7 @@
   "subtitle": "Paneles listos para usar que puedes añadir a una iniciativa.",
   "searchPlaceholder": "Buscar en el mercado…",
   "backToMarketplace": "Volver al mercado",
+  "browse": "Explorar el mercado",
   "card": {
     "installed": "Instalado",
     "version": "v{{version}}",
@@ -52,6 +53,6 @@
     "description": "No se pudo acceder al catálogo. Inténtalo de nuevo en un momento."
   },
   "installedUnknown": "No se pudo comprobar cuáles de estos ya tienes, así que nada de lo siguiente aparece como instalado.",
-  "subtitleApps": "Las aplicaciones añaden algo que comparte todo el gremio. Solo los administradores del gremio pueden añadirlas.",
-  "subtitleAuto": "Las automatizaciones se ejecutan en segundo plano para todo el gremio."
+  "subtitleApps": "Las aplicaciones añaden algo que comparte todo la comunidad. Solo los administradores de la comunidad pueden añadirlas.",
+  "subtitleAuto": "Las automatizaciones se ejecutan en segundo plano para todo la comunidad."
 }

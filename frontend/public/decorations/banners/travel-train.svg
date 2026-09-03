@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" width="1600" height="400"
+     role="presentation" preserveAspectRatio="xMidYMid slice">
+  <title>By train</title>
+  <!-- The seat by the window, somewhere between two places. Everything outside
+       runs right to left, and the nearer it is the faster it goes. -->
+  <style>
+    .far { animation: run 44s linear infinite }
+    .mid { animation: run 20s linear infinite }
+    .whip { animation: run 3.4s linear infinite }
+    .w1 { animation-duration: 3.4s } .w2 { animation-duration: 3.4s }
+    .streak { animation: rush 1.1s linear infinite }
+    .s2 { animation-duration: 1.5s; animation-delay: -.4s }
+    .s3 { animation-duration: .9s; animation-delay: -.7s }
+    @keyframes run { from { transform: translateX(0) } to { transform: translateX(-160px) } }
+    @keyframes rush { from { transform: translateX(180px) } to { transform: translateX(-60px) } }
+    @media (prefers-reduced-motion: reduce) {
+      .far, .mid, .whip, .streak { animation: none } }
+  </style>
+  <defs>
+    <linearGradient id="carsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8FB8D8"/><stop offset="60%" stop-color="#CBDCE4"/>
+      <stop offset="100%" stop-color="#E8DFC8"/>
+    </linearGradient>
+    <linearGradient id="sill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8A6A44"/><stop offset="100%" stop-color="#4A3320"/>
+    </linearGradient>
+    <linearGradient id="reveal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2A2018"/><stop offset="100%" stop-color="#2A2018" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="reveal2" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#2A2018"/><stop offset="100%" stop-color="#2A2018" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="40" fill="url(#carsky)"/>
+
+  <!-- Hills, barely moving. -->
+  <g class="far">
+    <path d="M0 22 C16 17 30 20 46 18 C62 16 78 20 96 18 C112 16.4 132 19.4 160 17.6
+             L320 17.6 L320 30 L0 30 Z" fill="#8FA8B8" opacity=".6"/>
+    <path d="M160 22 C176 17 190 20 206 18 C222 16 238 20 256 18 C272 16.4 292 19.4 320 17.6
+             L320 30 L160 30 Z" fill="#8FA8B8" opacity=".6"/>
+  </g>
+  <!-- Trees, keeping up better. -->
+  <g class="mid" fill="#5E7E52" opacity=".85">
+    <path d="M8 26 L12 18 L16 26 Z"/><path d="M30 26 L34.4 16.6 L38.8 26 Z"/>
+    <path d="M58 26 L61.6 19 L65.2 26 Z"/><path d="M88 26 L92.6 17.4 L97.2 26 Z"/>
+    <path d="M118 26 L121.8 19.6 L125.6 26 Z"/><path d="M144 26 L148.4 17 L152.8 26 Z"/>
+    <path d="M168 26 L172 18 L176 26 Z"/><path d="M190 26 L194.4 16.6 L198.8 26 Z"/>
+    <path d="M218 26 L221.6 19 L225.2 26 Z"/><path d="M248 26 L252.6 17.4 L257.2 26 Z"/>
+    <path d="M278 26 L281.8 19.6 L285.6 26 Z"/><path d="M304 26 L308.4 17 L312.8 26 Z"/>
+  </g>
+  <path d="M0 25.6 C30 24.6 70 26.4 110 25.4 C134 24.8 150 25.8 160 25.4 L160 30 L0 30 Z"
+        fill="#7E9464"/>
+
+  <!-- The line-side poles, close enough to blur past. -->
+  <g opacity=".8"><g class="whip w0" style="animation-delay: -0.00s"><path d="M-20 8 L-20 30" stroke="#4A3A2E" stroke-width="1.4"/><path d="M-24 10.4 L-16 10.4" stroke="#4A3A2E" stroke-width=".9"/></g><g class="whip w1" style="animation-delay: -0.27s"><path d="M16 8 L16 30" stroke="#4A3A2E" stroke-width="1.4"/><path d="M12 10.4 L20 10.4" stroke="#4A3A2E" stroke-width=".9"/></g><g class="whip w2" style="animation-delay: -0.53s"><path d="M52 8 L52 30" stroke="#4A3A2E" stroke-width="1.4"/><path d="M48 10.4 L56 10.4" stroke="#4A3A2E" stroke-width=".9"/></g><g class="whip w0" style="animation-delay: -0.80s"><path d="M88 8 L88 30" stroke="#4A3A2E" stroke-width="1.4"/><path d="M84 10.4 L92 10.4" stroke="#4A3A2E" stroke-width=".9"/></g><g class="whip w1" style="animation-delay: -1.07s"><path d="M124 8 L124 30" stroke="#4A3A2E" stroke-width="1.4"/><path d="M120 10.4 L128 10.4" stroke="#4A3A2E" stroke-width=".9"/></g><g class="whip w2" style="animation-delay: -1.33s"><path d="M160 8 L160 30" stroke="#4A3A2E" stroke-width="1.4"/><path d="M156 10.4 L164 10.4" stroke="#4A3A2E" stroke-width=".9"/></g></g>
+
+  <!-- Ballast and the near verge, going by fastest of all. -->
+  <path d="M0 29 L160 29 L160 40 L0 40 Z" fill="#7A6A50"/>
+  <g stroke="#5E5038" stroke-width="1.1" stroke-linecap="round" opacity=".7">
+    <path class="streak" d="M0 31.4 L26 31.4"/>
+    <path class="streak s2" d="M0 33.8 L40 33.8"/>
+    <path class="streak s3" d="M0 36.6 L32 36.6"/>
+    <path class="streak s2" d="M0 38.6 L22 38.6"/>
+  </g>
+  <g stroke="#95866A" stroke-width=".8" stroke-linecap="round" opacity=".5">
+    <path class="streak s3" d="M0 30.6 L34 30.6"/>
+    <path class="streak" d="M0 35 L20 35"/>
+  </g>
+
+  <!-- The window: its frame, the sill it sits on, and the reflection on the glass. -->
+  <rect x="0" y="0" width="160" height="3.2" fill="#2A2018"/>
+  <path d="M0 3.2 L160 3.2 L160 4.2 L0 4.2 Z" fill="#4A3A2A"/>
+  <rect x="0" y="0" width="26" height="40" fill="url(#reveal)" opacity=".55"/>
+  <rect x="134" y="0" width="26" height="40" fill="url(#reveal2)" opacity=".55"/>
+  <path d="M0 33 L160 33 L160 40 L0 40 Z" fill="url(#sill)" opacity=".22"/>
+  <g opacity=".16">
+    <path d="M-10 40 L34 -4 L46 -4 L2 40 Z" fill="#FFFFFF"/>
+    <path d="M52 40 L96 -4 L102 -4 L58 40 Z" fill="#FFFFFF"/>
+  </g>
+</svg>

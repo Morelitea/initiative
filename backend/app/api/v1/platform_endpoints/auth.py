@@ -102,6 +102,7 @@ from app.services.auth.platform_provider import (
 )
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import dm_settings as dm_settings_service
 from app.services import email as email_service
 from app.services.platform import user_tokens
 from app.services.platform import guilds as guilds_service
@@ -273,6 +274,8 @@ async def register_user(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
             ) from exc
 
+        await dm_settings_service.seed_for_new_account(session, user_id=user.id)
+
         if normalized_invite:
             try:
                 guild = await guilds_service.redeem_invite_for_user(
@@ -357,6 +360,11 @@ async def register_user(
             detail=AuthMessages.UNABLE_TO_CREATE_USER,
         ) from exc
 
+    # Seeding a new guild leaves the session routed into it, and a guild role
+    # reaches nothing on ``public.users``. Everything from here is about the
+    # account rather than the guild, so the session comes back to the platform
+    # path before it reads one.
+    await set_rls_context(session, user_id=user.id)
     await session.refresh(user)
 
     if smtp_configured and not user.email_verified:

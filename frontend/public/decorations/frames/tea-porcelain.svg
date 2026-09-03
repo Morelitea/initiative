@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128"
+     role="presentation">
+  <title>Porcelain</title>
+  <!-- Aperture r=50 at (64,64): see FRAME_APERTURE in lib/profileDecorations.ts. -->
+  <!-- Blue on white, painted round the rim the way it is painted round a cup. -->
+  <path d="M64 0.6 A63.4 63.4 0 1 0 64 127.4 A63.4 63.4 0 1 0 64 0.6 Z M64 13.4 A50.6 50.6 0 1 1 64 114.6 A50.6 50.6 0 1 1 64 13.4 Z" fill="#F2F6FB" fill-rule="evenodd"/>
+  <circle cx="64" cy="64" r="61" fill="none" stroke="#2A5AA8" stroke-width="1.4"/>
+  <circle cx="64" cy="64" r="53" fill="none" stroke="#2A5AA8" stroke-width="1.4"/>
+  <g transform="translate(121 64) rotate(90)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(116.66 85.81) rotate(112.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(104.31 104.31) rotate(135)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(85.81 116.66) rotate(157.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(64 121) rotate(180)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(42.19 116.66) rotate(202.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(23.69 104.31) rotate(225)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(11.34 85.81) rotate(247.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(7 64) rotate(270)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(11.34 42.19) rotate(292.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(23.69 23.69) rotate(315)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(42.19 11.34) rotate(337.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(64 7) rotate(360)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(85.81 11.34) rotate(382.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(104.31 23.69) rotate(405)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g><g transform="translate(116.66 42.19) rotate(427.5)">
+    <path d="M0 -4.4 C2.6 -3 3.4 0 2 2.6 C1 4.4 -1 4.4 -2 2.6 C-3.4 0 -2.6 -3 0 -4.4 Z"
+          fill="#2A5AA8"/>
+    <path d="M0 -2.6 C1.4 -1.8 1.9 0 1.1 1.5 C.6 2.4 -.6 2.4 -1.1 1.5 C-1.9 0 -1.4 -1.8 0 -2.6 Z"
+          fill="#EFF4FA"/>
+  </g>
+  <circle cx="64" cy="64" r="50.6" fill="none" stroke="#B8C4D2" stroke-width="1.4"/>
+  <circle cx="64" cy="64" r="63.4" fill="none" stroke="#B8C4D2" stroke-width="1.2"/>
+</svg>

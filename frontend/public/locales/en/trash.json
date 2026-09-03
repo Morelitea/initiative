@@ -1,7 +1,7 @@
 {
   "title": "Trash",
-  "description": "Items here will be permanently deleted after the guild's retention period. Restore at any time before then.",
-  "scopeGuild": "All in guild",
+  "description": "Items here will be permanently deleted after the community's retention period. Restore at any time before then.",
+  "scopeGuild": "All in community",
   "scopeMine": "Just mine",
   "empty": "Trash is empty.",
   "columnType": "Type",

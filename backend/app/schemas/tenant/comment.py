@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
-from app.schemas.platform.user import GuildNameVisibility
-
-
-class MentionEntityType(str, Enum):
-    user = "user"
-    task = "task"
-    doc = "doc"
-    project = "project"
+from app.schemas.tenant.reaction import ReactionGroup
+from app.models.platform.user import Presence
+from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.services.platform import presence
 
 
 class CommentAuthor(GuildNameVisibility):
@@ -23,6 +18,11 @@ class CommentAuthor(GuildNameVisibility):
     An address never reaches a guild, so there is none here; the handle names
     the author, and ``full_name`` arrives only from a guild that shows real
     names.
+
+    It carries what a picture needs to be drawn the way it is drawn everywhere
+    else — the decorations and how they are appearing — because a comment is
+    one of the places a person appears at a size where both are legible.
+    Neither is private: the same two are on the public profile.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -32,6 +32,20 @@ class CommentAuthor(GuildNameVisibility):
     discriminator: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+
+    @computed_field(return_type=Presence)  # type: ignore[misc]
+    @property
+    def presence(self) -> Presence:
+        """How they appear, at the moment this was serialized.
+
+        Computed rather than stamped by each endpoint: a comment author is
+        built in nine places, and what a reader is shown is not a column
+        anything could select — it is what the account picked narrowed by which
+        sockets are open. So it is read where the shape is made rather than
+        passed down to it.
+        """
+        return presence.online.presence_of(self.id)
 
 
 class CommentBase(SanitizedBaseModel):
@@ -84,6 +98,17 @@ class CommentCreate(CommentBase):
         return {field: getattr(self, field) for field in COMMENT_TARGET_FIELDS}
 
 
+class ToolCommentSettings(SanitizedBaseModel):
+    """The comment switch on one tool entity — the body and the reply of the
+    generic ``PUT /tools/{tool}/{tool_id}/comments`` route."""
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    comments_disabled: bool
+
+
 class CommentUpdate(CommentBase):
     """Schema for updating a comment. Only content can be changed."""
 
@@ -111,9 +136,18 @@ class CommentRead(CommentBase):
     # project, the task's for a task comment (filled by the service's
     # serializer).
     project_id: Optional[int] = None
+    # Reactions ride along with the comment rather than costing a request per
+    # row: a thread renders its chips from one list call. Empty until the
+    # loader stamps them (see ``comments_service.attach_reactions``).
+    reactions: list[ReactionGroup] = Field(default_factory=list)
 
 
 class RecentActivityEntry(SanitizedBaseModel):
+    # Same as the other read schemas here: a field with a default is still
+    # always sent, so the generated client should see it as present rather than
+    # optional.
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     comment_id: int
     content: RichTextStr
     created_at: datetime
@@ -134,31 +168,8 @@ class RecentActivityEntry(SanitizedBaseModel):
     # its real address. None when the parent is gone or unreadable (or the
     # parent is a guild-level calendar, which belongs to no initiative).
     initiative_id: Optional[int] = None
-
-
-class MentionSuggestion(SanitizedBaseModel):
-    """A suggestion for mention autocomplete."""
-
-    type: MentionEntityType
-    id: int
-    display_text: str
-    #: The line under the name: the handle for a person (what tells two of
-    #: the same name apart), the project for a task.
-    subtitle: Optional[str] = None
-    # Populated for ``user`` suggestions so the picker can render a face
-    # (parity with the member typeaheads); ``None`` for non-user entities.
-    avatar_url: Optional[str] = None
-
-
-class MentionSuggestionListResponse(SanitizedBaseModel):
-    """Paginated envelope for mention search — same shape as the member search
-    responses (``UserSummaryListResponse`` et al.)."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    items: list[MentionSuggestion]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
-    has_prev: bool
+    # The same chips the thread shows. The feed is where a guild sees what is
+    # going on, and a comment that drew six reactions reads differently from
+    # one that drew none — so the row carries them rather than looking like a
+    # quieter comment than it was.
+    reactions: list[ReactionGroup] = Field(default_factory=list)

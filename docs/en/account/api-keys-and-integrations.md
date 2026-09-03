@@ -25,10 +25,10 @@ The key options exist to **limit the damage** if a key is ever exposed. Use the 
 | Option | What it does | Recommendation |
 |---|---|---|
 | **Read-only** | The key can read data but never create, change, or delete anything. | Turn this **on** unless you specifically need to make changes. |
-| **Guild access** | Limit the key to a single guild, instead of all your guilds. | Pin it to the **one guild** it needs. |
+| **Community access** | Limit the key to a single community, instead of all your communities. | Pin it to the **one community** it needs. |
 | **Expiration** | The key stops working after a date. | Set one for anything temporary. Leave blank only for keys you'll actively manage. |
 
-A read-only key pinned to a single guild is the safest default — it can't change anything, and it can't reach any other group's data.
+A read-only key pinned to a single community is the safest default — it can't change anything, and it can't reach any other group's data.
 
 ## Managing keys
 
@@ -42,10 +42,10 @@ A few important properties:
 
 - It's **off unless your administrator enables it** on the server.
 - Every action runs **as you**, scoped by your key. An assistant can only ever reach data *you* could reach.
-- The surface is **deliberately small and read-leaning** — a handful of read actions for any key, and only a few write actions (create/edit/move a task, add a comment) for a full-access key. A **read-only** key can't write at all.
+- The surface is **deliberately small and read-leaning** — a handful of read actions for any key (projects, tasks, initiatives, members, task statuses, and the **comments** on a task or document), and only a few write actions (create/edit/move a task, add a comment) for a full-access key. A **read-only** key can't write at all.
 
-!!! tip "Use a read-only, single-guild key for AI assistants"
-    For most uses, a read-only key pinned to one guild is the right call. Only use a full-access key if you actually want the assistant to make changes — and each change is confirmed in the assistant before it runs.
+!!! tip "Use a read-only, single-community key for AI assistants"
+    For most uses, a read-only key pinned to one community is the right call. Only use a full-access key if you actually want the assistant to make changes — and each change is confirmed in the assistant before it runs.
 
 ??? techspec "For the technically minded — connecting a client"
     With MCP enabled (an administrator sets `ENABLE_MCP=true`), the server is available at `<your-server>/api/v1/mcp/`. Register it with your client using your API key as a bearer token, for example with Claude Code:
