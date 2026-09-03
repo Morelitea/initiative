@@ -4,37 +4,43 @@ icon: lucide/users-round
 
 # Sharing & access
 
-"Who can see this?" is the question everything else in a shared tool hangs off. Initiative answers it in **layers**, from the outside in. Each layer narrows the one before it, so the people who end up seeing something are exactly the people you put in front of it.
+"Who can see this?" is the question everything else in a shared tool hangs off, and the one people worry about most.
+
+Initiative answers it in **layers**, from the outside in. Each layer narrows the one before it, so the people who end up seeing a thing are exactly the people you put in front of it — not a soul more.
 
 ## The simple version
 
-To reach something, you clear each gate in turn:
+To reach something, you have to clear each gate in turn:
 
 ```mermaid
 graph LR
   A["In the community?"] --> B["In the initiative?"]
   B --> C["Does your role<br/>allow this tool?"]
   C --> D["Is this item<br/>shared with you?"]
-  D --> E["✅ Access"]
+  D --> E["Access"]
 ```
 
-1. **Are you in the community?** If not, you see nothing in it. Full stop.
-2. **Are you in the initiative?** Even inside a community, an initiative is visible only to the people added to it. This is the big privacy boundary — how a business keeps payroll planning away from seasonal staff, and how the spring-play team keeps its work away from the summer-show team, in the same workspace.
-3. **Does your role allow this kind of thing?** Your [initiative role](initiative-roles.md) decides which *tools* you can use — whether you can create projects, or only view them.
+1. **Are you in the community?** If not, you see nothing in it. Full stop, end of conversation.
+2. **Are you in the initiative?** Even inside a community, an initiative is only visible to the people added to it. This is the big one — it's how a business keeps payroll planning away from seasonal staff, and how the spring play team keeps its work away from the summer show team, in the same workspace.
+3. **Does your role allow this kind of thing?** Your [initiative role](initiative-roles.md) decides which *tools* you can use — whether you can make projects, or only look at them.
 4. **Is this particular item shared with you?** Each project and document can be shared with specific people or roles, at **view**, **edit**, or **own**. See [Sharing projects & documents](sharing-projects-and-documents.md).
 
-All four have to be satisfied. It sounds like a lot; in practice it's intuitive. Join a group, join an effort, get the right role, have things shared with you.
+All four have to be true.
+
+Which sounds like a lot to keep track of, and here's the good news: you don't have to. In practice it's just "join a group, join an effort, get a role, have things shared with you." The gates do the worrying so you don't have to.
 
 ## Two deliberate exceptions
 
-Two people see more than the layers suggest, by design:
+Two kinds of person see more than the layers above suggest, on purpose:
 
-- **Community administrators** always see and manage everything in *their own* community. Somebody has to keep the lights on.
-- **Support staff** (on a hosted service) can be granted **temporary, time-limited, recorded** access to help with a problem — granted explicitly, expiring on its own, and logged. See [Security & privacy](../security/index.md).
+- **Community administrators** always see and manage everything in *their own* community. Somebody has to be able to keep the lights on and find the thing that's gone missing.
+- **Support staff** (on a hosted service) can be granted **temporary, time-limited, recorded** access to help with a problem. Granted explicitly, expires on its own, logged the whole time. See [Security & privacy](../security/index.md).
 
-## Why a missing item says "not found", not "denied"
+## Why a missing thing says "not found" rather than "denied"
 
-If you're not in an initiative, its projects and documents aren't locked doors — they simply aren't there for you. A direct link comes back "not found" rather than "access denied", because as far as your account is concerned there's nothing at that address.
+If you're not in an initiative, its projects and documents aren't locked doors you can rattle. They simply aren't there for you.
+
+A direct link comes back "not found" rather than "access denied", because as far as your account is concerned there is genuinely nothing at that address. Nobody has to be told they're excluded from something, and nobody learns that a thing exists by bumping into a wall.
 
 ## In this section
 
@@ -42,7 +48,7 @@ If you're not in an initiative, its projects and documents aren't locked doors �
 
 -   :material-shield-account-outline: __Initiative roles__
 
-    What roles are, what they unlock, and the Manager role's full access.
+    What roles are, what they unlock, and the Manager role's all-access pass.
 
     [:octicons-arrow-right-24: Initiative roles](initiative-roles.md)
 

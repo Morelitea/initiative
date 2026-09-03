@@ -4,9 +4,9 @@ icon: lucide/book-open
 
 # Using Initiative
 
-The everyday how-to guides. Dip in wherever you need — they're not in a required order, and you don't need any of them to get started.
+The everyday how-to guides. Dip in wherever you need — there's no required order, and you don't need any of them to get started.
 
-Not sure how the pieces fit together yet? Start with [How Initiative is organized](../concepts/index.md) and come back.
+Not sure how the pieces fit together yet? [How Initiative is organized](../concepts/index.md) draws the map, and it takes four minutes.
 
 <div class="grid cards" markdown>
 
@@ -30,7 +30,7 @@ Not sure how the pieces fit together yet? Start with [How Initiative is organize
 
 -   :material-view-dashboard-outline: __Task views__
 
-    Table, Kanban, Calendar — pick the one that fits your head.
+    Table, Kanban, Calendar — whichever suits your brain.
 
     [:octicons-arrow-right-24: Task views](task-views.md)
 
@@ -42,7 +42,7 @@ Not sure how the pieces fit together yet? Start with [How Initiative is organize
 
 -   :material-toolbox-outline: __Tools__
 
-    All six, and which to reach for when.
+    All six of them, and which to reach for when.
 
     [:octicons-arrow-right-24: Tools](tools.md)
 
@@ -64,7 +64,7 @@ Not sure how the pieces fit together yet? Start with [How Initiative is organize
 
     [:octicons-arrow-right-24: Counters](counters.md)
 
--   :material-view-dashboard-outline: __Dashboards__
+-   :material-chart-line: __Dashboards__
 
     One screen that answers "how are we doing?"
 
