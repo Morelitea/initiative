@@ -29,6 +29,18 @@ If you host Initiative yourself, all of it sits in *your* database and *your* fi
 
 If we host it, we hold it **on behalf of the people it belongs to**, and the tools stay in their hands: export it whenever you like, delete it whenever you like, take it elsewhere. The export formats below are ordinary files, not something only we can open.
 
+## Why we built it this way
+
+A word on where this comes from, because it explains choices that might otherwise look severe.
+
+We're self-hosters. We got there the way most people do — by growing steadily less comfortable with what the tools we relied on were doing with the things we put into them. What tipped it for us was watching creative work get swallowed into training data by companies that never thought to ask. Once that has happened to something you made, "we promise not to" stops sounding like much of a promise.
+
+So we treat this as an architecture problem rather than a policy one. A policy is only as durable as whoever owns the company next; a system with no path to your content doesn't depend on anybody's good intentions. That's the thinking behind the parts of Initiative that can feel strict: no standing administrative access to a community's data, cross-community access only through a time-bound grant that leaves a record, and private messages encrypted so thoroughly that no key to them exists outside the two devices talking.
+
+The practical upshot is that **we can't feed your work to a model** — there's no pipe to put it in. The AI features that do exist are ones you point at your own content deliberately, with a key you or your administrator supplied, and they send only what you asked them to. See [AI features](../account/ai-features.md).
+
+We'd rather build something we're comfortable keeping our own work in.
+
 ## Where your data lives (data residency)
 
 If you host Initiative yourself, your data lives wherever your server runs. If that's a computer in your office, your data is in your office; if it's a cloud server in a particular country, your data is in that country. **You choose** — which makes meeting data-residency requirements a matter of where you deploy, not something to negotiate with a vendor.
