@@ -34,6 +34,7 @@ import type {
   DmDeviceRegistration,
   DmDevicesResponse,
   DmOneTimeKeyBatch,
+  DmOwnSessionKeysRequest,
   DmQueueAck,
   DmQueueResponse,
   DmSafetyNumberResponse,
@@ -323,6 +324,168 @@ export const useClaimSessionKeysApiV1UsersUserIdDmSessionKeysPost = <
     queryClient
   );
 };
+/**
+ * That account's devices and their public keys, claiming nothing.
+ *
+ * What a recipient reads to derive the session an inbound pre-key message
+ * describes. Separate from the claim above because claiming spends a prekey,
+ * and answering a message should not cost one.
+ * @summary Read Directory
+ */
+export const readDirectoryApiV1UsersUserIdDmDevicesGet = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmSessionKeysResponse>(
+    { url: `/api/v1/users/${userId}/dm/devices`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadDirectoryApiV1UsersUserIdDmDevicesGetQueryKey = (userId: number) => {
+  return [`/api/v1/users/${userId}/dm/devices`] as const;
+};
+
+export const getReadDirectoryApiV1UsersUserIdDmDevicesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadDirectoryApiV1UsersUserIdDmDevicesGetQueryKey(userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>
+  > = ({ signal }) => readDirectoryApiV1UsersUserIdDmDevicesGet(userId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userId !== null && userId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadDirectoryApiV1UsersUserIdDmDevicesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>
+>;
+export type ReadDirectoryApiV1UsersUserIdDmDevicesGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadDirectoryApiV1UsersUserIdDmDevicesGet<
+  TData = Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+          TError,
+          Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadDirectoryApiV1UsersUserIdDmDevicesGet<
+  TData = Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+          TError,
+          Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadDirectoryApiV1UsersUserIdDmDevicesGet<
+  TData = Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Directory
+ */
+
+export function useReadDirectoryApiV1UsersUserIdDmDevicesGet<
+  TData = Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readDirectoryApiV1UsersUserIdDmDevicesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadDirectoryApiV1UsersUserIdDmDevicesGetQueryOptions(userId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Both parties' fingerprints, so the client can render the comparison.
  * @summary Safety Number
@@ -1851,6 +2014,9 @@ export const useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete = <
 };
 /**
  * Publish this installed client's public keys.
+ *
+ * The device's label comes from the request's user-agent rather than the body:
+ * a device list is more use when it says what actually connected.
  * @summary Register Device
  */
 export const registerDeviceApiV1MeDmDevicesPost = (
@@ -2235,6 +2401,104 @@ export const useTopUpKeysApiV1MeDmOneTimeKeysPost = <
   TContext
 > => {
   return useMutation(getTopUpKeysApiV1MeDmOneTimeKeysPostMutationOptions(options), queryClient);
+};
+/**
+ * Keys for this account's other devices, so a message reaches its own
+ * outbox.
+ *
+ * A device of yours is a separate ratchet, not a shortcut: it needs a session
+ * like anybody else's. The calling device names itself so it is left out of
+ * its own answer.
+ * @summary Claim Own Session Keys
+ */
+export const claimOwnSessionKeysApiV1MeDmSessionKeysPost = (
+  dmOwnSessionKeysRequest: BodyType<DmOwnSessionKeysRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmSessionKeysResponse>(
+    {
+      url: `/api/v1/me/dm/session-keys`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmOwnSessionKeysRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+    TError,
+    { data: BodyType<DmOwnSessionKeysRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+  TError,
+  { data: BodyType<DmOwnSessionKeysRequest> },
+  TContext
+> => {
+  const mutationKey = ["claimOwnSessionKeysApiV1MeDmSessionKeysPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+    { data: BodyType<DmOwnSessionKeysRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return claimOwnSessionKeysApiV1MeDmSessionKeysPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>
+>;
+export type ClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationBody =
+  BodyType<DmOwnSessionKeysRequest>;
+export type ClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Claim Own Session Keys
+ */
+export const useClaimOwnSessionKeysApiV1MeDmSessionKeysPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+      TError,
+      { data: BodyType<DmOwnSessionKeysRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+  TError,
+  { data: BodyType<DmOwnSessionKeysRequest> },
+  TContext
+> => {
+  return useMutation(
+    getClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * @summary Create Conversation

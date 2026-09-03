@@ -22,6 +22,7 @@ import type importsNs from "../../public/locales/en/imports.json";
 import type initiatives from "../../public/locales/en/initiatives.json";
 import type landing from "../../public/locales/en/landing.json";
 import type marketplace from "../../public/locales/en/marketplace.json";
+import type messages from "../../public/locales/en/messages.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
 import type profiles from "../../public/locales/en/profiles.json";
@@ -53,6 +54,7 @@ declare module "i18next" {
       dashboards: typeof dashboards;
       dates: typeof dates;
       comments: typeof comments;
+      messages: typeof messages;
       contacts: typeof contacts;
       documents: typeof documents;
       errors: typeof errors;

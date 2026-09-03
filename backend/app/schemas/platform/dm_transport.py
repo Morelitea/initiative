@@ -39,7 +39,10 @@ class DmDeviceRegistration(BaseModel):
     one_time_keys: list[DmOneTimeKeyUpload] = Field(
         default_factory=list, max_length=MAX_ONE_TIME_KEYS
     )
-    label: str | None = Field(default=None, max_length=200)
+    # No label here. It is derived at registration from the request's own
+    # user-agent, so it is a fact about the connection rather than a string the
+    # client chose -- which is what the device list is more useful for, and what
+    # keeps a name field out of a request body.
 
 
 class DmOneTimeKeyBatch(BaseModel):
@@ -53,6 +56,9 @@ class DmDeviceRead(BaseModel):
     """One of the caller's own devices, for the Security page."""
 
     id: uuid.UUID
+    #: This device's own public identity key. Needed to recognise a message
+    #: arriving from one of the account's other clients, and public by nature.
+    identity_key: str
     fingerprint_key: str
     label: str | None
     created_at: datetime
@@ -74,6 +80,12 @@ class DmSessionKey(BaseModel):
     #: Absent only if the device published nothing at all, which a registered
     #: device cannot do — a fallback key is required at registration.
     one_time_key: DmOneTimeKeyUpload | None = None
+
+
+class DmOwnSessionKeysRequest(BaseModel):
+    """Which device is asking, so it is left out of its own answer."""
+
+    device_id: uuid.UUID
 
 
 class DmSessionKeysResponse(BaseModel):

@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
 
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.messages import DirectMessageTransportMessages as Messages
@@ -27,6 +27,7 @@ from app.schemas.platform.dm_transport import (
     DmDeviceRegistration,
     DmDevicesResponse,
     DmOneTimeKeyBatch,
+    DmOwnSessionKeysRequest,
     DmQueueAck,
     DmQueueResponse,
     DmSafetyNumberResponse,
@@ -72,8 +73,13 @@ async def register_device(
     body: DmDeviceRegistration,
     session: UserSessionDep,
     current_user: CurrentUser,
+    user_agent: Annotated[str | None, Header()] = None,
 ) -> DmDevicesResponse:
-    """Publish this installed client's public keys."""
+    """Publish this installed client's public keys.
+
+    The device's label comes from the request's user-agent rather than the body:
+    a device list is more use when it says what actually connected.
+    """
     try:
         await service.register_device(
             session,
@@ -82,7 +88,7 @@ async def register_device(
             fingerprint_key=body.fingerprint_key,
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
-            label=body.label,
+            label=(user_agent or "")[:200] or None,
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
@@ -143,6 +149,26 @@ async def top_up_keys(
     )
 
 
+@me_router.post("/dm/session-keys", response_model=DmSessionKeysResponse)
+async def claim_own_session_keys(
+    body: DmOwnSessionKeysRequest,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DmSessionKeysResponse:
+    """Keys for this account's other devices, so a message reaches its own
+    outbox.
+
+    A device of yours is a separate ratchet, not a shortcut: it needs a session
+    like anybody else's. The calling device names itself so it is left out of
+    its own answer.
+    """
+    devices = await service.own_session_keys(
+        session, user_id=current_user.id, except_device=body.device_id
+    )
+    await session.commit()
+    return DmSessionKeysResponse(user_id=current_user.id, devices=devices)
+
+
 @user_router.post("/{user_id}/dm/session-keys", response_model=DmSessionKeysResponse)
 async def claim_session_keys(
     user_id: TargetUserId,
@@ -164,6 +190,25 @@ async def claim_session_keys(
     except service.DmTransportError as exc:
         raise _error(exc) from exc
     await session.commit()
+    return DmSessionKeysResponse(user_id=user_id, devices=devices)
+
+
+@user_router.get("/{user_id}/dm/devices", response_model=DmSessionKeysResponse)
+async def read_directory(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DmSessionKeysResponse:
+    """That account's devices and their public keys, claiming nothing.
+
+    What a recipient reads to derive the session an inbound pre-key message
+    describes. Separate from the claim above because claiming spends a prekey,
+    and answering a message should not cost one.
+    """
+    try:
+        devices = await service.directory(session, target_id=user_id)
+    except service.DmTransportError as exc:
+        raise _error(exc) from exc
     return DmSessionKeysResponse(user_id=user_id, devices=devices)
 
 

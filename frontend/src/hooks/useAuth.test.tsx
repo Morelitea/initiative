@@ -36,6 +36,11 @@ vi.mock("@/lib/storage", () => ({
   removeItem: vi.fn(),
 }));
 
+const forgetMessages = vi.fn();
+vi.mock("@/crypto/messaging", () => ({
+  forgetMessagesOnThisDevice: () => forgetMessages(),
+}));
+
 import { AuthProvider, useAuth } from "./useAuth";
 
 /** Resolvable on demand, so response order can be chosen rather than hoped for. */
@@ -179,6 +184,22 @@ describe("useAuth identity ordering", () => {
       await reading;
     });
 
+    expect(auth.user).toBeNull();
+  });
+
+  it("takes the messages on this device with it when signing out", async () => {
+    // A decrypted conversation must not outlive the session that read it, and
+    // the sign-out itself must not depend on that going through.
+    forgetMessages.mockRejectedValueOnce(new Error("offline"));
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+
+    await act(async () => {
+      await auth.logout();
+    });
+
+    expect(forgetMessages).toHaveBeenCalled();
     expect(auth.user).toBeNull();
   });
 

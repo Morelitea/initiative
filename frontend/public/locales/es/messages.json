@@ -1,0 +1,19 @@
+{
+  "title": "Mis mensajes",
+  "encryptedNotice": "Cifrado de extremo a extremo. Solo tú y la otra persona pueden leerlos.",
+  "empty": {
+    "title": "Ninguna conversación abierta",
+    "body": "Elige a alguien a la izquierda o abre un canal desde Mis contactos."
+  },
+  "nobodyYet": "Todavía nadie. Una conversación se abre cuando se acepta una solicitud de mensaje.",
+  "startHint": "iniciar",
+  "unknownAccount": "Cuenta desconocida",
+  "noHistoryHere": "Aún no hay nada en este dispositivo. Los mensajes que tenías en otro sitio siguen allí.",
+  "composerPlaceholder": "Escribe un mensaje",
+  "send": "Enviar",
+  "sendFailed": "No se pudo enviar ese mensaje.",
+  "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
+  "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
+  "loading": "Cargando…",
+  "unsupportedBrowser": "Este navegador no puede ejecutar mensajes cifrados. Prueba con otro o con la aplicación."
+}

@@ -57,6 +57,43 @@ async function write(key: string, value: unknown): Promise<void> {
   });
 }
 
+/**
+ * Read one key, transform it, and write it back — in a single transaction.
+ *
+ * IndexedDB serialises overlapping `readwrite` transactions across *every*
+ * connection to the database, so this holds between tabs. A JavaScript lock
+ * cannot: it lives in one tab's module scope, and the second tab never sees it.
+ */
+async function update<T>(
+  key: string,
+  change: (current: T | undefined) => T | undefined
+): Promise<{ written: boolean; value: T | undefined }> {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    const request = store.get(key);
+    let settled: { written: boolean; value: T | undefined } = {
+      written: false,
+      value: undefined,
+    };
+    request.onsuccess = () => {
+      const current = request.result as T | undefined;
+      const next = change(current);
+      if (next === undefined) {
+        settled = { written: false, value: current };
+        return;
+      }
+      store.put(next, key);
+      settled = { written: true, value: next };
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve(settled);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 async function drop(): Promise<void> {
   const db = await open();
   await new Promise<void>((resolve, reject) => {
@@ -116,9 +153,124 @@ export async function pickleKey(): Promise<string> {
   return toBase64(raw);
 }
 
+/**
+ * Who is allowed to register this browser's device.
+ *
+ * Registration is a network round trip, so it cannot sit inside one database
+ * transaction. Two tabs opening Messages for the first time would otherwise
+ * both create an account and both register: the server would hold two devices,
+ * only one set of private keys would survive the last write, and anything sent
+ * to the other would never be readable.
+ *
+ * So the *right* to register is claimed atomically first, and the loser waits
+ * for the winner's answer. A claim that was abandoned — the tab closed
+ * mid-registration — goes stale and can be taken again.
+ */
+export type DeviceClaim =
+  | { status: "claiming"; at: number; token: string }
+  | { status: "ready"; deviceId: string };
+
+const DEVICE_CLAIM = "device-claim";
+const CLAIM_STALE_MS = 30_000;
+
+export const deviceClaim = {
+  read: () => read<DeviceClaim>(DEVICE_CLAIM),
+
+  /**
+   * A token if this caller may register, `null` if somebody else is on it.
+   *
+   * The token is what makes a turn *this* caller's. A registration that runs
+   * past the stale window is taken over by the next tab, and the slow one has
+   * to be able to find out that what it is holding is no longer the turn.
+   */
+  take: async (): Promise<string | null> => {
+    const now = Date.now();
+    const token = crypto.randomUUID();
+    const { written } = await update<DeviceClaim>(DEVICE_CLAIM, (current) => {
+      if (current?.status === "ready") return undefined;
+      if (current?.status === "claiming" && now - current.at < CLAIM_STALE_MS) {
+        return undefined;
+      }
+      return { status: "claiming", at: now, token };
+    });
+    return written ? token : null;
+  },
+
+  /**
+   * Record a finished registration: the keys, the id and the claim at once.
+   *
+   * All three in one transaction, and only for the caller whose turn it still
+   * is. What a device id refers to is then always present beside it, and a tab
+   * that was taken over cannot write its own account over the one this browser
+   * actually registered. `false` means the turn was lost.
+   */
+  settle: async (token: string, deviceId: string, pickle: string): Promise<boolean> => {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      const request = store.get(DEVICE_CLAIM);
+      let settled = false;
+      request.onsuccess = () => {
+        const current = request.result as DeviceClaim | undefined;
+        if (current?.status !== "claiming" || current.token !== token) return;
+        store.put(pickle, ACCOUNT);
+        store.put(deviceId, DEVICE_ID);
+        store.put({ status: "ready", deviceId }, DEVICE_CLAIM);
+        settled = true;
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve(settled);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  },
+
+  /**
+   * Give up on a device the server no longer knows, so it can be replaced.
+   *
+   * Only a settled claim naming that exact device is reopened. One already
+   * being registered under is left alone: two tabs noticing the same revocation
+   * still produce one device between them, rather than one each.
+   */
+  invalidate: async (deviceId: string): Promise<void> => {
+    await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
+      current?.status === "ready" && current.deviceId === deviceId
+        ? { status: "claiming", at: 0, token: "" }
+        : undefined
+    );
+  },
+
+  /** Let go of a turn this caller could not finish, if it is still theirs. */
+  release: async (token: string): Promise<void> => {
+    await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
+      current?.status === "claiming" && current.token === token
+        ? { status: "claiming", at: 0, token: "" }
+        : undefined
+    );
+  },
+};
+
 export const accountPickle = {
   get: () => read<string>(ACCOUNT),
   set: (pickle: string) => write(ACCOUNT, pickle),
+  /**
+   * Replace the account only if it is still the one that was read.
+   *
+   * The account holds the private half of every prekey it has published, and
+   * more than one thing advances it: collecting a pre-key message spends a key,
+   * topping the pool up mints fifty. Two tabs doing that from the same starting
+   * pickle each write a different account, and the loser's keys are already
+   * published — a sender that claims one opens a session this device cannot.
+   * So a writer that finds the account moved under it is told, and redoes its
+   * work against what is actually stored.
+   */
+  swap: async (expected: string, next: string): Promise<boolean> => {
+    const { written } = await update<string>(ACCOUNT, (current) =>
+      current === expected ? next : undefined
+    );
+    return written;
+  },
 };
 
 export const deviceId = {
@@ -126,9 +278,120 @@ export const deviceId = {
   set: (id: string) => write(DEVICE_ID, id),
 };
 
+/**
+ * What this device has read, per conversation.
+ *
+ * The client is the archive: the server deletes a message the moment it is
+ * collected, so if this is not written down the message is gone. Kept beside
+ * the ratchet rather than in React state for the same reason.
+ */
+export interface StoredMessage {
+  id: string;
+  body: string;
+  at: string;
+  mine: boolean;
+}
+
+const LOG_PREFIX = "log:";
+
+export const messageLog = {
+  get: async (conversationId: string): Promise<StoredMessage[]> =>
+    (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [],
+  /**
+   * Add one message, keeping whatever else arrived at the same moment.
+   *
+   * Sending and collecting both append, from any number of open tabs, and all
+   * of them share one database. A plain read-then-write loses whichever
+   * finishes first — on the only copy of that message this device has.
+   */
+  append: async (conversationId: string, message: StoredMessage): Promise<void> => {
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      if (current.some((entry) => entry.id === message.id)) return undefined;
+      return [...current, message];
+    });
+  },
+};
+
+/** Which device of theirs we already hold a session with, per session id. */
+export const sessionForDevice = {
+  get: (deviceId: string) => read<string>("device-session:" + deviceId),
+  set: (deviceId: string, sessionId: string) => write("device-session:" + deviceId, sessionId),
+};
+
+/**
+ * Every session this device holds inside one conversation.
+ *
+ * A list rather than a single id: the other party may have several devices, and
+ * each is its own ratchet. An ordinary message names none of them, so decrypting
+ * one means trying the sessions this conversation has — a handful, at most.
+ */
+export const sessionsInConversation = {
+  get: async (conversationId: string): Promise<string[]> =>
+    (await read<string[]>("conversation-sessions:" + conversationId)) ?? [],
+  add: async (conversationId: string, sessionId: string): Promise<void> => {
+    await update<string[]>("conversation-sessions:" + conversationId, (existing) => {
+      const current = existing ?? [];
+      if (current.includes(sessionId)) return undefined;
+      // Most recent first: the session a message just arrived on is the one the
+      // next message is most likely to be on.
+      return [sessionId, ...current];
+    });
+  },
+};
+
+/**
+ * Whose device is on the other end of a session.
+ *
+ * A message arriving from this account's own other client is the sender's own
+ * outbox catching up, and belongs on the sender's side of the thread. The queue
+ * row says nothing about who wrote it, so this is recorded when the session is
+ * established — which is the only moment either end is known.
+ */
+export type SessionOrigin = "self" | "other";
+
+export const sessionOrigin = {
+  get: (id: string) => read<SessionOrigin>("session-origin:" + id),
+  set: (id: string, origin: SessionOrigin) => write("session-origin:" + id, origin),
+};
+
+/**
+ * Every session this device holds, most recent first.
+ *
+ * The per-conversation list above is where an ordinary message is looked up,
+ * and it is not always enough: one device is in every conversation this account
+ * has — its own other clients are — so a session opened in one conversation can
+ * carry a message in another. This is where collection looks when the
+ * conversation's own list does not answer, and what it finds is filed there.
+ */
+export const allSessions = {
+  get: async (): Promise<string[]> => (await read<string[]>("all-sessions")) ?? [],
+  add: async (sessionId: string): Promise<void> => {
+    await update<string[]>("all-sessions", (existing) => {
+      const current = existing ?? [];
+      if (current.includes(sessionId)) return undefined;
+      return [sessionId, ...current];
+    });
+  },
+};
+
 export const sessionPickle = {
   get: (id: string) => read<string>(SESSION_PREFIX + id),
   set: (id: string, pickle: string) => write(SESSION_PREFIX + id, pickle),
+  /**
+   * Advance a session only if it is still where the caller found it.
+   *
+   * A session moves on with every message it carries, and both ends have to
+   * move together. Two tabs encrypting from the same point produce two messages
+   * that claim the same place in the conversation, and the far end can only
+   * open one of them.
+   */
+  swap: async (id: string, expected: string, next: string): Promise<boolean> => {
+    const { written } = await update<string>(SESSION_PREFIX + id, (current) =>
+      current === expected ? next : undefined
+    );
+    return written;
+  },
 };
 
 /**

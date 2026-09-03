@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ignore an account.** They stop reaching you: no notification when they mention, reply to or react to you, and nothing they send arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share and can use every tool normally, because ignoring is about contact rather than about work. Nothing is deleted, so if you stop ignoring them everything is exactly where it was.
 
+- **Direct messages, end-to-end encrypted.** My Messages, in the sidebar beside My Contacts: the conversations you have open, and a composer. Messages are encrypted on your device and decrypted on theirs, so the server carries bytes it has no key to — there is nothing to search, nothing to moderate and nothing to hand over. A conversation opens once a message request is accepted, so nobody arrives in your messages uninvited. Notifications name who wrote and count how many, never what they said, and a flurry of messages is one notification rather than twenty.
+
+- **A conversation lives on your devices, not on a server.** A message is delivered and then deleted, which means each device keeps its own copy and a device that has never been in a conversation starts empty. Signing out takes this device's messages with it, which is the right answer on a shared computer — and the wrong one if you wanted them back, so keep the conversations you care about open on a device you stay signed in to.
+
 - **Act on somebody where you find them.** A menu on a profile, and on every row of My Contacts: connect, ask to message, ignore — and remove a connection, which confirms first. Ignoring used to mean knowing an account's exact handle and opening Settings, which is not where anybody reaches for it.
 
 ### Changed

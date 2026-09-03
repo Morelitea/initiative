@@ -1,0 +1,19 @@
+{
+  "title": "My Messages",
+  "encryptedNotice": "End-to-end encrypted. Only you and the other person can read these.",
+  "empty": {
+    "title": "No conversation open",
+    "body": "Pick somebody on the left, or open a channel from My Contacts."
+  },
+  "nobodyYet": "Nobody yet. A conversation opens once a message request is accepted.",
+  "startHint": "start",
+  "unknownAccount": "Unknown account",
+  "noHistoryHere": "Nothing on this device yet. Messages you had elsewhere stay there.",
+  "composerPlaceholder": "Write a message",
+  "send": "Send",
+  "sendFailed": "That message could not be sent.",
+  "recipientHasNoDevice": "{{name}} has not set up encrypted messages yet, so this could not be delivered.",
+  "deviceFailed": "Encrypted messages could not be set up on this device.",
+  "loading": "Loading…",
+  "unsupportedBrowser": "This browser cannot run encrypted messages. Try a different one, or the app."
+}
