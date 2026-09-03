@@ -541,6 +541,158 @@ export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
   );
 };
 /**
+ * The three community-wide decisions, for the owner's settings page.
+ *
+ * The two switches are also on ``GET /config``, which is where every signed-in
+ * page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
+ * — the server applies it when an account is made — so it is served here,
+ * behind the capability that writes it, rather than added to everyone's boot
+ * payload.
+ * @summary Read Community Settings
+ */
+export const readCommunitySettingsApiV1SettingsCommunityGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunitySettingsResponse>(
+    { url: `/api/v1/settings/community`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadCommunitySettingsApiV1SettingsCommunityGetQueryKey = () => {
+  return [`/api/v1/settings/community`] as const;
+};
+
+export const getReadCommunitySettingsApiV1SettingsCommunityGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadCommunitySettingsApiV1SettingsCommunityGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+  > = ({ signal }) => readCommunitySettingsApiV1SettingsCommunityGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadCommunitySettingsApiV1SettingsCommunityGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+>;
+export type ReadCommunitySettingsApiV1SettingsCommunityGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadCommunitySettingsApiV1SettingsCommunityGet<
+  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+          TError,
+          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadCommunitySettingsApiV1SettingsCommunityGet<
+  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+          TError,
+          Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadCommunitySettingsApiV1SettingsCommunityGet<
+  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Community Settings
+ */
+
+export function useReadCommunitySettingsApiV1SettingsCommunityGet<
+  TData = Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readCommunitySettingsApiV1SettingsCommunityGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadCommunitySettingsApiV1SettingsCommunityGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * Turn the community directory on or off for the whole deployment.
  *
  * Write-only on purpose: the current value is public — every signed-in page
@@ -551,6 +703,10 @@ export const useUpdateInterfaceSettingsApiV1SettingsInterfacePut = <
  * Switching it off hides the directory and refuses new listings; it does not
  * clear the opt-in a guild already made, so switching it back on restores the
  * same set of listed guilds.
+ *
+ * ``default_dm_policy`` is the third decision here and behaves like the
+ * second: omitted, it is left alone. It is the policy a newly created account
+ * starts on, and changing it moves no existing account.
  *
  * ``age_gate_enabled`` is the second switch: whether an account must confirm
  * it belongs to somebody 13 or older before it takes a place in a listed

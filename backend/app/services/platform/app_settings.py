@@ -14,6 +14,7 @@ from app.core.encryption import (
 from app.core.pam_context import has_active_grant
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.user_dm_settings import DmPolicy
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
 
@@ -215,12 +216,19 @@ async def update_community_settings(
     *,
     community_directory_enabled: bool,
     community_age_gate_enabled: bool | None = None,
+    default_dm_policy: "DmPolicy | None" = None,
 ) -> AppSetting:
     """Turn the community directory on or off for the whole deployment.
 
     Switching it off leaves every guild's own opt-in exactly as it was: the
     listings simply have nowhere to appear until it is switched back on, so an
     operator flipping this twice does not silently unpublish anybody.
+
+    ``default_dm_policy`` is a third, and the same rule applies: it is the
+    policy a newly created account starts on, read once when the account is
+    made. Changing it moves no existing account — raising it would open
+    accounts that never chose to be open, and lowering it would revoke channels
+    people are using.
 
     ``community_age_gate_enabled`` is a second, independent decision and is
     left alone when omitted: an owner who has asserted that every account here
@@ -230,6 +238,8 @@ async def update_community_settings(
     settings_row.community_directory_enabled = bool(community_directory_enabled)
     if community_age_gate_enabled is not None:
         settings_row.community_age_gate_enabled = bool(community_age_gate_enabled)
+    if default_dm_policy is not None:
+        settings_row.default_dm_policy = default_dm_policy
     session.add(settings_row)
     await session.commit()
     await session.refresh(settings_row)

@@ -4,6 +4,7 @@ from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.core.config import AuthScope
 from app.core.user_input_validators import validate_provider_slug
+from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
@@ -152,6 +153,9 @@ class CommunitySettingsResponse(SanitizedBaseModel):
 
     community_directory_enabled: bool
     age_gate_enabled: bool
+    #: The policy a newly created account starts on. Read once, when the
+    #: account is made; changing it moves no existing account.
+    default_dm_policy: DmPolicy
 
 
 class CommunitySettingsUpdate(SanitizedBaseModel):
@@ -160,6 +164,8 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: guild. Omitted leaves it as it was — the two switches are separate
     #: decisions and the directory one is written far more often.
     age_gate_enabled: Optional[bool] = None
+    #: Omitted leaves it as it was, like the switch above.
+    default_dm_policy: Optional[DmPolicy] = None
 
 
 class EmailSettingsResponse(SanitizedBaseModel):

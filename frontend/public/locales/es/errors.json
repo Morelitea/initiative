@@ -507,5 +507,9 @@
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Esa imagen es demasiado grande. Mantenla por debajo de 2 MB.",
   "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ese archivo no es una imagen compatible (PNG, JPEG, WebP o GIF).",
   "USER_AGE_ANSWER_STANDS": "Ya respondiste a la pregunta sobre la edad. Una persona administradora puede restablecerla.",
-  "USER_AGE_NOT_BLOCKED": "Esa cuenta no tiene ningún bloqueo por edad que levantar."
+  "USER_AGE_NOT_BLOCKED": "Esa cuenta no tiene ningún bloqueo por edad que levantar.",
+  "DM_USER_NOT_FOUND": "Esa cuenta no está disponible.",
+  "DM_AGE_CONFIRMATION_REQUIRED": "Confirma tu edad antes de cambiar quién puede enviarte mensajes.",
+  "DM_CANNOT_IGNORE_SELF": "No puedes ignorar tu propia cuenta.",
+  "DM_NOT_A_MEMBER": "No eres miembro de esa comunidad."
 }
