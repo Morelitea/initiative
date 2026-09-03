@@ -38,11 +38,9 @@ So click things. Open menus. Drag stuff about. The worst outcome available to yo
 
 Initiative is meant to help you, not to gradually become the tool with so many features that operating it is its own part-time job.
 
-So some things are left out on purpose. There are no group chats, for instance — because everything here already has **comments** on it. Projects, tasks, documents, calendars, all of it. The conversation about a thing happens on that thing, where the next person finds it without being told where to look, and every word of it is searchable.
+So some things are left out on purpose. There are no group chats, for instance — because everything here already has **comments** on it, and they're searchable. The conversation about a thing sits on that thing, where the next person finds it without being told where to look.
 
-A group chat is where somebody pastes the thing that should have been a document, and then six months later everyone is scrolling backwards through four thousand messages looking for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
-
-Every feature is one more thing to learn, one more thing to set up wrong, and one more row in a menu standing between you and the reason you opened the app in the first place. We'd rather it stayed small enough to keep in your head.
+Whereas a group chat is where somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
 
 ## Two ways to run it
 
@@ -108,19 +106,15 @@ Same software either way. We're not keeping the good bits back for the paying cu
 
 ## You choose who sees what
 
-Nothing here is visible to "everyone" by default, and there is no buried setting you have to find and switch on to make that true.
+Nothing here is visible to "everyone" by default, and there's no buried setting you have to find to make that true. Your group's space is separate from every other group's; inside it, each effort is only visible to the people you put in it; and any project or document narrows down further still.
 
-Your group's space is separate from every other group's. Inside it, each effort is only visible to the people you actually put in it. And any individual project or document can be narrowed down further than that.
-
-Which is how the payroll planning stays away from the seasonal staff, and next year's programme stays away from this year's volunteers, in the same workspace, with nothing configured, and nobody wandering into a folder they were never meant to see. [How that works →](sharing/index.md)
+Which is how the payroll planning stays away from the seasonal staff, and next year's programme away from this year's volunteers — same workspace, nothing configured, nobody wandering into a folder they were never meant to see. [How that works →](sharing/index.md)
 
 ## The tools come from people like you
 
 Whatever your group needs, some other group has needed precisely the same thing, built it, spent three years rebuilding it by hand every January, finally snapped, and shared it.
 
-That's the **marketplace**: ready-made dashboards and apps you add in about two clicks. No developer. No custom build. No waiting for us to get round to it.
-
-It's curated rather than open season — your marketplace holds what ships with Initiative plus whatever the person running your server has approved. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+That's the **marketplace**: ready-made dashboards and apps, about two clicks each. It's curated rather than open season — yours holds what ships with Initiative plus whatever the person running your server approved. See [Apps & the marketplace](guides/apps-and-marketplace.md).
 
 ## Why we built this
 
@@ -128,28 +122,22 @@ We're self-hosters. We got here the way most people do: by slowly going off the 
 
 What tipped it was watching creative work get hoovered into training data by companies that never thought to ask. To be clear, we like AI. We use it. But being useful doesn't entitle anyone to take what somebody made and feed it to a machine — and once that's happened to something of yours, "we promise not to" stops sounding like much of a promise.
 
-So we treated it as an architecture problem rather than a policy one. A policy lasts exactly as long as the person who wrote it stays in charge. A system with no path to your content doesn't need anybody to stay good.
+So we treated it as an architecture problem rather than a policy one, because a policy lasts exactly as long as the person who wrote it stays in charge. Nobody holds standing admin access to a community's data. Reaching into another community takes a time-limited grant that leaves a record. Direct messages are encrypted well enough that no key to them exists outside the two phones talking. We locked ourselves out on purpose, and we'd do it again.
 
-That's why bits of Initiative are stricter than they strictly need to be. Nobody holds standing admin access to a community's data. Reaching into another community takes a time-limited grant that leaves a record. Direct messages are encrypted well enough that no key to them exists outside the two phones talking. We locked ourselves out on purpose, and we'd do it again.
-
-Which means: **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own stuff deliberately, using a key you or your admin supplied, and they send only what you asked them to — under that provider's terms, which we'll tell you to go and read rather than pretend we control. See [AI features](account/ai-features.md).
-
-Mostly we wanted somewhere we'd be happy keeping our own work.
+Which means **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own stuff deliberately, and they send only what you asked — under that provider's terms, which we'll tell you to go and read rather than pretend we control. See [AI features](account/ai-features.md).
 
 ## A note on the words we use
 
 Initiative takes two perfectly ordinary words and gives them specific jobs. Sorry.
 
 - A **community** is a workspace — one separate space for one group of people. Your book club and your work team are two different communities.
-- An **initiative** is a folder for a big effort inside a community. It holds that effort's projects and documents.
+- An **initiative** is a folder for a big effort inside a community.
 
-And yes, the app is also called Initiative. We know. We've made our peace with it, and so will you. The [glossary](reference/glossary.md) has every other word we've borrowed.
+And yes, the app is also called Initiative. We know. The [glossary](reference/glossary.md) has every other word we've borrowed.
 
 ??? techspec "For the technically minded — what this actually is"
     Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There's a companion mobile app for iOS and Android. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
 
 ## Built in the open
 
-Initiative is developed in public, and what people using it say genuinely shapes what gets built next.
-
-So if something here is unclear, wrong, or conspicuously missing, tell us. [The project's on GitHub](https://github.com/Morelitea/initiative), and we do actually read it.
+Initiative is developed in public, and what people using it say genuinely shapes what gets built next. So if something here is unclear, wrong, or conspicuously missing, tell us — [the project's on GitHub](https://github.com/Morelitea/initiative), and we do actually read it.

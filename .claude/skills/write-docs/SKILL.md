@@ -82,6 +82,68 @@ page, to ignore a feature.
 
 ---
 
+## Keep it brief
+
+Nobody reads a wall of text. Not our reader, not you, not anyone. A page that
+sprawls doesn't get skimmed — it gets closed.
+
+So: **clear, specific, focused.** Say the thing, then stop.
+
+### Cut explanation, never voice
+
+This is the whole trick, and it's easy to get backwards. Brevity is not a
+licence to strip the personality back out and leave a spec sheet. The jokes
+are what get the page read; the over-explaining is what stops it being read.
+
+When a page is too long, the thing to delete is almost always a paragraph
+patiently explaining something the reader would have understood in four
+seconds of clicking.
+
+> **Cut this:** "The Access tab allows you to configure permissions for the
+> project. Permissions determine which users are able to perform which actions.
+> By configuring permissions appropriately, you can ensure that only the
+> intended people have access."
+>
+> **Keep this:** "Open the **Access** tab any time to add people, change a
+> level, or remove somebody. Changes apply immediately."
+
+### Trust the software
+
+Somebody who opens the Access tab will see the Access tab. Our job is to tell
+them it exists, what it's for, and the one thing that would surprise them —
+not to narrate the screen back at them.
+
+Document the **non-obvious**: the thing that catches people out, the reason
+behind a design choice, the setting whose name doesn't quite say what it does.
+Skip the parts the interface already makes plain.
+
+Over-explaining is worse than under-explaining, because it buries the sentence
+that actually mattered.
+
+### Signs a page has got away from you
+
+- A paragraph that could be a table row.
+- A sentence restating the heading directly above it.
+- Three examples where one specific one would land harder.
+- Explaining *what* a button does when the reader can see the button.
+- Any run of prose longer than about four lines without a break, list or table.
+
+### Practical shape
+
+- Lead with the answer. Context after, if it's needed at all.
+- Prefer a table or a short list to a paragraph, whenever the content has any
+  structure at all.
+- Two or three sentences per paragraph. Then a break.
+- If a guide passes roughly 1,200 words, ask what it's doing. It may genuinely
+  need the room, or it may be two pages, or it may just be padded.
+
+**Reference pages are exempt from the word count, not from the rule.** The FAQ,
+the glossary and `admin/publishing-listings.md` are looked *up*, never read
+start to finish, so length there costs nothing. Each individual entry still has
+to be short.
+
+---
+
 ## Never do these
 
 Each of these was an actual failure on this site. They are not hypothetical.
@@ -245,6 +307,8 @@ PY
 - [ ] `zensical build` reports **No issues found**.
 - [ ] Nav and files agree.
 - [ ] Read the page aloud. If you'd never say a sentence out loud, rewrite it.
+- [ ] Cut anything that explains what the reader can see on screen. Keep the
+      jokes; lose the narration.
 - [ ] No winking, no swipes, no brands-as-punchlines, no wacky similes.
 - [ ] Nothing describes an attack or what breaks without a guard.
 - [ ] Security and compliance pages untouched, unless that was the actual task.

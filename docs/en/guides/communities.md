@@ -21,17 +21,13 @@ The rail also keeps up with itself. If an admin adds you somewhere, or a group l
 
 ## The community front page
 
-Opening a community drops you on its front page. Its tools run across the top as circles — pick one, and you get everything of that kind that's actually reached **you**.
-
-"Reached you" means: shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in. Each row shows which initiative it came from, its tags, and when it last changed. Click a name to open it.
+Opening a community drops you on its front page. Its tools run across the top as circles — pick one, and you get everything of that kind that's reached **you**: shared with you directly, with a role you hold, or with everyone in an initiative you're in.
 
 Only the tools your initiatives actually use turn up, so a community that has never once needed a queue is not given a Queues circle to look at and feel vaguely guilty about.
 
-**Search** narrows by name, and the **Name**, **Initiative** and **Last updated** headers sort — newest first until you say otherwise. Both reach everything of that kind in the community, not just the rows currently on screen, so nothing is hiding on page two.
+**Search** narrows by name; the **Name**, **Initiative** and **Last updated** headers sort. Both reach everything in the community, not just the rows on screen, so nothing hides on page two. All of it lives in the web address, so you can bookmark or send the exact view you're on.
 
-The tool you picked, what you searched for, and how you sorted it are all part of the web address. So you can bookmark the exact view you're looking at, or send it to somebody.
-
-Community admins get the same page, incidentally. Their authority is unchanged — open any initiative and they see all of it — but the front page is a reading list, not an inventory of everything in existence.
+Community admins get the same page. Their authority is unchanged — open any initiative and they see all of it — but the front page is a reading list, not an inventory of everything in existence.
 
 ![A community's front page](../images/communities/community-front-page.png)
 
@@ -39,13 +35,11 @@ Community admins get the same page, incidentally. Their authority is unchanged �
 
 Most communities are private, and you get in by invitation. Some list themselves publicly, and those you can find on your own.
 
-Hit the **add-a-community** button on the rail and choose **Join a community**. That opens the **community directory** — a card per listed community, with its banner, icon, description, categories, how many members it has, and how many are online right now.
+Hit the **add-a-community** button on the rail and choose **Join a community**. That opens the **community directory**: a card per listed community, with its description, categories, member count, and how many are online right now.
 
-- **Search** by name or description.
-- **Browse by category.**
-- **Join** straight from the card. No invite, no waiting, no approval queue, no email that arrives four days later — you're a member the moment you click.
+Search by name, browse by category, and **join straight from the card** — no invite, no waiting, no approval queue, no email that arrives four days later. You're a member the moment you click.
 
-What you searched and which shelf you're on are part of the address, so a filtered view of the directory is a link you can send somebody.
+What you searched and which shelf you're on live in the address, so a filtered directory view is a link you can send somebody.
 
 ![The community directory](../images/communities/community-directory.png)
 

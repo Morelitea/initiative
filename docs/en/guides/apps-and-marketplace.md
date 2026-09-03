@@ -55,7 +55,9 @@ An **app** adds something to the community as a whole rather than one effort —
 2. **Add to community**, and name it.
 3. If it needs setting up, it's marked **Needs setup** — open its settings to finish.
 
-The Apps shelf lists the apps your server actually runs. Some apps are just a screen; others need a program running alongside Initiative to do their job, and one your server hasn't set up — or has switched off — isn't offered here. If you expected something and can't find it, whoever runs your server is who to ask. (On the hosted service those are already running — see [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).)
+The Apps shelf lists the apps your server actually runs. Some need a program running alongside Initiative, and one your server hasn't set up — or has switched off — isn't offered here.
+
+Expected something and can't find it? Whoever runs your server is who to ask. On the hosted service they're already running — see [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).
 
 Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Apps**.
 
@@ -75,9 +77,9 @@ Each connection shows which service it uses and what it's allowed to do there, s
 
 ## Your own marketplace
 
-Yours holds **decoration packs**: sets of artwork for your profile, and by far the least serious part of Initiative.
+Yours holds **decoration packs**: artwork for your profile, and by far the least serious part of Initiative.
 
-Each pack is built around one thing a group of people has in common, and carries banners, frames and trophies — usually several of each — which you wear in whatever combination pleases you.
+Each pack is built around one thing a group of people has in common, and carries banners, frames and trophies you wear in whatever combination pleases you.
 
 Twenty-three packs ship with Initiative:
 

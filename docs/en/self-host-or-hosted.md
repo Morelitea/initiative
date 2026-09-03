@@ -45,17 +45,17 @@ Nothing in Initiative is held back to make the hosted version look better. What 
 
 ### Apps that need something running behind them
 
-Some [marketplace apps](guides/apps-and-marketplace.md#adding-an-app) aren't just a screen. They need a program running alongside Initiative to do their actual job — an app that talks to another service has to be somewhere that can hold the conversation, which is more than a web page can manage on its own.
+Some [marketplace apps](guides/apps-and-marketplace.md#adding-an-app) aren't just a screen — they need a program running alongside Initiative to do their job.
 
-On a server you run, those apps work once you've stood that program up yourself. On the hosted service it's already running. Two we're launching with:
+On a server you run, that's yours to stand up. On the hosted service it's already running. Two we're launching with:
 
-**GitHub integration.** Connect a repository so the work in Initiative and the work in your codebase stop being two separate stories that somebody has to reconcile by hand.
+**GitHub integration.** Connect a repository so the work in Initiative and the work in your codebase stop being two separate stories somebody has to reconcile by hand.
 
-This one is **open source like the rest of Initiative**. If you run infrastructure and fancy standing it up yourself, nothing is stopping you and we'd genuinely like to see it. Being straight with you though: it's a real deployment rather than a config flag — a separate service with its own moving parts, and more than most people want sitting on top of a `docker compose up`.
+This one is **open source like the rest of Initiative**, so if you run infrastructure and fancy standing it up yourself, nothing's stopping you. Being straight with you though: it's a real deployment rather than a config flag, and more than most people want on top of a `docker compose up`.
 
-**Automations.** Rules that do the repetitive bit for you, so nobody has to remember to move the card every Friday. This one runs only on the hosted service, and it's priced separately from the subscription.
+**Automations.** Rules that do the repetitive bit for you, so nobody has to remember to move the card every Friday. Hosted only, and priced separately from the subscription.
 
-Here's why, because you deserve the actual reason: automations aren't a screen we drew once. They're something that has to be *running and listening* the entire time your rules exist, which costs us continuously — in the same unglamorous way storage does — and goes up the more you use it. Charging separately is us passing along a real running cost rather than gating a feature to make a cheaper plan look thin. We'd rather say that here than have you discover it at checkout.
+The actual reason, since you deserve it: automations aren't a screen we drew once. They have to be *running and listening* the whole time your rules exist, which costs us continuously — the same unglamorous way storage does — and goes up the more you use it. That's a running cost being passed along, not a feature held back to make a cheaper plan look thin.
 
 More will follow, of both kinds.
 
