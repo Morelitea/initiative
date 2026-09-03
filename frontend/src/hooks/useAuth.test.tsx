@@ -123,6 +123,39 @@ describe("useAuth identity ordering", () => {
     expect(auth.user?.full_name).toBe("Newer");
   });
 
+  it("hands back the same account object when the re-read says nothing new", async () => {
+    // The account is re-read whenever the server says it might have moved, and
+    // most of those answers are identical. A fresh object for one of them
+    // re-runs every effect keyed on the user — including the socket that asked
+    // for the read, which would then ask again, forever.
+    const account = buildUser({ full_name: "Unchanged" });
+    get.mockResolvedValue({ data: account });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Unchanged"));
+    const before = auth.user;
+
+    await act(async () => {
+      await auth.refreshUser();
+    });
+
+    expect(auth.user).toBe(before);
+  });
+
+  it("still swaps the object when the account actually moved", async () => {
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Before" }) });
+    renderAuth();
+    await waitFor(() => expect(auth.user?.full_name).toBe("Before"));
+    const before = auth.user;
+
+    get.mockResolvedValueOnce({ data: buildUser({ full_name: "After" }) });
+    await act(async () => {
+      await auth.refreshUser();
+    });
+
+    expect(auth.user).not.toBe(before);
+    expect(auth.user?.full_name).toBe("After");
+  });
+
   it("does not let a read in flight undo a sign-out", async () => {
     get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
     renderAuth();

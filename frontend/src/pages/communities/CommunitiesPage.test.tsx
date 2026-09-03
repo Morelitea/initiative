@@ -285,14 +285,17 @@ describe("CommunitiesPage", () => {
     await screen.findByText("Riverside Players");
 
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
-    const field = await screen.findByLabelText("Date of birth");
-    await userEvent.type(field, "1990-05-04");
-    expect(field).toHaveValue("1990-05-04");
+    await userEvent.click(await screen.findByLabelText("Date of birth"));
+    await userEvent.type(await screen.findByLabelText("Type or pick a date"), "1990-05-04{Enter}");
+    await userEvent.keyboard("{Escape}");
+    expect(await screen.findByLabelText("Date of birth")).toHaveTextContent("May 4, 1990");
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
-    expect(await screen.findByLabelText("Date of birth")).toHaveValue("");
+    expect(await screen.findByLabelText("Date of birth")).toHaveTextContent(
+      "Pick your date of birth"
+    );
     expect(join).not.toHaveBeenCalled();
   });
 

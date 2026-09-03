@@ -111,6 +111,12 @@ const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
  */
 export const useNotificationStream = () => {
   const { token, user, refreshUser } = useAuth();
+  // The socket belongs to a person, not to a particular reading of them. Every
+  // account re-read hands back a fresh object, and this socket asks for one on
+  // every connect — so keying the connection on the object would have it tear
+  // itself down and rebuild in a loop, each rebuild asking for the re-read that
+  // ends it. Who they are is the id.
+  const userId = user?.id ?? null;
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const authFailureCountRef = useRef(0);
@@ -154,7 +160,7 @@ export const useNotificationStream = () => {
   );
 
   useEffect(() => {
-    if (!user) {
+    if (userId === null) {
       return;
     }
 
@@ -282,5 +288,5 @@ export const useNotificationStream = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, user, refreshAccount]);
+  }, [token, userId, refreshAccount]);
 };

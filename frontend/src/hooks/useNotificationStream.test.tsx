@@ -1,7 +1,10 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { render, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { AuthContext } from "@/hooks/useAuth";
 
 import { useNotificationStream, useNotificationStreamConnected } from "./useNotificationStream";
 
@@ -229,6 +232,35 @@ describe("useNotificationStream", () => {
     socket.onmessage?.({ data: "not json" });
 
     expect(invalidateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("stays up across an account re-read rather than rebuilding for it", () => {
+    // Connecting asks for a re-read, and a re-read that replaced the socket
+    // would connect again — a loop that hammers the API until it rate-limits.
+    // The socket belongs to a person, not to a particular reading of them.
+    const account = buildUser();
+    const authValue = (user: UserRead) =>
+      ({
+        user,
+        token: "test-token",
+        loading: false,
+        refreshUser: vi.fn(),
+      }) as unknown as React.ComponentProps<typeof AuthContext.Provider>["value"];
+    const tree = (user: UserRead) => (
+      <AuthContext.Provider value={authValue(user)}>
+        <Probe />
+      </AuthContext.Provider>
+    );
+
+    const { rerender } = render(tree(account));
+    latest().open();
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    // A fresh object for the same person, which is what every re-read returns.
+    rerender(tree({ ...account }));
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(latest().closed).toBe(false);
   });
 
   it("closes the socket when the hook unmounts", () => {
