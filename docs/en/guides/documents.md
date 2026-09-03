@@ -156,4 +156,4 @@ Templates get copied rather than edited, so the original stays pristine no matte
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — who sees each one.
 - [Tags](tags.md) — labelling so you can find things later.
 - [Mentions & links](mentions-and-links.md) — pointing at people and other work.
-- [Your space](your-space.md) — every document that's yours, in one list.
+- [Your space](your-space.md#my-tools) — every document that's reached you, from every community, in one list.

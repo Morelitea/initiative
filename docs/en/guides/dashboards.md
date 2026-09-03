@@ -54,3 +54,4 @@ Each dashboard has its own comment thread, which is an excellent place to argue 
 - [Counters](counters.md) — numbers a dashboard can read.
 - [Apps & the marketplace](apps-and-marketplace.md) — ready-made dashboards.
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — access levels in full.
+- [Your space](your-space.md#my-tools) — every dashboard that's reached you, from every community.

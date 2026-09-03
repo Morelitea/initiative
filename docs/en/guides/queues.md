@@ -62,3 +62,4 @@ Every queue has its own comment thread, which you can switch off under **Setting
 - [Tools](tools.md) — the other optional tools.
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — the access levels in full.
 - [Tags](tags.md) — labeling queues and their items.
+- [Your space](your-space.md#my-tools) — every queue that's reached you, from every community, in one table.

@@ -20,20 +20,18 @@ The tasks *you* made, wherever they ended up. Useful for gently following up on 
 
 ## My Tools
 
-Every project, document, queue, counter group, calendar and dashboard that's reached *you*, across all your communities, in one table. Pick a tool along the top and the table below it changes; each row says which community and which initiative it came from, and clicking it takes you straight there.
+Every project, document, queue, counter, calendar and dashboard that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
 
-A tool you have nothing of anywhere doesn't get a tab. If you've never been near a queue, there's no queue tab to click and no empty table behind it.
+A tool you have none of anywhere doesn't get a tab at all. Never touched a queue? No queue tab, and no empty table sulking behind it.
 
-"Reached you" means the same thing on all of these pages: shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in.
+"Reached you" means the same thing everywhere in your space: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. It does **not** mean "everything you could theoretically prise open if you went looking". Even a community admin, who can reach absolutely anything in their community, gets their own work here rather than a 400-row inventory of everybody else's.
 
-It is **not** "everything you could theoretically open if you went hunting". Even a community admin — who can reach absolutely anything in their community — gets a list of their own work here, rather than a 400-row inventory of everybody else's.
+Two switches sit above the table:
 
-Two other controls sit above the table:
+- **Everything / Made by me** — the second is exactly what it sounds like: things you wrote, regardless of who's been given them since.
+- **Communities** — for when you're in five and today you care about one.
 
-- **Everything / Made by me** switches the whole view. *Made by me* is exactly what it says: the things you wrote, whoever they've since been shared with or handed to.
-- **Communities** narrows the table to the ones you pick, if you belong to several and only care about one today.
-
-The tool, the search box, the order, the page and the communities you've picked all live in the address bar, so whatever you're looking at is a link you can send to somebody.
+The tool, the search, the order, the page and the communities you picked all live in the address bar. So whatever you're looking at is a link, which is a considerably nicer thing to send somebody than "open My Tools and click around a bit".
 
 ## My Contacts
 

@@ -112,7 +112,7 @@ If you're not a member of the initiative it lives in, Initiative hides it comple
 
 ### My Tools doesn't show everything in my community
 
-It isn't meant to. My Tools and My Calendar — and the community front page — show what has reached *you*: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. Open a single initiative to see all of its work. See [Your space](guides/your-space.md#my-tools).
+It isn't meant to. My Tools and My Calendar — and the community front page — show what has reached *you*: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. It's a working list, not an inventory. Open a single initiative to see all of its work. See [Your space](guides/your-space.md#my-tools).
 
 ### I'm a community admin. Why isn't every initiative in my sidebar?
 
