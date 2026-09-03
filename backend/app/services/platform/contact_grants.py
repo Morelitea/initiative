@@ -20,8 +20,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, text
+import asyncio
+import logging
+from typing import Any
+
+from sqlalchemy import event, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session as SyncSession
 from sqlmodel import col, select
 
 from app.models.platform.contact_grant import (
@@ -114,8 +119,9 @@ async def list_for(
 ) -> list[ContactGrant]:
     """Every grant of one kind this account is a party to.
 
-    Rows whose other party the reader ignores are dropped here, so the pending
-    list of somebody they have stopped hearing from is not a way through.
+    Rows whose other party the reader ignores are dropped, so a request from
+    somebody they have stopped hearing from is not a way back to their
+    attention. The row stays; it becomes visible again if the ignore is lifted.
     """
     rows = (
         await session.exec(
@@ -140,18 +146,12 @@ async def list_for(
             )
         ).all()
     )
-    return [
-        row
-        for row in rows
-        if other_party(row, user_id) not in ignored
-        # A request from an account that ignores the reader is stored and never
-        # surfaced to them; it becomes acceptable if that is ever lifted.
-        and not (
-            row.state is ContactGrantState.pending
-            and row.requested_by != user_id
-            and other_party(row, user_id) in ignored
-        )
-    ]
+    # One direction only, and deliberately: what is dropped is a row whose other
+    # party *the reader* ignores. An account that ignores the reader has not
+    # stopped itself reaching them — ignoring governs arrival at the person who
+    # did it, so their request still lands, and their own inbox is where it goes
+    # quiet.
+    return [row for row in rows if other_party(row, user_id) not in ignored]
 
 
 def other_party(grant: ContactGrant, user_id: int) -> int:
@@ -320,7 +320,9 @@ async def _revoke_pair_if_stale(
         await session.flush()
 
 
-async def revoke_stale_message_grants(session: AsyncSession, *, user_id: int) -> int:
+async def revoke_stale_message_grants(
+    session: AsyncSession | None, *, user_id: int
+) -> int:
     """Drop every message grant this account could no longer form today.
 
     Called wherever a leg of ``can_ask`` goes away — a policy change, a
@@ -329,11 +331,14 @@ async def revoke_stale_message_grants(session: AsyncSession, *, user_id: int) ->
     a rule of its own, so a grant is revoked for the same reason it would be
     refused.
 
-    Runs on the system engine. The pairs need not involve whoever is making the
-    request — removing somebody from a community re-tests *their* grants — and
-    both the pairwise test and those rows are out of the request path's reach.
-    Call it after the change that prompted it has committed: this commits on its
-    own, so a caller that rolls back afterwards would have revoked for nothing.
+    Runs on the system engine, on its own session. The pairs need not involve
+    whoever is making the request — removing somebody from a community re-tests
+    *their* grants — and neither the pairwise test nor those rows are the
+    request path's to reach.
+
+    It must see the state the prompting change left behind, so callers reach it
+    through ``queue_stale_grant_sweep`` rather than calling it mid-transaction.
+    ``session`` is accepted and unused, so a test can drive it directly.
 
     Returns how many were dropped, so a caller can decide whether to signal.
     """
@@ -369,8 +374,8 @@ async def resolve_handle(
     """The account id behind a handle, for a connection request.
 
     One answer for every miss: a handle nobody holds and a handle belonging to
-    somebody unreachable both raise the same code, so the endpoint is not a way
-    to sweep the discriminator space for accounts that exist.
+    somebody unreachable raise the same code, so the endpoint says only whether
+    a connection can be made and never whether an account is there.
     """
     from app.core.messages import ContactGrantMessages
 
@@ -383,7 +388,7 @@ async def resolve_handle(
         )
     ).first()
     if row is None:
-        raise ContactGrantError(ContactGrantMessages.HANDLE_NOT_FOUND)
+        raise ContactGrantError(ContactGrantMessages.CANNOT_REACH)
     return row[0]
 
 
@@ -434,3 +439,72 @@ async def to_reads(
     return ContactGrantsResponse(
         accepted=accepted, incoming=incoming, outgoing=outgoing
     )
+
+
+logger = logging.getLogger(__name__)
+
+#: Accounts whose grants this session has earned a re-test for, but has not
+#: committed the reason for yet.
+_PENDING_SWEEP_KEY = "contact_grants_pending_sweep"
+
+# ``loop.create_task`` keeps only a weak reference, so a fire-and-forget sweep
+# can be collected mid-flight. Hold them until they finish.
+_inflight: set[asyncio.Task] = set()
+
+
+def queue_stale_grant_sweep(session: Any, user_id: int | None) -> None:
+    """Re-test this account's channels once the transaction commits.
+
+    The sweep reads the state the change left behind, so it cannot run while
+    that change is still uncommitted — a membership deleted but not committed
+    still answers ``dm_mutual_ask`` as present, and the channel that rested on
+    it would be kept. Queueing here and running on ``after_commit`` is the same
+    shape ``account_stream.queue_account_signal`` uses for the same reason.
+
+    A rollback discards the queue, so nothing is revoked for a change that did
+    not happen. And a sweep that never runs costs correctness nothing: rule 3
+    recomputes ``mutual_ask`` on every call, so a row left behind grants no
+    access — it is only tidier for it to be gone.
+    """
+    if user_id is None:
+        return
+    pending: set[int] = session.info.setdefault(_PENDING_SWEEP_KEY, set())
+    pending.add(user_id)
+
+
+def _spawn(coro: Any) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop (a sync script, a test driving a sync session). The rows are
+        # committed either way and the rule recomputes, so there is nothing to
+        # deliver to.
+        coro.close()
+        return
+    task = loop.create_task(coro)
+    _inflight.add(task)
+    task.add_done_callback(_inflight.discard)
+
+
+async def _sweep_quietly(user_id: int) -> None:
+    try:
+        await revoke_stale_message_grants(None, user_id=user_id)
+    except Exception:  # pragma: no cover - best effort, the rule still holds
+        logger.debug("contact_grants: stale sweep failed", exc_info=True)
+
+
+def _run_pending(sync_session: SyncSession) -> None:
+    pending = sync_session.info.pop(_PENDING_SWEEP_KEY, None)
+    if not pending:
+        return
+    for user_id in pending:
+        _spawn(_sweep_quietly(user_id))
+
+
+def _discard_pending(sync_session: SyncSession, *_args: Any) -> None:
+    sync_session.info.pop(_PENDING_SWEEP_KEY, None)
+
+
+event.listens_for(SyncSession, "after_commit")(_run_pending)
+event.listens_for(SyncSession, "after_rollback")(_discard_pending)
+event.listens_for(SyncSession, "after_soft_rollback")(_discard_pending)

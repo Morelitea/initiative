@@ -241,7 +241,11 @@ async def test_an_unknown_handle_answers_like_an_unreachable_one(
     unreachable = await client.post(
         "/api/v1/me/connections", json=await _handle(session, b.user), headers=a.headers
     )
+    # The whole response, not just the status: an earlier version matched on
+    # 409 alone and let two different detail codes through, which is the
+    # difference between "cannot connect" and "that account is here".
     assert missing.status_code == unreachable.status_code == 409
+    assert missing.json() == unreachable.json()
 
 
 async def test_accepting_a_connection_opens_the_channel(client, session, acting_user):
@@ -314,3 +318,28 @@ async def test_removing_a_connection_keeps_a_community_channel(
         f"/api/v1/users/{bram.user.id}/dm-permission", headers=ada.headers
     )
     assert permission.json() == {"permission": "open"}
+
+
+async def test_ignoring_someone_does_not_stop_you_reaching_them(
+    client, session, acting_user
+):
+    """Ignoring runs one way.
+
+    Bram ignores Ada, then asks to connect. Ada sees it: what Bram switched off
+    is Ada reaching *him*, not him reaching her. The mirror of
+    ``test_a_request_from_an_ignored_account_is_never_surfaced``, and the pair
+    of them is what pins the direction.
+    """
+    ada = await acting_user()
+    bram = await acting_user()
+    await client.put(f"/api/v1/me/ignored/{ada.user.id}", headers=bram.headers)
+
+    sent = await client.post(
+        "/api/v1/me/connections",
+        json=await _handle(session, ada.user),
+        headers=bram.headers,
+    )
+    assert sent.status_code == 202, sent.text
+
+    theirs = await client.get("/api/v1/me/connections", headers=ada.headers)
+    assert [r["user_id"] for r in theirs.json()["incoming"]] == [bram.user.id]

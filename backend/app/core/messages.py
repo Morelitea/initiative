@@ -976,9 +976,6 @@ class ContactGrantMessages:
     #: Accepting something nobody asked for, or accepting your own request.
     NO_REQUEST = "CONTACT_GRANT_NO_REQUEST"
     CANNOT_GRANT_SELF = "CONTACT_GRANT_CANNOT_GRANT_SELF"
-    #: No account with that handle. Answers the same way as a handle that
-    #: exists but cannot be reached.
-    HANDLE_NOT_FOUND = "CONTACT_GRANT_HANDLE_NOT_FOUND"
 
 
 class ContactMessages:

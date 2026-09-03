@@ -209,17 +209,13 @@ async def update_settings(
         row.updated_at = datetime.now(timezone.utc)
         session.add(row)
 
-    await session.commit()
-
     if dm_policy is not None or communities:
         # A policy change or a switched-off community takes a leg of can_ask
         # away, so every open channel that rested on it is re-tested — the same
-        # sweep every other lost leg runs. After the commit, because the sweep
-        # commits its own deletes and should be acting on the new state.
+        # sweep every other lost leg runs, on the same after-commit queue.
         from app.services.platform import contact_grants as contact_grants_service
 
-        await contact_grants_service.revoke_stale_message_grants(
-            session, user_id=user.id
-        )
+        contact_grants_service.queue_stale_grant_sweep(session, user.id)
 
+    await session.commit()
     return await read_settings(session, user=user)

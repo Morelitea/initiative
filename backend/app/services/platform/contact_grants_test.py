@@ -6,6 +6,8 @@ open channel unless the pair connected first; and removing a connection re-tests
 the grant rather than deleting it, so two co-members keep talking.
 """
 
+import asyncio
+
 import pytest
 from sqlalchemy import text
 
@@ -253,13 +255,81 @@ async def test_going_private_revokes_a_community_channel(session):
     assert await _grant(session, a, b, ContactGrantKind.message) is None
 
 
-async def test_the_guild_path_runs_the_sweep(session):
-    """Leaving a community is one of the five events that re-test a grant, and
-    the call sits with the membership delete rather than beside it."""
-    from app.services.platform import guilds as guilds_module
+async def _open_channel_between_co_members(session):
+    """Two co-members on ``community`` with an accepted message grant."""
+    guild = await create_guild(session)
+    a = await create_user(session)
+    b = await create_user(session)
+    for user in (a, b):
+        await create_guild_membership(session, user=user, guild=guild)
+        await _policy(session, user, DmPolicy.community)
+    await session.commit()
 
-    source = guilds_module.__file__
-    assert source is not None
-    with open(source, encoding="utf-8") as handle:
-        body = handle.read()
-    assert "revoke_stale_message_grants" in body
+    await _as(session, a)
+    await contact_grants_service.request(
+        session, actor_id=a.id, target_id=b.id, kind=ContactGrantKind.message
+    )
+    await _as(session, b)
+    await contact_grants_service.accept(
+        session, actor_id=b.id, other_id=a.id, kind=ContactGrantKind.message
+    )
+    return guild, a, b
+
+
+async def _drain_sweeps() -> None:
+    """Wait for the after-commit sweeps this test set going."""
+    pending = list(contact_grants_service._inflight)
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
+async def _grant_exists_fresh(a, b, kind) -> bool:
+    """Ask a connection of its own.
+
+    The sweep commits on a session of its own, so the answer is read on one too
+    rather than through the test session's identity map.
+    """
+    from app.db.session import AdminSessionLocal
+
+    low, high = canonical_pair(a.id, b.id)
+    async with AdminSessionLocal() as admin_session:
+        return (await admin_session.get(ContactGrant, (low, high, kind))) is not None
+
+
+async def test_the_sweep_waits_for_the_commit(session):
+    """The ordering the queue exists for.
+
+    A sweep that ran against the uncommitted delete would still see the
+    membership, find the pair allowed, and keep a channel whose only leg has
+    just gone — the failure this replaces a source-text check with.
+    """
+    guild, a, b = await _open_channel_between_co_members(session)
+
+    membership = await session.get(GuildMembership, (guild.id, b.id))
+    await session.delete(membership)
+    contact_grants_service.queue_stale_grant_sweep(session, b.id)
+
+    # Still there: the delete has not landed, so nothing has been re-tested.
+    assert await _grant_exists_fresh(a, b, ContactGrantKind.message)
+
+    await session.commit()
+    await _drain_sweeps()
+
+    assert not await _grant_exists_fresh(a, b, ContactGrantKind.message)
+
+
+async def test_a_rollback_discards_the_queue():
+    """A change that did not happen revokes nothing.
+
+    The hook, on its own: a rolled-back session leaves no sweep behind to run.
+    """
+
+    class _Session:
+        info: dict = {}
+
+    fake = _Session()
+    contact_grants_service.queue_stale_grant_sweep(fake, 7)
+    assert fake.info[contact_grants_service._PENDING_SWEEP_KEY] == {7}
+
+    contact_grants_service._discard_pending(fake)
+    assert contact_grants_service._PENDING_SWEEP_KEY not in fake.info
