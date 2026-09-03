@@ -748,7 +748,19 @@ async def confirm_my_age(
 
     Saying it again is not an error and does not move the timestamp — the record
     is when they first answered.
+
+    **An answer of "under age" also stands.** It is recorded — the fact, not the
+    date — and the question is not asked again, because a question you can
+    re-answer until it comes out right is not one. Putting it right takes
+    somebody with ``users.age_unblock``, which is a support ticket rather than
+    an appeal to the same form.
     """
+    if current_user.age_below_minimum_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=UserMessages.AGE_ANSWER_STANDS,
+        )
+
     today = datetime.now(timezone.utc).date()
     if payload.birthdate > today or payload.birthdate < today.replace(
         year=today.year - MAX_PLAUSIBLE_AGE_YEARS
@@ -760,6 +772,12 @@ async def confirm_my_age(
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
         )
     if _years_since(payload.birthdate, today) < MINIMUM_AGE_YEARS:
+        # Recorded before the refusal, so the answer holds: what is written is
+        # that they answered under age, never the date they gave.
+        current_user.age_below_minimum_at = datetime.now(timezone.utc)
+        current_user.updated_at = datetime.now(timezone.utc)
+        session.add(current_user)
+        await session.commit()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_BELOW_MINIMUM,

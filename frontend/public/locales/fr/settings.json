@@ -642,7 +642,9 @@
     "suspendTitle": "Suspendre {{handle}} ?",
     "suspendBody": "Elle conserve tout — ses appartenances, ses partages et tout ce qu'elle a écrit — et n'accède à aucune communauté tant que la suspension dure. Elle peut toujours se connecter à son propre compte, où votre motif s'affichera.",
     "suspendReasonLabel": "Motif (qui lui sera montré)",
-    "actionError": "L'opération n'a pas abouti. Réessayez."
+    "actionError": "L'opération n'a pas abouti. Réessayez.",
+    "clearAgeBlock": "Réinitialiser la question d'âge",
+    "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau."
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",

@@ -642,7 +642,9 @@
     "suspendTitle": "¿Suspender a {{handle}}?",
     "suspendBody": "Conserva todo — pertenencias, permisos y todo lo que haya escrito — y no accede a ninguna comunidad hasta que se levante. Puede seguir entrando en su propia cuenta, donde verá tu motivo.",
     "suspendReasonLabel": "Motivo (se le mostrará)",
-    "actionError": "No se pudo completar. Inténtalo de nuevo."
+    "actionError": "No se pudo completar. Inténtalo de nuevo.",
+    "clearAgeBlock": "Restablecer pregunta de edad",
+    "ageBlockCleared": "Puede volver a responder la pregunta sobre la edad."
   },
   "adminDeleteUser": {
     "title": "Eliminar usuario",

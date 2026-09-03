@@ -505,5 +505,7 @@
   "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Integrierte Ankündigungen werden über ein Release geändert, nicht hier.",
   "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Dieses Bild existiert nicht mehr.",
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Dieses Bild ist zu groß. Bleib unter 2 MB.",
-  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Diese Datei ist kein unterstütztes Bild (PNG, JPEG, WebP oder GIF)."
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Diese Datei ist kein unterstütztes Bild (PNG, JPEG, WebP oder GIF).",
+  "USER_AGE_ANSWER_STANDS": "Du hast die Altersfrage bereits beantwortet. Eine Administratorin oder ein Administrator kann sie zurücksetzen.",
+  "USER_AGE_NOT_BLOCKED": "Für dieses Konto gibt es keine Alterssperre, die aufgehoben werden könnte."
 }

@@ -1217,6 +1217,12 @@ export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
  *
  * Saying it again is not an error and does not move the timestamp — the record
  * is when they first answered.
+ *
+ * **An answer of "under age" also stands.** It is recorded — the fact, not the
+ * date — and the question is not asked again, because a question you can
+ * re-answer until it comes out right is not one. Putting it right takes
+ * somebody with ``users.age_unblock``, which is a support ticket rather than
+ * an appeal to the same form.
  * @summary Confirm My Age
  */
 export const confirmMyAgeApiV1UsersMeAgeConfirmationPost = (

@@ -442,6 +442,11 @@ class UserRead(UserBase):
     #: where it never has. Read by the directory's Join button, which asks
     #: before it joins rather than letting the server refuse.
     age_confirmed_at: Optional[datetime] = None
+    #: When this account answered the age question as under the minimum,
+    #: ``None`` where it has not. Turns the confirmation screen from a form
+    #: into an explanation: the answer stands, and putting it right is
+    #: somebody else's to do.
+    age_below_minimum_at: Optional[datetime] = None
     #: Whether it must say so before it can carry on. True only for an account
     #: that is already in a listed guild without having confirmed — every other
     #: way in leaves the membership standing and lands here. False routes

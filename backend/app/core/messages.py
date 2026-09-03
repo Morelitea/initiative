@@ -424,6 +424,11 @@ class UserMessages:
     #: A date that is not one somebody could have been born on — in the future,
     #: or further back than a person lives.
     AGE_INVALID_BIRTHDATE = "USER_AGE_INVALID_BIRTHDATE"
+    #: The account already answered as under age. The answer stands until
+    #: somebody with the standing to put it right lifts it.
+    AGE_ANSWER_STANDS = "USER_AGE_ANSWER_STANDS"
+    #: Asked to lift an age block on an account that has none.
+    AGE_NOT_BLOCKED = "USER_AGE_NOT_BLOCKED"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"

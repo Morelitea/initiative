@@ -9,6 +9,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 const post = vi.fn();
@@ -65,6 +66,26 @@ describe("ConfirmAge", () => {
 
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it("offers no second attempt to an account whose answer stands", async () => {
+    // Re-asking would let the answer be tried until it came out right, which
+    // is the thing recording it exists to stop.
+    renderWithProviders(<ConfirmAge />, {
+      auth: { user: buildUser({ age_below_minimum_at: "2026-01-01T00:00:00Z" }) },
+    });
+
+    expect(await screen.findByText(/told us you're not old enough yet/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Date of birth")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
+  });
+
+  it("tells a blocked account the date was not kept and who can reset it", async () => {
+    renderWithProviders(<ConfirmAge />, {
+      auth: { user: buildUser({ age_below_minimum_at: "2026-01-01T00:00:00Z" }) },
+    });
+
+    expect(await screen.findByText(/did not keep the date you gave/i)).toBeInTheDocument();
   });
 
   it("surfaces the server's answer when somebody is too young", async () => {

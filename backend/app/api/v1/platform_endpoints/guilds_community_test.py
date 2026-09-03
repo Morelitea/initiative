@@ -1456,3 +1456,139 @@ async def test_the_date_is_not_kept_anywhere(
         assert birthdate not in rendered, f"users.{column} holds the date"
         # The date reshaped is still the date.
         assert f"{day}/{month}/{year}" not in rendered, f"users.{column} holds the date"
+
+
+async def test_answering_under_age_is_recorded_without_the_date(
+    client: AsyncClient, session: AsyncSession
+):
+    """The fact, not the birthday — the promise holds on this path too."""
+    user = await create_user(session, email="young@example.com", age_confirmed_at=None)
+    birthdate = _birthdate_for_age(9)
+
+    response = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": birthdate},
+        headers=get_auth_headers(user),
+    )
+
+    assert response.status_code == 422
+    await session.refresh(user)
+    assert user.age_below_minimum_at is not None
+    assert user.age_confirmed_at is None
+    for column in user.__table__.columns.keys():  # noqa: SIM118
+        assert birthdate not in str(getattr(user, column))
+
+
+async def test_the_answer_stands_against_a_second_try(
+    client: AsyncClient, session: AsyncSession
+):
+    """A question you can re-answer until it comes out right is not a question."""
+    user = await create_user(session, email="retry@example.com", age_confirmed_at=None)
+    headers = get_auth_headers(user)
+
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=headers,
+    )
+    second = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=headers,
+    )
+
+    assert second.status_code == 409
+    assert second.json()["detail"] == "USER_AGE_ANSWER_STANDS"
+    await session.refresh(user)
+    assert user.age_confirmed_at is None
+
+
+async def test_a_blocked_account_still_cannot_join(
+    client: AsyncClient, session: AsyncSession
+):
+    user = await create_user(
+        session, email="blocked@example.com", age_confirmed_at=None
+    )
+    guild = await create_guild(session, name="Open Table")
+    await _list_as_community(session, guild)
+    headers = get_auth_headers(user)
+
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=headers,
+    )
+    response = await client.post(
+        f"/api/v1/guilds/communities/{guild.id}/join", headers=headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_AGE_CONFIRMATION_REQUIRED"
+
+
+async def test_support_can_let_them_answer_again(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The way back from a mistyped year, at the lowest rung that has it."""
+    from app.models.platform.user import UserRole
+
+    subject = await create_user(
+        session, email="typo@example.com", age_confirmed_at=None
+    )
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=get_auth_headers(subject),
+    )
+    await session.refresh(subject)
+    assert subject.age_below_minimum_at is not None
+
+    support = await acting_user(UserRole.support.value)
+    cleared = await client.delete(
+        f"/api/v1/admin/users/{subject.id}/age-block", headers=support.headers
+    )
+    assert cleared.status_code == 200
+
+    # And the question is answerable again, from scratch.
+    retry = await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": ADULT_BIRTHDATE},
+        headers=get_auth_headers(subject),
+    )
+    assert retry.status_code == 200
+
+
+async def test_an_ordinary_member_cannot_lift_an_age_block(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    subject = await create_user(
+        session, email="subject@example.com", age_confirmed_at=None
+    )
+    await client.post(
+        "/api/v1/users/me/age-confirmation",
+        json={"birthdate": _birthdate_for_age(9)},
+        headers=get_auth_headers(subject),
+    )
+
+    nobody = await acting_user("member")
+    response = await client.delete(
+        f"/api/v1/admin/users/{subject.id}/age-block", headers=nobody.headers
+    )
+
+    assert response.status_code == 403
+
+
+async def test_lifting_a_block_that_is_not_there_says_so(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    from app.models.platform.user import UserRole
+
+    subject = await create_user(session, email="fine@example.com")
+    support = await acting_user(UserRole.support.value)
+
+    response = await client.delete(
+        f"/api/v1/admin/users/{subject.id}/age-block", headers=support.headers
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_AGE_NOT_BLOCKED"

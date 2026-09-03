@@ -1138,6 +1138,104 @@ export function useGetPlatformAdminCountApiV1AdminPlatformAdminCountGet<
 }
 
 /**
+ * Let an account answer the age question again.
+ *
+ * An account that answered as under age keeps that answer, and the question
+ * is not re-asked — otherwise it is not a question. This is the way back for
+ * the case that is nearly all of them: a mistyped year. It clears the record
+ * of the answer and nothing else; the account answers again from scratch, and
+ * the deployment has no more idea of anybody's birthday than it did before.
+ *
+ * Gated on ``users.age_unblock``, which the support tier holds — the lowest
+ * rung, because getting somebody back into their account after a typo is
+ * support work rather than a moderation decision. Recorded either way: it is
+ * one person restoring another's access, which is exactly the kind of thing
+ * a log is for.
+ * @summary Clear Age Block
+ */
+export const clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UserRead>(
+    { url: `/api/v1/admin/users/${userId}/age-block`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>
+>;
+
+export type ClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Clear Age Block
+ */
+export const useClearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearAgeBlockApiV1AdminUsersUserIdAgeBlockDelete>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getClearAgeBlockApiV1AdminUsersUserIdAgeBlockDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Update a user's platform role (admin only).
  *
  * Restrictions:

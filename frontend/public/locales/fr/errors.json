@@ -505,5 +505,7 @@
   "ANNOUNCEMENT_BUILTIN_READ_ONLY": "Les annonces intégrées se modifient en publiant une version, pas ici.",
   "ANNOUNCEMENT_IMAGE_NOT_FOUND": "Cette image n'existe plus.",
   "ANNOUNCEMENT_IMAGE_TOO_LARGE": "Cette image est trop lourde. Restez sous 2 Mo.",
-  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ce fichier n'est pas une image prise en charge (PNG, JPEG, WebP ou GIF)."
+  "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE": "Ce fichier n'est pas une image prise en charge (PNG, JPEG, WebP ou GIF).",
+  "USER_AGE_ANSWER_STANDS": "Vous avez déjà répondu à la question sur l'âge. Une personne administratrice peut la réinitialiser.",
+  "USER_AGE_NOT_BLOCKED": "Ce compte n'a aucun blocage lié à l'âge à lever."
 }

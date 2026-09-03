@@ -23,13 +23,41 @@ import { useAuth } from "@/hooks/useAuth";
  */
 export const ConfirmAge = () => {
   const { t } = useTranslation(["auth", "common"]);
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { birthdate, setBirthdate, submitting, error, confirm } = useAgeConfirmation();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void confirm();
   };
+
+  // An account that answered as under age keeps that answer. Showing the form
+  // again would invite it to be re-answered until it came out right, which is
+  // the thing the record exists to stop — so this says what happened and where
+  // to go, and offers no second attempt.
+  if (user?.age_below_minimum_at) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>{t("confirmAge.blockedTitle")}</CardTitle>
+            <CardDescription>{t("confirmAge.blockedBody")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">{t("confirmAge.blockedHelp")}</p>
+            <Button
+              type="button"
+              variant="ghost"
+              className="mt-4 w-full"
+              onClick={() => void logout()}
+            >
+              {t("confirmAge.signOut")}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">

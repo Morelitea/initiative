@@ -642,7 +642,9 @@
     "suspendTitle": "Suspend {{handle}}?",
     "suspendBody": "They keep everything — memberships, sharing, and everything they have written — and reach no community until this is lifted. They can still sign in to their own account, where they will see your reason.",
     "suspendReasonLabel": "Reason (shown to them)",
-    "actionError": "That could not be done. Try again."
+    "actionError": "That could not be done. Try again.",
+    "clearAgeBlock": "Reset age question",
+    "ageBlockCleared": "They can answer the age question again."
   },
   "adminDeleteUser": {
     "title": "Delete User",

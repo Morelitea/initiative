@@ -105,6 +105,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // never meet it. The gate's own tests override these two.
     age_confirmed_at: "2026-01-01T00:00:00Z",
     age_confirmation_required: false,
+    age_below_minimum_at: null,
     full_name: `User ${counter}`,
     avatar_url: null,
     role: "member",
