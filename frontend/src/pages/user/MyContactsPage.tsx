@@ -162,15 +162,12 @@ export const MyContactsPage = () => {
     [searching, allValues, setCollapse]
   );
 
-  // Why the page is bare, if it is. Only worth saying while nothing is
-  // searched for — under a term an empty page means the term, not the policy —
-  // and only once the settings are in hand: absent, they read as an account
-  // that has answered nothing, which is the one panel that must never be shown
-  // to somebody who has.
-  const reason =
-    searching || !dmQuery.data
-      ? null
-      : unreachableReason(Boolean(dmQuery.data.age_confirmed_at), dmQuery.data.dm_policy);
+  // Why the page is bare, if it is. Only once the settings are in hand:
+  // absent, they read as an account that has answered nothing, which is the
+  // one panel that must never be shown to somebody who has.
+  const reason = dmQuery.data
+    ? unreachableReason(Boolean(dmQuery.data.age_confirmed_at), dmQuery.data.dm_policy)
+    : null;
 
   const isFirstLoad = sectionsQuery.isLoading || favoritesQuery.isLoading;
   // A term in flight, whether or not last term's answer is still on screen.
@@ -181,6 +178,23 @@ export const MyContactsPage = () => {
     favorites.length === 0 &&
     connections.length === 0 &&
     openChannels.length === 0;
+
+  // An account that has not answered the age question has no contacts, and not
+  // because nobody is there: it cannot reach anyone and nobody can reach it,
+  // in any community. So the question is the page, rather than a notice on top
+  // of a table with nothing in it and a search field that can only ever
+  // return nothing.
+  if (reason === "age") {
+    return (
+      <div className="space-y-4">
+        <header className="space-y-1">
+          <h1 className="font-semibold text-2xl">{t("title")}</h1>
+          <p className="max-w-prose text-muted-foreground text-sm">{t("subtitle")}</p>
+        </header>
+        <AgeUnansweredPanel />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -201,11 +215,6 @@ export const MyContactsPage = () => {
       />
 
       {isSearchPending ? <ContactSearchProgress /> : null}
-
-      {/* Above the table rather than inside it: an unanswered age closes
-          messaging in both directions, so it is not a remark about the
-          community sections. */}
-      {reason === "age" ? <AgeUnansweredPanel /> : null}
 
       {/* Also above it, and only when something is waiting: a request is not a
           contact yet, it is a question — few, actionable and transient, which
@@ -306,7 +315,7 @@ export const MyContactsPage = () => {
           </Accordion>
           {/* Under the communities, which are the sections a policy empties.
               Favorites above it are the reader's own list and stay. */}
-          {reason === "private" ? (
+          {reason === "private" && !searching ? (
             <div className="pt-2">
               <PrivatePanel />
             </div>

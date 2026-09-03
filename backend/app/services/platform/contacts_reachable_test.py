@@ -4,6 +4,8 @@ The two to keep are the last: an ignore governs what arrives, so it takes the
 account you ignored off your own roster and leaves you on theirs.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import text
 
@@ -73,6 +75,41 @@ async def test_an_unconfirmed_age_lists_nobody(client, session, acting_user):
     await session.commit()
 
     assert await _roster(client, ada) == set()
+
+
+async def test_a_member_who_has_not_answered_the_age_question_is_not_listed(
+    client, session, acting_user
+):
+    """Sharing a community is not enough on its own.
+
+    An account that has not answered cannot be messaged, so listing it would
+    offer the reader a person they cannot reach.
+    """
+    ada = await acting_user(guild_role=GuildRole.member)
+    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    await _policy(session, ada.user, DmPolicy.community)
+    await _policy(session, bram.user, DmPolicy.community)
+    bram.user.age_confirmed_at = None
+    session.add(bram.user)
+    await session.commit()
+
+    assert bram.user.id not in await _roster(client, ada)
+
+
+async def test_a_member_below_the_minimum_age_is_not_listed(
+    client, session, acting_user
+):
+    """The other age answer, which is the one that stands."""
+    ada = await acting_user(guild_role=GuildRole.member)
+    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    await _policy(session, ada.user, DmPolicy.community)
+    await _policy(session, bram.user, DmPolicy.community)
+    bram.user.age_confirmed_at = None
+    bram.user.age_below_minimum_at = datetime.now(timezone.utc)
+    session.add(bram.user)
+    await session.commit()
+
+    assert bram.user.id not in await _roster(client, ada)
 
 
 async def test_being_ignored_does_not_remove_you_from_their_roster(
