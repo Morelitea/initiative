@@ -81,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The age question no longer hammers the server.** Answering how old you are re-reads your account, and re-reading it rebuilt the connection that had just asked for the re-read — a loop that ran until the API started refusing requests. The connection now belongs to the person rather than to a particular reading of them, and a re-read that says nothing new changes nothing.
+
+- **The date of birth is picked with the app's own date picker**, so a birthday is a year off a dropdown rather than forty years of paging back through the browser's calendar.
+
 - **The community calendar shows its calendars** and offers to add one, instead of opening straight onto a grid of events.
 
 - **A task description with a code block no longer stretches its board card** out of the column — code fences, tables, images and long strings stay inside it.

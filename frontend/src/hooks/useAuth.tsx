@@ -104,6 +104,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setHasActiveSession(nextUser !== null);
   }, []);
 
+  /** Apply a re-read of the same person, keeping the object when nothing moved.
+   *
+   *  The account is re-read whenever the server says it might have changed, and
+   *  most of those answers are identical to what is already held. Handing back a
+   *  fresh object for one of those re-runs every effect keyed on the user —
+   *  including the socket that asked for the re-read — so an answer that says
+   *  nothing new has to be indistinguishable from no answer at all. */
+  const applyRead = useCallback((nextUser: UserRead) => {
+    setUserState((current) =>
+      current && JSON.stringify(current) === JSON.stringify(nextUser) ? current : nextUser
+    );
+    setHasActiveSession(true);
+  }, []);
+
   /** Sign-in / sign-out: a new person, so every read in flight is stale. */
   const replaceIdentity = useCallback(
     (nextUser: UserRead | null) => {
@@ -145,8 +159,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     appliedReadRef.current = readId;
-    setUser(response.data);
-  }, [setUser, replaceIdentity]);
+    applyRead(response.data);
+  }, [applyRead]);
 
   // Bootstrap user on mount — always attempt /users/me.
   // Web: cookie is sent automatically (withCredentials). Native: token was loaded by the effect above.
