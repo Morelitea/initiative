@@ -12,6 +12,7 @@
   "composerPlaceholder": "Escribe un mensaje",
   "send": "Enviar",
   "sendFailed": "No se pudo enviar ese mensaje.",
+  "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
   "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
   "loading": "Cargando…",
   "unsupportedBrowser": "Este navegador no puede ejecutar mensajes cifrados. Prueba con otro o con la aplicación."

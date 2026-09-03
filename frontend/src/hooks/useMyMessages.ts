@@ -23,7 +23,10 @@ import { collect, ensureDevice, messageLog, sendText } from "@/crypto/messaging"
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
-  device: ["dm", "device"] as const,
+  // Deliberately outside the `["dm", …]` family a socket frame invalidates:
+  // registering is a once-per-browser answer, and re-asking it on every frame
+  // would cost a round trip to be told the same device id again.
+  device: ["dm-device"] as const,
   inbox: ["dm", "inbox"] as const,
   thread: (conversationId: string) => ["dm", "thread", conversationId] as const,
 };

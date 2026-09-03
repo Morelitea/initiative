@@ -12,6 +12,7 @@
   "composerPlaceholder": "Écris un message",
   "send": "Envoyer",
   "sendFailed": "Ce message n'a pas pu être envoyé.",
+  "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
   "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
   "loading": "Chargement…",
   "unsupportedBrowser": "Ce navigateur ne peut pas exécuter les messages chiffrés. Essaie-en un autre, ou l'application."

@@ -17,6 +17,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import { routeTree } from "@/routeTree.gen";
 
 import { renderPage } from "./helpers/render";
@@ -35,7 +36,11 @@ const mocks = vi.hoisted(() => ({
 
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
 // the seam the page talks to, so the page's own behaviour is what is on trial.
-vi.mock("@/crypto/messaging", () => ({
+vi.mock("@/crypto/messaging", async (importOriginal) => ({
+  // The error class is real: the page tells one kind of failure from another by
+  // identity, so a stand-in would prove nothing.
+  RecipientHasNoDeviceError: (await importOriginal<Record<string, unknown>>())
+    .RecipientHasNoDeviceError,
   ensureDevice: () => mocks.ensureDevice(),
   collect: () => mocks.collect(),
   sendText: (conversationId: string, otherUserId: number, body: string) =>
@@ -149,6 +154,46 @@ describe("My Messages", () => {
     await queryClient.invalidateQueries({ queryKey: ["dm"] });
 
     await waitFor(() => expect(mocks.collect).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not carry a half-written message into another conversation", async () => {
+    // A composer keeps a draft. If the thread is not remounted per conversation
+    // the draft follows the switch, and the next Send addresses somebody else.
+    mocks.conversations.mockResolvedValue({
+      conversations: [
+        { id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" },
+        { id: "conv-2", other_user_id: 8, created_at: "2026-09-01T00:00:00Z" },
+      ],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex"), grant(8, "sam")], incoming: [], outgoing: [] },
+    });
+
+    await renderMessages();
+    await userEvent.click(await screen.findByRole("button", { name: /alex#1234/ }));
+    await userEvent.type(await screen.findByLabelText(/write a message/i), "meant for alex");
+    await userEvent.click(await screen.findByRole("button", { name: /sam#1234/ }));
+
+    expect(await screen.findByLabelText(/write a message/i)).toHaveValue("");
+  });
+
+  it("says an account has no device rather than reporting a plain failure", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.sendText.mockRejectedValue(new RecipientHasNoDeviceError());
+
+    await renderMessages();
+    await userEvent.click(await screen.findByRole("button", { name: /alex#1234/ }));
+    await userEvent.type(await screen.findByLabelText(/write a message/i), "hello");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    expect(await screen.findByText(/has not set up encrypted messages/i)).toBeInTheDocument();
+    // And the text comes back, because the composer was the only copy of it.
+    expect(screen.getByLabelText(/write a message/i)).toHaveValue("hello");
   });
 
   it("sends through the ratchet rather than posting a body", async () => {

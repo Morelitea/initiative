@@ -6,6 +6,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ratchetSupported } from "@/crypto/client";
+import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import { useMessageRequests } from "@/hooks/useDirectMessages";
 import {
   useCollectMessages,
@@ -134,7 +135,10 @@ export function MyMessagesPage() {
         </aside>
 
         {current ? (
+          // Keyed on the conversation: a thread holds a half-typed message, and
+          // the one you were writing to Alice must not follow you to Bob.
           <Thread
+            key={current.id}
             conversationId={current.id}
             otherUserId={current.other_user_id}
             name={nameFor.get(current.other_user_id) ?? t("unknownAccount")}
@@ -171,7 +175,7 @@ function Thread({
   const messages = thread.data ?? [];
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
-  }, []);
+  }, [messages.length]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -201,7 +205,9 @@ function Thread({
           const body = draft.trim();
           if (!body) return;
           setDraft("");
-          send.mutate(body);
+          // What was typed comes back if it could not be sent: the composer is
+          // the only place it exists, and a failed send should not eat it.
+          send.mutate(body, { onError: () => setDraft(body) });
         }}
       >
         <Input
@@ -217,7 +223,11 @@ function Thread({
       </form>
       {send.isError ? (
         <div className="px-3 pb-3">
-          <p className="text-destructive text-sm">{t("sendFailed")}</p>
+          <p className="text-destructive text-sm">
+            {send.error instanceof RecipientHasNoDeviceError
+              ? t("recipientHasNoDevice", { name })
+              : t("sendFailed")}
+          </p>
         </div>
       ) : null}
     </section>
