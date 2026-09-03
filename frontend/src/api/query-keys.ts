@@ -201,6 +201,20 @@ export const invalidateRecentComments = () => invalidateGuildPrefix("/api/v1/com
 
 export const invalidateNotifications = () => invalidatePersonalPrefix("/api/v1/notifications");
 
+// ── Contacts: who may reach you, and who you have agreed with ────────────────────
+
+/** The policy and its per-community toggles. */
+export const invalidateDmSettings = () => invalidatePersonalExact(["/api/v1/me/dm-settings"]);
+
+/** Connections and message requests — one channel moves both. */
+export const invalidateContactGrants = () => {
+  void invalidatePersonalPrefix("/api/v1/me/connections");
+  return invalidatePersonalPrefix("/api/v1/me/message-requests");
+};
+
+/** The accounts this person has chosen not to hear from. */
+export const invalidateIgnoredAccounts = () => invalidatePersonalPrefix("/api/v1/me/ignored");
+
 // ── Initiatives (guild) ──────────────────────────────────────────────────────────
 
 export const invalidateAllInitiatives = () => invalidateGuildPrefix("/api/v1/initiatives");
