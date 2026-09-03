@@ -11,6 +11,10 @@
     "title": "Sin resultados para «{{query}}»",
     "description": "Revisa la ortografía o prueba con otra palabra."
   },
+  "failed": {
+    "title": "La búsqueda no responde",
+    "description": "Algo salió mal al conectar. Inténtalo de nuevo en un momento."
+  },
   "tabs": {
     "tool": "Herramientas",
     "member": "Miembros",
