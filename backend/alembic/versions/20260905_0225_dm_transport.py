@@ -133,24 +133,6 @@ _FUNCTIONS = [
 ]
 
 #: What the reader needs beyond the grants 0223 gave it.
-_PAIR_GUARD = """
-CREATE OR REPLACE FUNCTION public.dm_conversation_pair_guard()
-RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $fn$
-BEGIN
-  IF (
-    SELECT count(*) FROM public.dm_conversation_members
-    WHERE conversation_id = NEW.conversation_id
-  ) >= 2 THEN
-    RAISE EXCEPTION 'a direct-message conversation has exactly two members';
-  END IF;
-  RETURN NEW;
-END;
-$fn$
-"""
-
 _CLAIM_FUNCTION = """
 CREATE OR REPLACE FUNCTION public.dm_claim_one_time_key(target_device uuid)
 RETURNS TABLE (key_id text, public_key bytea)
@@ -166,6 +148,21 @@ BEGIN
   END IF;
   IF owner_id <> NULLIF(current_setting('app.current_user_id', true), '')::int
      AND public.dm_apparent_permission(owner_id) <> 'open' THEN
+    RETURN;
+  END IF;
+
+  -- An account that has stopped hearing from the caller does not spend a key on
+  -- them. The reusable fallback answers instead, so the pool is untouched and
+  -- the caller is told exactly what anybody else would be.
+  IF EXISTS (
+    SELECT 1 FROM public.user_ignores i
+    WHERE i.user_id = owner_id
+      AND i.ignored_user_id = NULLIF(current_setting('app.current_user_id', true), '')::int
+  ) THEN
+    RETURN QUERY
+    SELECT k.key_id, k.public_key FROM public.dm_one_time_keys k
+    WHERE k.device_id = target_device AND k.fallback IS TRUE
+    LIMIT 1;
     RETURN;
   END IF;
 
@@ -210,7 +207,6 @@ _NEW_FUNCTIONS = (
     ("dm_in_conversation", "uuid"),
     ("dm_device_in_conversation", "uuid, uuid"),
     ("dm_deliverable", "int"),
-    ("dm_conversation_pair_guard", ""),
 )
 
 
@@ -290,12 +286,20 @@ def _create_tables() -> None:
         "dm_conversation_members",
         sa.Column("conversation_id", sa.Uuid(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
+        # Which side of the pair this row is. Two slots, unique per
+        # conversation: a third member is rejected by the index rather than by
+        # a count somebody else could be reading at the same moment.
+        sa.Column("slot", sa.SmallInteger(), nullable=False),
         sa.Column("joined_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["conversation_id"], ["dm_conversations.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("conversation_id", "user_id"),
+        sa.CheckConstraint("slot IN (0, 1)", name="ck_dm_conversation_members_slot"),
+        sa.UniqueConstraint(
+            "conversation_id", "slot", name="uq_dm_conversation_members_slot"
+        ),
     )
     op.create_index(
         "ix_dm_conversation_members_user", "dm_conversation_members", ["user_id"]
@@ -358,7 +362,6 @@ def upgrade() -> None:
             f'AS PERMISSIVE FOR SELECT TO "{READER}" USING (true)',
         ]
     statements += _FUNCTIONS
-    statements.append(_PAIR_GUARD)
     # Ownership can only be handed to a role that may create in the schema.
     # Given for the assignment and taken straight back.
     statements.append(f'GRANT CREATE ON SCHEMA public TO "{READER}"')
@@ -368,16 +371,6 @@ def upgrade() -> None:
             f"REVOKE ALL ON FUNCTION public.{function}({signature}) FROM PUBLIC",
         ]
     statements.append(f'REVOKE CREATE ON SCHEMA public FROM "{READER}"')
-
-    # Exactly two members, enforced on the table rather than in the endpoint:
-    # a pairwise ratchet has no meaning for a third party, and a policy that
-    # admits everyone the creator may message would let one in.
-    statements += [
-        "DROP TRIGGER IF EXISTS dm_conversation_pair ON public.dm_conversation_members",
-        "CREATE TRIGGER dm_conversation_pair BEFORE INSERT ON "
-        "public.dm_conversation_members FOR EACH ROW "
-        "EXECUTE FUNCTION public.dm_conversation_pair_guard()",
-    ]
 
     # Claiming, which is the one write any of these rules performs. The request
     # path holds DELETE on its own pool only; another account spends exactly one
@@ -477,7 +470,6 @@ def downgrade() -> None:
     for table, policy in _READER_POLICIES:
         statements.append(f"DROP POLICY IF EXISTS {policy} ON public.{table}")
     statements += [
-        "DROP TRIGGER IF EXISTS dm_conversation_pair ON public.dm_conversation_members",
         "DROP POLICY IF EXISTS dm_reader_keys ON public.dm_one_time_keys",
         "DROP FUNCTION IF EXISTS public.dm_claim_one_time_key(uuid)",
     ]

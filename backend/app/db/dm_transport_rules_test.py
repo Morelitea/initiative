@@ -78,9 +78,11 @@ async def _conversation(session: AsyncSession, *users: User) -> DmConversation:
     conversation = DmConversation()
     session.add(conversation)
     await session.flush()
-    for user in users:
+    for slot, user in enumerate(users):
         session.add(
-            DmConversationMember(conversation_id=conversation.id, user_id=user.id)
+            DmConversationMember(
+                conversation_id=conversation.id, user_id=user.id, slot=slot
+            )
         )
     await session.flush()
     return conversation
@@ -226,21 +228,41 @@ class TestDeliverable:
 class TestPairBoundary:
     """A direct-message conversation has exactly two members.
 
-    Enforced on the table rather than in the endpoint: a pairwise ratchet has
-    no meaning for a third party, and the membership policy on its own admits
-    everybody the creator may message.
+    Held by a unique slot rather than by counting rows: a count read before an
+    insert is a race two concurrent inserts both win, and a unique index is the
+    same test taken at the moment it matters.
     """
 
-    async def test_a_third_member_is_refused(self, session: AsyncSession) -> None:
+    async def test_a_third_member_has_no_slot_to_take(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        conversation = await _conversation(session, alice, bob)
+
+        # Both slots are taken, so there is nowhere for a third row to go.
+        session.add(
+            DmConversationMember(
+                conversation_id=conversation.id, user_id=carol.id, slot=0
+            )
+        )
+        with pytest.raises(Exception, match="uq_dm_conversation_members_slot"):
+            await session.flush()
+        await session.rollback()
+
+    async def test_there_is_no_third_slot(self, session: AsyncSession) -> None:
         alice = await create_user(session)
         bob = await create_user(session)
         carol = await create_user(session)
         conversation = await _conversation(session, alice, bob)
 
         session.add(
-            DmConversationMember(conversation_id=conversation.id, user_id=carol.id)
+            DmConversationMember(
+                conversation_id=conversation.id, user_id=carol.id, slot=2
+            )
         )
-        with pytest.raises(Exception, match="exactly two members"):
+        with pytest.raises(Exception, match="ck_dm_conversation_members_slot"):
             await session.flush()
         await session.rollback()
 
@@ -326,3 +348,56 @@ class TestClaimingAPrekey:
         await self._publish(session, device, 2)
 
         assert await self._claim(session, alice, device) is None
+
+
+class TestIgnoredClaimerSpendsNothing:
+    """An account that has stopped hearing from somebody does not spend keys on
+    them -- and is not detectable for it.
+
+    The claim answers with the reusable fallback, which is what an emptied pool
+    answers with anyway, so the caller cannot tell the two apart.
+    """
+
+    async def _publish(self, session: AsyncSession, device: DmDevice) -> None:
+        session.add(DmOneTimeKey(device_id=device.id, key_id="otk-0", public_key=b"k0"))
+        session.add(
+            DmOneTimeKey(
+                device_id=device.id,
+                key_id="fb",
+                public_key=b"fallback",
+                fallback=True,
+            )
+        )
+        await session.flush()
+
+    async def test_the_pool_is_untouched(self, session: AsyncSession) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        await _policy(session, alice, DmPolicy.public)
+        await _policy(session, bob, DmPolicy.public)
+        await _open_channel(session, alice, bob)
+        device = await _device(session, bob)
+        await self._publish(session, device)
+        session.add(UserIgnore(user_id=bob.id, ignored_user_id=alice.id))
+        await session.flush()
+
+        await _as(session, alice)
+        row = (
+            await session.exec(
+                text("SELECT key_id FROM public.dm_claim_one_time_key(:d)").bindparams(
+                    d=device.id
+                )
+            )
+        ).first()
+
+        # The answer an emptied pool would give, so nothing is disclosed.
+        assert row is not None and row[0] == "fb"
+        remaining = (
+            await session.exec(
+                text(
+                    "SELECT count(*) FROM public.dm_one_time_keys "
+                    "WHERE device_id = :d AND fallback IS FALSE"
+                ).bindparams(d=device.id)
+            )
+        ).scalar_one()
+        assert remaining == 1
