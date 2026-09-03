@@ -279,7 +279,9 @@
       "events": "Events",
       "eventsDescription": "When you’re invited to an event, or one you’re attending changes.",
       "eventReminders": "Event reminders",
-      "eventRemindersDescription": "A reminder before events you’re attending begin."
+      "eventRemindersDescription": "A reminder before events you’re attending begin.",
+      "directMessages": "Direct messages",
+      "directMessagesDescription": "Someone sent you a direct message. Never includes what it says."
     },
     "reminderLeadTime": {
       "label": "Remind me",

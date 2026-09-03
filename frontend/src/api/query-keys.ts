@@ -215,6 +215,15 @@ export const invalidateContactGrants = () => {
 /** The accounts this person has chosen not to hear from. */
 export const invalidateIgnoredAccounts = () => invalidatePersonalPrefix("/api/v1/me/ignored");
 
+/**
+ * The direct-message mailbox.
+ *
+ * Keyed on ``["dm", ...]`` rather than a path, because a thread is read out of
+ * this device's own store rather than from an endpoint — the server deletes a
+ * message once it has been collected.
+ */
+export const invalidateDirectMessages = () => queryClient.invalidateQueries({ queryKey: ["dm"] });
+
 // ── Initiatives (guild) ──────────────────────────────────────────────────────────
 
 export const invalidateAllInitiatives = () => invalidateGuildPrefix("/api/v1/initiatives");

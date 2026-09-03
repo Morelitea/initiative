@@ -279,7 +279,9 @@
       "events": "Eventos",
       "eventsDescription": "Cuando te invitan a un evento o cambia uno al que asistes.",
       "eventReminders": "Recordatorios de eventos",
-      "eventRemindersDescription": "Un recordatorio antes de que comiencen los eventos a los que asistes."
+      "eventRemindersDescription": "Un recordatorio antes de que comiencen los eventos a los que asistes.",
+      "directMessages": "Mensajes directos",
+      "directMessagesDescription": "Alguien te envió un mensaje directo. Nunca incluye lo que dice."
     },
     "reminderLeadTime": {
       "label": "Recordarme",

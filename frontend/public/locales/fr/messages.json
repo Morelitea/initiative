@@ -1,0 +1,18 @@
+{
+  "title": "Mes messages",
+  "encryptedNotice": "Chiffré de bout en bout. Seuls toi et l'autre personne pouvez les lire.",
+  "empty": {
+    "title": "Aucune conversation ouverte",
+    "body": "Choisis quelqu'un à gauche ou ouvre un canal depuis Mes contacts."
+  },
+  "nobodyYet": "Personne pour l'instant. Une conversation s'ouvre dès qu'une demande de message est acceptée.",
+  "startHint": "démarrer",
+  "unknownAccount": "Compte inconnu",
+  "noHistoryHere": "Rien encore sur cet appareil. Les messages que tu avais ailleurs y restent.",
+  "composerPlaceholder": "Écris un message",
+  "send": "Envoyer",
+  "sendFailed": "Ce message n'a pas pu être envoyé.",
+  "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
+  "loading": "Chargement…",
+  "unsupportedBrowser": "Ce navigateur ne peut pas exécuter les messages chiffrés. Essaie-en un autre, ou l'application."
+}

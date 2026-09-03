@@ -279,7 +279,9 @@
       "events": "Événements",
       "eventsDescription": "Quand on vous invite à un événement ou qu'un événement auquel vous participez change.",
       "eventReminders": "Rappels d'événements",
-      "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez."
+      "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez.",
+      "directMessages": "Messages directs",
+      "directMessagesDescription": "Quelqu'un t'a envoyé un message direct. N'inclut jamais son contenu."
     },
     "reminderLeadTime": {
       "label": "Me rappeler",
