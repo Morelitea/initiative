@@ -38,8 +38,14 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
+from app.db.system_grants import GRANTABLE_SHARED_TABLES
 
 logger = logging.getLogger(__name__)
+
+#: Serializes the bootstrap across processes. Role DDL is cluster-global, so
+#: replicas starting together would otherwise race on the same catalog. Held
+#: for the bootstrap transaction and released with it.
+_BOOTSTRAP_LOCK_KEY = 0x1417B007
 
 #: The canonical login names, used when a URL does not name one. Each is paired
 #: with the setting whose URL supplies its name and password.
@@ -132,6 +138,15 @@ BEGIN
         EXECUTE format('%s ROLE %I WITH %s PASSWORD %L',
                        verb, role_name, role_attrs, role_pw);
     END IF;
+EXCEPTION WHEN duplicate_object THEN
+    -- Another process created it between the check and the CREATE; ALTER to
+    -- the same shape instead.
+    IF role_pw IS NULL THEN
+        EXECUTE format('ALTER ROLE %I WITH %s', role_name, role_attrs);
+    ELSE
+        EXECUTE format('ALTER ROLE %I WITH %s PASSWORD %L',
+                       role_name, role_attrs, role_pw);
+    END IF;
 END
 $$;
 """
@@ -211,64 +226,88 @@ DO $$ BEGIN
 END $$;
 """
 
-# Hand the app's objects to the provisioning role. Explicit catalog iteration
-# rather than REASSIGN OWNED, which also picks up a bootstrap superuser's
-# pinned system objects. Tables first — their owned sequences follow.
-_TRANSFER_OWNERSHIP = """
-DO $$
-DECLARE
-    provisioner text := current_setting('app._bootstrap_role');
-    r record;
-BEGIN
-    FOR r IN
-        SELECT n.nspname, c.relname FROM pg_class c
-        JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE (n.nspname = 'public' OR n.nspname ~ '^guild_([0-9]+|template)$')
-          AND c.relkind IN ('r', 'v', 'm', 'p')
-          AND c.relowner = current_user::regrole
-    LOOP
-        EXECUTE format('ALTER TABLE %I.%I OWNER TO %I',
-                       r.nspname, r.relname, provisioner);
-    END LOOP;
-    FOR r IN
-        SELECT n.nspname, c.relname FROM pg_class c
-        JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE (n.nspname = 'public' OR n.nspname ~ '^guild_([0-9]+|template)$')
-          AND c.relkind = 'S' AND c.relowner = current_user::regrole
-          AND NOT EXISTS (
-              SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'a'
-          )
-    LOOP
-        EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO %I',
-                       r.nspname, r.relname, provisioner);
-    END LOOP;
-    FOR r IN
-        SELECT p.oid::regprocedure AS sig FROM pg_proc p
-        WHERE p.pronamespace = 'public'::regnamespace
-          AND p.proowner = current_user::regrole
-          AND NOT EXISTS (
-              SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e'
-          )
-    LOOP
-        EXECUTE format('ALTER FUNCTION %s OWNER TO %I', r.sig, provisioner);
-    END LOOP;
-    FOR r IN
-        SELECT t.typname FROM pg_type t
-        WHERE t.typnamespace = 'public'::regnamespace AND t.typtype = 'e'
-          AND t.typowner = current_user::regrole
-    LOOP
-        EXECUTE format('ALTER TYPE public.%I OWNER TO %I', r.typname, provisioner);
-    END LOOP;
-    FOR r IN
-        SELECT n.nspname FROM pg_namespace n
-        WHERE n.nspname ~ '^guild_([0-9]+|template)$'
-          AND n.nspowner = current_user::regrole
-    LOOP
-        EXECUTE format('ALTER SCHEMA %I OWNER TO %I', r.nspname, provisioner);
-    END LOOP;
-END
-$$;
+# Hand the app's objects to the provisioning role, for a database that has been
+# running under another login. Postgres renders each statement so identifiers
+# are quoted at the source; the caller executes what comes back and logs it.
+#
+# Scope is what the app can show is its own: the shared tables named in its own
+# registry, the guild schemas and everything in them, and the enums those
+# tables use. An object in ``public`` that the registry does not name is left
+# where it is. Extension members are never taken.
+_TRANSFER_STATEMENTS = """
+WITH app_tables AS (
+    SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
+), target AS (
+    SELECT current_setting('app._bootstrap_role') AS role
+)
+SELECT format('table %I.%I', n.nspname, c.relname) AS label,
+       format('ALTER TABLE %I.%I OWNER TO %I', n.nspname, c.relname, target.role) AS stmt
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace, target
+ WHERE c.relkind IN ('r', 'v', 'm', 'p')
+   AND c.relowner = current_user::regrole
+   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
+   AND (n.nspname ~ '^guild_([0-9]+|template)$'
+        OR (n.nspname = 'public' AND c.relname IN (SELECT name FROM app_tables)))
+UNION ALL
+SELECT format('sequence %I.%I', n.nspname, c.relname),
+       format('ALTER SEQUENCE %I.%I OWNER TO %I', n.nspname, c.relname, target.role)
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace, target
+ WHERE c.relkind = 'S'
+   AND c.relowner = current_user::regrole
+   AND n.nspname ~ '^guild_([0-9]+|template)$'
+   AND NOT EXISTS (
+       SELECT 1 FROM pg_depend d
+        WHERE d.objid = c.oid AND d.deptype IN ('a', 'e'))
+UNION ALL
+SELECT format('type public.%I', t.typname),
+       format('ALTER TYPE public.%I OWNER TO %I', t.typname, target.role)
+  FROM pg_type t, target
+ WHERE t.typnamespace = 'public'::regnamespace
+   AND t.typtype = 'e'
+   AND t.typowner = current_user::regrole
+   AND EXISTS (
+       SELECT 1 FROM pg_attribute a
+         JOIN pg_class c2 ON c2.oid = a.attrelid
+         JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+        WHERE a.atttypid = t.oid AND NOT a.attisdropped
+          AND (n2.nspname ~ '^guild_([0-9]+|template)$'
+               OR (n2.nspname = 'public'
+                   AND c2.relname IN (SELECT name FROM app_tables))))
+UNION ALL
+SELECT format('function %s', p.oid::regprocedure),
+       format('ALTER FUNCTION %s OWNER TO %I', p.oid::regprocedure, target.role)
+  FROM pg_proc p, target
+ WHERE p.pronamespace = 'public'::regnamespace
+   AND p.proowner = current_user::regrole
+   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+   AND EXISTS (
+       SELECT 1 FROM pg_trigger tg
+         JOIN pg_class c3 ON c3.oid = tg.tgrelid
+         JOIN pg_namespace n3 ON n3.oid = c3.relnamespace
+        WHERE tg.tgfoid = p.oid
+          AND (n3.nspname ~ '^guild_([0-9]+|template)$'
+               OR (n3.nspname = 'public'
+                   AND c3.relname IN (SELECT name FROM app_tables)))
+       UNION ALL
+       SELECT 1 FROM pg_policy pol
+         JOIN pg_class c4 ON c4.oid = pol.polrelid
+         JOIN pg_namespace n4 ON n4.oid = c4.relnamespace
+        WHERE (pg_get_expr(pol.polqual, pol.polrelid) LIKE '%' || p.proname || '%'
+               OR pg_get_expr(pol.polwithcheck, pol.polrelid)
+                  LIKE '%' || p.proname || '%')
+          AND (n4.nspname ~ '^guild_([0-9]+|template)$'
+               OR (n4.nspname = 'public'
+                   AND c4.relname IN (SELECT name FROM app_tables))))
+UNION ALL
+SELECT format('schema %I', n.nspname),
+       format('ALTER SCHEMA %I OWNER TO %I', n.nspname, target.role)
+  FROM pg_namespace n, target
+ WHERE n.nspname ~ '^guild_([0-9]+|template)$'
+   AND n.nspowner = current_user::regrole
 """
+
 
 # A login role must hold no default privilege: a new shared table gives it
 # nothing until a migration grants it from the audited registry. Revoked rather
@@ -447,8 +486,30 @@ async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
         await conn.execute(text(_ADMINISTER_LOGIN_ROLE))
         await conn.execute(text(_REVOKE_LOGIN_DEFAULT_PRIVILEGES))
     await conn.execute(text(_ADMINISTER_EXISTING_ROLES))
-    await conn.execute(text(_TRANSFER_OWNERSHIP))
+    await _transfer_ownership(conn)
     await conn.execute(text(_DEFAULT_PRIVILEGES))
+
+
+async def _transfer_ownership(conn) -> None:
+    """Hand the app's own objects to the provisioning role.
+
+    Nothing to do on a fresh install, where the provisioning role creates them,
+    or on any later start. A database that has been running under another login
+    moves once, and what moved is logged.
+    """
+    await _set_local(
+        conn, "app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))
+    )
+    rows = (await conn.execute(text(_TRANSFER_STATEMENTS))).all()
+    if not rows:
+        return
+    for label, statement in rows:
+        await conn.execute(text(statement))
+    logger.info(
+        "database bootstrap: took ownership of %d object(s): %s",
+        len(rows),
+        ", ".join(label for label, _stmt in rows),
+    )
 
 
 async def _apply_search_operator(conn) -> bool:
@@ -509,7 +570,10 @@ def bootstrap_sql() -> str:
         ]
     out += [
         _ADMINISTER_EXISTING_ROLES.strip(),
-        _TRANSFER_OWNERSHIP.strip(),
+        "-- Ownership handover, for a database already running under another",
+        "-- login. Each statement is rendered by the query below; run what it",
+        "-- returns. Nothing to do on a fresh install.",
+        _TRANSFER_STATEMENTS.strip() + ";",
         _DEFAULT_PRIVILEGES.strip(),
         "",
         "-- Guild search match operator",
@@ -584,6 +648,10 @@ async def ensure_database_bootstrap(
     engine = create_async_engine(url, poolclass=NullPool, echo=False)
     try:
         async with engine.begin() as conn:
+            await conn.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": _BOOTSTRAP_LOCK_KEY},
+            )
             try:
                 await _apply_roles(conn, roles)
             except Exception as exc:
@@ -603,7 +671,9 @@ async def ensure_database_bootstrap(
         search_operator_installed=search_ready,
     )
     logger.info(
-        "database bootstrap applied: roles %s; search operator %s",
+        "database bootstrap applied: roles %s; search operator %s. "
+        "DATABASE_URL_BOOTSTRAP is only needed to apply these — remove it and "
+        "the app verifies them instead, naming anything missing.",
         ", ".join(result.roles),
         "present" if search_ready else "NOT installed",
     )
