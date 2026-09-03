@@ -28,6 +28,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
+from app.services.platform import accounts as accounts_service
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
@@ -2410,15 +2411,10 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
     # Allow events that started within the grace window so a 0-minute
     # ("at the time of the event") reminder still fires on the next poll.
     lower = now - EVENT_REMINDER_GRACE
-    users = (
-        (
-            await session.exec(
-                select(User).where(User.event_reminder_minutes_before.is_not(None))
-            )
-        )
-        .scalars()
-        .all()
-    )
+    # Asked of the system engine, not of this session: the sweep routes into
+    # each guild's schema in turn, and a routed session cannot read an
+    # account's preferences.
+    users = await accounts_service.load_event_reminder_optins()
     candidates = [(u.id, u.event_reminder_minutes_before) for u in users]
     for user_id, minutes in candidates:
         if minutes is None:
@@ -2475,9 +2471,7 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     )
                 )
                 await session.commit()
-                recipient = (
-                    await session.exec(select(User).where(User.id == user_id))
-                ).scalar_one_or_none()
+                recipient = await accounts_service.load_one(user_id)
                 event = (
                     await session.exec(
                         select(CalendarEvent).where(CalendarEvent.id == event_id)

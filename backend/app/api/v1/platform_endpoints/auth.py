@@ -357,6 +357,11 @@ async def register_user(
             detail=AuthMessages.UNABLE_TO_CREATE_USER,
         ) from exc
 
+    # Seeding a new guild leaves the session routed into it, and a guild role
+    # reaches nothing on ``public.users``. Everything from here is about the
+    # account rather than the guild, so the session comes back to the platform
+    # path before it reads one.
+    await set_rls_context(session, user_id=user.id)
     await session.refresh(user)
 
     if smtp_configured and not user.email_verified:
