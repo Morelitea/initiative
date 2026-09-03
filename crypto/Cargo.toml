@@ -1,0 +1,22 @@
+[package]
+name = "initiative-ratchet"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "Olm double-ratchet bindings for Initiative's direct messages"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+vodozemac = "0.9"
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+getrandom = { version = "0.2", features = ["js"] }
+base64 = "0.22"
+
+[profile.release]
+opt-level = "s"
+lto = true

@@ -24,6 +24,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "generate:api": "./scripts/generate-api.sh",
+    "build:crypto": "./scripts/build-crypto.sh",
     "prepare": "cd .. && husky ./frontend/.husky"
   },
   "dependencies": {
