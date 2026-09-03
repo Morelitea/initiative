@@ -95,8 +95,10 @@ import {
   collect,
   ensureDevice,
   forgetMessagesOnThisDevice,
+  markRead,
   RecipientHasNoDeviceError,
   sendText,
+  unreadIn,
 } from "./messaging";
 import {
   accountPickle,
@@ -383,5 +385,85 @@ describe("the prekey pool", () => {
     await collect();
 
     expect(await accountPickle.get()).toBe("account+50");
+  });
+});
+
+/**
+ * What counts as unread, on a device that keeps the only copy of the thread.
+ *
+ * The two sides stamp their messages from two clocks — theirs by the server,
+ * mine by this browser — so the marker has to be taken from one of them or the
+ * count is a guess about which clock is right.
+ */
+describe("unread", () => {
+  const CONVERSATION = "conv-1";
+
+  it("counts what arrived after the thread was last looked at", async () => {
+    await messageLog.append(CONVERSATION, {
+      id: "m1",
+      body: "first",
+      at: "2026-09-01T10:00:00Z",
+      mine: false,
+    });
+    await markRead(CONVERSATION);
+    await messageLog.append(CONVERSATION, {
+      id: "m2",
+      body: "second",
+      at: "2026-09-01T11:00:00Z",
+      mine: false,
+    });
+
+    expect(await unreadIn(CONVERSATION)).toBe(1);
+  });
+
+  it("does not count your own", async () => {
+    await messageLog.append(CONVERSATION, {
+      id: "m1",
+      body: "mine",
+      at: "2026-09-01T10:00:00Z",
+      mine: true,
+    });
+
+    expect(await unreadIn(CONVERSATION)).toBe(0);
+  });
+
+  it("counts two that landed in the same millisecond", async () => {
+    // A burst arrives with one timestamp on all of it. Counted by time, the
+    // second one would already be behind the marker the first one set.
+    await messageLog.append(CONVERSATION, {
+      id: "m1",
+      body: "first",
+      at: "2026-09-01T10:00:00Z",
+      mine: false,
+    });
+    await markRead(CONVERSATION);
+    await messageLog.append(CONVERSATION, {
+      id: "m2",
+      body: "second, same instant",
+      at: "2026-09-01T10:00:00Z",
+      mine: false,
+    });
+
+    expect(await unreadIn(CONVERSATION)).toBe(1);
+  });
+
+  it("survives a browser clock running ahead of the server", async () => {
+    // The message this device wrote is stamped from a clock hours ahead. A
+    // marker taken from it would swallow everything that arrives next.
+    await messageLog.append(CONVERSATION, {
+      id: "m1",
+      body: "sent from a fast clock",
+      at: "2099-01-01T00:00:00Z",
+      mine: true,
+    });
+    await markRead(CONVERSATION);
+    await messageLog.append(CONVERSATION, {
+      id: "m2",
+      body: "their reply, stamped by the server",
+      at: "2026-09-01T11:00:00Z",
+      mine: false,
+    });
+
+    expect(await unreadIn(CONVERSATION)).toBe(1);
   });
 });

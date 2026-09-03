@@ -3,7 +3,7 @@
   "subtitle": "Everyone you share a community with, plus anyone you starred.",
   "favorites": "Favorites",
   "connections": "Connections",
-  "directMessages": "Direct messages",
+  "anyone": "Anyone",
   "requests": "Requests",
   "searchPlaceholder": "Search contacts",
   "searchLabel": "Search everyone on this page",
@@ -51,6 +51,7 @@
   },
   "actions": {
     "label": "Actions for {{handle}}",
+    "viewProfile": "View profile",
     "connect": "Connect",
     "ask": "Ask to message",
     "askSent": "Request sent.",

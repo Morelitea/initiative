@@ -3,7 +3,7 @@
   "subtitle": "Alle, mit denen du eine Community teilst, und alle, die du markiert hast.",
   "favorites": "Favoriten",
   "connections": "Verbindungen",
-  "directMessages": "Direktnachrichten",
+  "anyone": "Alle",
   "requests": "Anfragen",
   "searchPlaceholder": "Kontakte durchsuchen",
   "searchLabel": "Alle auf dieser Seite durchsuchen",
@@ -51,6 +51,7 @@
   },
   "actions": {
     "label": "Aktionen für {{handle}}",
+    "viewProfile": "Profil ansehen",
     "connect": "Verbinden",
     "ask": "Um Nachricht bitten",
     "askSent": "Anfrage gesendet.",

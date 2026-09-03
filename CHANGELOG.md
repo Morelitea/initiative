@@ -19,7 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A conversation lives on your devices, not on a server.** A message is delivered and then deleted, which means each device keeps its own copy and a device that has never been in a conversation starts empty. Signing out takes this device's messages with it, which is the right answer on a shared computer — and the wrong one if you wanted them back, so keep the conversations you care about open on a device you stay signed in to.
 
-- **Act on somebody where you find them.** A menu on a profile, and on every row of My Contacts: connect, ask to message, ignore — and remove a connection, which confirms first. Ignoring used to mean knowing an account's exact handle and opening Settings, which is not where anybody reaches for it.
+- **Act on somebody where you find them.** A menu on a profile, and on every row of My Contacts: view their profile, connect, ask to message, ignore — and remove a connection, which confirms first. Ignoring used to mean knowing an account's exact handle and opening Settings, which is not where anybody reaches for it.
+
+- **A contact row opens the conversation with that person.** My Contacts names people you might say something to, so clicking one goes where saying it happens rather than to their profile — the profile is in the menu at the end of the row. Somebody you have never messaged lands on a panel that offers the one thing that leads somewhere: asking them for permission. Everyone on the page wears whatever they have put around their picture, the way they do everywhere else.
+
+- **A mark on My Messages when something is waiting.** A red dot beside it in the sidebar for a message you have not read, or somebody asking to message you. Unread is per device, because a conversation is: your messages live on the device that collected them, so what you have read is a fact about that device and nothing else could answer it.
+
+- **Anyone is its own group on My Contacts, under the communities.** Being open to anyone cannot be listed — it would be everybody here — so the group holds the part of it that means something: the people you are already messaging who no community you are in accounts for.
 
 ### Changed
 

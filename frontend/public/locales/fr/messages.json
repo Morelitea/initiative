@@ -15,5 +15,15 @@
   "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
   "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
   "loading": "Chargement…",
-  "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application."
+  "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application.",
+  "start": {
+    "waiting": "En attente de leur acceptation. Ensuite, vous pourrez vous écrire.",
+    "asksToMessage": "Cette personne a demandé à t'écrire. Accepte et vous pourrez discuter.",
+    "mayAsk": "Tu ne lui as pas encore écrit. Demande d'abord : elle peut accepter ou refuser, et rien n'est envoyé avant.",
+    "denied": "Tu ne peux pas lui écrire pour le moment."
+  },
+  "unreadHere_one": "{{count}} message non lu",
+  "unreadHere_other": "{{count}} messages non lus",
+  "openFailed": "Cette conversation n'a pas pu être ouverte.",
+  "tryAgain": "Réessayer"
 }

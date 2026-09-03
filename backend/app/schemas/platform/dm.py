@@ -8,11 +8,12 @@ state the screen can render.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from app.models.platform.user import Presence, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.user import ProfileDecorations
 
 
 class CommunityDmToggle(SanitizedBaseModel):
@@ -105,6 +106,9 @@ class ContactGrantRead(SanitizedBaseModel):
     #: grant may name somebody the reader shares no community with.
     status: UserStatus = UserStatus.active
     presence: Presence = Presence.offline
+    #: What they wear around their picture, for the same reason: a grant row is
+    #: a contact row, and a person looks the same wherever they are listed.
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     state: str
     #: True when the reader is the one who asked, which is what tells a
     #: cancellable request from one waiting on them.

@@ -3,7 +3,7 @@
   "subtitle": "Todas las personas con las que compartes una comunidad, y las que hayas marcado.",
   "favorites": "Favoritos",
   "connections": "Conexiones",
-  "directMessages": "Mensajes directos",
+  "anyone": "Cualquiera",
   "requests": "Solicitudes",
   "searchPlaceholder": "Buscar contactos",
   "searchLabel": "Buscar a todos en esta página",
@@ -51,6 +51,7 @@
   },
   "actions": {
     "label": "Acciones para {{handle}}",
+    "viewProfile": "Ver perfil",
     "connect": "Conectar",
     "ask": "Pedir escribir",
     "askSent": "Solicitud enviada.",

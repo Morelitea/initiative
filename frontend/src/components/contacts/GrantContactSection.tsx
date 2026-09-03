@@ -23,6 +23,7 @@ export const grantAsContact = (grant: ContactGrantRead): ContactRead => ({
   avatar_url: grant.avatar_url,
   status: grant.status,
   presence: grant.presence,
+  profile_decorations: grant.profile_decorations,
   shared_guild_ids: [],
 });
 

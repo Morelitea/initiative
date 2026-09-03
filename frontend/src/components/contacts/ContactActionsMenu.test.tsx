@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildContactGrant, buildIgnoredAccount } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage } from "@/__tests__/helpers/render";
 
 const mocks = vi.hoisted(() => ({
   permission: vi.fn(),
@@ -39,9 +39,11 @@ import { ContactActionsMenu } from "./ContactActionsMenu";
 
 const ADA = { id: 7, username: "ada", discriminator: 1234 };
 
+// Through a router: one of the items is a link to the person's profile, and a
+// `Link` outside a router does not render at all.
 const open = async () => {
-  renderWithProviders(<ContactActionsMenu user={ADA} />);
-  await userEvent.click(screen.getByRole("button", { name: /Actions for ada/i }));
+  renderPage(() => <ContactActionsMenu user={ADA} />);
+  await userEvent.click(await screen.findByRole("button", { name: /Actions for ada/i }));
 };
 
 beforeEach(() => {

@@ -31,6 +31,7 @@ import {
   allSessions,
   deviceClaim,
   forgetDevice,
+  lastRead,
   messageLog,
   type SessionOrigin,
   type StoredMessage,
@@ -217,6 +218,43 @@ async function ensureDeviceContext(): Promise<{ id: string; devices: DmDeviceRea
  */
 export async function ensureDevice(): Promise<string> {
   return (await ensureDeviceContext()).id;
+}
+
+/** Whether this browser has already been set up, without setting it up. */
+export async function registeredDevice(): Promise<string | undefined> {
+  return storedDeviceId.get();
+}
+
+/**
+ * How much of one thread arrived after this device last looked at it.
+ *
+ * Counted by position in the log rather than by time: the log is append-only
+ * and in the order this device learned of each message, which is the order the
+ * thread is read in. A marker whose message is not in the log — a device whose
+ * history was cleared under it — leaves everything unread, which is the side to
+ * be wrong on.
+ *
+ * Only the other side counts: your own message is not news to you, and it lands
+ * in the same log as theirs because the log is the whole thread.
+ */
+export async function unreadIn(conversationId: string): Promise<number> {
+  const [log, seen] = await Promise.all([
+    messageLog.get(conversationId),
+    lastRead.get(conversationId),
+  ]);
+  const read = seen ? log.findIndex((message) => message.id === seen) : -1;
+  return log.slice(read + 1).filter((message) => !message.mine).length;
+}
+
+/** This thread has been looked at, up to the last message the other side sent. */
+export async function markRead(conversationId: string): Promise<void> {
+  const log = await messageLog.get(conversationId);
+  for (let index = log.length - 1; index >= 0; index -= 1) {
+    if (!log[index].mine) {
+      await lastRead.set(conversationId, log[index].id);
+      return;
+    }
+  }
 }
 
 /**

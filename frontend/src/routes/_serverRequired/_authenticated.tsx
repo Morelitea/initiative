@@ -27,6 +27,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useCollectMessagesWhereRegistered } from "@/hooks/useMyMessages";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
@@ -91,6 +92,10 @@ function AppLayout() {
   useNotificationStream();
   usePushNotifications();
   useBackButton();
+  // Mail is fetched wherever you are, so a message that arrives while you are
+  // on another page is noticed rather than waiting to be discovered. Only for a
+  // browser that has already been set up for messages — this never sets one up.
+  useCollectMessagesWhereRegistered();
 
   // No cross-tab guild convergence: each tab keeps the guild from its own URL,
   // so two tabs can sit in two different guilds at once.
