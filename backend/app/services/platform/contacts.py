@@ -253,6 +253,7 @@ async def favorites(
             user_profiles.c.discriminator,
             user_profiles.c.avatar_url,
             user_profiles.c.status,
+            user_profiles.c.profile_decorations,
         )
         .join(
             ProfileFavorite,
@@ -289,6 +290,7 @@ async def favorites(
             discriminator=row.discriminator,
             avatar_url=row.avatar_url,
             status=row.status,
+            profile_decorations=row.profile_decorations or {},
             presence=presence_service.online.presence_of(row.id),
         )
         for row in rows

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,6 +22,7 @@ import {
   useStopIgnoring,
 } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
+import { getUrlHandle } from "@/lib/userDisplay";
 
 interface ContactActionsMenuProps {
   /** The account being acted on. The handle is what a connection is addressed
@@ -28,6 +30,8 @@ interface ContactActionsMenuProps {
   user: { id: number; username: string; discriminator: number };
   /** Rendered inside a link or a row that is itself clickable. */
   className?: string;
+  /** Off on the profile itself, which is the one place the link goes nowhere. */
+  showProfile?: boolean;
 }
 
 /**
@@ -43,7 +47,11 @@ interface ContactActionsMenuProps {
  * — and because every refusal collapses into that one word, a menu built from
  * it says nothing about which refusal it is.
  */
-export const ContactActionsMenu = ({ user, className }: ContactActionsMenuProps) => {
+export const ContactActionsMenu = ({
+  user,
+  className,
+  showProfile = true,
+}: ContactActionsMenuProps) => {
   const { t } = useTranslation(["contacts", "settings"]);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
@@ -77,6 +85,16 @@ export const ContactActionsMenu = ({ user, className }: ContactActionsMenuProps)
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {/* First, because it is the only item that goes somewhere rather than
+              doing something — and because the row itself now opens the
+              conversation, this is what still reaches the person behind it. */}
+          {showProfile && (
+            <DropdownMenuItem asChild>
+              <Link to="/u/$handle" params={{ handle: getUrlHandle(user) }}>
+                {t("actions.viewProfile")}
+              </Link>
+            </DropdownMenuItem>
+          )}
           {!isConnection && !isPending && (
             <DropdownMenuItem
               onSelect={() =>

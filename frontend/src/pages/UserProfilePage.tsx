@@ -110,6 +110,7 @@ export const UserProfilePage = () => {
                   username: profile.username,
                   discriminator: profile.discriminator,
                 }}
+                showProfile={false}
                 className="mb-1"
               />
             )}

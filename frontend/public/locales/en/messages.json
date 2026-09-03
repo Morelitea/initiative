@@ -15,5 +15,13 @@
   "recipientHasNoDevice": "{{name}} has not set up encrypted messages yet, so this could not be delivered.",
   "deviceFailed": "Encrypted messages could not be set up on this device.",
   "loading": "Loading…",
-  "unsupportedBrowser": "Encrypted messages need a secure connection and a browser that can run them. Check the address starts with https (or is localhost), or try the app."
+  "unsupportedBrowser": "Encrypted messages need a secure connection and a browser that can run them. Check the address starts with https (or is localhost), or try the app.",
+  "start": {
+    "waiting": "Waiting for them to accept. You can message each other once they do.",
+    "asksToMessage": "They asked to message you. Accept, and the two of you can talk.",
+    "mayAsk": "You haven't messaged them yet. Ask first — they can accept or decline, and nothing is sent until they do.",
+    "denied": "You can't message them right now."
+  },
+  "unreadHere_one": "{{count}} unread message",
+  "unreadHere_other": "{{count}} unread messages"
 }

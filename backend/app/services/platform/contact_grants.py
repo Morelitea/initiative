@@ -426,7 +426,8 @@ async def to_reads(
         for row in (
             await session.exec(
                 text(
-                    "SELECT id, username, discriminator, avatar_url, status "
+                    "SELECT id, username, discriminator, avatar_url, status, "
+                    "profile_decorations "
                     "FROM public.user_profiles WHERE id = ANY(:ids)"
                 ).bindparams(ids=list(others))
             )
@@ -447,6 +448,7 @@ async def to_reads(
             discriminator=profile[2],
             avatar_url=profile[3],
             status=profile[4],
+            profile_decorations=profile[5] or {},
             presence=presence_service.online.presence_of(other),
             state=grant.state.value,
             outgoing=grant.requested_by == user_id,

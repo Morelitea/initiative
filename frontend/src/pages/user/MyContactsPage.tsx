@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Link2, MessageSquare, SearchX, Users } from "lucide-react";
+import { Globe, Link2, SearchX, Users } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 
 const COLLAPSE_SCOPE = "my-contacts-sections";
 const CONNECTIONS_VALUE = "connections";
-const OPEN_CHANNELS_VALUE = "open-channels";
+const ANYONE_VALUE = "anyone";
 
 /** Which sections the reader has closed. Everything else is open. */
 type CollapseState = { closed: string[] };
@@ -102,11 +102,11 @@ export const MyContactsPage = () => {
     [connectionsQuery.data, matches]
   );
 
-  // Accepting a connection opens the channel with it, so every connection also
-  // holds a message grant. Listing those again here would make this section a
-  // near-copy of the one above it; what is left is the people this section
-  // exists for — the ones an agreement to message is the *only* thing the
-  // reader shares with, who appear nowhere else on the page.
+  // Being open to anyone is the one bucket that cannot be listed — it would be
+  // everybody on the deployment — so this holds the only part of it that means
+  // anything: the people already being messaged. Connections are dropped
+  // because accepting one opens a channel too, and they have a section of their
+  // own; without that this would be a near-copy of it.
   const openChannels = useMemo(() => {
     const connected = new Set((connectionsQuery.data?.accepted ?? []).map((g) => g.user_id));
     return (messagesQuery.data?.accepted ?? []).filter(
@@ -141,8 +141,8 @@ export const MyContactsPage = () => {
     () => [
       FAVORITES_VALUE,
       CONNECTIONS_VALUE,
-      OPEN_CHANNELS_VALUE,
       ...sections.map((s) => `guild-${s.guild_id}`),
+      ANYONE_VALUE,
     ],
     [sections]
   );
@@ -284,24 +284,6 @@ export const MyContactsPage = () => {
                 emptyLabel={t("noMatches.section")}
               />
             ) : null}
-            {openChannels.length > 0 ? (
-              <GrantContactSection
-                key={`open-channels:${search}`}
-                value={OPEN_CHANNELS_VALUE}
-                label={t("directMessages")}
-                title={
-                  <>
-                    <MessageSquare className="size-4 text-muted-foreground" />
-                    <span>{t("directMessages")}</span>
-                  </>
-                }
-                items={openChannels}
-                starredIds={starredIds}
-                onToggleFavorite={toggleFavorite}
-                guilds={guilds}
-                emptyLabel={t("noMatches.section")}
-              />
-            ) : null}
             {sections.map((section) => (
               <GuildContactSection
                 key={`${section.guild_id}:${search}`}
@@ -312,6 +294,27 @@ export const MyContactsPage = () => {
                 guilds={guilds}
               />
             ))}
+            {/* Last, under every community: the communities are the places the
+                reader is in, and this is what is left over — people no place in
+                common accounts for. */}
+            {openChannels.length > 0 ? (
+              <GrantContactSection
+                key={`anyone:${search}`}
+                value={ANYONE_VALUE}
+                label={t("anyone")}
+                title={
+                  <>
+                    <Globe className="size-4 text-muted-foreground" />
+                    <span>{t("anyone")}</span>
+                  </>
+                }
+                items={openChannels}
+                starredIds={starredIds}
+                onToggleFavorite={toggleFavorite}
+                guilds={guilds}
+                emptyLabel={t("noMatches.section")}
+              />
+            ) : null}
           </Accordion>
           {/* Under the communities, which are the sections a policy empties.
               Favorites above it are the reader's own list and stay. */}

@@ -26,12 +26,18 @@ const MESSAGES_ROUTE_ID = "/_serverRequired/_authenticated/messages";
 
 const mocks = vi.hoisted(() => ({
   ensureDevice: vi.fn(),
+  registeredDevice: vi.fn(),
   collect: vi.fn(),
   sendText: vi.fn(),
   logGet: vi.fn(),
+  unreadIn: vi.fn(),
+  markRead: vi.fn(),
   conversations: vi.fn(),
   createConversation: vi.fn(),
   messageRequests: vi.fn(),
+  dmPermission: vi.fn(),
+  requestMessage: vi.fn(),
+  userProfile: vi.fn(),
 }));
 
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
@@ -42,10 +48,15 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   RecipientHasNoDeviceError: (await importOriginal<Record<string, unknown>>())
     .RecipientHasNoDeviceError,
   ensureDevice: () => mocks.ensureDevice(),
+  registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),
   sendText: (conversationId: string, otherUserId: number, body: string) =>
     mocks.sendText(conversationId, otherUserId, body),
   messageLog: { get: (id: string) => mocks.logGet(id) },
+  // Which threads are unread, and saying one has been looked at, both read the
+  // same local log the thread does.
+  unreadIn: (id: string) => mocks.unreadIn(id),
+  markRead: (id: string) => mocks.markRead(id),
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
@@ -58,6 +69,15 @@ vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useMessageRequests: () => mocks.messageRequests(),
+  useDmPermission: () => mocks.dmPermission(),
+  useRequestMessage: () => ({ mutate: mocks.requestMessage, isPending: false }),
+}));
+
+// The page resolves `?with=` to a person before it can decide anything about
+// them, so the profile is the seam that decides which pane is on trial.
+vi.mock("@/hooks/useUsers", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useUserProfile: (handle: string | null | undefined) => mocks.userProfile(handle),
 }));
 
 const router = createRouter({ routeTree });
@@ -105,11 +125,37 @@ const renderMessages = async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.ensureDevice.mockResolvedValue("device-1");
+  mocks.registeredDevice.mockResolvedValue("device-1");
+  mocks.unreadIn.mockResolvedValue(0);
+  mocks.markRead.mockResolvedValue(undefined);
   mocks.collect.mockResolvedValue([]);
   mocks.sendText.mockResolvedValue({ id: "1", body: "hi", at: "", mine: true });
   mocks.logGet.mockResolvedValue([]);
   mocks.conversations.mockResolvedValue({ conversations: [] });
+  mocks.createConversation.mockResolvedValue({
+    id: "conv-new",
+    other_user_id: 0,
+    created_at: "2026-09-01T00:00:00Z",
+  });
   mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
+  mocks.dmPermission.mockReturnValue({ data: { permission: "denied" } });
+  mocks.userProfile.mockReturnValue({ data: undefined, isLoading: false });
+});
+
+/** The person a `?with=` handle resolves to. */
+const profile = (userId: number, username: string) => ({
+  data: {
+    id: userId,
+    username,
+    discriminator: 1234,
+    avatar_url: null,
+    status: "active" as const,
+    custom_status: {},
+    profile_decorations: {},
+    presence: "offline" as const,
+    joined_at: "2026-01-01T00:00:00Z",
+  },
+  isLoading: false,
 });
 
 describe("My Messages", () => {
@@ -194,6 +240,50 @@ describe("My Messages", () => {
     expect(await screen.findByText(/has not set up encrypted messages/i)).toBeInTheDocument();
     // And the text comes back, because the composer was the only copy of it.
     expect(screen.getByLabelText(/write a message/i)).toHaveValue("hello");
+  });
+
+  it("opens the conversation the address names", async () => {
+    // A contacts row links straight here. Landing on the page is not enough —
+    // it has to land on that person's thread.
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.userProfile.mockReturnValue(profile(7, "alex"));
+    mocks.logGet.mockResolvedValue([{ id: "m1", body: "already talking", at: "", mine: false }]);
+
+    const Page = await messagesPage();
+    renderPage(Page, { initialRoute: "/messages", routerSearch: { with: "alex1234" } });
+
+    expect(await screen.findByText("already talking")).toBeInTheDocument();
+  });
+
+  it("offers to ask, for somebody there is no channel with", async () => {
+    // The common case, because a contact is somebody you share a community
+    // with rather than somebody who agreed to hear from you.
+    mocks.userProfile.mockReturnValue(profile(9, "bram"));
+    mocks.dmPermission.mockReturnValue({ data: { permission: "may_request" } });
+
+    const Page = await messagesPage();
+    renderPage(Page, { initialRoute: "/messages", routerSearch: { with: "bram1234" } });
+
+    await userEvent.click(await screen.findByRole("button", { name: /ask to message/i }));
+    expect(mocks.requestMessage).toHaveBeenCalledWith({ data: { user_id: 9 } }, expect.anything());
+  });
+
+  it("offers nothing to ask for when the server says no", async () => {
+    // Every refusal collapses into one word, so the panel cannot tell them
+    // apart and does not pretend to — and a connection is My Contacts' business
+    // rather than this page's.
+    mocks.userProfile.mockReturnValue(profile(9, "bram"));
+
+    const Page = await messagesPage();
+    renderPage(Page, { initialRoute: "/messages", routerSearch: { with: "bram1234" } });
+
+    expect(await screen.findByText(/can't message them right now/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /connect/i })).toBeNull();
   });
 
   it("sends through the ratchet rather than posting a body", async () => {

@@ -24,6 +24,7 @@ const PICKLE_KEY = "pickle-key";
 const ACCOUNT = "account";
 const DEVICE_ID = "device-id";
 const SESSION_PREFIX = "session:";
+const READ_PREFIX = "last-read:";
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -276,6 +277,23 @@ export const accountPickle = {
 export const deviceId = {
   get: () => read<string>(DEVICE_ID),
   set: (id: string) => write(DEVICE_ID, id),
+};
+
+/**
+ * When this device last looked at a conversation, as epoch milliseconds.
+ *
+ * Kept here rather than on the server for the same reason the log is: nobody
+ * else can see inside a thread, so nobody else can say what has been read. It
+ * is per device by consequence — reading a thread on a phone leaves it unread
+ * on a laptop, which matches a history that is also per device.
+ *
+ * A number, not the timestamp of the last message: the two sides stamp their
+ * messages from different clocks and in different formats, and comparing
+ * instants sidesteps both.
+ */
+export const lastRead = {
+  get: (conversationId: string) => read<number>(READ_PREFIX + conversationId),
+  set: (conversationId: string, at: number) => write(READ_PREFIX + conversationId, at),
 };
 
 /**

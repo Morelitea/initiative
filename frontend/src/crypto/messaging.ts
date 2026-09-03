@@ -31,6 +31,7 @@ import {
   allSessions,
   deviceClaim,
   forgetDevice,
+  lastRead,
   messageLog,
   type SessionOrigin,
   type StoredMessage,
@@ -217,6 +218,41 @@ async function ensureDeviceContext(): Promise<{ id: string; devices: DmDeviceRea
  */
 export async function ensureDevice(): Promise<string> {
   return (await ensureDeviceContext()).id;
+}
+
+/** Whether this browser has already been set up, without setting it up. */
+export async function registeredDevice(): Promise<string | undefined> {
+  return storedDeviceId.get();
+}
+
+/**
+ * How much of one thread arrived after this device last looked at it.
+ *
+ * Only the other side counts: your own message is not news to you, and it
+ * lands in the same log as theirs because the log is the whole thread.
+ */
+export async function unreadIn(conversationId: string): Promise<number> {
+  const [log, seen] = await Promise.all([
+    messageLog.get(conversationId),
+    lastRead.get(conversationId),
+  ]);
+  return log.filter((message) => !message.mine && Date.parse(message.at) > (seen ?? 0)).length;
+}
+
+/**
+ * This thread has been looked at, as of now.
+ *
+ * Or as of its newest message, whichever is later: the other side stamps its
+ * messages from its own clock, and one running ahead would otherwise leave a
+ * message unread the moment after it was read.
+ */
+export async function markRead(conversationId: string): Promise<void> {
+  const log = await messageLog.get(conversationId);
+  const newest = log.reduce((latest, message) => {
+    const at = Date.parse(message.at);
+    return Number.isNaN(at) ? latest : Math.max(latest, at);
+  }, 0);
+  await lastRead.set(conversationId, Math.max(Date.now(), newest));
 }
 
 /**

@@ -1869,6 +1869,7 @@ export interface ContactGrantRead {
   avatar_url: string | null;
   status: UserStatus;
   presence: Presence;
+  profile_decorations: ProfileDecorationsOutput;
   state: string;
   outgoing: boolean;
   created_at: string;
@@ -1896,6 +1897,7 @@ export interface ContactRead {
   avatar_url: string | null;
   status: UserStatus;
   presence: Presence;
+  profile_decorations: ProfileDecorationsOutput;
   shared_guild_ids: number[];
 }
 

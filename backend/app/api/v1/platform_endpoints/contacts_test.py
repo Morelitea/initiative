@@ -193,6 +193,40 @@ async def test_guild_ids_narrows_to_one_section(
     assert [s["guild_id"] for s in response.json()["sections"]] == [second.id]
 
 
+# --- how a person is drawn ---------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_roster_row_carries_what_the_person_wears(
+    client: AsyncClient, session: AsyncSession
+):
+    """A row draws somebody the way every other surface does."""
+    user = await create_user(session)
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild)
+    other = await create_user(
+        session, profile_decorations={"frame": "core.gold", "trophies": []}
+    )
+    await create_guild_membership(session, user=other, guild=guild)
+
+    response = await client.get(SECTIONS, headers=get_auth_headers(user))
+    row = _section(response.json(), guild.id)["items"][0]
+    assert row["profile_decorations"]["frame"] == "core.gold"
+
+
+@pytest.mark.integration
+async def test_a_starred_row_carries_it_too(client: AsyncClient, session: AsyncSession):
+    """Favorites come from the profile view, not the walk, so they are their
+    own path to the same answer."""
+    user = await create_user(session)
+    other = await create_user(session, profile_decorations={"frame": "core.gold"})
+    session.add(ProfileFavorite(user_id=user.id, favorite_user_id=other.id))
+    await session.commit()
+
+    response = await client.get(FAVORITES, headers=get_auth_headers(user))
+    assert response.json()["items"][0]["profile_decorations"]["frame"] == "core.gold"
+
+
 # --- names, per guild -------------------------------------------------------
 
 

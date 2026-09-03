@@ -77,5 +77,7 @@
   "createCounterGroup": "Nouveau groupe de compteurs",
   "createExternally": "Créé dans {{name}}",
   "adminDashboard": "Tableau de bord admin",
-  "pastAnnouncements": "Annonces passées"
+  "pastAnnouncements": "Annonces passées",
+  "requestsWaiting_one": "{{count}} chose en attente",
+  "requestsWaiting_other": "{{count}} choses en attente"
 }

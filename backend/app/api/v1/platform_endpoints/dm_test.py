@@ -222,6 +222,22 @@ async def test_a_connection_is_addressed_by_handle(client, session, acting_user)
     assert [r["user_id"] for r in incoming.json()["incoming"]] == [a.user.id]
 
 
+async def test_a_grant_row_carries_what_the_person_wears(client, session, acting_user):
+    """A grant is listed as a contact row, and a row draws the whole person."""
+    a = await acting_user()
+    b = await acting_user()
+    b.user.profile_decorations = {"frame": "core.gold"}
+    session.add(b.user)
+    await session.commit()
+
+    await client.post(
+        "/api/v1/me/connections", json=await _handle(session, b.user), headers=a.headers
+    )
+    listed = await client.get("/api/v1/me/connections", headers=a.headers)
+    row = listed.json()["outgoing"][0]
+    assert row["profile_decorations"]["frame"] == "core.gold"
+
+
 async def test_an_unknown_handle_answers_like_an_unreachable_one(
     client, session, acting_user
 ):

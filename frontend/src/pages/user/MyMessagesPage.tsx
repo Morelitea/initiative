@@ -1,10 +1,13 @@
-import { MessageSquare, Send, ShieldCheck } from "lucide-react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { MessageSquare, Send, ShieldCheck, UserX } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { StartWithPerson } from "@/components/messages/StartWithPerson";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
 import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import { useMessageRequests } from "@/hooks/useDirectMessages";
@@ -12,10 +15,14 @@ import {
   useCollectMessages,
   useConversations,
   useDmDevice,
+  useMarkThreadRead,
   useSendMessage,
   useStartConversation,
   useThread,
+  useUnreadMessages,
 } from "@/hooks/useMyMessages";
+import { useUserProfile } from "@/hooks/useUsers";
+import { getUrlHandle, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +35,12 @@ import { cn } from "@/lib/utils";
  *   is what this device decrypted and wrote down.
  * * **A device that has never been here has no history.** That is what forward
  *   secrecy costs, and the page says so rather than looking broken.
+ *
+ * It is also the page a contacts row points at, via `?with=<handle>`. Most of
+ * the people it can be opened for have no channel yet — a contact is somebody
+ * you share a community with, not somebody who agreed to hear from you — so the
+ * handle is a request to open a conversation, and what comes back may be the
+ * offer to ask for one instead.
  */
 export function MyMessagesPage() {
   const { t } = useTranslation("messages");
@@ -37,25 +50,97 @@ export function MyMessagesPage() {
   const startConversation = useStartConversation();
   const [selected, setSelected] = useState<string | null>(null);
 
+  // Who the URL asked for, resolved to a person. The profile is what a panel
+  // for somebody with no channel has to draw, and the id is what everything
+  // else here is keyed on.
+  const { with: withHandle } = useSearch({ strict: false }) as { with?: string };
+  const target = useUserProfile(withHandle);
+
   useCollectMessages(device.isSuccess);
 
   /** Everyone with an accepted channel, whether or not it has been opened. */
   const reachable = useMemo(() => requests.data?.accepted ?? [], [requests.data?.accepted]);
-  const nameFor = useMemo(() => {
-    const names = new Map<number, string>();
-    for (const grant of reachable) {
-      names.set(grant.user_id, `${grant.username}#${grant.discriminator}`);
-    }
-    return names;
-  }, [reachable]);
+  // The whole grant rather than a name: a row in this list draws a person, and
+  // a person is their picture and what they wear on it as much as their handle.
+  const personFor = useMemo(
+    () => new Map(reachable.map((grant) => [grant.user_id, grant])),
+    [reachable]
+  );
+
+  /** What to call the other side of a conversation, wherever it is named. */
+  const nameOf = (userId: number) => {
+    const person = personFor.get(userId);
+    return person ? getUserHandle(person) : t("unknownAccount");
+  };
 
   const rows = conversations.data?.conversations ?? [];
   const current = rows.find((row) => row.id === selected) ?? null;
+
+  // What has arrived since this device last opened each thread. Local, because
+  // the thread is: the server deletes a message once it has been collected.
+  const unread = useUnreadMessages(rows.map((row) => row.id));
 
   // Somebody you may message but have not opened a channel with yet.
   const unopened = reachable.filter(
     (grant) => !rows.some((row) => row.other_user_id === grant.user_id)
   );
+
+  const targetId = target.data?.id;
+  const targetConversation = rows.find((row) => row.other_user_id === targetId);
+  const channelOpen = targetId !== undefined && personFor.has(targetId);
+
+  // Acting on the handle in the URL, once per handle: select their thread, or
+  // open one where the channel is already there. A conversation is one per
+  // pair server-side, so asking for one that exists returns it rather than a
+  // second — which is what makes this safe to fire from an effect.
+  //
+  // Not before the list has arrived, though: until then every conversation
+  // looks missing, and opening one that is already there is a round trip to be
+  // told what was on its way.
+  const opened = useRef<string | null>(null);
+  const startMessages = startConversation.mutate;
+  const conversationsLoaded = conversations.isSuccess;
+  useEffect(() => {
+    if (!withHandle || targetId === undefined || !conversationsLoaded) return;
+    if (opened.current === withHandle) return;
+    if (targetConversation) {
+      opened.current = withHandle;
+      setSelected(targetConversation.id);
+      return;
+    }
+    if (channelOpen) {
+      opened.current = withHandle;
+      startMessages(targetId, {
+        onSuccess: (conversation) => setSelected(conversation.id),
+        // Left unclaimed so a retry — a click on the same row — tries again.
+        onError: () => {
+          opened.current = null;
+        },
+      });
+    }
+  }, [withHandle, targetId, targetConversation, channelOpen, conversationsLoaded, startMessages]);
+
+  const navigate = useNavigate();
+
+  /**
+   * Open a thread, and address it in the URL.
+   *
+   * Everything the sidebar lists is somebody whose handle is known, so picking
+   * one is the same gesture as arriving from a contacts row and the address
+   * bar says the same thing either way. A conversation whose grant is gone has
+   * no handle left to write, and clears it instead.
+   */
+  const open = (
+    conversationId: string | null,
+    person?: { username: string; discriminator: number }
+  ) => {
+    setSelected(conversationId);
+    void navigate({
+      to: ".",
+      search: person ? { with: getUrlHandle(person) } : {},
+      replace: true,
+    });
+  };
 
   // A runtime with no web workers cannot hold a ratchet at all, and saying so
   // is more use than the generic failure it would otherwise reach.
@@ -99,34 +184,59 @@ export function MyMessagesPage() {
             <p className="p-4 text-muted-foreground text-sm">{t("nobodyYet")}</p>
           ) : (
             <ul>
-              {rows.map((row) => (
-                <li key={row.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(row.id)}
-                    className={cn(
-                      "w-full px-4 py-3 text-left text-sm hover:bg-accent",
-                      row.id === selected && "bg-accent"
-                    )}
-                  >
-                    {nameFor.get(row.other_user_id) ?? t("unknownAccount")}
-                  </button>
-                </li>
-              ))}
+              {rows.map((row) => {
+                const person = personFor.get(row.other_user_id);
+                return (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => open(row.id, person)}
+                      className={cn(
+                        "flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-accent",
+                        row.id === selected && "bg-accent"
+                      )}
+                    >
+                      {person ? (
+                        <ProfileAvatar
+                          user={person}
+                          decorations={person.profile_decorations}
+                          presence={person.presence}
+                          className="size-8"
+                        />
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate">{nameOf(row.other_user_id)}</span>
+                      {/* The same mark the sidebar puts on My Messages, saying
+                          which thread put it there. */}
+                      {unread.data?.get(row.id) ? (
+                        <span className="flex shrink-0 items-center">
+                          <span className="sr-only">
+                            {t("unreadHere", { count: unread.data.get(row.id) })}
+                          </span>
+                          <span aria-hidden="true" className="size-2 rounded-full bg-destructive" />
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
               {unopened.map((grant) => (
                 <li key={grant.user_id}>
                   <button
                     type="button"
                     disabled={startConversation.isPending}
-                    onClick={() =>
-                      startConversation.mutate(grant.user_id, {
-                        onSuccess: (conversation) => setSelected(conversation.id),
-                      })
-                    }
-                    className="w-full px-4 py-3 text-left text-muted-foreground text-sm hover:bg-accent"
+                    onClick={() => open(null, grant)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-muted-foreground text-sm hover:bg-accent"
                   >
-                    {grant.username}#{grant.discriminator}
-                    <span className="ml-2 text-xs">{t("startHint")}</span>
+                    <ProfileAvatar
+                      user={grant}
+                      decorations={grant.profile_decorations}
+                      presence={grant.presence}
+                      className="size-8"
+                    />
+                    <span className="min-w-0 truncate">
+                      {getUserHandle(grant)}
+                      <span className="ml-2 text-xs">{t("startHint")}</span>
+                    </span>
                   </button>
                 </li>
               ))}
@@ -141,8 +251,25 @@ export function MyMessagesPage() {
             key={current.id}
             conversationId={current.id}
             otherUserId={current.other_user_id}
-            name={nameFor.get(current.other_user_id) ?? t("unknownAccount")}
+            name={nameOf(current.other_user_id)}
           />
+        ) : withHandle ? (
+          // Somebody was asked for. Either their thread is on its way, or there
+          // is no channel and the panel says what would open one.
+          target.isLoading || !conversationsLoaded || channelOpen ? (
+            <div className="flex flex-1 items-center justify-center p-8">
+              <p className="text-muted-foreground text-sm">{t("loading")}</p>
+            </div>
+          ) : target.data ? (
+            <StartWithPerson person={target.data} />
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-8">
+              <StatusMessage
+                icon={<UserX className="size-6" aria-hidden />}
+                title={t("unknownAccount")}
+              />
+            </div>
+          )
         ) : (
           <div className="flex flex-1 items-center justify-center p-8 text-center">
             <div className="max-w-sm space-y-2">
@@ -173,6 +300,9 @@ function Thread({
   const bottom = useRef<HTMLDivElement | null>(null);
 
   const messages = thread.data ?? [];
+  // An open thread is a read thread — including whatever arrives while it is
+  // open, which is why the count is what re-runs it.
+  useMarkThreadRead(conversationId, messages.length);
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);

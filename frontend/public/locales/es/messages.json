@@ -15,5 +15,13 @@
   "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
   "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
   "loading": "Cargando…",
-  "unsupportedBrowser": "Los mensajes cifrados necesitan una conexión segura y un navegador capaz de ejecutarlos. Comprueba que la dirección empiece por https (o sea localhost), o prueba con la aplicación."
+  "unsupportedBrowser": "Los mensajes cifrados necesitan una conexión segura y un navegador capaz de ejecutarlos. Comprueba que la dirección empiece por https (o sea localhost), o prueba con la aplicación.",
+  "start": {
+    "waiting": "Esperando a que acepten. Cuando lo hagan, podréis escribiros.",
+    "asksToMessage": "Te han pedido escribirte. Acepta y podréis hablar.",
+    "mayAsk": "Todavía no les has escrito. Pídelo primero: pueden aceptar o rechazar, y no se envía nada hasta entonces.",
+    "denied": "Ahora mismo no puedes escribirles."
+  },
+  "unreadHere_one": "{{count}} mensaje sin leer",
+  "unreadHere_other": "{{count}} mensajes sin leer"
 }

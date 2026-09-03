@@ -119,6 +119,18 @@ export const parseHandle = (raw: string): { username: string; discriminator: num
   return { username: match[1], discriminator: Number(match[2]) };
 };
 
+/**
+ * How many people have asked to message this account and are still waiting.
+ *
+ * Message requests only. A connection is a separate agreement between two
+ * accounts — made, answered and unmade on My Contacts — and counting it here
+ * would put a mark about connections on a page about conversations.
+ */
+export const usePendingMessageRequests = (): number => {
+  const { data } = useMessageRequests();
+  return data?.incoming?.length ?? 0;
+};
+
 /** Whether this account has answered the age question, which gates everything. */
 export const useCanUseDirectMessages = (): boolean => {
   const { data } = useDmSettings();

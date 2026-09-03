@@ -13,13 +13,22 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import {
   createConversationApiV1MeDmConversationsPost as createConversation,
   listConversationsApiV1MeDmConversationsGet as listConversations,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { StoredMessage } from "@/crypto/messaging";
-import { collect, ensureDevice, messageLog, sendText } from "@/crypto/messaging";
+import {
+  collect,
+  ensureDevice,
+  markRead,
+  messageLog,
+  registeredDevice,
+  sendText,
+  unreadIn,
+} from "@/crypto/messaging";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
@@ -29,6 +38,9 @@ export const messageKeys = {
   device: ["dm-device"] as const,
   inbox: ["dm", "inbox"] as const,
   thread: (conversationId: string) => ["dm", "thread", conversationId] as const,
+  // Keyed on the conversations it counts, so a new one is a new question
+  // rather than a stale answer waiting for something to invalidate it.
+  unread: (conversationIds: string[]) => ["dm", "unread", conversationIds.join(",")] as const,
 };
 
 /** Register this browser's device, once, before anything else can work. */
@@ -116,6 +128,7 @@ export function useCollectMessages(enabled: boolean) {
       }
       if (touched.length > 0) {
         void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
+        void queryClient.invalidateQueries({ queryKey: ["dm", "unread"] });
       }
       return touched;
     },
@@ -126,4 +139,55 @@ export function useCollectMessages(enabled: boolean) {
     staleTime: 0,
     gcTime: 0,
   });
+}
+
+/**
+ * Collect anywhere in the app, but only for a browser already set up.
+ *
+ * What makes a mark on My Messages mean anything is that the mail is fetched
+ * while you are somewhere else — otherwise nothing new is ever noticed until
+ * you go and look, which is the one thing the mark is there to save you. It
+ * deliberately does *not* register a device: setting one up is what visiting
+ * the page does, and a browser that never has stays as it was.
+ */
+export function useCollectMessagesWhereRegistered() {
+  const registered = useQuery({
+    queryKey: messageKeys.device,
+    queryFn: () => registeredDevice().then((id) => id ?? null),
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+  return useCollectMessages(Boolean(registered.data));
+}
+
+/**
+ * How many messages are waiting in each conversation, on this device.
+ *
+ * Read from the local log, because that is where a thread is — the server
+ * deletes a message once it has been collected and could not answer this even
+ * if it were asked.
+ */
+export function useUnreadMessages(conversationIds: string[]) {
+  return useQuery({
+    queryKey: messageKeys.unread(conversationIds),
+    queryFn: async () => {
+      const counts = new Map<string, number>();
+      for (const id of conversationIds) {
+        counts.set(id, await unreadIn(id));
+      }
+      return counts;
+    },
+    enabled: conversationIds.length > 0,
+    staleTime: 0,
+  });
+}
+
+/** Mark a thread as looked at, whenever what is in it changes. */
+export function useMarkThreadRead(conversationId: string, messageCount: number) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    void markRead(conversationId).then(() =>
+      queryClient.invalidateQueries({ queryKey: ["dm", "unread"] })
+    );
+  }, [conversationId, messageCount, queryClient]);
 }

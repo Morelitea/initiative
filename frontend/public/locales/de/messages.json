@@ -15,5 +15,13 @@
   "recipientHasNoDevice": "{{name}} hat verschlüsselte Nachrichten noch nicht eingerichtet, deshalb konnte dies nicht zugestellt werden.",
   "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
   "loading": "Wird geladen …",
-  "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App."
+  "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App.",
+  "start": {
+    "waiting": "Warten auf die Zusage. Danach könnt ihr euch schreiben.",
+    "asksToMessage": "Sie möchten dir schreiben. Nimm an, dann könnt ihr reden.",
+    "mayAsk": "Du hast ihnen noch nicht geschrieben. Frag zuerst — sie können annehmen oder ablehnen, und bis dahin wird nichts gesendet.",
+    "denied": "Du kannst ihnen gerade nicht schreiben."
+  },
+  "unreadHere_one": "{{count}} ungelesene Nachricht",
+  "unreadHere_other": "{{count}} ungelesene Nachrichten"
 }
