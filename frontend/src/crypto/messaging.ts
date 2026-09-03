@@ -47,8 +47,8 @@ const KEY_POOL = 50;
 /** Below this many unclaimed prekeys, the pool is topped back up to `KEY_POOL`. */
 const KEY_LOW_WATER = 15;
 
-/** How many times a write to the account is retried when another tab moves it. */
-const ACCOUNT_ATTEMPTS = 3;
+/** How many times a key-store write is retried when another tab moves it first. */
+const WRITE_ATTEMPTS = 3;
 
 /**
  * Nobody on the other side has set up encrypted messaging yet.
@@ -85,12 +85,35 @@ interface Destination {
 async function withAccount<T>(
   work: (pickle: string) => Promise<{ next: string; value: T } | null>
 ): Promise<T | null> {
-  for (let attempt = 0; attempt < ACCOUNT_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt += 1) {
     const current = await accountPickle.get();
     if (!current) throw new Error("this device has no key store");
     const done = await work(current);
     if (done === null) return null;
     if (await accountPickle.swap(current, done.next)) return done.value;
+  }
+  return null;
+}
+
+/**
+ * Advance one session, and only keep the result if nobody else moved it first.
+ *
+ * A ratchet step is a read and a write: encrypting moves the session on, and so
+ * does decrypting. Two tabs that start from the same point both write, and the
+ * one that lands second undoes the other — leaving a message the far end has no
+ * state to open. `null` means this session could not carry the work, which is
+ * the same answer a caller wants for a session that was simply the wrong one.
+ */
+async function withSession<T>(
+  sessionId: string,
+  work: (pickle: string) => Promise<{ next: string; value: T } | null>
+): Promise<T | null> {
+  for (let attempt = 0; attempt < WRITE_ATTEMPTS; attempt += 1) {
+    const current = await sessionPickle.get(sessionId);
+    if (!current) return null;
+    const done = await work(current);
+    if (done === null) return null;
+    if (await sessionPickle.swap(sessionId, current, done.next)) return done.value;
   }
   return null;
 }
@@ -331,10 +354,11 @@ export async function sendText(
       }
       sessionId = await openOutboundSession(conversationId, destination, oneTime);
     }
-    const pickle = await sessionPickle.get(sessionId);
-    if (!pickle) continue;
-    const encrypted = await ratchet.encrypt(pickle, body);
-    await sessionPickle.set(sessionId, encrypted.session_pickle);
+    const encrypted = await withSession(sessionId, async (pickle) => {
+      const out = await ratchet.encrypt(pickle, body);
+      return { next: out.session_pickle, value: out };
+    });
+    if (encrypted === null) continue;
     if (destination.origin === "other") reachedThem = true;
     messages.push({
       recipient_device_id: destination.id,
@@ -481,18 +505,20 @@ export async function collect(): Promise<string[]> {
         const sessions = [...here, ...(await allSessions.get()).filter((id) => !here.includes(id))];
         let read: { sessionId: string; plaintext: string } | null = null;
         for (const sessionId of sessions) {
-          const pickle = await sessionPickle.get(sessionId);
-          if (!pickle) continue;
-          try {
-            const decrypted = await ratchet.decrypt(pickle, item.message_type, item.payload);
-            await sessionPickle.set(sessionId, decrypted.session_pickle);
-            // Filed here, so the next message on it is found straight away.
-            await sessionsInConversation.add(item.conversation_id, sessionId);
-            read = { sessionId, plaintext: decrypted.plaintext };
-            break;
-          } catch {
-            // Not this session. Try the next.
-          }
+          const decrypted = await withSession(sessionId, async (pickle) => {
+            try {
+              const out = await ratchet.decrypt(pickle, item.message_type, item.payload);
+              return { next: out.session_pickle, value: out };
+            } catch {
+              // Not this session. Try the next.
+              return null;
+            }
+          });
+          if (decrypted === null) continue;
+          // Filed here, so the next message on it is found straight away.
+          await sessionsInConversation.add(item.conversation_id, sessionId);
+          read = { sessionId, plaintext: decrypted.plaintext };
+          break;
         }
         if (read === null) continue;
         plaintext = read.plaintext;

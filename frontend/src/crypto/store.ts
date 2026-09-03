@@ -378,6 +378,20 @@ export const allSessions = {
 export const sessionPickle = {
   get: (id: string) => read<string>(SESSION_PREFIX + id),
   set: (id: string, pickle: string) => write(SESSION_PREFIX + id, pickle),
+  /**
+   * Advance a session only if it is still where the caller found it.
+   *
+   * A session moves on with every message it carries, and both ends have to
+   * move together. Two tabs encrypting from the same point produce two messages
+   * that claim the same place in the conversation, and the far end can only
+   * open one of them.
+   */
+  swap: async (id: string, expected: string, next: string): Promise<boolean> => {
+    const { written } = await update<string>(SESSION_PREFIX + id, (current) =>
+      current === expected ? next : undefined
+    );
+    return written;
+  },
 };
 
 /**

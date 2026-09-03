@@ -74,15 +74,19 @@ vi.mock("./client", () => ({
         plaintext: message.body,
       };
     },
+    // Both ends of a ratchet move on with every message. The "!" is that step,
+    // so a lost one is visible in the stored pickle.
     encrypt: async (sessionPickle: string, plaintext: string) => ({
-      session_pickle: sessionPickle,
+      session_pickle: `${sessionPickle}!`,
       message_type: 1,
       ciphertext: JSON.stringify({ from: "mine", body: plaintext }),
     }),
     decrypt: async (sessionPickle: string, _type: number, ciphertext: string) => {
       const message = JSON.parse(ciphertext);
-      if (sessionPickle !== `session:${message.from}`) throw new Error("not this session");
-      return { session_pickle: sessionPickle, plaintext: message.body };
+      if (!sessionPickle.startsWith(`session:${message.from}`)) {
+        throw new Error("not this session");
+      }
+      return { session_pickle: `${sessionPickle}!`, plaintext: message.body };
     },
   },
 }));
@@ -94,7 +98,14 @@ import {
   RecipientHasNoDeviceError,
   sendText,
 } from "./messaging";
-import { accountPickle, deviceClaim, deviceId, forgetDevice, messageLog } from "./store";
+import {
+  accountPickle,
+  deviceClaim,
+  deviceId,
+  forgetDevice,
+  messageLog,
+  sessionPickle,
+} from "./store";
 
 const OURS = { id: "device-1", identity_key: "mine" };
 const OUR_PHONE = { id: "device-2", identity_key: "phone" };
@@ -266,6 +277,17 @@ describe("sending", () => {
     expect(
       body.messages.map((message: { recipient_device_id: string }) => message.recipient_device_id)
     ).toEqual([THEIRS.device_id, OUR_PHONE.id]);
+  });
+
+  it("advances the session once per message when two are sent at once", async () => {
+    // Two tabs on the same conversation. A ratchet step read and written
+    // without care loses one of them, and the message that claimed the same
+    // place in the conversation is one the far end cannot open.
+    await sendText("conv-1", 7, "opens the session");
+
+    await Promise.all([sendText("conv-1", 7, "two"), sendText("conv-1", 7, "three")]);
+
+    expect(await sessionPickle.get(`session:${THEIRS.identity_key}`)).toBe("session:theirs!!!");
   });
 
   it("refuses when none of their devices can be opened either", async () => {
