@@ -110,6 +110,11 @@ _RLS_PARAMS_INFO_KEY = "rls_params"
 SYSTEM_SATISFIED = "system"
 _RLS_ESTABLISHED_INFO_KEY = "rls_established_at"
 
+# The platform tier the session is acting for. Kept beside the context params
+# rather than inside them because it outlives any one of them: a request routes
+# into a guild and back out again, and the caller is the same person throughout.
+_RLS_TIER_INFO_KEY = "rls_platform_tier"
+
 
 class StaleAuthorizationContext(RuntimeError):
     """A transaction tried to begin on an authorization snapshot older than
@@ -344,7 +349,15 @@ async def set_rls_context(
     path assumes ``platform_<tier>`` instead of the bare login role, so the request
     is role-scoped at the database (fail-closed) rather than running with the login
     role's broad standing grants. It is ignored when the request routes into a guild
-    schema (the guild role governs there).
+    schema (the guild role governs there) — pass it anyway, so the tier is on the
+    session for the trip back out.
+
+    The tier is remembered for the session and reapplied to any later call that
+    names a ``user_id`` without one, so re-establishing context part-way through
+    a request keeps the role it authenticated as. Passing a tier sets it; passing
+    no ``user_id`` clears it. Every other parameter is write-only per call: they
+    are always written from this call's arguments, so nothing carries between
+    requests on a pooled connection.
     """
     _VALID_ROLES = {"admin", "member"}
     if guild_role is not None and guild_role not in _VALID_ROLES:
@@ -362,6 +375,20 @@ async def set_rls_context(
 
     if platform_role is not None and platform_role not in PLATFORM_TIERS:
         raise ValueError(f"Invalid platform_role: {platform_role!r}")
+
+    # A call that names a user but not their tier is re-establishing this
+    # request's own context — returning from a guild excursion, or narrowing
+    # after a lookup — not becoming somebody else. Give it back the tier the
+    # session is acting for, so the role it assumes is the one the request
+    # authenticated as rather than the login role underneath it. A call that
+    # names no user is an unattributed context (workers, seeding, the
+    # deliberate reset) and forgets it.
+    if platform_role is not None:
+        session.info[_RLS_TIER_INFO_KEY] = platform_role
+    elif user_id is None:
+        session.info.pop(_RLS_TIER_INFO_KEY, None)
+    else:
+        platform_role = session.info.get(_RLS_TIER_INFO_KEY)
 
     # Store params + freshness stamp BEFORE any execute: an execute may
     # autobegin a transaction, firing the replay hook, which must see the
@@ -481,6 +508,9 @@ async def guild_schema_context(
     """
     previous = session.info.get(_RLS_PARAMS_INFO_KEY)
     previous_established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
+    # The excursion routes with no user of its own, which forgets the tier; the
+    # caller on the other side of it is still the same person.
+    previous_tier = session.info.get(_RLS_TIER_INFO_KEY)
     routed = False
     try:
         await set_rls_context(session, guild_id=guild_id, guild_role=guild_role)
@@ -493,6 +523,10 @@ async def guild_schema_context(
         session.info[_RLS_PARAMS_INFO_KEY] = previous if previous is not None else {}
         if previous_established is not None:
             session.info[_RLS_ESTABLISHED_INFO_KEY] = previous_established
+        if previous_tier is not None:
+            session.info[_RLS_TIER_INFO_KEY] = previous_tier
+        else:
+            session.info.pop(_RLS_TIER_INFO_KEY, None)
         # Routing that did not complete leaves a transaction that accepts no
         # further statements, and its own rollback puts the settings back; more
         # SQL there would only replace the real error with a second one.
