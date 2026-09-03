@@ -481,6 +481,8 @@ class UserRead(UserBase):
     push_overdue_tasks: bool = True
     push_mentions: bool = True
     push_comment_reactions: bool = True
+    email_direct_messages: bool = True
+    push_direct_messages: bool = True
     email_events: bool = True
     push_events: bool = True
     email_event_reminders: bool = True
@@ -584,6 +586,8 @@ class UserSelfUpdate(SanitizedBaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     push_comment_reactions: Optional[bool] = None
+    email_direct_messages: Optional[bool] = None
+    push_direct_messages: Optional[bool] = None
     email_events: Optional[bool] = None
     push_events: Optional[bool] = None
     email_event_reminders: Optional[bool] = None

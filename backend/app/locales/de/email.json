@@ -71,6 +71,12 @@
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "buttonLabel": "Ansehen"
   },
+  "directMessage": {
+    "subject": "{{sender}} hat dir eine Nachricht gesendet",
+    "title": "Du hast eine neue Nachricht",
+    "body": "<strong>{{sender}}</strong> hat dir eine Direktnachricht gesendet. Öffne Initiative, um sie zu lesen — Nachrichten sind verschlüsselt, ihr Inhalt kann hier also nicht stehen.",
+    "buttonLabel": "Nachrichten öffnen"
+  },
   "comment": {
     "onTask": {
       "subject": "Neuer Kommentar zu {{task}}",

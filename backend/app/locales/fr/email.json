@@ -71,6 +71,12 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "buttonLabel": "Voir"
   },
+  "directMessage": {
+    "subject": "{{sender}} t'a envoyé un message",
+    "title": "Tu as un nouveau message",
+    "body": "<strong>{{sender}}</strong> t'a envoyé un message direct. Ouvre Initiative pour le lire — les messages sont chiffrés, leur contenu ne peut donc pas figurer ici.",
+    "buttonLabel": "Ouvrir les messages"
+  },
   "comment": {
     "onTask": {
       "subject": "Nouveau commentaire sur {{task}}",

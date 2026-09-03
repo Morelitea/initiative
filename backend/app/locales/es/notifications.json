@@ -113,5 +113,9 @@
       "title": "Acceso revocado",
       "body": "Tu acceso a {{guild}} fue revocado"
     }
+  },
+  "directMessage": {
+    "title": "{{sender}} te envió un mensaje",
+    "body": "Abre Initiative para leerlo."
   }
 }

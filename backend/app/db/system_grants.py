@@ -180,7 +180,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
-    "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # UPDATE joined the set for the rolled-up direct-message line: the system
+    # engine already creates and reaps these rows, and a rollup rewrites one
+    # it wrote itself rather than reaching a row it could not otherwise touch.
+    "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # Authoring runs on the system engine because a draft is invisible to the
     # request path by policy — which is the point of the policy.
     "announcements": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),

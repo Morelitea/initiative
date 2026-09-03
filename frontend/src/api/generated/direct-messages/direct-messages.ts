@@ -1851,9 +1851,6 @@ export const useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete = <
 };
 /**
  * Publish this installed client's public keys.
- *
- * The device's label comes from the request's user-agent rather than the body:
- * a device list is more use when it says what actually connected.
  * @summary Register Device
  */
 export const registerDeviceApiV1MeDmDevicesPost = (

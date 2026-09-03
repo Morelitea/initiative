@@ -44,6 +44,7 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.comment_on_task: "comments",
     NotificationType.comment_on_resource: "comments",
     NotificationType.comment_reply: "comments",
+    NotificationType.direct_message: "messages",
     # A reaction is comment news, so it rides the channel the installed app
     # already registers for comments — same reasoning as the join requests
     # above: a new channel id would mean a native release.
@@ -230,6 +231,7 @@ async def send_push_to_user(
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
+    only_device_token_ids: Optional[set[int]] = None,
 ) -> int:
     """Send push notification to all of a user's devices.
 
@@ -240,6 +242,8 @@ async def send_push_to_user(
         title: Notification title
         body: Notification body
         data: Optional data payload
+        only_device_token_ids: Restrict delivery to these installations. Used by
+            categories that only make sense on a device set up for them.
 
     Returns:
         Number of successful deliveries
@@ -249,6 +253,10 @@ async def send_push_to_user(
 
     # Get all push tokens for user
     tokens = await push_tokens.get_push_tokens_for_user(session, user_id=user_id)
+    if only_device_token_ids is not None:
+        tokens = [
+            token for token in tokens if token.device_token_id in only_device_token_ids
+        ]
 
     if not tokens:
         logger.debug(f"No push tokens found for user {user_id}")

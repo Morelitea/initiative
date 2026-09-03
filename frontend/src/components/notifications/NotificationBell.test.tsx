@@ -109,6 +109,22 @@ describe("NotificationBell export notifications", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
+  it("names the sender and counts a direct message, and never previews one", async () => {
+    mockInbox([
+      buildNotification({
+        type: "direct_message" as NotificationType,
+        // Everything a direct-message line carries. There is no body here and
+        // no mechanism that could add one.
+        data: { conversation_id: "conv-1", sender_id: 7, sender_name: "alex#1234", count: 3 },
+      }),
+    ]);
+    renderWithProviders(<NotificationBell />);
+
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText(/alex#1234 sent you 3 messages/i)).toBeInTheDocument();
+    expect(screen.queryByText(/new notification/i)).not.toBeInTheDocument();
+  });
+
   it("says who knocked and how it was answered, not the generic fallback", async () => {
     mockInbox([
       buildNotification({
