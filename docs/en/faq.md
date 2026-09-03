@@ -4,13 +4,13 @@ icon: lucide/circle-help
 
 # Frequently asked questions
 
-Short answers to what people actually ask, with a pointer to the longer version if you want it.
+Short answers to what people actually ask, with a pointer to the longer version if you want one.
 
 ## Starting out
 
 ### Do I need to know project management to use this?
 
-No, and please don't go and learn some first. A project is a board. A task is a to-do on it. That is genuinely enough to run real work.
+No, and please don't go and learn any first. A project is a board. A task is a to-do on it. That is genuinely enough to run real work, and always has been.
 
 Roles, tools, dashboards, apps — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
 
@@ -18,7 +18,7 @@ Roles, tools, dashboards, apps — all there when you need them, silent until th
 
 Make a community. Open the **Default Initiative** it came with. Make one project. Put some tasks on it.
 
-That's it — you now have a working setup, and you're allowed to stop. Come back for the rest of this only when something actually feels missing. See [Your first community](getting-started/your-first-community.md).
+That's it. You now have a working setup and you are allowed to stop. Come back for the rest of this only when something actually feels missing, which for a lot of groups is never. See [Your first community](getting-started/your-first-community.md).
 
 ### Is it free?
 
@@ -44,13 +44,13 @@ If your server runs a [community directory](guides/communities.md#finding-a-comm
 
 The directory is a server-wide feature that starts switched **off**, so plenty of servers don't have one. Everything there is invite-only.
 
-Links can expire, run out of uses, or get switched off by an admin. None of that is a judgement on you personally. Ask for a fresh one; it takes them four seconds.
+Links can expire, run out of uses, or be switched off by an admin. None of this is a judgement on you as a person. Ask for a fresh one — it takes them about four seconds.
 
 ### I don't see a "Create community" button
 
 Some servers turn community creation off on purpose so people join through invites instead. Ask an admin to invite you, or to make one for you.
 
-Give it a few minutes, then check spam. It's usually spam.
+Give it a few minutes, then check spam. It is almost always spam.
 
 If it still hasn't turned up, the server may not have email configured at all — ask your administrator. Reset links also go stale, so if yours has been sitting there since Tuesday, request another. See [Signing in](getting-started/signing-in.md).
 
@@ -89,7 +89,7 @@ If you can't join communities you can see, and the parts of Initiative open to p
 
 Either way, everything inside communities you were **invited** to still works.
 
-Extremely common, and entirely fixable. Ask an administrator of your server to **reset the age question**. Anyone on the support tier or above can do it, and it's recorded in the audit log like any other action taken on somebody's account.
+Extremely common, entirely fixable, and nobody is cross with you. Ask an administrator of your server to **reset the age question** — anyone on the support tier or above can do it, and it's recorded in the audit log like every other action taken on somebody's account.
 
 They can't see what you typed, incidentally, because it was never kept. Resetting simply lets you have another go.
 
@@ -132,9 +132,9 @@ Expected. Projects can each have their own statuses, so a moved task restarts at
 
 **Archive** them. There's a one-click "Archive done tasks", and you can filter archived tasks back into view whenever you want. Nothing is lost.
 
-It's fine. It's in the **Trash** — Community settings for shared things, your own Trash for your own items — and it sits there for a while before going anywhere permanent.
+It's fine. It's in the **Trash** — Community settings for shared things, your own Trash for your own items — and it sits there for a good while before going anywhere permanent.
 
-Go and get it back. See [Trash and retention](guides/communities.md#trash-and-retention).
+Go and get it back, and then go and have a cup of tea. See [Trash and retention](guides/communities.md#trash-and-retention).
 
 ### An import didn't match people to their accounts
 
@@ -150,15 +150,15 @@ Not on your own — your handle is how people find and mention you, so changing 
 
 Each community decides whether it shows real names or just handles. In a handles-only community your display name isn't rendered to anyone there.
 
-Your **timezone** is wrong. Almost always. Fix it in **User settings → Interface** and everything snaps back into place.
+Your **timezone** is wrong. It's almost always the timezone. Fix it in **User settings → Interface** and everything snaps back into place.
 
 ### I'm getting too many (or too few) emails
 
-Tune them per category in **User settings → Notifications** — each has its own email and mobile toggle. The in-app bell always works regardless. See [Notifications](guides/notifications.md).
+Tune them category by category in **User settings → Notifications** — each has its own email and mobile switch, and there's no minimum. The in-app bell keeps working regardless. See [Notifications](guides/notifications.md).
 
 ### How do I leave a group?
 
-On the community rail, open the community's menu and choose **Leave community**. If you're the last admin, promote someone else first.
+On the community rail, open the community's menu and choose **Leave community**. If you're the last admin, you'll be made to promote somebody else first — you can't simply slip out and leave nobody holding it.
 
 A suspended account can still sign in and reach its own settings, which is how you find out why.
 
@@ -176,7 +176,9 @@ An **initiative** is only visible to the people added to it, and individual proj
 
 ### How do I keep something visible to just two or three people?
 
-Put it in an initiative with only those people in it. That's the strongest everyday boundary and it needs no configuration — everyone else simply doesn't have it. To narrow further inside an initiative, share the specific project or document.
+Put it in an initiative with only those people in it.
+
+That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or document.
 
 ### Can other groups on the same server see our stuff?
 
@@ -220,4 +222,4 @@ Yes — Initiative speaks OIDC, including mapping your provider's groups to comm
 
 If it looks like the software rather than your account, see [Reporting a problem](security/reporting-a-problem.md).
 
-If it's about one specific community — who's in it, what you can reach, why something's missing — ask that community's admins first. They can see and fix far more of it than whoever runs the server can, and they're usually quicker to reply.
+If it's about one specific community — who's in it, what you can reach, why something's vanished — ask that community's admins first. They can see and fix far more of it than whoever runs the server can, and they're usually quicker to answer.

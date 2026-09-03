@@ -4,9 +4,9 @@ icon: lucide/tags
 
 # Tags
 
-**Tags** are labels you stick on things so you can find them again.
+**Tags** are labels you stick on things so that future-you can find them again.
 
-The same tag works across tasks, projects, documents and events — so `urgent`, `client-acme` or `idea` rounds up everything on that subject regardless of what kind of thing it happens to be.
+The same tag works across tasks, projects, documents and events — so `urgent`, `client-acme` or `idea` rounds up everything on that subject, regardless of what kind of thing each one happens to be.
 
 ## Adding one
 
@@ -18,7 +18,7 @@ Wherever you see an **Add tags…** box:
 Done. It's attached, and now available everywhere else too.
 
 !!! tip "Six good tags beat sixty bad ones"
-    A handful you actually use will serve you far better than a sprawling collection invented one enthusiastic afternoon and never touched again.
+    A handful you actually use will serve you far better than a sprawling taxonomy invented during one enthusiastic afternoon in February and never touched again.
 
     Name them for how you'll want to *search* later, not for how you feel about the thing right now.
 
@@ -32,9 +32,9 @@ Done. It's attached, and now available everywhere else too.
 
 ## Managing them
 
-From a tag's detail page you can **rename** it — which updates it everywhere at once, so no find-and-replace — or **delete** it.
+From a tag's detail page you can **rename** it — which updates it everywhere at once, so there's no find-and-replace and no forgotten stragglers — or **delete** it.
 
-Deleted tags go to the **Trash**, so an accidental deletion is fixable for a while.
+Deleted tags go to the **Trash**, so a mis-click is fixable for a while.
 
 You can also **add or remove tags on lots of things at once**: select several tasks and edit their tags together.
 

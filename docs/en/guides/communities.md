@@ -4,7 +4,7 @@ icon: lucide/home
 
 # Working with communities
 
-A **community** is your group's workspace. This covers moving between them, getting people in, and — if you're the one running it — keeping the place tidy.
+A **community** is your group's workspace. This page covers moving between them, getting people in, and — if you're the one running it — keeping the place from descending into chaos.
 
 Not in one yet? Start with [Your first community](../getting-started/your-first-community.md).
 
@@ -15,7 +15,7 @@ The **community rail** runs down the far-left edge of the screen: one icon per c
 Click any icon to switch. Everything follows you over — sidebar, initiatives, projects. Each community is completely independent; work, people and settings never cross between them.
 
 !!! tip "Two communities at once"
-    Open Initiative in two browser tabs and each one can sit in a different community, quite happily, at the same time. Useful when the work team and the volunteer thing both want you today.
+    Open Initiative in two browser tabs and each one can sit in a different community, quite happily, simultaneously. Useful on the days when the work team and the volunteer thing both want you and neither will be reasoned with.
 
 The rail also keeps up with itself. If an admin adds you somewhere, or a group login sync brings you in, or a community you're already in lists itself publicly, the rail updates where you're standing. No reloading.
 
@@ -25,7 +25,7 @@ Opening a community drops you on its front page. Its tools run across the top as
 
 "Reached you" means: shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in. Each row shows which initiative it came from, its tags, and when it last changed. Click a name to open it.
 
-Only tools your initiatives actually use appear, so a community that doesn't run queues never grows a Queues circle to ignore.
+Only the tools your initiatives actually use turn up, so a community that has never once needed a queue is not given a Queues circle to look at and feel vaguely guilty about.
 
 **Search** narrows by name, and the **Name**, **Initiative** and **Last updated** headers sort — newest first until you say otherwise. Both reach everything of that kind in the community, not just the rows currently on screen, so nothing is hiding on page two.
 
@@ -43,7 +43,7 @@ Hit the **add-a-community** button on the rail and choose **Join a community**. 
 
 - **Search** by name or description.
 - **Browse by category.**
-- **Join** straight from the card. No invite, no waiting, no approval queue — you're a member the moment you click.
+- **Join** straight from the card. No invite, no waiting, no approval queue, no email that arrives four days later — you're a member the moment you click.
 
 What you searched and which shelf you're on are part of the address, so a filtered view of the directory is a link you can send somebody.
 
@@ -74,9 +74,9 @@ You can unlist at any time. Everything carries on exactly as before; it just sto
 That certification is the entire content rule — if you can't honestly tick it, you don't get listed. One other thing keeps a community out regardless: a **member limit of one**, because then there'd be no seat for anyone to take. (Nearly full is fine. It's the limit itself that has to leave room.)
 
 !!! tip "Give new arrivals somewhere to land"
-    A listed community whose initiatives are all invite-only leaves newcomers looking at a beautiful, completely empty page, wondering what they've done wrong.
+    A listed community whose initiatives are all invite-only leaves every newcomer looking at a beautiful, entirely empty page, quietly wondering what they did wrong on the way in.
 
-    Initiative will warn you when that's the case and point at the fix: mark one initiative **open** so people can join it, or **auto-join** so they simply arrive already in it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
+    Initiative spots this and tells you, with the fix attached: mark one initiative **open** so people can join it themselves, or **auto-join** so they simply arrive already inside it. See [How people join an initiative](initiatives.md#how-people-join-an-initiative).
 
 ## Inviting people (admins)
 
@@ -85,7 +85,7 @@ That certification is the entire content rule — if you can't honestly tick it,
 3. Optionally limit it:
     - **Max uses** — how many people can get in on this one link.
     - **Expires in (days)** — when it stops working.
-4. **Copy it** and send it however you like. Email, chat, carrier pigeon.
+4. **Copy it** and send it however you like. Email, chat, read it aloud down the phone.
 
 Anyone who opens it joins after signing in or making an account.
 
@@ -131,22 +131,24 @@ Open **Community settings** from the sidebar or the rail:
 
 Deleted things go to the community **Trash** first, where an admin can bring them back. You set how long they hang around — a number of **days**, or **never auto-purge** to keep them indefinitely.
 
-This is the setting that quietly saves somebody's afternoon about twice a year. Be generous with it.
+This is the setting that quietly saves somebody's entire afternoon roughly twice a year. Be generous with it. Nobody has ever regretted a long retention window at the exact moment they needed one.
 
 ### The danger zone
 
 The hard-to-undo things, chiefly **deleting the community**.
 
-That permanently removes *everything* — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, including retyping details. The friction is entirely deliberate. Only come here when you genuinely mean it.
+That permanently removes *everything* — initiatives, projects, tasks, documents, members, the lot — and you'll be made to confirm properly, including retyping things by hand.
+
+The friction is entirely deliberate and we're not sorry about it. Only come here when you genuinely mean it, and ideally not at 11pm.
 
 ??? techspec "For the technically minded — what community deletion does"
     It removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Thorough and final. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
 
 ## Leaving a community
 
-On the **community rail**, open the community's menu and choose **Leave community**. That removes you and nobody else; everyone carries on without you, which is either a relief or slightly hurtful depending on the day.
+On the **community rail**, open the community's menu and choose **Leave community**. That removes you and nobody else. Everyone carries on without you, which is either a relief or mildly wounding depending on the day you're having.
 
-If you're the *last administrator*, you'll be asked to promote somebody first. Leaving a community with nobody in charge is a favour to no one.
+If you're the *last administrator*, you'll be made to promote somebody first. Walking out and leaving a community with nobody in charge is a favour to no one, least of all the person who eventually notices.
 
 ## Related
 

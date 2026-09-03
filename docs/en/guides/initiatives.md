@@ -4,7 +4,7 @@ icon: lucide/folders
 
 # Working with initiatives
 
-An **initiative** is a folder for one big effort inside your community. It holds that effort's projects, documents and tools, and it's where you decide who's involved.
+An **initiative** is a folder for one big effort inside your community. It holds that effort's projects, documents and tools, and it's where you decide who's actually involved in it.
 
 New to the idea? [How Initiative is organized](../concepts/index.md) explains the shape first.
 
@@ -12,7 +12,7 @@ New to the idea? [How Initiative is organized](../concepts/index.md) explains th
 
 1. In the sidebar, find **Initiatives** and choose **Add initiative**.
 2. **Name** it after the effort: "Spring Play", "2026 Budget", "Onboarding".
-3. Pick a **colour**. It follows the initiative's projects around, so at a glance you can tell what belongs to what.
+3. Pick a **colour**. It follows the initiative's projects around, so you can tell at a glance what belongs to what without reading a single word.
 4. Add a **description** if you like.
 5. Create it.
 
@@ -21,11 +21,15 @@ It shows up in the sidebar. Expand it to see its projects and documents.
 ![Creating an initiative](../images/initiatives/create-initiative.png)
 
 !!! info "The Default Initiative"
-    Every community starts with one, so there's always somewhere to put things. Rename it and use it like any other — it just can't be deleted, so you can never end up with nowhere to put a project.
+    Every community starts with one, so there's always somewhere to put things. Rename it, use it like any other.
+
+    It just can't be deleted — which means you can never quite manage to leave yourself with nowhere to put a project, however determined you are.
 
 ## The initiative dashboard
 
-Clicking an initiative's **title** opens its dashboard: how its projects are getting on, what's coming up, what's changed lately. The quick answer to "how's this going?" without opening five things.
+Clicking an initiative's **title** opens its dashboard: how the projects are getting on, what's coming up, what's changed lately.
+
+It's the quick answer to "how's this going?" — the question you'd otherwise answer by opening five things and doing arithmetic in your head.
 
 ## Adding members
 
@@ -35,9 +39,9 @@ An initiative's contents are visible **only to its members**. To add somebody by
 2. **Add** people from your community.
 3. Give each one a **role** (see below).
 
-Here's the important bit: an invite-only initiative isn't just closed to people who aren't in it. It isn't *there* for them. No name in a list, no locked door, no "you do not have permission" — nothing at all.
+Here's the important bit: an invite-only initiative isn't merely closed to people who aren't in it. It isn't *there* for them at all. No name in a list. No locked door to rattle. No "you do not have permission" message to feel odd about.
 
-That's how an initiative keeps sensitive work with the people involved, even from other members of the same community, without anybody having to be told they're excluded.
+That's how an initiative keeps sensitive work with the people involved — even from other members of the same community — without anybody ever having to be told they're on the outside of something.
 
 An initiative that opens itself up (below) shows its name, description and size so people can find it. That's all a non-member gets. The projects and documents stay out of reach until they actually join.
 
@@ -67,7 +71,9 @@ On a **by request** initiative, the card offers **Request to join**, with room f
 
 Managers get notified — in the app, plus push or email if they've got those on — and the request waits in **settings → Members**, above the roster, showing who asked, what they wrote, when, and whether they've been turned down here before. **Approve** adds them. **Decline** doesn't.
 
-Being declined isn't a ban, and it isn't permanent. They can ask again, and only one request of theirs can be open at a time so nobody can pester you with fifteen.
+Being declined isn't a ban and it isn't permanent. They can ask again later.
+
+They can also only have one request open at a time, so nobody can express their enthusiasm by sending you fifteen.
 
 ![The join-request queue](../images/initiatives/join-request-queue.png)
 
@@ -75,7 +81,7 @@ Being declined isn't a ban, and it isn't permanent. They can ask again, and only
 
 A community admin can mark an **anyone can join** initiative as **auto-join**. From then on, everybody arriving in the community — by invite, from the [directory](communities.md#finding-a-community-to-join), or through a work login — lands in it already a member, with nothing to click.
 
-This is how you stop new arrivals meeting a completely empty community and quietly assuming they've done something wrong. Worth having at least one if your community is publicly listed.
+This is how you stop every new arrival meeting a completely empty community and quietly concluding they've done something wrong. Worth having at least one if your community is publicly listed.
 
 Two things to know:
 
@@ -86,7 +92,9 @@ Two things to know:
 
 A community admin has authority over every initiative in their community. But authority isn't navigation.
 
-Their sidebar and front page show **the initiatives they're actually in**, then the ones on offer, exactly like anyone else's. An admin buried under a hundred initiatives they've never opened cannot find the three they actually work in, and that helps nobody.
+Their sidebar and front page show **the initiatives they're actually in**, then the ones on offer, exactly like everybody else's.
+
+An admin buried under a hundred initiatives they have never once opened cannot find the three they actually work in. That helps nobody, least of all the admin.
 
 To put one in front of themselves, an admin joins it from the front page. They walk straight in whatever the joining setting says — no request, no waiting — and arrive on the **project manager** role their standing already implies. **Community settings → Initiatives** still lists every initiative in the community.
 
@@ -99,9 +107,9 @@ None of this changes what an admin may *do*. Open any initiative and they see al
 
 Each member holds a **role**, which decides which *kinds of tools* they can use here — whether they can make projects, or only look at them.
 
-Initiative ships a **Manager** role (think project lead) with fixed permissions, and you build your own on top: "Coordinator", "Volunteer", "Client", "Guest", "Person Who Only Needs To See The Rota".
+Initiative ships a **Manager** role (think project lead) with fixed permissions, and you build your own on top: "Coordinator". "Volunteer". "Client". "Guest". "Person Who Only Needs To See The Rota".
 
-Name them after how your group actually talks about itself, not after anything Initiative expects.
+Name them after how your group actually talks about itself, not after anything Initiative expects. Nobody has ever introduced themselves at a committee meeting as a view-only contributor.
 
 Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **Counters**, **Events**, **Dashboards** — each offering **View** and **Create**. So "Volunteer" might view projects and documents but create nothing, while "Coordinator" creates everything.
 
@@ -110,9 +118,9 @@ Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **C
 There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md).
 
 !!! warning "Managers see absolutely everything"
-    The built-in **Manager** role reaches every project and document in the initiative, whether or not it was ever shared with them. That's unique to Manager — custom roles don't get it, and can't be given it.
+    The built-in **Manager** role reaches every project and document in the initiative, whether or not it was ever shared with them. That's unique to Manager — custom roles don't get it, and can't be given it however much you'd like them to.
 
-    So hand it out to the people who genuinely need the whole picture, and not as a general thank-you for being helpful.
+    So hand it to the people who genuinely need the whole picture. Not as a thank-you for being helpful, and not because somebody's been around a long time and it felt rude not to.
 
 ## Initiative settings
 
@@ -125,8 +133,8 @@ There's a full walkthrough in [Initiative roles](../sharing/initiative-roles.md)
 
 ### Archiving vs. deleting
 
-- **Archive** tucks a finished effort out of sight without losing a thing. Restorable whenever. This is the right button for "the spring play is over but I'm not throwing away the records."
-- **Delete** sends the initiative and everything in it to the community **Trash**, where an admin can still restore the whole lot until the retention period runs out. After that it's genuinely gone.
+- **Archive** tucks a finished effort out of sight without losing a single thing. Restorable whenever. This is the button for "the spring play is over, but I am absolutely not throwing away the records."
+- **Delete** sends the initiative and everything inside it to the community **Trash**, where an admin can still restore the whole lot until the retention period runs out. After that it's genuinely gone.
 
 When in doubt, archive. Archiving has never once ruined anybody's week.
 

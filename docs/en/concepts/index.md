@@ -4,7 +4,7 @@ icon: lucide/network
 
 # How Initiative is organized
 
-There's a simple shape underneath all of this, and it's worth about four minutes of your time. Once you can picture how the bits nest inside each other, the rest of the app stops needing explaining.
+There's a simple shape underneath all of this, and it's worth about four minutes. Once you can picture how the bits nest inside each other, the rest of the app stops needing explaining and you can go back to your actual life.
 
 ## The big picture
 
@@ -36,17 +36,17 @@ Biggest to smallest:
 4. **Tasks** — the individual to-dos on a project's board.
 
 !!! tip "You do not have to build all of this"
-    Making a community hands you an initiative and somewhere to put your first project. That's the setup. Plenty of groups run happily on exactly that for years and never touch the rest.
-    
-    This diagram is a map of what's *available*, not a list of things you're behind on.
+    Making a community hands you an initiative and somewhere to put your first project. That's the setup. Done. Plenty of groups run happily on exactly that for years and never touch anything else on this page.
+
+    This diagram is a map of what's *available*. It is not a checklist, and you are not behind.
 
 ## Community — your group's workspace
 
 The outermost box: one separate space for one group of people. Your business, your volunteer committee and your neighbourhood association would each be their own community.
 
-Communities don't mix. Nothing in one is visible from another — not to other people, not to you. You can belong to several and hop between them from the rail down the left, but each is its own sealed world.
+Communities don't mix. Nothing in one is visible from another — not to other people, and not to you either. You can belong to several and hop between them from the rail down the left, but each one is a sealed world that knows nothing of the others.
 
-Inside a community there are only two levels of person: **admin** (runs the place) and **member** (is in the place). That's it. See [Working with communities](../guides/communities.md).
+Inside a community there are exactly two levels of person: **admin** (runs the place) and **member** (is in the place). That's the whole hierarchy. Nobody has to be promoted to Senior Member. See [Working with communities](../guides/communities.md).
 
 !!! example "A running example"
     *Riverside Players* is a community theatre group. They make one community for everything they do together. Inside it, one initiative per production.
@@ -55,12 +55,12 @@ Inside a community there are only two levels of person: **admin** (runs the plac
 
 A folder for one major undertaking, holding its projects, documents and tools. This is the level where you decide **who's involved**.
 
-Why is there a middle layer at all? Because real groups have several things on the go at once, and not everybody needs to see all of them — or, frankly, wants to.
+Why is there a middle layer at all? Because real groups have four things on the go simultaneously, and not everybody needs to see all four — or, frankly, wants to. The person doing the raffle does not need the budget spreadsheet in their sidebar every morning.
 
 !!! example "Continuing the example"
     Riverside Players make an initiative called *Spring Play: Our Town*. Into it go the rehearsal schedule, the budget spreadsheet, the script, and the performance calendar.
 
-    Only the spring play people are in it. The summer show crew never see it, and don't have to scroll past it either.
+    Only the spring play people are in it. The summer show crew never see it, never scroll past it, and are never once tempted to have an opinion about it.
 
 Every community comes with a **Default Initiative** so there's always somewhere to start. Add as many more as you need.
 
@@ -70,13 +70,13 @@ People are added as **members**, each with a **role** — "Director", "Cast" —
 
 A **project** is a board. It holds **tasks**, and it'll show them to you however you like: as a **Table**, as a drag-and-drop **Kanban** board, or on a **Calendar**.
 
-Same work, three ways of looking at it. Which means the person who thinks in tidy lists and the person who thinks in columns can share a project without either of them suffering for it.
+Same work, three ways of looking at it. So the person who thinks in tidy lists and the person who thinks in columns can share a project without either of them quietly suffering.
 
 A **task** can carry a description, a status, a priority, dates, the people doing it, subtasks, and tags. This is where the day-to-day actually happens. See [Projects & tasks](../guides/projects-and-tasks.md).
 
 ## Documents — writing things down
 
-A **document** lives inside an initiative and holds knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are much easier drawn than written.
+A **document** lives inside an initiative and holds the knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are far easier drawn than described.
 
 Most kinds can be edited by several people at once, live, so there's no emailing versions around. You can also upload files — PDFs, Word documents, images — as documents. See [Documents](../guides/documents.md).
 
@@ -89,7 +89,7 @@ Each initiative can also run four optional extras:
 - **Counters** — numbers that move.
 - **Dashboards** — one screen that answers "how are we doing?"
 
-Use none of them and nothing is missing. See [Tools](../guides/tools.md).
+Use none of them and nothing is missing. They are not sitting there judging you. See [Tools](../guides/tools.md).
 
 ## Apps — what other groups already built
 
@@ -112,7 +112,7 @@ Everything above is about *where things live*. The other half is *who's allowed 
 
 Each layer sits inside the one above it. You reach a document only if you're in its community, **and** its initiative, **and** it's been shared with you.
 
-Which sounds like a lot of gates until you notice what it buys you: you never have to think about any of it. The only people who see a thing are the people you put in front of it.
+Which sounds like a lot of gates until you notice what they buy you: you never have to think about any of this again. The only people who see a thing are the people you put in front of it, and that stays true whether or not you're paying attention.
 
 The friendly version is [Sharing & access](../sharing/index.md). The one with the technical detail is [Security & privacy](../security/index.md).
 

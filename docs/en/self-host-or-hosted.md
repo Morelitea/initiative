@@ -4,7 +4,7 @@ icon: lucide/split
 
 # Self-host or let us host it
 
-Initiative comes two ways. It's the same software and the same protections either way — the difference is mostly about who gets up at 2am when the disk fills.
+Initiative comes two ways. Same software, same protections, either way. The difference is mostly about who has to get up at 2am when the disk fills.
 
 <div class="grid cards" markdown>
 
@@ -16,13 +16,13 @@ Initiative comes two ways. It's the same software and the same protections eithe
 
 -   :material-cloud-outline: __Let us host it__ · *coming soon*
 
-    A paid service. You sign up, you're in, and the server becomes our problem.
+    A paid service. You sign up, you're in, and the server becomes entirely our problem.
 
 </div>
 
 ## What's the same
 
-Initiative itself, entirely. There's no "community edition" here with the good bits filed off.
+Initiative itself, entirely. There is no "community edition" here with the good bits quietly filed off.
 
 - **Every feature in the app.** Projects, documents, whiteboards, the calendar, queues, counters, dashboards, tags, the marketplace, encrypted messages. All of it, both ways.
 - **Every protection.** The same isolation between groups, the same access model, the same end-to-end encryption on direct messages.
@@ -61,14 +61,18 @@ More will follow, of both kinds.
 
 ## Which one is you?
 
-**Host it yourself if** you already run things — a NAS, a homelab, a couple of containers — or if where the data physically sits is something you have to answer for. Data residency stops being a negotiation when you're the one picking the datacentre.
+**Host it yourself if** you already run things — a NAS, a homelab, a couple of containers you're weirdly fond of — or if where the data physically sits is something you personally have to answer for. Data residency stops being a negotiation when you're the one picking the datacentre.
 
-**Let us host it if** you'd rather spend your evening on the actual work. A club treasurer, a small business owner, a PTA chair — none of you signed up to learn what a database is, and you shouldn't have to. It's also the only route to automations, and much the shortest one to the GitHub integration.
+**Let us host it if** you'd rather spend your evening on the actual work. A club treasurer, a small business owner, a PTA chair — none of you signed up to find out what a database is, and none of you should have to.
+
+It's also the only route to automations, and much the shortest one to the GitHub integration.
 
 You can start on one and move to the other, too. Same software, and the export formats are ordinary files rather than something only we can open.
 
 !!! info "The hosted service isn't open yet"
-    It's coming. Until then, self-hosting is the way in — and it's a genuinely good way in, not a consolation prize. Plenty of groups will never want anything else. Start with the [installation guide](admin/installation.md).
+    It's coming. Until then, self-hosting is the way in — and it's a genuinely good way in, not a consolation prize with a countdown on it. Plenty of groups will run it themselves forever and never once feel short-changed.
+
+    Start with the [installation guide](admin/installation.md).
 
 ## Related
 

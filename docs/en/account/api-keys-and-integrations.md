@@ -4,19 +4,19 @@ icon: lucide/key-round
 
 # API keys & integrations
 
-Most people will never need this page, and that is a completely fine way to live.
+Most people will never need this page, and that is a completely respectable way to live.
 
-But if you want to connect Initiative to a script, another tool, or an AI assistant, **API keys** are how you do it. A key is a long-lived credential that lets software act on your behalf, within limits you set.
+But if you want to connect Initiative to a script, another tool, or an AI assistant, **API keys** are how. A key is a long-lived credential that lets software act on your behalf, within limits you set.
 
 !!! tip "Treat an API key like a password"
-    Anybody holding your key can do what it allows, as you. So: don't paste one into a public chat, don't email it to yourself, and delete any you've stopped using rather than leaving them lying about.
+    Anybody holding your key can do what it allows, as you. So don't paste one into a public chat, don't email it to yourself, and delete the ones you've stopped using rather than leaving them lying around being technically valid.
 
 ## Creating one
 
 1. **User settings → Security**.
 2. Under **Generate an API key**, give it a clear **name** — `weekly-report-script`, so future-you remembers what it's for.
 3. Choose its limits (below).
-4. Generate it, and **copy it right now** — it's shown exactly once. Lost it already? No drama: delete it and make another.
+4. Generate it, and **copy it right now** — it's shown exactly once. Lost it already? No drama at all: delete it and make another.
 
 ![Generating an API key](../images/account/api-key.png)
 
@@ -30,7 +30,7 @@ Each option narrows what a key can reach. Use the tightest set that still does t
 | **Community access** | Limits the key to a single community instead of all of yours. | Pin it to the **one** it needs. |
 | **Expiration** | The key stops working after a date. | Set one for anything temporary. |
 
-A read-only key pinned to one community is the safest default: it changes nothing, and reaches no other group's data.
+A read-only key pinned to a single community is the safest default going: it can't change anything, and it can't see any other group's data.
 
 ## Managing keys
 

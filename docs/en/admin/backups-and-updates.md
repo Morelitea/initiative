@@ -4,7 +4,9 @@ icon: lucide/save
 
 # Backups & updates
 
-Two ongoing jobs come with self-hosting: keeping a safety net, and staying current. Neither is hard. Both matter more than they feel like they do until the day they don't.
+Two ongoing jobs come with self-hosting: keeping a safety net, and staying current.
+
+Neither is hard. Both matter far more than they feel like they do, right up until the one day they matter enormously.
 
 ## Backups
 
@@ -24,14 +26,18 @@ A standard PostgreSQL dump does the job:
 docker compose exec -T db pg_dump -U postgres initiative > initiative-backup.sql
 ```
 
-Automate it (a nightly cron job), keep several days of history, and **test a restore occasionally**. A backup you've never restored is a guess, not a safety net.
+Automate it (a nightly cron job will do), keep several days of history, and **actually test a restore occasionally**.
+
+A backup you have never restored is not a safety net. It's a hypothesis.
 
 ### Uploads
 
 Copy the uploads volume to your backup location. If uploads live in [S3-compatible storage](object-storage.md), back up the bucket instead — most object stores have their own snapshot or replication features.
 
 !!! warning "Keep your SECRET_KEY with your backups — safely"
-    Some stored data is encrypted with `SECRET_KEY`. A database restore can't decrypt those fields without the same key. Record it somewhere secure and separate, or your backup is only most of a backup.
+    Some stored data is encrypted with `SECRET_KEY`, and a database restore cannot decrypt those fields without the same key.
+
+    Record it somewhere secure and separate from the backup itself. Otherwise what you have is not quite a backup, and you'll find that out at the worst possible moment.
 
 ## Updating
 
@@ -42,7 +48,9 @@ docker compose pull        # fetch the newer image
 docker compose up -d       # recreate the container
 ```
 
-Database **migrations run automatically** at startup, so there's usually nothing else to do. Back up first anyway — cheapest insurance going.
+Database **migrations run automatically** at startup, so there's usually nothing else to do at all.
+
+Back up first anyway. It's the cheapest insurance available to you and it takes one command.
 
 ### Choosing a version
 
@@ -65,7 +73,7 @@ The mobile apps update their web portion **over the air** — update the server 
 - [ ] **Regular uploads backup** (or object-store snapshots).
 - [ ] **`SECRET_KEY` stored securely** alongside the backup process.
 - [ ] **Update promptly**, especially for security fixes — read the changelog, back up, pull, up.
-- [ ] **Occasionally restore into a throwaway environment**, to prove it works.
+- [ ] **Occasionally restore into a throwaway environment**, to prove the whole thing actually works.
 
 ## Related
 

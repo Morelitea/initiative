@@ -4,7 +4,7 @@ icon: lucide/wrench
 
 # Tools
 
-Six kinds of thing live inside an initiative. Two of them you'll use from the first day; the other four sit quietly until a need for them turns up.
+Six kinds of thing live inside an initiative. Two you'll use from the first day. The other four sit quietly, waiting, entirely unbothered by whether you ever open them.
 
 <div class="grid cards" markdown>
 
@@ -48,20 +48,20 @@ Six kinds of thing live inside an initiative. Two of them you'll use from the fi
 
 ## Add one when you actually need it
 
-Most groups run on projects and documents for a good long while, and there's nothing wrong with that. The other four are worth reaching for at fairly specific moments:
+Most groups run on projects and documents for a good long while, and there is nothing wrong with that. The other four each have a fairly specific moment where you'll suddenly want them:
 
-- A **calendar** when scheduling has outgrown the group chat.
-- A **queue** the second time somebody asks whose turn it is.
-- **Counters** when a number needs to be the same number for everyone in the room.
-- A **dashboard** when somebody who isn't doing the work starts asking how the work is going.
+- A **calendar**, when scheduling has visibly outgrown the group chat.
+- A **queue**, the second time somebody asks whose turn it is.
+- **Counters**, when a number needs to be the *same* number for everyone in the room.
+- A **dashboard**, when somebody who isn't doing the work starts asking how the work is going.
 
-Turning one on is not a commitment. Turning it off later doesn't delete anything.
+Switching one on is not a commitment or a lifestyle change. Switching it off later doesn't delete anything.
 
 ## Who can use what
 
 Tools appear in the sidebar under an initiative once your [role](../sharing/initiative-roles.md) allows them. A role decides which *kinds* of tool you can view and create; [sharing](../sharing/sharing-projects-and-documents.md) then decides which specific ones you can reach.
 
-So "I can't see Queues at all" is a role question for an initiative manager, and "I can see Queues but not *that* queue" is a sharing question for whoever owns it.
+So "I can't see Queues at all" is a role question, for an initiative manager. And "I can see Queues but not *that* queue" is a sharing question, for whoever owns it. Two different people, two different conversations, and it's worth knowing which one you're having.
 
 !!! tip "Bulk-edit access"
     Select several events, queues or counter groups in a list view and change who can see or edit them all at once — the same bulk editing projects and documents have. Click the first, hold ++shift++, click the last. See [Sharing & access](../sharing/index.md).
@@ -76,7 +76,7 @@ Every tool, without exception:
 - **Can be pointed at** with `#` from any comment or document. See [Mentions & links](mentions-and-links.md).
 - **Goes to the Trash** when deleted, not to oblivion.
 
-Learn it once, and it's true of the next one.
+Learn it once and it's true of the next one. That's the entire point of doing it this way.
 
 ## Related
 

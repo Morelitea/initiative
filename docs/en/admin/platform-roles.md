@@ -31,7 +31,9 @@ Five rungs, each adding to the one below:
 The **first person to register** on a new server becomes the **owner**. The owner is the only role that can change app-wide configuration, so:
 
 !!! warning "Never leave the server without an owner"
-    Don't demote or delete the last owner-level account. Initiative guards against removing the final configuration-holder, but plan your administration so there's always someone who can manage settings.
+    Don't demote or delete the last owner-level account.
+
+    Initiative does guard against removing the final configuration-holder, but don't rely on that as a plan. Make sure there is always at least one person who can change settings and is reachable.
 
 ## Managing platform users
 

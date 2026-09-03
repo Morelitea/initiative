@@ -4,7 +4,7 @@ icon: lucide/settings
 
 # Account & settings
 
-Settings live in three places, depending on who they affect. Which sounds like two places too many until you need it:
+Settings live in three places, depending on who they affect. Which sounds like two places too many right up until the moment you need it:
 
 - **User settings** — you. Open them from your name and picture at the bottom of the sidebar.
 - **Community settings** — a whole workspace, for community admins. See [Working with communities](../guides/communities.md).
@@ -51,7 +51,7 @@ This section is about **your** settings.
 
 ## Importing from another tool
 
-Coming from another tool? You don't have to retype everything. Open **User settings → Import** and follow the wizard:
+Coming from another tool? You do not have to retype four years of tasks by hand. Open **User settings → Import** and follow the wizard:
 
 1. **Upload** your export file from the other tool.
 2. **Configure** which list or board to bring in, and pick the **target project**.
@@ -60,4 +60,4 @@ Coming from another tool? You don't have to retype everything. Open **User setti
 
 Supported sources: **Todoist**, **TickTick**, **Trello**, **Asana**, and **Vikunja**. Subtasks come across too.
 
-Anything that can't be matched gets reported rather than silently dropped, so you'll know what needs a hand instead of discovering it in three weeks.
+Anything that can't be matched gets reported rather than quietly dropped, so you find out what needs a hand now rather than in three weeks when somebody asks where their task went.

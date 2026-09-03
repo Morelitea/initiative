@@ -6,7 +6,7 @@ icon: lucide/user-cog
 
 Your personal settings live in **User settings**, opened from your name and picture at the bottom of the sidebar.
 
-Nothing on any of these tabs changes anything for anybody else, so you can fiddle freely.
+Nothing on any of these tabs changes anything for anybody else, so fiddle away.
 
 The tabs split along a simple line: **Profile** is the face other people see, **Account** is how you get in, **Interface** is how the app reads to you.
 
@@ -45,11 +45,11 @@ A profile wears three things, mixed freely — they don't have to come from the 
 
 Banners and frames move. Trophies hold still, because six wiggling things in a row would be unreadable and slightly upsetting. And if you've asked your device for less motion, everything holds still.
 
-Not every frame is a ring, either. Several stand *in front* of your picture, so you end up sitting in the teacup, in one bay of the Colosseum, or wearing the headphones. Yes, really.
+Not every frame is a ring, either. Several stand *in front* of your picture, so you end up sitting in the teacup, in one bay of the Colosseum, or wearing the headphones. Yes, really. We had a lot of fun with these.
 
 You never upload a decoration. You pick from what you own — the set that ships with Initiative, plus whatever **decoration packs** you download from your marketplace. See [Apps & the marketplace](../guides/apps-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community no storage.
 
-Picking the thing you're already wearing takes it off, so there's nothing extra to click for "none". Press **Save look** when you're happy.
+Picking the thing you're already wearing takes it off again, so there's no separate "none" to hunt for. Press **Save look** when you're happy with yourself.
 
 ### Removing a pack
 

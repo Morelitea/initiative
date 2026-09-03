@@ -4,7 +4,7 @@ icon: lucide/user
 
 # Your space
 
-Most of Initiative is organised by community and initiative, which is great until you belong to four of them and just want to know what you're supposed to be doing today.
+Most of Initiative is organised by community and initiative, which is excellent right up until you belong to four of them and simply want to know what you're supposed to be doing today.
 
 That's what **your space** is for: personal views that gather *your* things from across **every** community at once. Click the **Initiative logo** in the **top-left corner**, above your communities on the rail.
 
@@ -12,11 +12,11 @@ That's what **your space** is for: personal views that gather *your* things from
 
 Everything assigned to you, from every community and every project, in one list. Group it **by date** or **by community**, filter by priority, status or community.
 
-If you only ever open one page in Initiative, it's probably this one.
+If you only ever open one page in Initiative for the rest of your life, it's this one.
 
 ## Tasks I Created
 
-The tasks *you* made, wherever they ended up. Useful for gently following up on things you handed to other people.
+The tasks *you* made, wherever they ended up. Useful for gently following up on the things you handed to other people, in a way that isn't nagging because you've got a list.
 
 ## My Projects
 
@@ -24,7 +24,7 @@ Every project that's reached *you*, across all your communities. A fast way to j
 
 "Reached you" means the same thing on all of these pages: shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in.
 
-It is **not** "everything you could theoretically open if you went hunting." Even a community admin — who can reach anything in their community — gets a list of their own work here rather than an inventory of everybody's.
+It is **not** "everything you could theoretically open if you went hunting". Even a community admin — who can reach absolutely anything in their community — gets a list of their own work here, rather than a 400-row inventory of everybody else's.
 
 ## My Documents
 
@@ -49,7 +49,7 @@ Each community section lists the members who **can message you and who you can m
 
 It reads as one big table: the same columns — person, name, and which communities you have in common — run down every section, so somebody who's in three of your communities lines up with themselves. Hover the little community icons on a row for the full list.
 
-- **Star anyone** to keep them at the top, including people you share no community with. Starring is private and tells them absolutely nothing.
+- **Star anyone** to keep them at the top, including people you share no community with. Starring is completely private and tells them absolutely nothing, which is the correct design for a feature like this.
 - **One search box** covers the whole page. Each community keeps its own member list, so a search visits them one at a time and tells you while it's working.
 - Each section **pages on its own**, twenty at a time, without shoving the others around.
 - **Waiting requests** — connection or message, either direction — sit at the top, so you don't have to go rummaging in Settings to answer one.
@@ -72,7 +72,7 @@ See [Messages](messages.md) for who can reach you, connections, and what happens
 
 Your events **and** your dated tasks, from every community, on one calendar.
 
-If you belong to three groups that each think their thing is the only thing happening in your week, this is the page that settles the argument.
+If you belong to three groups that each quietly believe their thing is the only thing happening in your week, this is the page that settles it.
 
 ## My Stats
 
@@ -84,7 +84,9 @@ A friendly look at your own activity:
 - **Velocity** — how much you take on versus how much you finish.
 - An **activity heatmap** of the past year.
 
-It's only for you. Nobody else can see it, there's no leaderboard, and nobody is being ranked. It's there because watching a streak build is quite nice, and that's reason enough.
+It's only for you. Nobody else can see it, there's no leaderboard, nobody is being ranked against anybody, and no manager is being sent a summary.
+
+It exists because watching a streak build is quite nice, and that turns out to be reason enough.
 
 ![Your personal stats](../images/your-space/my-stats.png)
 

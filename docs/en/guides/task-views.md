@@ -6,7 +6,7 @@ icon: lucide/layout-dashboard
 
 The same tasks, three ways of looking at them.
 
-Switching changes nothing about the tasks themselves — only what you're looking at — so there is no wrong choice here and nothing you can break by trying one. The switcher's at the top of any project board.
+Switching changes nothing about the tasks themselves — only what's on your screen — so there is no wrong choice here and nothing whatsoever you can break by trying one. The switcher's at the top of any project board.
 
 ![Switching between task views](../images/projects/view-switcher.png)
 
@@ -27,7 +27,7 @@ A spreadsheet-style list. One row per task, with columns for status, priority, d
 
 Cards in columns, one column per status. Drag a card along as the work moves.
 
-**Best for:** seeing the shape of what's happening, and updating things without opening anything.
+**Best for:** seeing the shape of what's happening, and moving things along without opening a single dialog.
 
 - **Drag and drop** between columns to change status.
 - **Collapse** a column you're deliberately not thinking about.
@@ -38,7 +38,7 @@ Cards in columns, one column per status. Drag a card along as the work moves.
 
 Your tasks laid out by their start and due dates.
 
-**Best for:** seeing *when* everything lands, and noticing the Thursday you've cheerfully scheduled six deadlines on.
+**Best for:** seeing *when* everything lands, and noticing the Thursday onto which you have cheerfully scheduled six deadlines.
 
 ## So which one?
 
@@ -48,4 +48,4 @@ No wrong answer. A rhythm that works for most people:
 - **Table** when you're tidying up, sorting, or editing a lot at once.
 - **Calendar** when you're planning ahead, or working out how bad next week is going to be.
 
-Your choice is yours alone and it's remembered, so you can settle into one without imposing it on anybody else.
+Your choice is yours alone and it's remembered, so you can settle into one without inflicting it on anybody else.

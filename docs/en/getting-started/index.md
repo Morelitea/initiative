@@ -4,15 +4,15 @@ icon: lucide/rocket
 
 # Getting started
 
-This section gets you from "I have never seen this before" to "I know where things are." Read it in order, or skip straight to whatever you're stuck on. Nobody's marking it.
+This section gets you from "I have never seen this before" to "I know where things are". Read it in order, or skip straight to whatever you're stuck on. Nobody is marking it.
 
-You don't need any experience with project management software. You don't need to know what a Kanban board is. If you've ever written a shopping list, you're overqualified.
+You don't need experience with project management software. You don't need to know what a Kanban board is, and you certainly don't need to know why it's called that. If you have ever written a shopping list, you are overqualified.
 
 ## What you'll need
 
-- **A browser.** Computer, tablet, phone, whatever's nearest. Nothing to install.
-- **Either a web address or an invite link** for your group's Initiative. Somebody in the group usually sends you one. If *you're* the one setting this up for everybody, start with the [administrator guide](../admin/index.md) instead.
-- **Optional: the mobile app**, if you want notifications on your phone.
+- **A browser.** Computer, tablet, phone, whatever's nearest. There is nothing to install.
+- **Either a web address or an invite link** for your group's Initiative. Somebody in the group usually sends you one. If *you* are the one setting this up for everybody, you want the [administrator guide](../admin/index.md) instead, and our sympathies.
+- **Optional: the mobile app**, if you'd like notifications on your phone.
 
 !!! info "Nobody's set anything up yet?"
     Then somebody has to run it somewhere. Hosting it yourself is free and open source; a paid hosted version is on the way for people who'd rather not. See [Self-host or let us host it](../self-host-or-hosted.md).
@@ -49,6 +49,6 @@ You don't need any experience with project management software. You don't need t
 
 ## Actually in a hurry?
 
-If somebody sent you an invite link: **click it, make your account, you're in.** The link already knows which group you're joining, so there's nothing to look up and nothing to type wrong.
+If somebody sent you an invite link: **click it, make your account, you're in.** The link already knows which group you're joining, so there's nothing to look up and nothing you can type wrong.
 
-Everything else on this page will still be here later.
+Everything else on this page will still be here later. It isn't going anywhere.

@@ -4,7 +4,7 @@ icon: lucide/book-a
 
 # Glossary
 
-Every word Initiative uses, in plain language, roughly biggest idea to smallest.
+Every word Initiative uses, in plain language, running roughly from the biggest idea down to the smallest. Come here when something on another page ambushed you.
 
 ### Community
 

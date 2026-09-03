@@ -4,9 +4,9 @@ icon: lucide/package
 
 # Installation
 
-The recommended way to run Initiative is **Docker Compose**. It brings up the app and its PostgreSQL database together, handles the database setup for you, and is the path the project actually supports and tests.
+The recommended way to run Initiative is **Docker Compose**. It brings up the app and its PostgreSQL database together, sorts the database setup out for you, and is the path the project actually supports and tests — which matters when something goes sideways at 11pm.
 
-Would rather not run a server? A paid hosted service is coming — see [Self-host or let us host it](../self-host-or-hosted.md).
+Would rather not run a server at all? Completely fair. A paid hosted service is coming — see [Self-host or let us host it](../self-host-or-hosted.md).
 
 ## Before you start
 
@@ -34,7 +34,9 @@ docker compose up -d
 The example file ships **PostgreSQL 17** and sensible defaults already wired together, so it works as-is once you set a `SECRET_KEY`. Initiative listens on port **8173** by default.
 
 !!! warning "Change the secrets before going live"
-    At a minimum, set a strong, unique **`SECRET_KEY`** and change the default **database passwords**. The `SECRET_KEY` signs sessions *and* encrypts sensitive data — keep it safe, and don't change it casually later (doing so invalidates existing sessions and encrypted values).
+    At an absolute minimum: set a strong, unique **`SECRET_KEY`** and change the default **database passwords**.
+
+    The `SECRET_KEY` signs sessions *and* encrypts sensitive data. Keep it somewhere safe, and don't change it casually later on a whim — doing so invalidates existing sessions and every encrypted value.
 
 ## Where your data lives
 

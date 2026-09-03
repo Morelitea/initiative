@@ -6,7 +6,7 @@ icon: lucide/sparkles
 
 Initiative has optional AI help for the boring parts — drafting a task description, suggesting subtasks, summarising a document.
 
-Optional, off unless somebody deliberately turns it on, and never running quietly in the background when you weren't looking.
+Optional, off unless somebody deliberately switches it on, and never quietly running in the background while you weren't looking.
 
 ## What it can do
 
@@ -41,7 +41,7 @@ They cascade top-down, and each level chooses whether the one below can override
 2. **Community** — a community admin can set the community's own configuration, if the platform allows.
 3. **You** — personal settings, if your community or platform allows.
 
-Seeing *"AI settings are managed by your administrator"*? Nothing's broken. Somebody above you has made the decision already, which is either a relief or an annoyance depending on the day.
+Seeing *"AI settings are managed by your administrator"*? Nothing is broken. Somebody above you has already made the decision, which is either a relief or an irritation depending entirely on your day.
 
 ## The privacy bit, which is genuinely worth reading
 
@@ -57,7 +57,7 @@ Which is precisely why the buttons are explicit, why nothing generates on its ow
 !!! tip "Want a hard guarantee? Keep it local."
     An administrator can configure a **local** provider (Ollama). The text never leaves your server, so there's no third party's terms to read and nothing to take anyone's word for. If your group's work is the kind you wouldn't hand a stranger, this is the option to ask for.
 
-Not sure what's configured on your server? Ask your administrator — or simply don't press the buttons. Everything else in Initiative works exactly the same without them, and nobody will think less of you.
+Not sure what's configured on your server? Ask your administrator — or simply never press the buttons. Everything else in Initiative works exactly the same without them, and nobody is keeping score.
 
 ## Related
 

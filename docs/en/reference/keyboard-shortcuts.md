@@ -6,7 +6,7 @@ icon: lucide/keyboard
 
 A handful of keystrokes make Initiative considerably faster.
 
-If you only ever remember one, make it search. It's not close.
+If you only ever remember one of them, make it search. It isn't close.
 
 ## Everywhere
 

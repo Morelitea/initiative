@@ -4,13 +4,13 @@ icon: lucide/search
 
 # Search & shortcuts
 
-The fastest way anywhere in Initiative isn't clicking. It's typing.
+The fastest way to get anywhere in Initiative isn't clicking. It's typing.
 
 ## Search
 
 Press ++cmd+k++ on a Mac, ++ctrl+k++ on Windows or Linux. On a phone, tap with three fingers. There's a **Search** entry near the top of the sidebar too, if you'd rather click, though you probably won't for long.
 
-Start typing and answers appear as you go — you don't have to finish the word. Results are ranked, so the thing you almost certainly meant is at the top.
+Start typing and answers appear as you go. You don't have to finish the word, and you don't have to finish the *first* word. Results are ranked, so the thing you almost certainly meant is sitting at the top.
 
 ![Searching with the Command Center](../images/search/command-center.png)
 
@@ -26,7 +26,7 @@ Everything in the community you're in:
 - **Comments** on any of the above.
 - **Tags** and **people**.
 
-It only ever returns things you already have access to. Search will never tell you something exists that you couldn't have opened anyway.
+It only ever returns things you already have access to. Search will never quietly reveal that something exists by refusing to show it to you.
 
 ### The results page
 
@@ -40,12 +40,12 @@ Each result shows the line that matched, with your words highlighted, so you can
 
 ### When you don't spell it right
 
-Which is most of the time, and that's fine:
+Which is most of the time, and is fine:
 
 - **Half a word is enough.** Type `comm` and things called "Community" come back.
 - **A misspelling still finds it.** If nothing matches what you typed, Initiative offers the closest names it can find and tells you that's what it's doing.
 
-Same goes for people's names. You do not have to memorise how your colleague spells theirs.
+Same goes for people's names. You do not have to memorise how your colleague spells theirs, and you certainly don't have to ask them again.
 
 ### The same search is behind every picker
 
@@ -68,4 +68,6 @@ You can cap how many it keeps (1 to 100) in **User settings → Interface**, if 
 There's a fuller list on the [keyboard shortcuts](../reference/keyboard-shortcuts.md) page.
 
 !!! tip "When in doubt, search"
-    Can't remember which initiative a document ended up in? Don't go looking for it. ++cmd+k++, a few letters, done. It's faster than the sidebar essentially every time, and it takes about four days to become muscle memory.
+    Can't remember which initiative a document ended up in? Don't go looking for it — that way lies twenty minutes and a bad mood.
+
+    ++cmd+k++, a few letters, done. Faster than the sidebar essentially every time, and about four days from becoming muscle memory.

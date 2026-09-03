@@ -4,12 +4,14 @@ icon: lucide/server-cog
 
 # For administrators
 
-This section is for whoever **runs** Initiative for their group — installing it, configuring it, keeping it healthy.
+This section is for whoever **runs** Initiative for their group: installing it, configuring it, and keeping it alive.
 
-If you only *use* Initiative, skip all of this. Everything you need is in [Using Initiative](../guides/index.md).
+If you only *use* Initiative, you can skip this entire section with a clear conscience. Everything you need is in [Using Initiative](../guides/index.md).
 
 !!! info "You don't need to be a server expert"
-    The recommended setup is Docker Compose, which is mostly copy-a-file-and-edit-a-few-values. If you can follow a recipe and edit a text file, you can run Initiative. The deeper topics are here for when you want them, not before.
+    The recommended setup is Docker Compose, which is largely a matter of copying a file and editing a few values in it. If you can follow a recipe and edit a text file without panicking, you can run Initiative.
+
+    Everything deeper in this section is here for when you want it, not as a reading list you're behind on.
 
 Not sure you want to run a server at all? A paid hosted service is on the way — see [Self-host or let us host it](../self-host-or-hosted.md).
 
@@ -87,4 +89,6 @@ Not sure you want to run a server at all? A paid hosted service is on the way �
 
 ## The first thing to know
 
-The **first person to register** on a fresh server automatically becomes the **owner** — the top administrator, and the only role that can change server-wide settings. So make sure the very first sign-up is you, or whoever's actually going to run this. See [Platform roles](platform-roles.md).
+The **first person to register** on a fresh server automatically becomes the **owner** — the top administrator, and the only role that can change server-wide settings.
+
+So make absolutely sure the first sign-up is you, or whoever is actually going to run this. Not the enthusiastic colleague who wandered past while it was booting. See [Platform roles](platform-roles.md).
