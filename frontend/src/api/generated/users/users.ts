@@ -1200,16 +1200,23 @@ export const useClaimMyUsernameApiV1UsersMeUsernamePatch = <
   );
 };
 /**
- * Record that this account belongs to somebody at least 13 years old.
+ * Answer, once, whether this account is old enough for the open parts.
  *
- * Asked for by a deployment that runs a community directory, of every account
- * that belongs to a guild listed in it. The answer is kept on the account
- * rather than per guild: it is a fact about the person, and the second listed
- * guild they join asks nothing.
+ * Asked of every account that belongs to a community anyone on the deployment
+ * can find. The answer lives on the account rather than per community: it is a
+ * fact about the person, and the second listed community they join asks
+ * nothing.
  *
- * Saying it again is not an error and does not move the timestamp — the
- * record is when they first said it. Saying it with the box unticked is
- * refused, because an unticked box is not a confirmation.
+ * **The date is not kept.** It is read here, compared against the minimum, and
+ * goes out of scope with the request — there is no column for it, nothing logs
+ * it, and no audit record carries it. What is written is a timestamp saying
+ * the question was answered, which is what shows the deployment asked.
+ *
+ * The comparison is the server's because it is the one that decides. A client
+ * could work out the same answer, and a client's answer is not evidence.
+ *
+ * Saying it again is not an error and does not move the timestamp — the record
+ * is when they first answered.
  * @summary Confirm My Age
  */
 export const confirmMyAgeApiV1UsersMeAgeConfirmationPost = (

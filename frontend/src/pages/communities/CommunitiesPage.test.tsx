@@ -273,7 +273,7 @@ describe("CommunitiesPage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
-    expect(await screen.findByText("Confirm your age")).toBeInTheDocument();
+    expect(await screen.findByText("How old are you?")).toBeInTheDocument();
     // Nothing joined on the strength of an unanswered question.
     expect(join).not.toHaveBeenCalled();
   });
@@ -287,7 +287,7 @@ describe("CommunitiesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Join" }));
 
     await waitFor(() => expect(join).toHaveBeenCalledWith(1));
-    expect(screen.queryByText("Confirm your age")).not.toBeInTheDocument();
+    expect(screen.queryByText("How old are you?")).not.toBeInTheDocument();
   });
 
   it("offers a way in, not a second join, for a guild already joined", async () => {

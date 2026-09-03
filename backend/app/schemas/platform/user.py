@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
 from pydantic import (
@@ -526,14 +526,21 @@ class UsernameClaim(SanitizedBaseModel):
 
 
 class AgeConfirmation(SanitizedBaseModel):
-    """An account saying it belongs to somebody at least 13 years old.
+    """Someone saying when they were born, once.
 
-    A body rather than a bare POST because the box has to be ticked: an
-    unticked one is a request that arrives, and is refused, rather than one
-    that is never sent.
+    The date answers one question — are they old enough — and is then gone. It
+    is never written to a column, never logged, and never put in an audit
+    record; there is nowhere in the schema it could be kept. What the account
+    keeps is that the question was answered and when
+    (``users.age_confirmed_at``), which is what a deployment needs to show it
+    asked.
+
+    Asking for a date rather than offering a box to tick is the difference
+    between a question and a formality: a box says what the answer should be
+    before it is given.
     """
 
-    confirmed: bool
+    birthdate: date
 
 
 class UserInitiativeRole(SanitizedBaseModel):

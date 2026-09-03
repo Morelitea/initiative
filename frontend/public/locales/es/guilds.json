@@ -412,7 +412,7 @@
       "certifyDuty": "Eres administrador de esta comunidad, así que hacerlo cumplir te corresponde a ti. Se espera que vigiles este tipo de contenido y lo elimines. Una comunidad que deje de cumplirlo se retira del directorio.",
       "confirm": "Publicar comunidad"
     },
-    "ageGateBody": "Cualquier persona con sesión iniciada puede encontrar estas comunidades, así que al unirte a una se te pregunta la edad una vez. No se te volverá a preguntar.",
+    "ageGateBody": "Cualquier persona con sesión iniciada puede encontrar estas comunidades, así que al unirte a una te preguntamos la edad una vez. No se te volverá a preguntar.",
     "ageGateConfirm": "Confirmar y unirse"
   },
   "nameDisplay": {
