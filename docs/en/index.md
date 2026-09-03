@@ -64,6 +64,12 @@ If this is your first time, **Getting started** covers creating your account, fi
 
     [:octicons-arrow-right-24: Admin guide](admin/index.md)
 
+-   :material-help-circle-outline: __Frequently asked questions__
+
+    Short answers to the things people ask most — getting in, the age question, and why an account might be shut out.
+
+    [:octicons-arrow-right-24: FAQ](faq.md)
+
 </div>
 
 ## You choose who sees what

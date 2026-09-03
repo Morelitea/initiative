@@ -37,6 +37,11 @@ Under the **add-a-community** button on the community rail, choose **Join a comm
 - **Browse by category** — the shelves group communities by what they're for.
 - **Join** from a community's card. There's no invite and no waiting: you're a member as soon as you click.
 
+The first time you join one, you're asked your date of birth. Listed communities can be found by anyone signed in, so they're open to people you haven't met, and you need to be **13 or older** to take part. You're asked once — the answer stays with your account, and the second community you join asks nothing.
+
+!!! info "The date isn't kept"
+    We use it to work out whether you're old enough and then discard it. Your account records that you answered, never the date, and it isn't sold or shared. Only the parts of Initiative open to people outside your own communities ask at all — a private community never does, and neither does an invite into one. See [Data and compliance](../security/data-and-compliance.md).
+
 What you searched for and which shelf you're on are both part of the address, so a filtered view of the directory is a link you can send someone.
 
 ![The community directory](../images/communities/community-directory.png)

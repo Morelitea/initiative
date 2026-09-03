@@ -39,6 +39,7 @@ extra_css = ["stylesheets/extra.css"]
 # ----------------------------------------------------------------------------
 nav = [
   { "Home" = "en/index.md" },
+  { "FAQ" = "en/faq.md" },
   { "Getting started" = [
     "en/getting-started/index.md",
     "en/getting-started/create-account.md",
