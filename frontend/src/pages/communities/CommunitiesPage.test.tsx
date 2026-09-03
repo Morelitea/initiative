@@ -278,6 +278,24 @@ describe("CommunitiesPage", () => {
     expect(join).not.toHaveBeenCalled();
   });
 
+  it("forgets a birthdate that was typed and then backed out of", async () => {
+    // The dialog is kept mounted by the card, so nothing unmounts to clear
+    // this — and a date left behind contradicts the note under the field.
+    renderDirectory({}, { user: buildUser({ age_confirmed_at: null }) });
+    await screen.findByText("Riverside Players");
+
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+    const field = await screen.findByLabelText("Date of birth");
+    await userEvent.type(field, "1990-05-04");
+    expect(field).toHaveValue("1990-05-04");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(await screen.findByLabelText("Date of birth")).toHaveValue("");
+    expect(join).not.toHaveBeenCalled();
+  });
+
   it("joins without asking where the deployment does not ask", async () => {
     config.ageGate = false;
     join.mockResolvedValue({ id: 1 });

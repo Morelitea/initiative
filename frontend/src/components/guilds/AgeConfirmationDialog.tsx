@@ -32,13 +32,23 @@ export const AgeConfirmationDialog = ({
   onConfirmed: () => void;
 }) => {
   const { t } = useTranslation(["guilds", "auth", "common"]);
-  const { birthdate, setBirthdate, submitting, error, confirm } = useAgeConfirmation(() => {
+  const { birthdate, setBirthdate, submitting, error, confirm, reset } = useAgeConfirmation(() => {
     onOpenChange(false);
     onConfirmed();
   });
 
+  // The hook outlives the dialog — the card keeps it mounted and only toggles
+  // `open` — so closing has to forget the date rather than leaving it for
+  // whenever the dialog is opened next.
+  const setOpen = (next: boolean) => {
+    if (!next) {
+      reset();
+    }
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("auth:confirmAge.title")}</DialogTitle>
@@ -53,7 +63,7 @@ export const AgeConfirmationDialog = ({
         <p className="text-muted-foreground text-xs">{t("auth:confirmAge.scopeNote")}</p>
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             {t("common:cancel")}
           </Button>
           <Button onClick={() => void confirm()} disabled={!birthdate || submitting}>

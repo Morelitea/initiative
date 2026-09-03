@@ -44,5 +44,16 @@ export const useAgeConfirmation = (onConfirmed?: () => void) => {
     }
   };
 
-  return { birthdate, setBirthdate, submitting, error, confirm };
+  /** Forget the date and anything said about it.
+   *
+   *  A surface that can be dismissed calls this on the way out. Backing out of
+   *  the question is not answering it, and holding the date afterwards would
+   *  contradict the note printed under the field — as well as handing the next
+   *  person to open the dialog a date somebody else chose not to submit. */
+  const reset = () => {
+    setBirthdate("");
+    setError(null);
+  };
+
+  return { birthdate, setBirthdate, submitting, error, confirm, reset };
 };
