@@ -1848,6 +1848,38 @@ export interface CommunitySettingsUpdate {
 }
 
 /**
+ * A connection is addressed by handle, never by id.
+ *
+ * One shape whatever the target's policy, and the shape the app-wide people
+ * search will use: an account on ``private`` is reached by somebody typing
+ * its handle rather than by being offered from a list.
+ */
+export interface ConnectionRequestCreate {
+  username: string;
+  discriminator: number;
+}
+
+/**
+ * One connection or message request, from the reader's side of it.
+ */
+export interface ContactGrantRead {
+  user_id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  state: string;
+  outgoing: boolean;
+  created_at: string;
+  responded_at: string | null;
+}
+
+export interface ContactGrantsResponse {
+  accepted: ContactGrantRead[];
+  incoming: ContactGrantRead[];
+  outgoing: ContactGrantRead[];
+}
+
+/**
  * One person, on one row of the page.
  *
  * Inherits ``UserSummary``'s guild-name visibility: ``full_name`` survives
@@ -3754,6 +3786,14 @@ export interface MemberAIView {
 }
 
 /**
+ * A message request is addressed by id: everyone you may ask is somebody
+ * you can already see.
+ */
+export interface MessageRequestCreate {
+  user_id: number;
+}
+
+/**
  * One connection available to the member in one guild — a flat row for the
  * cross-guild personal "My AI" view (``GET /me/ai``). Every connection the
  * member can use is listed, including shared-key ones they can't attach to
@@ -3824,6 +3864,10 @@ export const NotificationType = {
   username_changed: "username_changed",
   account_suspended: "account_suspended",
   account_unsuspended: "account_unsuspended",
+  connection_requested: "connection_requested",
+  connection_accepted: "connection_accepted",
+  message_request_received: "message_request_received",
+  message_request_accepted: "message_request_accepted",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };

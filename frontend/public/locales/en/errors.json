@@ -511,5 +511,8 @@
   "DM_USER_NOT_FOUND": "That account is not available.",
   "DM_AGE_CONFIRMATION_REQUIRED": "Confirm your age before changing who can message you.",
   "DM_CANNOT_IGNORE_SELF": "You cannot ignore your own account.",
-  "DM_NOT_A_MEMBER": "You are not a member of that community."
+  "DM_NOT_A_MEMBER": "You are not a member of that community.",
+  "CONTACT_GRANT_CANNOT_REACH": "You cannot reach that account right now.",
+  "CONTACT_GRANT_NO_REQUEST": "There is no request from that account to accept.",
+  "CONTACT_GRANT_CANNOT_GRANT_SELF": "You cannot connect with your own account."
 }

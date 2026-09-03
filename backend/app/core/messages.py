@@ -966,6 +966,18 @@ class DirectMessageMessages:
     NOT_A_MEMBER = "DM_NOT_A_MEMBER"
 
 
+class ContactGrantMessages:
+    """Connections and message requests."""
+
+    #: The pair cannot reach each other right now: a policy that does not admit
+    #: them, an account that is not active, or an age question unanswered. One
+    #: code for every refusal.
+    CANNOT_REACH = "CONTACT_GRANT_CANNOT_REACH"
+    #: Accepting something nobody asked for, or accepting your own request.
+    NO_REQUEST = "CONTACT_GRANT_NO_REQUEST"
+    CANNOT_GRANT_SELF = "CONTACT_GRANT_CANNOT_GRANT_SELF"
+
+
 class ContactMessages:
     """My Contacts — the starred list on the personal page."""
 

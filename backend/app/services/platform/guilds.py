@@ -30,6 +30,7 @@ from app.models.platform.user import User
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
+from app.services.platform import contact_grants as contact_grants_service
 
 logger = logging.getLogger(__name__)
 
@@ -1480,6 +1481,12 @@ async def remove_user_from_guild(
         # change with where it belongs, and leaving is not always their doing.
         account_stream.queue_account_signal(session, user_id, "membership")
         billing_ping.notify_membership_changed(guild_id)
+        # This community was a leg of can_ask for everyone they shared it with,
+        # so every open channel that rested on it is re-tested — one survives if
+        # the pair connected, which is what a connection is for. Queued rather
+        # than run here: the sweep reads the state this delete leaves behind,
+        # and this delete is not committed yet.
+        contact_grants_service.queue_stale_grant_sweep(session, user_id)
 
 
 async def adopt_guild_name_display(session: AsyncSession, *, guild_id: int) -> None:
