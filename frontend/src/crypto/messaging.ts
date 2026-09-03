@@ -15,6 +15,7 @@ import {
   claimSessionKeysApiV1UsersUserIdDmSessionKeysPost as claimSessionKeys,
   collectQueueApiV1MeDmQueueGet as collectQueue,
   listConversationsApiV1MeDmConversationsGet as listConversations,
+  claimOwnSessionKeysApiV1MeDmSessionKeysPost as claimOwnSessionKeys,
   listDevicesApiV1MeDmDevicesGet as listDevices,
   readDirectoryApiV1UsersUserIdDmDevicesGet as readDirectory,
   registerDeviceApiV1MeDmDevicesPost as registerDevice,
@@ -101,24 +102,24 @@ export async function sendText(
 ): Promise<StoredMessage> {
   const mine = await ensureDevice();
 
-  const [theirs, ours] = await Promise.all([claimSessionKeys(otherUserId), listDevices()]);
-  const destinations = [
-    ...theirs.devices.map((device) => ({
-      id: device.device_id,
-      identity: device.identity_key,
-      oneTime: device.one_time_key?.public_key ?? null,
-    })),
-    ...ours.devices
-      .filter((device) => device.id !== mine)
-      .map((device) => ({ id: device.id, identity: null, oneTime: null })),
-  ];
+  // Their devices and this account's others, claimed the same way: a device of
+  // yours is a separate ratchet, so it needs its own session. Without this the
+  // laptop's outbox never reaches the phone.
+  const [theirs, ours] = await Promise.all([
+    claimSessionKeys(otherUserId),
+    claimOwnSessionKeys({ device_id: mine }),
+  ]);
+  const destinations = [...theirs.devices, ...ours.devices].map((device) => ({
+    id: device.device_id,
+    identity: device.identity_key,
+    oneTime: device.one_time_key?.public_key ?? null,
+  }));
 
   const messages = [];
   for (const destination of destinations) {
-    if (!destination.identity || !destination.oneTime) {
-      // One of our own other devices, or a device that published nothing we
-      // can open a session with. Sessions with our own devices are a
-      // follow-up; skipping is better than sending something unreadable.
+    if (!destination.oneTime) {
+      // A device that published nothing we can open a session with. Skipping
+      // beats sending it something it cannot read.
       continue;
     }
     const sessionId = await outboundSessionFor(
@@ -171,16 +172,25 @@ export async function collect(): Promise<string[]> {
   // member, so their published keys are read once per collection and tried in
   // turn -- a handful of devices, and it costs no prekey.
   const conversations = await listConversations();
+  // Our own devices' keys are read once and tried everywhere: a pre-key message
+  // in any conversation may be this account's own outbox arriving from another
+  // client. Reading the directory claims nothing, so this costs no prekey.
+  let ownKeys: string[] = [];
+  try {
+    ownKeys = (await listDevices()).devices.map((d) => d.identity_key);
+  } catch {
+    ownKeys = [];
+  }
   const identityKeys = new Map<string, string[]>();
   for (const conversation of conversations.conversations) {
     try {
       const theirs = await readDirectory(conversation.other_user_id);
-      identityKeys.set(
-        conversation.id,
-        theirs.devices.map((device) => device.identity_key)
-      );
+      identityKeys.set(conversation.id, [
+        ...theirs.devices.map((device) => device.identity_key),
+        ...ownKeys,
+      ]);
     } catch {
-      identityKeys.set(conversation.id, []);
+      identityKeys.set(conversation.id, ownKeys);
     }
   }
 

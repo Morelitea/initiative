@@ -34,6 +34,7 @@ import type {
   DmDeviceRegistration,
   DmDevicesResponse,
   DmOneTimeKeyBatch,
+  DmOwnSessionKeysRequest,
   DmQueueAck,
   DmQueueResponse,
   DmSafetyNumberResponse,
@@ -2400,6 +2401,104 @@ export const useTopUpKeysApiV1MeDmOneTimeKeysPost = <
   TContext
 > => {
   return useMutation(getTopUpKeysApiV1MeDmOneTimeKeysPostMutationOptions(options), queryClient);
+};
+/**
+ * Keys for this account's other devices, so a message reaches its own
+ * outbox.
+ *
+ * A device of yours is a separate ratchet, not a shortcut: it needs a session
+ * like anybody else's. The calling device names itself so it is left out of
+ * its own answer.
+ * @summary Claim Own Session Keys
+ */
+export const claimOwnSessionKeysApiV1MeDmSessionKeysPost = (
+  dmOwnSessionKeysRequest: BodyType<DmOwnSessionKeysRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmSessionKeysResponse>(
+    {
+      url: `/api/v1/me/dm/session-keys`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmOwnSessionKeysRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+    TError,
+    { data: BodyType<DmOwnSessionKeysRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+  TError,
+  { data: BodyType<DmOwnSessionKeysRequest> },
+  TContext
+> => {
+  const mutationKey = ["claimOwnSessionKeysApiV1MeDmSessionKeysPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+    { data: BodyType<DmOwnSessionKeysRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return claimOwnSessionKeysApiV1MeDmSessionKeysPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>
+>;
+export type ClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationBody =
+  BodyType<DmOwnSessionKeysRequest>;
+export type ClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Claim Own Session Keys
+ */
+export const useClaimOwnSessionKeysApiV1MeDmSessionKeysPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+      TError,
+      { data: BodyType<DmOwnSessionKeysRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimOwnSessionKeysApiV1MeDmSessionKeysPost>>,
+  TError,
+  { data: BodyType<DmOwnSessionKeysRequest> },
+  TContext
+> => {
+  return useMutation(
+    getClaimOwnSessionKeysApiV1MeDmSessionKeysPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * @summary Create Conversation

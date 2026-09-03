@@ -61,7 +61,9 @@ async def _register(client, actor, seed=1, user_agent="Firefox on Linux") -> str
         headers={**actor.headers, "user-agent": user_agent},
     )
     assert response.status_code == 201, response.text
-    return response.json()["devices"][0]["id"]
+    # Newest last: the list is ordered by creation, and a second registration
+    # must return the device it just made rather than the first one.
+    return response.json()["devices"][-1]["id"]
 
 
 # ------------------------------------------------------------------ devices ---
@@ -78,9 +80,11 @@ async def test_a_device_publishes_only_public_keys(client, acting_user):
     # Named by what connected, not by what the client asked to be called.
     assert body["label"] == "Firefox on Linux"
     assert body["one_time_key_count"] == 1
-    # The identity key is not on the caller's own device row: it is directory
-    # material, handed out by the claim route, not listed back here.
-    assert "identity_key" not in body
+    # The account's own public keys, which is what it needs to recognise a
+    # message arriving from another of its own clients. Both are public halves;
+    # nothing here could open anything.
+    assert body["identity_key"]
+    assert body["fingerprint_key"]
 
 
 async def test_a_malformed_key_is_refused(client, acting_user):
@@ -396,3 +400,108 @@ async def test_messaging_yourself_is_refused(client, acting_user):
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "DM_CANNOT_MESSAGE_SELF"
+
+
+# ------------------------------------------------------- own devices ---
+
+
+async def test_the_directory_hands_over_keys_without_claiming_one(
+    client, session, acting_user
+):
+    """The route an inbound pre-key message is answered with.
+
+    It reads; it must not spend. Reading it to decrypt somebody's message would
+    otherwise cost a prekey per collection.
+    """
+    a = await acting_user()
+    b = await acting_user()
+    await _set_policy(session, a.user, DmPolicy.public)
+    await _set_policy(session, b.user, DmPolicy.public)
+    await _open_channel(session, a.user, b.user)
+    await _register(client, b, seed=90)
+
+    response = await client.get(
+        f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+    device = response.json()["devices"][0]
+    assert device["identity_key"]
+    assert device["one_time_key"] is None
+
+    remaining = (
+        await session.exec(
+            text("SELECT count(*) FROM public.dm_one_time_keys WHERE fallback IS FALSE")
+        )
+    ).scalar_one()
+    assert remaining == 1
+
+
+async def test_a_stranger_reads_no_directory(client, session, acting_user):
+    a = await acting_user()
+    b = await acting_user()
+    await _register(client, b, seed=91)
+
+    response = await client.get(
+        f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "DM_NOT_REACHABLE"
+
+
+async def test_own_session_keys_skip_the_asking_device(client, acting_user):
+    a = await acting_user()
+    first = await _register(client, a, seed=92)
+    second = await _register(client, a, seed=93)
+
+    response = await client.post(
+        "/api/v1/me/dm/session-keys", json={"device_id": first}, headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+    devices = response.json()["devices"]
+    assert [device["device_id"] for device in devices] == [second]
+    # A device of your own is a separate ratchet, so it costs a prekey like
+    # anybody else's.
+    assert devices[0]["one_time_key"]["key_id"] == "otk-1"
+
+
+async def test_a_message_reaches_the_senders_other_device(client, session, acting_user):
+    """The outbox, which is what makes a second client usable at all."""
+    a = await acting_user()
+    b = await acting_user()
+    await _set_policy(session, a.user, DmPolicy.public)
+    await _set_policy(session, b.user, DmPolicy.public)
+    await _open_channel(session, a.user, b.user)
+    a_laptop = await _register(client, a, seed=94)
+    a_phone = await _register(client, a, seed=95)
+    b_device = await _register(client, b, seed=96)
+
+    created = await client.post(
+        "/api/v1/me/dm/conversations", json={"user_id": b.user.id}, headers=a.headers
+    )
+    conversation_id = created.json()["id"]
+
+    keys = await client.post(
+        "/api/v1/me/dm/session-keys", json={"device_id": a_laptop}, headers=a.headers
+    )
+    targets = [device["device_id"] for device in keys.json()["devices"]]
+    assert a_phone in targets
+
+    await client.post(
+        f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+        json={
+            "messages": [
+                {
+                    "recipient_device_id": device,
+                    "message_type": 0,
+                    "payload": base64.b64encode(b"outbox").decode(),
+                }
+                for device in [b_device, a_phone]
+            ]
+        },
+        headers=a.headers,
+    )
+
+    waiting = await client.get(
+        f"/api/v1/me/dm/queue?device_id={a_phone}", headers=a.headers
+    )
+    assert len(waiting.json()["items"]) == 1
