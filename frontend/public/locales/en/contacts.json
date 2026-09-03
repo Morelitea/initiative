@@ -29,11 +29,21 @@
     "title": "Nobody here yet",
     "description": "Join a community and the people in it show up here.",
     "favorites": "Star anyone to keep them at the top of this page.",
-    "guild": "Nobody else is in this community yet."
+    "guild": "No one here is accepting messages right now."
   },
   "noMatches": {
     "title": "Nobody by that name",
     "description": "Try a different name, or the whole handle.",
     "section": "No matches here."
+  },
+  "unreachable": {
+    "age": {
+      "title": "Direct messages are off for this account"
+    },
+    "private": {
+      "body": "You're set to Private. You can still connect with anyone by their exact handle, and a connection lets you message each other whatever your setting is. To be reachable here, let your communities message you.",
+      "open": "Let my communities message me",
+      "settings": "Privacy settings"
+    }
   }
 }

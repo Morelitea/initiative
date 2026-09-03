@@ -12,7 +12,11 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ContactGuildSection, ContactRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ContactGuildSection,
+  ContactRead,
+  DmPolicy,
+} from "@/api/generated/initiativeAPI.schemas";
 import { routeTree } from "@/routeTree.gen";
 
 import { renderPage } from "./helpers/render";
@@ -25,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   toggle: vi.fn(),
   sectionPage: vi.fn(),
   prefetch: vi.fn(),
+  dmSettings: vi.fn(),
+  updateDm: vi.fn(),
 }));
 
 vi.mock("@/hooks/useContacts", () => ({
@@ -36,6 +42,14 @@ vi.mock("@/hooks/useContacts", () => ({
     mocks.sectionPage(guildId, page, search),
   usePrefetchContactSectionPage: () => mocks.prefetch,
   contactsPrefetch: () => ({ sections: {}, favorites: {} }),
+}));
+
+// The reader's own policy decides whether the page has anything to list, so
+// every test below states it. The default is an account that answered its age
+// and let its communities in — the one whose sections have members.
+vi.mock("@/hooks/useDirectMessages", () => ({
+  useDmSettings: () => mocks.dmSettings(),
+  useUpdateDmSettings: () => ({ mutate: mocks.updateDm, isPending: false }),
 }));
 
 // The collapse preference is a server round-trip this page does not need to
@@ -86,6 +100,17 @@ const answer = (
   });
 };
 
+/** The reader's own direct-message settings, as the page reads them. */
+const reader = (overrides: { age_confirmed_at?: string | null; dm_policy?: DmPolicy } = {}) =>
+  mocks.dmSettings.mockReturnValue({
+    data: {
+      age_confirmed_at: "2020-01-01T00:00:00Z",
+      dm_policy: "community" as DmPolicy,
+      communities: [{ guild_id: 1, name: "Ravenloft Table", icon_url: null, enabled: false }],
+      ...overrides,
+    },
+  });
+
 /** A section page that has not arrived — what every page past the first is. */
 const pendingPage = { data: undefined, isPending: true, isPlaceholderData: false };
 
@@ -114,6 +139,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   nextId = 1;
   answer([]);
+  reader();
   mocks.sectionPage.mockReturnValue(pendingPage);
 });
 
@@ -375,5 +401,56 @@ describe("My Contacts", () => {
 
     const heading = await screen.findByRole("button", { name: /Big Table/ });
     expect(within(heading).getByText("31")).toBeInTheDocument();
+  });
+
+  describe("when the roster is empty because of the reader", () => {
+    it("asks an unanswered account its age, and offers no policy while it is unanswered", async () => {
+      reader({ age_confirmed_at: null, dm_policy: "private" });
+      answer([section({ total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(await screen.findByText(/Direct messages are off for this account/i)).toBeVisible();
+      // Both conditions hold at once on a new account. Only the age panel may
+      // show: the other one offers a route this account has no access to.
+      expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
+    });
+
+    it("explains a private account's empty communities and opens them in one click", async () => {
+      reader({ dm_policy: "private" });
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(screen.queryByText(/Direct messages are off for this account/i)).toBeNull();
+      await userEvent.click(
+        await screen.findByRole("button", { name: /Let my communities message me/i })
+      );
+
+      // Every community switched on, which is the state Private was designed
+      // to be one click away from.
+      expect(mocks.updateDm).toHaveBeenCalledWith({
+        data: { dm_policy: "community", communities: [{ guild_id: 1, enabled: true }] },
+      });
+    });
+
+    it("says nothing about the reader while a search is running", async () => {
+      reader({ dm_policy: "private" });
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts("nobody");
+
+      // An empty page under a term is about the term.
+      expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
+    });
+
+    it("never counts the people it is not listing", async () => {
+      reader();
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts();
+
+      const line = await screen.findByText(/No one here is accepting messages right now/i);
+      expect(line).toBeVisible();
+      // The line describes other people's settings, which are not the
+      // reader's to count.
+      expect(line.textContent).not.toMatch(/\d/);
+    });
   });
 });

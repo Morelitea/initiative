@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ignore an account.** They stop reaching you: no notification when they mention, reply to or react to you, and nothing they send arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share and can use every tool normally, because ignoring is about contact rather than about work. Nothing is deleted, so if you stop ignoring them everything is exactly where it was.
 
+### Changed
+
+- **My Contacts lists the people you could actually reach.** A community section now shows the members who can message you and who you can message, rather than everyone in the room — so the page answers "who can I talk to" instead of "who is here". Because the shipped default is Private, a new account's sections start empty, and the page says why and offers the one setting that fills them, rather than reading as a community with nobody in it. It never counts the people it is not listing.
+
 ### Fixed
 
 - **A search tab that matched nothing says so.** In ⌘K, switching between Tools, Members, Comments and Tags left the tab before it on screen when the new one had no answer — so a community with nobody matching showed the comments you had just been reading. Each tab now shows only what it found, and says "No results found." when that is nothing — or that search is not answering, if the request never landed, rather than reporting a failure as an empty community.

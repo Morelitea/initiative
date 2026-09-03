@@ -63,7 +63,7 @@ async def list_contact_sections(
     memberships.
     """
     guilds = await contacts_service.ordered_member_guilds(
-        session, user_id=current_user.id
+        session, user_id=current_user.id, platform_role=current_user.role.value
     )
     if guild_ids:
         wanted = set(guild_ids)
@@ -76,6 +76,7 @@ async def list_contact_sections(
         search=search,
         page=page,
         page_size=page_size,
+        platform_role=current_user.role.value,
     )
     if search and search.strip():
         sections = [section for section in sections if section.items]

@@ -13,6 +13,11 @@ import {
 } from "@/components/contacts/FavoriteContactsSection";
 import { GuildContactSection } from "@/components/contacts/GuildContactSection";
 import type { ChipGuild } from "@/components/contacts/SharedGuildChip";
+import {
+  AgeUnansweredPanel,
+  PrivatePanel,
+  unreachableReason,
+} from "@/components/contacts/UnreachableEmptyState";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Accordion } from "@/components/ui/accordion";
 import {
@@ -20,6 +25,7 @@ import {
   useFavoriteContacts,
   useToggleFavoriteContact,
 } from "@/hooks/useContacts";
+import { useDmSettings } from "@/hooks/useDirectMessages";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +63,7 @@ export const MyContactsPage = () => {
   );
 
   const sectionsQuery = useContactSections(search);
+  const dmQuery = useDmSettings();
   const favoritesQuery = useFavoriteContacts(search);
 
   const sections = useMemo(() => sectionsQuery.data?.sections ?? [], [sectionsQuery.data]);
@@ -104,6 +111,12 @@ export const MyContactsPage = () => {
     [searching, sections, setCollapse]
   );
 
+  // Why the page is bare, if it is. Only worth saying while nothing is
+  // searched for: under a term an empty page means the term, not the policy.
+  const reason = searching
+    ? null
+    : unreachableReason(Boolean(dmQuery.data?.age_confirmed_at), dmQuery.data?.dm_policy);
+
   const isFirstLoad = sectionsQuery.isLoading || favoritesQuery.isLoading;
   // A term in flight, whether or not last term's answer is still on screen.
   const isSearchPending =
@@ -129,6 +142,11 @@ export const MyContactsPage = () => {
       />
 
       {isSearchPending ? <ContactSearchProgress /> : null}
+
+      {/* Above the table rather than inside it: an unanswered age closes
+          messaging in both directions, so it is not a remark about the
+          community sections. */}
+      {reason === "age" ? <AgeUnansweredPanel /> : null}
 
       {isFirstLoad ? (
         <div className="rounded-lg border px-3 py-2">
@@ -176,6 +194,13 @@ export const MyContactsPage = () => {
               />
             ))}
           </Accordion>
+          {/* Under the communities, which are the sections a policy empties.
+              Favorites above it are the reader's own list and stay. */}
+          {reason === "private" ? (
+            <div className="pt-2">
+              <PrivatePanel communities={dmQuery.data?.communities ?? []} />
+            </div>
+          ) : null}
         </div>
       )}
     </div>
