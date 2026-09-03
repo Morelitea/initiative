@@ -41,9 +41,20 @@ async def seed_for_new_account(session: AsyncSession, *, user_id: int) -> None:
     so a retried registration does not overwrite a policy its owner has since
     changed.
     """
-    from app.services.platform import app_settings as app_settings_service
+    from app.models.platform.app_setting import AppSetting
+    from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 
-    app_settings = await app_settings_service.get_app_settings(session)
+    # Read the operator default without creating the settings row if it is
+    # missing: ``get_app_settings`` writes and commits one, and making an
+    # account is not the place for that side effect — it would end the caller's
+    # transaction under them. No row yet means no operator choice yet, which is
+    # ``private``.
+    app_settings = (
+        await session.exec(
+            select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+        )
+    ).one_or_none()
+    policy = app_settings.default_dm_policy if app_settings else DmPolicy.private
     # A core insert, so the model's default factories do not run: the
     # timestamps are named here.
     now = datetime.now(timezone.utc)
@@ -51,7 +62,7 @@ async def seed_for_new_account(session: AsyncSession, *, user_id: int) -> None:
         pg_insert(UserDmSettings)
         .values(
             user_id=user_id,
-            dm_policy=app_settings.default_dm_policy,
+            dm_policy=policy,
             created_at=now,
             updated_at=now,
         )
