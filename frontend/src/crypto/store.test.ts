@@ -5,6 +5,12 @@
  * type checker or the linter: an append that clobbers another append still
  * compiles, and a session list that overwrites still compiles. So they are
  * asserted here.
+ *
+ * Each call opens its own connection to the database, which is what a second
+ * tab is — so these races are the cross-tab ones, not merely two promises in
+ * one module. That is why the atomicity has to live in an IndexedDB
+ * transaction: a JavaScript lock would pass these tests and still lose a
+ * message between two windows.
  */
 
 import "fake-indexeddb/auto";
@@ -30,7 +36,7 @@ describe("the message log", () => {
     expect(stored.map((entry) => entry.id).sort()).toEqual(["a", "b"]);
   });
 
-  it("keeps every message when many arrive at once", async () => {
+  it("keeps every message when many arrive at once, across connections", async () => {
     const messages = Array.from({ length: 12 }, (_, index) => ({
       id: String(index),
       body: `m${index}`,

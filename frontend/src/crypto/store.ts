@@ -57,6 +57,30 @@ async function write(key: string, value: unknown): Promise<void> {
   });
 }
 
+/**
+ * Read one key, transform it, and write it back — in a single transaction.
+ *
+ * IndexedDB serialises overlapping `readwrite` transactions across *every*
+ * connection to the database, so this holds between tabs. A JavaScript lock
+ * cannot: it lives in one tab's module scope, and the second tab never sees it.
+ */
+async function update<T>(key: string, change: (current: T | undefined) => T | undefined) {
+  const db = await open();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    const request = store.get(key);
+    request.onsuccess = () => {
+      const next = change(request.result as T | undefined);
+      if (next !== undefined) store.put(next, key);
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 async function drop(): Promise<void> {
   const db = await open();
   await new Promise<void>((resolve, reject) => {
@@ -142,33 +166,22 @@ export interface StoredMessage {
 
 const LOG_PREFIX = "log:";
 
-/**
- * Appends are serialised per conversation.
- *
- * Sending and collecting both append, and both are read-modify-write on one
- * array. Without a queue the later write is built on a value the earlier one
- * has already replaced, and a message is dropped -- on the only copy this
- * device will ever have of it.
- */
-const appendQueues = new Map<string, Promise<void>>();
-
 export const messageLog = {
   get: async (conversationId: string): Promise<StoredMessage[]> =>
     (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [],
-  append: (conversationId: string, message: StoredMessage): Promise<void> => {
-    const run = (appendQueues.get(conversationId) ?? Promise.resolve()).then(async () => {
-      const existing = (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [];
-      if (existing.some((entry) => entry.id === message.id)) return;
-      await write(LOG_PREFIX + conversationId, [...existing, message]);
-    });
-    // Keep the chain alive even if one append fails, or every later append to
-    // this conversation inherits the rejection.
-    appendQueues.set(
-      conversationId,
-      run.catch(() => {})
-    );
-    return run;
-  },
+  /**
+   * Add one message, keeping whatever else arrived at the same moment.
+   *
+   * Sending and collecting both append, from any number of open tabs, and all
+   * of them share one database. A plain read-then-write loses whichever
+   * finishes first — on the only copy of that message this device has.
+   */
+  append: (conversationId: string, message: StoredMessage): Promise<void> =>
+    update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      if (current.some((entry) => entry.id === message.id)) return undefined;
+      return [...current, message];
+    }),
 };
 
 /** Which device of theirs we already hold a session with, per session id. */
@@ -187,14 +200,14 @@ export const sessionForDevice = {
 export const sessionsInConversation = {
   get: async (conversationId: string): Promise<string[]> =>
     (await read<string[]>("conversation-sessions:" + conversationId)) ?? [],
-  add: async (conversationId: string, sessionId: string): Promise<void> => {
-    const key = "conversation-sessions:" + conversationId;
-    const existing = (await read<string[]>(key)) ?? [];
-    if (existing.includes(sessionId)) return;
-    // Most recent first: the session a message just arrived on is the one the
-    // next message is most likely to be on.
-    await write(key, [sessionId, ...existing]);
-  },
+  add: (conversationId: string, sessionId: string): Promise<void> =>
+    update<string[]>("conversation-sessions:" + conversationId, (existing) => {
+      const current = existing ?? [];
+      if (current.includes(sessionId)) return undefined;
+      // Most recent first: the session a message just arrived on is the one the
+      // next message is most likely to be on.
+      return [sessionId, ...current];
+    }),
 };
 
 export const sessionPickle = {
