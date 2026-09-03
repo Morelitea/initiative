@@ -7,6 +7,7 @@ that it was lifted.
 """
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -161,7 +162,9 @@ async def test_the_frame_carries_nothing(session, captured_stream):
     assert set(frame) == {"resource", "action", "ids", "timestamp"}
 
 
-async def test_a_fan_out_publishes_for_everyone_it_names(session, captured_stream):
+async def test_a_fan_out_publishes_for_everyone_it_names(
+    session, captured_stream, monkeypatch
+):
     """Not narrowed to this worker's own sockets.
 
     That narrowing would have to happen before ``publish``, which is also what
@@ -177,20 +180,15 @@ async def test_a_fan_out_publishes_for_everyone_it_names(session, captured_strea
 
     published: list[int] = []
 
-    async def _capture(user_id: int, frame: dict) -> None:
+    async def _capture(user_id: int, frame: dict[str, Any]) -> None:
         published.append(user_id)
         await captured_stream.send(user_id, frame)
 
-    import app.services.platform.user_stream as user_stream_module
+    monkeypatch.setattr(user_stream, "publish", _capture)
 
-    original = user_stream_module.publish
-    user_stream_module.publish = _capture
-    try:
-        contacts_stream.queue_many(session, [here.id, away.id])
-        await session.commit()
-        await _drain_tasks()
-    finally:
-        user_stream_module.publish = original
+    contacts_stream.queue_many(session, [here.id, away.id])
+    await session.commit()
+    await _drain_tasks()
 
     assert _contacts_frames(to_here)
     assert set(published) == {here.id, away.id}
