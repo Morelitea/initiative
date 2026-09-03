@@ -2667,9 +2667,10 @@ export const useClearDocumentViewApiV1GGuildIdDocumentsDocumentIdViewDelete = <
   );
 };
 /**
- * Documents created by the current user across every guild they belong to.
+ * Documents that reach the current user across every guild they belong to.
  *
- * An optional ``guild_ids`` filter narrows to a subset of guilds.
+ * An optional ``guild_ids`` filter narrows to a subset of guilds, and
+ * ``created_by_me`` to the ones the caller wrote.
  * @summary List My Documents
  */
 export const listMyDocumentsApiV1MeDocumentsGet = (

@@ -29,8 +29,7 @@ import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './ro
 import { Route as ServerRequiredAuthenticatedMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/marketplace'
 import { Route as ServerRequiredAuthenticatedMessagesRouteImport } from './routes/_serverRequired/_authenticated/messages'
 import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
-import { Route as ServerRequiredAuthenticatedMyDocumentsRouteImport } from './routes/_serverRequired/_authenticated/my-documents'
-import { Route as ServerRequiredAuthenticatedMyProjectsRouteImport } from './routes/_serverRequired/_authenticated/my-projects'
+import { Route as ServerRequiredAuthenticatedMyToolsRouteImport } from './routes/_serverRequired/_authenticated/my-tools'
 import { Route as ServerRequiredAuthenticatedNavigateRouteImport } from './routes/_serverRequired/_authenticated/navigate'
 import { Route as ServerRequiredAuthenticatedProfileRouteImport } from './routes/_serverRequired/_authenticated/profile'
 import { Route as ServerRequiredAuthenticatedProjectsRouteImport } from './routes/_serverRequired/_authenticated/projects'
@@ -261,16 +260,10 @@ const ServerRequiredAuthenticatedMyCalendarRoute =
     path: '/my-calendar',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
-const ServerRequiredAuthenticatedMyDocumentsRoute =
-  ServerRequiredAuthenticatedMyDocumentsRouteImport.update({
-    id: '/my-documents',
-    path: '/my-documents',
-    getParentRoute: () => ServerRequiredAuthenticatedRoute,
-  } as any)
-const ServerRequiredAuthenticatedMyProjectsRoute =
-  ServerRequiredAuthenticatedMyProjectsRouteImport.update({
-    id: '/my-projects',
-    path: '/my-projects',
+const ServerRequiredAuthenticatedMyToolsRoute =
+  ServerRequiredAuthenticatedMyToolsRouteImport.update({
+    id: '/my-tools',
+    path: '/my-tools',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedNavigateRoute =
@@ -1159,8 +1152,7 @@ export interface FileRoutesByFullPath {
   '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/messages': typeof ServerRequiredAuthenticatedMessagesRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
-  '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
-  '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
+  '/my-tools': typeof ServerRequiredAuthenticatedMyToolsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/projects': typeof ServerRequiredAuthenticatedProjectsRoute
@@ -1298,8 +1290,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/messages': typeof ServerRequiredAuthenticatedMessagesRoute
   '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
-  '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
-  '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
+  '/my-tools': typeof ServerRequiredAuthenticatedMyToolsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/projects': typeof ServerRequiredAuthenticatedProjectsRoute
   '/settings': typeof ServerRequiredAuthenticatedSettingsRouteWithChildren
@@ -1425,8 +1416,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
   '/_serverRequired/_authenticated/messages': typeof ServerRequiredAuthenticatedMessagesRoute
   '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
-  '/_serverRequired/_authenticated/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
-  '/_serverRequired/_authenticated/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
+  '/_serverRequired/_authenticated/my-tools': typeof ServerRequiredAuthenticatedMyToolsRoute
   '/_serverRequired/_authenticated/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
   '/_serverRequired/_authenticated/profile': typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   '/_serverRequired/_authenticated/projects': typeof ServerRequiredAuthenticatedProjectsRoute
@@ -1567,8 +1557,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/messages'
     | '/my-calendar'
-    | '/my-documents'
-    | '/my-projects'
+    | '/my-tools'
     | '/navigate'
     | '/profile'
     | '/projects'
@@ -1706,8 +1695,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/messages'
     | '/my-calendar'
-    | '/my-documents'
-    | '/my-projects'
+    | '/my-tools'
     | '/navigate'
     | '/projects'
     | '/settings'
@@ -1832,8 +1820,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/marketplace'
     | '/_serverRequired/_authenticated/messages'
     | '/_serverRequired/_authenticated/my-calendar'
-    | '/_serverRequired/_authenticated/my-documents'
-    | '/_serverRequired/_authenticated/my-projects'
+    | '/_serverRequired/_authenticated/my-tools'
     | '/_serverRequired/_authenticated/navigate'
     | '/_serverRequired/_authenticated/profile'
     | '/_serverRequired/_authenticated/projects'
@@ -2102,18 +2089,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedMyCalendarRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
-    '/_serverRequired/_authenticated/my-documents': {
-      id: '/_serverRequired/_authenticated/my-documents'
-      path: '/my-documents'
-      fullPath: '/my-documents'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedMyDocumentsRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedRoute
-    }
-    '/_serverRequired/_authenticated/my-projects': {
-      id: '/_serverRequired/_authenticated/my-projects'
-      path: '/my-projects'
-      fullPath: '/my-projects'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedMyProjectsRouteImport
+    '/_serverRequired/_authenticated/my-tools': {
+      id: '/_serverRequired/_authenticated/my-tools'
+      path: '/my-tools'
+      fullPath: '/my-tools'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyToolsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/navigate': {
@@ -3446,8 +3426,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedMarketplaceRoute: typeof ServerRequiredAuthenticatedMarketplaceRoute
   ServerRequiredAuthenticatedMessagesRoute: typeof ServerRequiredAuthenticatedMessagesRoute
   ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
-  ServerRequiredAuthenticatedMyDocumentsRoute: typeof ServerRequiredAuthenticatedMyDocumentsRoute
-  ServerRequiredAuthenticatedMyProjectsRoute: typeof ServerRequiredAuthenticatedMyProjectsRoute
+  ServerRequiredAuthenticatedMyToolsRoute: typeof ServerRequiredAuthenticatedMyToolsRoute
   ServerRequiredAuthenticatedNavigateRoute: typeof ServerRequiredAuthenticatedNavigateRoute
   ServerRequiredAuthenticatedProfileRoute: typeof ServerRequiredAuthenticatedProfileRouteWithChildren
   ServerRequiredAuthenticatedProjectsRoute: typeof ServerRequiredAuthenticatedProjectsRoute
@@ -3479,10 +3458,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedMessagesRoute,
     ServerRequiredAuthenticatedMyCalendarRoute:
       ServerRequiredAuthenticatedMyCalendarRoute,
-    ServerRequiredAuthenticatedMyDocumentsRoute:
-      ServerRequiredAuthenticatedMyDocumentsRoute,
-    ServerRequiredAuthenticatedMyProjectsRoute:
-      ServerRequiredAuthenticatedMyProjectsRoute,
+    ServerRequiredAuthenticatedMyToolsRoute:
+      ServerRequiredAuthenticatedMyToolsRoute,
     ServerRequiredAuthenticatedNavigateRoute:
       ServerRequiredAuthenticatedNavigateRoute,
     ServerRequiredAuthenticatedProfileRoute:

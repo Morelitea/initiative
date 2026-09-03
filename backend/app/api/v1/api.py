@@ -36,6 +36,7 @@ from app.api.v1.tenant_endpoints import (
     initiatives,
     marketplace as guild_marketplace,
     me_ai,
+    me_tools,
     me_trash,
     projects,
     property_definitions,
@@ -263,6 +264,10 @@ me_router.include_router(tasks.me_router, tags=["tasks"])
 me_router.include_router(documents.me_router, tags=["documents"])
 me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendars.me_router, tags=["calendars"])
+# The My Tools page: the three tools that had no cross-guild list before it,
+# plus the tab counts. One tag, because they are one page rather than four
+# domains reaching across guilds for their own reasons.
+me_router.include_router(me_tools.me_router, tags=["my-tools"])
 me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])

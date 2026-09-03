@@ -25,7 +25,7 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 
 ## Making one
 
-1. In an initiative (or from **My Documents**), choose **Create Document**.
+1. In an initiative, choose **Create Document**.
 2. Pick the **type**.
 3. Give it a **title** and confirm which **initiative** it belongs to.
 4. Optionally start from a **template**.

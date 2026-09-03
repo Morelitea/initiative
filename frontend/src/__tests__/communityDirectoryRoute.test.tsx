@@ -143,9 +143,9 @@ describe("the community directory's way in", () => {
           <AppSidebar />
         </SidebarProvider>
       ),
-      { initialRoute: "/my-projects" }
+      { initialRoute: "/my-tools" }
     );
-    expect(await screen.findByRole("link", { name: "My Projects" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "My Tools" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Search communities")).not.toBeInTheDocument();
   });
 
@@ -162,7 +162,7 @@ describe("the community directory's way in", () => {
       { initialRoute: "/communities" }
     );
 
-    expect(await screen.findByRole("link", { name: "My Projects" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "My Tools" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Search communities")).not.toBeInTheDocument();
   });
 });

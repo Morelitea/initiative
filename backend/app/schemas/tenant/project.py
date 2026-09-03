@@ -85,6 +85,10 @@ class ProjectRead(ProjectBase):
     # be loaded — it is set explicitly in ``_build_project_payload``.
     owner_id: Optional[int] = None
     initiative_id: int
+    #: The community this project lives in — the one fact a cross-guild list
+    #: needs to address the row, and what every other tool summary carries.
+    #: Left out of the slim picker projection, which never leaves one guild.
+    guild_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     is_archived: bool

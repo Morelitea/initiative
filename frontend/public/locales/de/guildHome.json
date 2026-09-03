@@ -43,6 +43,7 @@
   },
   "columns": {
     "name": "Name",
+    "community": "Community",
     "initiative": "Initiative",
     "tags": "Tags",
     "updated": "Zuletzt aktualisiert",

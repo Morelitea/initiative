@@ -177,17 +177,6 @@ export const useGlobalDocuments = (
   });
 };
 
-export const usePrefetchGlobalDocuments = () => {
-  const qc = useQueryClient();
-  return (params?: ListMyDocumentsApiV1MeDocumentsGetParams) => {
-    return qc.prefetchQuery({
-      queryKey: getListMyDocumentsApiV1MeDocumentsGetQueryKey(params),
-      queryFn: () => listMyDocumentsApiV1MeDocumentsGet(params),
-      staleTime: 30_000,
-    });
-  };
-};
-
 // ── Prefetch helpers ────────────────────────────────────────────────────────
 
 export const usePrefetchDocumentsList = () => {

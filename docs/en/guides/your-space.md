@@ -18,17 +18,22 @@ If you only ever open one page in Initiative for the rest of your life, it's thi
 
 The tasks *you* made, wherever they ended up. Useful for gently following up on the things you handed to other people, in a way that isn't nagging because you've got a list.
 
-## My Projects
+## My Tools
 
-Every project that's reached *you*, across all your communities. A fast way to jump to one without switching communities first.
+Every project, document, queue, counter group, calendar and dashboard that's reached *you*, across all your communities, in one table. Pick a tool along the top and the table below it changes; each row says which community and which initiative it came from, and clicking it takes you straight there.
+
+A tool you have nothing of anywhere doesn't get a tab. If you've never been near a queue, there's no queue tab to click and no empty table behind it.
 
 "Reached you" means the same thing on all of these pages: shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in.
 
 It is **not** "everything you could theoretically open if you went hunting". Even a community admin — who can reach absolutely anything in their community — gets a list of their own work here, rather than a 400-row inventory of everybody else's.
 
-## My Documents
+Two other controls sit above the table:
 
-The documents that are yours, on exactly the same rule.
+- **Everything / Made by me** switches the whole view. *Made by me* is exactly what it says: the things you wrote, whoever they've since been shared with or handed to.
+- **Communities** narrows the table to the ones you pick, if you belong to several and only care about one today.
+
+The tool, the search box, the order, the page and the communities you've picked all live in the address bar, so whatever you're looking at is a link you can send to somebody.
 
 ## My Contacts
 

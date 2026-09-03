@@ -3977,6 +3977,20 @@ export interface MyInitiativePermissions {
   permissions: Partial<Record<PermissionKey, boolean>>;
 }
 
+export type MyToolCountsResponseCounts = { [key: string]: number };
+
+/**
+ * How much of each tool reaches the caller across their communities.
+ *
+ * Keyed by the ``Tool`` value rather than fielded per tool, so a new member
+ * of the enum is answered for without a schema edit. A tool the caller has
+ * nothing of is present with a zero, not absent — the difference between
+ * "none" and "not asked" matters to the page deciding which tabs to draw.
+ */
+export interface MyToolCountsResponse {
+  counts: MyToolCountsResponseCounts;
+}
+
 export interface NotificationCountResponse {
   unread_count: number;
 }
@@ -4362,6 +4376,7 @@ export interface ProjectRead {
   id: number;
   owner_id: number | null;
   initiative_id: number;
+  guild_id: number | null;
   created_at: string;
   updated_at: string;
   is_archived: boolean;
@@ -7130,6 +7145,10 @@ export type ListMyDocumentsApiV1MeDocumentsGetParams = {
   page_size?: number;
   sort_by?: string | null;
   sort_dir?: string | null;
+  /**
+   * Narrow to documents the caller wrote.
+   */
+  created_by_me?: boolean;
 };
 
 export type ListMyProjectsApiV1MeProjectsGetParams = {
@@ -7146,10 +7165,27 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   page_size?: number;
   sort_by?: string | null;
   sort_dir?: string | null;
+  /**
+   * Narrow to projects the caller created.
+   */
+  created_by_me?: boolean;
 };
 
 export type ListMyCalendarsApiV1MeCalendarsGetParams = {
   guild_ids?: number[] | null;
+  search?: string | null;
+  /**
+   * Narrow to calendars the caller created.
+   */
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this view's own order, which is by name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
   /**
    * @minimum 1
    */
@@ -7157,6 +7193,83 @@ export type ListMyCalendarsApiV1MeCalendarsGetParams = {
   /**
    * @minimum 1
    * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type GetMyToolCountsApiV1MeToolsCountsGetParams = {
+  guild_ids?: number[] | null;
+  /**
+   * Count only what the caller wrote, matching the list views.
+   */
+  created_by_me?: boolean;
+};
+
+export type ListMyQueuesApiV1MeQueuesGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListMyDashboardsApiV1MeDashboardsGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
    */
   page_size?: number;
 };
