@@ -359,7 +359,9 @@ async def _queue_reaction_notification(
         return
     # On the system engine: whether they want to hear about this, and where to
     # write to, are facts about their account rather than about this guild.
-    author = await accounts_service.load_one(ctx.author_id)
+    author = await accounts_service.load_one(
+        ctx.author_id, excluding_ignorers_of=reactor.id
+    )
     if author is None:
         return
     await notifications.enqueue_reaction_event(
