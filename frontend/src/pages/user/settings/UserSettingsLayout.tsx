@@ -13,6 +13,7 @@ const userSettingsTabs = [
   { value: "account", labelKey: "layout.tabs.account", path: "/profile/account" },
   { value: "interface", labelKey: "layout.tabs.interface", path: "/profile/interface" },
   { value: "notifications", labelKey: "layout.tabs.notifications", path: "/profile/notifications" },
+  { value: "privacy", labelKey: "layout.tabs.privacy", path: "/profile/privacy" },
   { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },
   { value: "import", labelKey: "layout.tabs.import", path: "/profile/import" },
   { value: "security", labelKey: "layout.tabs.security", path: "/profile/security" },

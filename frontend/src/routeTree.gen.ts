@@ -46,6 +46,7 @@ import { Route as ServerRequiredAuthenticatedProfileDangerRouteImport } from './
 import { Route as ServerRequiredAuthenticatedProfileImportRouteImport } from './routes/_serverRequired/_authenticated/profile/import'
 import { Route as ServerRequiredAuthenticatedProfileInterfaceRouteImport } from './routes/_serverRequired/_authenticated/profile/interface'
 import { Route as ServerRequiredAuthenticatedProfileNotificationsRouteImport } from './routes/_serverRequired/_authenticated/profile/notifications'
+import { Route as ServerRequiredAuthenticatedProfilePrivacyRouteImport } from './routes/_serverRequired/_authenticated/profile/privacy'
 import { Route as ServerRequiredAuthenticatedProfileSecurityRouteImport } from './routes/_serverRequired/_authenticated/profile/security'
 import { Route as ServerRequiredAuthenticatedProfileTrashRouteImport } from './routes/_serverRequired/_authenticated/profile/trash'
 import { Route as ServerRequiredAuthenticatedSettingsAdminRouteImport } from './routes/_serverRequired/_authenticated/settings/admin'
@@ -359,6 +360,12 @@ const ServerRequiredAuthenticatedProfileNotificationsRoute =
   ServerRequiredAuthenticatedProfileNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
+    getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
+  } as any)
+const ServerRequiredAuthenticatedProfilePrivacyRoute =
+  ServerRequiredAuthenticatedProfilePrivacyRouteImport.update({
+    id: '/privacy',
+    path: '/privacy',
     getParentRoute: () => ServerRequiredAuthenticatedProfileRoute,
   } as any)
 const ServerRequiredAuthenticatedProfileSecurityRoute =
@@ -1161,6 +1168,7 @@ export interface FileRoutesByFullPath {
   '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
+  '/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
   '/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
@@ -1296,6 +1304,7 @@ export interface FileRoutesByTo {
   '/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
+  '/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
   '/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/u/$handle': typeof ServerRequiredAuthenticatedUHandleRoute
@@ -1424,6 +1433,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/profile/import': typeof ServerRequiredAuthenticatedProfileImportRoute
   '/_serverRequired/_authenticated/profile/interface': typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   '/_serverRequired/_authenticated/profile/notifications': typeof ServerRequiredAuthenticatedProfileNotificationsRoute
+  '/_serverRequired/_authenticated/profile/privacy': typeof ServerRequiredAuthenticatedProfilePrivacyRoute
   '/_serverRequired/_authenticated/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/_serverRequired/_authenticated/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/_serverRequired/_authenticated/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminRouteWithChildren
@@ -1563,6 +1573,7 @@ export interface FileRouteTypes {
     | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
+    | '/profile/privacy'
     | '/profile/security'
     | '/profile/trash'
     | '/settings/admin'
@@ -1698,6 +1709,7 @@ export interface FileRouteTypes {
     | '/profile/import'
     | '/profile/interface'
     | '/profile/notifications'
+    | '/profile/privacy'
     | '/profile/security'
     | '/profile/trash'
     | '/u/$handle'
@@ -1825,6 +1837,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/profile/import'
     | '/_serverRequired/_authenticated/profile/interface'
     | '/_serverRequired/_authenticated/profile/notifications'
+    | '/_serverRequired/_authenticated/profile/privacy'
     | '/_serverRequired/_authenticated/profile/security'
     | '/_serverRequired/_authenticated/profile/trash'
     | '/_serverRequired/_authenticated/settings/admin'
@@ -2193,6 +2206,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/profile/notifications'
       preLoaderRoute: typeof ServerRequiredAuthenticatedProfileNotificationsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
+    }
+    '/_serverRequired/_authenticated/profile/privacy': {
+      id: '/_serverRequired/_authenticated/profile/privacy'
+      path: '/privacy'
+      fullPath: '/profile/privacy'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedProfilePrivacyRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedProfileRoute
     }
     '/_serverRequired/_authenticated/profile/security': {
@@ -2905,6 +2925,7 @@ interface ServerRequiredAuthenticatedProfileRouteChildren {
   ServerRequiredAuthenticatedProfileImportRoute: typeof ServerRequiredAuthenticatedProfileImportRoute
   ServerRequiredAuthenticatedProfileInterfaceRoute: typeof ServerRequiredAuthenticatedProfileInterfaceRoute
   ServerRequiredAuthenticatedProfileNotificationsRoute: typeof ServerRequiredAuthenticatedProfileNotificationsRoute
+  ServerRequiredAuthenticatedProfilePrivacyRoute: typeof ServerRequiredAuthenticatedProfilePrivacyRoute
   ServerRequiredAuthenticatedProfileSecurityRoute: typeof ServerRequiredAuthenticatedProfileSecurityRoute
   ServerRequiredAuthenticatedProfileTrashRoute: typeof ServerRequiredAuthenticatedProfileTrashRoute
   ServerRequiredAuthenticatedProfileIndexRoute: typeof ServerRequiredAuthenticatedProfileIndexRoute
@@ -2924,6 +2945,8 @@ const ServerRequiredAuthenticatedProfileRouteChildren: ServerRequiredAuthenticat
       ServerRequiredAuthenticatedProfileInterfaceRoute,
     ServerRequiredAuthenticatedProfileNotificationsRoute:
       ServerRequiredAuthenticatedProfileNotificationsRoute,
+    ServerRequiredAuthenticatedProfilePrivacyRoute:
+      ServerRequiredAuthenticatedProfilePrivacyRoute,
     ServerRequiredAuthenticatedProfileSecurityRoute:
       ServerRequiredAuthenticatedProfileSecurityRoute,
     ServerRequiredAuthenticatedProfileTrashRoute:

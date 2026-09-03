@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Say who can message you.** A Privacy tab under your profile settings, with one question at the top: who can ask to message you, outside your connections. *Private* means no one, *My communities* means people you share a community with, and *Anyone* means anyone here — and under it, a switch per community, all counting by default, so you can be reachable in one and not another. Asking is always a request and it is always yours to accept; nobody arrives in your messages because they found you. Messaging is for people aged 13 and over, and an account that has not answered that question yet is told so rather than left with controls that do nothing.
+
+- **Connections.** A connection is mutual, and it is how two people stay in touch after the thing that introduced them ends — you can keep messaging even once you no longer share a community. You make one by typing somebody's full handle, number included, so a private account is reached by someone who was given it rather than by being picked off a list. Requests wait in one place, either direction, and a connection you accept opens the channel with it: having agreed once, you are not asked again.
+
+- **Ignore an account.** They stop reaching you: no notification when they mention, reply to or react to you, and nothing they send arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share and can use every tool normally, because ignoring is about contact rather than about work. Nothing is deleted, so if you stop ignoring them everything is exactly where it was.
+
 ## [0.65.0] - 2026-09-02
 
 ### Added
