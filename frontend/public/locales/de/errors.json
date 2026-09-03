@@ -513,6 +513,15 @@
   "DM_CANNOT_IGNORE_SELF": "Du kannst dein eigenes Konto nicht ignorieren.",
   "DM_NOT_A_MEMBER": "Du bist kein Mitglied dieser Community.",
   "CONTACT_GRANT_CANNOT_REACH": "Du kannst dieses Konto derzeit nicht erreichen.",
+  "DM_DEVICE_NOT_FOUND": "Dieses Gerät ist nicht für verschlüsselte Nachrichten eingerichtet.",
+  "DM_MALFORMED_KEY": "Dieser Schlüssel konnte nicht gelesen werden. Versuche es auf diesem Gerät erneut.",
+  "DM_DUPLICATE_KEY_ID": "Dieses Gerät hat bereits einen Schlüssel mit diesem Namen veröffentlicht.",
+  "DM_TOO_MANY_KEYS": "Dieses Gerät hat so viele Schlüssel veröffentlicht, wie es halten darf.",
+  "DM_NOT_REACHABLE": "Du kannst diesem Konto derzeit keine Nachricht senden.",
+  "DM_CANNOT_MESSAGE_SELF": "Du kannst dir nicht selbst schreiben.",
+  "DM_CONVERSATION_NOT_FOUND": "Diese Unterhaltung ist nicht verfügbar.",
+  "DM_MESSAGE_TOO_LARGE": "Diese Nachricht ist zu lang zum Senden.",
+  "DM_RECIPIENT_QUEUE_FULL": "Dieses Konto hat zu viele unzugestellte Nachrichten. Versuche es erneut, sobald die App dort geöffnet wurde.",
   "CONTACT_GRANT_NO_REQUEST": "Von diesem Konto liegt keine Anfrage vor.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "Du kannst dich nicht mit deinem eigenen Konto verbinden."
 }

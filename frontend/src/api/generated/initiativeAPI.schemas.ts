@@ -2316,6 +2316,146 @@ export interface DirectMessageSettingsUpdate {
   communities?: CommunityDmToggleUpdate[] | null;
 }
 
+export interface DmConversationCreate {
+  /** @minimum 1 */
+  user_id: number;
+}
+
+export interface DmConversationRead {
+  id: string;
+  other_user_id: number;
+  created_at: string;
+}
+
+export interface DmConversationsResponse {
+  conversations: DmConversationRead[];
+}
+
+/**
+ * One of the caller's own devices, for the Security page.
+ */
+export interface DmDeviceRead {
+  id: string;
+  fingerprint_key: string;
+  label: string | null;
+  created_at: string;
+  last_seen_at: string;
+  one_time_key_count: number;
+}
+
+export interface DmOneTimeKeyUpload {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   */
+  key_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 44
+   */
+  public_key: string;
+}
+
+export interface DmDeviceRegistration {
+  /**
+   * @minLength 1
+   * @maxLength 44
+   */
+  identity_key: string;
+  /**
+   * @minLength 1
+   * @maxLength 44
+   */
+  fingerprint_key: string;
+  fallback_key: DmOneTimeKeyUpload;
+  /** @maxItems 100 */
+  one_time_keys?: DmOneTimeKeyUpload[];
+}
+
+export interface DmDevicesResponse {
+  devices: DmDeviceRead[];
+}
+
+export interface DmOneTimeKeyBatch {
+  device_id: string;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  one_time_keys: DmOneTimeKeyUpload[];
+}
+
+export interface DmOutboundMessage {
+  recipient_device_id: string;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  message_type: number;
+  /**
+   * @minLength 1
+   * @maxLength 87384
+   */
+  payload: string;
+}
+
+export interface DmQueueAck {
+  device_id: string;
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  message_ids: number[];
+}
+
+export interface DmQueueItemRead {
+  id: number;
+  conversation_id: string;
+  message_type: number;
+  payload: string;
+  created_at: string;
+}
+
+export interface DmQueueResponse {
+  items: DmQueueItemRead[];
+}
+
+/**
+ * Both parties' fingerprints, so the client can render the comparison.
+ */
+export interface DmSafetyNumberResponse {
+  user_id: number;
+  their_fingerprints: string[];
+  my_fingerprints: string[];
+}
+
+export interface DmSendRequest {
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  messages: DmOutboundMessage[];
+}
+
+export interface DmSendResponse {
+  accepted: number;
+}
+
+/**
+ * What a sender needs to open a session with one device.
+ */
+export interface DmSessionKey {
+  device_id: string;
+  identity_key: string;
+  fingerprint_key: string;
+  one_time_key?: DmOneTimeKeyUpload | null;
+}
+
+export interface DmSessionKeysResponse {
+  user_id: number;
+  devices: DmSessionKey[];
+}
+
 /**
  * Document that links to another document.
  */
@@ -7089,4 +7229,8 @@ export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
    * @maximum 100
    */
   page_size?: number;
+};
+
+export type CollectQueueApiV1MeDmQueueGetParams = {
+  device_id: string;
 };

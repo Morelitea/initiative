@@ -513,6 +513,15 @@
   "DM_CANNOT_IGNORE_SELF": "You cannot ignore your own account.",
   "DM_NOT_A_MEMBER": "You are not a member of that community.",
   "CONTACT_GRANT_CANNOT_REACH": "You cannot reach that account right now.",
+  "DM_DEVICE_NOT_FOUND": "That device is not set up for encrypted messages.",
+  "DM_MALFORMED_KEY": "That key could not be read. Try again on this device.",
+  "DM_DUPLICATE_KEY_ID": "This device already published a key by that name.",
+  "DM_TOO_MANY_KEYS": "This device has published as many keys as it may hold.",
+  "DM_NOT_REACHABLE": "You cannot message that account right now.",
+  "DM_CANNOT_MESSAGE_SELF": "You cannot message yourself.",
+  "DM_CONVERSATION_NOT_FOUND": "That conversation is not available.",
+  "DM_MESSAGE_TOO_LARGE": "That message is too long to send.",
+  "DM_RECIPIENT_QUEUE_FULL": "That account has too many undelivered messages. Try again once they open the app.",
   "CONTACT_GRANT_NO_REQUEST": "There is no request from that account to accept.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "You cannot connect with your own account."
 }
