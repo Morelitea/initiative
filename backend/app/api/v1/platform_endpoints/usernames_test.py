@@ -236,7 +236,13 @@ class TestWhatAGuildPayloadSays:
 class TestFindingSomeone:
     @pytest.fixture
     async def searchable_guild(self, session):
-        admin = await create_user(session)
+        # The searcher is a member too, so their own handle and name are in the
+        # corpus. Pinned rather than generated: matching is fuzzy, and a random
+        # name that happens to share three letters with a search term ("Three"
+        # against "ivory-thrush") would fail an assertion about somebody else.
+        admin = await create_user(
+            session, username="zeph", discriminator=9001, full_name="Zeph Quill"
+        )
         guild = await create_guild(session, creator=admin)
         await create_guild_membership(
             session, user=admin, guild=guild, role=GuildRole.admin

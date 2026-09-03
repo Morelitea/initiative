@@ -26,6 +26,10 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Rust — the ratchet's build output. The published wasm artifact under
+# frontend/src/crypto/wasm/ IS committed, the way the Orval client is.
+crypto/target/
+
 # FastAPI
 backend/.mypy_cache/
 backend/.ruff_cache/
