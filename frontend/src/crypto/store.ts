@@ -167,7 +167,7 @@ export async function pickleKey(): Promise<string> {
  * mid-registration — goes stale and can be taken again.
  */
 export type DeviceClaim =
-  | { status: "claiming"; at: number }
+  | { status: "claiming"; at: number; token: string }
   | { status: "ready"; deviceId: string };
 
 const DEVICE_CLAIM = "device-claim";
@@ -176,21 +176,54 @@ const CLAIM_STALE_MS = 30_000;
 export const deviceClaim = {
   read: () => read<DeviceClaim>(DEVICE_CLAIM),
 
-  /** True if this caller may register. False means somebody else is on it. */
-  take: async (): Promise<boolean> => {
+  /**
+   * A token if this caller may register, `null` if somebody else is on it.
+   *
+   * The token is what makes a turn *this* caller's. A registration that runs
+   * past the stale window is taken over by the next tab, and the slow one has
+   * to be able to find out that what it is holding is no longer the turn.
+   */
+  take: async (): Promise<string | null> => {
     const now = Date.now();
+    const token = crypto.randomUUID();
     const { written } = await update<DeviceClaim>(DEVICE_CLAIM, (current) => {
       if (current?.status === "ready") return undefined;
       if (current?.status === "claiming" && now - current.at < CLAIM_STALE_MS) {
         return undefined;
       }
-      return { status: "claiming", at: now };
+      return { status: "claiming", at: now, token };
     });
-    return written;
+    return written ? token : null;
   },
 
-  settle: async (deviceId: string): Promise<void> => {
-    await update<DeviceClaim>(DEVICE_CLAIM, () => ({ status: "ready", deviceId }));
+  /**
+   * Record a finished registration: the keys, the id and the claim at once.
+   *
+   * All three in one transaction, and only for the caller whose turn it still
+   * is. What a device id refers to is then always present beside it, and a tab
+   * that was taken over cannot write its own account over the one this browser
+   * actually registered. `false` means the turn was lost.
+   */
+  settle: async (token: string, deviceId: string, pickle: string): Promise<boolean> => {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      const request = store.get(DEVICE_CLAIM);
+      let settled = false;
+      request.onsuccess = () => {
+        const current = request.result as DeviceClaim | undefined;
+        if (current?.status !== "claiming" || current.token !== token) return;
+        store.put(pickle, ACCOUNT);
+        store.put(deviceId, DEVICE_ID);
+        store.put({ status: "ready", deviceId }, DEVICE_CLAIM);
+        settled = true;
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve(settled);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
   },
 
   /**
@@ -203,15 +236,17 @@ export const deviceClaim = {
   invalidate: async (deviceId: string): Promise<void> => {
     await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
       current?.status === "ready" && current.deviceId === deviceId
-        ? { status: "claiming", at: 0 }
+        ? { status: "claiming", at: 0, token: "" }
         : undefined
     );
   },
 
-  /** Let go of a claim this caller could not finish. */
-  release: async (): Promise<void> => {
+  /** Let go of a turn this caller could not finish, if it is still theirs. */
+  release: async (token: string): Promise<void> => {
     await update<DeviceClaim>(DEVICE_CLAIM, (current) =>
-      current?.status === "claiming" ? { status: "claiming", at: 0 } : undefined
+      current?.status === "claiming" && current.token === token
+        ? { status: "claiming", at: 0, token: "" }
+        : undefined
     );
   },
 };
@@ -318,6 +353,26 @@ export type SessionOrigin = "self" | "other";
 export const sessionOrigin = {
   get: (id: string) => read<SessionOrigin>("session-origin:" + id),
   set: (id: string, origin: SessionOrigin) => write("session-origin:" + id, origin),
+};
+
+/**
+ * Every session this device holds, most recent first.
+ *
+ * The per-conversation list above is where an ordinary message is looked up,
+ * and it is not always enough: one device is in every conversation this account
+ * has — its own other clients are — so a session opened in one conversation can
+ * carry a message in another. This is where collection looks when the
+ * conversation's own list does not answer, and what it finds is filed there.
+ */
+export const allSessions = {
+  get: async (): Promise<string[]> => (await read<string[]>("all-sessions")) ?? [],
+  add: async (sessionId: string): Promise<void> => {
+    await update<string[]>("all-sessions", (existing) => {
+      const current = existing ?? [];
+      if (current.includes(sessionId)) return undefined;
+      return [sessionId, ...current];
+    });
+  },
 };
 
 export const sessionPickle = {

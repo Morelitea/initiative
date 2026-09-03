@@ -15,11 +15,12 @@
 
 import "fake-indexeddb/auto";
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   accountPickle,
   deviceClaim,
+  deviceId,
   forgetDevice,
   messageLog,
   sessionOrigin,
@@ -128,6 +129,9 @@ describe("which side a session belongs to", () => {
 });
 
 describe("the device-registration claim", () => {
+  /** Past the window after which an abandoned claim may be taken over. */
+  const STALE = 31_000;
+
   it("is taken by exactly one caller", async () => {
     // Two tabs opening Messages for the first time. Registering twice would
     // leave the server with two devices and this browser with one set of
@@ -137,52 +141,103 @@ describe("the device-registration claim", () => {
     expect(results.filter(Boolean)).toHaveLength(1);
   });
 
-  it("is not taken again once somebody has registered", async () => {
-    await deviceClaim.take();
-    await deviceClaim.settle("device-1");
+  it("writes the keys, the id and the claim together", async () => {
+    // One transaction: a tab that sees the claim settled must find everything
+    // the device id refers to already there.
+    const turn = await take();
 
-    expect(await deviceClaim.take()).toBe(false);
+    expect(await deviceClaim.settle(turn, "device-1", "pickle-1")).toBe(true);
+    expect(await accountPickle.get()).toBe("pickle-1");
+    expect(await deviceId.get()).toBe("device-1");
+  });
+
+  it("is not taken again once somebody has registered", async () => {
+    const turn = await take();
+    await deviceClaim.settle(turn, "device-1", "pickle-1");
+
+    expect(await deviceClaim.take()).toBeNull();
     expect(await deviceClaim.read()).toEqual({ status: "ready", deviceId: "device-1" });
   });
 
   it("can be taken again by the next caller when one is handed back", async () => {
     // A tab that failed mid-registration must not hold the claim until it goes
     // stale, or the next attempt waits for nothing.
-    expect(await deviceClaim.take()).toBe(true);
-    await deviceClaim.release();
+    const turn = await take();
+    await deviceClaim.release(turn);
 
-    expect(await deviceClaim.take()).toBe(true);
+    expect(await deviceClaim.take()).not.toBeNull();
   });
 
   it("can be forced open when the recorded device is gone", async () => {
-    await deviceClaim.take();
-    await deviceClaim.settle("device-1");
+    const turn = await take();
+    await deviceClaim.settle(turn, "device-1", "pickle-1");
     await deviceClaim.invalidate("device-1");
 
-    expect(await deviceClaim.take()).toBe(true);
+    expect(await deviceClaim.take()).not.toBeNull();
   });
 
   it("leaves a claim somebody is already registering under alone", async () => {
     // One tab noticed the revocation first and is mid-registration. A second
     // tab reaching the same conclusion must wait for it, not reopen the claim
     // and register a competing device.
-    await deviceClaim.take();
-    await deviceClaim.settle("device-1");
+    const turn = await take();
+    await deviceClaim.settle(turn, "device-1", "pickle-1");
     await deviceClaim.invalidate("device-1");
-    expect(await deviceClaim.take()).toBe(true);
+    expect(await deviceClaim.take()).not.toBeNull();
 
     await deviceClaim.invalidate("device-1");
 
-    expect(await deviceClaim.take()).toBe(false);
+    expect(await deviceClaim.take()).toBeNull();
   });
 
   it("is not reopened by a device other than the recorded one", async () => {
-    await deviceClaim.take();
-    await deviceClaim.settle("device-2");
+    const turn = await take();
+    await deviceClaim.settle(turn, "device-2", "pickle-2");
 
     await deviceClaim.invalidate("device-1");
 
-    expect(await deviceClaim.take()).toBe(false);
+    expect(await deviceClaim.take()).toBeNull();
     expect(await deviceClaim.read()).toEqual({ status: "ready", deviceId: "device-2" });
   });
+
+  it("cannot be settled by a caller whose turn was taken over", async () => {
+    // A registration slower than the window the next tab waits out. Both
+    // registered a device; only one set of private keys can be kept, and it has
+    // to be the one belonging to the device the claim now names.
+    const slow = await take();
+    const quick = await afterStale(() => take());
+    await deviceClaim.settle(quick, "device-quick", "pickle-quick");
+
+    expect(await deviceClaim.settle(slow, "device-slow", "pickle-slow")).toBe(false);
+    expect(await accountPickle.get()).toBe("pickle-quick");
+    expect(await deviceId.get()).toBe("device-quick");
+  });
+
+  it("is not handed back by a caller whose turn was taken over", async () => {
+    const slow = await take();
+    const quick = await afterStale(() => take());
+
+    await deviceClaim.release(slow);
+
+    expect(await deviceClaim.take()).toBeNull();
+    expect(await deviceClaim.read()).toMatchObject({ status: "claiming", token: quick });
+  });
+
+  /** Take the claim, failing the test rather than the assertion if it is held. */
+  async function take(): Promise<string> {
+    const turn = await deviceClaim.take();
+    expect(turn).not.toBeNull();
+    return turn as string;
+  }
+
+  /** Run something as though the stale window had passed. */
+  async function afterStale<T>(work: () => Promise<T>): Promise<T> {
+    const base = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(base + STALE);
+    try {
+      return await work();
+    } finally {
+      clock.mockRestore();
+    }
+  }
 });

@@ -19,6 +19,7 @@ import {
   listDevicesApiV1MeDmDevicesGet as listDevices,
   readDirectoryApiV1UsersUserIdDmDevicesGet as readDirectory,
   registerDeviceApiV1MeDmDevicesPost as registerDevice,
+  removeDeviceApiV1MeDmDevicesDeviceIdDelete as removeDevice,
   sendMessagesApiV1MeDmConversationsConversationIdMessagesPost as sendMessages,
   topUpKeysApiV1MeDmOneTimeKeysPost as topUpKeys,
 } from "@/api/generated/direct-messages/direct-messages";
@@ -27,6 +28,7 @@ import type { DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
 import { ratchet } from "./client";
 import {
   accountPickle,
+  allSessions,
   deviceClaim,
   messageLog,
   type SessionOrigin,
@@ -145,7 +147,8 @@ async function ensureDeviceContext(): Promise<{ id: string; devices: DmDeviceRea
   // each registering would leave the server holding two devices and this
   // browser holding one set of private keys, and whatever was sent to the other
   // would never be readable.
-  if (!(await deviceClaim.take())) {
+  const turn = await deviceClaim.take();
+  if (turn === null) {
     const id = await waitForRegistration(existing);
     return { id, devices: (await listDevices()).devices };
   }
@@ -163,16 +166,21 @@ async function ensureDeviceContext(): Promise<{ id: string; devices: DmDeviceRea
       one_time_keys: keys.one_time_keys,
     });
     const created = response.devices[response.devices.length - 1];
-    // Keys first, then the id, then the claim: a tab that sees the claim
-    // settled must find everything the id refers to already written.
-    await accountPickle.set(keys.pickle);
-    await storedDeviceId.set(created.id);
-    await deviceClaim.settle(created.id);
+    // The keys, the id and the claim in one write, and only while this is
+    // still this tab's turn.
+    if (!(await deviceClaim.settle(turn, created.id, keys.pickle))) {
+      // Registration outran the claim and another tab took over. Its device is
+      // the one this browser holds keys for, so the one just registered is
+      // withdrawn rather than left collecting messages nothing can open.
+      await removeDevice(created.id).catch(() => undefined);
+      const id = await waitForRegistration(existing);
+      return { id, devices: (await listDevices()).devices };
+    }
     return { id: created.id, devices: response.devices };
   } catch (error) {
-    // Hand the claim back, or the next attempt waits out the stale window for
+    // Hand the turn back, or the next attempt waits out the stale window for
     // a tab that has already given up.
-    await deviceClaim.release();
+    await deviceClaim.release(turn);
     throw error;
   }
 }
@@ -226,6 +234,7 @@ async function openOutboundSession(
   await sessionOrigin.set(session.session_id, destination.origin);
   await sessionForDevice.set(destination.id, session.session_id);
   await sessionsInConversation.add(conversationId, session.session_id);
+  await allSessions.add(session.session_id);
   return session.session_id;
 }
 
@@ -297,7 +306,12 @@ export async function sendText(
 
   const held = new Map<string, string | null>();
   for (const destination of destinations) {
-    held.set(destination.id, await establishedSession(destination.id));
+    const session = await establishedSession(destination.id);
+    held.set(destination.id, session);
+    // A session opened for one conversation carries this one too — a device of
+    // this account's is in every conversation it has — so it is filed here as
+    // well as where it was made.
+    if (session) await sessionsInConversation.add(conversationId, session);
   }
   const missing = destinations.filter((destination) => !held.get(destination.id));
   const claimed =
@@ -452,13 +466,18 @@ export async function collect(): Promise<string[]> {
         // conversation id: the other party may have several devices, and each
         // is its own ratchet.
         await sessionsInConversation.add(item.conversation_id, opened.session.session_id);
+        await allSessions.add(opened.session.session_id);
         plaintext = opened.session.plaintext;
         mine = opened.origin === "self";
       } else {
         // Which device sent this is not on the row, so the sessions this
         // conversation holds are tried in turn -- one per device, and the most
         // recently used first.
-        const sessions = await sessionsInConversation.get(item.conversation_id);
+        const here = await sessionsInConversation.get(item.conversation_id);
+        // The conversation's own sessions first, then every other session this
+        // device holds: one opened elsewhere can carry a message here, and a
+        // message that finds no session at all is never readable again.
+        const sessions = [...here, ...(await allSessions.get()).filter((id) => !here.includes(id))];
         let read: { sessionId: string; plaintext: string } | null = null;
         for (const sessionId of sessions) {
           const pickle = await sessionPickle.get(sessionId);
@@ -466,6 +485,8 @@ export async function collect(): Promise<string[]> {
           try {
             const decrypted = await ratchet.decrypt(pickle, item.message_type, item.payload);
             await sessionPickle.set(sessionId, decrypted.session_pickle);
+            // Filed here, so the next message on it is found straight away.
+            await sessionsInConversation.add(item.conversation_id, sessionId);
             read = { sessionId, plaintext: decrypted.plaintext };
             break;
           } catch {

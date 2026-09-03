@@ -22,6 +22,7 @@ const api = vi.hoisted(() => ({
   ackQueue: vi.fn(),
   listConversations: vi.fn(),
   registerDevice: vi.fn(),
+  removeDevice: vi.fn(),
   topUpKeys: vi.fn(),
 }));
 
@@ -37,6 +38,7 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
   acknowledgeQueueApiV1MeDmQueueAckPost: (body: unknown) => api.ackQueue(body),
   listConversationsApiV1MeDmConversationsGet: () => api.listConversations(),
   registerDeviceApiV1MeDmDevicesPost: (body: unknown) => api.registerDevice(body),
+  removeDeviceApiV1MeDmDevicesDeviceIdDelete: (id: string) => api.removeDevice(id),
   topUpKeysApiV1MeDmOneTimeKeysPost: (body: unknown) => api.topUpKeys(body),
 }));
 
@@ -85,8 +87,8 @@ vi.mock("./client", () => ({
   },
 }));
 
-import { collect, RecipientHasNoDeviceError, sendText } from "./messaging";
-import { accountPickle, deviceId, forgetDevice, messageLog } from "./store";
+import { collect, ensureDevice, RecipientHasNoDeviceError, sendText } from "./messaging";
+import { accountPickle, deviceClaim, deviceId, forgetDevice, messageLog } from "./store";
 
 const OURS = { id: "device-1", identity_key: "mine" };
 const OUR_PHONE = { id: "device-2", identity_key: "phone" };
@@ -201,6 +203,32 @@ describe("collecting", () => {
     expect(api.readDirectory).not.toHaveBeenCalled();
   });
 
+  it("reads an ordinary message on a session opened in another conversation", async () => {
+    // One device is in every conversation this account has — its own other
+    // clients are — so the session it opened in one carries messages in the
+    // next. A message that finds no session is never readable again.
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from("phone", "opened here") })],
+    });
+    await collect();
+
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          id: 2,
+          conversation_id: "conv-2",
+          message_type: 1,
+          payload: from("phone", "carried on"),
+        }),
+      ],
+    });
+    await collect();
+
+    expect(await messageLog.get("conv-2")).toEqual([
+      expect.objectContaining({ body: "carried on", mine: true }),
+    ]);
+  });
+
   it("leaves a message it cannot read on the server", async () => {
     api.collectQueue.mockResolvedValue({
       items: [queued({ payload: from("a-device-nobody-knows", "unreadable") })],
@@ -253,6 +281,30 @@ describe("sending", () => {
     await expect(sendText("conv-1", 7, "hello")).rejects.toBeInstanceOf(RecipientHasNoDeviceError);
     expect(api.sendMessages).not.toHaveBeenCalled();
     expect(await messageLog.get("conv-1")).toEqual([]);
+  });
+});
+
+describe("registering", () => {
+  it("withdraws a device it registered after its turn was taken over", async () => {
+    // A registration slower than the window the next tab waits out. Both are
+    // registered, but only one set of private keys survives — so the device
+    // whose keys were dropped is taken back off the server rather than left
+    // collecting messages nothing can open.
+    await forgetDevice();
+    api.registerDevice.mockImplementation(async () => {
+      // What the tab that took over did while this registration was in flight.
+      const base = Date.now();
+      const clock = vi.spyOn(Date, "now").mockReturnValue(base + 31_000);
+      const turn = await deviceClaim.take();
+      clock.mockRestore();
+      await deviceClaim.settle(turn as string, "device-quick", "pickle-quick");
+      return { devices: [ownDevice({ id: "device-slow", identity_key: "slow" })] };
+    });
+    api.removeDevice.mockResolvedValue(undefined);
+
+    await expect(ensureDevice()).resolves.toBe("device-quick");
+    expect(api.removeDevice).toHaveBeenCalledWith("device-slow");
+    expect(await accountPickle.get()).toBe("pickle-quick");
   });
 });
 
