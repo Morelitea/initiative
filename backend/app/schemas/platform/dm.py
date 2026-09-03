@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from pydantic import ConfigDict
 
+from app.models.platform.user import Presence, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import SanitizedBaseModel
 
@@ -99,6 +100,11 @@ class ContactGrantRead(SanitizedBaseModel):
     username: str
     discriminator: int
     avatar_url: Optional[str] = None
+    #: Carried so a grant renders as an ordinary contact row wherever one is
+    #: listed. No ``full_name``: a real name is a per-guild disclosure, and a
+    #: grant may name somebody the reader shares no community with.
+    status: UserStatus = UserStatus.active
+    presence: Presence = Presence.offline
     state: str
     #: True when the reader is the one who asked, which is what tells a
     #: cancellable request from one waiting on them.

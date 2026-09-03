@@ -2,6 +2,8 @@
   "title": "Mis contactos",
   "subtitle": "Todas las personas con las que compartes una comunidad, y las que hayas marcado.",
   "favorites": "Favoritos",
+  "connections": "Conexiones",
+  "directMessages": "Mensajes directos",
   "searchPlaceholder": "Buscar contactos",
   "searchLabel": "Buscar a todos en esta página",
   "clearSearch": "Borrar búsqueda",

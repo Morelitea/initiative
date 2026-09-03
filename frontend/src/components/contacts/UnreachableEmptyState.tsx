@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import type { CommunityDmToggle } from "@/api/generated/initiativeAPI.schemas";
 import { BirthdateField } from "@/components/auth/BirthdateField";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
 import { Button } from "@/components/ui/button";
@@ -75,10 +74,10 @@ export const AgeUnansweredPanel = () => {
  * Two ways out, and the sentence is the more important of them: a connection
  * reaches this account whatever its policy, so somebody who means to stay
  * closed should leave knowing the feature works rather than thinking it broke.
- * The button is the other, and it writes the state Private was designed to be
- * one click from — open to every community, none of them switched off.
+ * The button is the other, and it writes the one value that changes who may
+ * ask.
  */
-export const PrivatePanel = ({ communities }: { communities: CommunityDmToggle[] }) => {
+export const PrivatePanel = () => {
   const { t } = useTranslation("contacts");
   const updateSettings = useUpdateDmSettings();
 
@@ -90,17 +89,15 @@ export const PrivatePanel = ({ communities }: { communities: CommunityDmToggle[]
           type="button"
           size="sm"
           disabled={updateSettings.isPending}
-          onClick={() =>
-            updateSettings.mutate({
-              data: {
-                dm_policy: "community",
-                communities: communities.map((community) => ({
-                  guild_id: community.guild_id,
-                  enabled: true,
-                })),
-              },
-            })
-          }
+          // The policy alone. Sending the community switches with it would
+          // stake the whole write on a membership list the page fetched
+          // earlier: leaving a community between the two makes the server
+          // refuse the unknown id, and the account that clicked "let my
+          // communities message me" stays Private. Every community counts by
+          // default, so a switch is only off where its owner turned it off,
+          // and that is theirs to keep — the link beside this is where they
+          // are changed.
+          onClick={() => updateSettings.mutate({ data: { dm_policy: "community" } })}
         >
           {t("unreachable.private.open")}
         </Button>

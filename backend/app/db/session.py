@@ -110,9 +110,12 @@ _RLS_PARAMS_INFO_KEY = "rls_params"
 SYSTEM_SATISFIED = "system"
 _RLS_ESTABLISHED_INFO_KEY = "rls_established_at"
 
-# The platform tier the session is acting for. Kept beside the context params
-# rather than inside them because it outlives any one of them: a request routes
-# into a guild and back out again, and the caller is the same person throughout.
+# The platform tier this REQUEST authenticated as, held in the SQLAlchemy
+# session's Python state — never on the connection. It is read only by
+# set_rls_context, which resolves it into the stored params below; from there it
+# reaches Postgres the same way every other value does, as a transaction-local
+# set_config replayed per transaction. Nothing here survives a request, and
+# nothing here is session state at the database.
 _RLS_TIER_INFO_KEY = "rls_platform_tier"
 
 
@@ -352,12 +355,15 @@ async def set_rls_context(
     schema (the guild role governs there) — pass it anyway, so the tier is on the
     session for the trip back out.
 
-    The tier is remembered for the session and reapplied to any later call that
+    The tier is remembered **for the request** — in the SQLAlchemy session's
+    Python state, not on the connection — and reapplied to any later call that
     names a ``user_id`` without one, so re-establishing context part-way through
-    a request keeps the role it authenticated as. Passing a tier sets it; passing
-    no ``user_id`` clears it. Every other parameter is write-only per call: they
-    are always written from this call's arguments, so nothing carries between
-    requests on a pooled connection.
+    keeps the role it authenticated as. Passing a tier sets it; passing no
+    ``user_id`` clears it. What is remembered is only an input to this function:
+    it is resolved here and written into the stored params, so it reaches
+    Postgres as the same transaction-local ``set_config`` as everything else and
+    is replayed per transaction. Every parameter is still written from this
+    call's arguments, so nothing carries between requests on a pooled connection.
     """
     _VALID_ROLES = {"admin", "member"}
     if guild_role is not None and guild_role not in _VALID_ROLES:
@@ -379,10 +385,11 @@ async def set_rls_context(
     # A call that names a user but not their tier is re-establishing this
     # request's own context — returning from a guild excursion, or narrowing
     # after a lookup — not becoming somebody else. Give it back the tier the
-    # session is acting for, so the role it assumes is the one the request
-    # authenticated as rather than the login role underneath it. A call that
-    # names no user is an unattributed context (workers, seeding, the
-    # deliberate reset) and forgets it.
+    # request authenticated as, so the role it assumes is that one rather than
+    # the login role underneath it. A call that names no user is an
+    # unattributed context (workers, seeding, the deliberate reset) and forgets
+    # it. Resolved into the stored params below, so the replay hook reapplies
+    # it per transaction like every other value.
     if platform_role is not None:
         session.info[_RLS_TIER_INFO_KEY] = platform_role
     elif user_id is None:
@@ -509,7 +516,7 @@ async def guild_schema_context(
     previous = session.info.get(_RLS_PARAMS_INFO_KEY)
     previous_established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
     # The excursion routes with no user of its own, which forgets the tier; the
-    # caller on the other side of it is still the same person.
+    # caller on the other side of it is still the same request.
     previous_tier = session.info.get(_RLS_TIER_INFO_KEY)
     routed = False
     try:

@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { SearchX, Users } from "lucide-react";
+import { Link2, MessageSquare, SearchX, Users } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +11,7 @@ import {
   FAVORITES_VALUE,
   FavoriteContactsSection,
 } from "@/components/contacts/FavoriteContactsSection";
+import { GrantContactSection } from "@/components/contacts/GrantContactSection";
 import { GuildContactSection } from "@/components/contacts/GuildContactSection";
 import type { ChipGuild } from "@/components/contacts/SharedGuildChip";
 import {
@@ -25,11 +26,13 @@ import {
   useFavoriteContacts,
   useToggleFavoriteContact,
 } from "@/hooks/useContacts";
-import { useDmSettings } from "@/hooks/useDirectMessages";
+import { useConnections, useDmSettings, useMessageRequests } from "@/hooks/useDirectMessages";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { cn } from "@/lib/utils";
 
 const COLLAPSE_SCOPE = "my-contacts-sections";
+const CONNECTIONS_VALUE = "connections";
+const OPEN_CHANNELS_VALUE = "open-channels";
 
 /** Which sections the reader has closed. Everything else is open. */
 type CollapseState = { closed: string[] };
@@ -64,12 +67,43 @@ export const MyContactsPage = () => {
 
   const sectionsQuery = useContactSections(search);
   const dmQuery = useDmSettings();
+  const connectionsQuery = useConnections();
+  const messagesQuery = useMessageRequests();
   const favoritesQuery = useFavoriteContacts(search);
 
   const sections = useMemo(() => sectionsQuery.data?.sections ?? [], [sectionsQuery.data]);
   const favorites = useMemo(() => favoritesQuery.data?.items ?? [], [favoritesQuery.data]);
 
   const starredIds = useMemo(() => new Set(favorites.map((contact) => contact.id)), [favorites]);
+
+  // Neither list is narrowed by the server — both arrive whole — so the term
+  // is applied here, on the handle, which is all these rows carry.
+  const matches = useCallback(
+    (grant: { username: string; discriminator: number }) => {
+      const term = search.trim().toLowerCase();
+      if (!term) return true;
+      const handle = `${grant.username}#${String(grant.discriminator).padStart(4, "0")}`;
+      return handle.includes(term.replace(/^@/, ""));
+    },
+    [search]
+  );
+
+  const connections = useMemo(
+    () => (connectionsQuery.data?.accepted ?? []).filter(matches),
+    [connectionsQuery.data, matches]
+  );
+
+  // Accepting a connection opens the channel with it, so every connection also
+  // holds a message grant. Listing those again here would make this section a
+  // near-copy of the one above it; what is left is the people this section
+  // exists for — the ones an agreement to message is the *only* thing the
+  // reader shares with, who appear nowhere else on the page.
+  const openChannels = useMemo(() => {
+    const connected = new Set((connectionsQuery.data?.accepted ?? []).map((g) => g.user_id));
+    return (messagesQuery.data?.accepted ?? []).filter(
+      (grant) => !connected.has(grant.user_id) && matches(grant)
+    );
+  }, [connectionsQuery.data, messagesQuery.data, matches]);
 
   // Every id a chip can name is one of these sections, so the chip resolves
   // against what the page already has.
@@ -94,34 +128,50 @@ export const MyContactsPage = () => {
 
   // While a term is set every matching section is open, and the reader's own
   // collapse state is left untouched so clearing the field restores it.
+  const allValues = useMemo(
+    () => [
+      FAVORITES_VALUE,
+      CONNECTIONS_VALUE,
+      OPEN_CHANNELS_VALUE,
+      ...sections.map((s) => `guild-${s.guild_id}`),
+    ],
+    [sections]
+  );
+
   const openValues = useMemo(() => {
-    const all = [FAVORITES_VALUE, ...sections.map((s) => `guild-${s.guild_id}`)];
-    if (searching) return all;
+    if (searching) return allValues;
     const closed = new Set(collapse.closed);
-    return all.filter((value) => !closed.has(value));
-  }, [sections, searching, collapse.closed]);
+    return allValues.filter((value) => !closed.has(value));
+  }, [allValues, searching, collapse.closed]);
 
   const onOpenChange = useCallback(
     (next: string[]) => {
       if (searching) return;
-      const all = [FAVORITES_VALUE, ...sections.map((s) => `guild-${s.guild_id}`)];
       const open = new Set(next);
-      setCollapse({ closed: all.filter((value) => !open.has(value)) });
+      setCollapse({ closed: allValues.filter((value) => !open.has(value)) });
     },
-    [searching, sections, setCollapse]
+    [searching, allValues, setCollapse]
   );
 
   // Why the page is bare, if it is. Only worth saying while nothing is
-  // searched for: under a term an empty page means the term, not the policy.
-  const reason = searching
-    ? null
-    : unreachableReason(Boolean(dmQuery.data?.age_confirmed_at), dmQuery.data?.dm_policy);
+  // searched for — under a term an empty page means the term, not the policy —
+  // and only once the settings are in hand: absent, they read as an account
+  // that has answered nothing, which is the one panel that must never be shown
+  // to somebody who has.
+  const reason =
+    searching || !dmQuery.data
+      ? null
+      : unreachableReason(Boolean(dmQuery.data.age_confirmed_at), dmQuery.data.dm_policy);
 
   const isFirstLoad = sectionsQuery.isLoading || favoritesQuery.isLoading;
   // A term in flight, whether or not last term's answer is still on screen.
   const isSearchPending =
     searching && (isFirstLoad || sectionsQuery.isFetching || favoritesQuery.isFetching);
-  const nothingAtAll = sections.length === 0 && favorites.length === 0;
+  const nothingAtAll =
+    sections.length === 0 &&
+    favorites.length === 0 &&
+    connections.length === 0 &&
+    openChannels.length === 0;
 
   return (
     <div className="space-y-4">
@@ -183,6 +233,45 @@ export const MyContactsPage = () => {
               guilds={guilds}
               searching={searching}
             />
+            {/* Under Favorites, because a link the reader made outranks the
+                community that introduced them — and above the community
+                sections for the same reason. */}
+            {connections.length > 0 ? (
+              <GrantContactSection
+                key={`connections:${search}`}
+                value={CONNECTIONS_VALUE}
+                label={t("connections")}
+                title={
+                  <>
+                    <Link2 className="size-4 text-muted-foreground" />
+                    <span>{t("connections")}</span>
+                  </>
+                }
+                items={connections}
+                starredIds={starredIds}
+                onToggleFavorite={toggleFavorite}
+                guilds={guilds}
+                emptyLabel={t("noMatches.section")}
+              />
+            ) : null}
+            {openChannels.length > 0 ? (
+              <GrantContactSection
+                key={`open-channels:${search}`}
+                value={OPEN_CHANNELS_VALUE}
+                label={t("directMessages")}
+                title={
+                  <>
+                    <MessageSquare className="size-4 text-muted-foreground" />
+                    <span>{t("directMessages")}</span>
+                  </>
+                }
+                items={openChannels}
+                starredIds={starredIds}
+                onToggleFavorite={toggleFavorite}
+                guilds={guilds}
+                emptyLabel={t("noMatches.section")}
+              />
+            ) : null}
             {sections.map((section) => (
               <GuildContactSection
                 key={`${section.guild_id}:${search}`}
@@ -198,7 +287,7 @@ export const MyContactsPage = () => {
               Favorites above it are the reader's own list and stay. */}
           {reason === "private" ? (
             <div className="pt-2">
-              <PrivatePanel communities={dmQuery.data?.communities ?? []} />
+              <PrivatePanel />
             </div>
           ) : null}
         </div>

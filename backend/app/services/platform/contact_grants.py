@@ -37,6 +37,7 @@ from app.models.platform.contact_grant import (
 )
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import contacts_stream
+from app.services.platform import presence as presence_service
 from app.services.platform import user_ignores
 from app.schemas.platform.dm import (
     ContactGrantRead,
@@ -425,7 +426,7 @@ async def to_reads(
         for row in (
             await session.exec(
                 text(
-                    "SELECT id, username, discriminator, avatar_url "
+                    "SELECT id, username, discriminator, avatar_url, status "
                     "FROM public.user_profiles WHERE id = ANY(:ids)"
                 ).bindparams(ids=list(others))
             )
@@ -445,6 +446,8 @@ async def to_reads(
             username=profile[1],
             discriminator=profile[2],
             avatar_url=profile[3],
+            status=profile[4],
+            presence=presence_service.online.presence_of(other),
             state=grant.state.value,
             outgoing=grant.requested_by == user_id,
             created_at=grant.created_at,

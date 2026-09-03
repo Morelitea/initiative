@@ -2,6 +2,8 @@
   "title": "Meine Kontakte",
   "subtitle": "Alle, mit denen du eine Community teilst, und alle, die du markiert hast.",
   "favorites": "Favoriten",
+  "connections": "Verbindungen",
+  "directMessages": "Direktnachrichten",
   "searchPlaceholder": "Kontakte durchsuchen",
   "searchLabel": "Alle auf dieser Seite durchsuchen",
   "clearSearch": "Suche zurücksetzen",

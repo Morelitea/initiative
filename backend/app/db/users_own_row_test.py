@@ -254,6 +254,26 @@ class TestReestablishedContext:
         assert await _assumed_role(s) == platform_role_name("member")
         assert await _count_visible(s, other.id) == 0
 
+    async def test_it_crosses_a_transaction_boundary(
+        self, session, role_session, two_accounts
+    ):
+        """The carried tier reaches Postgres the way every other value does.
+
+        It is resolved once, into the stored parameters, and from there the
+        replay hook applies it as a transaction-local ``set_config`` at the
+        start of each transaction. Nothing is held on the connection, so the
+        role is whatever the parameters say on whichever backend the next
+        transaction lands on — which is what this commit forces.
+        """
+        member, other = two_accounts
+        s = await role_session("app_user")
+        await set_rls_context(s, user_id=member.id, platform_role="member")
+        await set_rls_context(s, user_id=member.id)
+        await s.commit()
+
+        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _count_visible(s, other.id) == 0
+
     async def test_an_unattributed_context_forgets_it(
         self, session, role_session, two_accounts
     ):

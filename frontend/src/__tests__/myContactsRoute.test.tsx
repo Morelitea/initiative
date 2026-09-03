@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  ContactGrantRead,
   ContactGuildSection,
   ContactRead,
   DmPolicy,
@@ -31,6 +32,8 @@ const mocks = vi.hoisted(() => ({
   prefetch: vi.fn(),
   dmSettings: vi.fn(),
   updateDm: vi.fn(),
+  connections: vi.fn(),
+  messages: vi.fn(),
 }));
 
 vi.mock("@/hooks/useContacts", () => ({
@@ -50,6 +53,8 @@ vi.mock("@/hooks/useContacts", () => ({
 vi.mock("@/hooks/useDirectMessages", () => ({
   useDmSettings: () => mocks.dmSettings(),
   useUpdateDmSettings: () => ({ mutate: mocks.updateDm, isPending: false }),
+  useConnections: () => mocks.connections(),
+  useMessageRequests: () => mocks.messages(),
 }));
 
 // The collapse preference is a server round-trip this page does not need to
@@ -111,6 +116,29 @@ const reader = (overrides: { age_confirmed_at?: string | null; dm_policy?: DmPol
     },
   });
 
+let nextGrantId = 500;
+const grant = (overrides: Partial<ContactGrantRead> = {}): ContactGrantRead => ({
+  user_id: nextGrantId++,
+  username: `grant${nextGrantId}`,
+  discriminator: 4321,
+  avatar_url: null,
+  status: "active",
+  presence: "offline",
+  state: "accepted",
+  outgoing: false,
+  created_at: "2026-01-01T00:00:00Z",
+  responded_at: "2026-01-02T00:00:00Z",
+  ...overrides,
+});
+
+/** What the two grant lists hold. Empty unless a test says otherwise. */
+const grants = (connections: ContactGrantRead[] = [], messages: ContactGrantRead[] = []) => {
+  mocks.connections.mockReturnValue({
+    data: { accepted: connections, incoming: [], outgoing: [] },
+  });
+  mocks.messages.mockReturnValue({ data: { accepted: messages, incoming: [], outgoing: [] } });
+};
+
 /** A section page that has not arrived — what every page past the first is. */
 const pendingPage = { data: undefined, isPending: true, isPlaceholderData: false };
 
@@ -140,6 +168,8 @@ beforeEach(() => {
   nextId = 1;
   answer([]);
   reader();
+  grants();
+  nextGrantId = 500;
   mocks.sectionPage.mockReturnValue(pendingPage);
 });
 
@@ -425,11 +455,21 @@ describe("My Contacts", () => {
         await screen.findByRole("button", { name: /Let my communities message me/i })
       );
 
-      // Every community switched on, which is the state Private was designed
-      // to be one click away from.
-      expect(mocks.updateDm).toHaveBeenCalledWith({
-        data: { dm_policy: "community", communities: [{ guild_id: 1, enabled: true }] },
-      });
+      // The policy and nothing else: the community switches would stake the
+      // write on a membership list fetched earlier, and this is the button
+      // that must land.
+      expect(mocks.updateDm).toHaveBeenCalledWith({ data: { dm_policy: "community" } });
+    });
+
+    it("says nothing until it knows what the settings are", async () => {
+      // Absent settings read as an account that has answered nothing, and the
+      // age panel is the one thing never to show somebody who has.
+      mocks.dmSettings.mockReturnValue({ data: undefined });
+      answer([section({ guild_id: 1, total_count: 0, items: [] })]);
+      await renderContacts();
+
+      expect(screen.queryByText(/Direct messages are off for this account/i)).toBeNull();
+      expect(screen.queryByRole("button", { name: /Let my communities message me/i })).toBeNull();
     });
 
     it("says nothing about the reader while a search is running", async () => {
@@ -451,6 +491,41 @@ describe("My Contacts", () => {
       // The line describes other people's settings, which are not the
       // reader's to count.
       expect(line.textContent).not.toMatch(/\d/);
+    });
+  });
+
+  describe("people no community introduced", () => {
+    it("lists somebody you agreed to message and share nothing else with", async () => {
+      // Two accounts on Anyone who accepted each other: no connection, no
+      // community in common, and so no section on this page before now.
+      const pen = grant({ username: "penpal" });
+      grants([], [pen]);
+      answer([]);
+      await renderContacts();
+
+      expect(await screen.findByText(/penpal/)).toBeVisible();
+    });
+
+    it("does not list a connection twice", async () => {
+      // Accepting a connection opens the channel with it, so the same person
+      // is in both lists the server sends.
+      const lee = grant({ username: "leelee" });
+      grants([lee], [lee]);
+      answer([]);
+      await renderContacts();
+
+      expect(await screen.findByText("Connections")).toBeVisible();
+      expect(screen.queryByText("Direct messages")).toBeNull();
+      expect(screen.getAllByText(/leelee/)).toHaveLength(1);
+    });
+
+    it("does not send the reader to the generic empty page", async () => {
+      grants([], [grant({ username: "penpal" })]);
+      answer([]);
+      await renderContacts();
+
+      // In no communities and starring nobody, but not without contacts.
+      expect(screen.queryByText(/Join a community/i)).toBeNull();
     });
   });
 });
