@@ -83,6 +83,11 @@ async def test_sections_follow_rail_order(client: AsyncClient, session: AsyncSes
     await create_guild_membership(session, user=user, guild=first, position=2)
     await create_guild_membership(session, user=user, guild=second, position=0)
     await create_guild_membership(session, user=user, guild=third, position=1)
+    # Somebody else in each, or there would be no section to order.
+    for guild in (first, second, third):
+        await create_guild_membership(
+            session, user=await create_user(session), guild=guild
+        )
 
     response = await client.get(SECTIONS, headers=get_auth_headers(user))
     assert response.status_code == 200
@@ -101,6 +106,7 @@ async def test_a_guild_the_caller_left_has_no_section(
     mine = await create_guild(session)
     theirs = await create_guild(session)
     await create_guild_membership(session, user=user, guild=mine)
+    await create_guild_membership(session, user=await create_user(session), guild=mine)
 
     response = await client.get(SECTIONS, headers=get_auth_headers(user))
     ids = [s["guild_id"] for s in response.json()["sections"]]
@@ -176,6 +182,10 @@ async def test_guild_ids_narrows_to_one_section(
     second = await create_guild(session)
     await create_guild_membership(session, user=user, guild=first, position=0)
     await create_guild_membership(session, user=user, guild=second, position=1)
+    for guild in (first, second):
+        await create_guild_membership(
+            session, user=await create_user(session), guild=guild
+        )
 
     response = await client.get(
         f"{SECTIONS}?guild_ids={second.id}", headers=get_auth_headers(user)
@@ -549,3 +559,26 @@ async def test_guild_admin_gets_no_extra_reach_into_a_list(
     assert (await client.get(FAVORITES, headers=get_auth_headers(admin))).json()[
         "items"
     ] == []
+
+
+@pytest.mark.integration
+async def test_a_community_of_one_has_no_section(
+    client: AsyncClient, session: AsyncSession
+):
+    """Being alone somewhere is not an empty roster, it is no roster.
+
+    The section would otherwise say nobody there is accepting messages, which
+    is a remark about people who are not there.
+    """
+    user = await create_user(session)
+    alone = await create_guild(session)
+    shared = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=alone)
+    await create_guild_membership(session, user=user, guild=shared)
+    await create_guild_membership(
+        session, user=await create_user(session), guild=shared
+    )
+
+    response = await client.get(SECTIONS, headers=get_auth_headers(user))
+    ids = [s["guild_id"] for s in response.json()["sections"]]
+    assert ids == [shared.id]

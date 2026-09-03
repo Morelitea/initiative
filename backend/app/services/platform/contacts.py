@@ -40,7 +40,7 @@ GuildRow = tuple[int, str, Optional[str]]
 
 
 async def ordered_member_guilds(
-    session: AsyncSession, *, user_id: int, platform_role: Optional[str] = None
+    session: AsyncSession, *, user_id: int
 ) -> list[GuildRow]:
     """The reader's guilds in rail order.
 
@@ -49,9 +49,7 @@ async def ordered_member_guilds(
     guild is left out, matching ``member_guild_ids`` and the ``/g/{guild_id}``
     path it stands in for.
     """
-    # Re-establishing context restores the role the request was routed with,
-    # so the tier travels alongside the user id.
-    await set_rls_context(session, user_id=user_id, platform_role=platform_role)
+    await set_rls_context(session, user_id=user_id)
     rows = (
         await session.exec(
             select(Guild.id, Guild.name)
@@ -98,7 +96,6 @@ async def guild_sections(
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = DEFAULT_PAGE_SIZE,
-    platform_role: Optional[str] = None,
 ) -> list[ContactGuildSection]:
     """One section per guild, in the order given.
 
@@ -122,10 +119,7 @@ async def guild_sections(
     # callable from. It has to happen before the walk below, which routes this
     # same session into each guild in turn.
     listable = await listable_by_guild(
-        session,
-        user_id=user_id,
-        guilds=[gid for gid, _n, _i in guilds],
-        platform_role=platform_role,
+        session, user_id=user_id, guilds=[gid for gid, _n, _i in guilds]
     )
 
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
@@ -143,6 +137,13 @@ async def guild_sections(
                 )
             ).all()
         )
+
+        # A community of one is not a section. Nobody is in it to list, and an
+        # empty section there would read as a remark about people who are not
+        # there — the reader is by themselves, which the page should not
+        # dress up as everybody being unreachable.
+        if not membership_map[guild_id]:
+            return []
 
         # Read from the guild projection, not from ``users``: this is a roster,
         # and a routed session has no reach into the account row behind it. The
@@ -209,11 +210,7 @@ async def guild_sections(
 
 
 async def listable_by_guild(
-    session: AsyncSession,
-    *,
-    user_id: int,
-    guilds: Sequence[int],
-    platform_role: Optional[str] = None,
+    session: AsyncSession, *, user_id: int, guilds: Sequence[int]
 ) -> dict[int, set[int]]:
     """Per community, the members this reader may ask to message.
 
@@ -223,9 +220,9 @@ async def listable_by_guild(
     Deliberately **not** narrowed by who has ignored the reader: an ignore
     governs what arrives, not who is listed, so both rosters stay as they were.
     """
-    # Asked as the caller's own tier: the rule reads who is asking from the
-    # request context, so the context has to be the caller's.
-    await set_rls_context(session, user_id=user_id, platform_role=platform_role)
+    # The rule reads who is asking from the request context, so this runs on
+    # the caller's own session rather than being told an id.
+    await set_rls_context(session, user_id=user_id)
     result: dict[int, set[int]] = {}
     for guild_id in guilds:
         rows = await session.exec(

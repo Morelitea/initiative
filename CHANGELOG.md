@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **My Contacts lists the people you could actually reach.** A community section now shows the members who can message you and who you can message, rather than everyone in the room — so the page answers "who can I talk to" instead of "who is here". Because the shipped default is Private, a new account's sections start empty, and the page says why and offers the one setting that fills them, rather than reading as a community with nobody in it. It never counts the people it is not listing.
+- **My Contacts lists the people you could actually reach.** A community section now shows the members who can message you and who you can message, rather than everyone in the room — so the page answers "who can I talk to" instead of "who is here". A community you are alone in is left out entirely. Because the shipped default is Private, a new account's sections start empty, and the page says why and offers the one setting that fills them, rather than reading as a community with nobody in it. It never counts the people it is not listing.
 
 ### Fixed
 
