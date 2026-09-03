@@ -49,11 +49,6 @@ You never upload a decoration. You pick from what you own — the set that ships
 
 Picking the thing you're already wearing takes it off, so there's nothing extra to click for "none". Press **Save look** when you're happy.
 
-#### Two things you fill in yourself
-
-- **Color.** The gilded frame takes one, the split frame takes two. Pick them beside the frame, or **Reset** to go back to how it came.
-- **Year.** The Grad banner and Grad trophy carry one. Choosing either offers this year and keeps whatever you give it, so "class of" says the right thing.
-
 ### Removing a pack
 
 **Remove pack** in **Your packs** gives it up. Its pieces leave your collection, and anything from it you were wearing comes off too — Initiative warns you before it does anything, and you can download it again later.

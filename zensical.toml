@@ -28,8 +28,8 @@ copyright = """
 Copyright &copy; 2026 Morelitea
 """
 
-# Bring your own styling for the "screenshot placeholder" and "technical
-# details" callouts used throughout these docs.
+# Brand palette (shared with morelitea.com), the two custom callout styles,
+# and the heading typeface. See docs/stylesheets/extra.css.
 extra_css = ["stylesheets/extra.css"]
 
 # ----------------------------------------------------------------------------
@@ -113,6 +113,17 @@ nav = [
 
 language = "en"
 
+# The Initiative mark. White-filled, which is what the moss header wants; the
+# favicon is the same mark on a moss ground so it reads on a browser tab.
+logo = "images/logo.svg"
+favicon = "images/favicon.svg"
+
+# Cabin and Libre Baskerville are morelitea.com's pairing. Material loads the
+# body face; extra.css pulls Libre Baskerville in for headings.
+[project.theme.font]
+text = "Cabin"
+code = "JetBrains Mono"
+
 features = [
   "announce.dismiss",
   "content.code.copy",
@@ -131,20 +142,19 @@ features = [
   "toc.follow",
 ]
 
-[project.theme.icon]
-logo = "lucide/compass"
-
+# "custom" carries no colours of its own — extra.css defines them, so the
+# palette stays in one place alongside the rest of the brand tokens.
 [[project.theme.palette]]
 scheme = "default"
-primary = "deep purple"
-accent = "deep purple"
+primary = "custom"
+accent = "custom"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
 [[project.theme.palette]]
 scheme = "slate"
-primary = "deep purple"
-accent = "deep purple"
+primary = "custom"
+accent = "custom"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
