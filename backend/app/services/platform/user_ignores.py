@@ -21,6 +21,7 @@ from sqlmodel import col, func, select
 
 from app.models.platform.user_ignore import UserIgnore
 from app.models.platform.user_profile_view import user_profiles
+from app.services.platform import contacts_stream
 from app.schemas.platform.dm import IgnoredAccountRead, IgnoredAccountsResponse
 
 
@@ -82,6 +83,9 @@ async def add(session: AsyncSession, *, user_id: int, ignored_user_id: int) -> N
         )
         .on_conflict_do_nothing(index_elements=["user_id", "ignored_user_id"])
     )
+    # The holder's own lists moved. The other account is told nothing, here or
+    # anywhere: a frame would land at exactly the moment the row appeared.
+    contacts_stream.queue_contacts_signal(session, user_id)
     await session.commit()
 
 
@@ -95,6 +99,7 @@ async def remove(session: AsyncSession, *, user_id: int, ignored_user_id: int) -
     row = await session.get(UserIgnore, (user_id, ignored_user_id))
     if row is not None:
         await session.delete(row)
+        contacts_stream.queue_contacts_signal(session, user_id)
         await session.commit()
 
 

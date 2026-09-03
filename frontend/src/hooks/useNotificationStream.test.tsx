@@ -9,9 +9,15 @@ import { AuthContext } from "@/hooks/useAuth";
 import { useNotificationStream, useNotificationStreamConnected } from "./useNotificationStream";
 
 const invalidateNotifications = vi.fn();
+const invalidateContactGrants = vi.fn();
+const invalidateIgnoredAccounts = vi.fn();
+const invalidateDmSettings = vi.fn();
 vi.mock("@/api/query-keys", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/query-keys")>()),
   invalidateNotifications: () => invalidateNotifications(),
+  invalidateContactGrants: () => invalidateContactGrants(),
+  invalidateIgnoredAccounts: () => invalidateIgnoredAccounts(),
+  invalidateDmSettings: () => invalidateDmSettings(),
 }));
 
 const MSG_AUTH = 5;
@@ -122,15 +128,53 @@ describe("useNotificationStream", () => {
     renderWithProviders(<Probe />, { auth: { refreshUser } });
     const socket = latest();
     socket.open();
-    // The catch-up on connect pokes both; this test is about the frame.
+    // The catch-up on connect pokes every channel; this test is about the frame.
     refreshUser.mockClear();
     invalidateNotifications.mockClear();
+    invalidateContactGrants.mockClear();
 
     socket.receive({ resource: "account", action: "membership", ids: {} });
 
     expect(refreshUser).toHaveBeenCalledTimes(1);
-    // Two channels over one socket: neither answers for the other.
+    // Three channels over one socket: none answers for the others.
     expect(invalidateNotifications).not.toHaveBeenCalled();
+    expect(invalidateContactGrants).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the contact lists when the server says they moved", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latest();
+    socket.open();
+    refreshUser.mockClear();
+    invalidateNotifications.mockClear();
+    invalidateContactGrants.mockClear();
+    invalidateIgnoredAccounts.mockClear();
+    invalidateDmSettings.mockClear();
+
+    socket.receive({ resource: "contacts", action: "changed", ids: {} });
+
+    // All three move together: accepting a connection opens a channel, and
+    // leaving a community closes one.
+    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
+    expect(invalidateIgnoredAccounts).toHaveBeenCalledTimes(1);
+    expect(invalidateDmSettings).toHaveBeenCalledTimes(1);
+    // And neither of the other channels is disturbed.
+    expect(refreshUser).not.toHaveBeenCalled();
+    expect(invalidateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("ignores a frame naming a channel it does not know", () => {
+    renderWithProviders(<Probe />);
+    const socket = latest();
+    socket.open();
+    invalidateNotifications.mockClear();
+    invalidateContactGrants.mockClear();
+
+    socket.receive({ resource: "something-new", action: "changed", ids: {} });
+
+    expect(invalidateNotifications).not.toHaveBeenCalled();
+    expect(invalidateContactGrants).not.toHaveBeenCalled();
   });
 
   it("catches up on both channels after the socket was down", () => {
@@ -143,6 +187,7 @@ describe("useNotificationStream", () => {
     // includes being added to a community.
     expect(refreshUser).toHaveBeenCalledTimes(1);
     expect(invalidateNotifications).toHaveBeenCalledTimes(1);
+    expect(invalidateContactGrants).toHaveBeenCalledTimes(1);
   });
 
   it("tries the account again when the re-read fails", async () => {
