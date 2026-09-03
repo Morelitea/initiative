@@ -53,7 +53,7 @@ const VERSION_UPLOAD_ACCEPT =
 interface FileDocumentViewerProps {
   documentId: number;
   /** The document's OWNING guild — downloads are addressed by it, not the
-   * active guild, so cross-guild surfaces (My Documents) resolve correctly. */
+   * active guild, so cross-guild surfaces (My Tools) resolve correctly. */
   guildId: number;
   fileUrl: string;
   contentType?: string | null;

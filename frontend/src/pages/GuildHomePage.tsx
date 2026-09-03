@@ -23,21 +23,18 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
-import { GuildToolRail, TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
-import {
-  type GuildToolSortField,
-  GuildToolTable,
-  isGuildToolSortField,
-} from "@/components/guildHome/GuildToolTable";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
 import { CreateInitiativeDialog } from "@/components/initiatives/CreateInitiativeDialog";
 import { PageBanner } from "@/components/PageBanner";
+import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
+import { isToolSortField, type ToolSortField, ToolTable } from "@/components/toolBrowser/ToolTable";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { renderableBanner } from "@/lib/banner";
+import { useGuildPath } from "@/lib/guildUrl";
 import { CORE_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +43,7 @@ const DEFAULT_PAGE_SIZE = 20;
 export function GuildHomePage() {
   const { t } = useTranslation("guildHome");
   const { activeGuild } = useGuilds();
+  const gp = useGuildPath();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as {
     tool?: string;
@@ -127,7 +125,7 @@ export function GuildHomePage() {
   // left out of it — most-recently-updated is what the endpoints do unasked,
   // so spelling it in every URL would only be noise.
   const query = search.q ?? "";
-  const sortBy: GuildToolSortField = isGuildToolSortField(search.sort) ? search.sort : "updated_at";
+  const sortBy: ToolSortField = isToolSortField(search.sort) ? search.sort : "updated_at";
   const sortDir: "asc" | "desc" =
     search.dir === "asc" || search.dir === "desc"
       ? search.dir
@@ -167,7 +165,7 @@ export function GuildHomePage() {
   }, [draftQuery, query, setSearch]);
 
   const handleSortChange = useCallback(
-    (field: GuildToolSortField, direction: "asc" | "desc") => {
+    (field: ToolSortField, direction: "asc" | "desc") => {
       const isDefault = field === "updated_at" && direction === "desc";
       setSearch({
         sort: isDefault ? undefined : field,
@@ -248,7 +246,13 @@ export function GuildHomePage() {
                 arriving, failing, empty — happens in there, so the edge the
                 circles melt into is always the thing they melt into. */}
             <div>
-              <GuildToolRail tools={tools} selected={selected} align={banner.text_align} />
+              <ToolRail
+                tools={tools}
+                selected={selected}
+                to={gp("/")}
+                label={t("toolRail")}
+                align={banner.text_align}
+              />
               <div
                 className={cn("rounded-b-2xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4", TOOL_TRAY_SURFACE)}
               >
@@ -270,7 +274,7 @@ export function GuildHomePage() {
                     </CardHeader>
                   </Card>
                 ) : (
-                  <GuildToolTable
+                  <ToolTable
                     tool={selected}
                     rows={rows}
                     initiatives={initiativesQuery.data ?? []}

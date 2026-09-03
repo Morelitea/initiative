@@ -43,6 +43,7 @@
   },
   "columns": {
     "name": "Nom",
+    "community": "Communauté",
     "initiative": "Initiative",
     "tags": "Étiquettes",
     "updated": "Dernière mise à jour",

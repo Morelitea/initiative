@@ -1226,11 +1226,14 @@ export const useClearCalendarViewApiV1GGuildIdCalendarsCalendarIdViewDelete = <
 };
 /**
  * List the calendars visible to the user across all their guilds — the
- * backing data for the My Calendar grouping panel.
+ * backing data for the My Calendar grouping panel and the My Tools table.
  *
  * Mirrors ``list_my_calendar_events``: visit each member guild schema under
  * the user's own RLS context (guild isolation + DAC hold), merge, and
- * paginate in Python (per-schema SQL can't limit across schemas).
+ * paginate in Python (per-schema SQL can't limit across schemas). The WHERE
+ * legs are ``my_tools.scope_conditions`` — the same rules every cross-guild
+ * tool list reads; a guild calendar answers to no initiative switch and so
+ * belongs in this view like any other.
  * @summary List My Calendars
  */
 export const listMyCalendarsApiV1MeCalendarsGet = (

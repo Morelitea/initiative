@@ -110,9 +110,9 @@ Two likely reasons: you're in a **different community** (check the rail down the
 
 If you're not a member of the initiative it lives in, Initiative hides it completely — so a direct link says "not found" rather than "access denied". Ask to be added to the initiative. See [Sharing & access](sharing/index.md).
 
-### My Projects doesn't show everything in my community
+### My Tools doesn't show everything in my community
 
-It isn't meant to. My Projects, My Documents and My Calendar — and the community front page — show what has reached *you*: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. Open a single initiative to see all of its work. See [Your space](guides/your-space.md#my-projects).
+It isn't meant to. My Tools and My Calendar — and the community front page — show what has reached *you*: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. It's a working list, not an inventory. Open a single initiative to see all of its work. See [Your space](guides/your-space.md#my-tools).
 
 ### I'm a community admin. Why isn't every initiative in my sidebar?
 

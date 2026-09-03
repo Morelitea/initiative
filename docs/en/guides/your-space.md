@@ -18,17 +18,20 @@ If you only ever open one page in Initiative for the rest of your life, it's thi
 
 The tasks *you* made, wherever they ended up. Useful for gently following up on the things you handed to other people, in a way that isn't nagging because you've got a list.
 
-## My Projects
+## My Tools
 
-Every project that's reached *you*, across all your communities. A fast way to jump to one without switching communities first.
+Every project, document, queue, counter, calendar and dashboard that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
 
-"Reached you" means the same thing on all of these pages: shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in.
+A tool you have none of anywhere doesn't get a tab at all. Never touched a queue? No queue tab, and no empty table sulking behind it.
 
-It is **not** "everything you could theoretically open if you went hunting". Even a community admin — who can reach absolutely anything in their community — gets a list of their own work here, rather than a 400-row inventory of everybody else's.
+"Reached you" means the same thing everywhere in your space: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. It does **not** mean "everything you could theoretically prise open if you went looking". Even a community admin, who can reach absolutely anything in their community, gets their own work here rather than a 400-row inventory of everybody else's.
 
-## My Documents
+Two switches sit above the table:
 
-The documents that are yours, on exactly the same rule.
+- **Everything / Made by me** — the second is exactly what it sounds like: things you wrote, regardless of who's been given them since.
+- **Communities** — for when you're in five and today you care about one.
+
+The tool, the search, the order, the page and the communities you picked all live in the address bar. So whatever you're looking at is a link, which is a considerably nicer thing to send somebody than "open My Tools and click around a bit".
 
 ## My Contacts
 

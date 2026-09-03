@@ -1,0 +1,27 @@
+{
+  "title": "Meine Werkzeuge",
+  "subtitle": "Alles, was dich erreicht – ein Werkzeug nach dem anderen, über alle deine Communitys hinweg.",
+  "toolRail": "Deine Werkzeuge",
+  "view": {
+    "label": "Anzeigen",
+    "everything": "Alles",
+    "createdByMe": "Von mir erstellt"
+  },
+  "communities": {
+    "label": "Communitys",
+    "all": "Alle Communitys",
+    "none": "Du bist noch in keiner Community."
+  },
+  "loading": "Wird geladen…",
+  "loadError": "Dieses Werkzeug konnte nicht geladen werden. Bitte versuche es später erneut.",
+  "empty": {
+    "title": "Hier ist noch nichts",
+    "description": "In deinen Communitys erreicht dich davon noch nichts.",
+    "descriptionMine": "Davon hast du noch nichts erstellt."
+  },
+  "noTools": {
+    "title": "Noch nichts zum Durchsehen",
+    "description": "Sobald du an einem Projekt, einem Dokument oder etwas anderem beteiligt bist, erscheint es hier.",
+    "descriptionMine": "Sobald du etwas erstellst, erscheint es hier."
+  }
+}

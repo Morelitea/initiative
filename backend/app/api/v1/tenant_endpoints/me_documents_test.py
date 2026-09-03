@@ -1,8 +1,9 @@
 """
 Integration tests for the global documents scope.
 
-Tests GET /api/v1/me/documents which returns documents created
-by the current user across all guilds they belong to.
+Tests GET /api/v1/me/documents, which returns the documents that reach the
+current user across all guilds they belong to — the My Tools table's document
+tab. ``created_by_me=true`` is the page's other view: the ones they wrote.
 """
 
 import pytest
@@ -48,8 +49,8 @@ async def test_list_global_documents(client: AsyncClient, acting_user):
 
 
 @pytest.mark.integration
-async def test_list_global_documents_excludes_others(client: AsyncClient, acting_user):
-    """GET /me/documents should NOT return documents created by other users."""
+async def test_list_global_documents_includes_shared(client: AsyncClient, acting_user):
+    """A co-member reads what was shared with the initiative they are in."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     other = await acting_user(
         guild_role=GuildRole.member,
@@ -58,15 +59,57 @@ async def test_list_global_documents_excludes_others(client: AsyncClient, acting
         initiative_role="member",
     )
 
-    # Admin creates a doc (via API, so created_by is set)
+    # Created through the API, so it carries the default all-members read grant.
     admin_doc = await _create_document(client, admin, admin.initiative, "Admin's Doc")
 
-    # Other user queries global docs — should not see admin's doc
     response = await client.get("/api/v1/me/documents", headers=other.headers)
 
     assert response.status_code == 200
     doc_ids = {d["id"] for d in response.json()["items"]}
+    assert admin_doc["id"] in doc_ids
+
+
+@pytest.mark.integration
+async def test_list_global_documents_created_by_me(client: AsyncClient, acting_user):
+    """``created_by_me`` narrows the same list to what the caller wrote."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    peer = await acting_user(
+        guild_role=GuildRole.admin,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+
+    admin_doc = await _create_document(client, admin, admin.initiative, "Admin's Doc")
+    own_doc = await _create_document(client, peer, admin.initiative, "Their Own Doc")
+
+    response = await client.get(
+        "/api/v1/me/documents?created_by_me=true", headers=peer.headers
+    )
+
+    assert response.status_code == 200
+    doc_ids = {d["id"] for d in response.json()["items"]}
+    assert own_doc["id"] in doc_ids
     assert admin_doc["id"] not in doc_ids
+
+
+@pytest.mark.integration
+async def test_list_global_documents_excludes_other_guilds(
+    client: AsyncClient, acting_user
+):
+    """A guild the caller does not belong to contributes nothing."""
+    outsider = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    stranger = await acting_user(guild_role=GuildRole.admin, initiative=True)
+
+    stranger_doc = await _create_document(
+        client, stranger, stranger.initiative, "Not Yours"
+    )
+
+    response = await client.get("/api/v1/me/documents", headers=outsider.headers)
+
+    assert response.status_code == 200
+    keyed = {(d["initiative"]["guild_id"], d["id"]) for d in response.json()["items"]}
+    assert (stranger.guild.id, stranger_doc["id"]) not in keyed
 
 
 @pytest.mark.integration

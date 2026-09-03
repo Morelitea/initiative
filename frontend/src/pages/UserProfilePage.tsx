@@ -3,10 +3,10 @@ import { Loader2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
-import { TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
+import { TOOL_TRAY_SURFACE } from "@/components/toolBrowser/ToolRail";
 import { UserHandle } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileJoined } from "@/components/user/ProfileJoined";

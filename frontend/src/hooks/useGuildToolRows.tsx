@@ -4,53 +4,29 @@
  * The six list endpoints already agree on a shape — `{ items, total_count,
  * has_next }` keyed by `page`/`page_size` — so this hook calls all six and
  * gates every one but the selected tool with `enabled: false`. That keeps the
- * calls unconditional (hook rules) while exactly one request is in flight, and
- * leaves the tool switch as a plain `switch` whose exhaustiveness the compiler
- * checks: a new `Tool` member fails to build here until it can produce rows.
+ * calls unconditional (hook rules) while exactly one request is in flight.
+ *
+ * Turning the answer into rows is `lib/toolRows`, shared with the cross-guild
+ * twin of this hook (`useMyToolRows`), so both tables say the same thing about
+ * a tool.
  */
 
 import { keepPreviousData } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { Badge } from "@/components/ui/badge";
-import { ProgressCircle } from "@/components/ui/progress-circle";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
-import { toolDetailRoute } from "@/lib/tools";
+import type { ToolResponses, ToolRow } from "@/lib/toolRows";
+import { buildToolRows } from "@/lib/toolRows";
 
-/** One row of the guild home table, in terms every tool can answer. */
-export interface GuildToolRow {
-  id: number;
-  name: string;
-  /** Guild-relative detail route, e.g. `/projects/12`. */
-  href: string;
-  /** Leading mark in the name cell — a project's emoji, a calendar's colour. */
-  glyph: ReactNode;
-  /** `null` for the guild-level rows a tool allows (calendars). */
-  initiativeId: number | null;
-  tags: TagSummary[];
-  updatedAt: string;
-  /** The tool's own column: what this row is, in its own terms. */
-  detail: ReactNode;
-  /** The scalar behind {@link detail}, so that column sorts. */
-  detailSort: string | number;
-}
-
-const ColourDot = ({ colour }: { colour: string }) => (
-  <span
-    aria-hidden
-    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-    style={{ backgroundColor: colour }}
-  />
-);
+export type { ToolRow as GuildToolRow } from "@/lib/toolRows";
 
 /** How the guild home's one table is narrowed and ordered, in the terms every
  *  tool's list endpoint accepts. */
@@ -69,6 +45,7 @@ export function useGuildToolRows(
   view: GuildToolQuery = {}
 ) {
   const { t } = useTranslation("guildHome");
+  const guildId = useActiveGuildId();
 
   // Search and sort go to the server, not to the rows already in hand: the
   // table holds one page of a guild-wide list, and filtering that page would
@@ -95,6 +72,8 @@ export function useGuildToolRows(
   const calendars = useCalendarsList(params, only(Tool.calendar));
   const dashboards = useDashboardsList(params, only(Tool.dashboard));
 
+  // Exhaustive by construction: a new Tool member fails to compile here until
+  // it names the query that lists it.
   const query = {
     [Tool.project]: projects,
     [Tool.document]: documents,
@@ -104,103 +83,20 @@ export function useGuildToolRows(
     [Tool.dashboard]: dashboards,
   }[tool];
 
-  const rows = useMemo<GuildToolRow[]>(() => {
-    // Each row addresses its own initiative — a guild-wide table spans them,
-    // and a calendar may have none at all.
-    const href = (id: number, initiativeId: number | null) =>
-      toolDetailRoute(tool, initiativeId, id);
-    switch (tool) {
-      case Tool.project:
-        return (projects.data?.items ?? []).map((project) => {
-          const { completed, total } = project.task_summary;
-          const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-          return {
-            id: project.id,
-            name: project.name,
-            href: href(project.id, project.initiative_id),
-            glyph: project.icon,
-            initiativeId: project.initiative_id,
-            tags: project.tags,
-            updatedAt: project.updated_at,
-            detail: (
-              <span className="flex items-center gap-2">
-                <ProgressCircle value={percent} className="h-6 w-6 shrink-0" />
-                {t("detail.tasksDone", { completed, total })}
-              </span>
-            ),
-            detailSort: percent,
-          };
-        });
-      case Tool.document:
-        return (documents.data?.items ?? []).map((document) => ({
-          id: document.id,
-          name: document.name,
-          href: href(document.id, document.initiative_id),
-          glyph: null,
-          initiativeId: document.initiative_id,
-          tags: document.tags,
-          updatedAt: document.updated_at,
-          detail: (
-            <Badge variant="secondary">{t(`detail.documentType.${document.document_type}`)}</Badge>
-          ),
-          detailSort: document.document_type,
-        }));
-      case Tool.queue:
-        return (queues.data?.items ?? []).map((queue) => ({
-          id: queue.id,
-          name: queue.name,
-          href: href(queue.id, queue.initiative_id),
-          glyph: null,
-          initiativeId: queue.initiative_id,
-          tags: queue.tags,
-          updatedAt: queue.updated_at,
-          detail: t("detail.queueItems", { count: queue.item_count }),
-          detailSort: queue.item_count,
-        }));
-      case Tool.counter_group:
-        return (counterGroups.data?.items ?? []).map((group) => ({
-          id: group.id,
-          name: group.name,
-          href: href(group.id, group.initiative_id),
-          glyph: null,
-          initiativeId: group.initiative_id,
-          tags: group.tags,
-          updatedAt: group.updated_at,
-          detail: t("detail.counters", { count: group.counter_count }),
-          detailSort: group.counter_count,
-        }));
-      case Tool.calendar:
-        return (calendars.data?.items ?? []).map((calendar) => ({
-          id: calendar.id,
-          name: calendar.name,
-          href: href(calendar.id, calendar.initiative_id),
-          glyph: <ColourDot colour={calendar.color} />,
-          initiativeId: calendar.initiative_id,
-          tags: calendar.tags,
-          updatedAt: calendar.updated_at,
-          detail: calendar.description,
-          detailSort: calendar.description ?? "",
-        }));
-      case Tool.dashboard:
-        return (dashboards.data?.items ?? []).map((dashboard) => ({
-          id: dashboard.id,
-          name: dashboard.name,
-          href: href(dashboard.id, dashboard.initiative_id),
-          glyph: null,
-          initiativeId: dashboard.initiative_id,
-          tags: dashboard.tags,
-          updatedAt: dashboard.updated_at,
-          detail: dashboard.listing_uid ? (
-            <Badge variant="secondary">{t("detail.fromMarketplace")}</Badge>
-          ) : (
-            t("detail.builtHere")
-          ),
-          detailSort: dashboard.listing_uid ?? "",
-        }));
-    }
+  const rows = useMemo<ToolRow[]>(() => {
+    const responses: ToolResponses = {
+      [Tool.project]: projects.data,
+      [Tool.document]: documents.data,
+      [Tool.queue]: queues.data,
+      [Tool.counter_group]: counterGroups.data,
+      [Tool.calendar]: calendars.data,
+      [Tool.dashboard]: dashboards.data,
+    };
+    return buildToolRows(tool, responses, t, guildId);
   }, [
     tool,
     t,
+    guildId,
     projects.data,
     documents.data,
     queues.data,

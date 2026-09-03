@@ -2762,8 +2762,8 @@ export const useSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = <
  * List projects across all guilds the current user belongs to.
  *
  * Returns a paginated list filtered by DAC permissions, excluding
- * archived and template projects. Supports optional guild and
- * name-search filters.
+ * archived and template projects. Supports optional guild, name-search and
+ * made-by-me filters.
  * @summary List My Projects
  */
 export const listMyProjectsApiV1MeProjectsGet = (

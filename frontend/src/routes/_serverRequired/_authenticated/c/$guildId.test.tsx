@@ -83,7 +83,7 @@ describe("shouldPinSuspendedGuildToSettings", () => {
     // The router publishes the pending target location while the suspended
     // guild's layout is still mounted — these must not bounce back to settings.
     expect(shouldPinSuspendedGuildToSettings("/", guildId)).toBe(false);
-    expect(shouldPinSuspendedGuildToSettings("/my-projects", guildId)).toBe(false);
+    expect(shouldPinSuspendedGuildToSettings("/my-tools", guildId)).toBe(false);
     expect(shouldPinSuspendedGuildToSettings("/profile", guildId)).toBe(false);
     expect(shouldPinSuspendedGuildToSettings("/c/6/", guildId)).toBe(false);
     expect(shouldPinSuspendedGuildToSettings("/c/6/settings", guildId)).toBe(false);

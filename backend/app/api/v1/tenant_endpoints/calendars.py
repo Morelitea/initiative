@@ -51,6 +51,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import calendars as calendars_service
+from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import tags as tags_service
@@ -467,30 +468,45 @@ async def list_my_calendars(
     session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_ids: Optional[List[int]] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    created_by_me: bool = Query(
+        default=False,
+        description="Narrow to calendars the caller created.",
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, updated_at, created_at. Omit for this "
+            "view's own order, which is by name."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=200, ge=1, le=200),
 ) -> CalendarListResponse:
     """List the calendars visible to the user across all their guilds — the
-    backing data for the My Calendar grouping panel.
+    backing data for the My Calendar grouping panel and the My Tools table.
 
     Mirrors ``list_my_calendar_events``: visit each member guild schema under
     the user's own RLS context (guild isolation + DAC hold), merge, and
-    paginate in Python (per-schema SQL can't limit across schemas).
+    paginate in Python (per-schema SQL can't limit across schemas). The WHERE
+    legs are ``my_tools.scope_conditions`` — the same rules every cross-guild
+    tool list reads; a guild calendar answers to no initiative switch and so
+    belongs in this view like any other.
     """
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        # A guild calendar is one of the user's own calendars like any other, so
-        # it belongs in this view — it is reached here and from the app, and
-        # nowhere that belongs to an initiative.
-        conditions = [
-            calendars_service.tool_enabled_clause(),
-            permissions_service.granted_scope_clause(
-                Tool.calendar, Calendar.id, current_user.id, guild_id=guild_id
-            ),
-        ]
         stmt = (
             select(Calendar)
-            .where(*conditions)
+            .where(
+                *my_tools_service.scope_conditions(
+                    Tool.calendar,
+                    user_id=current_user.id,
+                    guild_id=guild_id,
+                    search=search,
+                    created_by_me=created_by_me,
+                )
+            )
             .options(*calendars_service.calendar_loader_options())
         )
         return _exec_calendars(guild_session, stmt)
@@ -502,7 +518,13 @@ async def list_my_calendars(
         session, current_user.id, target_guilds, _fetch
     )
     # Merge-sort across guilds (per-schema SQL can't order across schemas).
-    calendars.sort(key=lambda c: (c.name.lower(), c.guild_id, c.id))
+    calendars = my_tools_service.sort_merged(
+        calendars,
+        sort_by,
+        sort_dir,
+        default=lambda c: (c.name or "").lower(),
+        default_desc=False,
+    )
 
     total_count = len(calendars)
     start = (page - 1) * page_size

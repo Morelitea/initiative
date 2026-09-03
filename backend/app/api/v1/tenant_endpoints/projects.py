@@ -54,6 +54,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
+from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import search as search_service
 from app.services import rls as rls_service
 from app.services.tenant import tags as tags_service
@@ -921,25 +922,6 @@ def _apply_global_project_sort(
     return statement
 
 
-def _sort_global_project_reads(
-    reads: list[ProjectRead], sort_by: Optional[str], sort_dir: Optional[str]
-) -> list[ProjectRead]:
-    """Order the merged cross-guild reads, mirroring _apply_global_project_sort.
-
-    ``id`` is always the (descending) tiebreak; applied as a separate stable pass
-    so it holds regardless of the primary direction. Manual per-user ordering is
-    intentionally not used here — its ids are per-guild, so it can't span guilds.
-    """
-    reads.sort(key=lambda r: r.id, reverse=True)
-    if sort_by == "name":
-        reads.sort(key=lambda r: (r.name or "").lower(), reverse=sort_dir == "desc")
-    elif sort_by == "updated_at":
-        reads.sort(key=lambda r: r.updated_at, reverse=sort_dir == "desc")
-    else:
-        reads.sort(key=lambda r: r.updated_at, reverse=True)
-    return reads
-
-
 async def _list_global_projects(
     session: SessionDep,
     current_user: User,
@@ -950,6 +932,7 @@ async def _list_global_projects(
     page_size: int = 20,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None,
+    created_by_me: bool = False,
 ) -> tuple[list[ProjectRead], int]:
     """List projects across every guild the user belongs to.
 
@@ -959,28 +942,25 @@ async def _list_global_projects(
 
     The sharing gate is resolved per guild, inside ``_fetch``: the answer depends
     on the caller's role in that guild, which ``gather_across_guilds`` establishes
-    for each one in turn.
+    for each one in turn. The legs themselves are
+    ``my_tools.scope_conditions`` — the same rules every cross-guild tool list
+    reads.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
 
-    conditions = [
-        Project.is_archived.is_(False),
-        Project.is_template.is_(False),
-    ]
-    name_match = search_service.tool_search_clause(Tool.project, Project.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[ProjectRead]:
         statement = (
             select(Project)
             .where(
-                *conditions,
-                permissions_service.granted_scope_clause(
-                    Tool.project, Project.id, current_user.id, guild_id=guild_id
-                ),
+                *my_tools_service.scope_conditions(
+                    Tool.project,
+                    user_id=current_user.id,
+                    guild_id=guild_id,
+                    search=search,
+                    created_by_me=created_by_me,
+                )
             )
             .options(
                 selectinload(Project.grants).options(
@@ -1015,7 +995,11 @@ async def _list_global_projects(
         )
 
     reads = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    reads = _sort_global_project_reads(reads, sort_by, sort_dir)
+    # Manual per-user ordering is deliberately not offered here — its positions
+    # are per-guild, so they cannot span guilds.
+    reads = my_tools_service.sort_merged(
+        reads, sort_by, sort_dir, default=lambda r: r.updated_at
+    )
     return paginate_sequence(reads, page, page_size), len(reads)
 
 
@@ -1200,12 +1184,16 @@ async def list_my_projects(
     page_size: int = Query(default=20, ge=1, le=100),
     sort_by: Optional[str] = Query(default=None),
     sort_dir: Optional[str] = Query(default=None),
+    created_by_me: bool = Query(
+        default=False,
+        description="Narrow to projects the caller created.",
+    ),
 ) -> ProjectListResponse:
     """List projects across all guilds the current user belongs to.
 
     Returns a paginated list filtered by DAC permissions, excluding
-    archived and template projects. Supports optional guild and
-    name-search filters.
+    archived and template projects. Supports optional guild, name-search and
+    made-by-me filters.
     """
     project_reads, total_count = await _list_global_projects(
         session,
@@ -1216,6 +1204,7 @@ async def list_my_projects(
         page_size=page_size,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        created_by_me=created_by_me,
     )
     return ProjectListResponse(
         items=project_reads,

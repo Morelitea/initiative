@@ -1,8 +1,11 @@
 /**
- * The guild home's tool switcher: one circle per tool, its name underneath.
+ * A tool switcher: one circle per tool, its name underneath. The community
+ * front page browses one community with it; My Tools browses every community
+ * the reader is in.
  *
  * Each circle is a real link carrying `?tool=<route segment>`, so a tool view
- * is shareable, survives a reload, and answers the back button.
+ * is shareable, survives a reload, and answers the back button. Where those
+ * links point is the caller's business — the rail only names the tool.
  *
  * The circles are the top edge of the tray the table below sits in, not marks
  * laid on the banner: each one's lower half is inside the tray, and an SVG goo
@@ -31,7 +34,6 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useGuildPath } from "@/lib/guildUrl";
 import { TOOL_ICONS, toolNavLabelKey, toolRouteSegment } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -49,18 +51,21 @@ const TRAY_EDGE = "top-13";
 
 const GOO_FILTER_ID = "guild-tool-rail-goo";
 
-interface GuildToolRailProps {
+interface ToolRailProps {
   tools: Tool[];
   selected: Tool;
+  /** The page the circles link to; each adds its own `?tool=`. */
+  to: string;
+  /** What the rail is, for a reader who cannot see the circles. */
+  label: string;
   /** Where the banner above puts its copy. The rail lines up with it. */
   align?: "center" | "left";
 }
 
-export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRailProps) => {
-  // `nav` leads so the derived tool label keys resolve without a namespace
-  // prefix — the same call shape the sidebar uses.
-  const { t } = useTranslation(["nav", "guildHome"]);
-  const gp = useGuildPath();
+export const ToolRail = ({ tools, selected, to, label, align = "left" }: ToolRailProps) => {
+  // Only the tool names come from here; `nav` leads so the derived label keys
+  // resolve without a namespace prefix — the same call shape the sidebar uses.
+  const { t } = useTranslation("nav");
 
   return (
     <div className="relative">
@@ -100,10 +105,7 @@ export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRail
           aria-hidden="true"
           className={cn("absolute inset-x-0 bottom-0 rounded-t-2xl", TRAY_EDGE, TOOL_TRAY_SURFACE)}
         />
-        <nav
-          aria-label={t("guildHome:toolRail")}
-          className="relative overflow-x-auto px-2 pb-2 sm:px-3"
-        >
+        <nav aria-label={label} className="relative overflow-x-auto px-2 pb-2 sm:px-3">
           {/* `w-max min-w-full` rather than `min-w-max`: the list is at least as
               wide as the rail, so centring has room to act, and grows past it
               when there are more circles than fit, so it still scrolls. */}
@@ -122,7 +124,7 @@ export const GuildToolRail = ({ tools, selected, align = "left" }: GuildToolRail
               return (
                 <li key={tool}>
                   <Link
-                    to={gp("/")}
+                    to={to}
                     search={{ tool: toolRouteSegment(tool) }}
                     aria-current={isSelected ? "page" : undefined}
                     className={cn(

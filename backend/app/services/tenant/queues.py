@@ -74,6 +74,19 @@ def require_queue_access(
 # ---------------------------------------------------------------------------
 
 
+def list_loader_options() -> list:
+    """Eager-load what a queue *list* row needs: its items (for the count), its
+    sharing, its initiative's memberships (the DAC engine reads them) and its
+    tags. Lighter than :func:`get_queue`, which also walks each item's own
+    links for the detail read."""
+    return [
+        selectinload(Queue.items),
+        selectinload(Queue.grants).selectinload(ResourceGrant.role),
+        selectinload(Queue.initiative).selectinload(Initiative.memberships),
+        tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
+    ]
+
+
 async def get_queue(
     session: AsyncSession,
     queue_id: int,

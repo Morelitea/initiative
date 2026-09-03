@@ -126,6 +126,10 @@ An emoji, a line about what you're up to, or both, shown on your profile. Not to
 
 How you're around, shown as a dot under your picture: **online**, **idle**, **busy**, or **offline**. Idle sets itself after a while of nothing happening; offline means nobody sees you as here, whatever you have open. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
 
+### My Tools
+
+Your personal page gathering every project, document, queue, counter group, calendar and dashboard that's reached you, from every community at once — one tool at a time. A tool you have none of gets no tab. See [Your space](../guides/your-space.md#my-tools).
+
 ### My Contacts
 
 Your personal page listing the people you can actually reach — your connections, anyone you've agreed to message, and the members of your communities who can message you — plus anyone you've starred. See [Your space](../guides/your-space.md#my-contacts).

@@ -35,7 +35,7 @@ describe("canonicalInitiativePath", () => {
 
   // Nothing outside a guild has an initiative to canonicalize.
   it("leaves a non-guild path alone", () => {
-    expect(canonicalInitiativePath("/my-projects", 5)).toBe("/my-projects");
+    expect(canonicalInitiativePath("/my-tools", 5)).toBe("/my-tools");
     expect(canonicalInitiativePath("/profile/notifications", null)).toBe("/profile/notifications");
   });
 

@@ -14,7 +14,7 @@ But if you'd like the map first: there are four regions on screen. You will spen
 
 A narrow column of icons welded to the edge of the screen. One per community you belong to. Click one and the entire app swaps over — sidebar, projects, documents, the lot.
 
-Above them sits the **Initiative logo**, and that one's your corner: My Tasks, My Projects, My Documents, My Calendar, My Contacts, My Messages, My Stats. Everything that's *yours*, gathered from every community at once, so you can see what you've agreed to without opening four communities to find out. See [Your space](../guides/your-space.md).
+Above them sits the **Initiative logo**, and that one's your corner: My Tasks, Tasks I Created, My Calendar, My Tools, My Contacts, My Messages, My Stats. Everything that's *yours*, gathered from every community at once, so you can see what you've agreed to without opening four communities to find out. See [Your space](../guides/your-space.md).
 
 ## The sidebar
 

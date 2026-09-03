@@ -75,6 +75,7 @@ Every tool, without exception:
 - **Has a comment thread**, switchable off per item under **Settings → Advanced**.
 - **Can be pointed at** with `#` from any comment or document. See [Mentions & links](mentions-and-links.md).
 - **Goes to the Trash** when deleted, not to oblivion.
+- **Turns up in [My Tools](your-space.md#my-tools)**, gathered with everything else of its kind from every community you're in.
 
 Learn it once and it's true of the next one. That's the entire point of doing it this way.
 
@@ -82,4 +83,4 @@ Learn it once and it's true of the next one. That's the entire point of doing it
 
 - [Initiatives](initiatives.md) — tools live inside an initiative.
 - [Apps & the marketplace](apps-and-marketplace.md) — ready-made dashboards and apps.
-- [Your space](your-space.md) — your own tasks, calendar and documents across every community.
+- [Your space](your-space.md#my-tools) — every tool of every kind that's reached you, across every community.

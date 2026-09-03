@@ -25,7 +25,7 @@ No emailing versions round. No `final_v3_ACTUAL_final.docx`. No wondering whethe
 
 ## Making one
 
-1. In an initiative (or from **My Documents**), choose **Create Document**.
+1. In an initiative, choose **Create Document**.
 2. Pick the **type**.
 3. Give it a **title** and confirm which **initiative** it belongs to.
 4. Optionally start from a **template**.
@@ -156,4 +156,4 @@ Templates get copied rather than edited, so the original stays pristine no matte
 - [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — who sees each one.
 - [Tags](tags.md) — labelling so you can find things later.
 - [Mentions & links](mentions-and-links.md) — pointing at people and other work.
-- [Your space](your-space.md) — every document that's yours, in one list.
+- [Your space](your-space.md#my-tools) — every document that's reached you, from every community, in one list.
