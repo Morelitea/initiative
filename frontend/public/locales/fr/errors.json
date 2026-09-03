@@ -513,6 +513,15 @@
   "DM_CANNOT_IGNORE_SELF": "Vous ne pouvez pas ignorer votre propre compte.",
   "DM_NOT_A_MEMBER": "Vous n'êtes pas membre de cette communauté.",
   "CONTACT_GRANT_CANNOT_REACH": "Vous ne pouvez pas joindre ce compte pour le moment.",
+  "DM_DEVICE_NOT_FOUND": "Cet appareil n'est pas configuré pour les messages chiffrés.",
+  "DM_MALFORMED_KEY": "Cette clé n'a pas pu être lue. Réessaie sur cet appareil.",
+  "DM_DUPLICATE_KEY_ID": "Cet appareil a déjà publié une clé portant ce nom.",
+  "DM_TOO_MANY_KEYS": "Cet appareil a publié autant de clés qu'il peut en détenir.",
+  "DM_NOT_REACHABLE": "Tu ne peux pas envoyer de message à ce compte pour le moment.",
+  "DM_CANNOT_MESSAGE_SELF": "Tu ne peux pas t'envoyer de message à toi-même.",
+  "DM_CONVERSATION_NOT_FOUND": "Cette conversation n'est pas disponible.",
+  "DM_MESSAGE_TOO_LARGE": "Ce message est trop long pour être envoyé.",
+  "DM_RECIPIENT_QUEUE_FULL": "Ce compte a trop de messages non distribués. Réessaie une fois l'application ouverte.",
   "CONTACT_GRANT_NO_REQUEST": "Aucune demande de ce compte à accepter.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "Vous ne pouvez pas vous connecter à votre propre compte."
 }

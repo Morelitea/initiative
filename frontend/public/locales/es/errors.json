@@ -513,6 +513,15 @@
   "DM_CANNOT_IGNORE_SELF": "No puedes ignorar tu propia cuenta.",
   "DM_NOT_A_MEMBER": "No eres miembro de esa comunidad.",
   "CONTACT_GRANT_CANNOT_REACH": "No puedes contactar con esa cuenta ahora mismo.",
+  "DM_DEVICE_NOT_FOUND": "Ese dispositivo no está configurado para mensajes cifrados.",
+  "DM_MALFORMED_KEY": "No se pudo leer esa clave. Inténtalo de nuevo en este dispositivo.",
+  "DM_DUPLICATE_KEY_ID": "Este dispositivo ya publicó una clave con ese nombre.",
+  "DM_TOO_MANY_KEYS": "Este dispositivo ya publicó todas las claves que puede tener.",
+  "DM_NOT_REACHABLE": "No puedes enviar mensajes a esa cuenta en este momento.",
+  "DM_CANNOT_MESSAGE_SELF": "No puedes enviarte mensajes a ti mismo.",
+  "DM_CONVERSATION_NOT_FOUND": "Esa conversación no está disponible.",
+  "DM_MESSAGE_TOO_LARGE": "Ese mensaje es demasiado largo para enviarlo.",
+  "DM_RECIPIENT_QUEUE_FULL": "Esa cuenta tiene demasiados mensajes sin entregar. Inténtalo de nuevo cuando abra la aplicación.",
   "CONTACT_GRANT_NO_REQUEST": "No hay ninguna solicitud de esa cuenta que aceptar.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "No puedes conectarte con tu propia cuenta."
 }

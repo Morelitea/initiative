@@ -21,12 +21,25 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  CollectQueueApiV1MeDmQueueGetParams,
   ConnectionRequestCreate,
   ContactGrantRead,
   ContactGrantsResponse,
   DirectMessagePermissionRead,
   DirectMessageSettingsRead,
   DirectMessageSettingsUpdate,
+  DmConversationCreate,
+  DmConversationRead,
+  DmConversationsResponse,
+  DmDeviceRegistration,
+  DmDevicesResponse,
+  DmOneTimeKeyBatch,
+  DmQueueAck,
+  DmQueueResponse,
+  DmSafetyNumberResponse,
+  DmSendRequest,
+  DmSendResponse,
+  DmSessionKeysResponse,
   HTTPValidationError,
   IgnoredAccountsResponse,
   ListIgnoredAccountsApiV1MeIgnoredGetParams,
@@ -210,6 +223,257 @@ export function useReadDmPermissionApiV1UsersUserIdDmPermissionGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadDmPermissionApiV1UsersUserIdDmPermissionGetQueryOptions(
+    userId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Claim what is needed to open a session with each of that account's
+ * devices.
+ *
+ * A POST rather than a GET because a claim spends a prekey — this writes.
+ * @summary Claim Session Keys
+ */
+export const claimSessionKeysApiV1UsersUserIdDmSessionKeysPost = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmSessionKeysResponse>(
+    { url: `/api/v1/users/${userId}/dm/session-keys`, method: "POST", signal },
+    options
+  );
+};
+
+export const getClaimSessionKeysApiV1UsersUserIdDmSessionKeysPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimSessionKeysApiV1UsersUserIdDmSessionKeysPost>>,
+    TError,
+    { userId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimSessionKeysApiV1UsersUserIdDmSessionKeysPost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  const mutationKey = ["claimSessionKeysApiV1UsersUserIdDmSessionKeysPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimSessionKeysApiV1UsersUserIdDmSessionKeysPost>>,
+    { userId: number }
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return claimSessionKeysApiV1UsersUserIdDmSessionKeysPost(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClaimSessionKeysApiV1UsersUserIdDmSessionKeysPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimSessionKeysApiV1UsersUserIdDmSessionKeysPost>>
+>;
+
+export type ClaimSessionKeysApiV1UsersUserIdDmSessionKeysPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Claim Session Keys
+ */
+export const useClaimSessionKeysApiV1UsersUserIdDmSessionKeysPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimSessionKeysApiV1UsersUserIdDmSessionKeysPost>>,
+      TError,
+      { userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimSessionKeysApiV1UsersUserIdDmSessionKeysPost>>,
+  TError,
+  { userId: number },
+  TContext
+> => {
+  return useMutation(
+    getClaimSessionKeysApiV1UsersUserIdDmSessionKeysPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Both parties' fingerprints, so the client can render the comparison.
+ * @summary Safety Number
+ */
+export const safetyNumberApiV1UsersUserIdDmSafetyNumberGet = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmSafetyNumberResponse>(
+    { url: `/api/v1/users/${userId}/dm/safety-number`, method: "GET", signal },
+    options
+  );
+};
+
+export const getSafetyNumberApiV1UsersUserIdDmSafetyNumberGetQueryKey = (userId: number) => {
+  return [`/api/v1/users/${userId}/dm/safety-number`] as const;
+};
+
+export const getSafetyNumberApiV1UsersUserIdDmSafetyNumberGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getSafetyNumberApiV1UsersUserIdDmSafetyNumberGetQueryKey(userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>
+  > = ({ signal }) => safetyNumberApiV1UsersUserIdDmSafetyNumberGet(userId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userId !== null && userId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SafetyNumberApiV1UsersUserIdDmSafetyNumberGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>
+>;
+export type SafetyNumberApiV1UsersUserIdDmSafetyNumberGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useSafetyNumberApiV1UsersUserIdDmSafetyNumberGet<
+  TData = Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+          TError,
+          Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSafetyNumberApiV1UsersUserIdDmSafetyNumberGet<
+  TData = Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+          TError,
+          Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSafetyNumberApiV1UsersUserIdDmSafetyNumberGet<
+  TData = Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Safety Number
+ */
+
+export function useSafetyNumberApiV1UsersUserIdDmSafetyNumberGet<
+  TData = Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof safetyNumberApiV1UsersUserIdDmSafetyNumberGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSafetyNumberApiV1UsersUserIdDmSafetyNumberGetQueryOptions(
     userId,
     options
   );
@@ -1584,4 +1848,1039 @@ export const useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete = <
     getRemoveMessageRequestApiV1MeMessageRequestsUserIdDeleteMutationOptions(options),
     queryClient
   );
+};
+/**
+ * Publish this installed client's public keys.
+ *
+ * The device's label comes from the request's user-agent rather than the body:
+ * a device list is more use when it says what actually connected.
+ * @summary Register Device
+ */
+export const registerDeviceApiV1MeDmDevicesPost = (
+  dmDeviceRegistration: BodyType<DmDeviceRegistration>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmDevicesResponse>(
+    {
+      url: `/api/v1/me/dm/devices`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmDeviceRegistration,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRegisterDeviceApiV1MeDmDevicesPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerDeviceApiV1MeDmDevicesPost>>,
+    TError,
+    { data: BodyType<DmDeviceRegistration> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof registerDeviceApiV1MeDmDevicesPost>>,
+  TError,
+  { data: BodyType<DmDeviceRegistration> },
+  TContext
+> => {
+  const mutationKey = ["registerDeviceApiV1MeDmDevicesPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof registerDeviceApiV1MeDmDevicesPost>>,
+    { data: BodyType<DmDeviceRegistration> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return registerDeviceApiV1MeDmDevicesPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegisterDeviceApiV1MeDmDevicesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof registerDeviceApiV1MeDmDevicesPost>>
+>;
+export type RegisterDeviceApiV1MeDmDevicesPostMutationBody = BodyType<DmDeviceRegistration>;
+export type RegisterDeviceApiV1MeDmDevicesPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Register Device
+ */
+export const useRegisterDeviceApiV1MeDmDevicesPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof registerDeviceApiV1MeDmDevicesPost>>,
+      TError,
+      { data: BodyType<DmDeviceRegistration> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof registerDeviceApiV1MeDmDevicesPost>>,
+  TError,
+  { data: BodyType<DmDeviceRegistration> },
+  TContext
+> => {
+  return useMutation(getRegisterDeviceApiV1MeDmDevicesPostMutationOptions(options), queryClient);
+};
+/**
+ * @summary List Devices
+ */
+export const listDevicesApiV1MeDmDevicesGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmDevicesResponse>(
+    { url: `/api/v1/me/dm/devices`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListDevicesApiV1MeDmDevicesGetQueryKey = () => {
+  return [`/api/v1/me/dm/devices`] as const;
+};
+
+export const getListDevicesApiV1MeDmDevicesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDevicesApiV1MeDmDevicesGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>> = ({
+    signal,
+  }) => listDevicesApiV1MeDmDevicesGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDevicesApiV1MeDmDevicesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>
+>;
+export type ListDevicesApiV1MeDmDevicesGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListDevicesApiV1MeDmDevicesGet<
+  TData = Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDevicesApiV1MeDmDevicesGet<
+  TData = Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDevicesApiV1MeDmDevicesGet<
+  TData = Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Devices
+ */
+
+export function useListDevicesApiV1MeDmDevicesGet<
+  TData = Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listDevicesApiV1MeDmDevicesGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListDevicesApiV1MeDmDevicesGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Stop encrypted messaging on one device, without signing it out.
+ *
+ * Takes its queued messages with it, which is the one thing that removes an
+ * undelivered message and is a visible act by the person who owns it.
+ * @summary Remove Device
+ */
+export const removeDeviceApiV1MeDmDevicesDeviceIdDelete = (
+  deviceId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/dm/devices/${deviceId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRemoveDeviceApiV1MeDmDevicesDeviceIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDeviceApiV1MeDmDevicesDeviceIdDelete>>,
+    TError,
+    { deviceId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeDeviceApiV1MeDmDevicesDeviceIdDelete>>,
+  TError,
+  { deviceId: string },
+  TContext
+> => {
+  const mutationKey = ["removeDeviceApiV1MeDmDevicesDeviceIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeDeviceApiV1MeDmDevicesDeviceIdDelete>>,
+    { deviceId: string }
+  > = (props) => {
+    const { deviceId } = props ?? {};
+
+    return removeDeviceApiV1MeDmDevicesDeviceIdDelete(deviceId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveDeviceApiV1MeDmDevicesDeviceIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDeviceApiV1MeDmDevicesDeviceIdDelete>>
+>;
+
+export type RemoveDeviceApiV1MeDmDevicesDeviceIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Remove Device
+ */
+export const useRemoveDeviceApiV1MeDmDevicesDeviceIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof removeDeviceApiV1MeDmDevicesDeviceIdDelete>>,
+      TError,
+      { deviceId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof removeDeviceApiV1MeDmDevicesDeviceIdDelete>>,
+  TError,
+  { deviceId: string },
+  TContext
+> => {
+  return useMutation(
+    getRemoveDeviceApiV1MeDmDevicesDeviceIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Top Up Keys
+ */
+export const topUpKeysApiV1MeDmOneTimeKeysPost = (
+  dmOneTimeKeyBatch: BodyType<DmOneTimeKeyBatch>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmDevicesResponse>(
+    {
+      url: `/api/v1/me/dm/one-time-keys`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmOneTimeKeyBatch,
+      signal,
+    },
+    options
+  );
+};
+
+export const getTopUpKeysApiV1MeDmOneTimeKeysPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof topUpKeysApiV1MeDmOneTimeKeysPost>>,
+    TError,
+    { data: BodyType<DmOneTimeKeyBatch> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof topUpKeysApiV1MeDmOneTimeKeysPost>>,
+  TError,
+  { data: BodyType<DmOneTimeKeyBatch> },
+  TContext
+> => {
+  const mutationKey = ["topUpKeysApiV1MeDmOneTimeKeysPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof topUpKeysApiV1MeDmOneTimeKeysPost>>,
+    { data: BodyType<DmOneTimeKeyBatch> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return topUpKeysApiV1MeDmOneTimeKeysPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TopUpKeysApiV1MeDmOneTimeKeysPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof topUpKeysApiV1MeDmOneTimeKeysPost>>
+>;
+export type TopUpKeysApiV1MeDmOneTimeKeysPostMutationBody = BodyType<DmOneTimeKeyBatch>;
+export type TopUpKeysApiV1MeDmOneTimeKeysPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Top Up Keys
+ */
+export const useTopUpKeysApiV1MeDmOneTimeKeysPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof topUpKeysApiV1MeDmOneTimeKeysPost>>,
+      TError,
+      { data: BodyType<DmOneTimeKeyBatch> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof topUpKeysApiV1MeDmOneTimeKeysPost>>,
+  TError,
+  { data: BodyType<DmOneTimeKeyBatch> },
+  TContext
+> => {
+  return useMutation(getTopUpKeysApiV1MeDmOneTimeKeysPostMutationOptions(options), queryClient);
+};
+/**
+ * @summary Create Conversation
+ */
+export const createConversationApiV1MeDmConversationsPost = (
+  dmConversationCreate: BodyType<DmConversationCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmConversationRead>(
+    {
+      url: `/api/v1/me/dm/conversations`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmConversationCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCreateConversationApiV1MeDmConversationsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createConversationApiV1MeDmConversationsPost>>,
+    TError,
+    { data: BodyType<DmConversationCreate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createConversationApiV1MeDmConversationsPost>>,
+  TError,
+  { data: BodyType<DmConversationCreate> },
+  TContext
+> => {
+  const mutationKey = ["createConversationApiV1MeDmConversationsPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createConversationApiV1MeDmConversationsPost>>,
+    { data: BodyType<DmConversationCreate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createConversationApiV1MeDmConversationsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateConversationApiV1MeDmConversationsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createConversationApiV1MeDmConversationsPost>>
+>;
+export type CreateConversationApiV1MeDmConversationsPostMutationBody =
+  BodyType<DmConversationCreate>;
+export type CreateConversationApiV1MeDmConversationsPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Conversation
+ */
+export const useCreateConversationApiV1MeDmConversationsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createConversationApiV1MeDmConversationsPost>>,
+      TError,
+      { data: BodyType<DmConversationCreate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createConversationApiV1MeDmConversationsPost>>,
+  TError,
+  { data: BodyType<DmConversationCreate> },
+  TContext
+> => {
+  return useMutation(
+    getCreateConversationApiV1MeDmConversationsPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary List Conversations
+ */
+export const listConversationsApiV1MeDmConversationsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmConversationsResponse>(
+    { url: `/api/v1/me/dm/conversations`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListConversationsApiV1MeDmConversationsGetQueryKey = () => {
+  return [`/api/v1/me/dm/conversations`] as const;
+};
+
+export const getListConversationsApiV1MeDmConversationsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListConversationsApiV1MeDmConversationsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>
+  > = ({ signal }) => listConversationsApiV1MeDmConversationsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListConversationsApiV1MeDmConversationsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>
+>;
+export type ListConversationsApiV1MeDmConversationsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListConversationsApiV1MeDmConversationsGet<
+  TData = Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListConversationsApiV1MeDmConversationsGet<
+  TData = Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListConversationsApiV1MeDmConversationsGet<
+  TData = Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Conversations
+ */
+
+export function useListConversationsApiV1MeDmConversationsGet<
+  TData = Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listConversationsApiV1MeDmConversationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListConversationsApiV1MeDmConversationsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Leave Conversation
+ */
+export const leaveConversationApiV1MeDmConversationsConversationIdDelete = (
+  conversationId: string,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/me/dm/conversations/${conversationId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getLeaveConversationApiV1MeDmConversationsConversationIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof leaveConversationApiV1MeDmConversationsConversationIdDelete>>,
+    TError,
+    { conversationId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof leaveConversationApiV1MeDmConversationsConversationIdDelete>>,
+  TError,
+  { conversationId: string },
+  TContext
+> => {
+  const mutationKey = ["leaveConversationApiV1MeDmConversationsConversationIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof leaveConversationApiV1MeDmConversationsConversationIdDelete>>,
+    { conversationId: string }
+  > = (props) => {
+    const { conversationId } = props ?? {};
+
+    return leaveConversationApiV1MeDmConversationsConversationIdDelete(
+      conversationId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LeaveConversationApiV1MeDmConversationsConversationIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof leaveConversationApiV1MeDmConversationsConversationIdDelete>>
+>;
+
+export type LeaveConversationApiV1MeDmConversationsConversationIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Leave Conversation
+ */
+export const useLeaveConversationApiV1MeDmConversationsConversationIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof leaveConversationApiV1MeDmConversationsConversationIdDelete>>,
+      TError,
+      { conversationId: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof leaveConversationApiV1MeDmConversationsConversationIdDelete>>,
+  TError,
+  { conversationId: string },
+  TContext
+> => {
+  return useMutation(
+    getLeaveConversationApiV1MeDmConversationsConversationIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Hand the server one already-encrypted copy per destination device.
+ * @summary Send Messages
+ */
+export const sendMessagesApiV1MeDmConversationsConversationIdMessagesPost = (
+  conversationId: string,
+  dmSendRequest: BodyType<DmSendRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmSendResponse>(
+    {
+      url: `/api/v1/me/dm/conversations/${conversationId}/messages`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmSendRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSendMessagesApiV1MeDmConversationsConversationIdMessagesPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendMessagesApiV1MeDmConversationsConversationIdMessagesPost>>,
+    TError,
+    { conversationId: string; data: BodyType<DmSendRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendMessagesApiV1MeDmConversationsConversationIdMessagesPost>>,
+  TError,
+  { conversationId: string; data: BodyType<DmSendRequest> },
+  TContext
+> => {
+  const mutationKey = ["sendMessagesApiV1MeDmConversationsConversationIdMessagesPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendMessagesApiV1MeDmConversationsConversationIdMessagesPost>>,
+    { conversationId: string; data: BodyType<DmSendRequest> }
+  > = (props) => {
+    const { conversationId, data } = props ?? {};
+
+    return sendMessagesApiV1MeDmConversationsConversationIdMessagesPost(
+      conversationId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendMessagesApiV1MeDmConversationsConversationIdMessagesPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof sendMessagesApiV1MeDmConversationsConversationIdMessagesPost>>
+  >;
+export type SendMessagesApiV1MeDmConversationsConversationIdMessagesPostMutationBody =
+  BodyType<DmSendRequest>;
+export type SendMessagesApiV1MeDmConversationsConversationIdMessagesPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Send Messages
+ */
+export const useSendMessagesApiV1MeDmConversationsConversationIdMessagesPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendMessagesApiV1MeDmConversationsConversationIdMessagesPost>>,
+      TError,
+      { conversationId: string; data: BodyType<DmSendRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendMessagesApiV1MeDmConversationsConversationIdMessagesPost>>,
+  TError,
+  { conversationId: string; data: BodyType<DmSendRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSendMessagesApiV1MeDmConversationsConversationIdMessagesPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Everything waiting for one device, oldest first.
+ * @summary Collect Queue
+ */
+export const collectQueueApiV1MeDmQueueGet = (
+  params: CollectQueueApiV1MeDmQueueGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmQueueResponse>(
+    { url: `/api/v1/me/dm/queue`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getCollectQueueApiV1MeDmQueueGetQueryKey = (
+  params?: CollectQueueApiV1MeDmQueueGetParams
+) => {
+  return [`/api/v1/me/dm/queue`, ...(params ? [params] : [])] as const;
+};
+
+export const getCollectQueueApiV1MeDmQueueGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectQueueApiV1MeDmQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getCollectQueueApiV1MeDmQueueGetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>> = ({
+    signal,
+  }) => collectQueueApiV1MeDmQueueGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CollectQueueApiV1MeDmQueueGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>
+>;
+export type CollectQueueApiV1MeDmQueueGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useCollectQueueApiV1MeDmQueueGet<
+  TData = Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectQueueApiV1MeDmQueueGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+          TError,
+          Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCollectQueueApiV1MeDmQueueGet<
+  TData = Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectQueueApiV1MeDmQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+          TError,
+          Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCollectQueueApiV1MeDmQueueGet<
+  TData = Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectQueueApiV1MeDmQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Collect Queue
+ */
+
+export function useCollectQueueApiV1MeDmQueueGet<
+  TData = Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectQueueApiV1MeDmQueueGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof collectQueueApiV1MeDmQueueGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCollectQueueApiV1MeDmQueueGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Delete what this device has taken.
+ * @summary Acknowledge Queue
+ */
+export const acknowledgeQueueApiV1MeDmQueueAckPost = (
+  dmQueueAck: BodyType<DmQueueAck>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/me/dm/queue/ack`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmQueueAck,
+      signal,
+    },
+    options
+  );
+};
+
+export const getAcknowledgeQueueApiV1MeDmQueueAckPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acknowledgeQueueApiV1MeDmQueueAckPost>>,
+    TError,
+    { data: BodyType<DmQueueAck> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acknowledgeQueueApiV1MeDmQueueAckPost>>,
+  TError,
+  { data: BodyType<DmQueueAck> },
+  TContext
+> => {
+  const mutationKey = ["acknowledgeQueueApiV1MeDmQueueAckPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acknowledgeQueueApiV1MeDmQueueAckPost>>,
+    { data: BodyType<DmQueueAck> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acknowledgeQueueApiV1MeDmQueueAckPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcknowledgeQueueApiV1MeDmQueueAckPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acknowledgeQueueApiV1MeDmQueueAckPost>>
+>;
+export type AcknowledgeQueueApiV1MeDmQueueAckPostMutationBody = BodyType<DmQueueAck>;
+export type AcknowledgeQueueApiV1MeDmQueueAckPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Acknowledge Queue
+ */
+export const useAcknowledgeQueueApiV1MeDmQueueAckPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acknowledgeQueueApiV1MeDmQueueAckPost>>,
+      TError,
+      { data: BodyType<DmQueueAck> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof acknowledgeQueueApiV1MeDmQueueAckPost>>,
+  TError,
+  { data: BodyType<DmQueueAck> },
+  TContext
+> => {
+  return useMutation(getAcknowledgeQueueApiV1MeDmQueueAckPostMutationOptions(options), queryClient);
 };

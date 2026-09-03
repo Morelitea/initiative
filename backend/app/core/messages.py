@@ -966,6 +966,31 @@ class DirectMessageMessages:
     NOT_A_MEMBER = "DM_NOT_A_MEMBER"
 
 
+class DirectMessageTransportMessages:
+    """Devices, keys, conversations and the queue."""
+
+    #: A device id that names nothing the caller owns.
+    DEVICE_NOT_FOUND = "DM_DEVICE_NOT_FOUND"
+    #: A key or payload that is not valid base64, or is the wrong length for the
+    #: curve it claims to be on.
+    MALFORMED_KEY = "DM_MALFORMED_KEY"
+    #: Two prekeys published under one name.
+    DUPLICATE_KEY_ID = "DM_DUPLICATE_KEY_ID"
+    #: A top-up that would take the device past what it may publish.
+    TOO_MANY_KEYS = "DM_TOO_MANY_KEYS"
+    #: The pair cannot open a channel right now. One code for every refusal,
+    #: the same way the permission layer answers.
+    NOT_REACHABLE = "DM_NOT_REACHABLE"
+    CANNOT_MESSAGE_SELF = "DM_CANNOT_MESSAGE_SELF"
+    CONVERSATION_NOT_FOUND = "DM_CONVERSATION_NOT_FOUND"
+    #: One message past the size a message may be. Anything larger is an
+    #: attachment, which travels out of band.
+    MESSAGE_TOO_LARGE = "DM_MESSAGE_TOO_LARGE"
+    #: The recipient is holding more undelivered ciphertext than they may.
+    #: Refused at the door rather than accepted and dropped later.
+    RECIPIENT_QUEUE_FULL = "DM_RECIPIENT_QUEUE_FULL"
+
+
 class ContactGrantMessages:
     """Connections and message requests."""
 
