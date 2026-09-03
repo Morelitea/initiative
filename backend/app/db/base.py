@@ -71,6 +71,13 @@ from app.models.platform.user_dm_settings import UserDmSettings
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.contact_grant import ContactGrant
 from app.models.platform.user_ignore import UserIgnore
+from app.models.platform.dm_device import DmDevice
+from app.models.platform.dm_one_time_key import DmOneTimeKey
+from app.models.platform.dm_conversation import (
+    DmConversation,
+    DmConversationMember,
+)
+from app.models.platform.dm_queue import DmQueueItem
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -178,6 +185,11 @@ __all__ = [
     "UserDmGuildOptout",
     "ContactGrant",
     "UserIgnore",
+    "DmDevice",
+    "DmOneTimeKey",
+    "DmConversation",
+    "DmConversationMember",
+    "DmQueueItem",
     "UserToken",
     "PushToken",
     "AutoDelegationJti",

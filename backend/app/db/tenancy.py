@@ -83,6 +83,15 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "user_dm_guild_optouts",
         "contact_grants",
         "user_ignores",
+        # The transport those four gate: a directory of public keys, a
+        # roster of who is talking to whom, and ciphertext waiting to be
+        # collected. Per-account and cross-guild like the rest, and not one
+        # of them holds anything a reader could open.
+        "dm_devices",
+        "dm_one_time_keys",
+        "dm_conversations",
+        "dm_conversation_members",
+        "dm_queue",
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
