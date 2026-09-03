@@ -123,4 +123,4 @@ The friendly version is [Sharing & access](../sharing/index.md). The one with th
 - Want to actually *do* things? [The how-to guides](../guides/index.md).
 - Worried about who can see what? [Sharing & access](../sharing/index.md).
 - Need something the built-in tools don't do? [Apps & the marketplace](../guides/apps-and-marketplace.md).
-- Hit a word you don't recognise? [The glossary](../reference/glossary.md) has all of them.
+- Hit a word you don't recognise? [The glossary](../reference/glossary.md), or just search for it.

@@ -10,7 +10,7 @@ For when you want a fact rather than a walkthrough.
 
 -   :material-book-alphabet: __Glossary__
 
-    Every word Initiative uses, in plain language.
+    The words Initiative uses to mean something specific.
 
     [:octicons-arrow-right-24: Glossary](glossary.md)
 

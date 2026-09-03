@@ -137,10 +137,23 @@ that actually mattered.
 - If a guide passes roughly 1,200 words, ask what it's doing. It may genuinely
   need the room, or it may be two pages, or it may just be padded.
 
-**Reference pages are exempt from the word count, not from the rule.** The FAQ,
-the glossary and `admin/publishing-listings.md` are looked *up*, never read
-start to finish, so length there costs nothing. Each individual entry still has
-to be short.
+**Reference pages are exempt from the word count, not from the rule.** The FAQ
+and `admin/publishing-listings.md` are looked *up*, never read start to finish,
+so length there costs nothing. Each individual entry still has to be short.
+
+### Don't restate a definition that already has a home
+
+The glossary once held 52 entries, most of them repeating — less well, with
+less context — something the owning page already said. That is duplication with
+a maintenance bill attached: it drifts silently, and every new tool means
+remembering to go and update it. It had already drifted.
+
+It now holds only the words where the everyday meaning **misleads**: community,
+initiative, tool, handle, presence, full access, break-glass, archive vs. trash.
+A reader can't guess those. They can guess "subtask".
+
+Same test anywhere else: if a page is explaining something another page owns,
+link to it instead.
 
 ---
 

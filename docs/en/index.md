@@ -133,7 +133,7 @@ Initiative takes two perfectly ordinary words and gives them specific jobs. Sorr
 - A **community** is a workspace — one separate space for one group of people. Your book club and your work team are two different communities.
 - An **initiative** is a folder for a big effort inside a community.
 
-And yes, the app is also called Initiative. We know. The [glossary](reference/glossary.md) has every other word we've borrowed.
+And yes, the app is also called Initiative. We know. The [glossary](reference/glossary.md) covers the other words we've bent to our own purposes.
 
 ??? techspec "For the technically minded — what this actually is"
     Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There's a companion mobile app for iOS and Android. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
