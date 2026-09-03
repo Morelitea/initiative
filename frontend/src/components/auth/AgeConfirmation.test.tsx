@@ -55,7 +55,8 @@ describe("ConfirmAge", () => {
       .getAllByRole("option")
       .map((option) => option.textContent);
 
-    const thisYear = new Date().getFullYear();
+    // The server compares against the UTC date, so the window is that one.
+    const thisYear = new Date().getUTCFullYear();
     expect(offered.at(-1)).toBe(String(thisYear));
     expect(offered[0]).toBe(String(thisYear - 120));
   });

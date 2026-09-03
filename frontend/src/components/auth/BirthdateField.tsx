@@ -30,9 +30,13 @@ export const BirthdateField = ({
   const { t } = useTranslation(["auth"]);
   // The window the server will accept: born by today, and no more than a
   // lifetime ago. Matched here so nothing the calendar offers is a date the
-  // server then refuses.
-  const today = new Date();
-  const earliest = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate());
+  // server then refuses — including the day at each edge, which is why the
+  // bounds are built from today's *UTC* date, the one the server compares
+  // against. A reader far enough east or west has a different local date, and
+  // taking theirs would offer an edge day the server does not accept.
+  const now = new Date();
+  const today = new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const earliest = new Date(now.getUTCFullYear() - 120, now.getUTCMonth(), now.getUTCDate());
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{t("auth:confirmAge.birthdateLabel")}</Label>
