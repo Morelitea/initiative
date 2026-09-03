@@ -27,8 +27,8 @@ construction.
 the order: the rows go in before ``FORCE ROW LEVEL SECURITY``, because the
 policies key on request GUCs a migration has no value for.
 
-Revision ID: 20260904_0222
-Revises: 20260904_0221
+Revision ID: 20260904_0223
+Revises: 20260904_0222
 Create Date: 2026-09-04
 """
 
@@ -39,8 +39,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.core.config import settings
 
-revision = "20260904_0222"
-down_revision = "20260904_0221"
+revision = "20260904_0223"
+down_revision = "20260904_0222"
 branch_labels = None
 depends_on = None
 
