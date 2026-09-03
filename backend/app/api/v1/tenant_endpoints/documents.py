@@ -1703,7 +1703,8 @@ async def notify_mentions(
     # Who to tell is a question about their account, so it is asked where an
     # account may be read.
     recipients = await accounts_service.load(
-        user_id for user_id in mentioned_user_ids if user_id in member_ids
+        (user_id for user_id in mentioned_user_ids if user_id in member_ids),
+        excluding_ignorers_of=current_user.id,
     )
     for user_id in mentioned_user_ids:
         mentioned_user = recipients.get(user_id)

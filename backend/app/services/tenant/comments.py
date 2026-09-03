@@ -588,17 +588,22 @@ async def create_comment(
     return comment
 
 
-async def _notify_target(user_id: int | None) -> User | None:
+async def _notify_target(
+    user_id: int | None, *, actor_id: int | None = None
+) -> User | None:
     """Who to tell, with the preferences and address a notice needs.
 
     On the system engine: an account's notification settings and address are
-    not a guild's to read."""
-    return await accounts_service.load_one(user_id)
+    not a guild's to read. ``actor_id`` drops anybody who ignores whoever is
+    doing this, so they are simply not a recipient."""
+    return await accounts_service.load_one(user_id, excluding_ignorers_of=actor_id)
 
 
-async def _notify_targets(user_ids: list[int]) -> list[User]:
+async def _notify_targets(
+    user_ids: list[int], *, actor_id: int | None = None
+) -> list[User]:
     """The same, for the several people one comment can reach."""
-    return await accounts_service.load_all(user_ids)
+    return await accounts_service.load_all(user_ids, excluding_ignorers_of=actor_id)
 
 
 async def _load_task_with_assignees(
@@ -652,7 +657,9 @@ async def _process_comment_notifications(
 
     # 1. Reply to comment → notify parent comment author
     if parent_comment and parent_comment.created_by != author.id:
-        parent_author = await _notify_target(parent_comment.created_by)
+        parent_author = await _notify_target(
+            parent_comment.created_by, actor_id=author.id
+        )
         if parent_author:
             await notifications.notify_comment_reply(
                 session,
@@ -675,7 +682,7 @@ async def _process_comment_notifications(
             continue
         if user_id in notified_user_ids:
             continue
-        mentioned_user = await _notify_target(user_id)
+        mentioned_user = await _notify_target(user_id, actor_id=author.id)
         if not mentioned_user:
             continue
         await notifications.notify_comment_mention(
@@ -706,7 +713,7 @@ async def _process_comment_notifications(
             for assignee in assignees
             if assignee.id != author.id and assignee.id not in notified_user_ids
         ]
-        for assignee in await _notify_targets(wanted):
+        for assignee in await _notify_targets(wanted, actor_id=author.id):
             await notifications.notify_task_mentioned_in_comment(
                 session,
                 assignee=assignee,
@@ -735,7 +742,7 @@ async def _process_comment_notifications(
                 for assignee in assignees
                 if assignee.id != author.id and assignee.id not in notified_user_ids
             ]
-            for assignee in await _notify_targets(wanted):
+            for assignee in await _notify_targets(wanted, actor_id=author.id):
                 await notifications.notify_comment_on_task(
                     session,
                     assignee=assignee,
@@ -750,7 +757,7 @@ async def _process_comment_notifications(
 
     # 5. Tool comment → notify the entity's creator (if not already notified)
     if ctx.resource is not None:
-        owner = await _notify_target(ctx.resource.created_by)
+        owner = await _notify_target(ctx.resource.created_by, actor_id=author.id)
         if owner and owner.id != author.id and owner.id not in notified_user_ids:
             await notifications.notify_comment_on_resource(
                 session,
