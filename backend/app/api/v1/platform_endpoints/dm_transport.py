@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
 
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.messages import DirectMessageTransportMessages as Messages
@@ -72,8 +72,13 @@ async def register_device(
     body: DmDeviceRegistration,
     session: UserSessionDep,
     current_user: CurrentUser,
+    user_agent: Annotated[str | None, Header()] = None,
 ) -> DmDevicesResponse:
-    """Publish this installed client's public keys."""
+    """Publish this installed client's public keys.
+
+    The device's label comes from the request's user-agent rather than the body:
+    a device list is more use when it says what actually connected.
+    """
     try:
         await service.register_device(
             session,
@@ -82,7 +87,7 @@ async def register_device(
             fingerprint_key=body.fingerprint_key,
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
-            label=body.label,
+            label=(user_agent or "")[:200] or None,
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
@@ -164,6 +169,25 @@ async def claim_session_keys(
     except service.DmTransportError as exc:
         raise _error(exc) from exc
     await session.commit()
+    return DmSessionKeysResponse(user_id=user_id, devices=devices)
+
+
+@user_router.get("/{user_id}/dm/devices", response_model=DmSessionKeysResponse)
+async def read_directory(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DmSessionKeysResponse:
+    """That account's devices and their public keys, claiming nothing.
+
+    What a recipient reads to derive the session an inbound pre-key message
+    describes. Separate from the claim above because claiming spends a prekey,
+    and answering a message should not cost one.
+    """
+    try:
+        devices = await service.directory(session, target_id=user_id)
+    except service.DmTransportError as exc:
+        raise _error(exc) from exc
     return DmSessionKeysResponse(user_id=user_id, devices=devices)
 
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
   invalidateContactGrants,
+  invalidateDirectMessages,
   invalidateDmSettings,
   invalidateIgnoredAccounts,
   invalidateNotifications,
@@ -216,6 +217,7 @@ export const useNotificationStream = () => {
         void invalidateNotifications();
         refreshAccount();
         refreshContacts();
+        void invalidateDirectMessages();
       };
 
       websocket.onmessage = (event) => {
@@ -230,6 +232,10 @@ export const useNotificationStream = () => {
             refreshAccount();
           } else if (payload.resource === "contacts") {
             refreshContacts();
+          } else if (payload.resource === "dm") {
+            // A direct-message frame says only that there is something to
+            // collect. The page that owns the mailbox does the reading.
+            void invalidateDirectMessages();
           }
         } catch {
           // ignore malformed frames

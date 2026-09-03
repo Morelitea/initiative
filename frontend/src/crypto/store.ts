@@ -126,6 +126,58 @@ export const deviceId = {
   set: (id: string) => write(DEVICE_ID, id),
 };
 
+/**
+ * What this device has read, per conversation.
+ *
+ * The client is the archive: the server deletes a message the moment it is
+ * collected, so if this is not written down the message is gone. Kept beside
+ * the ratchet rather than in React state for the same reason.
+ */
+export interface StoredMessage {
+  id: string;
+  body: string;
+  at: string;
+  mine: boolean;
+}
+
+const LOG_PREFIX = "log:";
+
+export const messageLog = {
+  get: async (conversationId: string): Promise<StoredMessage[]> =>
+    (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [],
+  append: async (conversationId: string, message: StoredMessage): Promise<void> => {
+    const existing = (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [];
+    if (existing.some((entry) => entry.id === message.id)) return;
+    await write(LOG_PREFIX + conversationId, [...existing, message]);
+  },
+};
+
+/** Which device of theirs we already hold a session with, per session id. */
+export const sessionForDevice = {
+  get: (deviceId: string) => read<string>("device-session:" + deviceId),
+  set: (deviceId: string, sessionId: string) => write("device-session:" + deviceId, sessionId),
+};
+
+/**
+ * Every session this device holds inside one conversation.
+ *
+ * A list rather than a single id: the other party may have several devices, and
+ * each is its own ratchet. An ordinary message names none of them, so decrypting
+ * one means trying the sessions this conversation has — a handful, at most.
+ */
+export const sessionsInConversation = {
+  get: async (conversationId: string): Promise<string[]> =>
+    (await read<string[]>("conversation-sessions:" + conversationId)) ?? [],
+  add: async (conversationId: string, sessionId: string): Promise<void> => {
+    const key = "conversation-sessions:" + conversationId;
+    const existing = (await read<string[]>(key)) ?? [];
+    if (existing.includes(sessionId)) return;
+    // Most recent first: the session a message just arrived on is the one the
+    // next message is most likely to be on.
+    await write(key, [sessionId, ...existing]);
+  },
+};
+
 export const sessionPickle = {
   get: (id: string) => read<string>(SESSION_PREFIX + id),
   set: (id: string, pickle: string) => write(SESSION_PREFIX + id, pickle),

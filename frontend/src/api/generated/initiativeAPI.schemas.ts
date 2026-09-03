@@ -2370,7 +2370,6 @@ export interface DmDeviceRegistration {
   fallback_key: DmOneTimeKeyUpload;
   /** @maxItems 100 */
   one_time_keys?: DmOneTimeKeyUpload[];
-  label?: string | null;
 }
 
 export interface DmDevicesResponse {

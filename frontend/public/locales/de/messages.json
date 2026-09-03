@@ -1,0 +1,18 @@
+{
+  "title": "Meine Nachrichten",
+  "encryptedNotice": "Ende-zu-Ende-verschlüsselt. Nur du und die andere Person können sie lesen.",
+  "empty": {
+    "title": "Keine Unterhaltung geöffnet",
+    "body": "Wähle links jemanden aus oder öffne einen Kanal über Meine Kontakte."
+  },
+  "nobodyYet": "Noch niemand. Eine Unterhaltung öffnet sich, sobald eine Nachrichtenanfrage angenommen wurde.",
+  "startHint": "starten",
+  "unknownAccount": "Unbekanntes Konto",
+  "noHistoryHere": "Auf diesem Gerät noch nichts. Nachrichten von anderswo bleiben dort.",
+  "composerPlaceholder": "Nachricht schreiben",
+  "send": "Senden",
+  "sendFailed": "Diese Nachricht konnte nicht gesendet werden.",
+  "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
+  "loading": "Wird geladen …",
+  "unsupportedBrowser": "Dieser Browser kann keine verschlüsselten Nachrichten ausführen. Versuche einen anderen oder die App."
+}

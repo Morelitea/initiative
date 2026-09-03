@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ChartColumn,
   ListTodo,
+  MessageSquare,
   PenLine,
   ScrollText,
   SquareCheckBig,
@@ -31,6 +32,7 @@ export const HomeSidebarContent = () => {
     { to: "/my-projects", label: t("myProjects"), icon: ListTodo },
     { to: "/my-documents", label: t("myDocuments"), icon: ScrollText },
     { to: "/contacts", label: t("myContacts"), icon: Users },
+    { to: "/messages", label: t("myMessages"), icon: MessageSquare },
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },
   ];
 
