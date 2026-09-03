@@ -9,89 +9,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Announcements.** The "a new version is running" prompt grew into a way to tell people anything: a notice with a title and as many sections as it needs, each with its own heading, markdown and screenshot. Mark a section as starting a new page and the notice becomes a wizard the reader steps through. Each one is shown once and remembered per person — or, for a breaking change nobody can afford to miss, however many acknowledgements you ask for before it stops coming back. Who sees a given notice is set when it is written (a minimum platform role, and optionally "only people who administer a community"), and it can be scheduled, given an end date, or kept as a draft. Give it a page pattern instead and it waits there, so a notice can explain a screen on the screen it is about. Operators and owners write them under Settings › Admin › Announcements, with a preview of exactly what a reader gets, and everyone can re-read past notices from the info icon in the sidebar footer, where read and unread are marked and unread can be filtered to on its own. Pictures open full size on a click. A notice can also say which accounts it is for — the ones that existed when it was published (a change you lived through) or the ones made since (a tip for somebody just arriving) — and a notice shipped with a release can name the version it matters to, so a fresh install is not told about every change since the one before it. Releases can also ship a notice in the app's own source, and those read and dismiss exactly like the written ones — this release ships one, telling community admins where their sidebar's initiatives went.
-
-- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
-
-- **My Contacts.** Everyone you share a community with, on one page. Favorites you picked at the top, then each of your communities in the order you dragged them into the rail, as sections you can collapse. It reads as one table: the same columns — person, name, the communities you have in common — run down every section, so somebody in several of your communities lines up with themselves. Hover the small community icons on a row for the full list of what you share. Each section pages on its own, twenty at a time, without moving the ones around it. Star anyone — including people you share no community with — to keep them at the top; starring is private and tells them nothing. One search box covers the whole page, and says while it works that a search visits each community in turn.
-
-- **People have profiles.** A page of your own with your picture, your handle and what you're up to — a status emoji and line, both optional, set by clicking the bubble rather than filling in a form. Around it goes a look you choose in Settings › Profile: a banner across the top, a frame on your picture, and a rail of trophies under it, in the same shape a community's front page has — and where that page holds a table of projects, a profile holds cards for the communities the person is in, of the ones that opted into the directory. It travels with you — the frame and the status show in the sidebar and beside every comment you write — and the settings tab previews the card a stranger sees as you build it.
-
-- **A wardrobe to fill it from.** Twenty-three packs ship with the app — Sports, Pets, Plants, Pride, Disability, Multicultural, Travel, First Nations, Black heritage, Nature, Winter, Zen, Gaming, Books, Tea, Drama, Cinema, Spooky, Observatory, Soundcheck, Faith and Belief, Education and Family — each with banners, frames and trophies you can wear in any combination, and most of them carrying several of each. Pride flies a flag, a turning ring and a heart for seven identities; Multicultural carries seventy flags; Disability has a trophy for eleven of the things people are, and a flag for all of them. The banners move: a playhead lights the notes it passes, a curtain runs in and out, skeletons dance until sunrise, a typewriter types a line at a time, a lake changes colour the whole way down as the sun sets into it, and the view from a train window keeps going past. And a frame is not always a ring round the picture — several stand in front of it, so you are sitting in the teacup, under the Eiffel, in a torii, on the deck of the Golden Gate, in one bay of the Colosseum, wearing the headphones, or spooling past the window of a cassette. Two of them carry a year: pick the Grad banner or the Grad year trophy and say when you finished — it offers this year, and keeps whichever you give it. Take a pack in the marketplace and click any card to see everything in it — or to give it back. Two frames leave their colour to you: the gilded one takes a colour and the split one takes two.
-
 - **Search that finds everything in a community, and reads inside it.** ⌘K and a results page of its own reach projects, tasks, documents, queues, counters, calendars, dashboards, tags, comments and people — matching names, descriptions, and the words inside a document, whiteboard or spreadsheet. Results are ranked, show the line that matched, and answer before you finish a word; a misspelling is offered the closest names rather than an empty page. Archived work is kept back unless you switch it on.
 
 - **Point at other work from anywhere you write.** `@` names a person, `#` names anything that exists, and `[[ ]]` names a tool — and offers to make one that doesn't exist yet, in place, without leaving the sentence. All three work in every comment and in text documents. References keep up: rename a task and every sentence mentioning it says the new name, with nobody editing anything. A document's backlinks count them all, not just `[[ ]]` links.
 
-- **Smart chips: a chip that keeps itself current.** Type `/` in a document, or pick **Smart chip** from the toolbar's insert menu, and choose a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip carries the reading itself — `In progress`, `42 / 100`, `12 Sep` — so it sits in a sentence without repeating what the sentence already says; hover it for what the thing is called now and what kind of thing it is, and click to open it. Move a task to Done and it turns green in every document that mentions it.
+- **People have profiles.** A page of your own with your picture, your handle and what you're up to — a status emoji and line, both optional, set by clicking the bubble rather than filling in a form.
+  - Settings › Profile picks the look around it: a banner across the top, a frame on your picture, and a rail of trophies under it, in the same shape a community's front page has. Where that page holds a table of projects, a profile holds cards for the communities the person is in, of the ones that opted into the directory.
+  - It travels with you — the frame and the status show in the sidebar and beside every comment you write — and the settings tab previews the card a stranger sees as you build it.
 
-- **Pickers open on what you were just working on.** Choosing what a smart chip is about starts from the work in this initiative you edited most recently, so the common case is picking from a list rather than guessing at a search term. Typing still searches.
-
-- **A picker that finds nothing says so.** `#` and the smart-chip picker reach the work in the document's own initiative, so a community full of matching tasks can still answer nothing — and both used to render that as an unchanged caret and an empty box, which reads as a broken feature rather than as an answer. They now say that nothing matched, and that the initiative is the limit.
-
-- **Comments grew up.** React with an emoji (the author hears about it in a digest, not one ping per thumbs-up), turn comments off per tool under Settings › Advanced, and read them through the MCP server as well as write them.
-
-- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
-
-- **An initiative's status columns can be read in one request**, instead of asking project by project and stitching the answers together.
-
-- **Say how you're around, or don't.** A dot under your picture in the sidebar opens the four states: online, idle, busy, or offline. Offline means offline — nobody sees you as here, whatever you have open. Idle sets itself once nothing has been touched for a while, and you can also pick it outright to say you have stepped away. The same dot on your profile card in Settings › Profile opens the same menu.
+- **Announcements.** The "a new version is running" prompt grew into a way to tell people anything: a notice with a title and as many sections as it needs, each with its own heading, markdown and screenshot.
+  - Mark a section as starting a new page and the notice becomes a wizard the reader steps through. Pictures open full size on a click.
+  - Each notice is shown once and remembered per person — or, for a breaking change nobody can afford to miss, ask for however many acknowledgements it takes before it stops coming back.
+  - Choose who sees it: a minimum platform role, optionally "only people who administer a community", and either the accounts that existed when it was published (a change you lived through) or the ones made since (a tip for somebody just arriving). Schedule it, give it an end date, or keep it a draft.
+  - Give it a page pattern instead and it waits there, so a notice can explain a screen on the screen it is about.
+  - Operators and owners write them under Settings › Admin › Announcements, with a preview of exactly what a reader gets. Everyone can re-read past notices from the info icon in the sidebar footer, where read and unread are marked and unread can be filtered to on its own.
+  - A release can also ship a notice in the app's own source, naming the version it matters to so a fresh install isn't told about every change since the one before it. This release ships one, telling community admins where their sidebar's initiatives went.
 
 - **Communities ask their members' age — and don't keep the answer.** Joining a community anyone can find asks your date of birth once. It is used to check you are old enough and then discarded: your account records that you answered, never the date. Only the parts of Initiative open to people outside your own communities ask; private ones never do. An answer of "not old enough yet" is kept too, so the question is asked once rather than until it comes out right — support and above can reset it for the usual cause, a mistyped year. Platform owners can turn the question off entirely under Settings › Admin › Community.
 
+- **Say how you're around, or don't.** A dot under your picture in the sidebar opens the four states: online, idle, busy, or offline. Offline means offline — nobody sees you as here, whatever you have open. Idle sets itself once nothing has been touched for a while, and you can also pick it outright to say you have stepped away. The same dot on your profile card in Settings › Profile opens the same menu.
+
+- **My Contacts.** Everyone you share a community with, on one page: favorites you picked at the top, then each of your communities in the order you dragged them into the rail, as sections you can collapse.
+  - It reads as one table — the same columns (person, name, the communities you have in common) run down every section, so somebody in several of your communities lines up with themselves. Hover the small community icons on a row for the full list of what you share.
+  - Each section pages on its own, twenty at a time, without moving the ones around it.
+  - Star anyone, including people you share no community with, to keep them at the top. Starring is private and tells them nothing.
+  - One search box covers the whole page, and says while it works that a search visits each community in turn.
+
+- **Smart chips: a chip that keeps itself current.** Type `/` in a document, or pick **Smart chip** from the toolbar's insert menu, and choose a task's status, assignee, due date or priority, a counter's value, or an event's date. The chip carries the reading itself — `In progress`, `42 / 100`, `12 Sep` — so it sits in a sentence without repeating what the sentence already says; hover it for what the thing is called now and what kind of thing it is, and click to open it. Move a task to Done and it turns green in every document that mentions it.
+
+- **Comments grew up.** React with an emoji (the author hears about it in a digest, not one ping per thumbs-up), turn comments off per tool under Settings › Advanced, and read them through the MCP server as well as write them.
+
 - **Your account keeps up with itself.** A tab used to read your account once, when it opened, and never again — so being added to a community by an admin or a group sign-in sync, or a community listing itself while you were already in it, went unnoticed until you reloaded. Those now reach an open tab as they happen. Nothing about the change travels: the tab is told only that something moved and reads your account back the normal way, so what it can see is exactly what it could always ask for. Deployments running more than one server process get this too, over the database they already have — no extra service to install.
+
+- **Shift-click picks a run of cards.** Selecting projects, documents, queues, counter groups or dashboards no longer means one click per card: click the first, hold shift and click the last, and everything between them comes with it. Shift-clicking away from a card you just unticked clears that run the same way.
+
+- **Pickers open on what you were just working on.** Choosing what a smart chip is about starts from the work in this initiative you edited most recently, so the common case is picking from a list rather than guessing at a search term. Typing still searches.
+
+- **An initiative's status columns can be read in one request**, instead of asking project by project and stitching the answers together.
 
 ### Changed
 
 - **Guilds are now communities.** The name was picked for gaming guilds, and people turned out to be running far more than that. Pages moved from `/g/…` to `/c/…`, and a new install's first community is called "Primary Community".
 
+- **Exports and imports name people by handle.** An export used to write each person's email address as the key for assignees, event attendees and person-typed properties, and an import matched on it. Both use the handle now — `foobar#1234`, the identifier the rest of the app already uses, and the one that is the same in every community. Anything exported before this release will not match its people back on import; re-export and the new file will.
+
+- **A community admin sees the initiatives they're in**, not every initiative in the community — in the sidebar and on the community's front page alike. An admin reads the front page the way anyone else does: the initiatives they joined, then the ones on offer. Their authority over the community is unchanged; it simply no longer decides what they navigate. They put an initiative in front of themselves by joining it from the front page (an admin walks straight in rather than asking, whatever the initiative's joining setting) or by taking the project manager role in Settings › Initiatives, which still lists every initiative in the community.
+
+- **A list that spans initiatives shows what has been shared with you.** My Projects, My Calendars and the community front page's table each answered "everything you could reach", so a community admin got hundreds of rows from initiatives they had never been in. They now list what reaches the reader: shared with them, with a role they hold, or with everyone in an initiative they're in. The sidebar's tool lists and the per-initiative counts on the front page's cards follow the same rule. Opening a single initiative still answers with all of its work.
+
 - **Notifications arrive when they happen.** The bell asked the server every thirty seconds, so a mention could sit unseen for half a minute while every open tab kept asking all day. It holds an open connection now, and marking one read updates your other tabs.
 
 - **Every picker searches the way search does.** Mentions, wikilinks, queue links and template pickers each had their own lookup — substring matching, no ranking, and a fixed list of three kinds of thing. They all use the search index now, so every one of them ranks, matches as you type, and forgives a misspelling. So do the people pickers.
 
-- **Search moved into the sidebar** and the results page names the community it's searching. Every tab stays open, so an empty one says so rather than being greyed out.
+- **Promoting someone to community admin lifts the initiative roles they already hold.** A promotion used to leave every initiative membership on the role they joined with, so the app went on treating them as an ordinary member there — they were not told when somebody asked to join, and the waiting-requests count on the community front page read zero. Those rows now move to project manager with the promotion, and one left behind by an earlier promotion can be put right from the initiative's Members tab.
+
+- **Project managers can invite community admins into an initiative.** The invite used to be refused, because an admin can only hold the project manager role there. It now simply gives them that role, so a manager can add an admin without first working out who is one — and the member picker offers them like anybody else.
 
 - **User settings reorganised, and every tab is built from the same parts.** Profile and Decorations each held half the answer to "how do I look"; Profile is now the whole face and opens first, with sign-in details moved out of it. Nine tabs that had drifted into three kinds of heading and Save buttons in four places share one section component, and Notifications splits into the three things it was doing at once.
 
+- **Search moved into the sidebar** and the results page names the community it's searching. Every tab stays open, so an empty one says so rather than being greyed out.
+
 - **The task editor stops repeating itself.** Creating and editing a task now lay out the same named sections in the same order; the title is on screen once instead of three times; and the row of six buttons is two, with the rest behind a "…" menu.
+
+- **A community's member list carries what the community manages.** Handle, name, community role, whether the membership comes from a group sign-in sync, standing, and when they joined. Their platform role and whether they have confirmed their address were in there too, and are not a community's business; both are gone from the list and from the member CSV.
+
+- **Names and titles no longer accept `#` or `@`.** Both already mean something when you're writing.
 
 - **Comment threads run the full width of the page**, on every kind of page, and each level of nesting draws its thread line in a different colour so you can see how deep a reply sits.
 
 - **Every settings tab has an address of its own**, so you can link someone straight to a tool's sharing or advanced options.
 
-- **Names and titles no longer accept `#` or `@`.** Both already mean something when you're writing.
-
-- **Toasts stay up only as long as they take to read**, worked out from the message rather than a fixed five seconds.
-
 - **One emoji picker everywhere**, searchable and in your language.
-
-- **A community admin sees the initiatives they're in**, not every initiative in the community. That holds in the sidebar and on the community's front page alike: an admin reads the front page the way anyone else does — the initiatives they joined, then the ones on offer. Their authority over the community is unchanged; it simply no longer decides what they navigate. They put an initiative in front of themselves by joining it from the front page — an admin walks straight in rather than asking, whatever the initiative's joining setting — or by taking the project manager role in Settings › Initiatives, which still lists every initiative in the community.
-
-- **A list that spans initiatives shows what has been shared with you.** My Projects, My Calendars and the community front page's table each answered "everything you could reach", so a community admin got every project, document, queue, counter, calendar and dashboard in the community — hundreds of rows from initiatives they had never been in, on the same page that had just stopped listing those initiatives. They now list what reaches the reader: shared with them, with a role they hold, or with everyone in an initiative they're in. The sidebar's tool lists and the per-initiative counts on the front page's cards follow the same rule. Nothing about an admin's authority changed — opening a single initiative still answers with all of its work, which is where that authority is the question being asked.
-
-- **Promoting someone to community admin lifts the initiative roles they already hold.** A promotion changed their standing in the community and left every initiative membership they had on the role they joined with, so the app went on treating them as an ordinary member there — they were not told when somebody asked to join, and the waiting-requests count on the community front page read zero. Those rows now move to project manager with the promotion, and one that was left behind by an earlier promotion can be put right from the initiative's Members tab.
-
-- **Project managers can invite community admins into an initiative.** The invite used to be refused, because an admin can only hold the project manager role there. It now simply gives them that role, so a manager can add an admin without first working out who is one — and the member picker offers them like anybody else.
 
 - **"Browse the marketplace" sits next to the create button** on the dashboards list rather than behind the overflow menu.
 
-- **Exports and imports name people by handle.** An export used to write each person's email address as the key for assignees, event attendees and person-typed properties, and an import matched on it. Both use the handle now — `foobar#1234`, the identifier the rest of the app already uses, and the one that is the same in every community. Anything exported before this release will not match its people back on import; re-export and the new file will.
-
-- **A community's member list carries what the community manages.** Handle, name, community role, whether the membership comes from a group sign-in sync, standing, and when they joined. Their platform role and whether they have confirmed their address were in there too, and are not a community's business; both are gone from the list and from the member CSV.
+- **Toasts stay up only as long as they take to read**, worked out from the message rather than a fixed five seconds.
 
 ### Fixed
 
-- **The age question no longer hammers the server.** Answering how old you are re-reads your account, and re-reading it rebuilt the connection that had just asked for the re-read — a loop that ran until the API started refusing requests. The connection now belongs to the person rather than to a particular reading of them, and a re-read that says nothing new changes nothing.
-
-- **The date of birth is picked with the app's own date picker**, so a birthday is a year off a dropdown rather than forty years of paging back through the browser's calendar.
-
-- **The community calendar shows its calendars** and offers to add one, instead of opening straight onto a grid of events.
+- **Open tabs no longer flicker when you switch community**, and document text no longer shows through the editor's toolbars.
 
 - **A task description with a code block no longer stretches its board card** out of the column — code fences, tables, images and long strings stay inside it.
 
-- **Renaming a spreadsheet sheet keeps what you type.** Every keystroke used to re-select the whole name and replace it.
+- **The community calendar shows its calendars** and offers to add one, instead of opening straight onto a grid of events.
 
-- **Open tabs no longer flicker when you switch community**, and document text no longer shows through the editor's toolbars.
+- **A picker that finds nothing says so.** `#` and the smart-chip picker reach the work in the document's own initiative, so a community full of matching tasks can still answer nothing — and both used to render that as an unchanged caret and an empty box, which reads as a broken feature rather than as an answer. They now say that nothing matched, and that the initiative is the limit.
+
+- **Renaming a spreadsheet sheet keeps what you type.** Every keystroke used to re-select the whole name and replace it.
 
 - **The Repeat field no longer tells you twice** that a task doesn't repeat.
 
