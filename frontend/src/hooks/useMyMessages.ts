@@ -12,7 +12,7 @@
  *   nothing; it says there is something to fetch.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import {
@@ -36,6 +36,10 @@ export const messageKeys = {
   // registering is a once-per-browser answer, and re-asking it on every frame
   // would cost a round trip to be told the same device id again.
   device: ["dm-device"] as const,
+  // A separate key from `device`, because it is a different question with a
+  // different answer: *is* there one, versus make sure there is. Sharing one
+  // would let whichever asked first decide what the other one got back.
+  registered: ["dm-device-registered"] as const,
   inbox: ["dm", "inbox"] as const,
   thread: (conversationId: string) => ["dm", "thread", conversationId] as const,
   // Keyed on the conversations it counts, so a new one is a new question
@@ -152,12 +156,16 @@ export function useCollectMessages(enabled: boolean) {
  */
 export function useCollectMessagesWhereRegistered() {
   const registered = useQuery({
-    queryKey: messageKeys.device,
+    queryKey: messageKeys.registered,
     queryFn: () => registeredDevice().then((id) => id ?? null),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   });
-  return useCollectMessages(Boolean(registered.data));
+  // Watching the answer to the *other* question rather than fetching anything:
+  // this browser may be set up while the app is running, by the one page that
+  // does it, and collection should start then rather than on the next load.
+  const device = useQuery({ queryKey: messageKeys.device, queryFn: skipToken });
+  return useCollectMessages(Boolean(registered.data ?? device.data));
 }
 
 /**

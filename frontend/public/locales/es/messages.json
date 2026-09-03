@@ -23,5 +23,7 @@
     "denied": "Ahora mismo no puedes escribirles."
   },
   "unreadHere_one": "{{count}} mensaje sin leer",
-  "unreadHere_other": "{{count}} mensajes sin leer"
+  "unreadHere_other": "{{count}} mensajes sin leer",
+  "openFailed": "No se pudo abrir esa conversación.",
+  "tryAgain": "Inténtalo de nuevo"
 }

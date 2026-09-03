@@ -240,19 +240,23 @@ export async function unreadIn(conversationId: string): Promise<number> {
 }
 
 /**
- * This thread has been looked at, as of now.
+ * This thread has been looked at, up to the newest message in it.
  *
- * Or as of its newest message, whichever is later: the other side stamps its
- * messages from its own clock, and one running ahead would otherwise leave a
- * message unread the moment after it was read.
+ * Marked against the newest message *from the other side*, and deliberately
+ * not against the clock. Their messages are stamped by the server and mine by
+ * this browser, so a marker taken from either clock could sit ahead of a
+ * message that has not arrived yet and quietly count it as read. Comparing
+ * their messages only ever against their own newest leaves one clock in the
+ * question, which is the server's.
  */
 export async function markRead(conversationId: string): Promise<void> {
   const log = await messageLog.get(conversationId);
   const newest = log.reduce((latest, message) => {
+    if (message.mine) return latest;
     const at = Date.parse(message.at);
     return Number.isNaN(at) ? latest : Math.max(latest, at);
   }, 0);
-  await lastRead.set(conversationId, Math.max(Date.now(), newest));
+  await lastRead.set(conversationId, newest);
 }
 
 /**

@@ -23,5 +23,7 @@
     "denied": "Tu ne peux pas lui écrire pour le moment."
   },
   "unreadHere_one": "{{count}} message non lu",
-  "unreadHere_other": "{{count}} messages non lus"
+  "unreadHere_other": "{{count}} messages non lus",
+  "openFailed": "Cette conversation n'a pas pu être ouverte.",
+  "tryAgain": "Réessayer"
 }

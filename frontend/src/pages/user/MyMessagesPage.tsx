@@ -110,15 +110,22 @@ export function MyMessagesPage() {
     }
     if (channelOpen) {
       opened.current = withHandle;
-      startMessages(targetId, {
-        onSuccess: (conversation) => setSelected(conversation.id),
-        // Left unclaimed so a retry — a click on the same row — tries again.
-        onError: () => {
-          opened.current = null;
-        },
-      });
+      startMessages(targetId, { onSuccess: (conversation) => setSelected(conversation.id) });
     }
   }, [withHandle, targetId, targetConversation, channelOpen, conversationsLoaded, startMessages]);
+
+  /**
+   * Try again, after one of those failed.
+   *
+   * A button rather than the effect having another go on its own: the address
+   * has not changed, so nothing would re-run it, and a state change that did
+   * would keep re-running it against whatever is refusing.
+   */
+  const retryOpen = () => {
+    if (targetId === undefined) return;
+    startConversation.reset();
+    startMessages(targetId, { onSuccess: (conversation) => setSelected(conversation.id) });
+  };
 
   const navigate = useNavigate();
 
@@ -256,7 +263,16 @@ export function MyMessagesPage() {
         ) : withHandle ? (
           // Somebody was asked for. Either their thread is on its way, or there
           // is no channel and the panel says what would open one.
-          target.isLoading || !conversationsLoaded || channelOpen ? (
+          startConversation.isError ? (
+            <div className="flex flex-1 items-center justify-center p-8 text-center">
+              <div className="max-w-sm space-y-3">
+                <p className="text-muted-foreground text-sm">{t("openFailed")}</p>
+                <Button variant="outline" onClick={retryOpen}>
+                  {t("tryAgain")}
+                </Button>
+              </div>
+            </div>
+          ) : target.isLoading || !conversationsLoaded || channelOpen ? (
             <div className="flex flex-1 items-center justify-center p-8">
               <p className="text-muted-foreground text-sm">{t("loading")}</p>
             </div>

@@ -23,5 +23,7 @@
     "denied": "Du kannst ihnen gerade nicht schreiben."
   },
   "unreadHere_one": "{{count}} ungelesene Nachricht",
-  "unreadHere_other": "{{count}} ungelesene Nachrichten"
+  "unreadHere_other": "{{count}} ungelesene Nachrichten",
+  "openFailed": "Diese Unterhaltung konnte nicht geöffnet werden.",
+  "tryAgain": "Erneut versuchen"
 }

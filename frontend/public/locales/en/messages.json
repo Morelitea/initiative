@@ -23,5 +23,7 @@
     "denied": "You can't message them right now."
   },
   "unreadHere_one": "{{count}} unread message",
-  "unreadHere_other": "{{count}} unread messages"
+  "unreadHere_other": "{{count}} unread messages",
+  "openFailed": "That conversation could not be opened.",
+  "tryAgain": "Try again"
 }

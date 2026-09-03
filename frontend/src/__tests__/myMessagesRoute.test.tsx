@@ -286,6 +286,23 @@ describe("My Messages", () => {
     expect(screen.queryByRole("button", { name: /connect/i })).toBeNull();
   });
 
+  it("offers another go when a conversation could not be opened", async () => {
+    // The address does not change when the button is pressed, so nothing would
+    // re-run on its own — and a pane stuck on \"Loading…\" is a dead end.
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.userProfile.mockReturnValue(profile(7, "alex"));
+    mocks.createConversation.mockRejectedValueOnce(new Error("network"));
+
+    const Page = await messagesPage();
+    renderPage(Page, { initialRoute: "/messages", routerSearch: { with: "alex1234" } });
+
+    await userEvent.click(await screen.findByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(mocks.createConversation).toHaveBeenCalledTimes(2));
+  });
+
   it("sends through the ratchet rather than posting a body", async () => {
     mocks.conversations.mockResolvedValue({
       conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
