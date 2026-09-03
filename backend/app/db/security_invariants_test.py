@@ -51,6 +51,7 @@ _RLS_SHARED_TABLES = {
     "auth_providers",
     "auth_sessions",
     "billing_event_log",
+    "contact_grants",
     "federated_identities",
     "federated_identity_secrets",
     "guild_administration",
@@ -70,6 +71,9 @@ _RLS_SHARED_TABLES = {
     "user_api_keys",
     "user_avatars",
     "user_decorations",
+    "user_dm_guild_optouts",
+    "user_dm_settings",
+    "user_ignores",
     "user_view_preferences",
     "users",
 }

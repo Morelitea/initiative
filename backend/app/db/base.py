@@ -67,6 +67,10 @@ from app.models.tenant.upload import Upload
 from app.models.platform.user_decoration import UserDecoration
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user_view_preference import UserViewPreference
+from app.models.platform.user_dm_settings import UserDmSettings
+from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
+from app.models.platform.contact_grant import ContactGrant
+from app.models.platform.user_ignore import UserIgnore
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -170,6 +174,10 @@ __all__ = [
     "UserDecoration",
     "ProfileFavorite",
     "UserViewPreference",
+    "UserDmSettings",
+    "UserDmGuildOptout",
+    "ContactGrant",
+    "UserIgnore",
     "UserToken",
     "PushToken",
     "AutoDelegationJti",

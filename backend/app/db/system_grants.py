@@ -129,6 +129,17 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # to clear an anonymized account off other people's lists too — the row
     # survives the husk, so the FK cascade never fires for it.
     "profile_favorites": frozenset({"SELECT", "DELETE"}),
+    # An account is created on the system engine (registration, invite
+    # redemption, provisioning from an identity provider), and its policy row is
+    # seeded there from the operator default — hence INSERT. The other three are
+    # written on the request path by the account holder; the system engine only
+    # reads them for the guild-lifecycle sweeps and clears them on erasure.
+    "user_dm_settings": frozenset({"SELECT", "INSERT", "DELETE"}),
+    "user_dm_guild_optouts": frozenset({"SELECT", "DELETE"}),
+    "contact_grants": frozenset({"SELECT", "DELETE"}),
+    # SELECT also carries the notification fan-out: who, of a set of
+    # recipients, ignores the actor (see app.services.platform.accounts).
+    "user_ignores": frozenset({"SELECT", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -252,6 +263,12 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # A contacts list belongs to a signed-in account, and the bare pre-routing
     # login role serves nobody in particular.
     "profile_favorites": None,
+    # Read and written on the authenticated platform-tier path, never before a
+    # session is routed.
+    "user_dm_settings": None,
+    "user_dm_guild_optouts": None,
+    "contact_grants": None,
+    "user_ignores": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

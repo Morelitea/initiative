@@ -1,8 +1,10 @@
 from typing import Optional
 
 from sqlalchemy import Boolean, Column, Integer, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Enum as SQLEnum, Field, SQLModel
 from pydantic import ConfigDict
+
+from app.models.platform.user_dm_settings import DmPolicy
 
 # Login posture (platform vs guild) is a deploy-time setting, read from
 # ``settings.AUTH_SCOPE`` — see ``app.core.config.AuthScope``. Platform OIDC
@@ -85,6 +87,19 @@ class AppSetting(SQLModel, table=True):
     community_age_gate_enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # The direct-message policy a newly created account starts on. Read once,
+    # when the account is created, and copied into its ``user_dm_settings`` row;
+    # changing it later moves nobody, so raising it opens no existing account
+    # and lowering it revokes no channel anybody is using.
+    default_dm_policy: DmPolicy = Field(
+        default=DmPolicy.private,
+        sa_column=Column(
+            SQLEnum(DmPolicy, name="user_dm_policy", create_type=False),
+            nullable=False,
+            server_default=DmPolicy.private.value,
+        ),
     )
 
     # AI config ownership mode: "platform" (the operator's connections apply to

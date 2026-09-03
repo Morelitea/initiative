@@ -75,6 +75,14 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # and one-directional: the list is the holder's, and it may name
         # people they share no guild with.
         "profile_favorites",
+        # Who may ask to message an account, who it has agreed something with,
+        # and who it has chosen not to hear from. All three are per-account and
+        # cross-guild, like the starred list above, and none of them is any
+        # guild's business.
+        "user_dm_settings",
+        "user_dm_guild_optouts",
+        "contact_grants",
+        "user_ignores",
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
