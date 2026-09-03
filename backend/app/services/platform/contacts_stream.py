@@ -43,17 +43,15 @@ def queue_contacts_signal(
     user_stream.queue_frame(session, user_id, user_stream.build_frame(RESOURCE, action))
 
 
-def queue_for_present(
-    session: Any, user_ids: Iterable[int], action: str = "changed"
-) -> None:
-    """Signal a set of accounts, narrowed to the ones with a socket here.
+def queue_many(session: Any, user_ids: Iterable[int], action: str = "changed") -> None:
+    """Signal a set of accounts.
 
-    Revoking a community's worth of channels would otherwise cost the size of
-    the membership rather than the number of people present. Anybody not here
-    finds the new state on their next read, which is what a content-free frame
-    was standing in for anyway.
+    Deliberately not narrowed to this process's own sockets. That narrowing
+    would have to happen before ``publish``, which is also what puts a frame on
+    the cross-worker bus — so an account connected only to another worker would
+    never be published for at all, and its tab would sit on a list that had
+    moved. The callers here already pass a bounded set (the pairs a sweep
+    actually revoked, rather than a roster), so there is nothing left to save.
     """
-    connected = user_stream.stream.connected_users()
     for user_id in user_ids:
-        if user_id in connected:
-            queue_contacts_signal(session, user_id, action)
+        queue_contacts_signal(session, user_id, action)

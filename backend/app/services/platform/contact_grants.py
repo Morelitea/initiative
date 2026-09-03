@@ -380,10 +380,10 @@ async def revoke_stale_message_grants(
                 touched.update({grant.user_id_low, grant.user_id_high})
                 dropped += 1
         if dropped:
-            # Both sides of every pair that went, narrowed to the accounts with
-            # a socket here: a community's worth of revocations should cost the
-            # number of people present rather than the size of the membership.
-            contacts_stream.queue_for_present(admin_session, touched)
+            # Both sides of every pair that actually went — which is already
+            # the bound worth having: a community's worth of revocations costs
+            # the pairs revoked, not the size of the membership.
+            contacts_stream.queue_many(admin_session, touched)
             await admin_session.commit()
     return dropped
 

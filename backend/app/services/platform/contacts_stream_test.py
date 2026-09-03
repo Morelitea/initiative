@@ -161,16 +161,36 @@ async def test_the_frame_carries_nothing(session, captured_stream):
     assert set(frame) == {"resource", "action", "ids", "timestamp"}
 
 
-async def test_a_fan_out_reaches_only_who_is_here(session, captured_stream):
-    """``queue_for_present`` costs the people present, not the roster."""
+async def test_a_fan_out_publishes_for_everyone_it_names(session, captured_stream):
+    """Not narrowed to this worker's own sockets.
+
+    That narrowing would have to happen before ``publish``, which is also what
+    puts a frame on the cross-worker bus — so an account connected only to
+    another worker would never be published for. Here ``away`` stands in for
+    that account: it holds no socket on this process, and the frame is still
+    sent for it.
+    """
     here = await create_user(session)
     away = await create_user(session)
     await session.commit()
     to_here = await _socket_for(captured_stream, here)
 
-    contacts_stream.queue_for_present(session, [here.id, away.id])
-    await session.commit()
-    await _drain_tasks()
+    published: list[int] = []
+
+    async def _capture(user_id: int, frame: dict) -> None:
+        published.append(user_id)
+        await captured_stream.send(user_id, frame)
+
+    import app.services.platform.user_stream as user_stream_module
+
+    original = user_stream_module.publish
+    user_stream_module.publish = _capture
+    try:
+        contacts_stream.queue_many(session, [here.id, away.id])
+        await session.commit()
+        await _drain_tasks()
+    finally:
+        user_stream_module.publish = original
 
     assert _contacts_frames(to_here)
-    assert captured_stream.socket_count(away.id) == 0
+    assert set(published) == {here.id, away.id}
