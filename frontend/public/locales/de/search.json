@@ -11,6 +11,10 @@
     "title": "Keine Ergebnisse für „{{query}}“",
     "description": "Prüfe die Schreibweise oder versuche ein anderes Wort."
   },
+  "failed": {
+    "title": "Die Suche antwortet nicht",
+    "description": "Beim Abrufen ist etwas schiefgelaufen. Versuche es gleich noch einmal."
+  },
   "tabs": {
     "tool": "Werkzeuge",
     "member": "Mitglieder",

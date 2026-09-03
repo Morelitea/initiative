@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A search tab that matched nothing says so.** In ⌘K, switching between Tools, Members, Comments and Tags left the tab before it on screen when the new one had no answer — so a community with nobody matching showed the comments you had just been reading. Each tab now shows only what it found, and says "No results found." when that is nothing — or that search is not answering, if the request never landed, rather than reporting a failure as an empty community.
+
 ## [0.65.0] - 2026-09-02
 
 ### Added

@@ -11,6 +11,10 @@
     "title": "No results for “{{query}}”",
     "description": "Check the spelling, or try a different word."
   },
+  "failed": {
+    "title": "Search is not answering",
+    "description": "Something went wrong reaching it. Try again in a moment."
+  },
   "tabs": {
     "tool": "Tools",
     "member": "Members",

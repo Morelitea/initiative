@@ -13,7 +13,7 @@
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Loader2, Search, SearchX } from "lucide-react";
+import { Loader2, Search, SearchX, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -224,6 +224,8 @@ export function SearchPage() {
                 />
               ) : results.isLoading || outOfRange ? (
                 <Loading />
+              ) : results.isError ? (
+                <SearchFailed />
               ) : items.length === 0 ? (
                 <NoResults query={query} />
               ) : (
@@ -267,6 +269,24 @@ function Loading() {
     <div className="flex h-40 items-center justify-center">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
+  );
+}
+
+/**
+ * The question never got an answer.
+ *
+ * Distinct from nothing having matched: that is something the index said, and
+ * this is the index not having been reached. Told apart so the page does not
+ * report a community as empty on the strength of a request that failed.
+ */
+function SearchFailed() {
+  const { t } = useTranslation("search");
+  return (
+    <StatusMessage
+      icon={<TriangleAlert />}
+      title={t("failed.title")}
+      description={t("failed.description")}
+    />
   );
 }
 
@@ -349,6 +369,7 @@ function MemberResults({
 }) {
   const items = members.data?.items ?? [];
   if (members.isLoading || outOfRange) return <Loading />;
+  if (members.isError) return <SearchFailed />;
   if (items.length === 0) return <NoResults query={query} />;
   return (
     <>

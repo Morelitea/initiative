@@ -11,6 +11,10 @@
     "title": "Aucun résultat pour « {{query}} »",
     "description": "Vérifiez l’orthographe ou essayez un autre mot."
   },
+  "failed": {
+    "title": "La recherche ne répond pas",
+    "description": "Un problème est survenu. Réessayez dans un instant."
+  },
   "tabs": {
     "tool": "Outils",
     "member": "Membres",
