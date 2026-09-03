@@ -4,9 +4,11 @@ icon: lucide/store
 
 # Apps & the marketplace
 
-Whatever tool your group needs, some other group with the same problem has probably already built it. The **marketplace** is where those live: ready-made dashboards and apps you add in a couple of clicks, with no developer and no waiting for a new version of Initiative.
+Whatever your group needs, some other group has needed exactly the same thing, built it, got fed up rebuilding it every year, and shared it.
 
-Your marketplace holds the listings that ship with Initiative plus any the person running your server added and approved. Everything on it got there because somebody decided to put it there.
+The **marketplace** is where those live: ready-made dashboards and apps you add in a couple of clicks. No developer. No custom build. No waiting for us to get round to shipping it.
+
+Your marketplace holds the listings that ship with Initiative plus whatever the person running your server has added and approved. Nothing turns up on it by accident — everything there is there because a human put it there.
 
 ## Two marketplaces
 
@@ -73,7 +75,9 @@ Each connection shows which service it uses and what it's allowed to do there, s
 
 ## Your own marketplace
 
-Yours holds **decoration packs**: sets of artwork for your profile. Each is built around one thing a group of people has in common, and carries banners, frames and trophies — usually several of each — which you wear in any combination you like.
+Yours holds **decoration packs**: sets of artwork for your profile, and by far the least serious part of Initiative.
+
+Each pack is built around one thing a group of people has in common, and carries banners, frames and trophies — usually several of each — which you wear in whatever combination pleases you.
 
 Twenty-three packs ship with Initiative:
 
@@ -93,7 +97,7 @@ What you take here is yours, not your community's. Download a pack in one commun
 2. Open a pack to see everything in it, and the profile it would make — banner running, frame around your own picture, trophies underneath.
 3. **Get this pack**, and its pieces land in your collection.
 
-Downloading puts nothing on you. It gives you the pieces; you choose what to wear back on **User settings → Profile**, mixing pieces from different packs however you like. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
+Downloading a pack puts nothing on you. It just hands you the pieces — you choose what to actually wear back on **User settings → Profile**, mixing pieces from different packs however you like. Nobody is going to stop you. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
 
 Giving one back is the same click in reverse — open the pack's card and remove it. Its pieces leave your collection, and anything from it you were wearing comes off with them.
 

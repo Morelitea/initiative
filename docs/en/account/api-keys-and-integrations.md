@@ -4,17 +4,19 @@ icon: lucide/key-round
 
 # API keys & integrations
 
-Most people never need this page, and that's fine. But if you want to connect Initiative to a script, another tool, or an AI assistant, **API keys** are how. A key is a long-lived credential that lets software act on your behalf, with limits you set.
+Most people will never need this page, and that is a completely fine way to live.
+
+But if you want to connect Initiative to a script, another tool, or an AI assistant, **API keys** are how you do it. A key is a long-lived credential that lets software act on your behalf, within limits you set.
 
 !!! tip "Treat an API key like a password"
-    Anyone holding your key can do what it allows, as you. Don't paste keys anywhere public, and delete any you've stopped using.
+    Anybody holding your key can do what it allows, as you. So: don't paste one into a public chat, don't email it to yourself, and delete any you've stopped using rather than leaving them lying about.
 
 ## Creating one
 
 1. **User settings → Security**.
 2. Under **Generate an API key**, give it a clear **name** — `weekly-report-script`, so future-you remembers what it's for.
 3. Choose its limits (below).
-4. Generate, and **copy it immediately** — it's shown once. Lost it? Delete it and make another.
+4. Generate it, and **copy it right now** — it's shown exactly once. Lost it already? No drama: delete it and make another.
 
 ![Generating an API key](../images/account/api-key.png)
 

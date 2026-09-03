@@ -4,7 +4,7 @@ icon: lucide/library
 
 # Help & reference
 
-For when you need a fact fast rather than a walkthrough.
+For when you want a fact rather than a walkthrough.
 
 <div class="grid cards" markdown>
 

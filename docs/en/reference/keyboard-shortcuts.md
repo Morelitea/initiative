@@ -4,7 +4,9 @@ icon: lucide/keyboard
 
 # Keyboard shortcuts
 
-A few keystrokes make Initiative faster. The most useful by far is search — if you only remember one, make it that one.
+A handful of keystrokes make Initiative considerably faster.
+
+If you only ever remember one, make it search. It's not close.
 
 ## Everywhere
 
@@ -39,5 +41,5 @@ Projects, documents, queues, counter groups and dashboards are listed as cards, 
 - **The recent tab bar** along the top works like browser tabs — click to revisit, close when done.
 - **Drag and drop** to reorder things: tasks between Kanban columns, items in a queue, counters in a group.
 
-!!! tip "Watch the menus"
-    Many actions live in the **⋯ (more)** menus on projects, tasks, and documents. When you're hunting for something, that's a good first place to look.
+!!! tip "When you can't find something, check the dots"
+    A lot of actions live behind the **⋯ (more)** menus on projects, tasks and documents. If you're hunting for a thing you're sure exists, that's the first place to look and it's usually there.

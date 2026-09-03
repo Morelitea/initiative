@@ -4,21 +4,27 @@ icon: lucide/circle-help
 
 # Frequently asked questions
 
-Short answers to what people actually ask. Each one points at the longer version.
+Short answers to what people actually ask, with a pointer to the longer version if you want it.
 
 ## Starting out
 
 ### Do I need to know project management to use this?
 
-No. A project is a board, a task is a to-do on it, and that's genuinely enough to run real work. Roles, tools, dashboards, apps — they're there when you need them and quiet until then. See [Getting started](getting-started/index.md).
+No, and please don't go and learn some first. A project is a board. A task is a to-do on it. That is genuinely enough to run real work.
+
+Roles, tools, dashboards, apps — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
 
 ### There's a lot here. Where do I begin?
 
-Make a community, open the **Default Initiative** it comes with, create one project, add some tasks. That's a working setup. Come back for the rest when something feels missing. See [Your first community](getting-started/your-first-community.md).
+Make a community. Open the **Default Initiative** it came with. Make one project. Put some tasks on it.
+
+That's it — you now have a working setup, and you're allowed to stop. Come back for the rest of this only when something actually feels missing. See [Your first community](getting-started/your-first-community.md).
 
 ### Is it free?
 
-Self-hosting is free and always will be — it's open source and it's the complete product, not a trimmed-down version. A paid hosted service is coming for people who'd rather not run a server. See [Self-host or let us host it](self-host-or-hosted.md).
+Self-hosting is free and always will be. It's open source, and it's the complete product rather than a trimmed-down teaser.
+
+A paid hosted version is coming for people who'd rather not run a server, which is a completely reasonable thing to not want to do. See [Self-host or let us host it](self-host-or-hosted.md).
 
 ### Can I add tools that aren't built in?
 
@@ -28,27 +34,25 @@ A few apps need a program running alongside Initiative before they work. The **G
 
 ## Getting in
 
-### I can't find the community I was told to join
+Most communities are private and don't appear anywhere at all until you're invited. You're not missing a search box — there's nothing to search.
 
-Most communities are private and don't show up anywhere until you're invited. Ask whoever told you about it for an invite link — that link takes you straight there once you've made an account.
+Ask whoever mentioned it for an invite link. That link takes you straight there once you've made an account.
 
-If your server runs a [community directory](guides/communities.md#finding-a-community-to-join), listed communities appear under **Join a community** on the community rail. A community that hasn't listed itself won't be there, however hard you search.
+If your server runs a [community directory](guides/communities.md#finding-a-community-to-join), listed communities show up under **Join a community** on the rail. A community that hasn't listed itself won't be there however hard you look.
 
 ### I don't see "Join a community"
 
 The directory is a server-wide feature that starts switched **off**, so plenty of servers don't have one. Everything there is invite-only.
 
-### My invite link says it's no longer valid
-
-Links can expire, get used up, or be switched off by an admin. None of that is about you — ask for a fresh one.
+Links can expire, run out of uses, or get switched off by an admin. None of that is a judgement on you personally. Ask for a fresh one; it takes them four seconds.
 
 ### I don't see a "Create community" button
 
 Some servers turn community creation off on purpose so people join through invites instead. Ask an admin to invite you, or to make one for you.
 
-### I didn't get my verification or password-reset email
+Give it a few minutes, then check spam. It's usually spam.
 
-Give it a few minutes, then check spam. If it still hasn't landed, the server may not have email set up — ask your administrator. Reset links go stale after a while, so request a fresh one if yours is old. See [Signing in](getting-started/signing-in.md).
+If it still hasn't turned up, the server may not have email configured at all — ask your administrator. Reset links also go stale, so if yours has been sitting there since Tuesday, request another. See [Signing in](getting-started/signing-in.md).
 
 ### I've been signed out and can't get back in
 
@@ -72,7 +76,7 @@ Something put you in a listed community without you clicking Join: an admin adde
 
 A community that hasn't listed itself never asks — not on an invite, not when you're added.
 
-### My account can't reach anyone
+### My account can't reach anybody
 
 <a id="my-account-cant-message-anyone"></a>
 
@@ -85,11 +89,9 @@ If you can't join communities you can see, and the parts of Initiative open to p
 
 Either way, everything inside communities you were **invited** to still works.
 
-### I typed my birthday wrong and now I'm stuck
+Extremely common, and entirely fixable. Ask an administrator of your server to **reset the age question**. Anyone on the support tier or above can do it, and it's recorded in the audit log like any other action taken on somebody's account.
 
-Common, and fixable: ask an administrator of your server to **reset the age question**. Anyone on the support tier or above can do it, and it's recorded in the audit log like any other action taken on someone's account.
-
-They can't see what you typed, because it was never kept. Resetting just lets you answer again.
+They can't see what you typed, incidentally, because it was never kept. Resetting simply lets you have another go.
 
 !!! info "Why you can't simply re-answer"
     A question you can retry until it comes out right isn't really a question. So the answer stands, and undoing it takes somebody else — which is why the reset is logged.
@@ -130,9 +132,9 @@ Expected. Projects can each have their own statuses, so a moved task restarts at
 
 **Archive** them. There's a one-click "Archive done tasks", and you can filter archived tasks back into view whenever you want. Nothing is lost.
 
-### I deleted something by accident
+It's fine. It's in the **Trash** — Community settings for shared things, your own Trash for your own items — and it sits there for a while before going anywhere permanent.
 
-Check the **Trash** — Community settings for shared things, your own Trash for your items. Deleted things wait there a while before going for good. See [Trash and retention](guides/communities.md#trash-and-retention).
+Go and get it back. See [Trash and retention](guides/communities.md#trash-and-retention).
 
 ### An import didn't match people to their accounts
 
@@ -148,9 +150,7 @@ Not on your own — your handle is how people find and mention you, so changing 
 
 Each community decides whether it shows real names or just handles. In a handles-only community your display name isn't rendered to anyone there.
 
-### My due dates or reminders are off by a few hours
-
-Your **timezone** is wrong. Fix it in **User settings → Interface**.
+Your **timezone** is wrong. Almost always. Fix it in **User settings → Interface** and everything snaps back into place.
 
 ### I'm getting too many (or too few) emails
 
@@ -160,9 +160,9 @@ Tune them per category in **User settings → Notifications** — each has its o
 
 On the community rail, open the community's menu and choose **Leave community**. If you're the last admin, promote someone else first.
 
-### My account is suspended
+A suspended account can still sign in and reach its own settings, which is how you find out why.
 
-A suspended account can still sign in and reach its own settings — that's how you get told why. Every community is closed while it lasts, but nothing is taken away: memberships, work, and everything you wrote stay put, and lifting it restores the account whole. Ask an administrator of your server.
+Every community is closed while it lasts, but nothing is taken away — memberships, work, everything you wrote all stay exactly where they are, and lifting the suspension restores the account whole. Ask an administrator of your server.
 
 ### What's the difference between deactivating and deleting my account?
 
@@ -170,9 +170,9 @@ A suspended account can still sign in and reach its own settings — that's how 
 
 ## Privacy and data
 
-### Can everyone in my community see everything in it?
+No. Being in a community doesn't hand you its contents.
 
-No. Being in a community doesn't hand you its contents. An **initiative** is only visible to the people added to it, and individual projects and documents narrow further still. The one exception is a **community admin**, who can see everything in their own community. See [Sharing & access](sharing/index.md).
+An **initiative** is only visible to the people added to it, and individual projects and documents narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
 
 ### How do I keep something visible to just two or three people?
 
@@ -218,4 +218,6 @@ Yes — Initiative speaks OIDC, including mapping your provider's groups to comm
 
 ## Still stuck?
 
-If it's the software rather than your account, see [Reporting a problem](security/reporting-a-problem.md). If it's about a specific community — who's in it, what you can reach — ask that community's admins first. They can see and fix far more of it than the server's operators can.
+If it looks like the software rather than your account, see [Reporting a problem](security/reporting-a-problem.md).
+
+If it's about one specific community — who's in it, what you can reach, why something's missing — ask that community's admins first. They can see and fix far more of it than whoever runs the server can, and they're usually quicker to reply.

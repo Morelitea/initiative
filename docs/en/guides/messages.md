@@ -4,12 +4,16 @@ icon: lucide/message-square
 
 # Messages
 
-Sometimes the thing you need to say doesn't belong on a task. **Messages** are private one-to-one conversations between two people — end-to-end encrypted, so what you write can be read by the person you sent it to and by nobody else. Not by a community admin, not by whoever runs the server, and not by us.
+Sometimes the thing you need to say really doesn't belong on a task.
+
+**Messages** are private one-to-one conversations. They're end-to-end encrypted, which means what you write can be read by the person you sent it to and by absolutely nobody else — not a community admin, not whoever runs the server, and not us.
 
 Open them from the **Initiative logo** in the top-left corner, then **My Messages**.
 
 !!! info "One to one, on purpose"
-    There are no group messages, and there won't be. Group conversations belong in a community, where they can be found, shared, and handed on when someone leaves. Messages are for the quiet word on the side.
+    There are no group messages, and there aren't going to be.
+
+    Group conversations belong in a community, where they can be found later, shared with the person who joins next, and handed on when somebody leaves. Messages are for the quiet word on the side, and that's all they're for.
 
 !!! screenshot "My Messages"
     **Show:** the Messages page with a conversation open — the list of people on the left, a thread on the right, and the encrypted notice under the title.
@@ -58,7 +62,7 @@ Requests waiting on you are under **User settings → Privacy → Pending**, and
 
 ## Ignoring someone
 
-Ignoring is the firm answer. From the actions menu on any profile or contact row, choose **Ignore**.
+Ignoring is the firm answer, for when the polite one hasn't worked. From the actions menu on any profile or contact row, choose **Ignore**.
 
 An ignored account stops reaching you entirely: no notification when they mention, reply to, or react to you, and nothing they send arrives — messages, message requests, connection requests. They're not told. You'll still see each other's activity in communities you share, and you can both use every tool normally, because ignoring is about contact rather than about work.
 
@@ -66,19 +70,21 @@ Nothing is deleted. Stop ignoring them and everything is exactly where it was.
 
 ## Your messages live on your devices
 
-This is the part worth knowing before you rely on it, because it works differently from everything else in Initiative.
+This is the bit to read before you rely on it, because it genuinely works differently from everything else in Initiative and it surprises people.
 
 A message is delivered to your devices and then **deleted from the server**. There is no copy in the middle for a new device to catch up from. So:
 
 - **Each device keeps its own copy** of a conversation.
 - **A device that wasn't there doesn't have the history.** Sign in on a new laptop and your conversations are there, but they start from the moment that laptop joined them.
-- **Signing out takes this device's messages with it.** That's the right answer on a shared computer, and the wrong one if you wanted them back — so keep the conversations you care about on a device you stay signed in to.
+- **Signing out takes this device's copy with it.** Exactly what you want on a shared computer, and exactly what you don't want if you were hoping to read them again — so keep the conversations that matter on a device you stay signed in to.
 
 If the person you're writing to has never opened Messages, there's no device to deliver to yet, and Initiative tells you so rather than pretending the message went.
 
 ## Notifications
 
-You'll be told that someone messaged you and how many times — never what they said, because nothing outside your own devices could say. Turn it on or off under **User settings → Notifications → Direct messages**, like any other category. A flurry of messages arrives as one notification rather than twenty.
+You'll be told that somebody messaged you, and how many times. Never what they said, because nothing outside your own devices is capable of telling you that.
+
+Turn it on or off under **User settings → Notifications → Direct messages**, like any other category. A flurry of messages arrives as one notification rather than twenty, because twenty would be a punishment.
 
 See [Notifications](notifications.md).
 

@@ -52,7 +52,7 @@ The trade is that your history lives on your devices rather than on a server, so
 
 ## A few habits that do most of the work
 
-Security is a partnership, and your half is not complicated:
+Security is a partnership, and your half of it is genuinely not complicated:
 
 - **Use a strong, unique password** (or single sign-on). A password manager makes this effortless.
 - **Sign out on shared computers**, and don't tick "stay signed in" on a device that isn't yours.

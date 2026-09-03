@@ -4,7 +4,9 @@ icon: lucide/user-cog
 
 # Profile & preferences
 
-Your personal settings live in **User settings**, opened from your name and picture at the bottom of the sidebar. Nothing here changes anything for anyone else.
+Your personal settings live in **User settings**, opened from your name and picture at the bottom of the sidebar.
+
+Nothing on any of these tabs changes anything for anybody else, so you can fiddle freely.
 
 The tabs split along a simple line: **Profile** is the face other people see, **Account** is how you get in, **Interface** is how the app reads to you.
 
@@ -14,7 +16,7 @@ You have a page of your own, at a link worth sharing — `/u/jordan1234`, your h
 
 It shows your picture, your handle, your status, the banner and frame and trophies you're wearing, how you're around right now, and when you joined. Underneath, the communities you're in — of the ones that have listed themselves in the [community directory](../guides/communities.md#finding-a-community-to-join). A private community is nobody else's business and never appears.
 
-It's public, and the same page whoever opens it, because it belongs to *you* rather than to any one community. So it shows your handle rather than your real name, wherever it's opened from.
+It's public, and it's the same page whoever opens it, because it belongs to *you* rather than to any one community. Which is why it shows your handle rather than your real name, wherever it's opened from.
 
 ![A profile page](../images/account/profile-page.png)
 
@@ -41,9 +43,9 @@ A profile wears three things, mixed freely — they don't have to come from the 
 | **Frame** | Artwork around your picture, which follows you into the sidebar and onto every comment you write | One |
 | **Trophies** | The rail of small marks under your picture | Up to six |
 
-Banners and frames move; trophies hold still, because a rail of them has to stay readable at a glance. If you've asked your device for less motion, everything holds still.
+Banners and frames move. Trophies hold still, because six wiggling things in a row would be unreadable and slightly upsetting. And if you've asked your device for less motion, everything holds still.
 
-Not every frame is a ring, either. Several stand *in front* of your picture, so you're sitting in the teacup, in one bay of the Colosseum, or wearing the headphones.
+Not every frame is a ring, either. Several stand *in front* of your picture, so you end up sitting in the teacup, in one bay of the Colosseum, or wearing the headphones. Yes, really.
 
 You never upload a decoration. You pick from what you own — the set that ships with Initiative, plus whatever **decoration packs** you download from your marketplace. See [Apps & the marketplace](../guides/apps-and-marketplace.md#your-own-marketplace). Because they ship with Initiative rather than being uploaded, wearing one costs your community no storage.
 
@@ -66,7 +68,9 @@ The small **dot** under your picture in the sidebar. Click it and pick:
 | **Busy** | You're around, and would rather not be interrupted. |
 | **Offline** | Nobody sees you as here, whatever you have open. |
 
-**Offline** means offline: it's how you're present without being seen to be. The same dot on your profile card in **User settings → Profile** opens the same menu, and your choice shows on your profile page and wherever your picture appears.
+**Offline** genuinely means offline. You can have Initiative open all evening and the dot will still say offline, because you asked it to and it isn't anybody's business.
+
+The same dot on your profile card in **User settings → Profile** opens the same menu, and your choice shows on your profile page and wherever your picture turns up.
 
 ## Account
 
@@ -75,7 +79,9 @@ How you sign in. Two things here are shown but not editable:
 - **Email** — the anchor of your account.
 - **Handle** — the name you picked plus a four-digit number, like `jordan#1234`. The number is what lets two people share a name.
 
-**Password** is the one thing you change here: current password, then the new one twice (12+ characters). Sign in with single sign-on? Your password lives with your identity provider, and this section doesn't apply to you.
+**Password** is the one thing you can change here: current password, then the new one twice (12+ characters).
+
+Sign in with a work login instead? Then your password lives with them, not us, and this section is none of your concern.
 
 ## Interface
 
@@ -88,7 +94,7 @@ How the app reads to you. Each choice saves as you make it — no Save button.
 - **Recent items in tab bar** — how many to keep along the top (1–100).
 - **Task completion feedback** — a bit of fun when you finish something: **Confetti**, **+1 Heart**, **Natural 20**, **Gold coins**, **Random**, or **None**.
 - **Sound** and **vibration** on task completion — optional, each with a button to try it.
-- **Keep screen awake** — stops this device's screen dimming while Initiative is open. Saved per device.
+- **Keep screen awake** — stops this device's screen dimming while Initiative is open. Useful for a counter propped up on a door. Saved per device.
 
 ## Privacy
 
@@ -108,15 +114,15 @@ Temporarily switches your account off. You can't sign in, and you're removed fro
 
 ### Delete
 
-Permanent, and you choose how thorough:
+Permanent. Properly permanent. You choose how thorough:
 
 - **Anonymize** — your name, email and avatar go, and you can't sign in, but things you wrote stay in place as "Deleted user". This keeps your teammates' history intact while removing *your* personal details.
 - **Hard delete** (administrators) — everything goes, including content you authored.
 
 Before deletion, Initiative makes sure your **owned projects are transferred**, so nothing your group depends on disappears with you.
 
-!!! warning "Deletion can't be undone"
-    Deactivation is reversible; deletion isn't. Unsure? Deactivate first.
+!!! warning "Deletion cannot be undone"
+    Deactivation is reversible. Deletion is not. If there's any part of you that's unsure, deactivate — you can always come back and finish the job later.
 
 ## Related
 
