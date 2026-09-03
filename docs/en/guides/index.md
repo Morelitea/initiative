@@ -42,9 +42,33 @@ Not sure how the pieces fit together yet? Start with [How Initiative is organize
 
 -   :material-toolbox-outline: __Tools__
 
-    The calendar, queues, counters and dashboards, for when you need them.
+    All six, and which to reach for when.
 
     [:octicons-arrow-right-24: Tools](tools.md)
+
+-   :material-calendar-month-outline: __Calendar & events__
+
+    Things that happen at a time, with RSVPs and reminders.
+
+    [:octicons-arrow-right-24: Calendar](calendar.md)
+
+-   :material-format-list-numbered: __Queues__
+
+    Whose turn it is. Rotas, running orders, chore wheels.
+
+    [:octicons-arrow-right-24: Queues](queues.md)
+
+-   :material-counter: __Counters__
+
+    Numbers that move. Tallies, totals, scores, seats left.
+
+    [:octicons-arrow-right-24: Counters](counters.md)
+
+-   :material-view-dashboard-outline: __Dashboards__
+
+    One screen that answers "how are we doing?"
+
+    [:octicons-arrow-right-24: Dashboards](dashboards.md)
 
 -   :material-storefront-outline: __Apps & the marketplace__
 

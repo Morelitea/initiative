@@ -4,112 +4,126 @@ icon: lucide/clipboard-check
 
 # Projects & tasks
 
-A **project** is a board for tracking work; **tasks** are the to-dos on it. This is where most of the day-to-day happens.
+A **project** is a board for tracking work. **Tasks** are the to-dos on it.
 
-## Creating a project
+If you only ever learn one part of Initiative, make it this one. It's where basically everything happens.
 
-1. Open the initiative it belongs in, and choose **Create Project**.
+## Making a project
+
+1. Open the initiative it belongs in and click **Create Project**.
 2. Fill in:
-    - **Project name** (required).
-    - **Icon** — an optional emoji, so it's easy to spot.
-    - **Description** — optional, Markdown supported.
-    - **Initiative** — which one it lives in.
-    - **Template** — optionally start from one (see [Templates](#templates)).
-3. Create it. The board opens, ready for tasks.
+    - **Project name** — the only required bit.
+    - **Icon** — an emoji, so you can find it at a glance.
+    - **Description** — optional.
+    - **Initiative** — which folder it lives in.
+    - **Template** — optionally start from one you saved earlier (see [Templates](#templates)).
+3. Create it. The board opens, empty and full of promise.
 
 ![Creating a project](../images/projects/create-project.png)
 
-### Favorites and pinning
+### Favourites and pinning
 
-- **Add to favorites** (the star) puts it in your **Favorites** list in the sidebar.
+- **Add to favourites** (the star) puts it in your **Favourites** list in the sidebar.
 - **Pin project** keeps it near the top of its initiative.
 
-Both are personal — they change nothing for anyone else.
+Both are just for you. Starring something doesn't inflict it on anybody else.
 
 ## Adding tasks
 
-**Create task** on a board. The quick form wants a **title** and a description, and that's enough to get moving. Need more right away? Expand **Advanced details** for the rest, grouped into **Tracking**, **Schedule**, **People & labels**, and any custom **Properties** your initiative has set up.
+Click **Create task**. The quick form wants a **title** and maybe a description, and honestly that's enough — you can fill the rest in later, or never.
 
-Editing a task later shows the same sections in the same order, so there's one shape to learn rather than two. Above them sit the two actions you reach for most; everything else is behind a **…** menu.
+Need more detail now? Expand **Advanced details** for everything else, sorted into **Tracking**, **Schedule**, **People & labels**, and any custom **Properties** your initiative uses.
+
+Editing a task later shows you the same sections in the same order, so there's one layout to learn instead of two.
 
 A task can hold:
 
 | Field | What it's for |
 |---|---|
-| **Title** | A short name (required). |
-| **Description** | The details. Markdown, with a **Preview** mode. |
-| **Status** | Where it is in your workflow. |
+| **Title** | A short name. Required. |
+| **Description** | The detail. Formatting works, with a **Preview**. |
+| **Status** | Where it's got to. |
 | **Priority** | Low, Medium, High, or Urgent. |
 | **Start date** | When work should begin. |
-| **Due date** | When it's due. |
-| **Assignees** | One or more people. |
-| **Subtasks** | A checklist of smaller steps, with progress. |
-| **Tags** | Labels for grouping and filtering — see [Tags](tags.md). |
-| **Recurring** | Make it repeat on a schedule. |
+| **Due date** | When it's due. Optional, and you don't have to be brave about it. |
+| **Assignees** | One person or several. |
+| **Subtasks** | A checklist of smaller steps, with a progress count. |
+| **Tags** | Labels for finding things later — see [Tags](tags.md). |
+| **Recurring** | Make it come back on a schedule. |
 
 ![Editing a task's details](../images/projects/task-details.png)
 
 ### Statuses
 
-Every project starts with four, in four stages:
+Every project starts with four:
 
 **Backlog → To Do → In Progress → Done**
 
-Fully customizable per project from **Project settings → Task statuses** — rename them, add your own, give each an icon and color. Each one still belongs to one of the four stages, which is how "archive done tasks" knows what "done" means.
+You can rename them, add your own, and give each one an icon and colour, from **Project settings → Task statuses**. Each one still belongs to one of the four underlying stages, which is how "archive done tasks" knows what counts as done.
 
 ### Subtasks
 
-Break a big task into a checklist. As you tick them off, the task shows its progress ("3/5 subtasks"). Perfect for "before this is truly finished I need to do A, B and C."
+Break a big task into a checklist. As you tick them off the task shows its progress — "3/5 subtasks" — which is genuinely quite motivating on a bad Tuesday.
+
+Good for "this isn't really finished until I've also done A, B and C."
 
 ### Recurring tasks
 
-For things that keep coming back — a weekly report, a monthly review. Pick the rhythm: daily, every weekday, weekly on a chosen day, monthly on a date, annually, or a **custom** pattern.
+For the things that keep coming back: the weekly report, the monthly review, the bins.
 
-You also choose *when* the next one shows up: on a fixed **schedule**, or only **after you complete** the current one. That second option is the one you want for chores that shouldn't pile up while you're on holiday.
+Pick the rhythm — daily, every weekday, weekly on a chosen day, monthly on a date, annually, or a **custom** pattern.
 
-### A little celebration
+Then pick *when* the next one appears: on a fixed **schedule**, or only **after you complete** the current one. Choose the second for anything you'd hate to return from holiday to fourteen copies of.
 
-Finish a task assigned to you and Initiative can mark the moment — confetti, a "+1 Heart", a "Natural 20", or gold coins. Pick your flavor (or turn it off) in **User settings → Interface**. Optional sound and vibration too.
+### The bit where you get confetti
 
-## Keeping a busy board manageable
+Finish a task that's assigned to you and Initiative marks the occasion — confetti, a "+1 Heart", a "Natural 20", or a shower of gold coins.
 
-- **Filter** by status, priority, assignee, due date, and more.
-- **Sort** by any column. In Table view, hold ++shift++ and click more columns to sort by several.
-- **Group** by status, priority, or assignee.
-- **Select several tasks** to act on them together — status, dates, assignees, priority, tags, or archive, all in one go.
+Pick your preferred celebration in **User settings → Interface**, or set it to **None** if you'd rather your accomplishments passed in dignified silence. There's optional sound and vibration too, for those who want the full experience.
 
-!!! tip "Archive, don't delete"
-    Finished tasks don't need deleting. **Archive** clears the board while keeping the record — there's a one-click **Archive done tasks** — and you can filter archived tasks back into view whenever you want.
+## When a board gets busy
+
+- **Filter** by status, priority, assignee, due date and more.
+- **Sort** by any column. In Table view, hold ++shift++ and click more columns to sort by several at once.
+- **Group** by status, priority or assignee.
+- **Select several tasks** and act on them together — status, dates, assignees, priority, tags, or archive, all in one go.
+
+!!! tip "Archive things, don't delete them"
+    Finished tasks don't need deleting. **Archive** clears them off the board while keeping the record — there's a one-click **Archive done tasks** for the end of a push — and you can filter them back into view any time you want proof of how much you got done.
 
 ## Project settings
 
 - **Details** — icon, name, description, tags.
-- **Access** — who can view or edit this project. See [Sharing](../sharing/sharing-projects-and-documents.md).
-- **Task statuses** — customize the workflow.
-- **Advanced** — save as a template, duplicate, archive/unarchive, delete.
+- **Access** — who can see or edit it. See [Sharing](../sharing/sharing-projects-and-documents.md).
+- **Task statuses** — your workflow.
+- **Advanced** — save as a template, duplicate, archive, delete.
 
 ### Moving a task to another project
 
-You can move a task from its menu. One quirk worth knowing: because each project can have its own statuses, a moved task restarts at **Backlog** in its new home. Set the new status and carry on.
+You can move a task from its menu. One thing that surprises people: because every project can have its own statuses, a moved task restarts at **Backlog** in its new home. Set the new status and carry on. Nothing's broken.
 
 ## Templates
 
-Set a project up the way you like it, then save it as a **template** — from **Project settings → Advanced**, or by ticking **Save as template** when you create one. Next time, start *from* it and skip the setup. Ideal for anything repeatable: every new client, event, or sprint starts identical.
+Set a project up exactly how you like it, then save it as a **template** — from **Project settings → Advanced**, or by ticking **Save as template** when you create one.
+
+Next time, start *from* it and skip the fiddling. Ideal for anything you do more than once: every new client, every event, every production. Nobody forgets the step at the end, because the step at the end is already there.
 
 ## Exporting a project
 
-**Export a project** to a portable file — an offline copy, a move elsewhere, or a backup of one project. It imports back in later.
+**Export a project** to a portable file — an offline copy, a move somewhere else, or a backup of one specific project. It imports back in later.
 
 !!! note "People are named by handle"
-    An export identifies assignees, event attendees and person-typed properties by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't. Imports match the same way. Anything exported before this was true won't match its people; export it again and the new file will.
+    An export identifies assignees, event attendees and person-type fields by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't.
+
+    Anything exported before that was true won't match its people on the way back in. Export it again and the new file will.
 
 ## Archiving and deleting
 
-- **Archive** hides a finished project without losing anything. Unarchive to bring it back.
-- **Delete** sends it to the community **Trash**, restorable by an admin until the retention period passes.
+- **Archive** hides a finished project without losing anything. Unarchive whenever.
+- **Delete** sends it to the community **Trash**, where an admin can restore it until the retention period runs out.
 
 ## Related
 
 - [Task views](task-views.md) — Table, Kanban, Calendar.
-- [Tags](tags.md) — labeling and filtering.
-- [Your space](your-space.md) — all your tasks, across every project and community.
+- [Tags](tags.md) — labelling and filtering.
+- [Your space](your-space.md) — all your tasks, from every project and community at once.

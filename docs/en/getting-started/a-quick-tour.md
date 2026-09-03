@@ -4,55 +4,66 @@ icon: lucide/map
 
 # A quick tour
 
-Five minutes on the layout. You don't have to memorize any of it — you'll pick it up by using it — but it helps to know what you're looking at.
+Nobody reads the tour. You're going to skim this, click something, and work it out by touch like everyone else, and honestly that's fine — it's built to survive that.
+
+But if you'd like the map first: there are four regions on screen. You will spend roughly 95% of your life in one of them. Here's what the other three are doing.
 
 ![The Initiative screen, with the community rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)
 
-## The community rail (far-left edge)
+## The far-left strip
 
-A narrow strip of icons down the very edge of the screen.
+A narrow column of icons welded to the edge of the screen. One per community you belong to. Click one and the entire app swaps over — sidebar, projects, documents, the lot.
 
-- **At the top, the Initiative logo.** Click it for **your personal space** — everything that's *yours*, gathered from across every community: My Tasks, Tasks I Created, My Projects, My Documents, My Contacts, My Messages, My Calendar, My Stats. See [Your space](../guides/your-space.md).
-- **Below it, one icon per community** you belong to. The highlighted one is where you are; click another to switch, and the whole app follows you over.
+Above them sits the **Initiative logo**, and that one's your corner: My Tasks, My Projects, My Documents, My Calendar, My Contacts, My Messages, My Stats. Everything that's *yours*, gathered from every community at once, so you can see what you've agreed to without opening four communities to find out. See [Your space](../guides/your-space.md).
 
 ## The sidebar
 
-When you're in a community, the sidebar is that community's map:
+A map of whichever community you're currently standing in.
 
-- **Search**, near the top, if you'd rather click than press ++cmd+k++.
-- **Initiatives** — the heart of it. Each expands to show its projects and documents; clicking an initiative's **title** opens its dashboard. Most of your work lives here.
-- **Tags** and **Favorites** — quick routes to things you've labeled or starred.
+**Initiatives** is the one that matters. Each expands into its projects and documents; clicking an initiative's *title* opens its dashboard. Whatever you're looking for is almost certainly under here, nested a level or two down, being quietly organised.
 
-!!! tip "Collapse what you're not using"
-    Initiatives expand and collapse, and there's a **collapse all** / **expand all** control for when the sidebar gets away from you.
+**Tags** and **Favorites** live below, for things you've labelled or starred. **Search** is near the top, though within a week you'll be doing that from the keyboard and this button will become purely decorative.
+
+In a busy community the sidebar gets long. Initiatives collapse, and there's a **collapse all** for when it has got away from you completely and you'd like to begin again.
 
 ## The bottom of the sidebar
 
-Your personal controls, pinned down there:
+Your bits, tucked underneath.
 
-- **Your name and picture** — opens your account menu (profile, settings, sign out). Your picture wears whatever frame you've put on it, and the **dot** on it says how you're around: online, idle, busy, or offline. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
-- **Light / dark theme** — Light, Dark, or System. Set once, forget.
-- **Notifications** — a running list of everything you've been pinged about.
-- **The info icon** — **Past announcements**, with unread ones marked. See [Announcements](../guides/notifications.md#announcements).
+**Your name and picture** opens your account menu — profile, settings, sign out.
 
-Under those: the version number, and a link to the [source on GitHub](https://github.com/Morelitea/initiative).
+The small **dot** on your picture is your presence: online, idle, busy, or offline. Offline means offline. You can sit in Initiative at two in the morning with six documents open and that dot will say offline the entire time, because you asked it to and it is nobody's business. See [Saying how you're around](../account/profile-and-preferences.md#saying-how-youre-around).
 
-## The main area
+**The theme toggle** does Light, Dark, or System — "System" being the option for those of us who have stopped arguing with our laptops about this.
 
-Whatever you clicked opens here — a board, a document, your task list, a settings page. This is where the work happens.
+**The bell** is your notifications. **The info icon** is past announcements, for when you dismiss something at speed and experience immediate regret.
 
-## The tab bar
+Under all of it: the version number, and a link to [the source on GitHub](https://github.com/Morelitea/initiative). You can read the entire application. We're not going to stop you.
 
-Projects, tasks and documents stack up as **tabs** along the top, like a browser. Click one to go back to it, close it when you're done. Set how many it keeps in **User settings → Interface**.
+## The middle
 
-## Search — genuinely the fastest way around
+Where the work is. Whatever you clicked opens here — a board, a document, a task list, a settings page.
 
-Press ++cmd+k++ (Mac) or ++ctrl+k++ (Windows/Linux) anywhere. Start typing a project, task, document, or page name and jump straight to it. On a phone, a three-finger tap does the same.
+It gets the most room because it's the actual thing. Everything else on this page is scaffolding holding up this rectangle.
 
-It's usually quicker than hunting through the sidebar, and it's the one habit worth building early. See [Search & shortcuts](../guides/search-and-shortcuts.md).
+## The tabs along the top
+
+Browser tabs, but for your work. Things you open stack up along the top so you can get back to the document you were three paragraphs into when somebody messaged you.
+
+Close them when you're done, or let them pile up. You can cap how many it keeps in **User settings → Interface**, if you'd like the limit enforced rather than merely intended.
+
+## The one thing genuinely worth learning today
+
+++cmd+k++ on a Mac. ++ctrl+k++ on Windows or Linux. Three fingers on a phone screen.
+
+Type the name of any project, task or document — or any page of this help site — and go straight there. No remembering which initiative you filed it under. No clicking down the sidebar muttering "it's in here somewhere."
+
+This is faster than navigating. Not usually. Every time. It's the entire difference between people who find Initiative quick and people who find it fiddly, and it takes about four days to become muscle memory.
+
+Learn this one and you have our full blessing to forget the rest of this page.
 
 ![The search box, opened with Cmd or Ctrl + K](../images/getting-started/search.png)
 
 ## Next
 
-You know the furniture. Now [join or create your first community](your-first-community.md).
+That's the furniture. Go [join or create your first community](your-first-community.md) and put something in it.

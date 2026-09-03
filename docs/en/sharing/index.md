@@ -4,7 +4,7 @@ icon: lucide/users-round
 
 # Sharing & access
 
-"Who can see this?" is the most important question in any shared tool, and the easiest one to get wrong. Initiative answers it in **layers**, from the outside in. Each layer narrows the one before it, so the people who end up seeing something are exactly the people you put in front of it.
+"Who can see this?" is the question everything else in a shared tool hangs off. Initiative answers it in **layers**, from the outside in. Each layer narrows the one before it, so the people who end up seeing something are exactly the people you put in front of it.
 
 ## The simple version
 

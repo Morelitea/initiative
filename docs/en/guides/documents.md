@@ -4,7 +4,7 @@ icon: lucide/file-text
 
 # Documents
 
-A **document** is where your group writes things down — notes, plans, scripts, budgets — and keeps files. Documents live inside an initiative, and most of them can be edited by several people **at the same time**, live.
+A **document** is where your group writes things down — notes, plans, scripts, budgets — and keeps its files. Documents live inside an initiative, and most kinds can be edited by several people **at once**, live, with no versions emailed round and no `final_v3_ACTUAL_final` anywhere.
 
 ## Kinds of document
 
@@ -13,11 +13,11 @@ A **document** is where your group writes things down — notes, plans, scripts,
 | **Text document** | A rich-text page, like a word processor. Notes, plans, write-ups. |
 | **Spreadsheet** | A grid with formulas. Numbers, lists, tables. |
 | **Whiteboard** | A free-form canvas for sketching ideas and diagrams. |
-| **Smart link** | An embedded view of something hosted elsewhere — a YouTube video, a shared file. |
+| **Smart link** | An embedded view of something that lives somewhere else — a video, a shared file. |
 | **Upload** | A file: PDF, Word, Excel, PowerPoint, text, images, and more. |
 
 !!! info "50 MB per uploaded file"
-    For anything bigger, use a **Smart link** to point at where it already lives.
+    Enough for almost anything that isn't video. For the things that are, use a **Smart link** to point at wherever it already lives.
 
 ## Creating one
 
@@ -33,7 +33,7 @@ A **document** is where your group writes things down — notes, plans, scripts,
 
 The editor has what you'd expect: **formatting** (bold, italic, underline, strikethrough, super/subscript, inline code), **blocks** (headings, quotes, code blocks), **lists** (bulleted, numbered, checklists), **alignment**, **insert** (images, tables, dividers, embedded video), and undo/redo.
 
-Everything **autosaves**. There's no save button to forget.
+Everything **autosaves**. There is no save button, which means there is no save button to forget.
 
 Four keys do more than they look:
 
@@ -46,7 +46,7 @@ Four keys do more than they look:
 
 ## Smart chips
 
-A link tells you something exists. A **smart chip** tells you what it's doing *right now*.
+A link tells you something exists. A **smart chip** tells you what it's doing *right now*, and keeps telling you without anyone maintaining it.
 
 Type `/` in a text document and pick one, or choose **Smart chip** from the toolbar's insert menu. Either way the picker opens on the work you edited most recently, so there's usually nothing to type.
 
@@ -65,7 +65,7 @@ The chip carries the reading itself, so your sentence keeps its shape:
 
 Hover for what the thing is called now, what kind of thing it is, and which of its facts you're looking at. Click to open it.
 
-Move that task to Done and the chip turns green — here, and in every other document mentioning it, with nobody editing a word.
+Move that task to Done and the chip turns green — here, and in every other document that mentions it, with nobody editing a word. Meeting notes that are still true a month later, more or less by accident.
 
 Smart chips are a text-document thing. A whiteboard holds shapes and a spreadsheet holds cells; there's nowhere for a chip to sit.
 
@@ -86,7 +86,7 @@ The everyday essentials:
 
 ## Whiteboards
 
-A free-form canvas for the thinking that doesn't fit in a paragraph — a floor plan, a seating chart, who-does-what, boxes and arrows on a wall.
+A free-form canvas for the thinking that refuses to be a paragraph — a floor plan, a seating chart, who-does-what, boxes and arrows that made complete sense at the time.
 
 - **Draw anything** — shapes, arrows, freehand lines, text, images, arranged however you like.
 - **Work on it together** — everyone's pointer shows up live with their name on it, so you can point at the same thing at the same time.
@@ -102,7 +102,7 @@ Whiteboards autosave like everything else, and are shared, tagged and commented 
 - **Offline-friendly** — if your connection drops you can keep working, and it syncs when you're back.
 
 !!! tip "You'll see who else is here"
-    Initiative shows who's viewing or editing alongside you, so you don't talk over each other.
+    Initiative shows who else is viewing or editing, so nobody rewrites the same paragraph twice in opposite directions.
 
 ## Comments and mentions
 

@@ -4,81 +4,82 @@ icon: lucide/wrench
 
 # Tools
 
-Beyond projects and documents, each initiative can run four extra **tools**: a **calendar**, **queues**, **counters**, and **dashboards**. All optional — there when your group needs them, invisible when it doesn't. They appear in the sidebar under the initiative, once your [role](../sharing/initiative-roles.md) allows it.
+Six kinds of thing live inside an initiative. Two of them you'll use from the first day; the other four sit quietly until a need for them turns up.
 
-Most groups don't switch any of these on for a while, and that's the right instinct. Add one when a real need shows up: a shared calendar when scheduling starts to sprawl, a dashboard when someone asks how the work is going.
+<div class="grid cards" markdown>
 
-!!! tip "Bulk-edit who can reach them"
-    Select several **events, queues, or counters** in a list view and update who can see or edit them all at once — same bulk access editing as projects and documents. See [Sharing & access](../sharing/index.md).
+-   :material-clipboard-check-outline: __Projects & tasks__
 
-## Calendar & events
+    Boards, and the to-dos on them. Where most of the work happens.
 
-For things that happen at a time: meetings, sessions, deadlines, performances.
+    [:octicons-arrow-right-24: Projects & tasks](projects-and-tasks.md)
 
-**Create an event** and set:
+-   :material-file-document-edit-outline: __Documents__
 
-- **Title**, **description**, and **location** (or a link).
-- **Start** and **end** times, or mark it **all day**.
-- A **color**, to tell event types apart.
-- **Attendees**.
-- A **recurrence**, if it repeats (same options as recurring tasks).
+    Text, spreadsheets and whiteboards, written together in real time.
 
-### RSVPs and reminders
+    [:octicons-arrow-right-24: Documents](documents.md)
 
-Invited people respond **Accepted**, **Declined**, **Tentative**, or leave it **Pending**, so you can see who's actually coming. Each person can also set their own **reminder** — at the start, or minutes, hours or days before — so it doesn't sneak up on them.
+-   :material-calendar-month-outline: __Calendar & events__
 
-View by **day, week, month, year, or list**, and **import or export** events as standard `.ics` files to sync with other calendar apps.
+    Things that happen at a time, with RSVPs and reminders.
 
-![The initiative calendar with events](../images/tools/calendar.png)
+    [:octicons-arrow-right-24: Calendar](calendar.md)
 
-!!! tip "Every event in one place"
-    Your personal [My Calendar](your-space.md) gathers events *and* dated tasks from across all your communities.
+-   :material-format-list-numbered: __Queues__
 
-### Calendars for the whole community
+    Whose turn it is. Rotas, running orders, chore wheels.
 
-Some things belong to everyone rather than one effort: holidays, a monthly meetup, game nights. Those go in the **Community calendar** app, added by a community admin from the [marketplace](apps-and-marketplace.md). It appears in the sidebar's Apps section and opens on every calendar the community shares, overlaid in one view.
+    [:octicons-arrow-right-24: Queues](queues.md)
 
-It arrives with one calendar, and **any member can add more** with **New Calendar** — one for holidays, one per person, one per thing your group tracks. Whoever makes a calendar owns it and sets its sharing, which starts as *everyone in the community can read it*. So a calendar of your own is one you post to and everyone else follows.
+-   :material-counter: __Counters__
 
-The **Calendars** dropdown hides the ones you don't care about. That's yours alone and changes nothing for anyone else; it carries a count of how many you've switched off, and each calendar in it links to its own settings.
+    Numbers that move. Tallies, totals, scores, seats left.
 
-Community calendars hold community events and nothing else — no tasks, no project work. Removing the app sends all its calendars to the trash together, where they can be recovered.
+    [:octicons-arrow-right-24: Counters](counters.md)
 
-## Queues
+-   :material-view-dashboard-outline: __Dashboards__
 
-A **queue** tracks whose turn it is. Ideal for anything that rotates: an on-call roster, a speaking order, a chore wheel, who's opening the shop this week, turn order in a game.
+    One screen that answers "how are we doing?"
 
-A queue holds **items** (often people), each with a **label** and **color**, a **position** in the order, **notes**, links to a **member**, **documents** or **tasks**, and a **visible** or **hidden** state.
+    [:octicons-arrow-right-24: Dashboards](dashboards.md)
 
-**Start** the queue, step through **Next turn** / **Previous turn**, **Hold** and **Release** a turn, and track which **round** you're on. **Reset** to begin again.
+</div>
 
-![A turn-tracking queue](../images/tools/queue.png)
+## Add one when you actually need it
 
-## Counters
+Most groups run on projects and documents for a good long while, and there's nothing wrong with that. The other four are worth reaching for at fairly specific moments:
 
-A **counter** tracks a number that moves — a ticket tally, seats left, a budget, a score. **Counter groups** bundle related ones together (one per table at a fundraiser, say).
+- A **calendar** when scheduling has outgrown the group chat.
+- A **queue** the second time somebody asks whose turn it is.
+- **Counters** when a number needs to be the same number for everyone in the room.
+- A **dashboard** when somebody who isn't doing the work starts asking how the work is going.
 
-Each counter has a current **count** with optional **minimum** and **maximum** bounds, a **step** (how much each tap moves it), an **initial value** to reset to, a **color**, and a **display style**: a plain **number**, a **progress bar**, or a **segmented clock**.
+Turning one on is not a commitment. Turning it off later doesn't delete anything.
 
-**Increment**, **decrement** or **reset** with a tap, **reset all** in a group at once, and use **Focus** mode for a big full-screen view — handy when everyone's watching one screen.
+## Who can use what
 
-![A group of counters](../images/tools/counters.png)
+Tools appear in the sidebar under an initiative once your [role](../sharing/initiative-roles.md) allows them. A role decides which *kinds* of tool you can view and create; [sharing](../sharing/sharing-projects-and-documents.md) then decides which specific ones you can reach.
 
-## Dashboards
+So "I can't see Queues at all" is a role question for an initiative manager, and "I can see Queues but not *that* queue" is a sharing question for whoever owns it.
 
-A **dashboard** puts the answer to "how are we doing?" on one screen: a canvas of tiles — charts, single numbers, timelines — each reading from your own data. Task counts, project progress, upcoming calendar entries, a counter's value.
+!!! tip "Bulk-edit access"
+    Select several events, queues or counter groups in a list view and change who can see or edit them all at once — the same bulk editing projects and documents have. Click the first, hold ++shift++, click the last. See [Sharing & access](../sharing/index.md).
 
-Dashboards **only display**. Nothing on one can be edited from it, which makes a dashboard safe to leave running on a shared screen or hand to someone who only needs the overview.
+## What they all have in common
 
-Each tile shows *you* only what you're already allowed to see, so two people can open the same dashboard and correctly see different numbers.
+Every tool, without exception:
 
-Build one from scratch, or add a ready-made one from the marketplace and adjust it — see [Apps & the marketplace](apps-and-marketplace.md).
+- **Shares the same way** — Viewer, Editor, Owner, or everyone in the initiative.
+- **Takes tags**, so a tag pulls together everything on one subject regardless of what kind of thing it is. See [Tags](tags.md).
+- **Has a comment thread**, switchable off per item under **Settings → Advanced**.
+- **Can be pointed at** with `#` from any comment or document. See [Mentions & links](mentions-and-links.md).
+- **Goes to the Trash** when deleted, not to oblivion.
 
-![An initiative dashboard](../images/tools/dashboard.png)
+Learn it once, and it's true of the next one.
 
 ## Related
 
-- [Initiatives](initiatives.md) — tools live inside an initiative, and roles decide who uses them.
+- [Initiatives](initiatives.md) — tools live inside an initiative.
 - [Apps & the marketplace](apps-and-marketplace.md) — ready-made dashboards and apps.
-- [Notifications](notifications.md) — event invites and reminders.
-- [Your space](your-space.md) — your combined calendar.
+- [Your space](your-space.md) — your own tasks, calendar and documents across every community.

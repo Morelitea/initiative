@@ -4,58 +4,65 @@ icon: lucide/users
 
 # Your first community
 
-A **community** is a workspace — one separate space for one group of people and everything they work on. You need to be in one before you can do much. Three ways in: **join** by invitation, **find** one that's listed itself publicly, or **create** your own.
+A **community** is a workspace — one separate space for one group of people and everything they're working on. You need to be in one before you can do anything much.
 
-## Joining by invite (the usual way)
+Three ways in: someone **invites** you, you **find** one that's listed itself publicly, or you **make** your own.
 
-Most people arrive on an **invite link** from someone already in the group.
+## Joining by invite (the usual one)
+
+Most people arrive on an invite link from somebody already in the group.
 
 1. **Open the link.**
-2. **Sign in**, or [create your account](create-account.md) if you haven't.
-3. You're in — on the community's home screen, with its icon now on the rail.
+2. **Sign in**, or [make your account](create-account.md) if you haven't yet.
+3. You're in. The community's icon appears on the rail down the left, and you're on its home screen.
 
-That's the whole thing.
+That's genuinely the whole thing.
 
-!!! note "Invite links can expire"
-    A link may have a use limit or an expiry date. If yours says it's no longer valid, ask whoever sent it for a fresh one. Nothing's wrong with your account.
+!!! note "If your link says it's expired"
+    Invite links can be set to run out, or to only work a certain number of times. That's the link, not you and not your account. Ask whoever sent it for a fresh one — it takes them about four seconds.
 
 ## Finding one yourself
 
-Some communities list themselves so anyone can find them. Hit the **add-a-community** button on the rail and choose **Join a community** to browse by category or search by name — then join straight from a community's card. No invite, no waiting.
+Some communities list themselves publicly so anyone can find them. Hit the **add-a-community** button on the rail and pick **Join a community** — you can browse by category or search by name, then join straight from a community's card. No invite, no waiting for approval.
 
-No **Join a community** option? This server hasn't switched the directory on, so everything here is invite-only. More in [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
+Don't see a **Join a community** option? Then this server hasn't switched that feature on, and everything here works by invitation. Nothing's wrong. More in [Finding a community to join](../guides/communities.md#finding-a-community-to-join).
 
-## Creating one
+## Making your own
 
-Starting fresh for your own group? Make a community yourself, if your server allows it.
+Starting fresh for your own group? You can create a community yourself, as long as your server allows it.
 
-1. On the **community rail**, choose **Create community** (look for the **+**).
-2. Give it a **name** — usually just your group: "Fairview Bakery", "PTA Committee", "The Nguyens". An **icon** makes it easy to spot on the rail.
-3. Create it. You're now its first **administrator**.
+1. On the **community rail** down the left edge, choose **Create community** (look for the **+**).
+2. Give it a **name** — usually just what your group is actually called. "Fairview Bakery". "PTA Committee". "The Nguyens".
+3. Add an **icon** while you're there. Once you're in three communities the rail is how you tell them apart, and future-you will be grateful.
+4. Create it. Congratulations, you're an administrator.
 
 ![Creating a new community](../images/getting-started/create-community.png)
 
-!!! info "No 'Create community' option?"
-    Some servers switch it off on purpose so everyone joins through invites. Ask an administrator to invite you, or to make one for you.
+!!! info "No 'Create community' button?"
+    Some servers turn that off deliberately, so everybody joins through invites instead. Ask an administrator to invite you, or to make one for you.
 
 ## What a brand-new community comes with
 
-A **Default Initiative** — a ready-made folder, so you have somewhere to put your first project immediately. Rename it, add more initiatives, invite people, whenever you like.
+A **Default Initiative** — a ready-made folder, so you're not staring at an empty screen wondering what on earth the first move is.
 
-The natural first move:
+Rename it, ignore it, add more later. Whatever you like.
+
+The natural first thing to do:
 
 1. Open the **Default Initiative** in the sidebar.
-2. **Create Project**, give it a name, and there's your first task board.
+2. Click **Create Project**, give it a name, and there's your first board.
 
-All of that in detail in [Using Initiative](../guides/index.md).
+Put some tasks on it. That's a working setup — everything else in these guides is optional extra.
 
 ## Switching between communities
 
-Belong to as many as you like — work, your volunteer committee, your family — and each stays completely separate. Click a community's icon on the rail to switch; the sidebar, initiatives and projects all swap over with you.
+You can belong to as many as you want — work, the volunteer thing, your family — and they stay completely separate from each other.
+
+Click a community's icon on the rail and the whole app moves over with you: sidebar, projects, documents, everything. Nothing leaks between them, which is why you can't accidentally post the surprise party plans in the work one.
 
 ??? techspec "For the technically minded — a community is a hard boundary"
     Each community's content lives in its own database schema, created with the community, and a request is routed into exactly one of them — so reads and writes reach only communities you belong to, enforced at the database level rather than in the interface. Two browser tabs can sit in two different communities at once with no crossover. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Next
 
-You're in a group. Build a mental picture with [how Initiative is organized](../concepts/index.md), or skip straight to the [how-to guides](../guides/index.md).
+You're in. Either build a mental picture with [how Initiative is organized](../concepts/index.md), or skip it entirely and go straight to the [how-to guides](../guides/index.md). Both are valid life choices.

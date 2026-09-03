@@ -68,19 +68,19 @@ A **label** you attach to tasks, projects, documents, and events to group and fi
 
 ### Tools
 
-The optional extras inside an initiative: the **calendar/events**, **queues**, **counters**, and **dashboards**. See [Tools](../guides/tools.md).
+The six kinds of thing that live inside an initiative: **projects**, **documents**, the **calendar**, **queues**, **counters** and **dashboards**. The last four are optional. See [Tools](../guides/tools.md).
 
 ### Queue
 
-A tool for tracking **whose turn it is** — useful for rotations, rosters, and running orders.
+A tool for tracking **whose turn it is** — rotas, running orders, chore wheels. See [Queues](../guides/queues.md).
 
 ### Counter
 
-A tool for tracking a **number that changes** (a tally, a budget, a score), bundled into **counter groups**.
+A tool for tracking a **number that moves** — a tally, a total, a score — bundled into **counter groups**. See [Counters](../guides/counters.md).
 
 ### Dashboard
 
-A tool that puts charts, single numbers, and timelines on **one screen**, drawn from your own data. Dashboards only display — nothing can be edited from one. See [Tools](../guides/tools.md#dashboards).
+A tool that puts charts, single numbers, and timelines on **one screen**, drawn from your own data. Dashboards only display — nothing can be edited from one. See [Tools](../guides/dashboards.md).
 
 ### Marketplace
 

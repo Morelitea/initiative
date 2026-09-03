@@ -60,7 +60,7 @@ So if somebody is behaving badly, the thing to report is the **account**, not th
 
 If you're the person who has to answer for this choice to a board, a client, or your own conscience:
 
-- Messages use the **Double Ratchet** — the design behind Signal's — through a well-established, independently audited open-source implementation. We didn't invent a cipher.
+- Messages use the **Double Ratchet**, the same algorithm behind the mainstream encrypted messengers, through a well-established and independently audited open-source implementation. We did not invent a cipher, and you should be suspicious of anyone who has.
 - Conversations are **one-to-one only**. Group messaging isn't offered, so no key is ever shared beyond two people.
 - There are **no recovery keys and no exceptional access**. Nothing is held in reserve, so nothing can be lost or demanded.
 - The code is **open source**, like the rest of Initiative. You can read it rather than take our word for it.

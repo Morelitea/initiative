@@ -4,18 +4,18 @@ icon: lucide/rocket
 
 # Getting started
 
-This section takes you from "I've never used Initiative" to "I know where everything is." Read it in order, or skip to whatever you need.
+This section gets you from "I have never seen this before" to "I know where things are." Read it in order, or skip straight to whatever you're stuck on. Nobody's marking it.
 
-No project-management experience assumed, and none needed. If you can write a to-do list, you're qualified.
+You don't need any experience with project management software. You don't need to know what a Kanban board is. If you've ever written a shopping list, you're overqualified.
 
 ## What you'll need
 
-- **A browser**, on a computer, tablet, or phone. There's nothing to install to get started.
-- **The web address of your group's Initiative**, or an **invite link** — usually sent to you by someone in the group. Setting it up for your whole group yourself? Start with the [administrator guide](../admin/index.md) instead.
-- *(Optional)* **The mobile app**, for iOS or Android, if you want notifications on your phone.
+- **A browser.** Computer, tablet, phone, whatever's nearest. Nothing to install.
+- **Either a web address or an invite link** for your group's Initiative. Somebody in the group usually sends you one. If *you're* the one setting this up for everybody, start with the [administrator guide](../admin/index.md) instead.
+- **Optional: the mobile app**, if you want notifications on your phone.
 
-!!! info "Don't have a server yet?"
-    Initiative is free to host yourself, and a paid hosted service is on the way. See [Self-host or let us host it](../self-host-or-hosted.md).
+!!! info "Nobody's set anything up yet?"
+    Then somebody has to run it somewhere. Hosting it yourself is free and open source; a paid hosted version is on the way for people who'd rather not. See [Self-host or let us host it](../self-host-or-hosted.md).
 
 ## The four steps
 
@@ -23,30 +23,32 @@ No project-management experience assumed, and none needed. If you can write a to
 
 -   :material-account-plus-outline: __1. Create your account__
 
-    Sign up with an email, or your organization's single sign-on.
+    Sign up with an email, or your work login.
 
     [:octicons-arrow-right-24: Create an account](create-account.md)
 
 -   :material-login-variant: __2. Sign in__
 
-    Log in, recover a forgotten password, set up the mobile app.
+    Log in, recover a forgotten password, set up the phone app.
 
     [:octicons-arrow-right-24: Signing in](signing-in.md)
 
 -   :material-map-search-outline: __3. Take the tour__
 
-    Five minutes on the layout, so nothing looks strange later.
+    Five minutes on where everything lives.
 
     [:octicons-arrow-right-24: A quick tour](a-quick-tour.md)
 
 -   :material-account-group-outline: __4. Join your group__
 
-    Accept an invite, or create a workspace of your own.
+    Accept an invite, or start a workspace of your own.
 
     [:octicons-arrow-right-24: Your first community](your-first-community.md)
 
 </div>
 
-## In a hurry?
+## Actually in a hurry?
 
-Got an invite link? **Open it → make your account → you're in.** The link drops you in the right group. Everything else you can pick up as you go.
+If somebody sent you an invite link: **click it, make your account, you're in.** The link already knows which group you're joining, so there's nothing to look up and nothing to type wrong.
+
+Everything else on this page will still be here later.
