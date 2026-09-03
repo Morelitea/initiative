@@ -5,7 +5,7 @@
  * compared and is not kept — so the screen has to say so, and must not hold on
  * to it either.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +42,22 @@ describe("ConfirmAge", () => {
     // the year dropdown is how you get there.
     expect(await screen.findByLabelText("Type or pick a date")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("offers a lifetime of years to reach, and none the server would refuse", async () => {
+    // Everything the calendar offers has to be a date the server accepts: born
+    // by today, and no longer ago than the oldest person alive.
+    renderWithProviders(<ConfirmAge />);
+
+    await userEvent.click(await screen.findByLabelText("Date of birth"));
+    const years = await screen.findByRole("combobox", { name: /year/i });
+    const offered = within(years)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+
+    const thisYear = new Date().getFullYear();
+    expect(offered.at(-1)).toBe(String(thisYear));
+    expect(offered[0]).toBe(String(thisYear - 120));
   });
 
   it("says what happens to the date, beside the field asking for it", async () => {

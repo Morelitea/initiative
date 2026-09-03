@@ -28,7 +28,11 @@ export const BirthdateField = ({
   disabled?: boolean;
 }) => {
   const { t } = useTranslation(["auth"]);
+  // The window the server will accept: born by today, and no more than a
+  // lifetime ago. Matched here so nothing the calendar offers is a date the
+  // server then refuses.
   const today = new Date();
+  const earliest = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate());
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{t("auth:confirmAge.birthdateLabel")}</Label>
@@ -40,11 +44,11 @@ export const BirthdateField = ({
         includeTime={false}
         placeholder={t("auth:confirmAge.birthdatePlaceholder")}
         calendarProps={{
-          // A lifetime of years to choose from, and nothing ahead of today:
-          // nobody was born tomorrow.
-          startMonth: new Date(today.getFullYear() - 120, 0),
-          endMonth: new Date(today.getFullYear(), today.getMonth()),
-          hidden: { after: today },
+          // A lifetime of years to choose from, and nothing outside the window:
+          // nobody was born tomorrow, or before the oldest person alive.
+          startMonth: earliest,
+          endMonth: today,
+          hidden: { before: earliest, after: today },
         }}
       />
       <p className="text-muted-foreground text-xs">{t("auth:confirmAge.privacyNote")}</p>
