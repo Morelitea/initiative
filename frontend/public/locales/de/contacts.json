@@ -52,6 +52,7 @@
   "actions": {
     "label": "Aktionen für {{handle}}",
     "connect": "Verbinden",
+    "acceptConnection": "Verbindung annehmen",
     "connectPending": "Anfrage gesendet",
     "ask": "Um Nachricht bitten",
     "asked": "Anfrage gesendet",

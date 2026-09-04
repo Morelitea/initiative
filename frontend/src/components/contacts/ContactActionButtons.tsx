@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
+  useAcceptConnection,
   useConnections,
   useDmPermission,
   useMessageRequests,
@@ -41,13 +42,16 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
   const { data: connections } = useConnections();
   const { data: messageRequests } = useMessageRequests();
 
+  const acceptConnection = useAcceptConnection();
   const requestConnection = useRequestConnection();
   const requestMessage = useRequestMessage();
 
   const isConnection = (connections?.accepted ?? []).some((g) => g.user_id === user.id);
-  const connectionPending = (connections?.incoming ?? [])
-    .concat(connections?.outgoing ?? [])
-    .some((g) => g.user_id === user.id);
+  // Which way a pending request points decides what there is to do about it.
+  // Rolled together, an ask *they* sent reads back as one you sent -- a spent
+  // button where the answer belongs.
+  const theyAsked = (connections?.incoming ?? []).some((g) => g.user_id === user.id);
+  const youAsked = (connections?.outgoing ?? []).some((g) => g.user_id === user.id);
   const messagePending = (messageRequests?.outgoing ?? []).some((g) => g.user_id === user.id);
 
   return (
@@ -77,11 +81,21 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
         </Button>
       ) : null}
 
-      {!isConnection ? (
+      {isConnection ? null : theyAsked ? (
         <Button
           size="sm"
           variant="outline"
-          disabled={connectionPending || requestConnection.isPending}
+          disabled={acceptConnection.isPending}
+          onClick={() => acceptConnection.mutate({ userId: user.id })}
+        >
+          <UserPlus className="size-4" aria-hidden />
+          {t("actions.acceptConnection")}
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={youAsked || requestConnection.isPending}
           onClick={() =>
             requestConnection.mutate(
               { data: { username: user.username, discriminator: user.discriminator } },
@@ -90,9 +104,9 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
           }
         >
           <UserPlus className="size-4" aria-hidden />
-          {connectionPending ? t("actions.connectPending") : t("actions.connect")}
+          {youAsked ? t("actions.connectPending") : t("actions.connect")}
         </Button>
-      ) : null}
+      )}
     </div>
   );
 };

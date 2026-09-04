@@ -589,9 +589,7 @@ async def send(
 
     if payloads:
         # A Core insert, deliberately: the ORM would ask for the new id back,
-        # and RETURNING re-checks the SELECT policy against a row addressed to
-        # somebody else's device -- which the sender is not entitled to read.
-        # Nothing here needs the id.
+        # and nothing here needs it.
         now = datetime.now(timezone.utc)
         await session.exec(
             insert(DmQueueItem).values(

@@ -401,6 +401,50 @@ describe("collecting", () => {
     expect(api.sendMessages).not.toHaveBeenCalled();
   });
 
+  it("reads a half-written envelope as the words it may always have been", async () => {
+    // An envelope missing the id it promised would be filed under `undefined`,
+    // where the next one like it looks like the same message and is dropped as
+    // a duplicate -- acknowledged away, off the server, never in the log.
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          id: 1,
+          payload: from(THEIRS.identity_key, JSON.stringify({ v: 1, kind: "text" }), "otk-1"),
+        }),
+        queued({
+          id: 2,
+          payload: from(THEIRS.identity_key, JSON.stringify({ v: 1, kind: "text" })),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    // Two messages, two entries: the queue row's id is unique per item.
+    expect(await messageLog.get("conv-1")).toHaveLength(2);
+  });
+
+  it("ignores a receipt that does not say what it is about", async () => {
+    const sent = await sendText("conv-1", 7, "hello");
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          message_type: 1,
+          payload: from(
+            THEIRS.identity_key,
+            JSON.stringify({ v: 1, kind: "receipt", state: "read" })
+          ),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    // Not a receipt it can act on, so the message keeps the state it had.
+    const stored = (await messageLog.get("conv-1")).find((m) => m.id === sent.id);
+    expect(stored?.receipt).toBeUndefined();
+  });
+
   it("leaves a message it cannot read on the server", async () => {
     api.collectQueue.mockResolvedValue({
       items: [queued({ payload: from("a-device-nobody-knows", "unreadable") })],

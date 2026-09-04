@@ -180,6 +180,20 @@ describe("a member's profile", () => {
     expect(mocks.requestMessage.mock.calls[0][0]).toEqual({ data: { user_id: them.id } });
   });
 
+  it("offers to accept a connection they asked for, not a spent button", async () => {
+    // Rolled together with the ones you sent, an ask *they* sent reads back as
+    // one you sent: a disabled "Request sent" where the answer belongs.
+    const them = buildUserProfile();
+    answerWith(them);
+    mocks.connections.mockReturnValue({
+      data: { accepted: [], incoming: [{ user_id: them.id }], outgoing: [] },
+    });
+    await renderProfile();
+
+    expect(await screen.findByRole("button", { name: /accept connection/i })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /request sent/i })).toBeNull();
+  });
+
   it("offers neither where the server says no", async () => {
     await renderProfile();
     await screen.findByRole("heading");

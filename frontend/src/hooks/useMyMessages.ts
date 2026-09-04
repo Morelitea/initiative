@@ -228,10 +228,14 @@ export function useMarkThreadRead(
  *
  * Read where the receipts are sent rather than passed down from a page: the
  * collection loop runs whether or not anything is on screen, and the switch has
- * to reach it there too. Defaults to reporting only once the setting has
- * actually arrived -- an unanswered read is not a decision to stay quiet.
+ * to reach it there too.
+ *
+ * Quiet until the answer is actually in. Assuming the friendlier default while
+ * the setting is on its way would report on behalf of somebody who had turned
+ * reporting off, on every load, and nothing can take that back. A receipt that
+ * was never sent costs a tick.
  */
 export function useSendsReceipts(): boolean {
-  const { data } = useDmSettings();
-  return data?.send_receipts ?? true;
+  const { data, isSuccess } = useDmSettings();
+  return isSuccess && (data?.send_receipts ?? true);
 }

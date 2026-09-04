@@ -346,18 +346,16 @@ async function claimKeysFor(
 }
 
 /**
- * What is inside the ciphertext.
+ * What one message carries.
  *
- * A message is not a bare string on the wire, because the two sides need a name
- * for it that they both know: the local id is minted here and never left this
- * device, and the queue row's id belongs to one recipient device and is deleted
- * the moment that device collects. Neither can be pointed at afterwards, which
- * is what a receipt has to do.
+ * The two sides need a name for a message that they both know, and neither of
+ * the ids already to hand is one: the local id never leaves this device, and
+ * the queue row's id belongs to one recipient device and is deleted when that
+ * device collects. So the envelope carries an id of its own, which is what a
+ * receipt names.
  *
- * So the id travels *inside* the encryption, with everything else the server is
- * not entitled to. The version is here for the same reason: it is far cheaper
- * to read one now than to guess later, and a message cannot be re-encrypted
- * after the fact -- forward secrecy has already thrown the key away.
+ * The version is here because a message already sent cannot be rewritten, so
+ * anything a later reader needs has to be in the first one.
  */
 type Envelope =
   | { v: 1; kind: "text"; id: string; at: string; body: string }
@@ -369,17 +367,46 @@ const newMessageId = (): string =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-/** Read what came out of the ratchet, whatever shape it is in. */
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === "string");
+
+/**
+ * Read what came out of the ratchet, whatever shape it is in.
+ *
+ * Every field a kind needs is checked before the envelope is believed. Half of
+ * one is not a message with something missing -- it is an id this log would
+ * file under `undefined`, where the next one like it looks like the same
+ * message and is dropped as a duplicate. Anything that does not check out is
+ * read as the plain body it may always have been, under the queue row's own id,
+ * which is unique per item and cannot collide.
+ */
 function unpack(plaintext: string, fallbackId: string): Envelope {
+  const asBody: Envelope = { v: 1, kind: "text", id: fallbackId, at: "", body: plaintext };
+  let parsed: Record<string, unknown>;
   try {
-    const parsed = JSON.parse(plaintext) as Partial<Envelope>;
-    if (parsed && parsed.v === 1 && typeof parsed.kind === "string") {
-      return parsed as Envelope;
-    }
+    parsed = JSON.parse(plaintext) as Record<string, unknown>;
   } catch {
-    // Not an envelope. Read below as the body it used to be.
+    return asBody;
   }
-  return { v: 1, kind: "text", id: fallbackId, at: "", body: plaintext };
+  if (parsed?.v !== 1) return asBody;
+
+  if (parsed.kind === "text" && typeof parsed.id === "string" && typeof parsed.body === "string") {
+    return {
+      v: 1,
+      kind: "text",
+      id: parsed.id,
+      at: typeof parsed.at === "string" ? parsed.at : "",
+      body: parsed.body,
+    };
+  }
+  if (
+    parsed.kind === "receipt" &&
+    (parsed.state === "delivered" || parsed.state === "read") &&
+    isStringArray(parsed.ids)
+  ) {
+    return { v: 1, kind: "receipt", state: parsed.state, ids: parsed.ids };
+  }
+  return asBody;
 }
 
 /**

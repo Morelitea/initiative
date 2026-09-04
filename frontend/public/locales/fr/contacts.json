@@ -52,6 +52,7 @@
   "actions": {
     "label": "Actions pour {{handle}}",
     "connect": "Se connecter",
+    "acceptConnection": "Accepter la connexion",
     "connectPending": "Demande envoyée",
     "ask": "Demander à écrire",
     "asked": "Demande envoyée",
