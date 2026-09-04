@@ -538,10 +538,9 @@ export async function sendText(
 /**
  * Tell the other side how far their messages have got with this device.
  *
- * Best effort in both directions: it is sent without waiting on anything and a
- * failure is swallowed, because a receipt that does not arrive is the same to
- * its reader as one that was never sent -- which is exactly what an account
- * with receipts switched off looks like, and the point of that switch.
+ * Best effort: sent without waiting on anything, and a failure is swallowed.
+ * A receipt that does not arrive leaves the thread exactly as it was, so there
+ * is nothing for the caller to do about one.
  */
 export async function acknowledge(
   conversationId: string,

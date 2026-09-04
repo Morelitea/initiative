@@ -240,12 +240,10 @@ const continuesRun = (before: StoredMessage, after: StoredMessage) => {
 /**
  * How far one of your own messages has got, at the end of the run it is in.
  *
- * One tick means a device of theirs holds it; two mean somebody looked. Nothing
- * back yet draws no tick at all -- the message being on screen is already the
- * whole of what this side knows, since one that never reached them is refused
- * rather than shown. An account that has switched receipts off therefore never
- * draws a tick, which reads the same as somebody who has not opened the app,
- * and is the point of that switch.
+ * One tick means a device of theirs holds it; two mean somebody looked. With
+ * nothing back yet there is no tick: the message being on screen already says
+ * it went, because one that reached nobody is refused rather than shown. A tick
+ * is drawn from what came back, so a thread that reports nothing shows none.
  */
 const Receipt = ({ state }: { state?: ReceiptState }) => {
   const { t } = useTranslation("messages");
