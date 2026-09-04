@@ -27,10 +27,8 @@ interface ContactActionButtonsProps {
  *
  * The menu beside these holds everything a person can do about another; these
  * are the one or two worth a click rather than a click and a read. Which one
- * shows is the same `dm_permission` the menu reads -- `open` means the channel
- * is there and the button opens it, `may_request` means it is not and the
- * button asks for it, `denied` means neither, and because every refusal
- * collapses into that one word nothing here says which refusal it is.
+ * shows follows the same `dm_permission` the menu reads: `open` opens the
+ * conversation, `may_request` asks for one, and `denied` offers neither.
  *
  * A request already sent stays on screen as a disabled button rather than
  * disappearing: the gap where it was would read as the ask having failed.
