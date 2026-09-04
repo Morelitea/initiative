@@ -8,8 +8,10 @@ import {
   SquareCheckBig,
   Users,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { MessagesSidebarContent } from "@/components/sidebar/MessagesSidebarContent";
 import {
   SidebarContent,
   SidebarGroup,
@@ -19,19 +21,31 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { usePendingMessageRequests } from "@/hooks/useDirectMessages";
-import { useConversations, useUnreadMessages } from "@/hooks/useMyMessages";
+import { useMessagesWaiting } from "@/hooks/useMyMessages";
 
 export const HomeSidebarContent = () => {
   const { t } = useTranslation("nav");
   const location = useLocation();
-  // Two things put a mark on My Messages, and they mean the same thing to the
-  // person seeing it: something is there that you have not dealt with. One is
-  // somebody asking to message you; the other is a message you have not read.
-  const pendingRequests = usePendingMessageRequests();
-  const conversations = useConversations();
-  const unread = useUnreadMessages((conversations.data?.conversations ?? []).map((row) => row.id));
-  const unreadTotal = [...(unread.data?.values() ?? [])].reduce((total, count) => total + count, 0);
+
+  // My Messages is a list of people and then one of them, so it drills rather
+  // than sharing the column: opening it puts the conversations here and the
+  // arrow in that header climbs back out to this list. Climbing out is a look
+  // rather than a move -- the thread stays open beside it -- so it is state
+  // here, and arriving at the route again drills back in.
+  const onMessages = location.pathname.startsWith("/messages");
+  const [climbedOut, setClimbedOut] = useState(false);
+  useEffect(() => {
+    setClimbedOut(false);
+  }, [onMessages]);
+
+  // Somebody asking to message you, or a message you have not read: the same
+  // thing to whoever sees the mark, and counted in one place because the logo
+  // above the rail draws it too.
+  const messagesWaiting = useMessagesWaiting();
+
+  if (onMessages && !climbedOut) {
+    return <MessagesSidebarContent onBack={() => setClimbedOut(true)} />;
+  }
 
   const navItems = [
     { to: "/", label: t("myTasks"), icon: SquareCheckBig, exact: true },
@@ -43,7 +57,12 @@ export const HomeSidebarContent = () => {
       to: "/messages",
       label: t("myMessages"),
       icon: MessageSquare,
-      waiting: pendingRequests + unreadTotal,
+      waiting: messagesWaiting,
+      // Climbing out of the conversations leaves this list showing while the
+      // thread is still open behind it, so picking My Messages again is not a
+      // navigation -- the address is already there and nothing would re-run.
+      // It is a request to drill back in, and only this says so.
+      onSelect: () => setClimbedOut(false),
     },
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },
   ];
@@ -71,13 +90,17 @@ export const HomeSidebarContent = () => {
                 return (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link to={item.to} className="flex items-center gap-2">
+                      <Link
+                        to={item.to}
+                        className="flex items-center gap-2"
+                        onClick={item.onSelect}
+                      >
                         <item.icon className="h-4 w-4" />
                         <span>{item.label}</span>
                         {/* A dot carries no text, so the count it stands for
                             is written out for anyone not looking at it. */}
                         {item.waiting ? (
-                          <span className="ms-auto flex shrink-0 items-center">
+                          <span className="relative ms-auto flex shrink-0 items-center">
                             <span className="sr-only">
                               {t("requestsWaiting", { count: item.waiting })}
                             </span>

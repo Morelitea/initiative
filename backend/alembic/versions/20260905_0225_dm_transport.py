@@ -261,7 +261,7 @@ def _create_tables() -> None:
         sa.ForeignKeyConstraint(["device_id"], ["dm_devices.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "device_id", "key_id", name="uq_dm_one_time_keys_device_key"
+            "device_id", "fallback", "key_id", name="uq_dm_one_time_keys_device_key"
         ),
     )
     op.create_index(

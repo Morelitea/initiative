@@ -1,11 +1,29 @@
 {
   "title": "Mis mensajes",
+  "backToNav": "Volver a la navegación",
   "encryptedNotice": "Cifrado de extremo a extremo. Solo tú y la otra persona pueden leerlos.",
   "empty": {
-    "title": "Ninguna conversación abierta",
-    "body": "Elige a alguien a la izquierda o abre un canal desde Mis contactos."
+    "title": "Elige una conversación"
   },
   "nobodyYet": "Todavía nadie. Una conversación se abre cuando se acepta una solicitud de mensaje.",
+  "requests": {
+    "heading": "Solicitudes",
+    "asked": "Quieren iniciar una conversación.",
+    "youAsked": "Lo pediste. No se envía nada hasta que acepten.",
+    "accept": "Aceptar",
+    "decline": "Rechazar",
+    "cancel": "Cancelar"
+  },
+  "groups": {
+    "favorites": "Favoritos",
+    "connections": "Conexiones",
+    "messages": "Mensajes"
+  },
+  "receipt": {
+    "sent": "Enviado",
+    "delivered": "Entregado",
+    "read": "Leído"
+  },
   "startHint": "iniciar",
   "unknownAccount": "Cuenta desconocida",
   "noHistoryHere": "Aún no hay nada en este dispositivo. Los mensajes que tenías en otro sitio siguen allí.",

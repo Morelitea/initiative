@@ -420,15 +420,14 @@ describe("My Contacts", () => {
     expect(await screen.findByText("Nobody here yet")).toBeInTheDocument();
   });
 
-  it("links a row at the conversation with that person, by handle", async () => {
-    // Not their profile: a contacts page names people you might say something
-    // to, so the row goes where saying it happens. The profile is in the menu
-    // at the end of the row.
+  it("links a row at that person's profile, by handle", async () => {
+    // Clicking a person lands on the person. Messaging them is a button there,
+    // and it is there whether or not the channel is already open.
     answer([section({ items: [contact({ username: "ada", discriminator: 42 })] })]);
     await renderContacts();
 
     const row = (await screen.findByText("ada")).closest("a");
-    expect(row).toHaveAttribute("href", "/messages?with=ada0042");
+    expect(row).toHaveAttribute("href", "/u/ada0042");
   });
 
   it("counts a community by its whole roster, not the page on screen", async () => {

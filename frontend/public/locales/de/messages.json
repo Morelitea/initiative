@@ -1,11 +1,29 @@
 {
   "title": "Meine Nachrichten",
+  "backToNav": "Zurück zur Navigation",
   "encryptedNotice": "Ende-zu-Ende-verschlüsselt. Nur du und die andere Person können sie lesen.",
   "empty": {
-    "title": "Keine Unterhaltung geöffnet",
-    "body": "Wähle links jemanden aus oder öffne einen Kanal über Meine Kontakte."
+    "title": "Ein Gespräch auswählen"
   },
   "nobodyYet": "Noch niemand. Eine Unterhaltung öffnet sich, sobald eine Nachrichtenanfrage angenommen wurde.",
+  "requests": {
+    "heading": "Anfragen",
+    "asked": "Sie möchten ein Gespräch beginnen.",
+    "youAsked": "Du hast gefragt. Bis sie annehmen, wird nichts gesendet.",
+    "accept": "Annehmen",
+    "decline": "Ablehnen",
+    "cancel": "Abbrechen"
+  },
+  "groups": {
+    "favorites": "Favoriten",
+    "connections": "Verbindungen",
+    "messages": "Nachrichten"
+  },
+  "receipt": {
+    "sent": "Gesendet",
+    "delivered": "Zugestellt",
+    "read": "Gelesen"
+  },
   "startHint": "starten",
   "unknownAccount": "Unbekanntes Konto",
   "noHistoryHere": "Auf diesem Gerät noch nichts. Nachrichten von anderswo bleiben dort.",

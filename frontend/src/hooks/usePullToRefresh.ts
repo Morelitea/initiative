@@ -49,6 +49,12 @@ export function usePullToRefresh({
     if (scrollRef.current) {
       return scrollRef.current.scrollTop;
     }
+    // The app scrolls inside its own element rather than the document, so the
+    // window's offset is always zero and would read as "already at the top".
+    const scroller = document.querySelector("[data-app-scroll]");
+    if (scroller) {
+      return scroller.scrollTop;
+    }
     return window.scrollY || document.documentElement.scrollTop;
   }, []);
 

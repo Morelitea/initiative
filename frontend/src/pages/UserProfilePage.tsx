@@ -2,6 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { Loader2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { PageBanner } from "@/components/PageBanner";
@@ -104,15 +105,22 @@ export const UserProfilePage = () => {
             {/* Not on your own profile: there is nothing here to do about
                 yourself. */}
             {mine ? null : (
-              <ContactActionsMenu
-                user={{
-                  id: profile.id,
-                  username: profile.username,
-                  discriminator: profile.discriminator,
-                }}
-                showProfile={false}
-                className="mb-1"
-              />
+              <div className="mb-1 flex items-center gap-2">
+                <ContactActionButtons
+                  user={{
+                    id: profile.id,
+                    username: profile.username,
+                    discriminator: profile.discriminator,
+                  }}
+                />
+                <ContactActionsMenu
+                  user={{
+                    id: profile.id,
+                    username: profile.username,
+                    discriminator: profile.discriminator,
+                  }}
+                />
+              </div>
             )}
           </div>
         </div>

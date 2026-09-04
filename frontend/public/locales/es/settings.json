@@ -1171,6 +1171,11 @@
       "confirmAge": "Confirmar mi edad",
       "saved": "Guardado."
     },
+    "receipts": {
+      "title": "Confirmaciones de lectura",
+      "label": "Mostrar a los demás cuándo llegan sus mensajes",
+      "help": "Verán cuándo llegó un mensaje a uno de tus dispositivos y cuándo lo leíste. Si lo desactivas no verán ninguna de las dos cosas, igual que con alguien que no ha abierto la app. Tú sigues viendo las suyas."
+    },
     "connections": {
       "title": "Conexiones",
       "description": "Las conexiones son mutuas. Podéis seguir en contacto aunque dejéis de compartir una comunidad.",

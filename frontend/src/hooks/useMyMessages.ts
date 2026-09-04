@@ -29,6 +29,7 @@ import {
   sendText,
   unreadIn,
 } from "@/crypto/messaging";
+import { useDmSettings, usePendingMessageRequests } from "@/hooks/useDirectMessages";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
@@ -120,11 +121,12 @@ export function useStartConversation() {
  */
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
+  const receipts = useSendsReceipts();
 
   return useQuery({
     queryKey: messageKeys.inbox,
     queryFn: async () => {
-      const touched = await collect();
+      const touched = await collect({ receipts });
       for (const conversationId of touched) {
         void queryClient.invalidateQueries({
           queryKey: messageKeys.thread(conversationId),
@@ -175,6 +177,22 @@ export function useCollectMessagesWhereRegistered() {
  * deletes a message once it has been collected and could not answer this even
  * if it were asked.
  */
+/**
+ * How many things are waiting in My Messages, as one number.
+ *
+ * Two kinds, and they mean the same thing to the person seeing the mark:
+ * something is there that you have not dealt with. Counted in one place because
+ * more than one surface draws it -- the sidebar item, and the logo above the
+ * whole rail, which is the only mark visible from inside a community.
+ */
+export function useMessagesWaiting(): number {
+  const pending = usePendingMessageRequests();
+  const conversations = useConversations();
+  const unread = useUnreadMessages((conversations.data?.conversations ?? []).map((row) => row.id));
+  const unreadTotal = [...(unread.data?.values() ?? [])].reduce((total, count) => total + count, 0);
+  return pending + unreadTotal;
+}
+
 export function useUnreadMessages(conversationIds: string[]) {
   return useQuery({
     queryKey: messageKeys.unread(conversationIds),
@@ -191,11 +209,29 @@ export function useUnreadMessages(conversationIds: string[]) {
 }
 
 /** Mark a thread as looked at, whenever what is in it changes. */
-export function useMarkThreadRead(conversationId: string, messageCount: number) {
+export function useMarkThreadRead(
+  conversationId: string,
+  messageCount: number,
+  otherUserId: number
+) {
   const queryClient = useQueryClient();
+  const receipts = useSendsReceipts();
   useEffect(() => {
-    void markRead(conversationId).then(() =>
+    void markRead(conversationId, { otherUserId, receipts }).then(() =>
       queryClient.invalidateQueries({ queryKey: ["dm", "unread"] })
     );
-  }, [conversationId, messageCount, queryClient]);
+  }, [conversationId, messageCount, otherUserId, receipts, queryClient]);
+}
+
+/**
+ * Whether this account tells a sender their message arrived and was read.
+ *
+ * Read where the receipts are sent rather than passed down from a page: the
+ * collection loop runs whether or not anything is on screen, and the switch has
+ * to reach it there too. Defaults to reporting only once the setting has
+ * actually arrived -- an unanswered read is not a decision to stay quiet.
+ */
+export function useSendsReceipts(): boolean {
+  const { data } = useDmSettings();
+  return data?.send_receipts ?? true;
 }

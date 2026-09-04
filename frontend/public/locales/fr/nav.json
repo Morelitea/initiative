@@ -58,6 +58,7 @@
     "menu": "Ouvrir le menu",
     "search": "Rechercher",
     "home": "Accueil",
+    "messages": "Mes messages",
     "add": "Créer",
     "addTask": "Ajouter une tâche",
     "addDocument": "Ajouter un document"
@@ -78,6 +79,6 @@
   "createExternally": "Créé dans {{name}}",
   "adminDashboard": "Tableau de bord admin",
   "pastAnnouncements": "Annonces passées",
-  "requestsWaiting_one": "{{count}} chose en attente",
-  "requestsWaiting_other": "{{count}} choses en attente"
+  "requestsWaiting_one": "{{count}} en attente",
+  "requestsWaiting_other": "{{count}} en attente"
 }

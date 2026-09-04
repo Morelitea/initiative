@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { FilePlus, Home, Menu, Plus, Search, SquareCheckBig } from "lucide-react";
+import { FilePlus, Home, Menu, MessageSquare, Plus, Search, SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { getOpenCommandCenter } from "@/components/CommandCenter";
@@ -18,6 +18,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useMessagesWaiting } from "@/hooks/useMyMessages";
 import { useNotifications } from "@/hooks/useNotifications";
 
 const pillClass =
@@ -42,6 +43,9 @@ export function BottomNav() {
     enabled: Boolean(user) && isMobile,
   });
   const unreadCount = notificationsQuery.data?.unread_count ?? 0;
+  // The same count the sidebar item and the logo carry: a message nobody has
+  // read, or somebody asking to send one.
+  const messagesWaiting = useMessagesWaiting();
 
   // Hide the add button entirely on a create-context route where the user lacks
   // permission. Non-create routes (no registration) fall back to the global menu,
@@ -76,19 +80,40 @@ export function BottomNav() {
               variant="ghost"
               size="icon"
               className="h-11 w-11 rounded-full"
-              onClick={() => getOpenCommandCenter()?.()}
-              aria-label={t("bottomNav.search")}
+              onClick={() => void navigate({ to: "/" })}
+              aria-label={t("bottomNav.home")}
             >
-              <Search className="h-5 w-5" />
+              <Home className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative h-11 w-11 rounded-full"
+              onClick={() => void navigate({ to: "/messages" })}
+              // The count belongs in the name rather than beside it: a label
+              // wins over what is inside the button, so a badge nobody can
+              // read is a number only some people get.
+              aria-label={
+                messagesWaiting > 0
+                  ? `${t("bottomNav.messages")}, ${t("requestsWaiting", { count: messagesWaiting })}`
+                  : t("bottomNav.messages")
+              }
+            >
+              <MessageSquare className="h-5 w-5" />
+              {messagesWaiting > 0 ? (
+                <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
+                  {messagesWaiting > 99 ? "99+" : messagesWaiting}
+                </Badge>
+              ) : null}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               className="h-11 w-11 rounded-full"
-              onClick={() => void navigate({ to: "/" })}
-              aria-label={t("bottomNav.home")}
+              onClick={() => getOpenCommandCenter()?.()}
+              aria-label={t("bottomNav.search")}
             >
-              <Home className="h-5 w-5" />
+              <Search className="h-5 w-5" />
             </Button>
           </nav>
         )}

@@ -18,7 +18,8 @@ pytestmark = pytest.mark.asyncio
 
 
 def _key(seed: int) -> str:
-    return base64.b64encode(bytes([seed % 251]) * 32).decode()
+    """One public key, written the way the ratchet writes it: no padding."""
+    return base64.b64encode(bytes([seed % 251]) * 32).decode().rstrip("=")
 
 
 def _registration(seed: int = 1) -> dict:
@@ -96,6 +97,52 @@ async def test_a_malformed_key_is_refused(client, acting_user):
         "/api/v1/me/dm/devices", json=payload, headers=a.headers
     )
     assert response.status_code == 422
+
+
+async def test_a_payload_is_handed_back_the_way_the_ratchet_reads_it(
+    client, acting_user
+):
+    """The ciphertext decoder on the client keeps its padding, so the server
+    must too -- a value whose length is not a multiple of three comes back
+    unreadable otherwise, which is two messages in every three."""
+    a = await acting_user()
+    payload = _registration()
+    payload["identity_key"] = base64.b64encode(b"\x01" * 32).decode()
+
+    response = await client.post(
+        "/api/v1/me/dm/devices", json=payload, headers=a.headers
+    )
+    assert response.status_code == 201
+    assert (
+        response.json()["devices"][0]["identity_key"]
+        == base64.b64encode(b"\x01" * 32).decode()
+    )
+
+
+async def test_padded_keys_are_accepted_too(client, acting_user):
+    """The ratchet omits the padding; a client that sends it is not refused."""
+    a = await acting_user()
+    payload = _registration()
+    payload["identity_key"] = base64.b64encode(b"\x01" * 32).decode()
+
+    response = await client.post(
+        "/api/v1/me/dm/devices", json=payload, headers=a.headers
+    )
+    assert response.status_code == 201
+
+
+async def test_a_fallback_key_may_reuse_a_prekey_id(client, acting_user):
+    """Fallback keys are numbered in their own sequence on the client, so the
+    same id string can arrive on both -- registration must not collide."""
+    a = await acting_user()
+    payload = _registration()
+    payload["fallback_key"]["key_id"] = "AAAAAAAAAAA"
+    payload["one_time_keys"][0]["key_id"] = "AAAAAAAAAAA"
+
+    response = await client.post(
+        "/api/v1/me/dm/devices", json=payload, headers=a.headers
+    )
+    assert response.status_code == 201
 
 
 async def test_a_short_key_is_refused(client, acting_user):

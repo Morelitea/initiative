@@ -2304,6 +2304,7 @@ export interface DirectMessageSettingsRead {
   dm_policy: DmPolicy;
   communities: CommunityDmToggle[];
   age_confirmed_at: string | null;
+  send_receipts: boolean;
 }
 
 /**
@@ -2316,6 +2317,7 @@ export interface DirectMessageSettingsRead {
 export interface DirectMessageSettingsUpdate {
   dm_policy?: DmPolicy | null;
   communities?: CommunityDmToggleUpdate[] | null;
+  send_receipts?: boolean | null;
 }
 
 export interface DmConversationCreate {

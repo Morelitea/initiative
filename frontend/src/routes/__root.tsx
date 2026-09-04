@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 
 import { StepUpDialog } from "@/components/auth/StepUpDialog";
 import { useColorTheme } from "@/hooks/useColorTheme";
@@ -8,14 +8,6 @@ import { useDeepLinks } from "@/hooks/useDeepLinks";
 import { useInterfaceColors } from "@/hooks/useInterfaceColors";
 import { useSafeArea } from "@/hooks/useSafeArea";
 import type { RouterContext } from "@/router";
-
-const TanStackRouterDevtools = import.meta.env.DEV
-  ? lazy(() =>
-      import("@tanstack/react-router-devtools").then((mod) => ({
-        default: mod.TanStackRouterDevtools,
-      }))
-    )
-  : () => null;
 
 /**
  * Loading fallback for lazy-loaded pages.
@@ -42,9 +34,6 @@ const RootComponent = () => {
         <Outlet />
       </Suspense>
       <StepUpDialog />
-      <Suspense>
-        <TanStackRouterDevtools position="bottom-right" />
-      </Suspense>
     </>
   );
 };

@@ -223,11 +223,30 @@ function AppLayout() {
       <CommandCenter />
       <CreateTaskWizard />
       <CreateDocumentWizard />
-      <div className="flex min-h-screen flex-col bg-background">
+      {/* A real height rather than a minimum: `min-h-screen` leaves every
+          descendant sizing to its own content, so a page cannot ask for the
+          height of what it is in. Scrolling moves from the document into
+          `main` with it -- which is what lets a page keep a header or a
+          composer against an edge instead of measuring where that edge fell. */}
+      {/* `clip` rather than `hidden`: both hide what overruns, but `hidden`
+          leaves a scrollport behind -- one with no scrollbar, which a reader
+          cannot get back from and which anything at all can move. Focus moving
+          to a grown textarea, a `scrollIntoView`, a devtools panel in the flow:
+          each parks the whole app, chrome included, somewhere it cannot be
+          scrolled back from. `clip` makes it what it reads as: not a scroller. */}
+      <div className="flex h-screen flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
-        <div className="flex flex-1">
+        <div className="flex min-h-0 flex-1">
           <SidebarProvider
             defaultOpen={true}
+            // The provider's own wrapper asks for `min-h-svh`, which is a floor
+            // for a page that grows and a trap for one that does not: anything
+            // above it here -- a permission prompt, a banner -- makes the row
+            // it sits in shorter than a screen, and the wrapper refuses to
+            // follow. Everything below then measures itself against a box
+            // taller than the one on screen, and the app scrolls into space
+            // that was never there. The shell has a real height; take it.
+            className="h-full min-h-0"
             style={
               {
                 "--sidebar-width": "20rem",
@@ -236,7 +255,7 @@ function AppLayout() {
             }
           >
             <AppSidebar />
-            <div className="flex min-w-0 flex-1 flex-col md:pl-0">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
               <div
                 className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
                 style={{ paddingTop: "var(--safe-area-inset-top)" }}
@@ -260,7 +279,7 @@ function AppLayout() {
                 )}
                 <GuildAccessBanner />
               </div>
-              <div className="flex flex-1 justify-between">
+              <div className="flex min-h-0 flex-1 justify-between">
                 {/*<div
                   className="h-full w-full opacity-20 fixed"
                   style={{
@@ -270,7 +289,14 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
-                <main className="container mx-auto min-w-0 p-4 pb-24 md:p-8 md:pb-24">
+                <main
+                  // The app's scroller. Named twice over: the router restores
+                  // this element's position across navigations rather than the
+                  // window's, and pull-to-refresh asks it how far down it is.
+                  data-app-scroll=""
+                  data-scroll-restoration-id="app-main"
+                  className="container mx-auto min-w-0 overflow-y-auto p-4 pb-24 md:p-8 md:pb-24"
+                >
                   <Suspense fallback={<PageLoader />}>
                     <Outlet />
                   </Suspense>

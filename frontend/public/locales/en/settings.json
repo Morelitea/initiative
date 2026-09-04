@@ -1171,6 +1171,11 @@
       "confirmAge": "Confirm my age",
       "saved": "Saved."
     },
+    "receipts": {
+      "title": "Read receipts",
+      "label": "Tell people when their messages reach you",
+      "help": "They see when a message arrived on one of your devices and when you read it. Switch this off and they see neither — the same as somebody who has not opened the app. You still see theirs."
+    },
     "connections": {
       "title": "Connections",
       "description": "Connections are mutual. You can keep in touch even if you stop sharing a community.",

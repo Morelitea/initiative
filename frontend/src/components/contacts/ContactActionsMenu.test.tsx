@@ -81,6 +81,25 @@ describe("ContactActionsMenu", () => {
     );
   });
 
+  it("offers the conversation itself where there is one", async () => {
+    // No "view profile" here: both places this menu appears are already the
+    // person. What it offers instead is where the two of you talk.
+    mocks.permission.mockReturnValue({ data: { permission: "open" } });
+    await open();
+
+    expect(screen.getByRole("menuitem", { name: "Message" })).toHaveAttribute(
+      "href",
+      "/messages?with=ada1234"
+    );
+    expect(screen.queryByRole("menuitem", { name: /view profile/i })).toBeNull();
+  });
+
+  it("offers nothing to open where the channel is not", async () => {
+    await open();
+
+    expect(screen.queryByRole("menuitem", { name: "Message" })).toBeNull();
+  });
+
   it("only offers to ask when the server says the reader may", async () => {
     await open();
     expect(screen.queryByRole("menuitem", { name: "Ask to message" })).toBeNull();

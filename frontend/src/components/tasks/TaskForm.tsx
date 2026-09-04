@@ -208,9 +208,7 @@ export const TaskForm = ({
             disabled={disabled || statuses.length === 0}
           >
             {currentStatus ? (
-              <SelectValue asChild>
-                <TaskStatusOption status={currentStatus} />
-              </SelectValue>
+              <TaskStatusOption status={currentStatus} />
             ) : (
               <SelectValue placeholder={t("taskForm.selectStatus")} />
             )}

@@ -33,6 +33,7 @@ import {
   forgetDevice,
   lastRead,
   messageLog,
+  type ReceiptState,
   type SessionOrigin,
   type StoredMessage,
   sessionForDevice,
@@ -247,13 +248,29 @@ export async function unreadIn(conversationId: string): Promise<number> {
 }
 
 /** This thread has been looked at, up to the last message the other side sent. */
-export async function markRead(conversationId: string): Promise<void> {
-  const log = await messageLog.get(conversationId);
-  for (let index = log.length - 1; index >= 0; index -= 1) {
-    if (!log[index].mine) {
-      await lastRead.set(conversationId, log[index].id);
-      return;
-    }
+export async function markRead(
+  conversationId: string,
+  { otherUserId, receipts = true }: { otherUserId?: number; receipts?: boolean } = {}
+): Promise<void> {
+  const [log, seen] = await Promise.all([
+    messageLog.get(conversationId),
+    lastRead.get(conversationId),
+  ]);
+  const previous = seen ? log.findIndex((message) => message.id === seen) : -1;
+  // Only what this look actually read. Reporting the whole thread every time
+  // the marker is touched would say "read" again on every keystroke that
+  // lengthened it, for messages answered an hour ago.
+  const newly = log.slice(previous + 1).filter((message) => !message.mine);
+  if (newly.length === 0) return;
+
+  await lastRead.set(conversationId, newly[newly.length - 1].id);
+  if (receipts && otherUserId !== undefined) {
+    await acknowledge(
+      conversationId,
+      otherUserId,
+      newly.map((message) => message.id),
+      "read"
+    );
   }
 }
 
@@ -329,27 +346,62 @@ async function claimKeysFor(
 }
 
 /**
- * Encrypt one message for every device that should see it and hand the
+ * What is inside the ciphertext.
+ *
+ * A message is not a bare string on the wire, because the two sides need a name
+ * for it that they both know: the local id is minted here and never left this
+ * device, and the queue row's id belongs to one recipient device and is deleted
+ * the moment that device collects. Neither can be pointed at afterwards, which
+ * is what a receipt has to do.
+ *
+ * So the id travels *inside* the encryption, with everything else the server is
+ * not entitled to. The version is here for the same reason: it is far cheaper
+ * to read one now than to guess later, and a message cannot be re-encrypted
+ * after the fact -- forward secrecy has already thrown the key away.
+ */
+type Envelope =
+  | { v: 1; kind: "text"; id: string; at: string; body: string }
+  | { v: 1; kind: "receipt"; state: ReceiptState; ids: string[] };
+
+/** A name for one message, known to both sides and to nobody else. */
+const newMessageId = (): string =>
+  typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Read what came out of the ratchet, whatever shape it is in. */
+function unpack(plaintext: string, fallbackId: string): Envelope {
+  try {
+    const parsed = JSON.parse(plaintext) as Partial<Envelope>;
+    if (parsed && parsed.v === 1 && typeof parsed.kind === "string") {
+      return parsed as Envelope;
+    }
+  } catch {
+    // Not an envelope. Read below as the body it used to be.
+  }
+  return { v: 1, kind: "text", id: fallbackId, at: "", body: plaintext };
+}
+
+/**
+ * Encrypt one envelope for every device that should see it and hand the
  * ciphertext to the server.
  *
- * "Every device" is the other party's *and* this account's others, so their
- * own tabs render their outbox. The server never sees the two as different.
+ * Returns whether it reached the other party at all -- as opposed to only this
+ * account's own devices, which is what "nobody there to read it" looks like
+ * from here.
  */
-export async function sendText(
+async function sendEnvelope(
   conversationId: string,
   otherUserId: number,
-  body: string
-): Promise<StoredMessage> {
+  envelope: Envelope,
+  { toSelf }: { toSelf: boolean }
+): Promise<boolean> {
   const { id: mine, devices: ourDevices } = await ensureDeviceContext();
 
   // The directory rather than a claim: reading it spends nothing, and most
   // messages go to devices this one already has a session with.
   const theirs = await readDirectory(otherUserId);
-  if (theirs.devices.length === 0) {
-    // Nothing to address and nothing to queue against. Saying so beats writing
-    // the message into a thread it would never leave.
-    throw new RecipientHasNoDeviceError();
-  }
+  if (theirs.devices.length === 0) return false;
 
   const destinations: Destination[] = [
     ...theirs.devices.map((device) => ({
@@ -357,13 +409,18 @@ export async function sendText(
       identityKey: device.identity_key,
       origin: "other" as const,
     })),
-    ...ourDevices
-      .filter((device) => device.id !== mine)
-      .map((device) => ({
-        id: device.id,
-        identityKey: device.identity_key,
-        origin: "self" as const,
-      })),
+    // A receipt is about their message and is for them, so it does not go to
+    // this account's own tabs; an outgoing message does, or their copy of the
+    // thread would be missing this side of it.
+    ...(toSelf
+      ? ourDevices
+          .filter((device) => device.id !== mine)
+          .map((device) => ({
+            id: device.id,
+            identityKey: device.identity_key,
+            origin: "self" as const,
+          }))
+      : []),
   ];
 
   const held = new Map<string, string | null>();
@@ -393,7 +450,7 @@ export async function sendText(
       sessionId = await openOutboundSession(conversationId, destination, oneTime);
     }
     const encrypted = await withSession(sessionId, async (pickle) => {
-      const out = await ratchet.encrypt(pickle, body);
+      const out = await ratchet.encrypt(pickle, JSON.stringify(envelope));
       return { next: out.session_pickle, value: out };
     });
     if (encrypted === null) continue;
@@ -405,21 +462,77 @@ export async function sendText(
     });
   }
 
-  // Their devices are all there was to address and none of them could be
-  // opened. Nothing is sent, here or later, so the thread should not show a
-  // message as though something had been.
-  if (!reachedThem) throw new RecipientHasNoDeviceError();
+  // Nothing goes out at all if it could not reach them: an envelope this
+  // account's own tabs hold and the other party never got would put a message
+  // in their thread that was never said to anybody.
+  if (!reachedThem) return false;
 
   await sendMessages(conversationId, { messages });
+  return true;
+}
+
+/**
+ * Say one message for every device that should see it.
+ *
+ * The id and the time are minted once and encrypted for each of them, so every
+ * copy of this message -- theirs, and this account's other tabs -- is the same
+ * message rather than several that happen to read alike. That name is what a
+ * receipt comes back naming.
+ */
+export async function sendText(
+  conversationId: string,
+  otherUserId: number,
+  body: string
+): Promise<StoredMessage> {
+  const envelope: Envelope = {
+    v: 1,
+    kind: "text",
+    id: newMessageId(),
+    at: new Date().toISOString(),
+    body,
+  };
+  // Their devices were all there was to address and none could be opened.
+  // Nothing is sent, here or later, so the thread should not show a message as
+  // though something had been.
+  if (!(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true }))) {
+    throw new RecipientHasNoDeviceError();
+  }
 
   const stored: StoredMessage = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: envelope.id,
     body,
-    at: new Date().toISOString(),
+    at: envelope.at,
     mine: true,
   };
   await messageLog.append(conversationId, stored);
   return stored;
+}
+
+/**
+ * Tell the other side how far their messages have got with this device.
+ *
+ * Best effort in both directions: it is sent without waiting on anything and a
+ * failure is swallowed, because a receipt that does not arrive is the same to
+ * its reader as one that was never sent -- which is exactly what an account
+ * with receipts switched off looks like, and the point of that switch.
+ */
+export async function acknowledge(
+  conversationId: string,
+  otherUserId: number,
+  ids: string[],
+  state: ReceiptState
+): Promise<void> {
+  if (ids.length === 0) return;
+  try {
+    await sendEnvelope(
+      conversationId,
+      otherUserId,
+      { v: 1, kind: "receipt", state, ids },
+      { toSelf: false }
+    );
+  } catch {
+    // Nothing to tell the reader: their thread is unchanged either way.
+  }
 }
 
 /**
@@ -467,12 +580,43 @@ async function identitiesForPreKeys(
 }
 
 /**
+ * Read one queued message with a session this device already holds.
+ *
+ * Which device sent it is not on the row, so the conversation's own sessions
+ * are tried first and then every other session this device holds: one opened
+ * elsewhere can carry a message here, and a message that finds no session at
+ * all is never readable again.
+ */
+async function readWithHeldSession(item: {
+  conversation_id: string;
+  message_type: number;
+  payload: string;
+}): Promise<{ sessionId: string; plaintext: string } | null> {
+  const here = await sessionsInConversation.get(item.conversation_id);
+  const sessions = [...here, ...(await allSessions.get()).filter((id) => !here.includes(id))];
+  for (const sessionId of sessions) {
+    const decrypted = await withSession(sessionId, async (pickle) => {
+      try {
+        const out = await ratchet.decrypt(pickle, item.message_type, item.payload);
+        return { next: out.session_pickle, value: out };
+      } catch {
+        // Not this session. Try the next.
+        return null;
+      }
+    });
+    if (decrypted === null) continue;
+    return { sessionId, plaintext: decrypted.plaintext };
+  }
+  return null;
+}
+
+/**
  * Collect everything waiting for this device, decrypt it, and acknowledge.
  *
  * Acknowledging deletes the row on the server, so the local log is written
  * first — losing a message to a failed write is worse than collecting it twice.
  */
-export async function collect(): Promise<string[]> {
+export async function collect({ receipts = true }: { receipts?: boolean } = {}): Promise<string[]> {
   const { id: device, devices: ourDevices } = await ensureDeviceContext();
   const queue = await collectQueue({ device_id: device });
   if (queue.items.length === 0) return [];
@@ -493,15 +637,30 @@ export async function collect(): Promise<string[]> {
 
   const touched = new Set<string>();
   const collected: number[] = [];
+  /** Their messages that reached this device, per conversation, to report. */
+  const landed = new Map<string, string[]>();
 
   for (const item of queue.items) {
     try {
       let plaintext: string;
       let mine: boolean;
-      if (item.message_type === 0) {
-        // Opening an inbound session spends a prekey out of the account, so it
-        // goes through the same compare-and-swap as everything else that
-        // advances it.
+      // Every message is offered to the sessions this device already holds
+      // before any new one is opened -- pre-key messages included. A session
+      // goes on marking what it sends as pre-key until it hears back on it, so
+      // the second and third of those name a prekey the receiver has already
+      // spent: opening a session is the one thing that cannot answer them, and
+      // the session that can is sitting right here.
+      const read = await readWithHeldSession(item);
+      if (read !== null) {
+        // Filed here, so the next message on it is found straight away.
+        await sessionsInConversation.add(item.conversation_id, read.sessionId);
+        plaintext = read.plaintext;
+        mine = (await sessionOrigin.get(read.sessionId)) === "self";
+      } else if (item.message_type === 0) {
+        // Nothing held can read it, so it opens a conversation rather than
+        // continuing one. Opening an inbound session spends a prekey out of the
+        // account, so it goes through the same compare-and-swap as everything
+        // else that advances it.
         const opened = await withAccount(async (pickle) => {
           for (const candidate of candidates.get(item.conversation_id) ?? []) {
             try {
@@ -512,7 +671,7 @@ export async function collect(): Promise<string[]> {
               );
               return {
                 next: session.account_pickle,
-                value: { session, origin: candidate.origin },
+                value: { session, origin: candidate.origin, device: candidate.id },
               };
             } catch {
               // Not this device. Try the next.
@@ -525,6 +684,11 @@ export async function collect(): Promise<string[]> {
         // Which end a session belongs to is knowable now and never again: an
         // ordinary message arriving on it later names no sender.
         await sessionOrigin.set(opened.session.session_id, opened.origin);
+        // Which device it is with, too -- and that is what the reply looks up.
+        // Without it an answer opens a second session with somebody this device
+        // is already talking to, spends another of their prekeys to do it, and
+        // leaves the first session unestablished on both sides.
+        await sessionForDevice.set(opened.device, opened.session.session_id);
         // The conversation's session list, not the device map keyed by a
         // conversation id: the other party may have several devices, and each
         // is its own ratchet.
@@ -533,43 +697,38 @@ export async function collect(): Promise<string[]> {
         plaintext = opened.session.plaintext;
         mine = opened.origin === "self";
       } else {
-        // Which device sent this is not on the row, so the sessions this
-        // conversation holds are tried in turn -- one per device, and the most
-        // recently used first.
-        const here = await sessionsInConversation.get(item.conversation_id);
-        // The conversation's own sessions first, then every other session this
-        // device holds: one opened elsewhere can carry a message here, and a
-        // message that finds no session at all is never readable again.
-        const sessions = [...here, ...(await allSessions.get()).filter((id) => !here.includes(id))];
-        let read: { sessionId: string; plaintext: string } | null = null;
-        for (const sessionId of sessions) {
-          const decrypted = await withSession(sessionId, async (pickle) => {
-            try {
-              const out = await ratchet.decrypt(pickle, item.message_type, item.payload);
-              return { next: out.session_pickle, value: out };
-            } catch {
-              // Not this session. Try the next.
-              return null;
-            }
-          });
-          if (decrypted === null) continue;
-          // Filed here, so the next message on it is found straight away.
-          await sessionsInConversation.add(item.conversation_id, sessionId);
-          read = { sessionId, plaintext: decrypted.plaintext };
-          break;
-        }
-        if (read === null) continue;
-        plaintext = read.plaintext;
-        mine = (await sessionOrigin.get(read.sessionId)) === "self";
+        continue;
       }
+      const envelope = unpack(plaintext, String(item.id));
+
+      if (envelope.kind === "receipt") {
+        // Not a message: news about ones already sent. Their own tab reporting
+        // is the sender's business, not this thread's, so a receipt that moved
+        // nothing leaves the thread alone.
+        if (await messageLog.markReceipts(item.conversation_id, envelope.ids, envelope.state)) {
+          touched.add(item.conversation_id);
+        }
+        collected.push(item.id);
+        continue;
+      }
+
       await messageLog.append(item.conversation_id, {
-        id: String(item.id),
-        body: plaintext,
-        at: item.created_at,
+        id: envelope.id,
+        // The sender's own clock, so every copy of one message is dated alike
+        // rather than by when each device happened to collect it.
+        at: envelope.at || item.created_at,
+        body: envelope.body,
         // A message that arrived on one of this account's own sessions is the
         // sender's own outbox catching up, and belongs on the sender's side.
         mine,
       });
+      // Only theirs is worth reporting: this account already knows when it sent
+      // its own, and a receipt addressed at yourself tells nobody anything.
+      if (!mine) {
+        const arrived = landed.get(item.conversation_id) ?? [];
+        arrived.push(envelope.id);
+        landed.set(item.conversation_id, arrived);
+      }
       touched.add(item.conversation_id);
       collected.push(item.id);
     } catch {
@@ -580,6 +739,18 @@ export async function collect(): Promise<string[]> {
 
   if (collected.length > 0) {
     await ackQueue({ device_id: device, message_ids: collected });
+  }
+
+  // After the acknowledgement, and never in its way: a receipt is a courtesy
+  // and the queue row it is about is already safely on this device.
+  if (receipts && landed.size > 0) {
+    const conversations = await listConversations();
+    for (const conversation of conversations.conversations) {
+      const ids = landed.get(conversation.id);
+      if (ids) {
+        await acknowledge(conversation.id, conversation.other_user_id, ids, "delivered");
+      }
+    }
   }
   return [...touched];
 }

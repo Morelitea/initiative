@@ -1,11 +1,29 @@
 {
   "title": "My Messages",
+  "backToNav": "Back to navigation",
   "encryptedNotice": "End-to-end encrypted. Only you and the other person can read these.",
   "empty": {
-    "title": "No conversation open",
-    "body": "Pick somebody on the left, or open a channel from My Contacts."
+    "title": "Pick a conversation"
   },
   "nobodyYet": "Nobody yet. A conversation opens once a message request is accepted.",
+  "requests": {
+    "heading": "Requests",
+    "asked": "They want to start a conversation.",
+    "youAsked": "You asked. Nothing is sent until they accept.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Cancel"
+  },
+  "groups": {
+    "favorites": "Favorites",
+    "connections": "Connections",
+    "messages": "Messages"
+  },
+  "receipt": {
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "read": "Read"
+  },
   "startHint": "start",
   "unknownAccount": "Unknown account",
   "noHistoryHere": "Nothing on this device yet. Messages you had elsewhere stay there.",

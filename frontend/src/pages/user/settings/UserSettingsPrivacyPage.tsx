@@ -6,6 +6,7 @@ import { ContactRequestsSection } from "@/components/contacts/ContactRequestsSec
 import { DirectMessagePolicyField } from "@/components/contacts/DirectMessagePolicyField";
 import { IgnoredAccountsSection } from "@/components/contacts/IgnoredAccountsSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { Switch } from "@/components/ui/switch";
 import { useDmSettings, useUpdateDmSettings } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 
@@ -49,6 +50,23 @@ export const UserSettingsPrivacyPage = () => {
             save({ communities: [{ guild_id: guildId, enabled }] })
           }
         />
+      </SettingsSection>
+
+      <SettingsSection title={t("privacy.receipts.title")}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="font-medium text-sm">{t("privacy.receipts.label")}</p>
+            <p className="max-w-prose text-muted-foreground text-sm">
+              {t("privacy.receipts.help")}
+            </p>
+          </div>
+          <Switch
+            checked={data?.send_receipts ?? true}
+            disabled={isLoading || updateSettings.isPending}
+            onCheckedChange={(checked) => save({ send_receipts: checked })}
+            aria-label={t("privacy.receipts.label")}
+          />
+        </div>
       </SettingsSection>
 
       <SettingsSection title={t("privacy.connections.title")}>

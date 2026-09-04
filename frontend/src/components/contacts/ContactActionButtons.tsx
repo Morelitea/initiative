@@ -1,0 +1,98 @@
+import { Link } from "@tanstack/react-router";
+import { MessageSquare, UserPlus } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { Button } from "@/components/ui/button";
+import {
+  useConnections,
+  useDmPermission,
+  useMessageRequests,
+  useRequestConnection,
+  useRequestMessage,
+} from "@/hooks/useDirectMessages";
+import { toast } from "@/lib/chesterToast";
+import { getUrlHandle } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
+
+interface ContactActionButtonsProps {
+  /** The account being acted on. A connection is addressed by handle, so both
+   *  halves of it are needed rather than only the id. */
+  user: { id: number; username: string; discriminator: number };
+  className?: string;
+}
+
+/**
+ * The two things somebody usually came to a profile to do, as buttons.
+ *
+ * The menu beside these holds everything a person can do about another; these
+ * are the one or two worth a click rather than a click and a read. Which one
+ * shows is the same `dm_permission` the menu reads -- `open` means the channel
+ * is there and the button opens it, `may_request` means it is not and the
+ * button asks for it, `denied` means neither, and because every refusal
+ * collapses into that one word nothing here says which refusal it is.
+ *
+ * A request already sent stays on screen as a disabled button rather than
+ * disappearing: the gap where it was would read as the ask having failed.
+ */
+export const ContactActionButtons = ({ user, className }: ContactActionButtonsProps) => {
+  const { t } = useTranslation(["contacts", "settings"]);
+
+  const { data: permission } = useDmPermission(user.id);
+  const { data: connections } = useConnections();
+  const { data: messageRequests } = useMessageRequests();
+
+  const requestConnection = useRequestConnection();
+  const requestMessage = useRequestMessage();
+
+  const isConnection = (connections?.accepted ?? []).some((g) => g.user_id === user.id);
+  const connectionPending = (connections?.incoming ?? [])
+    .concat(connections?.outgoing ?? [])
+    .some((g) => g.user_id === user.id);
+  const messagePending = (messageRequests?.outgoing ?? []).some((g) => g.user_id === user.id);
+
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      {permission?.permission === "open" ? (
+        <Button asChild size="sm">
+          <Link to="/messages" search={{ with: getUrlHandle(user) }}>
+            <MessageSquare className="size-4" aria-hidden />
+            {t("actions.message")}
+          </Link>
+        </Button>
+      ) : null}
+
+      {permission?.permission === "may_request" ? (
+        <Button
+          size="sm"
+          disabled={messagePending || requestMessage.isPending}
+          onClick={() =>
+            requestMessage.mutate(
+              { data: { user_id: user.id } },
+              { onSuccess: () => toast.success(t("actions.askSent")) }
+            )
+          }
+        >
+          <MessageSquare className="size-4" aria-hidden />
+          {messagePending ? t("actions.asked") : t("actions.ask")}
+        </Button>
+      ) : null}
+
+      {!isConnection ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={connectionPending || requestConnection.isPending}
+          onClick={() =>
+            requestConnection.mutate(
+              { data: { username: user.username, discriminator: user.discriminator } },
+              { onSuccess: () => toast.success(t("settings:privacy.connections.sent")) }
+            )
+          }
+        >
+          <UserPlus className="size-4" aria-hidden />
+          {connectionPending ? t("actions.connectPending") : t("actions.connect")}
+        </Button>
+      ) : null}
+    </div>
+  );
+};

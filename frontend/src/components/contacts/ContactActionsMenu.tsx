@@ -30,8 +30,6 @@ interface ContactActionsMenuProps {
   user: { id: number; username: string; discriminator: number };
   /** Rendered inside a link or a row that is itself clickable. */
   className?: string;
-  /** Off on the profile itself, which is the one place the link goes nowhere. */
-  showProfile?: boolean;
 }
 
 /**
@@ -47,11 +45,7 @@ interface ContactActionsMenuProps {
  * — and because every refusal collapses into that one word, a menu built from
  * it says nothing about which refusal it is.
  */
-export const ContactActionsMenu = ({
-  user,
-  className,
-  showProfile = true,
-}: ContactActionsMenuProps) => {
+export const ContactActionsMenu = ({ user, className }: ContactActionsMenuProps) => {
   const { t } = useTranslation(["contacts", "settings"]);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
@@ -85,13 +79,14 @@ export const ContactActionsMenu = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {/* First, because it is the only item that goes somewhere rather than
-              doing something — and because the row itself now opens the
-              conversation, this is what still reaches the person behind it. */}
-          {showProfile && (
+          {/* No "view profile": both places this menu appears are already the
+              person -- a contacts row links there, and the profile is there.
+              What it offers instead is the thing you would have gone looking
+              for, which is the conversation. */}
+          {permission?.permission === "open" && (
             <DropdownMenuItem asChild>
-              <Link to="/u/$handle" params={{ handle: getUrlHandle(user) }}>
-                {t("actions.viewProfile")}
+              <Link to="/messages" search={{ with: getUrlHandle(user) }}>
+                {t("actions.message")}
               </Link>
             </DropdownMenuItem>
           )}

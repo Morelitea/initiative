@@ -51,14 +51,16 @@
   },
   "actions": {
     "label": "Aktionen für {{handle}}",
-    "viewProfile": "Profil ansehen",
     "connect": "Verbinden",
+    "connectPending": "Anfrage gesendet",
     "ask": "Um Nachricht bitten",
+    "asked": "Anfrage gesendet",
     "askSent": "Anfrage gesendet.",
     "ignore": "Ignorieren",
     "stopIgnoring": "Nicht mehr ignorieren",
     "removeConnection": "Verbindung entfernen",
     "removeConnectionTitle": "Diese Verbindung entfernen?",
-    "removeConnectionBody": "Ihr seid dann nicht mehr verbunden. Wenn euch sonst nichts erlaubt, einander zu schreiben – eine gemeinsame Community oder dass ihr beide für Nachrichten offen seid –, endet auch das."
+    "removeConnectionBody": "Ihr seid dann nicht mehr verbunden. Wenn euch sonst nichts erlaubt, einander zu schreiben – eine gemeinsame Community oder dass ihr beide für Nachrichten offen seid –, endet auch das.",
+    "message": "Nachricht"
   }
 }

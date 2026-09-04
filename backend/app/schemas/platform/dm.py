@@ -41,6 +41,8 @@ class DirectMessageSettingsRead(SanitizedBaseModel):
     #: NULL while the account has not answered the age question, which holds
     #: the policy at ``private`` whatever it says.
     age_confirmed_at: Optional[datetime] = None
+    #: Whether this account's clients report a message as delivered and read.
+    send_receipts: bool = True
 
 
 class CommunityDmToggleUpdate(SanitizedBaseModel):
@@ -58,6 +60,7 @@ class DirectMessageSettingsUpdate(SanitizedBaseModel):
 
     dm_policy: Optional[DmPolicy] = None
     communities: Optional[List[CommunityDmToggleUpdate]] = None
+    send_receipts: Optional[bool] = None
 
 
 class IgnoredAccountRead(SanitizedBaseModel):
