@@ -442,7 +442,12 @@ export const ConversationList = () => {
 
           {filled.length === 0 ? (
             searching ? (
-              <p className="px-2 py-1 text-muted-foreground text-sm">{t("search.noMatches")}</p>
+              // Only when the term found nothing at all. A request matching it
+              // is drawn above, and saying "nobody matches" over the top of
+              // somebody's name contradicts the page.
+              waiting.length === 0 ? (
+                <p className="px-2 py-1 text-muted-foreground text-sm">{t("search.noMatches")}</p>
+              ) : null
             ) : /* Why it is empty, where the reason is the reader's own settings
                    rather than an absence of people. Nothing is guessed before
                    the settings arrive: absent, they read as an account that has

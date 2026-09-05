@@ -7,7 +7,7 @@
  * acted and a tab that only watched end up saying the same thing.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import {
@@ -27,6 +27,7 @@ import {
   useStopIgnoringAccountApiV1MeIgnoredUserIdDelete,
   useUpdateDmSettingsApiV1MeDmSettingsPatch,
 } from "@/api/generated/direct-messages/direct-messages";
+import type { DirectMessagePermissionsResponse } from "@/api/generated/initiativeAPI.schemas";
 import {
   invalidateContactGrants,
   invalidateDmSettings,
@@ -82,6 +83,24 @@ export const useDmPermission = (userId: number | undefined) =>
   useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
     query: { enabled: typeof userId === "number" },
   });
+/** The most accounts one question may name, which the server enforces. */
+const PERMISSION_LIMIT = 100;
+
+/** One object out of however many questions it took to answer for everybody. */
+const mergePermissions = (
+  results: { data?: DirectMessagePermissionsResponse; isPending: boolean }[]
+) => ({
+  data: results.some((result) => result.data)
+    ? {
+        permissions: Object.assign(
+          {},
+          ...results.map((result) => result.data?.permissions ?? {})
+        ) as DirectMessagePermissionsResponse["permissions"],
+      }
+    : undefined,
+  isPending: results.some((result) => result.isPending),
+});
+
 /**
  * The same two answers, for a page of people at once.
  *
@@ -91,25 +110,29 @@ export const useDmPermission = (userId: number | undefined) =>
  *
  * A POST that reads: the subjects are a list rather than an address, so
  * `useQuery` rather than a mutation, with the ids in the key.
+ *
+ * Past the server's limit it asks again rather than answering for fewer people
+ * than it was given. A caller that dropped the remainder would leave a control
+ * built on a missing answer -- which reads as a refusal on one surface and as
+ * consent on another -- so nobody handed to this goes unanswered.
  */
-/**
- * The most accounts one question may name. A surface can list more than this
- * at once; the ones past it are simply not answered for, and a control built
- * on a missing answer offers nothing rather than offering something the server
- * would refuse.
- */
-const PERMISSION_LIMIT = 100;
-
 export const useDmPermissions = (userIds: number[]) => {
-  const ids = useMemo(
-    () => [...new Set(userIds)].sort((a, b) => a - b).slice(0, PERMISSION_LIMIT),
-    [userIds]
-  );
-  return useQuery({
-    queryKey: ["dm", "permissions", ids],
-    queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
-    enabled: ids.length > 0,
-    staleTime: 30_000,
+  const batches = useMemo(() => {
+    const ids = [...new Set(userIds)].sort((a, b) => a - b);
+    const out: number[][] = [];
+    for (let at = 0; at < ids.length; at += PERMISSION_LIMIT) {
+      out.push(ids.slice(at, at + PERMISSION_LIMIT));
+    }
+    return out;
+  }, [userIds]);
+
+  return useQueries({
+    queries: batches.map((ids) => ({
+      queryKey: ["dm", "permissions", ids],
+      queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
+      staleTime: 30_000,
+    })),
+    combine: mergePermissions,
   });
 };
 

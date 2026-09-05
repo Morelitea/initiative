@@ -182,6 +182,26 @@ describe("NewConversationDialog", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   });
 
+  it("puts an expanded community back to its first page under a new term", async () => {
+    mocks.sections.mockReturnValue({
+      data: {
+        sections: [{ ...section([person(1, "ada")]), total_count: 42, has_next: true }],
+        page: 1,
+        page_size: 20,
+      },
+      isLoading: false,
+    });
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    expect(mocks.more).toHaveBeenLastCalledWith(7, "", true);
+
+    // A different term is a different set of people, and carrying the
+    // expansion over would fetch a second page nobody asked for.
+    await userEvent.type(screen.getByRole("textbox"), "gr");
+
+    expect(mocks.more).toHaveBeenLastCalledWith(7, "gr", false);
+  });
+
   it("asks the server for a term rather than filtering what it already had", async () => {
     await open();
     await userEvent.type(screen.getByRole("textbox"), "gra");

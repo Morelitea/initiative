@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildContactGrant } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
+import { removeItem } from "@/lib/storage";
 
 const mocks = vi.hoisted(() => ({
   conversations: vi.fn(),
@@ -71,7 +72,9 @@ const show = () => renderPage(() => <ConversationList />, { initialRoute: "/mess
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorage.clear();
+  // Through the storage module the component reads: it answers from an
+  // in-memory cache that a bare `localStorage.clear()` leaves standing.
+  removeItem("messages-groups-collapsed");
   mocks.conversations.mockReturnValue({ data: { conversations: [] }, isLoading: false });
   mocks.unread.mockReturnValue({ data: new Map<string, number>() });
   mocks.favorites.mockReturnValue({ data: { items: [] } });
@@ -118,6 +121,20 @@ describe("ConversationList", () => {
     );
 
     expect(screen.getByText("Nobody matches.")).toBeVisible();
+  });
+
+  it("does not say nothing matched over the top of something that did", async () => {
+    mocks.messageRequests.mockReturnValue({
+      data: { ...noGrants, incoming: [buildContactGrant({ user_id: 8, username: "edsger" })] },
+    });
+    show();
+    await userEvent.type(
+      await screen.findByRole("textbox", { name: /Search conversations/i }),
+      "edsger"
+    );
+
+    expect(screen.getByText("edsger#1234")).toBeVisible();
+    expect(screen.queryByText("Nobody matches.")).toBeNull();
   });
 
   it("answers a connection request with the connection write, not the message one", async () => {

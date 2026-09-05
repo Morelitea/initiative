@@ -10,7 +10,11 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+  readPermissions: vi.fn(),
+}));
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { error: mocks.error, success: mocks.success },
@@ -37,12 +41,19 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => {
     useListIgnoredAccountsApiV1MeIgnoredGet: () => ({ data: undefined }),
     useListMessageRequestsApiV1MeMessageRequestsGet: () => ({ data: undefined }),
     useReadDmSettingsApiV1MeDmSettingsGet: () => ({ data: undefined }),
+    readDmPermissionsApiV1MeDmPermissionsPost: (body: { user_ids: number[] }) =>
+      mocks.readPermissions(body),
   };
 });
+
+import { QueryClientProvider } from "@tanstack/react-query";
+
+import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 import {
   parseHandle,
   useAcceptConnection,
+  useDmPermissions,
   useRemoveConnection,
   useRequestConnection,
   useStopIgnoring,
@@ -84,5 +95,51 @@ describe("parseHandle", () => {
 
   it.each(["ada", "ada#", "#1234", "ada#12345", "ada 1234"])("refuses %s", (raw) => {
     expect(parseHandle(raw)).toBeNull();
+  });
+});
+
+describe("useDmPermissions", () => {
+  const withQueries = () => {
+    const client = createTestQueryClient();
+    return ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.readPermissions.mockImplementation(({ user_ids }: { user_ids: number[] }) =>
+      Promise.resolve({
+        permissions: Object.fromEntries(
+          user_ids.map((id) => [String(id), { permission: "open", may_connect: true }])
+        ),
+      })
+    );
+  });
+
+  it("asks again past the server's limit rather than answering for fewer people", async () => {
+    // A control built on a missing answer reads as a refusal on one surface
+    // and as consent on another, so nobody handed to this goes unanswered.
+    const ids = Array.from({ length: 150 }, (_unused, at) => at + 1);
+
+    const { result } = renderHook(() => useDmPermissions(ids), { wrapper: withQueries() });
+
+    await waitFor(() =>
+      expect(Object.keys(result.current.data?.permissions ?? {})).toHaveLength(150)
+    );
+    expect(mocks.readPermissions).toHaveBeenCalledTimes(2);
+    expect(mocks.readPermissions.mock.calls[0][0].user_ids).toHaveLength(100);
+    expect(mocks.readPermissions.mock.calls[1][0].user_ids).toHaveLength(50);
+    expect(result.current.data?.permissions["150"]).toEqual({
+      permission: "open",
+      may_connect: true,
+    });
+  });
+
+  it("asks nothing about nobody", () => {
+    const { result } = renderHook(() => useDmPermissions([]), { wrapper: withQueries() });
+
+    expect(mocks.readPermissions).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
   });
 });

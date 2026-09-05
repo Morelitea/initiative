@@ -188,7 +188,12 @@ export const NewConversationDialog = () => {
                 .filter((group) => group.items.length > 0)
                 .map((group) => (
                   <CommunityRoster
-                    key={group.guild_id}
+                    // Remounted on a new term, which is what puts a community
+                    // somebody expanded back to its first page: under a
+                    // different term it is a different set of people, and
+                    // carrying the expansion over would fetch a second page
+                    // nobody asked for.
+                    key={`${group.guild_id}:${settled}`}
                     section={group}
                     search={settled}
                     answers={answers}
