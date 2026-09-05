@@ -863,9 +863,8 @@ export const useDeletePostApiV1GGuildIdPostsPostIdDelete = <
  *
  * A pin puts one person's notice above everyone else's, so it asks for
  * authority over the initiative — guild admin or an initiative manager —
- * rather than write access on the post. Read access is still required first,
- * which is what keeps the route from confirming the existence of a post the
- * caller cannot see.
+ * rather than write access on the post. Read access on the post is required
+ * first, then that authority.
  *
  * An optional ``expires_at`` lets a notice about a date stop shouting once
  * the date passes: the pin simply stops counting and the post falls back into
