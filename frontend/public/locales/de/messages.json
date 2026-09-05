@@ -83,7 +83,6 @@
     "title": "Diese Nachricht entfernen?",
     "body": "Sie verschwindet von diesem Gerät, und die App der anderen Person entfernt sie dort ebenfalls. Was bereits gelesen wurde, bleibt gelesen — das lässt sich nicht zurücknehmen."
   },
-  "messageActions": "Nachrichtenaktionen",
   "removed": "Nachricht entfernt",
   "days": {
     "today": "Heute",

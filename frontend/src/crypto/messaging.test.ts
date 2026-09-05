@@ -453,6 +453,28 @@ describe("collecting", () => {
     ]);
   });
 
+  it("writes nothing down about an action it could not send", async () => {
+    // The other order reads better and is how the two sides come to disagree
+    // for good: nothing here retries, so an action written down locally after
+    // a failed send is one this device believes and theirs never hears about.
+    const sent = await sendText("conv-1", 7, "monday?");
+    api.readDirectory.mockResolvedValue({ user_id: 7, devices: [] });
+
+    await expect(sendRemove("conv-1", 7, sent.id)).rejects.toThrow();
+
+    expect((await messageLog.get("conv-1"))[0].removedAt).toBeUndefined();
+  });
+
+  it("refuses to act on a message that is not there to act on", async () => {
+    // Nothing sent either: an envelope about a message this device does not
+    // hold is one the other side would apply to something it does.
+    api.sendMessages.mockClear();
+
+    expect(await sendReaction("conv-1", 7, "never-existed", "👍", true)).toBe(false);
+    expect(await sendEdit("conv-1", 7, "never-existed", "words")).toBe(false);
+    expect(api.sendMessages).not.toHaveBeenCalled();
+  });
+
   it("says nothing to their bell about a reaction, an edit or a removal", async () => {
     // None of the three is somebody saying something, so none of them should
     // arrive as a notification -- only as something to collect.

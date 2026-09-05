@@ -83,7 +83,6 @@
     "title": "Supprimer ce message ?",
     "body": "Il disparaît de cet appareil, et l'application de l'autre personne le retire du sien. Ce qui a déjà été lu reste lu : ceci ne peut pas le défaire."
   },
-  "messageActions": "Actions du message",
   "removed": "Message supprimé",
   "days": {
     "today": "Aujourd'hui",

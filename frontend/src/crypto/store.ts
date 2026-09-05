@@ -340,6 +340,14 @@ export interface StoredMessage {
   replyTo?: string;
   /** When its author last changed the body. Absent means never. */
   editedAt?: string;
+  /**
+   * How many times its author has changed it, counting only upwards.
+   *
+   * What orders two edits, in place of the clock: an account's devices set
+   * theirs independently, so a correction made second can carry the earlier
+   * time and lose to the one it was meant to replace.
+   */
+  rev?: number;
   /** Emoji, and who is behind each. An emoji nobody holds is dropped. */
   reactions?: Record<string, ReactionSides>;
   /**
@@ -456,7 +464,8 @@ export const messageLog = {
     targetId: string,
     body: string,
     at: string,
-    from: Side
+    from: Side,
+    rev: number
   ): Promise<boolean> => {
     let changed = false;
     await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
@@ -464,11 +473,16 @@ export const messageLog = {
       const next = current.map((entry) => {
         if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
         if (entry.removedAt || entry.body === body) return entry;
-        // An edit that arrives after a later one is an old edit: the newest
-        // wins whatever order the two of them were collected in.
-        if (entry.editedAt && at && entry.editedAt >= at) return entry;
+        const held = entry.rev ?? 0;
+        // An edit that arrives after a later one is an old edit, whichever
+        // order the two of them were collected in. Two devices reaching the
+        // same revision at once break the tie on the words themselves, so
+        // every device that sees both lands on the same one -- an arbitrary
+        // answer that agrees beats a sensible one that does not.
+        if (rev < held) return entry;
+        if (rev === held && !(body > entry.body)) return entry;
         changed = true;
-        return { ...entry, body, editedAt: at };
+        return { ...entry, body, editedAt: at, rev };
       });
       return changed ? next : undefined;
     });

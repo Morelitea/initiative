@@ -423,6 +423,32 @@ describe("My Messages", () => {
     expect(mocks.sendText).not.toHaveBeenCalled();
   });
 
+  it("gives the words back when a correction did not happen", async () => {
+    // Another tab removed the message while this one was still showing it, so
+    // the edit resolves `false` rather than throwing. Losing the correction
+    // either way is the same loss to whoever typed it.
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "mondat", at: "2026-09-01T00:00:00Z", mine: true },
+    ]);
+    mocks.sendEdit.mockResolvedValue(false);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("mondat");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const field = screen.getByRole("textbox", { name: /write a message/i });
+    await userEvent.clear(field);
+    await userEvent.type(field, "monday");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(field).toHaveValue("monday"));
+  });
+
   it("takes one back only once it has been confirmed", async () => {
     mocks.conversations.mockResolvedValue({
       conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],

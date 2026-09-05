@@ -361,7 +361,7 @@ type Envelope =
   | { v: 1; kind: "text"; id: string; at: string; body: string; replyTo?: string }
   | { v: 1; kind: "receipt"; state: ReceiptState; ids: string[] }
   | { v: 1; kind: "reaction"; targetId: string; emoji: string; on: boolean }
-  | { v: 1; kind: "edit"; targetId: string; at: string; body: string }
+  | { v: 1; kind: "edit"; targetId: string; at: string; body: string; rev: number }
   | { v: 1; kind: "remove"; targetId: string };
 
 /** A name for one message, known to both sides and to nobody else. */
@@ -430,6 +430,8 @@ function unpack(plaintext: string, fallbackId: string): Envelope {
       targetId: parsed.targetId,
       at: typeof parsed.at === "string" ? parsed.at : "",
       body: parsed.body,
+      // An edit from before revisions existed is the first one.
+      rev: typeof parsed.rev === "number" ? parsed.rev : 1,
     };
   }
   if (parsed.kind === "remove" && typeof parsed.targetId === "string") {
@@ -593,14 +595,33 @@ async function sendControl(
   otherUserId: number,
   envelope: Envelope
 ): Promise<void> {
-  try {
-    await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true, silent: true });
-  } catch {
-    // Best effort, like a receipt: this device has already applied it.
+  if (
+    !(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true, silent: true }))
+  ) {
+    throw new RecipientHasNoDeviceError();
   }
 }
 
-/** Put one emoji on, or take it off, a message either side said. */
+/** The message a control envelope is about, if it is about anything. */
+async function actOn(
+  conversationId: string,
+  targetId: string,
+  { own }: { own: boolean }
+): Promise<StoredMessage | null> {
+  const entry = (await messageLog.get(conversationId)).find((m) => m.id === targetId);
+  if (!entry || entry.removedAt) return null;
+  return own && !entry.mine ? null : entry;
+}
+
+/**
+ * Put one emoji on, or take it off, a message either side said.
+ *
+ * Sent before it is applied, and not applied at all if the send fails. The
+ * other order reads better -- the thread answers the click at once -- and is
+ * how the two sides come to disagree permanently: nothing here retries, so a
+ * failure that had already been written down locally is one this device
+ * believes and theirs never hears about.
+ */
 export async function sendReaction(
   conversationId: string,
   otherUserId: number,
@@ -608,23 +629,33 @@ export async function sendReaction(
   emoji: string,
   on: boolean
 ): Promise<boolean> {
-  const changed = await messageLog.applyReaction(conversationId, targetId, emoji, on, "mine");
+  if (!(await actOn(conversationId, targetId, { own: false }))) return false;
   await sendControl(conversationId, otherUserId, { v: 1, kind: "reaction", targetId, emoji, on });
-  return changed;
+  return messageLog.applyReaction(conversationId, targetId, emoji, on, "mine");
 }
 
-/** Rewrite one of your own messages. */
+/**
+ * Rewrite one of your own messages.
+ *
+ * The revision, not the clock, is what orders two edits. Two devices of one
+ * account can both be editing, and their clocks are set independently: a
+ * correction made second can carry the earlier time and lose to the one it was
+ * meant to replace, leaving the two devices holding different words forever.
+ * A number that only goes up cannot do that, and where both devices reach the
+ * same one the tie breaks the same way on each of them.
+ */
 export async function sendEdit(
   conversationId: string,
   otherUserId: number,
   targetId: string,
   body: string
 ): Promise<boolean> {
+  const entry = await actOn(conversationId, targetId, { own: true });
+  if (!entry || entry.body === body) return false;
   const at = new Date().toISOString();
-  const changed = await messageLog.applyEdit(conversationId, targetId, body, at, "mine");
-  if (!changed) return false;
-  await sendControl(conversationId, otherUserId, { v: 1, kind: "edit", targetId, at, body });
-  return true;
+  const rev = (entry.rev ?? 0) + 1;
+  await sendControl(conversationId, otherUserId, { v: 1, kind: "edit", targetId, at, body, rev });
+  return messageLog.applyEdit(conversationId, targetId, body, at, "mine", rev);
 }
 
 /** Take one of your own messages back. */
@@ -633,15 +664,9 @@ export async function sendRemove(
   otherUserId: number,
   targetId: string
 ): Promise<boolean> {
-  const changed = await messageLog.applyRemove(
-    conversationId,
-    targetId,
-    "mine",
-    new Date().toISOString()
-  );
-  if (!changed) return false;
+  if (!(await actOn(conversationId, targetId, { own: true }))) return false;
   await sendControl(conversationId, otherUserId, { v: 1, kind: "remove", targetId });
-  return true;
+  return messageLog.applyRemove(conversationId, targetId, "mine", new Date().toISOString());
 }
 
 /**
@@ -859,7 +884,8 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
                   envelope.targetId,
                   envelope.body,
                   envelope.at || item.created_at,
-                  from
+                  from,
+                  envelope.rev
                 )
               : await messageLog.applyRemove(
                   item.conversation_id,

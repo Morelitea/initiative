@@ -107,12 +107,12 @@ describe("acting on a message already said", () => {
   });
 
   it("lets each side rewrite only what it said", async () => {
-    expect(await messageLog.applyEdit("conv", "m", "changed", "2026-01-02T00:00:00Z", "mine")).toBe(
-      true
-    );
+    expect(
+      await messageLog.applyEdit("conv", "m", "changed", "2026-01-02T00:00:00Z", "mine", 1)
+    ).toBe(true);
     // Their envelope naming your message changes nothing, whatever it claims.
     expect(
-      await messageLog.applyEdit("conv", "m", "hijacked", "2026-01-03T00:00:00Z", "theirs")
+      await messageLog.applyEdit("conv", "m", "hijacked", "2026-01-03T00:00:00Z", "theirs", 2)
     ).toBe(false);
 
     const stored = await messageLog.get("conv");
@@ -120,11 +120,36 @@ describe("acting on a message already said", () => {
   });
 
   it("keeps the newest edit whichever order two arrive in", async () => {
-    await messageLog.applyEdit("conv", "m", "second", "2026-01-03T00:00:00Z", "mine");
-    await messageLog.applyEdit("conv", "m", "first", "2026-01-02T00:00:00Z", "mine");
+    await messageLog.applyEdit("conv", "m", "second", "2026-01-03T00:00:00Z", "mine", 2);
+    await messageLog.applyEdit("conv", "m", "first", "2026-01-02T00:00:00Z", "mine", 1);
 
     const stored = await messageLog.get("conv");
     expect(stored.find((entry) => entry.id === "m")?.body).toBe("second");
+  });
+
+  it("orders edits by revision rather than by the device's clock", async () => {
+    // Two devices of one account, clocks set independently: the correction
+    // made second carries the earlier time, and losing to the one it was meant
+    // to replace would leave the two of them holding different words forever.
+    await messageLog.applyEdit("conv", "m", "typo", "2026-01-05T00:00:00Z", "mine", 1);
+    await messageLog.applyEdit("conv", "m", "fixed", "2026-01-02T00:00:00Z", "mine", 2);
+
+    const stored = await messageLog.get("conv");
+    expect(stored.find((entry) => entry.id === "m")?.body).toBe("fixed");
+  });
+
+  it("settles two edits that reached the same revision the same way everywhere", async () => {
+    // Arbitrary, but the same arbitrary answer on every device that sees both:
+    // one that agrees beats a sensible one that does not.
+    const order = async (first: string, second: string) => {
+      await forgetDevice();
+      await messageLog.append("conv", mine);
+      await messageLog.applyEdit("conv", "m", first, "2026-01-02T00:00:00Z", "mine", 1);
+      await messageLog.applyEdit("conv", "m", second, "2026-01-03T00:00:00Z", "mine", 1);
+      return (await messageLog.get("conv")).find((entry) => entry.id === "m")?.body;
+    };
+
+    expect(await order("apple", "banana")).toBe(await order("banana", "apple"));
   });
 
   it("lets each side take back only what it said", async () => {
@@ -157,7 +182,7 @@ describe("acting on a message already said", () => {
 
     expect(await messageLog.applyReaction("conv", "t", "👍", true, "mine")).toBe(false);
     expect(
-      await messageLog.applyEdit("conv", "t", "back again", "2026-01-03T00:00:00Z", "theirs")
+      await messageLog.applyEdit("conv", "t", "back again", "2026-01-03T00:00:00Z", "theirs", 1)
     ).toBe(false);
   });
 });

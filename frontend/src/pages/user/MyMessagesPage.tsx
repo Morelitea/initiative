@@ -2,7 +2,6 @@ import { useSearch } from "@tanstack/react-router";
 import {
   Check,
   CheckCheck,
-  MoreHorizontal,
   Pencil,
   Reply,
   Send,
@@ -30,6 +29,7 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
 import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCanUseDirectMessages,
@@ -409,6 +409,7 @@ function Thread({
 }) {
   const { t } = useTranslation(["messages", "common"]);
   const { user: me } = useAuth();
+  const isMobile = useIsMobile();
   const thread = useThread(conversationId);
   const send = useSendMessage(conversationId, otherUserId);
   const actions = useMessageActions(conversationId, otherUserId);
@@ -450,6 +451,35 @@ function Thread({
     box.scrollTop += gap - box.clientHeight / 3;
     setLandedOn(id);
   };
+
+  /**
+   * Anywhere else closes it.
+   *
+   * Opened by tapping a message, the bar has no other way out: there is no
+   * hover to leave and nothing on it says "done". A pointer landing outside
+   * the message it belongs to is that, and so is Escape.
+   *
+   * The emoji picker is portaled to the end of the document, so it is outside
+   * the message by DOM and inside it by intent -- hence the second test.
+   */
+  useEffect(() => {
+    if (!tapped) return;
+    const close = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (rows.current.get(tapped)?.contains(target ?? null)) return;
+      if (target?.closest("[data-radix-popper-content-wrapper]")) return;
+      setTapped(null);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTapped(null);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [tapped]);
 
   // The mark is about the arrival, not about the message, so it clears itself.
   useEffect(() => {
@@ -519,11 +549,22 @@ function Thread({
       const target = editing;
       setEditing(null);
       setDraft("");
+      // Two ways for a correction not to happen, and the words have to come
+      // back for both: the send threw, or it resolved `false` because there
+      // was nothing left to edit -- another tab removed the message while this
+      // one was still showing it. Only the first is an error.
+      const restore = () => {
+        setEditing(target);
+        setDraft(body);
+        focusComposer();
+      };
       actions.edit.mutate(
         { targetId: target, body },
         {
-          onError: () =>
-            startEdit({ ...(messages.find((m) => m.id === target) as StoredMessage), body }),
+          onSuccess: (edited) => {
+            if (!edited) restore();
+          },
+          onError: restore,
         }
       );
       return;
@@ -620,12 +661,18 @@ function Thread({
                       including the rows that show neither -- which opens a gap
                       between every message of a run. Out of the flow the column
                       is the size it always was, and the time sits under the
-                      face it belongs to, free to be wider than it. */}
-                  <div className="relative shrink-0">
+                      face it belongs to.
+
+                      Its width is fixed and wider than the picture, because
+                      what has to fit there is the time: centred on the picture
+                      alone it overflows both ways -- off the side of the thread
+                      on one and across the message on the other -- and how far
+                      depends on a clock format this cannot know. */}
+                  <div className="relative flex w-12 shrink-0 justify-center">
                     <Speaking who={message.mine ? me : them} hidden={!startsRun} />
                     {startsRun ? (
                       <span
-                        className="absolute inset-x-0 top-full mt-1.5 whitespace-nowrap text-center text-[10px] text-muted-foreground tabular-nums"
+                        className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
                         title={formatDateTime(message.at)}
                       >
                         {clockTime(message.at)}
@@ -675,6 +722,20 @@ function Thread({
                         message.mine && "flex-row-reverse"
                       )}
                     >
+                      {/* The bubble is what summons the actions where there is
+                          no hover -- and only there: on a pointer a click here
+                          would fight with selecting the words, which hovering
+                          does not.
+
+                          It carries no role and takes no focus on purpose. A
+                          button role would wrap the links inside it in a
+                          button, and a keyboard already reaches the same bar
+                          by tabbing into it: the buttons are in the DOM, and
+                          focusing one opens the bar through `focus-within`.
+                          So the two rules below are about a path that exists
+                          by another route. */}
+                      {/* biome-ignore lint/a11y/noStaticElementInteractions: the actions are keyboard-reachable through focus-within */}
+                      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the actions are keyboard-reachable through focus-within */}
                       <div
                         className={cn(
                           "rounded-lg px-3 py-2 text-sm",
@@ -684,10 +745,22 @@ function Thread({
                           // sizing the bubble to itself and running off the side.
                           "wrap-anywhere w-fit max-w-full",
                           message.mine ? "bg-primary text-primary-foreground" : "bg-muted",
+                          !message.removedAt && "cursor-pointer sm:cursor-auto",
                           // Where a quote just landed, for as long as it takes to
                           // see it.
                           landedOn === message.id && "ring-2 ring-primary ring-offset-1"
                         )}
+                        onClick={
+                          isMobile && !message.removedAt
+                            ? (event) => {
+                                // A link inside is doing something else, and a
+                                // tap that ends a selection is not a tap.
+                                if ((event.target as HTMLElement).closest("a")) return;
+                                if (window.getSelection()?.isCollapsed === false) return;
+                                setTapped((open) => (open === message.id ? null : message.id));
+                              }
+                            : undefined
+                        }
                       >
                         {message.removedAt ? (
                           <span className="italic opacity-70">{t("removed")}</span>
@@ -695,24 +768,6 @@ function Thread({
                           <MessageContent body={message.body} />
                         )}
                       </div>
-                      {/* What summons them where there is no hover. The only
-                        part of this that takes room in the row: the actions
-                        themselves float over the message. */}
-                      {message.removedAt ? null : (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="mt-1 size-7 shrink-0 sm:hidden"
-                          aria-expanded={tapped === message.id}
-                          onClick={() =>
-                            setTapped((open) => (open === message.id ? null : message.id))
-                          }
-                        >
-                          <MoreHorizontal className="size-3.5" aria-hidden />
-                          <span className="sr-only">{t("messageActions")}</span>
-                        </Button>
-                      )}
                     </div>
                     {/* Over the message rather than beside it: a toolbar in the
                       flow moves the words to make room for itself every time a
@@ -848,6 +903,30 @@ function Thread({
                             </button>
                           );
                         })}
+                        {/* A second way in, where the reader's eye already is:
+                            adding to a row of reactions is a different gesture
+                            from acting on the message, and sending them up to
+                            the bar for it makes it the same one. */}
+                        <ReactionPicker
+                          className={cn(
+                            "size-6",
+                            tapped === message.id
+                              ? ""
+                              : cn(
+                                  "hidden sm:inline-flex",
+                                  "sm:opacity-0 sm:transition-opacity",
+                                  "sm:group-hover/message:opacity-100",
+                                  "sm:group-focus-within/message:opacity-100"
+                                )
+                          )}
+                          mine={
+                            new Set(
+                              reactions.filter(([, sides]) => sides.mine).map(([emoji]) => emoji)
+                            )
+                          }
+                          disabled={actions.react.isPending}
+                          onSelect={(emoji) => toggleReaction(message, emoji)}
+                        />
                       </div>
                     ) : null}
                     {/* The clock is under the picture now, so what is left here

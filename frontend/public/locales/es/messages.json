@@ -83,7 +83,6 @@
     "title": "¿Eliminar este mensaje?",
     "body": "Desaparece de este dispositivo, y la aplicación de la otra persona lo quita del suyo. Lo que ya leyeron, ya lo leyeron: esto no lo puede deshacer."
   },
-  "messageActions": "Acciones del mensaje",
   "removed": "Mensaje eliminado",
   "days": {
     "today": "Hoy",

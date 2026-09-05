@@ -83,7 +83,6 @@
     "title": "Remove this message?",
     "body": "It goes from this device, and their client takes it off theirs. A message they already read is a message they already read — this cannot unsay it."
   },
-  "messageActions": "Message actions",
   "removed": "Message removed",
   "days": {
     "today": "Today",
