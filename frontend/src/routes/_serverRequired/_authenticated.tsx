@@ -289,17 +289,51 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
+                {/* The app's scroller. Named twice over: the router restores
+                    this element's position across navigations rather than the
+                    window's, and pull-to-refresh asks it how far down it is.
+
+                    It spans the row and holds the page's width inside it,
+                    rather than being that width itself. A scrollbar renders at
+                    the edge of its own scrollport, so a scroller that was also
+                    `container mx-auto` put the bar in the middle of the window
+                    — floating beside the centred column instead of down the
+                    side of the app.
+
+                    `overflow-x-clip` because `overflow-y: auto` alone does not
+                    stay on one axis: with the other left `visible`, CSS
+                    computes that one to `auto` too, quietly making the shell a
+                    horizontal scroller. Anything anywhere that overran then
+                    dragged the whole app sideways. Wide content owns its own
+                    scroller here — the tool rail and every table already do —
+                    so the shell says no to the axis rather than offering a bar
+                    nothing should need. */}
                 <main
-                  // The app's scroller. Named twice over: the router restores
-                  // this element's position across navigations rather than the
-                  // window's, and pull-to-refresh asks it how far down it is.
                   data-app-scroll=""
                   data-scroll-restoration-id="app-main"
-                  className="container mx-auto min-w-0 overflow-y-auto p-4 pb-24 md:p-8 md:pb-24"
+                  className="min-w-0 flex-1 overflow-y-auto overflow-x-clip"
                 >
-                  <Suspense fallback={<PageLoader />}>
-                    <Outlet />
-                  </Suspense>
+                  {/* A grid, and `min-h-full` rather than `h-full`, because
+                      this sits between the scrollport and the page and must
+                      pass a height through without capping one.
+
+                      `h-full` would fix it at the scrollport's height, and a
+                      page taller than that would spill past its own bottom
+                      padding. `min-h-full` alone grows correctly but leaves
+                      `height: auto`, and a percentage height resolves against
+                      the parent's *height* — so `h-full` on a page would
+                      silently become `auto`. Three pages depend on that chain
+                      (My Messages, a document, an app surface): each pins
+                      something to an edge and needs a real height to do it.
+
+                      A grid row is definite either way. It is at least the
+                      scrollport, grows with a long page, and gives a child's
+                      `h-full` an area to resolve against. */}
+                  <div className="container mx-auto grid min-h-full grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
+                    <Suspense fallback={<PageLoader />}>
+                      <Outlet />
+                    </Suspense>
+                  </div>
                 </main>
               </div>
             </div>
