@@ -13,7 +13,7 @@
  * through the ratchet rather than posting a body.
  */
 import { createRouter } from "@tanstack/react-router";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +29,9 @@ const mocks = vi.hoisted(() => ({
   registeredDevice: vi.fn(),
   collect: vi.fn(),
   sendText: vi.fn(),
+  sendReaction: vi.fn(),
+  sendEdit: vi.fn(),
+  sendRemove: vi.fn(),
   logGet: vi.fn(),
   unreadIn: vi.fn(),
   markRead: vi.fn(),
@@ -53,8 +56,23 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   ensureDevice: () => mocks.ensureDevice(),
   registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),
-  sendText: (conversationId: string, otherUserId: number, body: string) =>
-    mocks.sendText(conversationId, otherUserId, body),
+  sendText: (
+    conversationId: string,
+    otherUserId: number,
+    body: string,
+    options?: { replyTo?: string }
+  ) => mocks.sendText(conversationId, otherUserId, body, options),
+  sendReaction: (
+    conversationId: string,
+    otherUserId: number,
+    targetId: string,
+    emoji: string,
+    on: boolean
+  ) => mocks.sendReaction(conversationId, otherUserId, targetId, emoji, on),
+  sendEdit: (conversationId: string, otherUserId: number, targetId: string, body: string) =>
+    mocks.sendEdit(conversationId, otherUserId, targetId, body),
+  sendRemove: (conversationId: string, otherUserId: number, targetId: string) =>
+    mocks.sendRemove(conversationId, otherUserId, targetId),
   messageLog: { get: (id: string) => mocks.logGet(id) },
   // Which threads are unread, and saying one has been looked at, both read the
   // same local log the thread does.
@@ -143,6 +161,9 @@ beforeEach(() => {
   mocks.markRead.mockResolvedValue(undefined);
   mocks.collect.mockResolvedValue([]);
   mocks.sendText.mockResolvedValue({ id: "1", body: "hi", at: "", mine: true });
+  mocks.sendReaction.mockResolvedValue(true);
+  mocks.sendEdit.mockResolvedValue(true);
+  mocks.sendRemove.mockResolvedValue(true);
   mocks.logGet.mockResolvedValue([]);
   mocks.conversations.mockResolvedValue({ conversations: [] });
   mocks.createConversation.mockResolvedValue({
@@ -196,7 +217,7 @@ describe("My Messages", () => {
 
     await renderMessages();
 
-    expect((await screen.findByText("alex#1234")).closest("a")).toHaveAttribute(
+    expect((await screen.findByTitle("alex#1234")).closest("a")).toHaveAttribute(
       "href",
       "/messages?with=alex1234"
     );
@@ -225,9 +246,9 @@ describe("My Messages", () => {
     expect(mocks.logGet).toHaveBeenCalledWith("conv-1");
   });
 
-  it("dates the end of a run rather than every message in it", async () => {
+  it("times the start of a run rather than every message in it", async () => {
     // A run is one person speaking once, so it wears one time: the moment they
-    // finished. Same sender is not enough to make a run — two messages an hour
+    // began. Same sender is not enough to make a run — two messages an hour
     // apart are two occasions, and the second must not wear the first's time.
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
     mocks.conversations.mockResolvedValue({
@@ -245,9 +266,39 @@ describe("My Messages", () => {
     await renderMessagesWith(7, "alex");
     await screen.findByText("much later");
 
-    // Two runs, so two times: the pair an hour ago and the one just now.
-    expect(screen.getAllByText(/ago$/)).toHaveLength(2);
-    expect(screen.getByText(/about 1 hour ago/)).toBeInTheDocument();
+    // Three messages, two runs, two times. The picture's own slot holds the
+    // column open on the rows between, so nothing steps sideways and no gap
+    // opens up either.
+    const clock = /^\d{1,2}[:.]\d{2}(\s?[AP]M)?$/i;
+    const times = screen
+      .getAllByTitle(/2026|,/)
+      .filter((slot) => clock.test(slot.textContent ?? ""));
+    expect(times).toHaveLength(2);
+  });
+
+  it("heads each day the thread has messages on", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    mocks.logGet.mockResolvedValue([
+      { id: "m0", body: "long ago", at: "2026-07-22T09:00:00Z", mine: false },
+      { id: "m1", body: "then", at: yesterday.toISOString(), mine: false },
+      { id: "m2", body: "now", at: now.toISOString(), mine: false },
+    ]);
+
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("now");
+
+    // The two days somebody is most likely reading are named, not dated.
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.getByText("Yesterday")).toBeInTheDocument();
+    expect(screen.getByText(/Jul 22, 2026/)).toBeInTheDocument();
   });
 
   it("says how far one of your own messages got", async () => {
@@ -272,6 +323,174 @@ describe("My Messages", () => {
     expect(screen.getByText("Sent")).toBeInTheDocument();
     expect(screen.getByText("Delivered")).toBeInTheDocument();
     expect(screen.getByText("Read")).toBeInTheDocument();
+  });
+
+  it("answers one message with another, and says which", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "monday?", at: "2026-09-01T00:00:00Z", mine: false },
+    ]);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("monday?");
+
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    await userEvent.type(screen.getByRole("textbox", { name: /write a message/i }), "yes");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "yes", { replyTo: "m1" });
+  });
+
+  it("quotes who it is answering, and goes back to them when picked", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "are you coming monday", at: "2026-09-01T00:00:00Z", mine: false },
+      {
+        id: "m2",
+        body: "yes",
+        at: "2026-09-01T01:00:00Z",
+        mine: true,
+        replyTo: "m1",
+      },
+    ]);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("yes");
+
+    // The quote names its speaker, so a thread reads without opening it.
+    const quote = screen.getByRole("button", { name: /are you coming monday/ });
+    expect(quote).toHaveTextContent("alex#1234");
+
+    // Its own scrollTop, never `scrollIntoView`: that would scroll every box
+    // the message sits in, including ones with no way back.
+    const log = document.querySelector("[class*='overscroll-contain']") as HTMLElement;
+    const scrolled = vi.spyOn(log, "scrollTop", "set");
+    await userEvent.click(quote);
+
+    expect(scrolled).toHaveBeenCalled();
+  });
+
+  it("offers rewriting and taking back only your own messages", async () => {
+    // The log refuses anything else, so offering it would be a button that
+    // does nothing -- and the reason is not the interface's to invent.
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "theirs", at: "2026-09-01T00:00:00Z", mine: false },
+    ]);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("theirs");
+
+    expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+
+  it("rewrites one of your own in the composer, not in the bubble", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "mondat", at: "2026-09-01T00:00:00Z", mine: true },
+    ]);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("mondat");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const field = screen.getByRole("textbox", { name: /write a message/i });
+    // The words to change arrive in the field, rather than being retyped.
+    expect(field).toHaveValue("mondat");
+    await userEvent.clear(field);
+    await userEvent.type(field, "monday");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(mocks.sendEdit).toHaveBeenCalledWith("conv-1", 7, "m1", "monday");
+    expect(mocks.sendText).not.toHaveBeenCalled();
+  });
+
+  it("takes one back only once it has been confirmed", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "oops", at: "2026-09-01T00:00:00Z", mine: true },
+    ]);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("oops");
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(mocks.sendRemove).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Remove" })
+    );
+
+    expect(mocks.sendRemove).toHaveBeenCalledWith("conv-1", 7, "m1");
+  });
+
+  it("leaves a line where a removed message was, and nothing to do about it", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      {
+        id: "m1",
+        body: "",
+        at: "2026-09-01T00:00:00Z",
+        mine: false,
+        removedAt: "2026-09-01T01:00:00Z",
+      },
+    ]);
+    await renderMessagesWith(7, "alex");
+
+    // The thread keeps its shape: a gap would leave whatever answered it
+    // reading as an answer to nothing.
+    expect(await screen.findByText("Message removed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("turns a reaction off by pressing the one already there", async () => {
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      {
+        id: "m1",
+        body: "monday?",
+        at: "2026-09-01T00:00:00Z",
+        mine: false,
+        reactions: { "👍": { mine: true, theirs: false } },
+      },
+    ]);
+    await renderMessagesWith(7, "alex");
+
+    await userEvent.click(await screen.findByRole("button", { name: /👍, 1/ }));
+
+    expect(mocks.sendReaction).toHaveBeenCalledWith("conv-1", 7, "m1", "👍", false);
   });
 
   it("collects again when a dm frame invalidates the mailbox", async () => {
@@ -491,6 +710,8 @@ describe("My Messages", () => {
     await userEvent.type(await screen.findByLabelText(/write a message/i), "hello");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
 
-    await waitFor(() => expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "hello"));
+    await waitFor(() =>
+      expect(mocks.sendText).toHaveBeenCalledWith("conv-1", 7, "hello", { replyTo: undefined })
+    );
   });
 });

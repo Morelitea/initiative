@@ -103,7 +103,14 @@ describe("ContactActionsMenu", () => {
     mocks.permission.mockReturnValue({ data: { permission: "open", may_connect: true } });
     await open();
 
-    for (const name of [/view profile/i, /^message$/i, /^connect$/i, /favorites/i, /^ignore$/i]) {
+    for (const name of [
+      /view profile/i,
+      /^message$/i,
+      /^connect$/i,
+      /copy handle/i,
+      /favorites/i,
+      /^ignore$/i,
+    ]) {
       expect(screen.getByRole("menuitem", { name })).toBeInTheDocument();
     }
   });
@@ -121,6 +128,18 @@ describe("ContactActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: /favorites/i })).toBeNull();
     // What is only here stays here.
     expect(screen.getByRole("menuitem", { name: /^ignore$/i })).toBeInTheDocument();
+  });
+
+  it("copies the whole handle, which is the only form that addresses anybody", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+
+    await open();
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Copy handle" }));
+
+    // Not "ada": a bare name is refused by every field that takes one.
+    expect(writeText).toHaveBeenCalledWith("ada#1234");
+    vi.unstubAllGlobals();
   });
 
   it("stars somebody from the menu, and says so once they are starred", async () => {

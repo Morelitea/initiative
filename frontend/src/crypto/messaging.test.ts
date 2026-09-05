@@ -106,6 +106,9 @@ import {
   forgetMessagesOnThisDevice,
   markRead,
   RecipientHasNoDeviceError,
+  sendEdit,
+  sendReaction,
+  sendRemove,
   sendText,
   unreadIn,
 } from "./messaging";
@@ -373,6 +376,124 @@ describe("collecting", () => {
     await collect();
 
     expect((await messageLog.get("conv-1"))[0].receipt).toBe("read");
+  });
+
+  it("puts their reaction on the message it names, not in the thread", async () => {
+    const sent = await sendText("conv-1", 7, "monday?");
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          message_type: 1,
+          payload: from(
+            THEIRS.identity_key,
+            JSON.stringify({ v: 1, kind: "reaction", targetId: sent.id, emoji: "👍", on: true })
+          ),
+        }),
+      ],
+    });
+
+    await collect();
+
+    const stored = await messageLog.get("conv-1");
+    expect(stored).toHaveLength(1);
+    expect(stored[0].reactions).toEqual({ "👍": { mine: false, theirs: true } });
+  });
+
+  it("refuses an edit of a message the sender did not write", async () => {
+    // The side an envelope arrived on is the whole of the authorization: this
+    // one came over their session and names one of ours.
+    const sent = await sendText("conv-1", 7, "mine to say");
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          message_type: 1,
+          payload: from(
+            THEIRS.identity_key,
+            JSON.stringify({
+              v: 1,
+              kind: "edit",
+              targetId: sent.id,
+              at: "2026-09-02T00:00:00Z",
+              body: "put in their mouth",
+            })
+          ),
+        }),
+      ],
+    });
+
+    await collect();
+
+    expect((await messageLog.get("conv-1"))[0].body).toBe("mine to say");
+  });
+
+  it("takes their message off this device when they take it back", async () => {
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from("theirs", "never mind") })],
+    });
+    await collect();
+    const [theirs] = await messageLog.get("conv-1");
+
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          id: 2,
+          message_type: 1,
+          payload: from(
+            THEIRS.identity_key,
+            JSON.stringify({ v: 1, kind: "remove", targetId: theirs.id })
+          ),
+        }),
+      ],
+    });
+    await collect();
+
+    // A line saying one was here, rather than a gap where one was.
+    expect(await messageLog.get("conv-1")).toEqual([
+      expect.objectContaining({ id: theirs.id, body: "", removedAt: expect.any(String) }),
+    ]);
+  });
+
+  it("says nothing to their bell about a reaction, an edit or a removal", async () => {
+    // None of the three is somebody saying something, so none of them should
+    // arrive as a notification -- only as something to collect.
+    const sent = await sendText("conv-1", 7, "monday?");
+    api.sendMessages.mockClear();
+
+    await sendReaction("conv-1", 7, sent.id, "👍", true);
+    await sendEdit("conv-1", 7, sent.id, "monday?!");
+    await sendRemove("conv-1", 7, sent.id);
+
+    expect(api.sendMessages).toHaveBeenCalledTimes(3);
+    for (const [, body] of api.sendMessages.mock.calls) {
+      expect(body.silent).toBe(true);
+    }
+  });
+
+  it("keeps a reply that answers a message this device never had", async () => {
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          payload: from(
+            "theirs",
+            JSON.stringify({
+              v: 1,
+              kind: "text",
+              id: "x",
+              at: "2026-09-01T00:00:00Z",
+              body: "yes",
+              replyTo: "one-this-device-never-saw",
+            })
+          ),
+        }),
+      ],
+    });
+
+    await collect();
+
+    // The quote is what goes missing, never the words.
+    expect(await messageLog.get("conv-1")).toEqual([
+      expect.objectContaining({ body: "yes", replyTo: "one-this-device-never-saw" }),
+    ]);
   });
 
   it("reports only what this look actually read", async () => {

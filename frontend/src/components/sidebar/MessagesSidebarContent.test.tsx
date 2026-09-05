@@ -94,7 +94,7 @@ describe("the messages sidebar", () => {
 
     setup();
 
-    expect((await screen.findByText("alex#1234")).closest("a")).toHaveAttribute(
+    expect((await screen.findByTitle("alex#1234")).closest("a")).toHaveAttribute(
       "href",
       "/messages?with=alex1234"
     );
@@ -107,7 +107,7 @@ describe("the messages sidebar", () => {
 
     setup();
 
-    expect((await screen.findByText("sam#1234")).closest("a")).toHaveAttribute(
+    expect((await screen.findByTitle("sam#1234")).closest("a")).toHaveAttribute(
       "href",
       "/messages?with=sam1234"
     );
@@ -136,7 +136,7 @@ describe("the messages sidebar", () => {
 
     setup();
 
-    expect(await screen.findByText("robin#1234")).toBeInTheDocument();
+    expect(await screen.findByTitle("robin#1234")).toBeInTheDocument();
     // Nothing to accept: it is theirs to answer, not yours.
     expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
 
@@ -163,7 +163,7 @@ describe("the messages sidebar", () => {
 
     setup();
 
-    expect(await screen.findByText("alex#1234")).toBeInTheDocument();
+    expect(await screen.findByTitle("alex#1234")).toBeInTheDocument();
     expect(screen.queryByText(/unknown account/i)).toBeNull();
   });
 
@@ -210,8 +210,8 @@ describe("the list's sections", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /Favorites/ }));
 
-    expect(screen.queryByText("sam#1234")).toBeNull();
-    expect(screen.getByText("robin#1234")).toBeInTheDocument();
+    expect(screen.queryByTitle("sam#1234")).toBeNull();
+    expect(screen.getByTitle("robin#1234")).toBeInTheDocument();
   });
 
   it("draws no heading where everybody is in one section", async () => {
@@ -221,7 +221,7 @@ describe("the list's sections", () => {
     });
     setup();
 
-    expect(await screen.findByText("alex#1234")).toBeInTheDocument();
+    expect(await screen.findByTitle("alex#1234")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Messages/ })).toBeNull();
   });
 });

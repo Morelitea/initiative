@@ -64,5 +64,29 @@
   "unreadHere_one": "{{count}} mensaje sin leer",
   "unreadHere_other": "{{count}} mensajes sin leer",
   "openFailed": "No se pudo abrir esa conversación.",
-  "tryAgain": "Inténtalo de nuevo"
+  "tryAgain": "Inténtalo de nuevo",
+  "edited": "(editado)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Responder",
+    "replyingTo": "Respondiendo a «{{body}}»",
+    "missing": "El mensaje no está en este dispositivo"
+  },
+  "edit": {
+    "action": "Editar",
+    "editing": "Editando este mensaje. Escape para salir."
+  },
+  "remove": {
+    "action": "Eliminar",
+    "title": "¿Eliminar este mensaje?",
+    "body": "Desaparece de este dispositivo, y la aplicación de la otra persona lo quita del suyo. Lo que ya leyeron, ya lo leyeron: esto no lo puede deshacer."
+  },
+  "messageActions": "Acciones del mensaje",
+  "removed": "Mensaje eliminado",
+  "days": {
+    "today": "Hoy",
+    "yesterday": "Ayer"
+  }
 }

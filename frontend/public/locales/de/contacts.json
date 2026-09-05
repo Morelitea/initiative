@@ -65,6 +65,8 @@
     "message": "Nachricht",
     "viewProfile": "Profil ansehen",
     "favorite": "Zu Favoriten hinzufügen",
-    "unfavorite": "Aus Favoriten entfernen"
+    "unfavorite": "Aus Favoriten entfernen",
+    "copyHandle": "Handle kopieren",
+    "handleCopied": "Handle kopiert."
   }
 }

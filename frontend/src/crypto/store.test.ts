@@ -74,6 +74,94 @@ describe("the message log", () => {
   });
 });
 
+describe("acting on a message already said", () => {
+  const mine = { id: "m", body: "mine", at: "2026-01-01T00:00:00Z", mine: true };
+  const theirs = { id: "t", body: "theirs", at: "2026-01-01T00:00:00Z", mine: false };
+
+  beforeEach(async () => {
+    await messageLog.append("conv", mine);
+    await messageLog.append("conv", theirs);
+  });
+
+  it("counts both sides behind one emoji, and drops it when neither is", async () => {
+    await messageLog.applyReaction("conv", "t", "🎲", true, "mine");
+    await messageLog.applyReaction("conv", "t", "🎲", true, "theirs");
+
+    let stored = await messageLog.get("conv");
+    expect(stored.find((entry) => entry.id === "t")?.reactions).toEqual({
+      "🎲": { mine: true, theirs: true },
+    });
+
+    await messageLog.applyReaction("conv", "t", "🎲", false, "mine");
+    await messageLog.applyReaction("conv", "t", "🎲", false, "theirs");
+
+    stored = await messageLog.get("conv");
+    // Not an emoji with nobody behind it: it stops being a reaction.
+    expect(stored.find((entry) => entry.id === "t")?.reactions).toEqual({});
+  });
+
+  it("takes the same reaction twice as one", async () => {
+    expect(await messageLog.applyReaction("conv", "t", "👍", true, "theirs")).toBe(true);
+    // Both a tab that sent it and a tab that collected it can present it.
+    expect(await messageLog.applyReaction("conv", "t", "👍", true, "theirs")).toBe(false);
+  });
+
+  it("lets each side rewrite only what it said", async () => {
+    expect(await messageLog.applyEdit("conv", "m", "changed", "2026-01-02T00:00:00Z", "mine")).toBe(
+      true
+    );
+    // Their envelope naming your message changes nothing, whatever it claims.
+    expect(
+      await messageLog.applyEdit("conv", "m", "hijacked", "2026-01-03T00:00:00Z", "theirs")
+    ).toBe(false);
+
+    const stored = await messageLog.get("conv");
+    expect(stored.find((entry) => entry.id === "m")?.body).toBe("changed");
+  });
+
+  it("keeps the newest edit whichever order two arrive in", async () => {
+    await messageLog.applyEdit("conv", "m", "second", "2026-01-03T00:00:00Z", "mine");
+    await messageLog.applyEdit("conv", "m", "first", "2026-01-02T00:00:00Z", "mine");
+
+    const stored = await messageLog.get("conv");
+    expect(stored.find((entry) => entry.id === "m")?.body).toBe("second");
+  });
+
+  it("lets each side take back only what it said", async () => {
+    expect(await messageLog.applyRemove("conv", "t", "mine", "2026-01-02T00:00:00Z")).toBe(false);
+    expect(await messageLog.applyRemove("conv", "t", "theirs", "2026-01-02T00:00:00Z")).toBe(true);
+
+    // The entry stays, so a thread does not close over the gap.
+    const stored = await messageLog.get("conv");
+    expect(stored.map((entry) => entry.id)).toEqual(["m", "t"]);
+    expect(stored[1]).toEqual({
+      id: "t",
+      at: "2026-01-01T00:00:00Z",
+      mine: false,
+      replyTo: undefined,
+      body: "",
+      removedAt: "2026-01-02T00:00:00Z",
+    });
+  });
+
+  it("takes the reactions and the receipt with it", async () => {
+    await messageLog.applyReaction("conv", "t", "👍", true, "mine");
+    await messageLog.applyRemove("conv", "t", "theirs", "2026-01-02T00:00:00Z");
+
+    const stored = await messageLog.get("conv");
+    expect(stored[1].reactions).toBeUndefined();
+  });
+
+  it("leaves nothing to land on a message already taken back", async () => {
+    await messageLog.applyRemove("conv", "t", "theirs", "2026-01-02T00:00:00Z");
+
+    expect(await messageLog.applyReaction("conv", "t", "👍", true, "mine")).toBe(false);
+    expect(
+      await messageLog.applyEdit("conv", "t", "back again", "2026-01-03T00:00:00Z", "theirs")
+    ).toBe(false);
+  });
+});
+
 describe("the sessions a conversation holds", () => {
   it("accumulates one per device rather than replacing", async () => {
     // The other party may have several devices, and each is its own ratchet.

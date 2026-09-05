@@ -65,6 +65,8 @@
     "message": "Message",
     "viewProfile": "Voir le profil",
     "favorite": "Ajouter aux favoris",
-    "unfavorite": "Retirer des favoris"
+    "unfavorite": "Retirer des favoris",
+    "copyHandle": "Copier l'identifiant",
+    "handleCopied": "Identifiant copié."
   }
 }

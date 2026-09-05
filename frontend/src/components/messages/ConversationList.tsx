@@ -7,6 +7,7 @@ import type { ContactGrantRead } from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { PrivatePanel, unreachableReason } from "@/components/contacts/UnreachableEmptyState";
 import { NewConversationDialog } from "@/components/messages/NewConversationDialog";
+import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -30,16 +31,22 @@ import { cn } from "@/lib/utils";
 const ROW = "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-sm";
 
 /**
- * The menu belongs to the row, not to the list: on a pointer it stays out of
- * the way until the row is under the cursor, and it comes back whenever it is
- * focused or open, so a keyboard never chases a control it cannot see. A touch
- * screen has no hover to reveal it, so below `sm` it is simply there.
+ * The menu belongs to the row, not to the list: on a pointer it opens out of
+ * the row's edge when the row is under the cursor, and it comes back whenever
+ * it is focused or open, so a keyboard never chases a control it cannot see.
+ * A touch screen has no hover to reveal it, so below `sm` it is simply there.
+ *
+ * It animates its *width* rather than only its opacity, the way the initiative
+ * and project rows in the main sidebar do — so a name has the whole row until
+ * somebody reaches for the menu, instead of being cut short all the time to
+ * hold a space for something that is not on screen.
  */
 const ROW_MENU = cn(
-  "size-7 shrink-0",
-  "sm:opacity-0 sm:transition-opacity",
-  "sm:group-hover/row:opacity-100 sm:group-focus-within/row:opacity-100",
-  "sm:data-[state=open]:opacity-100"
+  "h-7 w-7 shrink-0 p-0",
+  "motion-reduce:transition-none sm:w-0 sm:overflow-hidden sm:opacity-0 sm:transition-all",
+  "sm:group-hover/row:w-7 sm:group-hover/row:opacity-100",
+  "sm:group-focus-within/row:w-7 sm:group-focus-within/row:opacity-100",
+  "sm:data-[state=open]:w-7 sm:data-[state=open]:opacity-100"
 );
 
 /** Which sections the reader has folded away. Remembered across visits. */
@@ -300,7 +307,12 @@ export const ConversationList = () => {
                 presence={them.presence}
                 className="size-6"
               />
-              <span className="min-w-0 flex-1 truncate">{getUserHandle(them)}</span>
+              <UserHandle
+                user={them}
+                className="min-w-0 flex-1"
+                nameClassName="min-w-0 truncate"
+                numberClassName="shrink-0"
+              />
               {/* A dot carries no text, so the count it stands for is written
                   out for anyone not looking at it. */}
               {entry.waiting ? (
@@ -379,9 +391,12 @@ export const ConversationList = () => {
                           presence={grant.presence}
                           className="size-7"
                         />
-                        <span className="min-w-0 flex-1 truncate text-sm">
-                          {getUserHandle(grant)}
-                        </span>
+                        <UserHandle
+                          user={grant}
+                          className="min-w-0 flex-1 text-sm"
+                          nameClassName="min-w-0 truncate"
+                          numberClassName="shrink-0"
+                        />
                         {/* Withdrawing your own ask and declining theirs are the
                             same write, so an outgoing row offers only that one --
                             and one button is a trailing action on the name rather

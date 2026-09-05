@@ -318,13 +318,49 @@ export type ReceiptState = "delivered" | "read";
 const reached = (state: ReceiptState | undefined): number =>
   state === "read" ? 2 : state === "delivered" ? 1 : 0;
 
+/**
+ * Who has picked one emoji on one message.
+ *
+ * A direct message has exactly two people in it, so which sides picked it is
+ * the whole truth -- there is no list of reactors to keep, and no count to
+ * derive that `mine + theirs` does not already give.
+ */
+export interface ReactionSides {
+  mine: boolean;
+  theirs: boolean;
+}
+
 export interface StoredMessage {
   id: string;
   body: string;
   at: string;
   mine: boolean;
   receipt?: ReceiptState;
+  /** The message this one answers, by the name both sides know it under. */
+  replyTo?: string;
+  /** When its author last changed the body. Absent means never. */
+  editedAt?: string;
+  /** Emoji, and who is behind each. An emoji nobody holds is dropped. */
+  reactions?: Record<string, ReactionSides>;
+  /**
+   * When its author took it back. The entry stays, without its words.
+   *
+   * A gap where a message was is a worse answer than a line saying one was
+   * removed: a thread that closes over it leaves the other person re-reading
+   * an exchange that no longer makes sense.
+   */
+  removedAt?: string;
 }
+
+/**
+ * Which side of the conversation an instruction came from.
+ *
+ * Editing and removing are only ever a person acting on their own message, so
+ * this is the whole of the authorization: an envelope from them may change
+ * what they said, and nothing else. It is checked here rather than at the call
+ * site, because the call site is a client and the log is the only copy.
+ */
+export type Side = "mine" | "theirs";
 
 const LOG_PREFIX = "log:";
 
@@ -368,6 +404,112 @@ export const messageLog = {
         if (reached(state) <= reached(entry.receipt)) return entry;
         changed = true;
         return { ...entry, receipt: state };
+      });
+      return changed ? next : undefined;
+    });
+    return changed;
+  },
+  /**
+   * Turn one emoji on or off for one message, from one side.
+   *
+   * Idempotent, because both sides' copies of an envelope can arrive twice --
+   * a tab that collected it and a tab that sent it -- and a reaction is a
+   * state rather than a tally.
+   */
+  applyReaction: async (
+    conversationId: string,
+    targetId: string,
+    emoji: string,
+    on: boolean,
+    from: Side
+  ): Promise<boolean> => {
+    let changed = false;
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      const next = current.map((entry) => {
+        // Nothing lands on a message that has been taken back: there is no
+        // longer anything there to be about.
+        if (entry.id !== targetId || entry.removedAt) return entry;
+        const held = entry.reactions?.[emoji] ?? { mine: false, theirs: false };
+        if (held[from] === on) return entry;
+        changed = true;
+        const sides = { ...held, [from]: on };
+        const reactions = { ...entry.reactions };
+        // Nobody holds it any more, so it stops being a reaction rather than
+        // becoming one with no one behind it.
+        if (!sides.mine && !sides.theirs) delete reactions[emoji];
+        else reactions[emoji] = sides;
+        return { ...entry, reactions };
+      });
+      return changed ? next : undefined;
+    });
+    return changed;
+  },
+  /**
+   * Rewrite what one message says.
+   *
+   * Only the side that said it: an envelope from them can change their own
+   * message and nothing else, whatever it claims to target.
+   */
+  applyEdit: async (
+    conversationId: string,
+    targetId: string,
+    body: string,
+    at: string,
+    from: Side
+  ): Promise<boolean> => {
+    let changed = false;
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      const next = current.map((entry) => {
+        if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
+        if (entry.removedAt || entry.body === body) return entry;
+        // An edit that arrives after a later one is an old edit: the newest
+        // wins whatever order the two of them were collected in.
+        if (entry.editedAt && at && entry.editedAt >= at) return entry;
+        changed = true;
+        return { ...entry, body, editedAt: at };
+      });
+      return changed ? next : undefined;
+    });
+    return changed;
+  },
+  /**
+   * Take back what one message said, leaving the fact that it was said.
+   *
+   * The words go and the entry stays: a thread that closed over the gap would
+   * leave the other person re-reading an exchange with a hole in it, and any
+   * reply that answered it pointing at nothing.
+   *
+   * Same rule as an edit -- only its author's side may -- and the same limit as
+   * everything else here: this is the copy this device holds. Their client
+   * honours the same envelope on theirs, which is as far as any of this can
+   * reach.
+   */
+  applyRemove: async (
+    conversationId: string,
+    targetId: string,
+    from: Side,
+    at: string
+  ): Promise<boolean> => {
+    let changed = false;
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      const next = current.map((entry) => {
+        if (entry.id !== targetId || entry.mine !== (from === "mine")) return entry;
+        if (entry.removedAt) return entry;
+        changed = true;
+        // Rebuilt rather than spread: the body, the reactions and the receipt
+        // all go with it, and a spread would carry whichever of them this
+        // version happens not to name.
+        return {
+          id: entry.id,
+          at: entry.at,
+          mine: entry.mine,
+          replyTo: entry.replyTo,
+          body: "",
+          removedAt: at,
+        };
       });
       return changed ? next : undefined;
     });
