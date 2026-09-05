@@ -266,7 +266,7 @@ export function MyMessagesPage() {
         <section className="rounded-lg border">
           <h2 className="border-b px-3 py-2 font-medium text-sm">{t("empty.title")}</h2>
           <div className="p-2">
-            <ConversationList />
+            <ConversationList explain />
           </div>
         </section>
       )}

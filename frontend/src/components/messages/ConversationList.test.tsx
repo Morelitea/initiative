@@ -68,7 +68,8 @@ const GRACE = buildContactGrant({ user_id: 2, username: "grace" });
 
 const noGrants = { accepted: [], incoming: [], outgoing: [] };
 
-const show = () => renderPage(() => <ConversationList />, { initialRoute: "/messages" });
+const show = ({ explain = false } = {}) =>
+  renderPage(() => <ConversationList explain={explain} />, { initialRoute: "/messages" });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -190,12 +191,26 @@ describe("ConversationList", () => {
     mocks.settings.mockReturnValue({
       data: { dm_policy: "private", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
     });
-    show();
 
     // Not "nobody yet", which would read as an absence of people rather than
     // as the reader's own choice.
+    show({ explain: true });
     expect(await screen.findByText(/You're set to Private/)).toBeVisible();
     expect(screen.queryByText(/Nobody yet/)).toBeNull();
+  });
+
+  it("leaves the paragraph to the page, where there is room for it", async () => {
+    // The sidebar draws the same list in a column too narrow for a paragraph
+    // and two buttons -- and the page beside it is always the one an account
+    // with nothing to open is looking at.
+    mocks.messageRequests.mockReturnValue({ data: noGrants });
+    mocks.settings.mockReturnValue({
+      data: { dm_policy: "private", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+    });
+    show();
+
+    expect(await screen.findByText(/Nobody yet/)).toBeVisible();
+    expect(screen.queryByText(/You're set to Private/)).toBeNull();
   });
 
   it("says the age question is what is holding it back, and where to answer it", async () => {

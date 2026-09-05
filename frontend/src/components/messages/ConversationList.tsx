@@ -107,11 +107,16 @@ const readCollapsed = (): Record<string, boolean> => {
  * somebody who is *not* here is the button beside it, which is why they sit
  * together.
  *
+ * `explain` is for the wide half of the two. Being on Private is the one empty
+ * list whose reason takes a paragraph and two buttons to give, and a sidebar
+ * column is not the place for either -- the page beside it always has room,
+ * and an account with nothing to open is always looking at that page.
+ *
  * Every row addresses its person in the URL rather than holding a selection of
  * its own: the page already resolves `?with=` to a conversation, and a link is
  * what a back button, a middle click and a shared address all understand.
  */
-export const ConversationList = () => {
+export const ConversationList = ({ explain = false }: { explain?: boolean } = {}) => {
   const { t } = useTranslation(["messages", "contacts"]);
   const { with: openHandle } = useSearch({ strict: false }) as { with?: string };
   const [term, setTerm] = useState("");
@@ -475,7 +480,7 @@ export const ConversationList = () => {
                   <Link to="/profile/privacy">{t("contacts:unreachable.private.settings")}</Link>
                 </Button>
               </div>
-            ) : reason === "private" ? (
+            ) : reason === "private" && explain ? (
               <div className="px-2 py-1">
                 <PrivatePanel />
               </div>
