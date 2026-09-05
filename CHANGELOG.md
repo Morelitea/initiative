@@ -69,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The app's scrollbar is back at the edge of the app.** It had moved into the middle of the window, floating beside the centred column rather than running down the side — and any page with something a little too wide dragged the whole app sideways. The shell scrolls; it no longer also decides how wide a page is.
+
 - **A profile's communities say how many people are in them.** Each card counted nobody, because the profile's own read never asked for the number — a community somebody belongs to has at least one member, so "0 members" was never true.
 
 - **Everyone in a community hears that it was listed.** The notice that a community joined the directory — which is what asks its members their age — only reached people whose tab happened to be held by the same server process that made the change. On a deployment running more than one, everybody else waited until they next navigated.

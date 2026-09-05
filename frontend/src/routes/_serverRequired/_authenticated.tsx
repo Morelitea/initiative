@@ -289,17 +289,35 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
+                {/* The app's scroller. Named twice over: the router restores
+                    this element's position across navigations rather than the
+                    window's, and pull-to-refresh asks it how far down it is.
+
+                    It spans the row and holds the page's width inside it,
+                    rather than being that width itself. A scrollbar renders at
+                    the edge of its own scrollport, so a scroller that was also
+                    `container mx-auto` put the bar in the middle of the window
+                    — floating beside the centred column instead of down the
+                    side of the app.
+
+                    `overflow-x-clip` because `overflow-y: auto` alone does not
+                    stay on one axis: with the other left `visible`, CSS
+                    computes that one to `auto` too, quietly making the shell a
+                    horizontal scroller. Anything anywhere that overran then
+                    dragged the whole app sideways. Wide content owns its own
+                    scroller here — the tool rail and every table already do —
+                    so the shell says no to the axis rather than offering a bar
+                    nothing should need. */}
                 <main
-                  // The app's scroller. Named twice over: the router restores
-                  // this element's position across navigations rather than the
-                  // window's, and pull-to-refresh asks it how far down it is.
                   data-app-scroll=""
                   data-scroll-restoration-id="app-main"
-                  className="container mx-auto min-w-0 overflow-y-auto p-4 pb-24 md:p-8 md:pb-24"
+                  className="min-w-0 flex-1 overflow-y-auto overflow-x-clip"
                 >
-                  <Suspense fallback={<PageLoader />}>
-                    <Outlet />
-                  </Suspense>
+                  <div className="container mx-auto p-4 pb-24 md:p-8 md:pb-24">
+                    <Suspense fallback={<PageLoader />}>
+                      <Outlet />
+                    </Suspense>
+                  </div>
                 </main>
               </div>
             </div>
