@@ -57,7 +57,17 @@ describe("DialogContent", () => {
   // The class-merge rule the case above relies on, enforced across the app: an
   // unprefixed width silently drops the base cap, and every dialog that did
   // that was edge-to-edge on a phone.
-  it("no dialog sets an unprefixed max width", () => {
+  //
+  // What counts as an offender is a *fixed* length — `max-w-lg`, `max-w-md`,
+  // `max-w-[32rem]`. A width relative to the viewport (`max-w-[90vw]`) or to
+  // the containing block (`max-w-full`, `max-w-[95%]`) still fits the screen it
+  // opens on, so it is not this bug even unprefixed.
+  //
+  // `max-w-none` drops the cap outright, which is only safe when the element
+  // bounds itself another way — `w-[min(72rem,95vw)]` is already viewport-
+  // bounded, so lifting the max is what makes that width apply. Flagged only
+  // when nothing else holds it in.
+  it("no dialog sets an unprefixed fixed max width", () => {
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -67,8 +77,21 @@ describe("DialogContent", () => {
         } else if (entry.name.endsWith(".tsx")) {
           const source = fs.readFileSync(full, "utf-8");
           for (const match of source.matchAll(/<DialogContent\s+className="([^"]*)"/g)) {
-            if (/(?:^|\s)max-w-(?:xs|sm|md|lg|xl|\dxl)(?:\s|$)/.test(match[1])) {
-              offenders.push(`${path.relative(SRC, full)}: ${match[1]}`);
+            const classes = match[1].split(/\s+/);
+            // Does the element bound its own width against the viewport?
+            const selfBounded = classes.some(
+              (cls) => !cls.includes(":") && /^w-(?:full|\[.*(?:vw|%).*\])$/.test(cls)
+            );
+            for (const cls of classes) {
+              // Anything behind a breakpoint or state is fine — the base cap
+              // still governs below it.
+              if (cls.includes(":") || !cls.startsWith("max-w-")) continue;
+              const value = cls.slice("max-w-".length);
+              const fitsAnyway =
+                value === "full" || /v[wh]|%/.test(value) || (value === "none" && selfBounded);
+              if (!fitsAnyway) {
+                offenders.push(`${path.relative(SRC, full)}: ${cls}`);
+              }
             }
           }
         }
