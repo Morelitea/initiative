@@ -86,18 +86,28 @@ export const useDmPermission = (userId: number | undefined) =>
 /** The most accounts one question may name, which the server enforces. */
 const PERMISSION_LIMIT = 100;
 
-/** One object out of however many questions it took to answer for everybody. */
+/**
+ * One object out of however many questions it took to answer for everybody.
+ *
+ * All of them or none: half an answer set is indistinguishable from a complete
+ * one at the call site, and the two surfaces reading it disagree about what a
+ * missing entry means -- the actions menu leaves an item out, the picker lets
+ * the row be clicked. Publishing a partial map would make that disagreement
+ * outlive the loading it belongs to. Absent, both behave the way they do
+ * before any answer has arrived, which is what is true.
+ */
 const mergePermissions = (
   results: { data?: DirectMessagePermissionsResponse; isPending: boolean }[]
 ) => ({
-  data: results.some((result) => result.data)
-    ? {
-        permissions: Object.assign(
-          {},
-          ...results.map((result) => result.data?.permissions ?? {})
-        ) as DirectMessagePermissionsResponse["permissions"],
-      }
-    : undefined,
+  data:
+    results.length > 0 && results.every((result) => result.data)
+      ? {
+          permissions: Object.assign(
+            {},
+            ...results.map((result) => result.data?.permissions ?? {})
+          ) as DirectMessagePermissionsResponse["permissions"],
+        }
+      : undefined,
   isPending: results.some((result) => result.isPending),
 });
 

@@ -136,6 +136,29 @@ describe("useDmPermissions", () => {
     });
   });
 
+  it("publishes nothing until every batch has answered", async () => {
+    // Half an answer set reads as a complete one at the call site, and the two
+    // surfaces disagree about what a missing entry means.
+    let answered = 0;
+    mocks.readPermissions.mockImplementation(({ user_ids }: { user_ids: number[] }) => {
+      answered += 1;
+      // The second batch never lands.
+      if (answered > 1) return new Promise(() => {});
+      return Promise.resolve({
+        permissions: Object.fromEntries(
+          user_ids.map((id) => [String(id), { permission: "open", may_connect: true }])
+        ),
+      });
+    });
+    const ids = Array.from({ length: 150 }, (_unused, at) => at + 1);
+
+    const { result } = renderHook(() => useDmPermissions(ids), { wrapper: withQueries() });
+
+    await waitFor(() => expect(mocks.readPermissions).toHaveBeenCalledTimes(2));
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPending).toBe(true);
+  });
+
   it("asks nothing about nobody", () => {
     const { result } = renderHook(() => useDmPermissions([]), { wrapper: withQueries() });
 
