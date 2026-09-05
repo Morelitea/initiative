@@ -29,7 +29,6 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
 import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCanUseDirectMessages,
@@ -409,7 +408,6 @@ function Thread({
 }) {
   const { t } = useTranslation(["messages", "common"]);
   const { user: me } = useAuth();
-  const isMobile = useIsMobile();
   const thread = useThread(conversationId);
   const send = useSendMessage(conversationId, otherUserId);
   const actions = useMessageActions(conversationId, otherUserId);
@@ -722,18 +720,23 @@ function Thread({
                         message.mine && "flex-row-reverse"
                       )}
                     >
-                      {/* The bubble is what summons the actions where there is
-                          no hover -- and only there: on a pointer a click here
-                          would fight with selecting the words, which hovering
-                          does not.
+                      {/* The bubble summons the actions for anything that
+                          cannot hover. Not gated on a breakpoint: a wide
+                          touch screen has no hover either, and a viewport
+                          width is a poor guess at what a device can do -- so
+                          the tap is simply always there, and on a pointer it
+                          only ever agrees with what hovering already showed.
+                          A click that ends a selection is not a tap, and a
+                          link inside is doing something else.
 
-                          It carries no role and takes no focus on purpose. A
+                          It carries no role and takes no focus on purpose: a
                           button role would wrap the links inside it in a
-                          button, and a keyboard already reaches the same bar
-                          by tabbing into it: the buttons are in the DOM, and
-                          focusing one opens the bar through `focus-within`.
-                          So the two rules below are about a path that exists
-                          by another route. */}
+                          button. A keyboard reaches the same bar by tabbing
+                          into it instead -- the buttons stay in the document
+                          and in the focus order at every width, and focusing
+                          one opens the bar through `focus-within`. So the two
+                          rules below are about a path that exists by another
+                          route, not one that is missing. */}
                       {/* biome-ignore lint/a11y/noStaticElementInteractions: the actions are keyboard-reachable through focus-within */}
                       {/* biome-ignore lint/a11y/useKeyWithClickEvents: the actions are keyboard-reachable through focus-within */}
                       <div
@@ -745,21 +748,20 @@ function Thread({
                           // sizing the bubble to itself and running off the side.
                           "wrap-anywhere w-fit max-w-full",
                           message.mine ? "bg-primary text-primary-foreground" : "bg-muted",
-                          !message.removedAt && "cursor-pointer sm:cursor-auto",
                           // Where a quote just landed, for as long as it takes to
                           // see it.
                           landedOn === message.id && "ring-2 ring-primary ring-offset-1"
                         )}
                         onClick={
-                          isMobile && !message.removedAt
-                            ? (event) => {
+                          message.removedAt
+                            ? undefined
+                            : (event) => {
                                 // A link inside is doing something else, and a
                                 // tap that ends a selection is not a tap.
                                 if ((event.target as HTMLElement).closest("a")) return;
                                 if (window.getSelection()?.isCollapsed === false) return;
                                 setTapped((open) => (open === message.id ? null : message.id));
                               }
-                            : undefined
                         }
                       >
                         {message.removedAt ? (
@@ -793,13 +795,17 @@ function Thread({
                           // always leaves -- anchored the other way it runs off
                           // the side of anything short.
                           message.mine ? "end-0" : "start-0",
+                          // Out of sight, never out of the document: `hidden`
+                          // takes the buttons out of the focus order too, and
+                          // then a keyboard has no way to any of this. Faded
+                          // and inert instead, and brought back by a hover, by
+                          // focusing one of them, or by tapping the message.
                           tapped === message.id
                             ? "block"
                             : cn(
-                                "hidden sm:block",
-                                "sm:pointer-events-none sm:opacity-0",
-                                "sm:group-hover/message:pointer-events-auto sm:group-hover/message:opacity-100",
-                                "sm:group-focus-within/message:pointer-events-auto sm:group-focus-within/message:opacity-100"
+                                "pointer-events-none block opacity-0",
+                                "group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+                                "group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100"
                               ),
                           "transition-opacity"
                         )}
@@ -913,10 +919,9 @@ function Thread({
                             tapped === message.id
                               ? ""
                               : cn(
-                                  "hidden sm:inline-flex",
-                                  "sm:opacity-0 sm:transition-opacity",
-                                  "sm:group-hover/message:opacity-100",
-                                  "sm:group-focus-within/message:opacity-100"
+                                  "opacity-0 transition-opacity",
+                                  "group-hover/message:opacity-100",
+                                  "group-focus-within/message:opacity-100"
                                 )
                           )}
                           mine={

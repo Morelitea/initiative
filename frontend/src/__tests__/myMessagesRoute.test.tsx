@@ -378,6 +378,36 @@ describe("My Messages", () => {
     expect(scrolled).toHaveBeenCalled();
   });
 
+  it("keeps the actions in the focus order at every width", async () => {
+    // `display: none` would take them out of it, and the bubble that summons
+    // them on a touch screen is not focusable -- so hiding them that way
+    // leaves a keyboard no way to reply, edit or remove anything.
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "mine", at: "2026-09-01T00:00:00Z", mine: true },
+    ]);
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("mine");
+
+    const reply = screen.getByRole("button", { name: "Reply" });
+    // Faded and inert until wanted, never absent: nothing on the way up to it
+    // may be `hidden`, or focus cannot land on it.
+    for (
+      let node: HTMLElement | null = reply;
+      node && node !== document.body;
+      node = node.parentElement
+    ) {
+      expect(node.className).not.toMatch(/(^|[\s:])hidden(\s|$)/);
+    }
+    reply.focus();
+    expect(reply).toHaveFocus();
+  });
+
   it("offers rewriting and taking back only your own messages", async () => {
     // The log refuses anything else, so offering it would be a button that
     // does nothing -- and the reason is not the interface's to invent.
