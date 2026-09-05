@@ -6,7 +6,7 @@ state the screen can render.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
@@ -92,7 +92,33 @@ class DirectMessagePermissionRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: Whether a connection request would be taken. A separate answer from
+    #: ``permission``, because connecting and messaging are separate rules --
+    #: an account that takes no messages may still take a connection, and the
+    #: other way round. Without it a surface listing people can only guess,
+    #: and offer a button that is refused.
+    may_connect: bool = False
+
     permission: str
+
+
+class DirectMessagePermissionsRequest(SanitizedBaseModel):
+    """Which accounts a surface is about to draw controls for."""
+
+    user_ids: List[int] = Field(min_length=1, max_length=100)
+
+
+class DirectMessagePermissionsResponse(SanitizedBaseModel):
+    """One answer per account asked about, keyed by id as a string.
+
+    Accounts the caller may not see are simply absent rather than refused: the
+    reader is drawing a list, and a page that fails because one row is gone is
+    worse than one that offers nothing for that row.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    permissions: Dict[str, DirectMessagePermissionRead]
 
 
 class ContactGrantRead(SanitizedBaseModel):

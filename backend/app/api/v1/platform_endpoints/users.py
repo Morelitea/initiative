@@ -283,8 +283,31 @@ async def search_users(
         session, data_stmt, count_stmt, page=page, page_size=page_size
     )
 
+    # One extra read for the page just fetched, bounded by ``page_size``: the
+    # roster join above filters by guild rather than projecting from it, and
+    # widening that projection would change what ``paginated_query`` returns.
+    roles = (
+        dict(
+            (
+                await session.exec(
+                    select(GuildMembership.user_id, GuildMembership.role).where(
+                        GuildMembership.guild_id == guild_context.guild_id,
+                        GuildMembership.user_id.in_([user.id for user in users]),
+                    )
+                )
+            ).all()
+        )
+        if users
+        else {}
+    )
+
     return UserSummaryListResponse(
-        items=[UserSummary.model_validate(user) for user in users],
+        items=[
+            UserSummary.model_validate(user).model_copy(
+                update={"guild_role": roles.get(user.id)}
+            )
+            for user in users
+        ],
         total_count=total_count,
         page=actual_page,
         page_size=page_size,
@@ -532,6 +555,11 @@ async def read_user_communities(
         ).all()
     }
     online = realtime_manager.present_counts(guild.id for guild in guilds)
+    # How many people are in each, which the card names and this read has to
+    # ask for: nothing about a guild row carries it.
+    members = await guilds_service.count_members_by_guild(
+        admin_session, guild_ids=[guild.id for guild in guilds]
+    )
     # Digests only, in one query: a card names its pictures, never carries them.
     images = await images_service.image_urls(
         admin_session,
@@ -550,6 +578,7 @@ async def read_user_communities(
                 **guild.banner,
             ),
             categories=[GuildCategory(value) for value in guild.categories],
+            member_count=members.get(guild.id, 0),
             online_count=online.get(guild.id, 0),
             already_member=guild.id in mine,
         )

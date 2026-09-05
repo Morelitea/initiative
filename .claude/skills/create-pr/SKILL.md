@@ -1,15 +1,16 @@
 ---
 name: create-pr
-description: Open a pull request for the current changes, then watch it to green — poll CI until every check completes, surface and fix failures, and drive the Greptile review loop until confidence is high. Use when the user says "make a PR", "open a pull request", "ship this", or asks to watch a PR's CI / review status.
+description: Open a pull request for the current changes, then watch it to green — poll CI and the Greptile review together, addressing review findings as soon as they post instead of waiting for the full rollup, fixing failures and re-reviewing until confidence is high. Use when the user says "make a PR", "open a pull request", "ship this", or asks to watch a PR's CI / review status.
 user-invocable: true
 ---
 
 # /create-pr — Open a PR and babysit it to green
 
-Create a pull request for the working changes, then stay with it: watch CI to
-completion, fix what breaks, and run the Greptile review loop until the review
-is clean. Do not consider the skill done until every check is green (or the
-user tells you to stop).
+Create a pull request for the working changes, then stay with it: watch CI and
+the Greptile review *at the same time*, fix whatever lands first, and keep
+looping until every check is green and the review is clean (or the user tells
+you to stop). Greptile's feedback almost always arrives before CI finishes —
+address it then, rather than sitting on it until the rollup completes.
 
 Repo rules that this skill must honor (from `CLAUDE.md`):
 - **PRs target `dev`, never `main`.**
@@ -31,7 +32,9 @@ Repo rules that this skill must honor (from `CLAUDE.md`):
    - Backend: `cd backend && ruff check app` and
      `./scripts/test-changed.sh`.
    Fix anything that fails before opening the PR — a red gate locally will be
-   red in CI.
+   red in CI, and a CI round-trip on this repo costs up to ~26 minutes. Never
+   push a speculative fix hoping CI will validate it; reproduce it locally
+   first.
 3. If the change is user-facing, add a concise `CHANGELOG.md` entry under
    `## [Unreleased]` in the right subsection (Added / Changed / Fixed /
    Security).
@@ -69,31 +72,100 @@ EOF
 
 Capture the PR number from the returned URL.
 
-## 4. Watch CI to completion
+## 4. Watch CI *and* Greptile together
 
-Poll until every check finishes. Prefer a bounded `until` loop over repeated
-manual checks:
+Greptile usually posts its first review while CI is still running, and CI
+failures usually surface one job at a time. **Do not wait for the whole rollup
+to finish before reading review feedback** — watch both signals in one loop and
+act on whichever lands first.
+
+Snapshot what you have already seen, then wait for the *next* event:
 
 ```bash
-# Wait for all checks to reach a terminal state (timeout generously).
-until [ -z "$(gh pr view <n> --json statusCheckRollup \
-  -q '.statusCheckRollup[] | select(.status!="COMPLETED") | .name')" ]; do
-  sleep 15
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+PR=$(gh pr view --json number -q .number)
+
+# Baseline: the newest Greptile review id we've already read (0 if none yet).
+seen_review() {
+  gh api "repos/$REPO/pulls/$PR/reviews" \
+    --jq '[.[] | select(.user.login|test("greptile";"i")) | .id] | max // 0'
+}
+SEEN=$(seen_review)
+START=$(date +%s)
+
+# Wait for: a new Greptile review, a failed check, or everything green.
+while :; do
+  FAILED=$(gh pr view "$PR" --json statusCheckRollup \
+    -q '[.statusCheckRollup[] | select(.conclusion=="FAILURE" or .conclusion=="TIMED_OUT") | .name] | join(", ")')
+  PENDING=$(gh pr view "$PR" --json statusCheckRollup \
+    -q '[.statusCheckRollup[] | select(.status!="COMPLETED")] | length')
+  NOW=$(seen_review)
+  if [ "$NOW" != "$SEEN" ]; then echo "EVENT=greptile review=$NOW"; break; fi
+  if [ -n "$FAILED" ];       then echo "EVENT=ci-failure jobs=$FAILED"; break; fi
+  if [ "$PENDING" -eq 0 ];   then echo "EVENT=ci-green"; break; fi
+  echo "waiting: $PENDING check(s) pending, $(( $(date +%s) - START ))s elapsed"
+  sleep 30
 done
 ```
 
-Then read the rollup:
+**Run this in the background** (`run_in_background: true`). A full backend run
+takes **up to ~26 minutes**, and the Bash tool caps a foreground call at
+600000ms (10 min) — a blocking wait cannot cover one cycle, and blocking the
+session for 26 minutes would be wrong even if it could. Background it, do the
+Greptile work while it runs, and read its output when it breaks.
+
+Each time it breaks, handle the event (§5 or §6) and then **re-enter this loop**
+with `SEEN` updated to the review you just read. The loop is only finished when
+`EVENT=ci-green` *and* the Greptile bar in §5 is met.
+
+**Batching pushes.** A push cancels the in-flight run and restarts it from
+zero, so never push once per finding — collect a whole Greptile round (plus any
+CI failure already visible) into one commit and push once.
+
+Given the timings, the usual call is easy: Greptile posts within a minute or
+two, when the backend job has barely started, so **push the batch as soon as
+it's ready** — you're discarding two minutes of a run that was testing the
+pre-fix commit anyway, and the fixed code's results arrive ~26 minutes from the
+push either way. Waiting for the current run to finish first just adds its
+remaining time to that.
+
+Hold the push only when the run is nearly done and its result would change what
+you commit — you're minutes from learning about failures you'd want to fold
+into the same batch.
+
+## 5. Handle a Greptile round
+
+Read the review body and the inline findings:
 
 ```bash
-gh pr view <n> --json mergeStateStatus,reviewDecision,statusCheckRollup \
-  -q '.statusCheckRollup[] | "\(.name): \(.status)/\(.conclusion)"'
+gh api "repos/$REPO/pulls/$PR/reviews" \
+  --jq '.[] | select(.user.login|test("greptile";"i")) | {id, submitted_at, body}'
+gh api "repos/$REPO/pulls/$PR/comments" --jq '.[] | {path, line, body}'
 ```
 
+For each finding, judge whether it's a real issue in scope for this PR.
+- **In scope + valid** → fix it (edit, commit with the rest of the batch, push).
+- **Out of scope / false positive** → reply briefly saying why; don't fix.
+
+After pushing a round of fixes, ask for a re-review:
+
+```bash
+gh pr comment "$PR" --body "@greptile"
+```
+
+Then go back to §4's loop (with `SEEN` set to the review you just handled) —
+the re-review and any still-running CI are waited on together, not in sequence.
+
+**Aim for 5/5 confidence.** Accept 4/5 only if the remaining findings are
+genuinely out of scope for this PR.
+
+## 6. Handle a CI failure
+
 The CI workflow's jobs on this repo include **Backend Lint & Tests**,
-**Frontend Lint & Tests**, and **Check Generated Types**. If any concludes
+**Frontend Lint & Tests**, and **Check Generated Types**. When a job concludes
 `FAILURE`:
 
-1. Pull the failing job's log:
+1. Pull its log:
    `gh run view --job <jobId> --log-failed | tail -80`
    (get `<jobId>` from the `detailsUrl` in the rollup, or
    `gh run view <runId> --json jobs`).
@@ -102,37 +174,19 @@ The CI workflow's jobs on this repo include **Backend Lint & Tests**,
      mirrored in `de`/`es`/`fr`. Add new keys to all four locale files.
    - **Generated types**: if backend schemas changed, regenerate per
      `CLAUDE.md` (Orval) and commit the output.
-3. Commit the fix, `git push`, and **re-watch from the top of this step**.
+3. Other jobs may still be running — fix the one you have while they finish. If
+   a second job fails while you're working, fold that fix into the same commit.
+4. Commit, push, and re-enter §4's loop.
 
-Repeat until all checks are green.
+**Frontend Lint & Tests** and **Check Generated Types** report in a few
+minutes; **Backend Lint & Tests** is the long pole. Its scope is computed from
+the diff — a change under `backend/alembic/` or to `.github/workflows/ci.yml`
+forces the full `app/ alembic/` suite (the ~26-minute case), while an ordinary
+backend change runs a scoped subset. If you touch either of those paths, expect
+the long run and plan the batch around it. A PR with no `backend/` changes
+skips the job entirely.
 
-## 5. Drive the Greptile review loop
-
-Greptile posts an automated review with a **confidence score** and inline
-findings. Read them:
-
-```bash
-gh pr view <n> --json reviews -q '.reviews[] | select(.author.login|test("greptile";"i")) | .body'
-# inline findings:
-gh api repos/{owner}/{repo}/pulls/<n>/comments --jq '.[] | {path,line,body}'
-```
-
-For each finding: judge whether it's a real issue in scope for this PR.
-- **In scope + valid** → fix it (edit, commit, push).
-- **Out of scope / false positive** → note why in a brief reply; don't fix.
-
-After addressing a round of feedback, trigger a re-review by posting a bare
-mention as a PR comment:
-
-```bash
-gh pr comment <n> --body "@greptile"
-```
-
-Wait for the new Greptile review, then re-read. **Aim for 5/5 confidence.**
-Accept 4/5 only if the remaining findings are genuinely out of scope for this
-PR. Loop (fix → `@greptile` → re-read) until you reach that bar.
-
-## 6. Report
+## 7. Report
 
 Summarize for the user:
 - PR URL and number.
@@ -145,9 +199,16 @@ Summarize for the user:
 
 ## Notes on pacing
 
-- CI on this repo takes a couple of minutes per run; a 15s poll with a
-  generous timeout (e.g. 420000ms) is reasonable.
-- If the user wants to walk away, you can run the wait loop in the background
-  and report when it settles rather than blocking the session.
+- **Budget the real numbers.** Backend Lint & Tests runs up to ~26 minutes on a
+  full-suite PR; the frontend and generated-types jobs land in a few. Greptile
+  typically posts within the first minute or two. The §4 loop exists so those
+  25 minutes aren't dead time.
+- A 30s poll is right for a run of this length; anything tighter just burns API
+  calls. Always background the loop — a foreground Bash call maxes out at 10
+  minutes, less than half a backend cycle.
+- Tell the user the expected wait when you start watching, and don't go silent:
+  report each event as you handle it rather than only at the end.
+- Don't re-run local gates you already ran this session just because you're
+  pushing again; run the ones the new edits actually touch.
 - Never fabricate a check result — only report statuses you actually read from
   `gh`.

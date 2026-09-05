@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { MessageSquare, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import type { DirectMessagePermissionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   useAcceptConnection,
@@ -20,6 +21,12 @@ interface ContactActionButtonsProps {
    *  halves of it are needed rather than only the id. */
   user: { id: number; username: string; discriminator: number };
   className?: string;
+  /**
+   * The server's answer about this person, where the surface already has it.
+   * A list asks once for its whole page; without this each row would ask for
+   * itself, which is a request per row.
+   */
+  permission?: DirectMessagePermissionRead | null;
 }
 
 /**
@@ -33,10 +40,16 @@ interface ContactActionButtonsProps {
  * A request already sent stays on screen as a disabled button rather than
  * disappearing: the gap where it was would read as the ask having failed.
  */
-export const ContactActionButtons = ({ user, className }: ContactActionButtonsProps) => {
+export const ContactActionButtons = ({
+  user,
+  className,
+  permission: supplied,
+}: ContactActionButtonsProps) => {
   const { t } = useTranslation(["contacts", "settings"]);
 
-  const { data: permission } = useDmPermission(user.id);
+  // Only where the caller has not already been told.
+  const own = useDmPermission(supplied === undefined ? user.id : undefined);
+  const permission = supplied ?? own.data;
   const { data: connections } = useConnections();
   const { data: messageRequests } = useMessageRequests();
 
@@ -79,6 +92,9 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
         </Button>
       ) : null}
 
+      {/* Connecting and messaging are separate rules, so the server is asked
+          about both. Offering a request that would be refused is worse than
+          offering nothing: it reads as a way in, and answers with an error. */}
       {isConnection ? null : theyAsked ? (
         <Button
           size="sm"
@@ -89,7 +105,7 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
           <UserPlus className="size-4" aria-hidden />
           {t("actions.acceptConnection")}
         </Button>
-      ) : (
+      ) : !(permission?.may_connect ?? false) ? null : (
         <Button
           size="sm"
           variant="outline"

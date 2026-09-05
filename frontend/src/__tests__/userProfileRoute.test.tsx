@@ -88,7 +88,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   answerWith(buildUserProfile());
   mocks.communities.mockReturnValue({ data: [] });
-  mocks.dmPermission.mockReturnValue({ data: { permission: "denied" } });
+  mocks.dmPermission.mockReturnValue({ data: { permission: "denied", may_connect: true } });
   mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
 });
@@ -162,7 +162,7 @@ describe("a member's profile", () => {
     // came to do is a button on it rather than an item behind a menu.
     const them = buildUserProfile();
     answerWith(them);
-    mocks.dmPermission.mockReturnValue({ data: { permission: "open" } });
+    mocks.dmPermission.mockReturnValue({ data: { permission: "open", may_connect: true } });
     await renderProfile();
 
     // Addressed by their handle, which is how My Messages resolves a person.
@@ -173,7 +173,7 @@ describe("a member's profile", () => {
   it("offers to ask, where there is no channel yet", async () => {
     const them = buildUserProfile();
     answerWith(them);
-    mocks.dmPermission.mockReturnValue({ data: { permission: "may_request" } });
+    mocks.dmPermission.mockReturnValue({ data: { permission: "may_request", may_connect: true } });
     await renderProfile();
 
     await userEvent.click(await screen.findByRole("button", { name: /ask to message/i }));
@@ -192,6 +192,17 @@ describe("a member's profile", () => {
 
     expect(await screen.findByRole("button", { name: /accept connection/i })).toBeEnabled();
     expect(screen.queryByRole("button", { name: /request sent/i })).toBeNull();
+  });
+
+  it("does not offer a connection the server would refuse", async () => {
+    // Connecting and messaging are separate rules, so a person who takes no
+    // connection requests must not be shown a button that answers with an
+    // error. The server says which, and the profile asks.
+    mocks.dmPermission.mockReturnValue({ data: { permission: "open", may_connect: false } });
+    await renderProfile();
+
+    expect(await screen.findByRole("link", { name: /message/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^connect$/i })).toBeNull();
   });
 
   it("offers neither where the server says no", async () => {

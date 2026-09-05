@@ -41,14 +41,14 @@ const ADA = { id: 7, username: "ada", discriminator: 1234 };
 
 // Through a router: one of the items is a link to the person's profile, and a
 // `Link` outside a router does not render at all.
-const open = async () => {
-  renderPage(() => <ContactActionsMenu user={ADA} />);
+const open = async ({ reachOffered = false }: { reachOffered?: boolean } = {}) => {
+  renderPage(() => <ContactActionsMenu user={ADA} reachOffered={reachOffered} />);
   await userEvent.click(await screen.findByRole("button", { name: /Actions for ada/i }));
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.permission.mockReturnValue({ data: { permission: "denied" } });
+  mocks.permission.mockReturnValue({ data: { permission: "denied", may_connect: true } });
   mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.ignored.mockReturnValue({ data: { items: [], total: 0 } });
 });
@@ -92,6 +92,18 @@ describe("ContactActionsMenu", () => {
       "/messages?with=ada1234"
     );
     expect(screen.queryByRole("menuitem", { name: /view profile/i })).toBeNull();
+  });
+
+  it("leaves the ways in out where something beside it offers them", async () => {
+    // The buttons and this menu sit together on a profile and on a roster.
+    // Offering Connect in both is the same action twice, a click apart.
+    mocks.permission.mockReturnValue({ data: { permission: "open", may_connect: true } });
+    await open({ reachOffered: true });
+
+    expect(screen.queryByRole("menuitem", { name: "Message" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /^connect$/i })).toBeNull();
+    // What is only here stays here.
+    expect(screen.getByRole("menuitem", { name: /^ignore$/i })).toBeInTheDocument();
   });
 
   it("offers nothing to open where the channel is not", async () => {

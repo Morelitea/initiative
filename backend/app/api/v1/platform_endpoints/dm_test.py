@@ -167,7 +167,7 @@ async def test_permission_is_identical_across_being_ignored(
     url = f"/api/v1/users/{ada.user.id}/dm-permission"
     before = await client.get(url, headers=bram.headers)
     assert before.status_code == 200
-    assert before.json() == {"permission": "may_request"}
+    assert before.json() == {"permission": "may_request", "may_connect": True}
 
     session.add(UserIgnore(user_id=ada.user.id, ignored_user_id=bram.user.id))
     await session.commit()
@@ -186,7 +186,7 @@ async def test_a_private_target_is_denied(client, session, acting_user):
     response = await client.get(
         f"/api/v1/users/{ada.user.id}/dm-permission", headers=bram.headers
     )
-    assert response.json() == {"permission": "denied"}
+    assert response.json() == {"permission": "denied", "may_connect": True}
 
 
 async def test_an_unknown_account_is_not_found(client, acting_user):
@@ -283,7 +283,7 @@ async def test_accepting_a_connection_opens_the_channel(client, session, acting_
     permission = await client.get(
         f"/api/v1/users/{b.user.id}/dm-permission", headers=a.headers
     )
-    assert permission.json() == {"permission": "open"}
+    assert permission.json() == {"permission": "open", "may_connect": True}
 
 
 async def test_a_request_from_an_ignored_account_is_never_surfaced(
@@ -333,7 +333,7 @@ async def test_removing_a_connection_keeps_a_community_channel(
     permission = await client.get(
         f"/api/v1/users/{bram.user.id}/dm-permission", headers=ada.headers
     )
-    assert permission.json() == {"permission": "open"}
+    assert permission.json() == {"permission": "open", "may_connect": True}
 
 
 async def test_ignoring_someone_does_not_stop_you_reaching_them(
@@ -359,3 +359,64 @@ async def test_ignoring_someone_does_not_stop_you_reaching_them(
 
     theirs = await client.get("/api/v1/me/connections", headers=ada.headers)
     assert [r["user_id"] for r in theirs.json()["incoming"]] == [bram.user.id]
+
+
+async def test_may_connect_says_nothing_about_being_ignored(
+    client, session, acting_user
+):
+    """The second answer is held to the first one's rule.
+
+    Connecting and messaging are separate rules, so the endpoint carries both —
+    but neither may tell the caller they have been ignored. ``dm_may_connect``
+    asks whether each account is reachable at all, which is a fact about each
+    of them rather than about the pair.
+    """
+    ada = await acting_user(guild_role=GuildRole.member)
+    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    await _set_policy(session, ada.user, DmPolicy.community)
+    await _set_policy(session, bram.user, DmPolicy.community)
+
+    url = f"/api/v1/users/{ada.user.id}/dm-permission"
+    before = await client.get(url, headers=bram.headers)
+
+    session.add(UserIgnore(user_id=ada.user.id, ignored_user_id=bram.user.id))
+    await session.commit()
+
+    after = await client.get(url, headers=bram.headers)
+    assert after.json()["may_connect"] == before.json()["may_connect"]
+
+
+async def test_permissions_in_bulk_answer_as_the_single_read_does(
+    client, session, acting_user
+):
+    """One request for a page of people, and the same two answers per person.
+
+    A surface listing members draws a control per row; asking per row is a
+    request per row. This has to be the same question asked once for many
+    subjects, not a looser one.
+    """
+    ada = await acting_user(guild_role=GuildRole.member)
+    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    await _set_policy(session, ada.user, DmPolicy.community)
+    await _set_policy(session, bram.user, DmPolicy.private)
+
+    single = {
+        str(other.user.id): (
+            await client.get(
+                f"/api/v1/users/{other.user.id}/dm-permission", headers=ada.headers
+            )
+        ).json()
+        for other in (bram,)
+    }
+
+    bulk = await client.post(
+        "/api/v1/me/dm-permissions",
+        json={"user_ids": [bram.user.id, ada.user.id]},
+        headers=ada.headers,
+    )
+    assert bulk.status_code == 200, bulk.text
+    answers = bulk.json()["permissions"]
+
+    assert answers[str(bram.user.id)] == single[str(bram.user.id)]
+    # Nothing about yourself: every action on your own account is refused.
+    assert str(ada.user.id) not in answers

@@ -422,5 +422,15 @@
     "description": "Ob diese Community die echten Namen der Leute zeigt oder die von ihnen gewählten Benutzernamen.",
     "toggleLabel": "Vollständige Namen zeigen",
     "toggleHint": "Aus erscheinen Mitglieder mit ihrem Benutzernamen. An wird ihr vollständiger Name gezeigt, sofern hinterlegt."
+  },
+  "members": {
+    "title": "Mitglieder",
+    "person": "Mitglied",
+    "name": "Name",
+    "admin": "Admin",
+    "alsoIn": "Auch in",
+    "actions": "Aktionen",
+    "failed": "Die Mitglieder dieser Community konnten nicht geladen werden.",
+    "searchPlaceholder": "Mitglieder filtern"
   }
 }

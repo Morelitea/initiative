@@ -552,6 +552,27 @@ async def list_memberships(
     return out
 
 
+async def count_members_by_guild(
+    session: AsyncSession, *, guild_ids: Sequence[int]
+) -> dict[int, int]:
+    """How many members each of these guilds has, in one query.
+
+    The bulk form of :func:`count_members`, for a surface drawing several
+    cards at once. Same session requirement, and a guild with no row in the
+    answer simply has nobody in it.
+    """
+    if not guild_ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(GuildMembership.guild_id, func.count())
+            .where(GuildMembership.guild_id.in_(list(guild_ids)))
+            .group_by(GuildMembership.guild_id)
+        )
+    ).all()
+    return {guild_id: total for guild_id, total in rows}
+
+
 async def count_members(session: AsyncSession, *, guild_id: int) -> int:
     """Total number of members in a guild.
 

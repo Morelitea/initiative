@@ -1896,8 +1896,9 @@ export interface ContactRead {
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
-  presence: Presence;
   profile_decorations: ProfileDecorationsOutput;
+  guild_role: string | null;
+  presence: Presence;
   shared_guild_ids: number[];
 }
 
@@ -2297,7 +2298,34 @@ export interface DeviceTokenResponse {
  * all answer the same way.
  */
 export interface DirectMessagePermissionRead {
+  may_connect: boolean;
   permission: string;
+}
+
+/**
+ * Which accounts a surface is about to draw controls for.
+ */
+export interface DirectMessagePermissionsRequest {
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  user_ids: number[];
+}
+
+export type DirectMessagePermissionsResponsePermissions = {
+  [key: string]: DirectMessagePermissionRead;
+};
+
+/**
+ * One answer per account asked about, keyed by id as a string.
+ *
+ * Accounts the caller may not see are simply absent rather than refused: the
+ * reader is drawing a list, and a page that fails because one row is gone is
+ * worse than one that offers nothing for that row.
+ */
+export interface DirectMessagePermissionsResponse {
+  permissions: DirectMessagePermissionsResponsePermissions;
 }
 
 export interface DirectMessageSettingsRead {
@@ -3612,10 +3640,19 @@ export interface InitiativeJoinRequestCreate {
 /**
  * Slim user projection for typeahead and picker surfaces.
  *
- * Drops what pickers never read — platform/guild role, ``initiative_roles``
- * (an N+1 enrichment on the full roster) and timestamps — while keeping the
- * avatar so members still render with a face. The payload is bounded by
- * pagination on the endpoints that serve it, not by dropping the avatar.
+ * What it keeps is what it takes to *draw* a person and say where they stand
+ * in the guild being read: the handle, the avatar, what they have put around
+ * it, and their guild role. A decoration is an id naming a catalog entry and
+ * a role is one word, so all of it is short, and none of it costs a query
+ * beyond the one already being run.
+ *
+ * What it drops is the account's own business and anything that would cost
+ * another round trip: no address, no platform tier, no ``initiative_roles``
+ * (an N+1 enrichment on the full roster), no timestamps. The payload is
+ * bounded by pagination on the endpoints that serve it.
+ *
+ * ``profile_decorations`` is quoted and the model rebuilt below, because the
+ * catalog shape it names is declared further down this file.
  */
 export interface UserSummary {
   id: number;
@@ -3624,6 +3661,8 @@ export interface UserSummary {
   full_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
+  profile_decorations: ProfileDecorationsOutput | null;
+  guild_role: string | null;
 }
 
 /**

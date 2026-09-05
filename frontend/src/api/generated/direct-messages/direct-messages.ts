@@ -26,6 +26,8 @@ import type {
   ContactGrantRead,
   ContactGrantsResponse,
   DirectMessagePermissionRead,
+  DirectMessagePermissionsRequest,
+  DirectMessagePermissionsResponse,
   DirectMessageSettingsRead,
   DirectMessageSettingsUpdate,
   DmConversationCreate,
@@ -648,6 +650,106 @@ export function useSafetyNumberApiV1UsersUserIdDmSafetyNumberGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * The same two answers as the single read, for a page of people at once.
+ *
+ * A surface listing members draws a control per row, and asking per row is a
+ * request per row. Both functions read the caller from the request context,
+ * so this is the same question asked once for many subjects rather than a
+ * different, looser one.
+ *
+ * A POST because the subjects are a list rather than an address: nothing is
+ * written, and the body is the only place a page of ids belongs.
+ * @summary Read Dm Permissions
+ */
+export const readDmPermissionsApiV1MeDmPermissionsPost = (
+  directMessagePermissionsRequest: BodyType<DirectMessagePermissionsRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DirectMessagePermissionsResponse>(
+    {
+      url: `/api/v1/me/dm-permissions`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: directMessagePermissionsRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadDmPermissionsApiV1MeDmPermissionsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof readDmPermissionsApiV1MeDmPermissionsPost>>,
+    TError,
+    { data: BodyType<DirectMessagePermissionsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof readDmPermissionsApiV1MeDmPermissionsPost>>,
+  TError,
+  { data: BodyType<DirectMessagePermissionsRequest> },
+  TContext
+> => {
+  const mutationKey = ["readDmPermissionsApiV1MeDmPermissionsPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof readDmPermissionsApiV1MeDmPermissionsPost>>,
+    { data: BodyType<DirectMessagePermissionsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return readDmPermissionsApiV1MeDmPermissionsPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReadDmPermissionsApiV1MeDmPermissionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof readDmPermissionsApiV1MeDmPermissionsPost>>
+>;
+export type ReadDmPermissionsApiV1MeDmPermissionsPostMutationBody =
+  BodyType<DirectMessagePermissionsRequest>;
+export type ReadDmPermissionsApiV1MeDmPermissionsPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Read Dm Permissions
+ */
+export const useReadDmPermissionsApiV1MeDmPermissionsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof readDmPermissionsApiV1MeDmPermissionsPost>>,
+      TError,
+      { data: BodyType<DirectMessagePermissionsRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof readDmPermissionsApiV1MeDmPermissionsPost>>,
+  TError,
+  { data: BodyType<DirectMessagePermissionsRequest> },
+  TContext
+> => {
+  return useMutation(
+    getReadDmPermissionsApiV1MeDmPermissionsPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * The policy this account picked, and one toggle per community it is in.
  *
