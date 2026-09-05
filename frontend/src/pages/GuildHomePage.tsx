@@ -220,6 +220,7 @@ export function GuildHomePage() {
         badges={
           activeGuild ? (
             <GuildBannerBadges
+              guildId={activeGuild.id}
               memberCount={activeGuild.member_count}
               onlineCount={activeGuild.online_count}
               ink={banner.text_color}

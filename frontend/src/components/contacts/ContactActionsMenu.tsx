@@ -30,6 +30,12 @@ interface ContactActionsMenuProps {
   user: { id: number; username: string; discriminator: number };
   /** Rendered inside a link or a row that is itself clickable. */
   className?: string;
+  /**
+   * Leave out the ways in — message, ask, connect — because something beside
+   * this menu already offers them. Set wherever `ContactActionButtons` is
+   * rendered too, so a person is not offered the same thing twice.
+   */
+  reachOffered?: boolean;
 }
 
 /**
@@ -45,7 +51,11 @@ interface ContactActionsMenuProps {
  * — and because every refusal collapses into that one word, a menu built from
  * it says nothing about which refusal it is.
  */
-export const ContactActionsMenu = ({ user, className }: ContactActionsMenuProps) => {
+export const ContactActionsMenu = ({
+  user,
+  className,
+  reachOffered = false,
+}: ContactActionsMenuProps) => {
   const { t } = useTranslation(["contacts", "settings"]);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
@@ -83,14 +93,14 @@ export const ContactActionsMenu = ({ user, className }: ContactActionsMenuProps)
               person -- a contacts row links there, and the profile is there.
               What it offers instead is the thing you would have gone looking
               for, which is the conversation. */}
-          {permission?.permission === "open" && (
+          {!reachOffered && permission?.permission === "open" && (
             <DropdownMenuItem asChild>
               <Link to="/messages" search={{ with: getUrlHandle(user) }}>
                 {t("actions.message")}
               </Link>
             </DropdownMenuItem>
           )}
-          {!isConnection && !isPending && (
+          {!reachOffered && !isConnection && !isPending && (
             <DropdownMenuItem
               onSelect={() =>
                 requestConnection.mutate(
@@ -102,7 +112,7 @@ export const ContactActionsMenu = ({ user, className }: ContactActionsMenuProps)
               {t("actions.connect")}
             </DropdownMenuItem>
           )}
-          {permission?.permission === "may_request" && (
+          {!reachOffered && permission?.permission === "may_request" && (
             <DropdownMenuItem
               onSelect={() =>
                 requestMessage.mutate(

@@ -422,5 +422,15 @@
     "description": "Si cette communauté affiche les vrais noms des personnes ou les noms d'utilisateur qu'elles ont choisis.",
     "toggleLabel": "Afficher les noms complets",
     "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un."
+  },
+  "members": {
+    "title": "Membres",
+    "person": "Membre",
+    "name": "Nom",
+    "admin": "Admin",
+    "alsoIn": "Aussi dans",
+    "actions": "Actions",
+    "failed": "Les membres de cette communauté n'ont pas pu être chargés.",
+    "searchPlaceholder": "Filtrer les membres"
   }
 }

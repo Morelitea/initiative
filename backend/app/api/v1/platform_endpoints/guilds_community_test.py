@@ -1105,6 +1105,32 @@ async def test_a_profile_names_only_the_listed_communities(
 
 
 @pytest.mark.integration
+async def test_a_profile_card_counts_the_community(
+    client: AsyncClient, session: AsyncSession
+):
+    """A card that says how many people are in a community has to ask.
+
+    Nothing about a guild row carries the number, so a card built without
+    asking says nobody is there — which is never true of a community somebody
+    is a member of.
+    """
+    subject = await create_user(session, username="tinker")
+    reader = await create_user(session)
+    listed = await _list_as_community(session, await create_guild(session))
+    for member in (subject, reader):
+        await create_guild_membership(session, user=member, guild=listed)
+
+    response = await client.get(
+        f"/api/v1/users/{url_handle(subject.username, subject.discriminator)}/communities",
+        headers=get_auth_headers(reader),
+    )
+
+    assert response.status_code == 200
+    # The two above, plus whoever created the guild.
+    assert response.json()[0]["member_count"] >= 2
+
+
+@pytest.mark.integration
 async def test_a_profile_names_no_communities_where_the_directory_is_off(
     client: AsyncClient, session: AsyncSession
 ):

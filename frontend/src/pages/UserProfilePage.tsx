@@ -114,6 +114,7 @@ export const UserProfilePage = () => {
                   }}
                 />
                 <ContactActionsMenu
+                  reachOffered
                   user={{
                     id: profile.id,
                     username: profile.username,

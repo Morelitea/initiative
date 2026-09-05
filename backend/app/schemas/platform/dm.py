@@ -92,6 +92,13 @@ class DirectMessagePermissionRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: Whether a connection request would be taken. A separate answer from
+    #: ``permission``, because connecting and messaging are separate rules --
+    #: an account that takes no messages may still take a connection, and the
+    #: other way round. Without it a surface listing people can only guess,
+    #: and offer a button that is refused.
+    may_connect: bool = False
+
     permission: str
 
 

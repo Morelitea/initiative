@@ -159,13 +159,20 @@ async def read_dm_permission(
     """
     await _require_visible_account(session, user_id)
     if user_id == current_user.id:
-        return DirectMessagePermissionRead(permission="denied")
+        return DirectMessagePermissionRead(permission="denied", may_connect=False)
     permission = (
         await session.exec(
             text("SELECT public.dm_apparent_permission(:t)").bindparams(t=user_id)
         )
     ).scalar_one()
-    return DirectMessagePermissionRead(permission=permission)
+    # Asked separately because it is a separate rule. Both read the caller from
+    # the request context rather than taking one.
+    may_connect = (
+        await session.exec(
+            text("SELECT public.dm_may_connect(:t)").bindparams(t=user_id)
+        )
+    ).scalar_one()
+    return DirectMessagePermissionRead(permission=permission, may_connect=may_connect)
 
 
 def _grant_error(exc: contact_grants_service.ContactGrantError) -> HTTPException:

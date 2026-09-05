@@ -22,6 +22,8 @@ export const grantAsContact = (grant: ContactGrantRead): ContactRead => ({
   full_name: null,
   avatar_url: grant.avatar_url,
   status: grant.status,
+  // A grant knows nothing about a guild, which is the point of this section.
+  guild_role: null,
   presence: grant.presence,
   profile_decorations: grant.profile_decorations,
   shared_guild_ids: [],

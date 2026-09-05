@@ -422,5 +422,15 @@
     "description": "Whether this community shows people's real names, or the usernames they chose.",
     "toggleLabel": "Show full names",
     "toggleHint": "Off, members appear by username. On, their full name is shown where they have entered one."
+  },
+  "members": {
+    "title": "Members",
+    "person": "Member",
+    "name": "Name",
+    "admin": "Admin",
+    "alsoIn": "Also in",
+    "actions": "Actions",
+    "failed": "This community's members could not be loaded.",
+    "searchPlaceholder": "Filter members"
   }
 }

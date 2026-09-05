@@ -79,6 +79,9 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
         </Button>
       ) : null}
 
+      {/* Connecting and messaging are separate rules, so the server is asked
+          about both. Offering a request that would be refused is worse than
+          offering nothing: it reads as a way in, and answers with an error. */}
       {isConnection ? null : theyAsked ? (
         <Button
           size="sm"
@@ -89,7 +92,7 @@ export const ContactActionButtons = ({ user, className }: ContactActionButtonsPr
           <UserPlus className="size-4" aria-hidden />
           {t("actions.acceptConnection")}
         </Button>
-      ) : (
+      ) : !(permission?.may_connect ?? false) ? null : (
         <Button
           size="sm"
           variant="outline"

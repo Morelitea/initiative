@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A community lists its members.** The member count on a community's banner now leads somewhere: a page of everyone who is here, searchable and paged, with the same *Message*, *Ask to message* and *Connect* buttons a person gets anywhere else. Somebody who takes no messages is listed like anybody else and simply offers nothing to click — they are here, and they are not reachable, and the page says both.
+
 - **Say who can message you.** A Privacy tab under your profile settings, with one question at the top: who can ask to message you, outside your connections. *Private* means no one, *Anyone* means anybody here may ask, and *My communities* means people you share a community with — with a switch per community under it, all counting by default, so you can be reachable in one and not another. Asking is always a request and it is always yours to accept; nobody arrives in your messages because they found you. Messaging is for people aged 13 and over, and an account that has not answered that question yet is told so rather than left with controls that do nothing.
 
 - **Connections.** A connection is mutual, and it is how two people stay in touch after the thing that introduced them ends — you can keep messaging even once you no longer share a community. You make one by typing somebody's full handle, number included, so a private account is reached by someone who was given it rather than by being picked off a list. Requests wait in one place, either direction, and a connection you accept opens the channel with it: having agreed once, you are not asked again.
@@ -54,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **My Contacts lists the people you could actually reach.** A community section now shows the members who can message you and who you can message, rather than everyone in the room — so the page answers "who can I talk to" instead of "who is here". A community you are alone in is left out entirely. Because the shipped default is Private, a new account's sections start empty, and the page says why and offers the one setting that fills them, rather than reading as a community with nobody in it. It never counts the people it is not listing. Two new sections sit above the communities: your connections, and the people you agreed to message who are in none of your communities — before this they appeared nowhere.
 
 ### Fixed
+
+- **A profile's communities say how many people are in them.** Each card counted nobody, because the profile's own read never asked for the number — a community somebody belongs to has at least one member, so "0 members" was never true.
 
 - **Everyone in a community hears that it was listed.** The notice that a community joined the directory — which is what asks its members their age — only reached people whose tab happened to be held by the same server process that made the change. On a deployment running more than one, everybody else waited until they next navigated.
 

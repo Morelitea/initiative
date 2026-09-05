@@ -13,19 +13,27 @@
  * "someone is here" means, on any banner.
  */
 
+import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { readableTextShadow, withAlpha } from "@/lib/contrastColor";
 
 export type GuildBannerBadgesProps = {
+  /** The community whose roster the member count leads to. */
+  guildId: number;
   memberCount: number;
   onlineCount: number;
   /** The banner's text colour, which these are tinted from. */
   ink: string;
 };
 
-export const GuildBannerBadges = ({ memberCount, onlineCount, ink }: GuildBannerBadgesProps) => {
+export const GuildBannerBadges = ({
+  guildId,
+  memberCount,
+  onlineCount,
+  ink,
+}: GuildBannerBadgesProps) => {
   const { t } = useTranslation("guilds");
 
   const chip = {
@@ -37,13 +45,17 @@ export const GuildBannerBadges = ({ memberCount, onlineCount, ink }: GuildBanner
 
   return (
     <>
-      <span
-        className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-xs backdrop-blur-sm"
+      {/* The count is the way in: it says how many people are here, so it is
+          what somebody looking for one of them reaches for. */}
+      <Link
+        to="/c/$guildId/members"
+        params={{ guildId: String(guildId) }}
+        className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium text-xs backdrop-blur-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-current"
         style={chip}
       >
         <Users className="h-3.5 w-3.5" aria-hidden="true" />
         {t("memberCount", { count: memberCount })}
-      </span>
+      </Link>
       {/* A guild with nobody in it says nothing rather than "0 online", which
           reads as a verdict on the guild rather than on the moment. */}
       {onlineCount > 0 ? (
