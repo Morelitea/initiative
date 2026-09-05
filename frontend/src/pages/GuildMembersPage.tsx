@@ -13,8 +13,10 @@ import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { useAuth } from "@/hooks/useAuth";
 import { useFavoriteContacts, useToggleFavoriteContact } from "@/hooks/useContacts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useDmPermissions } from "@/hooks/useDirectMessages";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { USER_SEARCH_PAGE_SIZE, useUserSearch } from "@/hooks/useUsers";
 import type { AppColumnDef } from "@/lib/table";
@@ -42,6 +44,7 @@ export const GuildMembersPage = () => {
   const { guildId } = useParams({ strict: false }) as { guildId: string };
   const { page = 1, q = "" } = useSearch({ strict: false }) as { page?: number; q?: string };
   const navigate = useNavigate();
+  const { user: me } = useAuth();
 
   const id = Number(guildId);
   const members = useUserSearch({
@@ -51,6 +54,8 @@ export const GuildMembersPage = () => {
     guildIdOverride: id,
   });
   const rows = useMemo(() => members.data?.items ?? [], [members.data]);
+  // One question for the whole page. Asked per row, this is a request per row.
+  const permissions = useDmPermissions(useMemo(() => rows.map((row) => row.id), [rows]));
   const total = members.data?.total_count ?? 0;
   const pageSize = members.data?.page_size ?? USER_SEARCH_PAGE_SIZE;
 
@@ -74,10 +79,15 @@ export const GuildMembersPage = () => {
   // Follow the URL when it changes from outside — back, forward, a shared link.
   useEffect(() => setDraft(q), [q]);
   useEffect(() => {
+    // Only once typing has settled *onto the current draft*. Without that, an
+    // address changed from outside -- back, forward, a link somebody sent --
+    // is immediately overwritten by whatever was being typed 250ms ago, and
+    // history cannot be walked.
+    if (settled !== draft || settled === q) return;
     // A new search starts at the beginning: page 3 of the old one says nothing
     // about the new one.
-    if (settled !== q) setSearch({ q: settled || undefined, page: undefined });
-  }, [settled, q, setSearch]);
+    setSearch({ q: settled || undefined, page: undefined });
+  }, [settled, draft, q, setSearch]);
 
   // Starring is a second read: a favourite may be somebody you share no
   // community with, so the list is not a slice of this roster.
@@ -87,6 +97,8 @@ export const GuildMembersPage = () => {
     [favorites.data]
   );
   const setFavorite = useToggleFavoriteContact();
+
+  const answers = permissions.data?.permissions ?? {};
 
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
     "guild-members-columns",
@@ -138,6 +150,10 @@ export const GuildMembersPage = () => {
         enableSorting: false,
         header: () => <span className="sr-only">{t("members.actions")}</span>,
         cell: ({ row }) => {
+          // Your own row carries none of this: starring, ignoring and every
+          // way in are refused for yourself, so offering them is offering
+          // errors.
+          if (row.original.id === me?.id) return null;
           const person = {
             id: row.original.id,
             username: row.original.username,
@@ -145,7 +161,7 @@ export const GuildMembersPage = () => {
           };
           return (
             <div className="flex items-center justify-end gap-1">
-              <ContactActionButtons user={person} />
+              <ContactActionButtons user={person} permission={answers[String(person.id)] ?? null} />
               {/* Its own control rather than a menu item, the way a contacts
                   row has it: starring is one private, reversible click and
                   nothing is told to anybody. */}
@@ -158,13 +174,17 @@ export const GuildMembersPage = () => {
                   which a roster is the likeliest place to want. Same menu as
                   their profile and their contacts row, so it holds no surprise
                   and nothing has to be kept in step. */}
-              <ContactActionsMenu user={person} reachOffered />
+              <ContactActionsMenu
+                user={person}
+                reachOffered
+                permission={answers[String(person.id)] ?? null}
+              />
             </div>
           );
         },
       },
     ],
-    [t, starred, setFavorite]
+    [t, starred, setFavorite, me?.id, answers]
   );
 
   return (

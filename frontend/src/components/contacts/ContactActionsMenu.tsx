@@ -3,6 +3,7 @@ import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { DirectMessagePermissionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -31,6 +32,12 @@ interface ContactActionsMenuProps {
   /** Rendered inside a link or a row that is itself clickable. */
   className?: string;
   /**
+   * The server's answer about this person, where the surface already has it.
+   * A list asks once for its whole page; without this each row would ask for
+   * itself, which is a request per row.
+   */
+  permission?: DirectMessagePermissionRead | null;
+  /**
    * Leave out the ways in — message, ask, connect — because something beside
    * this menu already offers them. Set wherever `ContactActionButtons` is
    * rendered too, so a person is not offered the same thing twice.
@@ -55,11 +62,14 @@ export const ContactActionsMenu = ({
   user,
   className,
   reachOffered = false,
+  permission: supplied,
 }: ContactActionsMenuProps) => {
   const { t } = useTranslation(["contacts", "settings"]);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
-  const { data: permission } = useDmPermission(user.id);
+  // Only where the caller has not already been told.
+  const own = useDmPermission(supplied === undefined ? user.id : undefined);
+  const permission = supplied ?? own.data;
   const { data: connections } = useConnections();
   const { data: ignored } = useIgnoredAccounts();
 
@@ -100,7 +110,9 @@ export const ContactActionsMenu = ({
               </Link>
             </DropdownMenuItem>
           )}
-          {!reachOffered && !isConnection && !isPending && (
+          {/* Same rule the buttons answer to: connecting is its own decision,
+              and a request the server would refuse is not worth offering. */}
+          {!reachOffered && !isConnection && !isPending && permission?.may_connect && (
             <DropdownMenuItem
               onSelect={() =>
                 requestConnection.mutate(

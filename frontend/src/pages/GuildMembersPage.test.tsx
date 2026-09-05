@@ -6,17 +6,24 @@
  * here is that it asks for the right one, pages within it, and offers each
  * person the same way in that they get anywhere else.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
+
+// The reader, so a row can be told apart from their own.
+vi.mock("@/hooks/useAuth", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useAuth: () => ({ user: { id: 99 } }),
+}));
 
 const mocks = vi.hoisted(() => ({
   members: vi.fn(),
   permission: vi.fn(),
   connections: vi.fn(),
   favorites: vi.fn(),
+  permissions: vi.fn(),
   setFavorite: vi.fn(),
   ignored: vi.fn(),
   ignore: vi.fn(),
@@ -34,6 +41,7 @@ vi.mock("@/hooks/useUsers", async (importOriginal) => ({
 }));
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
+  useDmPermissions: (ids: number[]) => mocks.permissions(ids),
   useDmPermission: () => mocks.permission(),
   useConnections: () => mocks.connections(),
   useIgnoredAccounts: () => mocks.ignored(),
@@ -68,6 +76,7 @@ const setup = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.permission.mockReturnValue({ data: { permission: "denied", may_connect: false } });
+  mocks.permissions.mockReturnValue({ data: { permissions: {} } });
   mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.favorites.mockReturnValue({ data: { items: [] } });
   mocks.ignored.mockReturnValue({ data: { items: [] } });
@@ -93,7 +102,9 @@ describe("a community's members page", () => {
   });
 
   it("offers the conversation where the server says there is one", async () => {
-    mocks.permission.mockReturnValue({ data: { permission: "open", may_connect: true } });
+    mocks.permissions.mockReturnValue({
+      data: { permissions: { "1": { permission: "open", may_connect: true } } },
+    });
     answer([person(1, "ada")]);
     setup();
 
@@ -174,6 +185,44 @@ describe("a community's members page", () => {
     await userEvent.click(await screen.findByRole("button", { name: /actions for ada/i }));
 
     expect(await screen.findByRole("menuitem", { name: /^ignore$/i })).toBeInTheDocument();
+  });
+
+  it("asks about the whole page at once", async () => {
+    // Asked per row, this is a request per row -- a hundred on a full page.
+    answer([person(1, "ada"), person(2, "bram")]);
+    setup();
+
+    await screen.findByText("ada");
+    expect(mocks.permissions).toHaveBeenCalledWith([1, 2]);
+  });
+
+  it("lets the address change under it without pushing back", async () => {
+    // Back, forward, a link somebody sent: the draft catches up to the URL,
+    // and the pending debounce must not overwrite it with what was being
+    // typed a moment ago.
+    answer([person(1, "ada")]);
+    const { router } = setup();
+    await screen.findByText("ada");
+
+    await userEvent.type(screen.getByPlaceholderText(/filter members/i), "zz");
+    await act(() =>
+      router.navigate({ to: "/c/$guildId/members", params: { guildId: "7" }, search: { q: "ada" } })
+    );
+
+    await waitFor(() => expect(screen.getByPlaceholderText(/filter members/i)).toHaveValue("ada"));
+    expect((router.state.location.search as { q?: string }).q).toBe("ada");
+  });
+
+  it("offers nothing to do about yourself", async () => {
+    // Starring, ignoring and every way in are refused for your own account,
+    // so a row for it that offered them would be offering errors.
+    answer([person(99, "me"), person(1, "ada")]);
+    setup();
+
+    await screen.findByText("me");
+    // One row has the controls; the reader's own has none.
+    expect(screen.getAllByRole("button", { name: /to favorites/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /actions for/i })).toHaveLength(1);
   });
 
   it("says so when the roster cannot be read", async () => {

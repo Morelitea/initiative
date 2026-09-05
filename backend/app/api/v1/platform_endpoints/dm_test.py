@@ -384,3 +384,39 @@ async def test_may_connect_says_nothing_about_being_ignored(
 
     after = await client.get(url, headers=bram.headers)
     assert after.json()["may_connect"] == before.json()["may_connect"]
+
+
+async def test_permissions_in_bulk_answer_as_the_single_read_does(
+    client, session, acting_user
+):
+    """One request for a page of people, and the same two answers per person.
+
+    A surface listing members draws a control per row; asking per row is a
+    request per row. This has to be the same question asked once for many
+    subjects, not a looser one.
+    """
+    ada = await acting_user(guild_role=GuildRole.member)
+    bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    await _set_policy(session, ada.user, DmPolicy.community)
+    await _set_policy(session, bram.user, DmPolicy.private)
+
+    single = {
+        str(other.user.id): (
+            await client.get(
+                f"/api/v1/users/{other.user.id}/dm-permission", headers=ada.headers
+            )
+        ).json()
+        for other in (bram,)
+    }
+
+    bulk = await client.post(
+        "/api/v1/me/dm-permissions",
+        json={"user_ids": [bram.user.id, ada.user.id]},
+        headers=ada.headers,
+    )
+    assert bulk.status_code == 200, bulk.text
+    answers = bulk.json()["permissions"]
+
+    assert answers[str(bram.user.id)] == single[str(bram.user.id)]
+    # Nothing about yourself: every action on your own account is refused.
+    assert str(ada.user.id) not in answers

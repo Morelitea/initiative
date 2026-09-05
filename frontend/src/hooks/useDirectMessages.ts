@@ -7,9 +7,11 @@
  * acted and a tab that only watched end up saying the same thing.
  */
 
-import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 
 import {
+  readDmPermissionsApiV1MeDmPermissionsPost,
   useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost,
   useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost,
   useIgnoreAccountApiV1MeIgnoredUserIdPut,
@@ -80,6 +82,26 @@ export const useDmPermission = (userId: number | undefined) =>
   useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
     query: { enabled: typeof userId === "number" },
   });
+/**
+ * The same two answers, for a page of people at once.
+ *
+ * A surface listing members draws a control per row, and asking per row is a
+ * request per row -- up to a hundred when a roster page is full. One question
+ * about many subjects instead, cached under the ids it was asked about.
+ *
+ * A POST that reads: the subjects are a list rather than an address, so
+ * `useQuery` rather than a mutation, with the ids in the key.
+ */
+export const useDmPermissions = (userIds: number[]) => {
+  const ids = useMemo(() => [...new Set(userIds)].sort((a, b) => a - b), [userIds]);
+  return useQuery({
+    queryKey: ["dm", "permissions", ids],
+    queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
+    enabled: ids.length > 0,
+    staleTime: 30_000,
+  });
+};
+
 export const useConnections = () => useListConnectionsApiV1MeConnectionsGet();
 export const useMessageRequests = () => useListMessageRequestsApiV1MeMessageRequestsGet();
 export const useIgnoredAccounts = () => useListIgnoredAccountsApiV1MeIgnoredGet();

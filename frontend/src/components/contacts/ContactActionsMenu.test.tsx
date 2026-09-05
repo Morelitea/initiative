@@ -48,7 +48,7 @@ const open = async ({ reachOffered = false }: { reachOffered?: boolean } = {}) =
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.permission.mockReturnValue({ data: { permission: "denied" } });
+  mocks.permission.mockReturnValue({ data: { permission: "denied", may_connect: true } });
   mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.ignored.mockReturnValue({ data: { items: [], total: 0 } });
 });

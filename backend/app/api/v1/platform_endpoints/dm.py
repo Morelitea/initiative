@@ -23,6 +23,8 @@ from app.schemas.platform.dm import (
     ContactGrantRead,
     ContactGrantsResponse,
     DirectMessagePermissionRead,
+    DirectMessagePermissionsRequest,
+    DirectMessagePermissionsResponse,
     DirectMessageSettingsRead,
     DirectMessageSettingsUpdate,
     IgnoredAccountsResponse,
@@ -58,6 +60,44 @@ async def _require_visible_account(session, user_id: int) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=DirectMessageMessages.USER_NOT_FOUND,
         )
+
+
+@me_router.post("/dm-permissions", response_model=DirectMessagePermissionsResponse)
+async def read_dm_permissions(
+    payload: DirectMessagePermissionsRequest,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DirectMessagePermissionsResponse:
+    """The same two answers as the single read, for a page of people at once.
+
+    A surface listing members draws a control per row, and asking per row is a
+    request per row. Both functions read the caller from the request context,
+    so this is the same question asked once for many subjects rather than a
+    different, looser one.
+
+    A POST because the subjects are a list rather than an address: nothing is
+    written, and the body is the only place a page of ids belongs.
+    """
+    ids = [uid for uid in dict.fromkeys(payload.user_ids) if uid != current_user.id]
+    if not ids:
+        return DirectMessagePermissionsResponse(permissions={})
+    rows = (
+        await session.exec(
+            text(
+                "SELECT id, public.dm_apparent_permission(id) AS permission, "
+                "public.dm_may_connect(id) AS may_connect "
+                "FROM unnest(CAST(:ids AS int[])) AS t(id)"
+            ).bindparams(ids=ids)
+        )
+    ).all()
+    return DirectMessagePermissionsResponse(
+        permissions={
+            str(row.id): DirectMessagePermissionRead(
+                permission=row.permission, may_connect=row.may_connect
+            )
+            for row in rows
+        }
+    )
 
 
 @me_router.get("/dm-settings", response_model=DirectMessageSettingsRead)

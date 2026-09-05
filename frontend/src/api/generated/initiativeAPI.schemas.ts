@@ -2302,6 +2302,32 @@ export interface DirectMessagePermissionRead {
   permission: string;
 }
 
+/**
+ * Which accounts a surface is about to draw controls for.
+ */
+export interface DirectMessagePermissionsRequest {
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  user_ids: number[];
+}
+
+export type DirectMessagePermissionsResponsePermissions = {
+  [key: string]: DirectMessagePermissionRead;
+};
+
+/**
+ * One answer per account asked about, keyed by id as a string.
+ *
+ * Accounts the caller may not see are simply absent rather than refused: the
+ * reader is drawing a list, and a page that fails because one row is gone is
+ * worse than one that offers nothing for that row.
+ */
+export interface DirectMessagePermissionsResponse {
+  permissions: DirectMessagePermissionsResponsePermissions;
+}
+
 export interface DirectMessageSettingsRead {
   dm_policy: DmPolicy;
   communities: CommunityDmToggle[];
