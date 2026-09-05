@@ -919,9 +919,13 @@ function Thread({
                             tapped === message.id
                               ? ""
                               : cn(
-                                  "opacity-0 transition-opacity",
-                                  "group-hover/message:opacity-100",
-                                  "group-focus-within/message:opacity-100"
+                                  // Inert as well as faded, the way the bar is:
+                                  // an invisible button that still takes a tap
+                                  // is a tap on the space beside the reactions
+                                  // opening an emoji picker out of nowhere.
+                                  "pointer-events-none opacity-0 transition-opacity",
+                                  "group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+                                  "group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100"
                                 )
                           )}
                           mine={
