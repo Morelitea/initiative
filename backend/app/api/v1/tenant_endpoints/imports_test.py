@@ -1452,6 +1452,32 @@ async def test_importing_a_post_over_the_body_limit_is_refused(
 
 
 @pytest.mark.integration
+async def test_importing_a_structurally_oversized_body_is_refused(
+    client, acting_user, session
+):
+    """The character count is not the only ceiling. A body can hold almost no
+    words and still be enormous — deeply nested empty nodes — and a normal
+    write refuses that, so an import has to as well."""
+    from app.schemas.tenant.post import MAX_POST_BODY_BYTES
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.posts_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+
+    # Wide rather than wordy: thousands of empty paragraphs carry no text at
+    # all, so the character limit lets them straight through.
+    empty = {"type": "paragraph", "children": [], "version": 1, "format": ""}
+    bloated = {"root": {"type": "root", "children": [empty] * 4000}}
+    assert len(json.dumps(bloated).encode("utf-8")) > MAX_POST_BODY_BYTES
+
+    response = await _import_envelope(
+        client, a, _post_envelope(body=bloated), a.initiative.id
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.integration
 async def test_importing_a_long_headline_trims_rather_than_fails(
     client, acting_user, session
 ):

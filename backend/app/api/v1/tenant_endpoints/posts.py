@@ -45,14 +45,12 @@ from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.post import (
-    MAX_POST_BODY_BYTES,
-    MAX_POST_TEXT_CHARS,
     PostCreate,
     PostListResponse,
     PostPinUpdate,
     PostRead,
     PostUpdate,
-    post_text,
+    post_body_too_long,
     serialize_post,
 )
 from app.schemas.tenant.recent_view import RecentViewWrite
@@ -129,21 +127,11 @@ async def _check_create_permission(
 def _validated_body(body: dict | None) -> dict:
     """A notice's body, or a 422 saying it is too long.
 
-    Two ceilings, because they answer different questions. The character count
-    is the product rule — a board is read, not studied, and something this long
-    is a document. The byte size is a structural guard on the stored state: a
-    legitimate notice is nowhere near it (images and files are references, not
-    embedded data), so nothing real trips it.
+    The rule itself lives with the schema (``post_body_too_long``) because an
+    import applies the same one; this only maps it to a status code.
     """
-    import json
-
     clean = body or {}
-    if len(post_text(clean)) > MAX_POST_TEXT_CHARS:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=PostMessages.BODY_TOO_LONG,
-        )
-    if len(json.dumps(clean).encode("utf-8")) > MAX_POST_BODY_BYTES:
+    if post_body_too_long(clean):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=PostMessages.BODY_TOO_LONG,

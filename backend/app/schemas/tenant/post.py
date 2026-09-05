@@ -166,6 +166,29 @@ def post_text(body: Any) -> str:
     return " ".join(" ".join(parts).split())
 
 
+def post_body_too_long(body: Any) -> bool:
+    """Whether a body breaks either ceiling a post is held to.
+
+    THE rule, in one place, because there are two ways in — the endpoints and
+    an import — and they were allowed to disagree once already: the envelope
+    checked the character count and let a large, low-text Lexical structure
+    through, which the endpoints would then refuse to save again.
+
+    Two ceilings because they answer different questions. The character count
+    is the product rule — a board is read, not studied, and something this long
+    is a document. The byte size is structural, and independent of how much of
+    it is words: images and files are references rather than embedded data, so
+    a legitimate notice is nowhere near it and only a hand-made payload of
+    deeply nested empty nodes trips it.
+    """
+    import json
+
+    clean = body or {}
+    if len(post_text(clean)) > MAX_POST_TEXT_CHARS:
+        return True
+    return len(json.dumps(clean).encode("utf-8")) > MAX_POST_BODY_BYTES
+
+
 def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
     """The first line or so of a post, for the surfaces that show one in a
     line — recents, search, the guild table."""

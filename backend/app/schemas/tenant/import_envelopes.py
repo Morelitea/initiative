@@ -138,13 +138,16 @@ class PostEnvelope(_EnvelopeBase):
     tags: list[str] = []
 
     @model_validator(mode="after")
-    def _body_within_limit(self) -> "PostEnvelope":
-        # Imported here: the schema module is dependency-light on purpose, and
-        # this is the one place it needs the post rules.
-        from app.schemas.tenant.post import MAX_POST_TEXT_CHARS, post_text
+    def _body_within_limits(self) -> "PostEnvelope":
+        # The same rule the endpoints apply, not a second copy of it: an
+        # envelope that checked only the character count let a large, low-text
+        # Lexical structure through, which a normal write would then refuse.
+        # Imported here because the schema module is dependency-light on
+        # purpose, and this is the one place it needs the post rules.
+        from app.schemas.tenant.post import post_body_too_long
 
-        if len(post_text(self.body)) > MAX_POST_TEXT_CHARS:
-            raise ValueError(f"post body exceeds {MAX_POST_TEXT_CHARS} characters")
+        if post_body_too_long(self.body):
+            raise ValueError("post body exceeds the limits a post is held to")
         return self
 
 
