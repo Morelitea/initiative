@@ -313,7 +313,23 @@ function AppLayout() {
                   data-scroll-restoration-id="app-main"
                   className="min-w-0 flex-1 overflow-y-auto overflow-x-clip"
                 >
-                  <div className="container mx-auto p-4 pb-24 md:p-8 md:pb-24">
+                  {/* A grid, and `min-h-full` rather than `h-full`, because
+                      this sits between the scrollport and the page and must
+                      pass a height through without capping one.
+
+                      `h-full` would fix it at the scrollport's height, and a
+                      page taller than that would spill past its own bottom
+                      padding. `min-h-full` alone grows correctly but leaves
+                      `height: auto`, and a percentage height resolves against
+                      the parent's *height* — so `h-full` on a page would
+                      silently become `auto`. Three pages depend on that chain
+                      (My Messages, a document, an app surface): each pins
+                      something to an edge and needs a real height to do it.
+
+                      A grid row is definite either way. It is at least the
+                      scrollport, grows with a long page, and gives a child's
+                      `h-full` an area to resolve against. */}
+                  <div className="container mx-auto grid min-h-full grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
                     <Suspense fallback={<PageLoader />}>
                       <Outlet />
                     </Suspense>
