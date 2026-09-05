@@ -421,7 +421,7 @@ async function sendEnvelope(
   conversationId: string,
   otherUserId: number,
   envelope: Envelope,
-  { toSelf }: { toSelf: boolean }
+  { toSelf, silent = false }: { toSelf: boolean; silent?: boolean }
 ): Promise<boolean> {
   const { id: mine, devices: ourDevices } = await ensureDeviceContext();
 
@@ -494,7 +494,7 @@ async function sendEnvelope(
   // in their thread that was never said to anybody.
   if (!reachedThem) return false;
 
-  await sendMessages(conversationId, { messages });
+  await sendMessages(conversationId, { messages, silent });
   return true;
 }
 
@@ -554,7 +554,9 @@ export async function acknowledge(
       conversationId,
       otherUserId,
       { v: 1, kind: "receipt", state, ids },
-      { toSelf: false }
+      // Nothing to announce: a receipt says a client collected or read
+      // something, which is not a person saying anything to anybody.
+      { toSelf: false, silent: true }
     );
   } catch {
     // Nothing to tell the reader: their thread is unchanged either way.

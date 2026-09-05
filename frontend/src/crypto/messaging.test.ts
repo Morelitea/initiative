@@ -306,6 +306,9 @@ describe("collecting", () => {
     // One receipt naming what arrived, addressed to their devices and not to
     // this account's own -- a receipt for yourself tells nobody anything.
     const [, body] = api.sendMessages.mock.calls[0];
+    // And it announces nothing: the far end is woken to collect it, but a bell
+    // line naming a sender and counting what they said is not what this is.
+    expect(body.silent).toBe(true);
     expect(
       body.messages.map((message: { recipient_device_id: string }) => message.recipient_device_id)
     ).toEqual([THEIRS.device_id]);
@@ -464,6 +467,8 @@ describe("sending", () => {
     // it opened is still there.
     await sendText("conv-1", 7, "first");
     await sendText("conv-1", 7, "second");
+    // A message somebody typed is news, and says so.
+    expect(api.sendMessages.mock.calls[0][1].silent).toBe(false);
 
     expect(api.claimSessionKeys).toHaveBeenCalledTimes(1);
     expect(api.sendMessages).toHaveBeenCalledTimes(2);

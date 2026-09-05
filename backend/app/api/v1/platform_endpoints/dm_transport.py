@@ -312,12 +312,18 @@ async def send_messages(
     # difference.
     await dm_stream.signal_dm(current_user.id)
     if recipient_id is not None:
-        await dm_notifications.notify(
-            recipient_id=recipient_id,
-            sender=current_user,
-            sender_name=handle_of(current_user),
-            conversation_id=conversation_id,
-        )
+        if body.silent:
+            # Wake them to collect it, and write nothing down about it. A bell
+            # line names a sender and counts what they said; a client saying it
+            # has read something is neither.
+            await dm_stream.signal_dm(recipient_id)
+        else:
+            await dm_notifications.notify(
+                recipient_id=recipient_id,
+                sender=current_user,
+                sender_name=handle_of(current_user),
+                conversation_id=conversation_id,
+            )
     return DmSendResponse(accepted=written)
 
 

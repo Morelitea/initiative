@@ -2447,6 +2447,7 @@ export interface DmSendRequest {
    * @maxItems 64
    */
   messages: DmOutboundMessage[];
+  silent?: boolean;
 }
 
 export interface DmSendResponse {
