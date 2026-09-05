@@ -64,5 +64,28 @@
   "unreadHere_one": "{{count}} unread message",
   "unreadHere_other": "{{count}} unread messages",
   "openFailed": "That conversation could not be opened.",
-  "tryAgain": "Try again"
+  "tryAgain": "Try again",
+  "edited": "(edited)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Reply",
+    "replyingTo": "Replying to “{{body}}”",
+    "missing": "Message not on this device"
+  },
+  "edit": {
+    "action": "Edit",
+    "editing": "Editing this message. Escape to stop."
+  },
+  "remove": {
+    "action": "Remove",
+    "title": "Remove this message?",
+    "body": "It goes from this device, and their client takes it off theirs. A message they already read is a message they already read — this cannot unsay it."
+  },
+  "removed": "Message removed",
+  "days": {
+    "today": "Today",
+    "yesterday": "Yesterday"
+  }
 }

@@ -68,7 +68,8 @@ const GRACE = buildContactGrant({ user_id: 2, username: "grace" });
 
 const noGrants = { accepted: [], incoming: [], outgoing: [] };
 
-const show = () => renderPage(() => <ConversationList />, { initialRoute: "/messages" });
+const show = ({ explain = false } = {}) =>
+  renderPage(() => <ConversationList explain={explain} />, { initialRoute: "/messages" });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -105,12 +106,12 @@ describe("ConversationList", () => {
 
   it("narrows the list to a handle, without asking the server for anything", async () => {
     show();
-    expect(await screen.findByText("ada#1234")).toBeVisible();
+    expect(await screen.findByTitle("ada#1234")).toBeVisible();
 
     await userEvent.type(screen.getByRole("textbox", { name: /Search conversations/i }), "grace");
 
-    expect(screen.queryByText("ada#1234")).not.toBeInTheDocument();
-    expect(screen.getByText("grace#1234")).toBeVisible();
+    expect(screen.queryByTitle("ada#1234")).not.toBeInTheDocument();
+    expect(screen.getByTitle("grace#1234")).toBeVisible();
   });
 
   it("says so when a term matches nobody", async () => {
@@ -133,7 +134,7 @@ describe("ConversationList", () => {
       "edsger"
     );
 
-    expect(screen.getByText("edsger#1234")).toBeVisible();
+    expect(screen.getByTitle("edsger#1234")).toBeVisible();
     expect(screen.queryByText("Nobody matches.")).toBeNull();
   });
 
@@ -180,7 +181,7 @@ describe("ConversationList", () => {
 
   it("puts what else can be done about somebody on their own row", async () => {
     show();
-    const row = (await screen.findByText("ada#1234")).closest("li") as HTMLElement;
+    const row = (await screen.findByTitle("ada#1234")).closest("li") as HTMLElement;
 
     expect(within(row).getByRole("button", { name: /Actions for ada/i })).toBeInTheDocument();
   });
@@ -190,12 +191,26 @@ describe("ConversationList", () => {
     mocks.settings.mockReturnValue({
       data: { dm_policy: "private", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
     });
-    show();
 
     // Not "nobody yet", which would read as an absence of people rather than
     // as the reader's own choice.
+    show({ explain: true });
     expect(await screen.findByText(/You're set to Private/)).toBeVisible();
     expect(screen.queryByText(/Nobody yet/)).toBeNull();
+  });
+
+  it("leaves the paragraph to the page, where there is room for it", async () => {
+    // The sidebar draws the same list in a column too narrow for a paragraph
+    // and two buttons -- and the page beside it is always the one an account
+    // with nothing to open is looking at.
+    mocks.messageRequests.mockReturnValue({ data: noGrants });
+    mocks.settings.mockReturnValue({
+      data: { dm_policy: "private", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+    });
+    show();
+
+    expect(await screen.findByText(/Nobody yet/)).toBeVisible();
+    expect(screen.queryByText(/You're set to Private/)).toBeNull();
   });
 
   it("says the age question is what is holding it back, and where to answer it", async () => {

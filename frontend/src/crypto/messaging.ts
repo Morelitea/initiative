@@ -358,8 +358,11 @@ async function claimKeysFor(
  * anything a later reader needs has to be in the first one.
  */
 type Envelope =
-  | { v: 1; kind: "text"; id: string; at: string; body: string }
-  | { v: 1; kind: "receipt"; state: ReceiptState; ids: string[] };
+  | { v: 1; kind: "text"; id: string; at: string; body: string; replyTo?: string }
+  | { v: 1; kind: "receipt"; state: ReceiptState; ids: string[] }
+  | { v: 1; kind: "reaction"; targetId: string; emoji: string; on: boolean }
+  | { v: 1; kind: "edit"; targetId: string; at: string; body: string; rev: number }
+  | { v: 1; kind: "remove"; targetId: string };
 
 /** A name for one message, known to both sides and to nobody else. */
 const newMessageId = (): string =>
@@ -397,7 +400,42 @@ function unpack(plaintext: string, fallbackId: string): Envelope {
       id: parsed.id,
       at: typeof parsed.at === "string" ? parsed.at : "",
       body: parsed.body,
+      // A reply to a message this device never had is still a message: the
+      // quote is dropped, the words are not.
+      ...(typeof parsed.replyTo === "string" ? { replyTo: parsed.replyTo } : {}),
     };
+  }
+  if (
+    parsed.kind === "reaction" &&
+    typeof parsed.targetId === "string" &&
+    typeof parsed.emoji === "string" &&
+    typeof parsed.on === "boolean"
+  ) {
+    return {
+      v: 1,
+      kind: "reaction",
+      targetId: parsed.targetId,
+      emoji: parsed.emoji,
+      on: parsed.on,
+    };
+  }
+  if (
+    parsed.kind === "edit" &&
+    typeof parsed.targetId === "string" &&
+    typeof parsed.body === "string"
+  ) {
+    return {
+      v: 1,
+      kind: "edit",
+      targetId: parsed.targetId,
+      at: typeof parsed.at === "string" ? parsed.at : "",
+      body: parsed.body,
+      // An edit from before revisions existed is the first one.
+      rev: typeof parsed.rev === "number" ? parsed.rev : 1,
+    };
+  }
+  if (parsed.kind === "remove" && typeof parsed.targetId === "string") {
+    return { v: 1, kind: "remove", targetId: parsed.targetId };
   }
   if (
     parsed.kind === "receipt" &&
@@ -509,7 +547,8 @@ async function sendEnvelope(
 export async function sendText(
   conversationId: string,
   otherUserId: number,
-  body: string
+  body: string,
+  { replyTo }: { replyTo?: string } = {}
 ): Promise<StoredMessage> {
   const envelope: Envelope = {
     v: 1,
@@ -517,6 +556,7 @@ export async function sendText(
     id: newMessageId(),
     at: new Date().toISOString(),
     body,
+    ...(replyTo ? { replyTo } : {}),
   };
   // Their devices were all there was to address and none could be opened.
   // Nothing is sent, here or later, so the thread should not show a message as
@@ -530,9 +570,103 @@ export async function sendText(
     body,
     at: envelope.at,
     mine: true,
+    ...(replyTo ? { replyTo } : {}),
   };
   await messageLog.append(conversationId, stored);
   return stored;
+}
+
+/**
+ * Everything you can do to a message that has already been said.
+ *
+ * All three go to the other party *and* to this account's own other tabs, and
+ * all three are silent: none of them is somebody saying something, so none
+ * should arrive as a notification. They are applied to this device's own log
+ * first, so the thread answers the click whether or not the send lands -- and
+ * a send that fails leaves the two sides disagreeing about one emoji or one
+ * edit, which is the same thing an offline device does anyway.
+ *
+ * Their client honours a removal on its own copy. That is as far as anything
+ * here reaches: the message was decrypted on their device and belongs to it,
+ * and no wording in this file can make that untrue.
+ */
+async function sendControl(
+  conversationId: string,
+  otherUserId: number,
+  envelope: Envelope
+): Promise<void> {
+  if (
+    !(await sendEnvelope(conversationId, otherUserId, envelope, { toSelf: true, silent: true }))
+  ) {
+    throw new RecipientHasNoDeviceError();
+  }
+}
+
+/** The message a control envelope is about, if it is about anything. */
+async function actOn(
+  conversationId: string,
+  targetId: string,
+  { own }: { own: boolean }
+): Promise<StoredMessage | null> {
+  const entry = (await messageLog.get(conversationId)).find((m) => m.id === targetId);
+  if (!entry || entry.removedAt) return null;
+  return own && !entry.mine ? null : entry;
+}
+
+/**
+ * Put one emoji on, or take it off, a message either side said.
+ *
+ * Sent before it is applied, and not applied at all if the send fails. The
+ * other order reads better -- the thread answers the click at once -- and is
+ * how the two sides come to disagree permanently: nothing here retries, so a
+ * failure that had already been written down locally is one this device
+ * believes and theirs never hears about.
+ */
+export async function sendReaction(
+  conversationId: string,
+  otherUserId: number,
+  targetId: string,
+  emoji: string,
+  on: boolean
+): Promise<boolean> {
+  if (!(await actOn(conversationId, targetId, { own: false }))) return false;
+  await sendControl(conversationId, otherUserId, { v: 1, kind: "reaction", targetId, emoji, on });
+  return messageLog.applyReaction(conversationId, targetId, emoji, on, "mine");
+}
+
+/**
+ * Rewrite one of your own messages.
+ *
+ * The revision, not the clock, is what orders two edits. Two devices of one
+ * account can both be editing, and their clocks are set independently: a
+ * correction made second can carry the earlier time and lose to the one it was
+ * meant to replace, leaving the two devices holding different words forever.
+ * A number that only goes up cannot do that, and where both devices reach the
+ * same one the tie breaks the same way on each of them.
+ */
+export async function sendEdit(
+  conversationId: string,
+  otherUserId: number,
+  targetId: string,
+  body: string
+): Promise<boolean> {
+  const entry = await actOn(conversationId, targetId, { own: true });
+  if (!entry || entry.body === body) return false;
+  const at = new Date().toISOString();
+  const rev = (entry.rev ?? 0) + 1;
+  await sendControl(conversationId, otherUserId, { v: 1, kind: "edit", targetId, at, body, rev });
+  return messageLog.applyEdit(conversationId, targetId, body, at, "mine", rev);
+}
+
+/** Take one of your own messages back. */
+export async function sendRemove(
+  conversationId: string,
+  otherUserId: number,
+  targetId: string
+): Promise<boolean> {
+  if (!(await actOn(conversationId, targetId, { own: true }))) return false;
+  await sendControl(conversationId, otherUserId, { v: 1, kind: "remove", targetId });
+  return messageLog.applyRemove(conversationId, targetId, "mine", new Date().toISOString());
 }
 
 /**
@@ -729,6 +863,41 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
       }
       const envelope = unpack(plaintext, String(item.id));
 
+      // Acting on a message already said rather than saying one. Which side
+      // an envelope arrived on is the whole of the authorization: one that
+      // came over this account's own session is this account acting from
+      // another tab, and one over theirs is them acting on their own message.
+      if (envelope.kind === "reaction" || envelope.kind === "edit" || envelope.kind === "remove") {
+        const from = mine ? "mine" : "theirs";
+        const moved =
+          envelope.kind === "reaction"
+            ? await messageLog.applyReaction(
+                item.conversation_id,
+                envelope.targetId,
+                envelope.emoji,
+                envelope.on,
+                from
+              )
+            : envelope.kind === "edit"
+              ? await messageLog.applyEdit(
+                  item.conversation_id,
+                  envelope.targetId,
+                  envelope.body,
+                  envelope.at || item.created_at,
+                  from,
+                  envelope.rev
+                )
+              : await messageLog.applyRemove(
+                  item.conversation_id,
+                  envelope.targetId,
+                  from,
+                  item.created_at
+                );
+        if (moved) touched.add(item.conversation_id);
+        collected.push(item.id);
+        continue;
+      }
+
       if (envelope.kind === "receipt") {
         // Not a message: news about ones already sent. Their own tab reporting
         // is the sender's business, not this thread's, so a receipt that moved
@@ -742,6 +911,7 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
 
       await messageLog.append(item.conversation_id, {
         id: envelope.id,
+        ...(envelope.replyTo ? { replyTo: envelope.replyTo } : {}),
         // The sender's own clock, so every copy of one message is dated alike
         // rather than by when each device happened to collect it.
         at: envelope.at || item.created_at,

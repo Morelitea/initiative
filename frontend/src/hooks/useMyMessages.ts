@@ -26,6 +26,9 @@ import {
   markRead,
   messageLog,
   registeredDevice,
+  sendEdit,
+  sendReaction,
+  sendRemove,
   sendText,
   unreadIn,
 } from "@/crypto/messaging";
@@ -89,13 +92,46 @@ export function useThread(conversationId: string | undefined) {
 export function useSendMessage(conversationId: string, otherUserId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) => sendText(conversationId, otherUserId, body),
+    mutationFn: ({ body, replyTo }: { body: string; replyTo?: string }) =>
+      sendText(conversationId, otherUserId, body, { replyTo }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: messageKeys.thread(conversationId),
       });
     },
   });
+}
+
+/**
+ * Acting on a message that has already been said.
+ *
+ * Three writes with one shape: each applies to this device's own log first and
+ * tells the other side after, so the thread answers the click rather than the
+ * round trip. Refreshing the thread is what puts the answer on screen, since
+ * the log is where a thread is read from.
+ */
+export function useMessageActions(conversationId: string, otherUserId: number) {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
+  };
+
+  const react = useMutation({
+    mutationFn: ({ targetId, emoji, on }: { targetId: string; emoji: string; on: boolean }) =>
+      sendReaction(conversationId, otherUserId, targetId, emoji, on),
+    onSettled: refresh,
+  });
+  const edit = useMutation({
+    mutationFn: ({ targetId, body }: { targetId: string; body: string }) =>
+      sendEdit(conversationId, otherUserId, targetId, body),
+    onSettled: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: (targetId: string) => sendRemove(conversationId, otherUserId, targetId),
+    onSettled: refresh,
+  });
+
+  return { react, edit, remove };
 }
 
 export function useStartConversation() {

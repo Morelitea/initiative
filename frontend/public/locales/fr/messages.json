@@ -64,5 +64,28 @@
   "unreadHere_one": "{{count}} message non lu",
   "unreadHere_other": "{{count}} messages non lus",
   "openFailed": "Cette conversation n'a pas pu être ouverte.",
-  "tryAgain": "Réessayer"
+  "tryAgain": "Réessayer",
+  "edited": "(modifié)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Répondre",
+    "replyingTo": "En réponse à « {{body}} »",
+    "missing": "Message absent de cet appareil"
+  },
+  "edit": {
+    "action": "Modifier",
+    "editing": "Modification de ce message. Échap pour arrêter."
+  },
+  "remove": {
+    "action": "Supprimer",
+    "title": "Supprimer ce message ?",
+    "body": "Il disparaît de cet appareil, et l'application de l'autre personne le retire du sien. Ce qui a déjà été lu reste lu : ceci ne peut pas le défaire."
+  },
+  "removed": "Message supprimé",
+  "days": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier"
+  }
 }
