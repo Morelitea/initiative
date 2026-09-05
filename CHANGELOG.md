@@ -69,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pages are centred again.** A page holding something that would not wrap — a toolbar, a table's widest row — stretched the column it sits in, so the content spilled out of the right-hand side of a page area that was itself still centred. Introduced with the scroll fix above, and the same root cause: a box sized to its content where it should have been sized to its container.
+
 - **Dialogs fit the phone they open on.** Create dialogs were cut off down the right-hand side on a narrow screen — the sharing card, and with it the access level, sat off the edge. Two causes: the dialog's grid would not let its contents shrink to it, and a dialog asking for its own width dropped the screen-width cap at every size rather than only on a wide one. Both are fixed for every dialog in the app, not just the ones anybody noticed.
 
 - **A profile's communities say how many people are in them.** Each card counted nobody, because the profile's own read never asked for the number — a community somebody belongs to has at least one member, so "0 members" was never true.
