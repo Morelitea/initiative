@@ -38,6 +38,7 @@ from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.post import Post
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
 
@@ -53,11 +54,13 @@ CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
         (Queue, "initiative_id"),
         (Calendar, "initiative_id"),
         (Dashboard, "initiative_id"),
+        (Post, "initiative_id"),
         (CounterGroup, "initiative_id"),
     ],
     Project: [(Task, "project_id")],
     Calendar: [(CalendarEvent, "calendar_id")],
     Document: [(Comment, "document_id")],
+    Post: [(Comment, "post_id")],
     Task: [(Comment, "task_id")],
     Queue: [(QueueItem, "queue_id")],
     CounterGroup: [(Counter, "counter_group_id")],

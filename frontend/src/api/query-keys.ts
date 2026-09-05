@@ -416,6 +416,12 @@ export const invalidateAllDashboards = () => invalidateGuildPrefix("/api/v1/dash
 export const invalidateDashboard = (dashboardId: number) =>
   invalidateGuildExact([`/api/v1/dashboards/${dashboardId}`]);
 
+// ── Posts (guild) ─────────────────────────────────────────────────────────────────
+
+export const invalidateAllPosts = () => invalidateGuildPrefix("/api/v1/posts");
+
+export const invalidatePost = (postId: number) => invalidateGuildExact([`/api/v1/posts/${postId}`]);
+
 // ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>
@@ -482,6 +488,10 @@ const TOOL_INVALIDATORS: Record<Tool, (id: number) => void> = {
   [Tool.dashboard]: (id) => {
     void invalidateDashboard(id);
     void invalidateAllDashboards();
+  },
+  [Tool.post]: (id) => {
+    void invalidatePost(id);
+    void invalidateAllPosts();
   },
 };
 

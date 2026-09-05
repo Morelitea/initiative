@@ -53,7 +53,8 @@
       "queues": "Items",
       "counterGroups": "Counters",
       "calendars": "Description",
-      "dashboards": "Source"
+      "dashboards": "Source",
+      "posts": "Preview"
     }
   },
   "detail": {

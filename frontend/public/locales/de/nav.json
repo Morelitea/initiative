@@ -81,5 +81,7 @@
   "adminDashboard": "Administrator-Dashboard",
   "pastAnnouncements": "Frühere Ankündigungen",
   "requestsWaiting_one": "{{count}} ausstehend",
-  "requestsWaiting_other": "{{count}} ausstehend"
+  "requestsWaiting_other": "{{count}} ausstehend",
+  "posts": "Beiträge",
+  "createPost": "Neuer Beitrag"
 }

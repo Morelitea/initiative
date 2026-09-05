@@ -583,6 +583,24 @@ class DashboardMessages:
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
 
 
+class PostMessages:
+    NOT_FOUND = "POST_NOT_FOUND"
+    CREATE_PERMISSION_REQUIRED = "POST_CREATE_PERMISSION_REQUIRED"
+    FEATURE_DISABLED = "POSTS_NOT_ENABLED"
+    PERMISSION_REQUIRED = "POST_PERMISSION_REQUIRED"
+    OWNER_REQUIRED = "POST_OWNER_REQUIRED"
+    WRITE_ACCESS_REQUIRED = "POST_WRITE_ACCESS_REQUIRED"
+    GRANT_CANNOT_MANAGE_MEMBERS = "POST_GRANT_CANNOT_MANAGE_MEMBERS"
+    #: Pinning lifts a notice above everyone else's, so it is initiative
+    #: management authority rather than write access on the post.
+    PIN_MANAGER_REQUIRED = "POST_PIN_MANAGER_REQUIRED"
+    #: A pin whose expiry has already passed would be a no-op that reads as a
+    #: pin — refused rather than silently ignored.
+    PIN_EXPIRY_IN_PAST = "POST_PIN_EXPIRY_IN_PAST"
+    #: More words than a notice is for. A board is read, not studied.
+    BODY_TOO_LONG = "POST_BODY_TOO_LONG"
+
+
 class MarketplaceMessages:
     LISTING_NOT_FOUND = "MARKETPLACE_LISTING_NOT_FOUND"
     #: The listing exists but nothing about it can be installed here — withdrawn

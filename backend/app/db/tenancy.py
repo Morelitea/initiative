@@ -266,6 +266,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "counter_group_tags",
         "dashboard_tags",
         "document_tags",
+        "post_tags",
         "project_documents",
         "project_tags",
         "queue_item_documents",

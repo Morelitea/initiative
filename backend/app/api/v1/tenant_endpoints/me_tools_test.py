@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.testing import (
     Actor,
@@ -224,14 +225,9 @@ async def test_my_tool_counts(client: AsyncClient, acting_user):
     # Present rather than absent: the page needs "none" to be distinguishable
     # from "not asked" when it decides which tabs to draw.
     assert counts["counter_group"] == 0
-    assert set(counts) == {
-        "project",
-        "document",
-        "queue",
-        "counter_group",
-        "calendar",
-        "dashboard",
-    }
+    # Derived from the enum rather than listed: every tool has a tab on this
+    # page, so a new one belongs here the day it exists.
+    assert set(counts) == {tool.value for tool in Tool}
 
 
 @pytest.mark.integration

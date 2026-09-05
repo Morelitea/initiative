@@ -523,5 +523,15 @@
   "DM_MESSAGE_TOO_LARGE": "Diese Nachricht ist zu lang zum Senden.",
   "DM_RECIPIENT_QUEUE_FULL": "Dieses Konto hat zu viele unzugestellte Nachrichten. Versuche es erneut, sobald die App dort geöffnet wurde.",
   "CONTACT_GRANT_NO_REQUEST": "Von diesem Konto liegt keine Anfrage vor.",
-  "CONTACT_GRANT_CANNOT_GRANT_SELF": "Du kannst dich nicht mit deinem eigenen Konto verbinden."
+  "CONTACT_GRANT_CANNOT_GRANT_SELF": "Du kannst dich nicht mit deinem eigenen Konto verbinden.",
+  "POST_NOT_FOUND": "Beitrag nicht gefunden",
+  "POST_CREATE_PERMISSION_REQUIRED": "Sie haben keine Berechtigung, hier zu posten",
+  "POSTS_NOT_ENABLED": "Beiträge sind für diese Initiative nicht aktiviert",
+  "POST_PERMISSION_REQUIRED": "Sie haben keinen Zugriff auf diesen Beitrag",
+  "POST_OWNER_REQUIRED": "Das kann nur der Eigentümer des Beitrags",
+  "POST_WRITE_ACCESS_REQUIRED": "Sie benötigen Schreibzugriff auf diesen Beitrag",
+  "POST_GRANT_CANNOT_MANAGE_MEMBERS": "Geteilter Zugriff kann nicht verwalten, wer diesen Beitrag sonst sieht",
+  "POST_PIN_MANAGER_REQUIRED": "Nur Initiativ-Manager können einen Beitrag anheften",
+  "POST_PIN_EXPIRY_IN_PAST": "Wählen Sie ein Datum in der Zukunft für das Ende der Anheftung",
+  "POST_BODY_TOO_LONG": "Dieser Beitrag ist zu lang – nutzen Sie besser ein Dokument"
 }

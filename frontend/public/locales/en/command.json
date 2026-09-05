@@ -12,7 +12,8 @@
     "counterGroups": "Counter Groups",
     "calendars": "Calendars",
     "dashboards": "Dashboards",
-    "results": "Results"
+    "results": "Results",
+    "posts": "Posts"
   },
   "actions": {
     "addTask": "Add Task",

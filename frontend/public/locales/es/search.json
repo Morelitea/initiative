@@ -33,7 +33,8 @@
     "calendar_event": "Evento",
     "dashboard": "Panel",
     "tag": "Etiqueta",
-    "comment": "Comentario"
+    "comment": "Comentario",
+    "post": "Publicación"
   },
   "switchHint": "Tab para cambiar",
   "closeMatches": "Nada coincide exactamente con «{{query}}». Esto es lo más parecido.",

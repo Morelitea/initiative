@@ -51,6 +51,7 @@ from app.core.messages import (
     CounterMessages,
     CalendarMessages,
     DashboardMessages,
+    PostMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -363,6 +364,13 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         DashboardMessages.PERMISSION_REQUIRED,
         DashboardMessages.OWNER_REQUIRED,
         DashboardMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    Tool.post: DacResource(
+        Tool.post,
+        True,
+        PostMessages.PERMISSION_REQUIRED,
+        PostMessages.OWNER_REQUIRED,
+        PostMessages.WRITE_ACCESS_REQUIRED,
     ),
 }
 
@@ -731,6 +739,14 @@ def compute_dashboard_permission(dashboard: Any, user_id: int) -> str | None:
     engine). Governs authoring the canvas only — the data each widget displays
     is authorized separately, per viewer, by that data's own tool."""
     return compute_permission(DAC_RESOURCES[Tool.dashboard], dashboard, user_id)
+
+
+def compute_post_permission(post: Any, user_id: int) -> str | None:
+    """Effective post permission string for the client (delegates to the
+    engine). Reading a post is reading the board it sits on; writing one is
+    editing that notice, which is its author's or whoever they shared it
+    with — pinning is a separate, initiative-level authority."""
+    return compute_permission(DAC_RESOURCES[Tool.post], post, user_id)
 
 
 def require_document_access(

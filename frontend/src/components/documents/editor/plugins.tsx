@@ -8,6 +8,7 @@ import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import { ActionsPlugin } from "@/components/ui/editor/plugins/actions/actions-plugin";
+import { CharacterLimitPlugin } from "@/components/ui/editor/plugins/actions/character-limit-plugin";
 import { ClearEditorActionPlugin } from "@/components/ui/editor/plugins/actions/clear-editor-plugin";
 import { CounterCharacterPlugin } from "@/components/ui/editor/plugins/actions/counter-character-plugin";
 import { EditModeTogglePlugin } from "@/components/ui/editor/plugins/actions/edit-mode-toggle-plugin";
@@ -78,7 +79,9 @@ import { SubSuperToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/su
 import { ToolbarOverflowMenu } from "@/components/ui/editor/plugins/toolbar/toolbar-overflow-menu";
 import { ToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/toolbar-plugin";
 import { WikilinksPlugin } from "@/components/ui/editor/plugins/wikilinks-plugin";
+import type { EditorVariant } from "@/components/ui/editor/variant";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 const placeholder = "Press / for commands...";
 
@@ -89,6 +92,9 @@ export function Plugins({
   cursorsContainerRef,
   initiativeId = null,
   supportsEntityMentions = false,
+  variant = "document",
+  maxLength,
+  compact = false,
   onWikilinkNavigate,
   onCreateReferencedThing,
 }: {
@@ -101,6 +107,20 @@ export function Plugins({
    *  only here: a whiteboard and a spreadsheet are not written into, and a file
    *  or a linked page has no body of its own to write in. */
   supportsEntityMentions?: boolean;
+  /** Which surface this is. `post` narrows the toolbar to what writing a
+   *  notice needs — see `EditorVariant`. */
+  variant?: EditorVariant;
+  /** Characters a body may hold, shown as a remaining count. The server is
+   *  still the authority; this is so nobody writes past the limit unaware. */
+  maxLength?: number;
+  /** The container already supplies the horizontal gutter — a post rendered
+   *  in a card on the board, say — so the editor takes none of its own.
+   *
+   *  Deliberately not derived from `readOnly`: a post's own page renders it
+   *  read-only for anyone without write access, and there the body must sit at
+   *  the same offset a writer sees, not shift left because of who is looking.
+   *  Height is a separate question and does follow `readOnly`. */
+  compact?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
   onCreateReferencedThing?: (
     name: string,
@@ -109,6 +129,10 @@ export function Plugins({
 }) {
   const { t } = useTranslation("documents");
   const [editor] = useLexicalComposerContext();
+  // The typesetting half of the toolbar. A document is a place to typeset; a
+  // notice is a place to say something, so it gets the writing controls and
+  // not the layout ones.
+  const rich = variant === "document";
   const [floatingAnchorElem, setFloatingAnchorElem] = useState<HTMLDivElement | null>(null);
   const [isLinkEditMode, setIsLinkEditMode] = useState<boolean>(false);
 
@@ -151,28 +175,48 @@ export function Plugins({
                   <CodeLanguageToolbarPlugin />
                 ) : (
                   <>
-                    <FontSizeToolbarPlugin />
-                    <Separator orientation="vertical" className="h-7!" />
+                    {rich && (
+                      <>
+                        <FontSizeToolbarPlugin />
+                        <Separator orientation="vertical" className="h-7!" />
+                      </>
+                    )}
                     <FontFormatToolbarPlugin />
                     <Separator orientation="vertical" className="h-7!" />
-                    <SubSuperToolbarPlugin />
+                    {rich && <SubSuperToolbarPlugin />}
                     <LinkToolbarPlugin setIsLinkEditMode={setIsLinkEditMode} />
                     <Separator orientation="vertical" className="h-7!" />
-                    <ClearFormattingToolbarPlugin />
-                    <Separator orientation="vertical" className="h-7!" />
-                    <FontColorToolbarPlugin />
-                    <FontBackgroundToolbarPlugin />
-                    <Separator orientation="vertical" className="h-7!" />
-                    <ElementFormatToolbarPlugin />
-                    <Separator orientation="vertical" className="h-7!" />
+                    {/* Alignment, clearing formatting and the colour pickers
+                        are all one-in-a-hundred on a notice. On a post they
+                        move into the overflow at the end of the row rather
+                        than costing a second row of buttons above every
+                        composer; on a document they stay where they were. */}
+                    {rich && (
+                      <>
+                        <ClearFormattingToolbarPlugin />
+                        <Separator orientation="vertical" className="h-7!" />
+                        <FontColorToolbarPlugin />
+                        <FontBackgroundToolbarPlugin />
+                        <Separator orientation="vertical" className="h-7!" />
+                        <ElementFormatToolbarPlugin />
+                        <Separator orientation="vertical" className="h-7!" />
+                      </>
+                    )}
                     <BlockInsertPlugin>
-                      <InsertHorizontalRule />
+                      {rich && <InsertHorizontalRule />}
                       <InsertImage />
                       <InsertTable />
-                      <InsertColumnsLayout />
+                      {rich && <InsertColumnsLayout />}
                       <InsertEmbeds />
                       {supportsEntityMentions && <InsertSmartChip initiativeId={initiativeId} />}
                     </BlockInsertPlugin>
+                    {!rich && (
+                      <ToolbarOverflowMenu
+                        initiativeId={initiativeId}
+                        supportsSmartChips={supportsEntityMentions}
+                        variant={variant}
+                      />
+                    )}
                   </>
                 )}
               </div>
@@ -196,6 +240,7 @@ export function Plugins({
                   <ToolbarOverflowMenu
                     initiativeId={initiativeId}
                     supportsSmartChips={supportsEntityMentions}
+                    variant={variant}
                   />
                 )}
               </div>
@@ -211,10 +256,19 @@ export function Plugins({
               is `indent === 0`, but our nodes' __indent is `undefined`, so it emits
               `calc(undefined * ...)`. Revisit (move padding back) once lexical fixes
               the guard — expected in 0.46. */}
-          <div className="px-8" ref={onRef}>
+          {/* The writing gutter. A body whose container already pads it —
+              a post in a card on the board — takes none of its own. */}
+          <div className={cn(compact ? "px-0" : "px-8")} ref={onRef}>
             <ContentEditable
               placeholder={placeholder}
-              className="ContentEditable__root relative block min-h-72 pt-4 pb-14 focus:outline-none"
+              className={cn(
+                "ContentEditable__root relative block focus:outline-none",
+                // A writing surface reserves a page to write on. A notice being
+                // *read* is only as tall as what it says — a floor would put an
+                // empty half-screen under every two-line post, on the board and
+                // on its own page alike.
+                variant === "post" && readOnly ? "py-2" : "min-h-72 pt-4 pb-14"
+              )}
             />
           </div>
           {collaborative && <div ref={cursorsContainerRef} className="collaboration-cursors" />}
@@ -290,15 +344,29 @@ export function Plugins({
           <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted p-1">
             <div className="flex flex-1 justify-start"></div>
             <div>
-              <CounterCharacterPlugin charset="UTF-16" />
+              {/* With a limit, what matters is how much is left; without one,
+                  how much there is. */}
+              {maxLength !== undefined ? (
+                <CharacterLimitPlugin maxLength={maxLength} charset="UTF-16" />
+              ) : (
+                <CounterCharacterPlugin charset="UTF-16" />
+              )}
             </div>
             <div className="flex flex-1 justify-end">
-              <SpeechToTextPlugin />
-              <ImportExportPlugin />
-              <MarkdownTogglePlugin transformers={MARKDOWN_TRANSFORMERS} />
-              <EditModeTogglePlugin forceReadOnly={readOnly} />
-              <ClearEditorActionPlugin />
-              <TreeViewPlugin />
+              {/* A notice keeps the count and nothing else. Importing a file,
+                  toggling to Markdown source, switching to read-only and
+                  clearing the whole body are document tools — on a board they
+                  are five buttons under a paragraph nobody asked to typeset. */}
+              {rich && (
+                <>
+                  <SpeechToTextPlugin />
+                  <ImportExportPlugin />
+                  <MarkdownTogglePlugin transformers={MARKDOWN_TRANSFORMERS} />
+                  <EditModeTogglePlugin forceReadOnly={readOnly} />
+                  <ClearEditorActionPlugin />
+                  <TreeViewPlugin />
+                </>
+              )}
             </div>
           </div>
         </ActionsPlugin>

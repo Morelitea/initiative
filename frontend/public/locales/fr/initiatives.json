@@ -107,7 +107,8 @@
     "queues": "Files",
     "calendars": "Calendrier",
     "dashboards": "Tableaux de bord",
-    "counterGroups": "Compteurs"
+    "counterGroups": "Compteurs",
+    "posts": "Publications"
   },
   "settings": {
     "title": "Paramètres de l'initiative",
@@ -235,7 +236,8 @@
       "queues": "Files",
       "calendars": "Événements",
       "dashboards": "Tableaux de bord",
-      "counterGroups": "Compteurs"
+      "counterGroups": "Compteurs",
+      "posts": "Publications"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -249,7 +251,9 @@
       "viewDashboards": "Voir les tableaux de bord",
       "createDashboards": "Créer des tableaux de bord",
       "viewCounterGroups": "Voir les compteurs",
-      "createCounterGroups": "Créer des compteurs"
+      "createCounterGroups": "Créer des compteurs",
+      "viewPosts": "Voir les publications",
+      "createPosts": "Créer des publications"
     },
     "handleColumn": "Identifiant"
   },
@@ -262,5 +266,7 @@
   "dashboardsFeature": "Tableaux de bord",
   "dashboardsFeatureDescription": "Composez un canevas de graphiques, d’indicateurs et de chronologies qui affiche le travail existant — un tableau de bord ne modifie jamais les données qu’il présente.",
   "counterGroupsFeature": "Compteurs",
-  "counterGroupsFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales."
+  "counterGroupsFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales.",
+  "postsFeature": "Publications",
+  "postsFeatureDescription": "Un tableau d’affichage pour l’initiative — des avis que chacun peut lire, commenter et auxquels réagir, les plus importants étant épinglés en haut."
 }

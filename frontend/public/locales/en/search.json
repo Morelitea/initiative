@@ -33,7 +33,8 @@
     "calendar_event": "Event",
     "dashboard": "Dashboard",
     "tag": "Tag",
-    "comment": "Comment"
+    "comment": "Comment",
+    "post": "Post"
   },
   "switchHint": "Tab to switch",
   "closeMatches": "Nothing matches “{{query}}” exactly. These are the closest.",

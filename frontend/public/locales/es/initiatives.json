@@ -107,7 +107,8 @@
     "queues": "Colas",
     "calendars": "Calendario",
     "dashboards": "Paneles",
-    "counterGroups": "Contadores"
+    "counterGroups": "Contadores",
+    "posts": "Publicaciones"
   },
   "settings": {
     "title": "Configuración de la iniciativa",
@@ -235,7 +236,8 @@
       "queues": "Colas",
       "calendars": "Eventos",
       "dashboards": "Paneles",
-      "counterGroups": "Contadores"
+      "counterGroups": "Contadores",
+      "posts": "Publicaciones"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -249,7 +251,9 @@
       "viewDashboards": "Ver paneles",
       "createDashboards": "Crear paneles",
       "viewCounterGroups": "Ver contadores",
-      "createCounterGroups": "Crear contadores"
+      "createCounterGroups": "Crear contadores",
+      "viewPosts": "Ver publicaciones",
+      "createPosts": "Crear publicaciones"
     },
     "handleColumn": "Identificador"
   },
@@ -262,5 +266,7 @@
   "dashboardsFeature": "Paneles",
   "dashboardsFeatureDescription": "Crea un lienzo de gráficos, indicadores y cronogramas que muestra el trabajo existente: un panel nunca edita los datos que muestra.",
   "counterGroupsFeature": "Contadores",
-  "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales."
+  "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales.",
+  "postsFeature": "Publicaciones",
+  "postsFeatureDescription": "Un tablón de anuncios para la iniciativa: avisos que todos pueden leer, comentar y reaccionar, con los más importantes fijados arriba."
 }

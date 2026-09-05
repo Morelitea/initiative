@@ -33,7 +33,8 @@
     "calendar_event": "Événement",
     "dashboard": "Tableau de bord",
     "tag": "Étiquette",
-    "comment": "Commentaire"
+    "comment": "Commentaire",
+    "post": "Publication"
   },
   "switchHint": "Tab pour changer",
   "closeMatches": "Rien ne correspond exactement à « {{query}} ». Voici ce qui s’en rapproche le plus.",

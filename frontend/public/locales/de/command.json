@@ -12,7 +12,8 @@
     "counterGroups": "Zähler",
     "calendars": "Kalender",
     "dashboards": "Dashboards",
-    "results": "Ergebnisse"
+    "results": "Ergebnisse",
+    "posts": "Beiträge"
   },
   "actions": {
     "addTask": "Aufgabe hinzufügen",

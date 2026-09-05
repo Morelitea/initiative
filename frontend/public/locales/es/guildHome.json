@@ -53,7 +53,8 @@
       "queues": "Elementos",
       "counterGroups": "Contadores",
       "calendars": "Descripción",
-      "dashboards": "Origen"
+      "dashboards": "Origen",
+      "posts": "Vista previa"
     }
   },
   "detail": {

@@ -26,6 +26,7 @@ import type messages from "../../public/locales/en/messages.json";
 import type myTools from "../../public/locales/en/myTools.json";
 import type nav from "../../public/locales/en/nav.json";
 import type notifications from "../../public/locales/en/notifications.json";
+import type posts from "../../public/locales/en/posts.json";
 import type profiles from "../../public/locales/en/profiles.json";
 import type projects from "../../public/locales/en/projects.json";
 import type properties from "../../public/locales/en/properties.json";
@@ -73,6 +74,7 @@ declare module "i18next" {
       profiles: typeof profiles;
       projects: typeof projects;
       properties: typeof properties;
+      posts: typeof posts;
       queues: typeof queues;
       search: typeof search;
       settings: typeof settings;

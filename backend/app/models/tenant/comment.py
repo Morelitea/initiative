@@ -13,10 +13,10 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     _display_field = "content"
     __table_args__ = (
         # A comment hangs off exactly ONE parent: a task, or one tool entity
-        # (document, project, queue, counter group, calendar, dashboard).
+        # (document, project, queue, counter group, calendar, dashboard, post).
         CheckConstraint(
             "num_nonnulls(task_id, document_id, project_id, queue_id, "
-            "counter_group_id, calendar_id, dashboard_id) = 1",
+            "counter_group_id, calendar_id, dashboard_id, post_id) = 1",
             name="ck_comments_single_parent",
         ),
     )
@@ -81,6 +81,12 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(
             Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=True
+        ),
+    )
+    post_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=True
         ),
     )
     parent_comment_id: Optional[int] = Field(

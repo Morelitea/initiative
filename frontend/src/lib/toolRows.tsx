@@ -18,6 +18,7 @@ import type {
   CounterGroupListResponse,
   DashboardListResponse,
   DocumentListResponse,
+  PostListResponse,
   ProjectListResponse,
   QueueListResponse,
   TagSummary,
@@ -50,16 +51,23 @@ export interface ToolRow {
 /**
  * A page of each tool's list, however the caller fetched it. Exactly one is
  * ever populated — the tool the table is showing — but the shape is stated for
- * all six so the mapping below can be exhaustive over `Tool`.
+ * every tool so the mapping below can be exhaustive over `Tool`.
+ *
+ * Every key is REQUIRED (and `undefined` is a legal value) so a caller
+ * assembling one must name every tool. Optional keys let a new tool ship with
+ * its entry simply missing: the table then asked for posts, got a response,
+ * mapped it through a map that never mentioned them, and rendered "No results"
+ * with nothing wrong anywhere the compiler could see.
  */
-export interface ToolResponses {
-  [Tool.project]?: ProjectListResponse;
-  [Tool.document]?: DocumentListResponse;
-  [Tool.queue]?: QueueListResponse;
-  [Tool.counter_group]?: CounterGroupListResponse;
-  [Tool.calendar]?: CalendarListResponse;
-  [Tool.dashboard]?: DashboardListResponse;
-}
+export type ToolResponses = {
+  [Tool.project]: ProjectListResponse | undefined;
+  [Tool.document]: DocumentListResponse | undefined;
+  [Tool.queue]: QueueListResponse | undefined;
+  [Tool.counter_group]: CounterGroupListResponse | undefined;
+  [Tool.calendar]: CalendarListResponse | undefined;
+  [Tool.dashboard]: DashboardListResponse | undefined;
+  [Tool.post]: PostListResponse | undefined;
+};
 
 const ColourDot = ({ colour }: { colour: string }) => (
   <span
@@ -179,6 +187,22 @@ export function buildToolRows(
           t("detail.builtHere")
         ),
         detailSort: dashboard.listing_uid ?? "",
+      }));
+    case Tool.post:
+      return (data[Tool.post]?.items ?? []).map((post) => ({
+        id: post.id,
+        guildId: post.guild_id ?? fallbackGuildId,
+        name: post.name,
+        href: href(post.id, post.initiative_id),
+        glyph: null,
+        initiativeId: post.initiative_id,
+        tags: post.tags,
+        updatedAt: post.updated_at,
+        // The first line of the notice. A table of posts is a table of
+        // things people said, and the headline alone rarely distinguishes two
+        // of them — the server derives this from the body for exactly here.
+        detail: post.excerpt,
+        detailSort: post.excerpt,
       }));
   }
 }

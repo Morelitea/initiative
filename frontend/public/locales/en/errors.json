@@ -523,5 +523,15 @@
   "DM_MESSAGE_TOO_LARGE": "That message is too long to send.",
   "DM_RECIPIENT_QUEUE_FULL": "That account has too many undelivered messages. Try again once they open the app.",
   "CONTACT_GRANT_NO_REQUEST": "There is no request from that account to accept.",
-  "CONTACT_GRANT_CANNOT_GRANT_SELF": "You cannot connect with your own account."
+  "CONTACT_GRANT_CANNOT_GRANT_SELF": "You cannot connect with your own account.",
+  "POST_NOT_FOUND": "Post not found",
+  "POST_CREATE_PERMISSION_REQUIRED": "You do not have permission to post here",
+  "POSTS_NOT_ENABLED": "Posts are not enabled for this initiative",
+  "POST_PERMISSION_REQUIRED": "You do not have access to this post",
+  "POST_OWNER_REQUIRED": "Only the post's owner can do that",
+  "POST_WRITE_ACCESS_REQUIRED": "You need write access to this post",
+  "POST_GRANT_CANNOT_MANAGE_MEMBERS": "Shared access cannot manage who else can see this post",
+  "POST_PIN_MANAGER_REQUIRED": "Only initiative managers can pin a post",
+  "POST_PIN_EXPIRY_IN_PAST": "Choose a date in the future for the pin to end",
+  "POST_BODY_TOO_LONG": "This post is too long — try a document instead"
 }

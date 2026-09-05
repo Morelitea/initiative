@@ -196,6 +196,7 @@ _COMMENT_PARENTS: tuple[tuple[str, str, str, str], ...] = (
     ("counter_group_id", "counter_groups cg", "cg.id", "cg.initiative_id"),
     ("calendar_id", "calendars cal", "cal.id", "cal.initiative_id"),
     ("dashboard_id", "dashboards dsh", "dsh.id", "dsh.initiative_id"),
+    ("post_id", "posts po", "po.id", "po.initiative_id"),
 )
 
 
@@ -239,6 +240,7 @@ def reactions_path() -> InitiativePath:
     """
     legs: dict[ReactionTarget, InitiativePath] = {
         ReactionTarget.comment: comments_path(),
+        ReactionTarget.post: direct(),
     }
 
     def build(t: str, w: bool) -> str:
@@ -376,6 +378,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "counter_groups": direct(),
     "calendars": direct(),
     "dashboards": direct(),
+    "posts": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
     # The change log itself. Scoped like the rows it describes, which is what
@@ -408,6 +411,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "calendar_tags": via("calendars", "calendar_id"),
     # One hop -> dashboards
     "dashboard_tags": via("dashboards", "dashboard_id"),
+    # One hop -> posts
+    "post_tags": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),

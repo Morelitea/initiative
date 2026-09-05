@@ -55,6 +55,7 @@ import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
+import { usePostCountsByInitiative } from "@/hooks/usePosts";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { useTags } from "@/hooks/useTags";
@@ -206,6 +207,18 @@ export const AppSidebar = () => {
     });
     return map;
   }, [dashboardCountsQuery.data]);
+
+  const postCountsQuery = usePostCountsByInitiative({
+    enabled: guildTreeEnabled,
+    staleTime: 60_000,
+  });
+  const postCountsByInitiative = useMemo(() => {
+    const map = new Map<number, number>();
+    Object.entries(postCountsQuery.data?.counts ?? {}).forEach(([initiativeId, count]) => {
+      map.set(Number(initiativeId), count);
+    });
+    return map;
+  }, [postCountsQuery.data]);
 
   const visibleInitiatives = useMemo(
     () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
@@ -504,6 +517,7 @@ export const AppSidebar = () => {
                                           calendarCountsByInitiative.get(initiative.id) ?? 0,
                                         [Tool.dashboard]:
                                           dashboardCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.post]: postCountsByInitiative.get(initiative.id) ?? 0,
                                       }}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}

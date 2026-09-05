@@ -38,6 +38,7 @@ export {
   buildNotification,
   resetCounter as resetNotificationCounter,
 } from "./notification.factory";
+export { buildLexicalBody, buildPost } from "./post.factory";
 export {
   buildDefaultTaskStatuses,
   buildProject,
@@ -96,6 +97,7 @@ import { resetCounter as resetGuildCounter } from "./guild.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
 import { resetCounter as resetMarketplaceCounter } from "./marketplace.factory";
 import { resetCounter as resetNotificationCounter } from "./notification.factory";
+import { resetCounter as resetPostCounter } from "./post.factory";
 import { resetCounter as resetProjectCounter } from "./project.factory";
 import { resetCounter as resetPropertyCounter } from "./properties";
 import { resetCounter as resetQueueCounter } from "./queue.factory";
@@ -126,4 +128,5 @@ export function resetFactories(): void {
   resetFilterPresetCounter();
   resetSearchCounter();
   resetDmCounter();
+  resetPostCounter();
 }

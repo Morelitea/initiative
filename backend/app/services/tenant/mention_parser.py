@@ -4,8 +4,9 @@ Mention patterns in comment text:
 - Users: @[Display Name](id) - e.g., @[John Doe](42)
 - Tasks: #task[Title](id) - e.g., #task[Fix bug](123)
 
-Native documents embed mentions differently — as Lexical ``mention`` nodes
-carrying ``mentionName`` / ``mentionUserId`` / ``text`` in the content JSON.
+Native documents and posts embed mentions differently — as Lexical
+``mention`` nodes carrying ``mentionName`` / ``mentionUserId`` / ``text`` in
+the editor state (``documents.content``, ``posts.body``).
 
 Both forms bake the user's display name into stored content at insert time,
 so anonymizing the ``users`` row alone leaves the name readable forever.
@@ -23,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
+from app.models.tenant.post import Post
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
@@ -89,6 +91,8 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     - native-document Lexical ``mention`` nodes: ``mentionName``/``text``
       → the placeholder (``yjs_state`` cleared so collaboration bootstraps
       from the rewritten content, mirroring the wikilink-unresolve path)
+    - post bodies: the same Lexical nodes, in ``posts.body``. A post has no
+      collaborative state to invalidate, so the rewrite is the whole job.
     - pending task-assignment digest rows: the ``assigned_by_name`` snapshot
 
     Caller owns routing (guild-admin context), flushing order, and the commit —
@@ -133,6 +137,21 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
             flag_modified(doc, "content")
             session.add(doc)
             affected_doc_ids.append(doc.id)
+
+    # Post bodies carry the same Lexical mention nodes as a native document.
+    # Same prefilter, same walk; no yjs state and no room to invalidate,
+    # because a post is written by one person and then read.
+    post_stmt = select_including_deleted(Post).where(
+        cast(Post.body, Text).op("~")(prefilter)
+    )
+    for post in (await session.exec(post_stmt)).all():
+        if not isinstance(post.body, dict):
+            continue
+        updated_body = deepcopy(post.body)
+        if _scrub_mention_nodes(updated_body, user_id):
+            post.body = updated_body
+            flag_modified(post, "body")
+            session.add(post)
 
     # Digest rows snapshot the assigner's name for the email body.
     await session.exec(

@@ -34,10 +34,12 @@ from app.schemas.tenant.dashboard import (
     serialize_dashboard_summary,
 )
 from app.schemas.tenant.my_tools import MyToolCountsResponse
+from app.schemas.tenant.post import PostListResponse, serialize_post
 from app.schemas.tenant.queue import QueueListResponse, serialize_queue_summary
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
+from app.services.tenant import posts as posts_service
 from app.services.tenant import my_tools as my_tools_service
 from app.services.tenant import queues as queues_service
 
@@ -90,6 +92,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         serialize=lambda row, user: serialize_dashboard_summary(row, user_id=user.id),
         default_key=lambda row: (row.name or "").lower(),
         default_desc=False,
+    ),
+    Tool.post: MyToolList(
+        loader_options=posts_service.list_loader_options,
+        serialize=lambda row, user: serialize_post(row, user_id=user.id),
+        default_key=lambda row: row.created_at,
     ),
 }
 
@@ -230,6 +237,44 @@ async def list_my_counter_groups(
         page_size=page_size,
     )
     return CounterGroupListResponse(
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=page_has_next(page, page_size, total_count),
+    )
+
+
+@me_router.get("/posts", response_model=PostListResponse)
+async def list_my_posts(
+    session: UserSessionDep,
+    current_user: CurrentUserDep,
+    guild_ids: Optional[List[int]] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    created_by_me: bool = Query(default=False),
+    sort_by: Optional[str] = Query(default=None, description=_SORT_BY_DESCRIPTION),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=0, le=50),
+) -> PostListResponse:
+    """Posts that reach the caller across every guild they belong to.
+
+    Paged small like the board itself: these carry their bodies, and a body is
+    an editor the client mounts.
+    """
+    items, total_count = await list_across_guilds(
+        session,
+        current_user,
+        Tool.post,
+        guild_ids=guild_ids,
+        search=search,
+        created_by_me=created_by_me,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        page=page,
+        page_size=page_size,
+    )
+    return PostListResponse(
         items=items,
         total_count=total_count,
         page=page,

@@ -1,7 +1,7 @@
 """Import-side pydantic mirrors of the export envelopes.
 
 Each model parses the dict shape its export adapter emits (see
-``services/export/adapters/{document,queue,counter_group,calendar}.py``)
+``services/export/adapters/{document,queue,counter_group,calendar,post}.py``)
 with ``extra="ignore"``: informational export fields (queue member/document/
 task display text, event ids and timestamps, linked document titles) parse
 and drop — they reference guild-local state an import cannot rebind.
@@ -115,6 +115,21 @@ class CounterGroupEnvelope(_EnvelopeBase):
     name: str
     description: Optional[str] = None
     counters: list[CounterEnvelopeItem] = []
+
+
+class PostEnvelope(_EnvelopeBase):
+    """One bulletin-board notice: its headline, its Lexical body, its tags.
+
+    The pin is deliberately not carried. A pin says "this matters on this
+    board right now", which is a fact about the board it was pinned to, not
+    about the notice — an import that restored it would put a stranger's
+    notice at the top of somebody else's board.
+    """
+
+    type: Literal["initiative-post"]
+    name: str
+    body: dict[str, Any] = {}
+    tags: list[str] = []
 
 
 class EventEnvelopeAttendee(SanitizedBaseModel):
