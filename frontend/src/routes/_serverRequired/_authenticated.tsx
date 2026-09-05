@@ -328,8 +328,19 @@ function AppLayout() {
 
                       A grid row is definite either way. It is at least the
                       scrollport, grows with a long page, and gives a child's
-                      `h-full` an area to resolve against. */}
-                  <div className="container mx-auto grid min-h-full grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
+                      `h-full` an area to resolve against.
+
+                      `grid-cols-[minmax(0,1fr)]` is not decoration. A grid
+                      item's automatic minimum is its *content's* minimum, so a
+                      page holding anything that will not wrap — a toolbar, a
+                      table's widest row — sized the column to that instead of
+                      to the container. The container kept its max-width and
+                      stayed centred while its content spilled out of the right
+                      side of it, which reads as a page that is no longer
+                      centred. Flooring the track at 0 hands the item the
+                      container's width and lets what is inside scroll or
+                      truncate on its own terms. */}
+                  <div className="container mx-auto grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
                     <Suspense fallback={<PageLoader />}>
                       <Outlet />
                     </Suspense>

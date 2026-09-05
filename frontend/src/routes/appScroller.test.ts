@@ -79,4 +79,12 @@ describe("the app scroller", () => {
     expect(tag).toMatch(/\bgrid\b/);
     expect(tag).toMatch(/grid-rows-\[1fr\]/);
   });
+
+  // A grid item's automatic minimum is its content's minimum. Without a floor,
+  // a page holding something that will not wrap sized the column to that, and
+  // the content spilled out of a container that was still, correctly, centred.
+  // Measured: a 1918px item inside a 1536px container, overflowing by 414px.
+  it("floors its column so content cannot widen it", () => {
+    expect(contentTag()).toMatch(/grid-cols-\[minmax\(0,1fr\)\]/);
+  });
 });
