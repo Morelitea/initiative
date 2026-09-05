@@ -22,6 +22,13 @@ const mocks = vi.hoisted(() => ({
   removeConnection: vi.fn(),
   ignore: vi.fn(),
   stopIgnoring: vi.fn(),
+  favorites: vi.fn(),
+  setFavorite: vi.fn(),
+}));
+
+vi.mock("@/hooks/useContacts", () => ({
+  useFavoriteContacts: () => mocks.favorites(),
+  useToggleFavoriteContact: () => mocks.setFavorite,
 }));
 
 vi.mock("@/hooks/useDirectMessages", () => ({
@@ -39,10 +46,10 @@ import { ContactActionsMenu } from "./ContactActionsMenu";
 
 const ADA = { id: 7, username: "ada", discriminator: 1234 };
 
-// Through a router: one of the items is a link to the person's profile, and a
-// `Link` outside a router does not render at all.
-const open = async ({ reachOffered = false }: { reachOffered?: boolean } = {}) => {
-  renderPage(() => <ContactActionsMenu user={ADA} reachOffered={reachOffered} />);
+// Through a router: two of the items are links -- to the person, and to the
+// conversation -- and a `Link` outside a router does not render at all.
+const open = async ({ omit }: { omit?: Parameters<typeof ContactActionsMenu>[0]["omit"] } = {}) => {
+  renderPage(() => <ContactActionsMenu user={ADA} omit={omit} />);
   await userEvent.click(await screen.findByRole("button", { name: /Actions for ada/i }));
 };
 
@@ -51,6 +58,7 @@ beforeEach(() => {
   mocks.permission.mockReturnValue({ data: { permission: "denied", may_connect: true } });
   mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.ignored.mockReturnValue({ data: { items: [], total: 0 } });
+  mocks.favorites.mockReturnValue({ data: { items: [] } });
 });
 
 describe("ContactActionsMenu", () => {
@@ -82,8 +90,6 @@ describe("ContactActionsMenu", () => {
   });
 
   it("offers the conversation itself where there is one", async () => {
-    // No "view profile" here: both places this menu appears are already the
-    // person. What it offers instead is where the two of you talk.
     mocks.permission.mockReturnValue({ data: { permission: "open" } });
     await open();
 
@@ -91,19 +97,44 @@ describe("ContactActionsMenu", () => {
       "href",
       "/messages?with=ada1234"
     );
-    expect(screen.queryByRole("menuitem", { name: /view profile/i })).toBeNull();
   });
 
-  it("leaves the ways in out where something beside it offers them", async () => {
-    // The buttons and this menu sit together on a profile and on a roster.
-    // Offering Connect in both is the same action twice, a click apart.
+  it("is the whole of what one account can do about another, by default", async () => {
     mocks.permission.mockReturnValue({ data: { permission: "open", may_connect: true } });
-    await open({ reachOffered: true });
+    await open();
 
+    for (const name of [/view profile/i, /^message$/i, /^connect$/i, /favorites/i, /^ignore$/i]) {
+      expect(screen.getByRole("menuitem", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("leaves out only what the surface around it already offers", async () => {
+    // The buttons and this menu sit together on a profile and on a roster, and
+    // a roster row carries its own star. Offering either in both places is the
+    // same action twice, a click apart.
+    mocks.permission.mockReturnValue({ data: { permission: "open", may_connect: true } });
+    await open({ omit: ["profile", "message", "connect", "ask", "favorite"] });
+
+    expect(screen.queryByRole("menuitem", { name: /view profile/i })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Message" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: /^connect$/i })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /favorites/i })).toBeNull();
     // What is only here stays here.
     expect(screen.getByRole("menuitem", { name: /^ignore$/i })).toBeInTheDocument();
+  });
+
+  it("stars somebody from the menu, and says so once they are starred", async () => {
+    await open();
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Add to favorites" }));
+
+    expect(mocks.setFavorite).toHaveBeenCalledWith(7, false);
+  });
+
+  it("offers to unstar somebody already on the list", async () => {
+    mocks.favorites.mockReturnValue({ data: { items: [{ id: 7 }] } });
+    await open();
+
+    expect(await screen.findByRole("menuitem", { name: "Remove from favorites" })).toBeVisible();
   });
 
   it("offers nothing to open where the channel is not", async () => {

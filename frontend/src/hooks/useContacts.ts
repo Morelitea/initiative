@@ -8,7 +8,7 @@
  * community alone.
  */
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import {
@@ -55,8 +55,17 @@ export const contactsPrefetch = (search: string) => ({
   },
 });
 
-export const useContactSections = (search: string) =>
-  useListContactSectionsApiV1MeContactsGet(sectionParams(search));
+/**
+ * Every community's first page, under one term.
+ *
+ * ``enabled`` is for a surface that is not on screen yet — a dialog behind a
+ * button — where the aggregate is a whole walk of the reader's communities and
+ * there is no reason to walk it until somebody opens the thing.
+ */
+export const useContactSections = (search: string, options?: { enabled?: boolean }) =>
+  useListContactSectionsApiV1MeContactsGet(sectionParams(search), {
+    query: { enabled: options?.enabled ?? true },
+  });
 
 export const useFavoriteContacts = (search: string) =>
   useListFavoriteContactsApiV1MeContactsFavoritesGet(favoriteParams(search));
@@ -71,6 +80,28 @@ export const useFavoriteContacts = (search: string) =>
 export const useContactSectionPage = (guildId: number, page: number, search: string) =>
   useListContactSectionsApiV1MeContactsGet(guildPageParams(guildId, page, search), {
     query: { enabled: page > 1, staleTime: PAGE_STALE_MS },
+  });
+
+/**
+ * Everybody else in one community, past the first page.
+ *
+ * For a surface that grows a list rather than paging it — a picker, where
+ * stepping between pages loses the person somebody had just spotted. It starts
+ * at page two because the aggregate already carries page one of every
+ * community, and it does not run at all until the reader asks for more, so a
+ * roster nobody reaches the bottom of costs nothing.
+ */
+export const useMoreCommunityContacts = (guildId: number, search: string, enabled: boolean) =>
+  useInfiniteQuery({
+    queryKey: ["contacts", "community", guildId, search.trim()] as const,
+    queryFn: ({ pageParam }) =>
+      listContactSectionsApiV1MeContactsGet(guildPageParams(guildId, pageParam, search)),
+    initialPageParam: 2,
+    // The section says whether there is one after it; the page number is how
+    // many have been fetched, offset by the one that arrived with the walk.
+    getNextPageParam: (last, all) => (last.sections?.[0]?.has_next ? all.length + 2 : undefined),
+    enabled,
+    staleTime: PAGE_STALE_MS,
   });
 
 /** Warm the page a pager button would land on, before it is clicked. */

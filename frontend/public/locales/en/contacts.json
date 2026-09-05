@@ -62,6 +62,9 @@
     "removeConnection": "Remove connection",
     "removeConnectionTitle": "Remove this connection?",
     "removeConnectionBody": "You will no longer be connected. If nothing else lets the two of you message each other — a community you both belong to, or both of you being open to messages — that ends with it.",
-    "message": "Message"
+    "message": "Message",
+    "viewProfile": "View profile",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites"
   }
 }

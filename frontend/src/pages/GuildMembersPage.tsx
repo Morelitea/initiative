@@ -176,7 +176,7 @@ export const GuildMembersPage = () => {
                   and nothing has to be kept in step. */}
               <ContactActionsMenu
                 user={person}
-                reachOffered
+                omit={["profile", "message", "connect", "ask", "favorite"]}
                 permission={answers[String(person.id)] ?? null}
               />
             </div>

@@ -13,7 +13,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-const mocks = vi.hoisted(() => ({ waiting: vi.fn(), mobile: vi.fn(), notifications: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  waiting: vi.fn(),
+  mobile: vi.fn(),
+  notifications: vi.fn(),
+  globalCreate: vi.fn(),
+}));
 
 vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -21,6 +26,12 @@ vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mocks.mobile() }));
 vi.mock("@/hooks/useNotifications", () => ({ useNotifications: () => mocks.notifications() }));
+// Whether the create button is drawn at all is a permissions question with its
+// own tests; here it is only the thing the messages button sits beside.
+vi.mock("@/hooks/useInitiativeAccess", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useGlobalCreateAccess: () => mocks.globalCreate(),
+}));
 
 import { BottomNav } from "./BottomNav";
 
@@ -39,6 +50,7 @@ beforeEach(() => {
   mocks.waiting.mockReturnValue(0);
   mocks.mobile.mockReturnValue(true);
   mocks.notifications.mockReturnValue({ data: { unread_count: 0 } });
+  mocks.globalCreate.mockReturnValue({ document: true, task: true });
 });
 
 describe("the bottom bar", () => {
@@ -66,11 +78,23 @@ describe("the bottom bar", () => {
     expect(messages).toHaveTextContent("");
   });
 
-  it("is not offered where the pill is not", async () => {
-    // The pill is the phone's navigation; a wide screen has the sidebar.
+  it("stands beside the create button where the pill is not drawn", async () => {
+    // The pill is the phone's navigation. A wide screen does without it, but
+    // not without the one destination that can be waiting on you -- so this
+    // moves out of the pill rather than disappearing with it.
     mocks.mobile.mockReturnValue(false);
+    mocks.waiting.mockReturnValue(2);
     setup();
 
-    expect(screen.queryByRole("button", { name: /My Messages/ })).toBeNull();
+    const messages = await screen.findByRole("button", { name: /My Messages, 2 waiting/ });
+    expect(screen.queryByRole("button", { name: "Open menu" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Home" })).toBeNull();
+
+    // To the left of it: the quieter of the two, so the primary action stays
+    // where it has always been.
+    const create = screen.getByRole("button", { name: "Create" });
+    expect(
+      messages.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });

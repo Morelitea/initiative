@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   acceptMessageRequest: vi.fn(),
   removeMessageRequest: vi.fn(),
   userProfile: vi.fn(),
+  dmSettings: vi.fn(),
 }));
 
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
@@ -71,6 +72,8 @@ vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useMessageRequests: () => mocks.messageRequests(),
+  useDmSettings: () => mocks.dmSettings(),
+  useCanUseDirectMessages: () => Boolean(mocks.dmSettings().data?.age_confirmed_at),
   useDmPermission: () => mocks.dmPermission(),
   useRequestMessage: () => ({ mutate: mocks.requestMessage, isPending: false }),
   useAcceptMessageRequest: () => ({ mutate: mocks.acceptMessageRequest, isPending: false }),
@@ -150,6 +153,10 @@ beforeEach(() => {
   mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
   mocks.dmPermission.mockReturnValue({ data: { permission: "denied" } });
   mocks.userProfile.mockReturnValue({ data: undefined, isLoading: false });
+  mocks.dmSettings.mockReturnValue({
+    data: { dm_policy: "community", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
+    isSuccess: true,
+  });
 });
 
 /** The person a `?with=` handle resolves to. */
@@ -338,6 +345,69 @@ describe("My Messages", () => {
     renderPage(Page, { initialRoute: "/messages", routerSearch: { with: "alex1234" } });
 
     expect(await screen.findByText("already talking")).toBeInTheDocument();
+  });
+
+  it("asks the age question here, instead of a page whose every control refuses", async () => {
+    // Unanswered, this account cannot message anybody and nobody can message
+    // it. The form is on this page rather than only in Settings, because this
+    // is where somebody arrives wanting the thing it gates.
+    mocks.dmSettings.mockReturnValue({
+      data: { dm_policy: "community", communities: [], age_confirmed_at: null },
+      isSuccess: true,
+    });
+
+    await renderMessages();
+
+    expect(await screen.findByLabelText(/date of birth/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Nobody yet/i)).toBeNull();
+  });
+
+  it("waits for the settings before deciding the account has answered nothing", async () => {
+    mocks.dmSettings.mockReturnValue({ data: undefined, isSuccess: false });
+
+    await renderMessages();
+
+    expect(await screen.findByRole("heading", { name: /my messages/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/date of birth/i)).toBeNull();
+  });
+
+  it("stops drawing the last thread the moment the address names another", async () => {
+    // The address is the selection. Held in state instead, it outlives the URL
+    // that set it: while the next person's profile is still arriving there is
+    // nobody to match, and the pane would go on showing the conversation you
+    // just left under an address that has already moved on.
+    mocks.conversations.mockResolvedValue({
+      conversations: [
+        { id: "conv-a", other_user_id: 1, created_at: "2026-09-01T00:00:00Z" },
+        { id: "conv-b", other_user_id: 2, created_at: "2026-09-01T00:00:00Z" },
+      ],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(1, "ada"), grant(2, "grace")], incoming: [], outgoing: [] },
+    });
+    // Only the first one resolves: the second is still on its way, which is
+    // the window the stale thread used to show through.
+    mocks.userProfile.mockImplementation((handle: string) =>
+      handle === "ada1234" ? profile(1, "ada") : { data: undefined, isLoading: true }
+    );
+    mocks.logGet.mockImplementation((id: string) =>
+      Promise.resolve(
+        id === "conv-a" ? [{ id: "m1", body: "ada is talking", at: "", mine: false }] : []
+      )
+    );
+
+    const Page = await messagesPage();
+    const { router: pageRouter } = renderPage(Page, {
+      initialRoute: "/messages",
+      routerSearch: { with: "ada1234" },
+    });
+    expect(await screen.findByText("ada is talking")).toBeInTheDocument();
+
+    await act(() =>
+      pageRouter.navigate({ to: "/messages", search: { with: "grace1234" } as never })
+    );
+
+    await waitFor(() => expect(screen.queryByText("ada is talking")).toBeNull());
   });
 
   it("offers to ask, for somebody there is no channel with", async () => {

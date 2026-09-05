@@ -114,7 +114,7 @@ export const UserProfilePage = () => {
                   }}
                 />
                 <ContactActionsMenu
-                  reachOffered
+                  omit={["profile", "message", "connect", "ask"]}
                   user={{
                     id: profile.id,
                     username: profile.username,

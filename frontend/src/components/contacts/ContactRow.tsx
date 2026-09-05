@@ -75,6 +75,7 @@ export const ContactRow = ({
       {/* Outside the link, like the star: acting on somebody is not the same
           gesture as going to look at them. */}
       <ContactActionsMenu
+        omit={["profile", "favorite"]}
         user={{
           id: contact.id,
           username: contact.username,

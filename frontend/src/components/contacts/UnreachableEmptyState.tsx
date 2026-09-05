@@ -25,6 +25,39 @@ export const unreachableReason = (
 };
 
 /**
+ * The question itself, wherever it is asked.
+ *
+ * Its own component because the answer unlocks direct messages everywhere and
+ * more than one surface has to be able to take it — the Privacy tab that
+ * states the rule, and any page whose whole content the unanswered question
+ * holds back. A page that only said "you cannot use this yet" and left the
+ * form somewhere else would be a lock with the key in another room.
+ *
+ * `id` because two of these can share a page, and a label points at exactly
+ * one field.
+ */
+export const AgeConfirmationForm = ({ id }: { id: string }) => {
+  const { t } = useTranslation(["contacts", "settings"]);
+  const { birthdate, setBirthdate, submitting, error, confirm } = useAgeConfirmation();
+
+  return (
+    <form
+      className="max-w-sm space-y-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void confirm();
+      }}
+    >
+      <BirthdateField id={id} value={birthdate} onChange={setBirthdate} disabled={submitting} />
+      {error && <p className="text-destructive text-sm">{error}</p>}
+      <Button type="submit" size="sm" disabled={submitting}>
+        {t("settings:privacy.dm.confirmAge")}
+      </Button>
+    </form>
+  );
+};
+
+/**
  * The panel above the page for an account that has not said how old it is.
  *
  * It states the rule and the fact and stops there. What is on the other side
@@ -32,11 +65,10 @@ export const unreachableReason = (
  * and the only thing keeping the answer honest is that nothing here gave a
  * reason to get it wrong.
  */
-export const AgeUnansweredPanel = () => {
+export const AgeUnansweredPanel = ({ id = "contacts-age" }: { id?: string } = {}) => {
   // The rule and the fact are the Privacy tab's own words: two surfaces say
   // the same thing to the same account, and one string keeps them agreeing.
   const { t } = useTranslation(["contacts", "settings"]);
-  const { birthdate, setBirthdate, submitting, error, confirm } = useAgeConfirmation();
 
   return (
     <section className="space-y-3 rounded-lg border p-4">
@@ -46,24 +78,7 @@ export const AgeUnansweredPanel = () => {
           {t("settings:privacy.dm.ageLocked")}
         </p>
       </div>
-      <form
-        className="max-w-sm space-y-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void confirm();
-        }}
-      >
-        <BirthdateField
-          id="contacts-age"
-          value={birthdate}
-          onChange={setBirthdate}
-          disabled={submitting}
-        />
-        {error && <p className="text-destructive text-sm">{error}</p>}
-        <Button type="submit" size="sm" disabled={submitting}>
-          {t("settings:privacy.dm.confirmAge")}
-        </Button>
-      </form>
+      <AgeConfirmationForm id={id} />
     </section>
   );
 };

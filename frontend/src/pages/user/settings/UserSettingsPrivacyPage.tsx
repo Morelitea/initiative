@@ -5,6 +5,7 @@ import { ConnectionsSection } from "@/components/contacts/ConnectionsSection";
 import { ContactRequestsSection } from "@/components/contacts/ContactRequestsSection";
 import { DirectMessagePolicyField } from "@/components/contacts/DirectMessagePolicyField";
 import { IgnoredAccountsSection } from "@/components/contacts/IgnoredAccountsSection";
+import { AgeConfirmationForm } from "@/components/contacts/UnreachableEmptyState";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Switch } from "@/components/ui/switch";
 import { useDmSettings, useUpdateDmSettings } from "@/hooks/useDirectMessages";
@@ -36,10 +37,15 @@ export const UserSettingsPrivacyPage = () => {
   return (
     <div className="space-y-6">
       <SettingsSection title={t("privacy.dm.title")}>
+        {/* The rule, and the answer to it. This tab is where somebody comes to
+            change who may reach them, so it has to be able to take the one
+            answer that gates all of it — a notice saying the controls are
+            locked, with the key on another page, is not an answer. */}
         {!ageConfirmed && !isLoading && (
-          <p className="rounded-md border border-dashed p-3 text-muted-foreground text-sm">
-            {t("privacy.dm.ageLocked")}
-          </p>
+          <div className="space-y-3 rounded-md border border-dashed p-3">
+            <p className="max-w-prose text-muted-foreground text-sm">{t("privacy.dm.ageLocked")}</p>
+            <AgeConfirmationForm id="settings-age" />
+          </div>
         )}
         <DirectMessagePolicyField
           policy={(data?.dm_policy ?? "private") as DmPolicy}

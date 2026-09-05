@@ -92,8 +92,19 @@ export const useDmPermission = (userId: number | undefined) =>
  * A POST that reads: the subjects are a list rather than an address, so
  * `useQuery` rather than a mutation, with the ids in the key.
  */
+/**
+ * The most accounts one question may name. A surface can list more than this
+ * at once; the ones past it are simply not answered for, and a control built
+ * on a missing answer offers nothing rather than offering something the server
+ * would refuse.
+ */
+const PERMISSION_LIMIT = 100;
+
 export const useDmPermissions = (userIds: number[]) => {
-  const ids = useMemo(() => [...new Set(userIds)].sort((a, b) => a - b), [userIds]);
+  const ids = useMemo(
+    () => [...new Set(userIds)].sort((a, b) => a - b).slice(0, PERMISSION_LIMIT),
+    [userIds]
+  );
   return useQuery({
     queryKey: ["dm", "permissions", ids],
     queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
@@ -142,15 +153,18 @@ export const parseHandle = (raw: string): { username: string; discriminator: num
 };
 
 /**
- * How many people have asked to message this account and are still waiting.
+ * How many people are waiting on an answer from this account.
  *
- * Message requests only. A connection is a separate agreement between two
- * accounts — made, answered and unmade on My Contacts — and counting it here
- * would put a mark about connections on a page about conversations.
+ * Both kinds, because both are answered in the same place: the requests
+ * section of My Messages takes a connection request and a message request
+ * alike, so a mark that counted only one of them would send somebody to a
+ * screen with more on it than the mark admitted. Only incoming — an ask you
+ * sent is waiting on them, not on you.
  */
-export const usePendingMessageRequests = (): number => {
-  const { data } = useMessageRequests();
-  return data?.incoming?.length ?? 0;
+export const usePendingContactRequests = (): number => {
+  const messages = useMessageRequests();
+  const connections = useConnections();
+  return (messages.data?.incoming?.length ?? 0) + (connections.data?.incoming?.length ?? 0);
 };
 
 /** Whether this account has answered the age question, which gates everything. */

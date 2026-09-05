@@ -62,6 +62,9 @@
     "removeConnection": "Verbindung entfernen",
     "removeConnectionTitle": "Diese Verbindung entfernen?",
     "removeConnectionBody": "Ihr seid dann nicht mehr verbunden. Wenn euch sonst nichts erlaubt, einander zu schreiben – eine gemeinsame Community oder dass ihr beide für Nachrichten offen seid –, endet auch das.",
-    "message": "Nachricht"
+    "message": "Nachricht",
+    "viewProfile": "Profil ansehen",
+    "favorite": "Zu Favoriten hinzufügen",
+    "unfavorite": "Aus Favoriten entfernen"
   }
 }
