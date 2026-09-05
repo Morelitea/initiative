@@ -62,6 +62,9 @@
     "removeConnection": "Supprimer la connexion",
     "removeConnectionTitle": "Supprimer cette connexion ?",
     "removeConnectionBody": "Vous ne serez plus connectés. Si rien d'autre ne vous permet de vous écrire — une communauté commune, ou le fait que vous soyez tous deux ouverts aux messages —, cela prend fin aussi.",
-    "message": "Message"
+    "message": "Message",
+    "viewProfile": "Voir le profil",
+    "favorite": "Ajouter aux favoris",
+    "unfavorite": "Retirer des favoris"
   }
 }

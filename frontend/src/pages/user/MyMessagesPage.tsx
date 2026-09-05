@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
+import { AgeUnansweredPanel } from "@/components/contacts/UnreachableEmptyState";
 import { ConversationList } from "@/components/messages/ConversationList";
 import { MessageContent } from "@/components/messages/MessageContent";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
@@ -16,7 +17,11 @@ import { ratchetSupported } from "@/crypto/client";
 import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
 import { useAuth } from "@/hooks/useAuth";
-import { useMessageRequests } from "@/hooks/useDirectMessages";
+import {
+  useCanUseDirectMessages,
+  useDmSettings,
+  useMessageRequests,
+} from "@/hooks/useDirectMessages";
 import {
   useCollectMessages,
   useConversations,
@@ -53,7 +58,12 @@ export function MyMessagesPage() {
   const conversations = useConversations();
   const requests = useMessageRequests();
   const startConversation = useStartConversation();
-  const [selected, setSelected] = useState<string | null>(null);
+  // Absent, the settings read as an account that has answered nothing, which
+  // is the one thing that must never be shown to somebody who has -- so the
+  // gate below waits for the answer rather than assuming one.
+  const dmSettings = useDmSettings();
+  const settingsLoaded = dmSettings.isSuccess;
+  const canMessage = useCanUseDirectMessages();
 
   // Who the URL asked for, resolved to a person. The profile is what a panel
   // for somebody with no channel has to draw, and the id is what everything
@@ -79,11 +89,23 @@ export function MyMessagesPage() {
   };
 
   const rows = conversations.data?.conversations ?? [];
-  const current = rows.find((row) => row.id === selected) ?? null;
 
   const targetId = target.data?.id;
-  const targetConversation = rows.find((row) => row.other_user_id === targetId);
   const channelOpen = targetId !== undefined && personFor.has(targetId);
+
+  /**
+   * The thread on screen, which is whichever one the address names.
+   *
+   * Derived rather than held. A selection kept in state outlives the address
+   * that set it: while the next person's profile is still arriving there is no
+   * `targetId` to match, and a remembered id would go on drawing the last
+   * conversation under a URL that has already moved on -- the address changes
+   * and the pane does not. Read from the URL, an unresolved handle simply has
+   * no conversation yet, which is the truth and is what the panel below is for.
+   */
+  const current =
+    targetId !== undefined ? (rows.find((row) => row.other_user_id === targetId) ?? null) : null;
+  const targetConversation = current;
 
   // Acting on the handle in the URL, once per handle: select their thread, or
   // open one where the channel is already there. A conversation is one per
@@ -102,13 +124,12 @@ export function MyMessagesPage() {
   // failure that was never theirs.
   const [failedFor, setFailedFor] = useState<string | null>(null);
 
+  // Nothing to select on the way out: opening one refreshes the list, and the
+  // thread on screen is read from that list against the handle in the address.
   const openWith = useCallback(
     (userId: number, handle: string) =>
       startMessages(userId, {
-        onSuccess: (conversation) => {
-          setFailedFor(null);
-          setSelected(conversation.id);
-        },
+        onSuccess: () => setFailedFor(null),
         onError: () => setFailedFor(handle),
       }),
     [startMessages]
@@ -117,9 +138,10 @@ export function MyMessagesPage() {
   useEffect(() => {
     if (!withHandle || targetId === undefined || !conversationsLoaded) return;
     if (opened.current === withHandle) return;
+    // Already there: nothing to open, and nothing to select -- the render
+    // reads it off the address.
     if (targetConversation) {
       opened.current = withHandle;
-      setSelected(targetConversation.id);
       return;
     }
     if (channelOpen) {
@@ -148,6 +170,23 @@ export function MyMessagesPage() {
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("deviceFailed")}
         />
+      </div>
+    );
+  }
+
+  // An account that has not answered the age question cannot message anybody
+  // and nobody can message it, so there is no list to show and no conversation
+  // to open: every control on this page would refuse. The question is the
+  // page, the way it is on My Contacts, rather than a notice on top of an
+  // empty one -- and it is asked here rather than only in Settings, because
+  // this is where somebody arrives wanting to use the thing it gates.
+  if (settingsLoaded && !canMessage) {
+    return (
+      <div className="space-y-4">
+        <header className="space-y-1">
+          <h1 className="font-semibold text-2xl">{t("title")}</h1>
+        </header>
+        <AgeUnansweredPanel id="messages-age" />
       </div>
     );
   }

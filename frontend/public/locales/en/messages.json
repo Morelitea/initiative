@@ -6,18 +6,39 @@
     "title": "Pick a conversation"
   },
   "nobodyYet": "Nobody yet. A conversation opens once a message request is accepted.",
+  "ageLocked": "Messaging is for people aged 13 and over, and this account has not answered that question yet.",
   "requests": {
     "heading": "Requests",
     "asked": "They want to start a conversation.",
     "youAsked": "You asked. Nothing is sent until they accept.",
     "accept": "Accept",
     "decline": "Decline",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "wantsToConnect": "They want to connect.",
+    "youAskedToConnect": "You asked to connect. Nothing changes until they accept."
   },
   "groups": {
+    "unread": "Unread",
     "favorites": "Favorites",
     "connections": "Connections",
     "messages": "Messages"
+  },
+  "search": {
+    "placeholder": "Search",
+    "label": "Search conversations",
+    "noMatches": "Nobody matches."
+  },
+  "newConversation": {
+    "trigger": "Start a conversation",
+    "title": "Start a conversation",
+    "description": "Somebody from a community you share, or anybody whose full handle you know.",
+    "placeholder": "Search people, or type name#1234",
+    "hint": "A whole handle, number included, reaches somebody in none of your communities.",
+    "connect": "Connect with {{handle}}",
+    "noMatches": "Nobody matches.",
+    "empty": "Nobody to show. You share no communities with anyone yet.",
+    "unreachable": "Not reachable",
+    "showMore": "Show more"
   },
   "receipt": {
     "sent": "Sent",

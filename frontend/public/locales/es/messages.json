@@ -6,18 +6,39 @@
     "title": "Elige una conversación"
   },
   "nobodyYet": "Todavía nadie. Una conversación se abre cuando se acepta una solicitud de mensaje.",
+  "ageLocked": "La mensajería es para personas de 13 años o más, y esta cuenta aún no ha respondido a esa pregunta.",
   "requests": {
     "heading": "Solicitudes",
     "asked": "Quieren iniciar una conversación.",
     "youAsked": "Lo pediste. No se envía nada hasta que acepten.",
     "accept": "Aceptar",
     "decline": "Rechazar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "wantsToConnect": "Quieren conectar.",
+    "youAskedToConnect": "Pediste conectar. Nada cambia hasta que acepten."
   },
   "groups": {
+    "unread": "Sin leer",
     "favorites": "Favoritos",
     "connections": "Conexiones",
     "messages": "Mensajes"
+  },
+  "search": {
+    "placeholder": "Buscar",
+    "label": "Buscar conversaciones",
+    "noMatches": "Nadie coincide."
+  },
+  "newConversation": {
+    "trigger": "Iniciar una conversación",
+    "title": "Iniciar una conversación",
+    "description": "Alguien de una comunidad que compartes, o cualquiera cuyo identificador completo conozcas.",
+    "placeholder": "Busca personas o escribe nombre#1234",
+    "hint": "Un identificador completo, con número, alcanza a alguien que no está en ninguna de tus comunidades.",
+    "connect": "Conectar con {{handle}}",
+    "noMatches": "Nadie coincide.",
+    "empty": "Nadie que mostrar. Todavía no compartes comunidad con nadie.",
+    "unreachable": "No disponible",
+    "showMore": "Mostrar más"
   },
   "receipt": {
     "sent": "Enviado",

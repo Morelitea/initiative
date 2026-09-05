@@ -29,7 +29,7 @@ import {
   sendText,
   unreadIn,
 } from "@/crypto/messaging";
-import { useDmSettings, usePendingMessageRequests } from "@/hooks/useDirectMessages";
+import { useDmSettings, usePendingContactRequests } from "@/hooks/useDirectMessages";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
@@ -171,13 +171,6 @@ export function useCollectMessagesWhereRegistered() {
 }
 
 /**
- * How many messages are waiting in each conversation, on this device.
- *
- * Read from the local log, because that is where a thread is — the server
- * deletes a message once it has been collected and could not answer this even
- * if it were asked.
- */
-/**
  * How many things are waiting in My Messages, as one number.
  *
  * Two kinds, and they mean the same thing to the person seeing the mark:
@@ -186,13 +179,20 @@ export function useCollectMessagesWhereRegistered() {
  * whole rail, which is the only mark visible from inside a community.
  */
 export function useMessagesWaiting(): number {
-  const pending = usePendingMessageRequests();
+  const pending = usePendingContactRequests();
   const conversations = useConversations();
   const unread = useUnreadMessages((conversations.data?.conversations ?? []).map((row) => row.id));
   const unreadTotal = [...(unread.data?.values() ?? [])].reduce((total, count) => total + count, 0);
   return pending + unreadTotal;
 }
 
+/**
+ * How many messages are waiting in each conversation, on this device.
+ *
+ * Read from the local log, because that is where a thread is — the server
+ * deletes a message once it has been collected and could not answer this even
+ * if it were asked.
+ */
 export function useUnreadMessages(conversationIds: string[]) {
   return useQuery({
     queryKey: messageKeys.unread(conversationIds),

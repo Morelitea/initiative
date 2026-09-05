@@ -6,18 +6,39 @@
     "title": "Choisissez une conversation"
   },
   "nobodyYet": "Personne pour l'instant. Une conversation s'ouvre dès qu'une demande de message est acceptée.",
+  "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus, et ce compte n'a pas encore répondu à cette question.",
   "requests": {
     "heading": "Demandes",
     "asked": "Cette personne veut démarrer une conversation.",
     "youAsked": "Vous avez demandé. Rien n'est envoyé avant leur accord.",
     "accept": "Accepter",
     "decline": "Refuser",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "wantsToConnect": "Cette personne souhaite se connecter.",
+    "youAskedToConnect": "Vous avez demandé une connexion. Rien ne change tant qu'elle n'accepte pas."
   },
   "groups": {
+    "unread": "Non lus",
     "favorites": "Favoris",
     "connections": "Connexions",
     "messages": "Messages"
+  },
+  "search": {
+    "placeholder": "Rechercher",
+    "label": "Rechercher dans les conversations",
+    "noMatches": "Personne ne correspond."
+  },
+  "newConversation": {
+    "trigger": "Démarrer une conversation",
+    "title": "Démarrer une conversation",
+    "description": "Quelqu'un d'une communauté que vous partagez, ou toute personne dont vous connaissez l'identifiant complet.",
+    "placeholder": "Rechercher des personnes, ou saisir nom#1234",
+    "hint": "Un identifiant complet, numéro compris, atteint une personne qui n'est dans aucune de vos communautés.",
+    "connect": "Se connecter avec {{handle}}",
+    "noMatches": "Personne ne correspond.",
+    "empty": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
+    "unreachable": "Injoignable",
+    "showMore": "Afficher plus"
   },
   "receipt": {
     "sent": "Envoyé",

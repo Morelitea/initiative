@@ -46,6 +46,19 @@ export function BottomNav() {
   // The same count the sidebar item and the logo carry: a message nobody has
   // read, or somebody asking to send one.
   const messagesWaiting = useMessagesWaiting();
+  // The count belongs in the name rather than beside it: a label wins over
+  // what is inside the button, so a badge nobody can read is a number only
+  // some people get. Both buttons below say it the same way.
+  const messagesLabel =
+    messagesWaiting > 0
+      ? `${t("bottomNav.messages")}, ${t("requestsWaiting", { count: messagesWaiting })}`
+      : t("bottomNav.messages");
+  const waitingBadge =
+    messagesWaiting > 0 ? (
+      <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
+        {messagesWaiting > 99 ? "99+" : messagesWaiting}
+      </Badge>
+    ) : null;
 
   // Hide the add button entirely on a create-context route where the user lacks
   // permission. Non-create routes (no registration) fall back to the global menu,
@@ -90,21 +103,10 @@ export function BottomNav() {
               size="icon"
               className="relative h-11 w-11 rounded-full"
               onClick={() => void navigate({ to: "/messages" })}
-              // The count belongs in the name rather than beside it: a label
-              // wins over what is inside the button, so a badge nobody can
-              // read is a number only some people get.
-              aria-label={
-                messagesWaiting > 0
-                  ? `${t("bottomNav.messages")}, ${t("requestsWaiting", { count: messagesWaiting })}`
-                  : t("bottomNav.messages")
-              }
+              aria-label={messagesLabel}
             >
               <MessageSquare className="h-5 w-5" />
-              {messagesWaiting > 0 ? (
-                <Badge className="absolute -top-0.5 -right-0.5 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]">
-                  {messagesWaiting > 99 ? "99+" : messagesWaiting}
-                </Badge>
-              ) : null}
+              {waitingBadge}
             </Button>
             <Button
               variant="ghost"
@@ -116,6 +118,24 @@ export function BottomNav() {
               <Search className="h-5 w-5" />
             </Button>
           </nav>
+        )}
+
+        {/* Beside the create button rather than inside the mobile pill, which
+            is not drawn at this size: the two things somebody reaches for from
+            anywhere are starting something and seeing who has written. The
+            quieter of the two is on the left, so the primary action stays where
+            it has always been. */}
+        {!isMobile && (
+          <Button
+            variant="secondary"
+            size="icon"
+            className="pointer-events-auto relative h-12 w-12 rounded-full shadow-lg"
+            onClick={() => void navigate({ to: "/messages" })}
+            aria-label={messagesLabel}
+          >
+            <MessageSquare className="h-5 w-5" />
+            {waitingBadge}
+          </Button>
         )}
 
         {!hideAdd &&

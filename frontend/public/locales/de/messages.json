@@ -6,18 +6,39 @@
     "title": "Ein Gespräch auswählen"
   },
   "nobodyYet": "Noch niemand. Eine Unterhaltung öffnet sich, sobald eine Nachrichtenanfrage angenommen wurde.",
+  "ageLocked": "Nachrichten sind für Personen ab 13 Jahren, und dieses Konto hat diese Frage noch nicht beantwortet.",
   "requests": {
     "heading": "Anfragen",
     "asked": "Sie möchten ein Gespräch beginnen.",
     "youAsked": "Du hast gefragt. Bis sie annehmen, wird nichts gesendet.",
     "accept": "Annehmen",
     "decline": "Ablehnen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "wantsToConnect": "Sie möchten sich verbinden.",
+    "youAskedToConnect": "Du hast um eine Verbindung gebeten. Es ändert sich nichts, bis sie annehmen."
   },
   "groups": {
+    "unread": "Ungelesen",
     "favorites": "Favoriten",
     "connections": "Verbindungen",
     "messages": "Nachrichten"
+  },
+  "search": {
+    "placeholder": "Suchen",
+    "label": "Unterhaltungen durchsuchen",
+    "noMatches": "Niemand passt dazu."
+  },
+  "newConversation": {
+    "trigger": "Unterhaltung beginnen",
+    "title": "Unterhaltung beginnen",
+    "description": "Jemand aus einer gemeinsamen Community – oder jede Person, deren vollständiges Handle du kennst.",
+    "placeholder": "Personen suchen oder name#1234 eingeben",
+    "hint": "Ein vollständiges Handle mit Nummer erreicht auch Personen, mit denen du keine Community teilst.",
+    "connect": "Mit {{handle}} verbinden",
+    "noMatches": "Niemand passt dazu.",
+    "empty": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
+    "unreachable": "Nicht erreichbar",
+    "showMore": "Mehr anzeigen"
   },
   "receipt": {
     "sent": "Gesendet",

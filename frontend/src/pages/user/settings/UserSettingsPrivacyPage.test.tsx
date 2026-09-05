@@ -76,6 +76,18 @@ describe("UserSettingsPrivacyPage", () => {
     }
   });
 
+  it("takes the answer here, rather than pointing somewhere else for it", async () => {
+    // This tab is where somebody comes to change who may reach them, and the
+    // age question gates all of it. A notice saying the controls are locked,
+    // with the key on another page, is not an answer.
+    mocks.settings.mockReturnValue(dmSettings({ age_confirmed_at: null }));
+
+    renderPage(UserSettingsPrivacyPage);
+
+    expect(await screen.findByLabelText(/date of birth/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /confirm/i })).toBeInTheDocument();
+  });
+
   it("shows the community toggles only under My communities", async () => {
     renderPage(UserSettingsPrivacyPage);
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();

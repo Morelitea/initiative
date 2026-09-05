@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useFavoriteContacts, useToggleFavoriteContact } from "@/hooks/useContacts";
 import {
   useConnections,
   useDmPermission,
@@ -24,6 +25,15 @@ import {
 } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 import { getUrlHandle } from "@/lib/userDisplay";
+
+/**
+ * The things this menu can offer that a surface might offer for itself.
+ *
+ * `profile` is here for the opposite reason to the rest: most surfaces that
+ * draw this menu already *are* the person or link to them, so it is the one
+ * that is usually left out rather than usually kept.
+ */
+type MenuAction = "profile" | "message" | "connect" | "ask" | "favorite";
 
 interface ContactActionsMenuProps {
   /** The account being acted on. The handle is what a connection is addressed
@@ -38,11 +48,12 @@ interface ContactActionsMenuProps {
    */
   permission?: DirectMessagePermissionRead | null;
   /**
-   * Leave out the ways in — message, ask, connect — because something beside
-   * this menu already offers them. Set wherever `ContactActionButtons` is
-   * rendered too, so a person is not offered the same thing twice.
+   * What the menu must not offer, because the surface around it already does —
+   * a row of buttons, a star of its own, a link on the name. Everything else
+   * appears, subject to what the server says is possible, so a person is never
+   * offered the same thing twice and never quietly missing an action either.
    */
-  reachOffered?: boolean;
+  omit?: ReadonlyArray<MenuAction>;
 }
 
 /**
@@ -51,27 +62,42 @@ interface ContactActionsMenuProps {
  * Until this existed the writes had no caller: ignoring was reachable only by
  * already knowing somebody's exact handle and opening Settings, which is the
  * opposite of the moment somebody reaches for it. So the menu goes where the
- * person is — their profile, and their row on My Contacts.
+ * person is — their profile, their row on My Contacts, a community's roster,
+ * a conversation in the list.
  *
- * Which items appear is read from ``dm_permission``, one collapsed value the
- * server computes. *Ask to message* on ``may_request``, nothing on ``denied``
- * — and because every refusal collapses into that one word, a menu built from
- * it says nothing about which refusal it is.
+ * It holds *everything* one account can do about another, and each surface
+ * names only what it already offers beside it. That way the menu is the
+ * complete answer to "what else can I do about them" by default, and the ones
+ * that go missing go missing on purpose.
+ *
+ * Which items are possible is read from ``dm_permission``, one collapsed value
+ * the server computes. *Ask to message* on ``may_request``, nothing on
+ * ``denied`` — and because every refusal collapses into that one word, a menu
+ * built from it says nothing about which refusal it is.
  */
 export const ContactActionsMenu = ({
   user,
   className,
-  reachOffered = false,
+  omit = [],
   permission: supplied,
 }: ContactActionsMenuProps) => {
   const { t } = useTranslation(["contacts", "settings"]);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
-  // Only where the caller has not already been told.
-  const own = useDmPermission(supplied === undefined ? user.id : undefined);
+  const hidden = new Set(omit);
+  const shows = (action: MenuAction) => !hidden.has(action);
+  // Only where the caller has not already been told -- and only where the
+  // answer is used at all: with every way in left to something else, nothing
+  // below reads it, and a list of rows would each be asking for nothing.
+  const wantsPermission = shows("message") || shows("connect") || shows("ask");
+  const own = useDmPermission(supplied === undefined && wantsPermission ? user.id : undefined);
   const permission = supplied ?? own.data;
   const { data: connections } = useConnections();
   const { data: ignored } = useIgnoredAccounts();
+  // The reader's own starred list, which every surface that draws a person
+  // already reads -- so this is the same cached answer rather than a new ask.
+  const { data: favorites } = useFavoriteContacts("");
+  const setFavorite = useToggleFavoriteContact();
 
   const requestConnection = useRequestConnection();
   const requestMessage = useRequestMessage();
@@ -84,6 +110,7 @@ export const ContactActionsMenu = ({
     .concat(connections?.outgoing ?? [])
     .some((g) => g.user_id === user.id);
   const isIgnored = (ignored?.items ?? []).some((row) => row.user_id === user.id);
+  const isStarred = (favorites?.items ?? []).some((contact) => contact.id === user.id);
 
   return (
     <>
@@ -99,20 +126,26 @@ export const ContactActionsMenu = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {/* No "view profile": both places this menu appears are already the
-              person -- a contacts row links there, and the profile is there.
-              What it offers instead is the thing you would have gone looking
-              for, which is the conversation. */}
-          {!reachOffered && permission?.permission === "open" && (
+          {/* Where a row leads to a conversation rather than to the person, this
+              is how the person is still one click away. */}
+          {shows("profile") && (
+            <DropdownMenuItem asChild>
+              <Link to="/u/$handle" params={{ handle: getUrlHandle(user) }}>
+                {t("actions.viewProfile")}
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {shows("message") && permission?.permission === "open" && (
             <DropdownMenuItem asChild>
               <Link to="/messages" search={{ with: getUrlHandle(user) }}>
                 {t("actions.message")}
               </Link>
             </DropdownMenuItem>
           )}
-          {/* Same rule the buttons answer to: connecting is its own decision,
-              and a request the server would refuse is not worth offering. */}
-          {!reachOffered && !isConnection && !isPending && permission?.may_connect && (
+          {/* Connecting is its own decision, separate from messaging: an
+              account that takes no messages may still take a connection. A
+              request the server would refuse is not worth offering. */}
+          {shows("connect") && !isConnection && !isPending && permission?.may_connect && (
             <DropdownMenuItem
               onSelect={() =>
                 requestConnection.mutate(
@@ -124,7 +157,7 @@ export const ContactActionsMenu = ({
               {t("actions.connect")}
             </DropdownMenuItem>
           )}
-          {!reachOffered && permission?.permission === "may_request" && (
+          {shows("ask") && permission?.permission === "may_request" && (
             <DropdownMenuItem
               onSelect={() =>
                 requestMessage.mutate(
@@ -134,6 +167,13 @@ export const ContactActionsMenu = ({
               }
             >
               {t("actions.ask")}
+            </DropdownMenuItem>
+          )}
+          {/* Starring is private and one-directional — the other person is
+              never told — so there is nothing to confirm in either direction. */}
+          {shows("favorite") && (
+            <DropdownMenuItem onSelect={() => setFavorite(user.id, isStarred)}>
+              {t(isStarred ? "actions.unfavorite" : "actions.favorite")}
             </DropdownMenuItem>
           )}
           {isConnection && (

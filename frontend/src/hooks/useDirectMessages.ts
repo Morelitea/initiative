@@ -7,7 +7,7 @@
  * acted and a tab that only watched end up saying the same thing.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import {
@@ -27,6 +27,7 @@ import {
   useStopIgnoringAccountApiV1MeIgnoredUserIdDelete,
   useUpdateDmSettingsApiV1MeDmSettingsPatch,
 } from "@/api/generated/direct-messages/direct-messages";
+import type { DirectMessagePermissionsResponse } from "@/api/generated/initiativeAPI.schemas";
 import {
   invalidateContactGrants,
   invalidateDmSettings,
@@ -82,6 +83,34 @@ export const useDmPermission = (userId: number | undefined) =>
   useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
     query: { enabled: typeof userId === "number" },
   });
+/** The most accounts one question may name, which the server enforces. */
+const PERMISSION_LIMIT = 100;
+
+/**
+ * One object out of however many questions it took to answer for everybody.
+ *
+ * All of them or none: half an answer set is indistinguishable from a complete
+ * one at the call site, and the two surfaces reading it disagree about what a
+ * missing entry means -- the actions menu leaves an item out, the picker lets
+ * the row be clicked. Publishing a partial map would make that disagreement
+ * outlive the loading it belongs to. Absent, both behave the way they do
+ * before any answer has arrived, which is what is true.
+ */
+const mergePermissions = (
+  results: { data?: DirectMessagePermissionsResponse; isPending: boolean }[]
+) => ({
+  data:
+    results.length > 0 && results.every((result) => result.data)
+      ? {
+          permissions: Object.assign(
+            {},
+            ...results.map((result) => result.data?.permissions ?? {})
+          ) as DirectMessagePermissionsResponse["permissions"],
+        }
+      : undefined,
+  isPending: results.some((result) => result.isPending),
+});
+
 /**
  * The same two answers, for a page of people at once.
  *
@@ -91,14 +120,29 @@ export const useDmPermission = (userId: number | undefined) =>
  *
  * A POST that reads: the subjects are a list rather than an address, so
  * `useQuery` rather than a mutation, with the ids in the key.
+ *
+ * Past the server's limit it asks again rather than answering for fewer people
+ * than it was given. A caller that dropped the remainder would leave a control
+ * built on a missing answer -- which reads as a refusal on one surface and as
+ * consent on another -- so nobody handed to this goes unanswered.
  */
 export const useDmPermissions = (userIds: number[]) => {
-  const ids = useMemo(() => [...new Set(userIds)].sort((a, b) => a - b), [userIds]);
-  return useQuery({
-    queryKey: ["dm", "permissions", ids],
-    queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
-    enabled: ids.length > 0,
-    staleTime: 30_000,
+  const batches = useMemo(() => {
+    const ids = [...new Set(userIds)].sort((a, b) => a - b);
+    const out: number[][] = [];
+    for (let at = 0; at < ids.length; at += PERMISSION_LIMIT) {
+      out.push(ids.slice(at, at + PERMISSION_LIMIT));
+    }
+    return out;
+  }, [userIds]);
+
+  return useQueries({
+    queries: batches.map((ids) => ({
+      queryKey: ["dm", "permissions", ids],
+      queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: ids }),
+      staleTime: 30_000,
+    })),
+    combine: mergePermissions,
   });
 };
 
@@ -142,15 +186,18 @@ export const parseHandle = (raw: string): { username: string; discriminator: num
 };
 
 /**
- * How many people have asked to message this account and are still waiting.
+ * How many people are waiting on an answer from this account.
  *
- * Message requests only. A connection is a separate agreement between two
- * accounts — made, answered and unmade on My Contacts — and counting it here
- * would put a mark about connections on a page about conversations.
+ * Both kinds, because both are answered in the same place: the requests
+ * section of My Messages takes a connection request and a message request
+ * alike, so a mark that counted only one of them would send somebody to a
+ * screen with more on it than the mark admitted. Only incoming — an ask you
+ * sent is waiting on them, not on you.
  */
-export const usePendingMessageRequests = (): number => {
-  const { data } = useMessageRequests();
-  return data?.incoming?.length ?? 0;
+export const usePendingContactRequests = (): number => {
+  const messages = useMessageRequests();
+  const connections = useConnections();
+  return (messages.data?.incoming?.length ?? 0) + (connections.data?.incoming?.length ?? 0);
 };
 
 /** Whether this account has answered the age question, which gates everything. */
