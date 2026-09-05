@@ -220,7 +220,7 @@ export const CreateDocumentWizard = () => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("createWizard.title")}</DialogTitle>
           <DialogDescription>{stepTitle}</DialogDescription>

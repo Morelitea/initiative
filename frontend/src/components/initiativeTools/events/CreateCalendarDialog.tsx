@@ -117,7 +117,7 @@ export const CreateCalendarDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card shadow-2xl">
+      <DialogContent className="max-h-[90vh] w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("createCalendar")}</DialogTitle>
         </DialogHeader>

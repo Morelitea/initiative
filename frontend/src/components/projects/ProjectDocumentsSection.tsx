@@ -182,7 +182,7 @@ export const ProjectDocumentsSection = ({
                     {t("documents.attachExisting")}
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border bg-card shadow-2xl">
+                <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>{t("documents.attachDocument")}</DialogTitle>
                     <DialogDescription>{t("documents.attachDialogDescription")}</DialogDescription>

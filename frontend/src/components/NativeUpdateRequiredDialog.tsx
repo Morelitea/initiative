@@ -31,7 +31,7 @@ export const NativeUpdateRequiredDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("version.nativeUpdateRequiredTitle")}</DialogTitle>
           <DialogDescription>
