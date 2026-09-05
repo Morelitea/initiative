@@ -430,11 +430,11 @@ async def test_pin_refuses_an_expiry_already_past(
 
 
 @pytest.mark.integration
-async def test_pin_on_an_unreadable_post_is_not_confirmed(
+async def test_pin_requires_read_access_before_the_manager_check(
     client: AsyncClient, acting_user, session
 ):
-    """Read access is checked before the manager check, so the route never
-    tells a stranger that a post they cannot see exists."""
+    """The two gates run in order: read access on the post, then initiative
+    authority. A caller without the first is refused at it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
@@ -450,6 +450,7 @@ async def test_pin_on_an_unreadable_post_is_not_confirmed(
         b.g(f"/posts/{post.id}/pin"), headers=b.headers, json={"pinned": True}
     )
     assert response.status_code in (403, 404)
+    # Refused at the read gate, so it never reaches the manager check.
     assert response.json()["detail"] != "POST_PIN_MANAGER_REQUIRED"
 
 
