@@ -4389,6 +4389,7 @@ export interface PostRead {
   comment_count: number;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
+  reactions: ReactionGroup[];
   body: PostReadBody;
 }
 

@@ -4,8 +4,9 @@ import { Loader2, Pin, PinOff, SearchX, Settings, ShieldAlert } from "lucide-rea
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
@@ -218,6 +219,14 @@ export function PostDetailPage() {
               </Button>
             </div>
           )}
+          {/* Reacting is a read-level gesture — anyone who can see the
+              notice can react to it — so this is offered to every reader,
+              not only to whoever may edit. */}
+          <ReactionBar
+            targetType={ReactionTarget.post}
+            targetId={post.id}
+            groups={post.reactions}
+          />
           {post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {post.tags.map((tag) => (

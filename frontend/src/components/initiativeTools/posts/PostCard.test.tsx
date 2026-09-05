@@ -82,6 +82,14 @@ describe("PostCard", () => {
     expect(await screen.findByRole("button", { name: /pin to top/i })).toBeInTheDocument();
   });
 
+  // Reacting is a read-level gesture, so it is offered on the board itself
+  // rather than only after opening the post.
+  it("offers reactions on the board", async () => {
+    renderPage(cardPage({ post: buildPost() }));
+
+    expect(await screen.findByRole("button", { name: /add a reaction/i })).toBeInTheDocument();
+  });
+
   it("says how many comments a post has", async () => {
     renderPage(cardPage({ post: buildPost({ comment_count: 3 }) }));
 

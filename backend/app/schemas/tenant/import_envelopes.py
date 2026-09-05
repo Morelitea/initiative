@@ -124,12 +124,28 @@ class PostEnvelope(_EnvelopeBase):
     board right now", which is a fact about the board it was pinned to, not
     about the notice — an import that restored it would put a stranger's
     notice at the top of somebody else's board.
+
+    The body's ceiling is enforced here rather than left to the column: an
+    import is a write like any other, and one that skipped the limit would
+    store a post the endpoints would refuse to accept or to save again. The
+    headline is not — it is display text, so the importer trims it and says
+    so rather than failing a whole restore over a long title.
     """
 
     type: Literal["initiative-post"]
     name: str
     body: dict[str, Any] = {}
     tags: list[str] = []
+
+    @model_validator(mode="after")
+    def _body_within_limit(self) -> "PostEnvelope":
+        # Imported here: the schema module is dependency-light on purpose, and
+        # this is the one place it needs the post rules.
+        from app.schemas.tenant.post import MAX_POST_TEXT_CHARS, post_text
+
+        if len(post_text(self.body)) > MAX_POST_TEXT_CHARS:
+            raise ValueError(f"post body exceeds {MAX_POST_TEXT_CHARS} characters")
+        return self
 
 
 class EventEnvelopeAttendee(SanitizedBaseModel):

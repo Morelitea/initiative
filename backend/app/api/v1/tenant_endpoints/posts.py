@@ -158,8 +158,10 @@ async def _refetch_post(session: RLSSessionDep, post_id: int) -> Post:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PostMessages.NOT_FOUND,
         )
-    # Every write answers with the row a read would return, count included.
+    # Every write answers with the row a read would return — count, chips and
+    # all.
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
+    await posts_service.attach_reactions(session, post)
     return post
 
 
@@ -254,8 +256,10 @@ async def list_posts(
     )
     result = await session.exec(stmt)
     posts = result.unique().all()
-    # One grouped query for the page, so a board of twenty asks once.
+    # One grouped query each for the page, so a board of twenty asks twice
+    # rather than forty times.
     await comments_service.annotate_comment_counts(session, posts, column="post_id")
+    await posts_service.attach_reactions(session, *posts)
 
     items = [serialize_post(p, user_id=current_user.id) for p in posts]
     has_next = page * page_size < total_count
@@ -316,6 +320,7 @@ async def read_post(
         session, Tool.post, post_id, current_user, guild_context
     )
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
+    await posts_service.attach_reactions(session, post)
     return serialize_post(post, user_id=current_user.id)
 
 

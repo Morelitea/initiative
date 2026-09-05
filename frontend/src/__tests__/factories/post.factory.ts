@@ -61,6 +61,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     my_permission_level: "owner",
     comments_disabled: false,
     comment_count: 0,
+    reactions: [],
     tags: [],
     grants: [],
     ...overrides,

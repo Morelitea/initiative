@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field, model_validator
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
 
@@ -114,6 +115,9 @@ class PostSummary(PostBase):
     comment_count: int = 0
     tags: List[TagSummary] = Field(default_factory=list)
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
+    #: Reactions ride along with the post rather than costing a request per
+    #: row: a board renders its chips from the one list call.
+    reactions: List[ReactionGroup] = Field(default_factory=list)
 
 
 class PostRead(PostSummary):
@@ -182,6 +186,9 @@ def serialize_post_summary(
 ) -> PostSummary:
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import compute_post_permission, serialize_grants
+    from app.services.tenant import reactions as reactions_service
+
+    reaction_rows = getattr(post, "_reactions", None)
 
     return PostSummary(
         id=post.id,
@@ -203,6 +210,11 @@ def serialize_post_summary(
         comment_count=getattr(post, "comment_count", 0),
         tags=tag_summaries(getattr(post, "tag_links", None)),
         grants=serialize_grants(post),
+        reactions=(
+            reactions_service.summarize(reaction_rows, viewer_id=user_id)
+            if reaction_rows
+            else []
+        ),
     )
 
 

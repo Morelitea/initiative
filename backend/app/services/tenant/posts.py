@@ -12,7 +12,7 @@ list endpoint, the export, and anything else that renders a board cannot
 disagree about what "the top" means.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -66,6 +66,28 @@ def board_order() -> list:
         Post.created_at.desc(),
         Post.id.desc(),
     ]
+
+
+async def attach_reactions(session: AsyncSession, *posts: Post) -> None:
+    """Load every post's reactions in ONE query and stamp them on the rows.
+
+    A plain attribute, the way comments carry theirs: the posts table has no
+    relationship to the polymorphic reactions table, and a board of twenty must
+    not become twenty queries.
+    """
+    from app.core.reactions import ReactionTarget
+    from app.services.tenant import reactions as reactions_service
+
+    rows = [post for post in posts if post.id is not None]
+    if not rows:
+        return
+    grouped = await reactions_service.load_reactions(
+        session,
+        target=ReactionTarget.post,
+        target_ids=[cast(int, post.id) for post in rows],
+    )
+    for post in rows:
+        object.__setattr__(post, "_reactions", grouped.get(post.id, []))
 
 
 async def get_post(

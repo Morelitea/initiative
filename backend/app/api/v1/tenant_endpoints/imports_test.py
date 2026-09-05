@@ -1408,3 +1408,64 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
         )
     assert exc_info.value.code == "IMPORT_QUOTA_EXCEEDED"
     assert get_guild_storage(a.guild.id).open_readable("unit-liar.bin") is None
+
+
+# ---------------------------------------------------------------------------
+# Posts: an import is a write like any other, held to the same limits
+# ---------------------------------------------------------------------------
+
+
+def _post_envelope(**overrides) -> dict:
+    from app.testing import lexical_body
+
+    return {
+        "type": "initiative-post",
+        "schema_version": 1,
+        "name": "Notice",
+        "body": lexical_body("Short enough."),
+        "tags": [],
+        **overrides,
+    }
+
+
+@pytest.mark.integration
+async def test_importing_a_post_over_the_body_limit_is_refused(
+    client, acting_user, session
+):
+    """Accepting it would store a post the endpoints refuse to accept or to
+    save again."""
+    from app.schemas.tenant.post import MAX_POST_TEXT_CHARS
+    from app.testing import lexical_body
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.posts_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+
+    response = await _import_envelope(
+        client,
+        a,
+        _post_envelope(body=lexical_body("x" * (MAX_POST_TEXT_CHARS + 1))),
+        a.initiative.id,
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.integration
+async def test_importing_a_long_headline_trims_rather_than_fails(
+    client, acting_user, session
+):
+    """A headline is display text. The column holds 255, and failing a whole
+    restore over a long title helps nobody — so it is trimmed and said."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.posts_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+
+    response = await _import_envelope(
+        client, a, _post_envelope(name="H" * 400), a.initiative.id
+    )
+    assert response.status_code in (200, 201, 202), response.text
+    body = response.json()
+    assert len(body["result"]["entity_title"]) <= 255
+    assert any("shortened" in w.lower() for w in body["result"]["warnings"])

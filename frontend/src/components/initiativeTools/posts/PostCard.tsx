@@ -2,8 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { MessageSquare, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { type PostRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type PostRead, ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
+import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,20 +94,30 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
             ))}
           </div>
         )}
-        {/* The thread, from the board. A count says there is a conversation
-            worth opening; nothing said so far is an invitation rather than a
-            "0", which reads as an absence. Both land on the post, because the
-            thread lives there. A post with comments turned off says neither —
-            there is nothing to join. */}
-        {!post.comments_disabled && (
-          <Link
-            to={detailRoute}
-            className="inline-flex items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground hover:underline"
-          >
-            <MessageSquare className="h-4 w-4" aria-hidden />
-            {post.comment_count > 0 ? t("comments", { count: post.comment_count }) : t("beFirst")}
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/* Reacting is a read-level gesture — anyone who can see the
+              notice can react to it — so the bar is offered to every
+              reader, not only to whoever may edit. */}
+          <ReactionBar
+            targetType={ReactionTarget.post}
+            targetId={post.id}
+            groups={post.reactions}
+          />
+          {/* The thread, from the board. A count says there is a conversation
+              worth opening; nothing said so far is an invitation rather than a
+              "0", which reads as an absence. Both land on the post, because the
+              thread lives there. A post with comments turned off says neither —
+              there is nothing to join. */}
+          {!post.comments_disabled && (
+            <Link
+              to={detailRoute}
+              className="inline-flex items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground hover:underline"
+            >
+              <MessageSquare className="h-4 w-4" aria-hidden />
+              {post.comment_count > 0 ? t("comments", { count: post.comment_count }) : t("beFirst")}
+            </Link>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

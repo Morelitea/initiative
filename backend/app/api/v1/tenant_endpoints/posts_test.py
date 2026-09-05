@@ -521,6 +521,77 @@ async def test_a_post_at_the_limit_is_accepted(
 
 
 # ---------------------------------------------------------------------------
+# Reactions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_post_carries_its_reactions(client: AsyncClient, acting_user, session):
+    """Chips ride along with the post, so a board renders them from the one
+    list call rather than a request per row."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+
+    toggled = await client.put(
+        a.g(f"/reactions/post/{post.id}"), headers=a.headers, json={"emoji": "🎉"}
+    )
+    assert toggled.status_code == 200, toggled.text
+
+    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    (item,) = listing.json()["items"]
+    assert [(g["emoji"], g["count"], g["reacted"]) for g in item["reactions"]] == [
+        ("🎉", 1, True)
+    ]
+
+    detail = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+    assert detail.json()["reactions"] == item["reactions"]
+
+
+@pytest.mark.integration
+async def test_reacting_needs_only_read_access(
+    client: AsyncClient, acting_user, session
+):
+    """A notice everyone on the board can see is one everyone can react to —
+    reacting is a gesture, not an edit."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.put(
+        b.g(f"/reactions/post/{post.id}"), headers=b.headers, json={"emoji": "👍"}
+    )
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.integration
+async def test_reacting_to_an_unreadable_post_is_refused(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+    await _strip_non_owner_grants(session, post, a.user.id)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+
+    response = await client.put(
+        b.g(f"/reactions/post/{post.id}"), headers=b.headers, json={"emoji": "👍"}
+    )
+    assert response.status_code in (403, 404)
+
+
+# ---------------------------------------------------------------------------
 # Excerpts
 # ---------------------------------------------------------------------------
 

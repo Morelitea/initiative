@@ -23,6 +23,12 @@ from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.importers._base import parse_envelope
 
 
+#: What ``posts.name`` holds, and how much of it to leave for the " (2)" that
+#: ``unique_name`` may append when the board already has this headline.
+_MAX_NAME = 255
+_NAME_SUFFIX_ROOM = 8
+
+
 class PostImporter:
     envelope_type = "initiative-post"
     permission = PermissionKey.create_posts
@@ -53,8 +59,17 @@ class PostImporter:
             ).all()
         }
 
+        # The column holds 255. A headline over it would fail at flush and take
+        # the whole entry down with it, so it is trimmed and reported —
+        # `unique_name` may add a suffix, so trim first and leave it room.
+        warnings: list[str] = []
+        name = env.name
+        if len(name) > _MAX_NAME:
+            name = name[: _MAX_NAME - _NAME_SUFFIX_ROOM].rstrip()
+            warnings.append(f"Headline shortened to fit: {name!r}")
+
         post = Post(
-            name=unique_name(existing_names, env.name),
+            name=unique_name(existing_names, name),
             body=env.body or {},
             initiative_id=target_initiative.id,
             guild_id=guild_id,
@@ -93,4 +108,5 @@ class PostImporter:
             entity_title=post.name,
             created={"posts": 1, "tags": tags_created},
             matched={"tags": tags_matched},
+            warnings=warnings,
         )
