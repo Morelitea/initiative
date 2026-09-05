@@ -64,5 +64,28 @@
   "unreadHere_one": "{{count}} ungelesene Nachricht",
   "unreadHere_other": "{{count}} ungelesene Nachrichten",
   "openFailed": "Diese Unterhaltung konnte nicht geöffnet werden.",
-  "tryAgain": "Erneut versuchen"
+  "tryAgain": "Erneut versuchen",
+  "edited": "(bearbeitet)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Antworten",
+    "replyingTo": "Antwort auf „{{body}}“",
+    "missing": "Nachricht nicht auf diesem Gerät"
+  },
+  "edit": {
+    "action": "Bearbeiten",
+    "editing": "Diese Nachricht wird bearbeitet. Escape beendet."
+  },
+  "remove": {
+    "action": "Entfernen",
+    "title": "Diese Nachricht entfernen?",
+    "body": "Sie verschwindet von diesem Gerät, und die App der anderen Person entfernt sie dort ebenfalls. Was bereits gelesen wurde, bleibt gelesen — das lässt sich nicht zurücknehmen."
+  },
+  "removed": "Nachricht entfernt",
+  "days": {
+    "today": "Heute",
+    "yesterday": "Gestern"
+  }
 }

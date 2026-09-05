@@ -105,7 +105,10 @@ export const ReactionBar = ({
                 )}
               >
                 <span className="text-sm leading-none">{group.emoji}</span>
-                <span className="tabular-nums">{group.count}</span>
+                {/* One of something is what the emoji already says. The count
+                    appears when it is telling you something the picture does
+                    not -- and the label carries it either way. */}
+                {group.count > 1 ? <span className="tabular-nums">{group.count}</span> : null}
               </button>
             </TooltipTrigger>
             <TooltipContent>{reactorList(group)}</TooltipContent>

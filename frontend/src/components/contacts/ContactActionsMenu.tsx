@@ -24,7 +24,7 @@ import {
   useStopIgnoring,
 } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
-import { getUrlHandle } from "@/lib/userDisplay";
+import { getUrlHandle, getUserHandle } from "@/lib/userDisplay";
 
 /**
  * The things this menu can offer that a surface might offer for itself.
@@ -114,7 +114,11 @@ export const ContactActionsMenu = ({
 
   return (
     <>
-      <DropdownMenu>
+      {/* `modal={false}`: this menu is drawn inside the mobile sidebar, which
+          is a non-modal drawer, and a modal dropdown nested in one dismisses it
+          on open — the same reason the initiative rows and the user footer set
+          it. */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -135,6 +139,17 @@ export const ContactActionsMenu = ({
               </Link>
             </DropdownMenuItem>
           )}
+          {/* The whole handle, number included -- the only form that addresses
+              anybody. A bare name is refused by every field that takes one. */}
+          <DropdownMenuItem
+            onSelect={() => {
+              void navigator.clipboard
+                ?.writeText(getUserHandle(user))
+                .then(() => toast.success(t("actions.handleCopied")));
+            }}
+          >
+            {t("actions.copyHandle")}
+          </DropdownMenuItem>
           {shows("message") && permission?.permission === "open" && (
             <DropdownMenuItem asChild>
               <Link to="/messages" search={{ with: getUrlHandle(user) }}>

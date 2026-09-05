@@ -1,6 +1,16 @@
 import { useSearch } from "@tanstack/react-router";
-import { Check, CheckCheck, Send, ShieldCheck, UserX } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Check,
+  CheckCheck,
+  Pencil,
+  Reply,
+  Send,
+  ShieldCheck,
+  Trash2,
+  UserX,
+  X,
+} from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
@@ -8,14 +18,18 @@ import { AgeUnansweredPanel } from "@/components/contacts/UnreachableEmptyState"
 import { ConversationList } from "@/components/messages/ConversationList";
 import { MessageContent } from "@/components/messages/MessageContent";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
+import { ReactionPicker } from "@/components/reactions/ReactionPicker";
 import { StatusMessage } from "@/components/StatusMessage";
+import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
-import { RelativeTime } from "@/components/ui/relative-time";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
 import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCanUseDirectMessages,
@@ -27,11 +41,13 @@ import {
   useConversations,
   useDmDevice,
   useMarkThreadRead,
+  useMessageActions,
   useSendMessage,
   useStartConversation,
   useThread,
 } from "@/hooks/useMyMessages";
 import { useUserProfile } from "@/hooks/useUsers";
+import { formatDateTime } from "@/lib/formatDate";
 import { getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
@@ -268,6 +284,42 @@ export function MyMessagesPage() {
  */
 const RUN_GAP_MS = 5 * 60 * 1000;
 
+/** The local calendar day a message belongs to, as something comparable. */
+const dayOf = (at: string): string => {
+  const date = new Date(at);
+  return Number.isNaN(date.getTime()) ? "" : date.toDateString();
+};
+
+/**
+ * What to head a day with.
+ *
+ * The two days somebody is most likely to be reading are named rather than
+ * dated: "Wed, Jul 22" is a fact to work out, and "Today" is one to recognise.
+ */
+const dayLabel = (at: string, t: (key: "days.today" | "days.yesterday") => string): string => {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return "";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (dayOf(at) === today.toDateString()) return t("days.today");
+  if (dayOf(at) === yesterday.toDateString()) return t("days.yesterday");
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+};
+
+/** The clock time a message was said at, in the reader's own convention. */
+const clockTime = (at: string): string => {
+  const date = new Date(at);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(date);
+};
+
 /** Whether the second message carries on the first one's run. */
 const continuesRun = (before: StoredMessage, after: StoredMessage) => {
   if (before.mine !== after.mine) return false;
@@ -321,16 +373,25 @@ type Speaker =
  */
 const SPEAKER_SIZE = "size-6 sm:size-8";
 
-const Speaking = ({ who, hidden }: { who: Speaker; hidden: boolean }) =>
+const Speaking = ({
+  who,
+  hidden,
+  small = false,
+}: {
+  who: Speaker;
+  hidden: boolean;
+  /** In a quote, where it names a speaker rather than heading their run. */
+  small?: boolean;
+}) =>
   hidden || !who ? (
     // The space is held either way, so a run's messages stay in one column
     // rather than stepping sideways under the first of them.
-    <div className={cn(SPEAKER_SIZE, "shrink-0")} aria-hidden />
+    <div className={cn(small ? "size-4" : SPEAKER_SIZE, "shrink-0")} aria-hidden />
   ) : (
     <ProfileAvatar
       user={{ ...who, id: who.id ?? who.user_id }}
       decorations={who.profile_decorations}
-      className={SPEAKER_SIZE}
+      className={cn("shrink-0", small ? "size-4" : SPEAKER_SIZE)}
     />
   );
 
@@ -346,13 +407,86 @@ function Thread({
   /** The other side, for their picture. Absent while the grant is still loading. */
   them: Speaker;
 }) {
-  const { t } = useTranslation("messages");
+  const { t } = useTranslation(["messages", "common"]);
   const { user: me } = useAuth();
+  const isMobile = useIsMobile();
   const thread = useThread(conversationId);
   const send = useSendMessage(conversationId, otherUserId);
+  const actions = useMessageActions(conversationId, otherUserId);
   const [draft, setDraft] = useState("");
+  /** The message being answered, and the one being rewritten. Never both. */
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  /**
+   * Whose actions a tap has opened.
+   *
+   * A pointer reveals them by hovering the message; a touch screen has no
+   * hover, so tapping the bubble is what asks for them. One at a time, because
+   * the toolbar is about the message under it.
+   */
+  const [tapped, setTapped] = useState<string | null>(null);
   const log = useRef<HTMLDivElement | null>(null);
   const composer = useRef<HTMLTextAreaElement | null>(null);
+  /** Every message on screen, so a quote can go back to the one it names. */
+  const rows = useRef(new Map<string, HTMLDivElement>());
+  /** Where a quote just took the reader, marked long enough to be noticed. */
+  const [landedOn, setLandedOn] = useState<string | null>(null);
+
+  /**
+   * Bring the message a quote names back into view.
+   *
+   * The log's own `scrollTop`, moved by the difference between the two boxes --
+   * not `scrollIntoView`, which asks the browser to scroll *every* scrollport
+   * the element sits in, including ones with `overflow: hidden` that offer the
+   * reader no way back.
+   */
+  const goToMessage = (id: string) => {
+    const target = rows.current.get(id);
+    const box = log.current;
+    if (!target || !box) return;
+    const gap = target.getBoundingClientRect().top - box.getBoundingClientRect().top;
+    // A third of the way down rather than hard against the top edge: what was
+    // said before it is usually why it was said.
+    box.scrollTop += gap - box.clientHeight / 3;
+    setLandedOn(id);
+  };
+
+  /**
+   * Anywhere else closes it.
+   *
+   * Opened by tapping a message, the bar has no other way out: there is no
+   * hover to leave and nothing on it says "done". A pointer landing outside
+   * the message it belongs to is that, and so is Escape.
+   *
+   * The emoji picker is portaled to the end of the document, so it is outside
+   * the message by DOM and inside it by intent -- hence the second test.
+   */
+  useEffect(() => {
+    if (!tapped) return;
+    const close = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (rows.current.get(tapped)?.contains(target ?? null)) return;
+      if (target?.closest("[data-radix-popper-content-wrapper]")) return;
+      setTapped(null);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTapped(null);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [tapped]);
+
+  // The mark is about the arrival, not about the message, so it clears itself.
+  useEffect(() => {
+    if (!landedOn) return;
+    const timer = setTimeout(() => setLandedOn(null), 1600);
+    return () => clearTimeout(timer);
+  }, [landedOn]);
 
   // The composer is as tall as what is in it, up to the cap the CSS sets --
   // measured rather than counted, so a long line that wrapped takes the room
@@ -383,23 +517,100 @@ function Thread({
     if (element) element.scrollTop = element.scrollHeight;
   }, [messages.length]);
 
+  const focusComposer = () => composer.current?.focus();
+
+  /** Answer this one: the composer keeps whatever is half-typed in it. */
+  const startReply = (id: string) => {
+    setEditing(null);
+    setReplyTo(id);
+    setTapped(null);
+    focusComposer();
+  };
+
+  /** Rewrite this one, in the composer rather than in the bubble -- the same
+   *  field, the same growing, and one place where a message is written. */
+  const startEdit = (message: StoredMessage) => {
+    setReplyTo(null);
+    setEditing(message.id);
+    setDraft(message.body);
+    setTapped(null);
+    focusComposer();
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setDraft("");
+  };
+
   const submit = () => {
     const body = draft.trim();
-    if (!body || send.isPending) return;
+    if (!body || send.isPending || actions.edit.isPending) return;
+    if (editing) {
+      const target = editing;
+      setEditing(null);
+      setDraft("");
+      // Two ways for a correction not to happen, and the words have to come
+      // back for both: the send threw, or it resolved `false` because there
+      // was nothing left to edit -- another tab removed the message while this
+      // one was still showing it. Only the first is an error.
+      const restore = () => {
+        setEditing(target);
+        setDraft(body);
+        focusComposer();
+      };
+      actions.edit.mutate(
+        { targetId: target, body },
+        {
+          onSuccess: (edited) => {
+            if (!edited) restore();
+          },
+          onError: restore,
+        }
+      );
+      return;
+    }
+    const answering = replyTo ?? undefined;
     setDraft("");
+    setReplyTo(null);
     // What was typed comes back if it could not be sent: the composer is the
     // only place it exists, and a failed send should not eat it.
-    send.mutate(body, { onError: () => setDraft(body) });
+    send.mutate(
+      { body, replyTo: answering },
+      {
+        onError: () => {
+          setDraft(body);
+          if (answering) setReplyTo(answering);
+        },
+      }
+    );
   };
+
+  const toggleReaction = (message: StoredMessage, emoji: string) =>
+    actions.react.mutate({
+      targetId: message.id,
+      emoji,
+      on: !message.reactions?.[emoji]?.mine,
+    });
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
-      <div className="shrink-0 border-b px-3 py-2 font-medium text-sm">{name}</div>
+      {/* The handle, with its number in the lighter weight it wears
+          everywhere else. `name` is the plain-text fallback for a person this
+          device cannot resolve, and is what the failure notice below reads. */}
+      <div className="shrink-0 border-b px-3 py-2 font-medium text-sm">
+        {them ? <UserHandle user={them} /> : name}
+      </div>
       <div
         ref={log}
         // Reaching the end of the thread stops there rather than handing the
         // rest of the gesture to whatever is behind it.
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3"
+        // The top padding is headroom for the actions of the first message,
+        // which are drawn above it: a scrollport clips what is outside it, and
+        // with only the ordinary padding there the first message's bar is the
+        // one you cannot reach. It is the height of that bar -- a row of
+        // `size-7` buttons, its own padding and border, and the gap under it --
+        // rounded up to the next step.
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pt-10 pb-3"
       >
         {messages.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("noHistoryHere")}</p>
@@ -413,50 +624,355 @@ function Thread({
             // is when they finished saying it.
             const endsRun =
               index === messages.length - 1 || !continuesRun(message, messages[index + 1]);
+            const answered = message.replyTo
+              ? (messages.find((entry) => entry.id === message.replyTo) ?? null)
+              : null;
+            const reactions = Object.entries(message.reactions ?? {});
+            // A new day, or the first thing this device holds.
+            const opensDay = index === 0 || dayOf(messages[index - 1].at) !== dayOf(message.at);
             return (
-              <div
-                key={message.id}
-                className={cn(
-                  // Aligned to the top of the bubble: a picture beside the last
-                  // line of a long message reads as belonging to whatever comes
-                  // after it rather than to what it is under.
-                  "flex items-start gap-2",
-                  message.mine && "flex-row-reverse",
-                  startsRun && index > 0 && "pt-2"
-                )}
-              >
-                <Speaking who={message.mine ? me : them} hidden={!startsRun} />
+              <Fragment key={message.id}>
+                {opensDay ? (
+                  <div className="flex items-center gap-3 py-2">
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="shrink-0 font-medium text-muted-foreground text-xs">
+                      {dayLabel(message.at, t)}
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                ) : null}
                 <div
+                  ref={(node) => {
+                    if (node) rows.current.set(message.id, node);
+                    else rows.current.delete(message.id);
+                  }}
                   className={cn(
-                    "flex min-w-0 max-w-[75%] flex-col gap-0.5",
-                    message.mine && "items-end"
+                    // Aligned to the top of the bubble: a picture beside the last
+                    // line of a long message reads as belonging to whatever comes
+                    // after it rather than to what it is under.
+                    "group/message flex items-start gap-2",
+                    message.mine && "flex-row-reverse",
+                    startsRun && index > 0 && "pt-2"
                   )}
                 >
+                  {/* The picture, with the time hung under it.
+                      The time is positioned rather than stacked: in the flow it
+                      makes every row as tall as a picture plus a line of text,
+                      including the rows that show neither -- which opens a gap
+                      between every message of a run. Out of the flow the column
+                      is the size it always was, and the time sits under the
+                      face it belongs to.
+
+                      Its width is fixed and wider than the picture, because
+                      what has to fit there is the time: centred on the picture
+                      alone it overflows both ways -- off the side of the thread
+                      on one and across the message on the other -- and how far
+                      depends on a clock format this cannot know. */}
+                  <div className="relative flex w-12 shrink-0 justify-center">
+                    <Speaking who={message.mine ? me : them} hidden={!startsRun} />
+                    {startsRun ? (
+                      <span
+                        className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
+                        title={formatDateTime(message.at)}
+                      >
+                        {clockTime(message.at)}
+                      </span>
+                    ) : null}
+                  </div>
                   <div
                     className={cn(
-                      "rounded-lg px-3 py-2 text-sm",
-                      // `wrap-anywhere` rather than `break-words`: only this
-                      // one counts towards how narrow the bubble may be, so a
-                      // single unbroken run of characters wraps instead of
-                      // sizing the bubble to itself and running off the side.
-                      "wrap-anywhere w-fit max-w-full",
-                      message.mine ? "bg-primary text-primary-foreground" : "bg-muted"
+                      // What the floating actions below are positioned against:
+                      // this box is the message, quote and reactions included.
+                      "relative flex min-w-0 max-w-[75%] flex-col gap-0.5",
+                      message.mine && "items-end"
                     )}
                   >
-                    <MessageContent body={message.body} />
+                    {/* What this answers, quoted above it. A device that never
+                      held the message being answered still shows the answer --
+                      it just has nothing to quote and nowhere to go back to. */}
+                    {message.replyTo ? (
+                      answered ? (
+                        <button
+                          type="button"
+                          onClick={() => goToMessage(answered.id)}
+                          className="flex w-full min-w-0 flex-col gap-0.5 rounded-md border-primary/60 border-s-2 bg-muted/40 px-2 py-1 text-start hover:bg-muted"
+                        >
+                          <span className="flex min-w-0 items-center gap-1">
+                            <Speaking who={answered.mine ? me : them} hidden={false} small />
+                            <span className="min-w-0 truncate font-medium text-primary text-xs">
+                              {getUserHandle(answered.mine ? me : them)}
+                            </span>
+                          </span>
+                          {/* Two lines of it at most: a quote is there to say
+                            which message, not to say it again. */}
+                          <span className="wrap-anywhere line-clamp-2 min-w-0 text-muted-foreground text-xs">
+                            {answered.removedAt ? t("removed") : answered.body}
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="flex max-w-full items-center gap-1 px-1 text-muted-foreground text-xs">
+                          <Reply className="size-3 shrink-0" aria-hidden />
+                          <span className="min-w-0 truncate">{t("reply.missing")}</span>
+                        </span>
+                      )
+                    ) : null}
+                    <div
+                      className={cn(
+                        "flex w-full items-start gap-1",
+                        message.mine && "flex-row-reverse"
+                      )}
+                    >
+                      {/* The bubble is what summons the actions where there is
+                          no hover -- and only there: on a pointer a click here
+                          would fight with selecting the words, which hovering
+                          does not.
+
+                          It carries no role and takes no focus on purpose. A
+                          button role would wrap the links inside it in a
+                          button, and a keyboard already reaches the same bar
+                          by tabbing into it: the buttons are in the DOM, and
+                          focusing one opens the bar through `focus-within`.
+                          So the two rules below are about a path that exists
+                          by another route. */}
+                      {/* biome-ignore lint/a11y/noStaticElementInteractions: the actions are keyboard-reachable through focus-within */}
+                      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the actions are keyboard-reachable through focus-within */}
+                      <div
+                        className={cn(
+                          "rounded-lg px-3 py-2 text-sm",
+                          // `wrap-anywhere` rather than `break-words`: only this
+                          // one counts towards how narrow the bubble may be, so a
+                          // single unbroken run of characters wraps instead of
+                          // sizing the bubble to itself and running off the side.
+                          "wrap-anywhere w-fit max-w-full",
+                          message.mine ? "bg-primary text-primary-foreground" : "bg-muted",
+                          !message.removedAt && "cursor-pointer sm:cursor-auto",
+                          // Where a quote just landed, for as long as it takes to
+                          // see it.
+                          landedOn === message.id && "ring-2 ring-primary ring-offset-1"
+                        )}
+                        onClick={
+                          isMobile && !message.removedAt
+                            ? (event) => {
+                                // A link inside is doing something else, and a
+                                // tap that ends a selection is not a tap.
+                                if ((event.target as HTMLElement).closest("a")) return;
+                                if (window.getSelection()?.isCollapsed === false) return;
+                                setTapped((open) => (open === message.id ? null : message.id));
+                              }
+                            : undefined
+                        }
+                      >
+                        {message.removedAt ? (
+                          <span className="italic opacity-70">{t("removed")}</span>
+                        ) : (
+                          <MessageContent body={message.body} />
+                        )}
+                      </div>
+                    </div>
+                    {/* Over the message rather than beside it: a toolbar in the
+                      flow moves the words to make room for itself every time a
+                      cursor passes, and a thread that shifts under the pointer
+                      is harder to read than one with something floating on it.
+                      It sits on the inner corner -- the side the picture is
+                      not -- and overlaps the top edge, so it is plainly about
+                      the message under it. */}
+                    {message.removedAt ? null : (
+                      <div
+                        className={cn(
+                          // The gap between the bar and the message is padding on
+                          // this box rather than a margin outside it, so the two
+                          // of them are one unbroken thing to hover. A margin
+                          // leaves a few dead pixels on the way up: the pointer
+                          // crosses them, this message stops being hovered, the
+                          // bar goes, and the message above lights up instead --
+                          // which walks the bar up the thread and never lets you
+                          // reach it.
+                          "absolute bottom-full z-10 pb-1",
+                          // Anchored to the message's own edge and growing
+                          // inward, into the room the other quarter of the row
+                          // always leaves -- anchored the other way it runs off
+                          // the side of anything short.
+                          message.mine ? "end-0" : "start-0",
+                          tapped === message.id
+                            ? "block"
+                            : cn(
+                                "hidden sm:block",
+                                "sm:pointer-events-none sm:opacity-0",
+                                "sm:group-hover/message:pointer-events-auto sm:group-hover/message:opacity-100",
+                                "sm:group-focus-within/message:pointer-events-auto sm:group-focus-within/message:opacity-100"
+                              ),
+                          "transition-opacity"
+                        )}
+                      >
+                        <div className="flex items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-md">
+                          <TooltipProvider delayDuration={200}>
+                            <ReactionPicker
+                              className="size-7"
+                              mine={
+                                new Set(
+                                  reactions
+                                    .filter(([, sides]) => sides.mine)
+                                    .map(([emoji]) => emoji)
+                                )
+                              }
+                              disabled={actions.react.isPending}
+                              onSelect={(emoji) => toggleReaction(message, emoji)}
+                            />
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7"
+                                  onClick={() => startReply(message.id)}
+                                >
+                                  <Reply className="size-3.5" aria-hidden />
+                                  <span className="sr-only">{t("reply.action")}</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">{t("reply.action")}</TooltipContent>
+                            </Tooltip>
+                            {/* Only your own: an edit or a removal is somebody acting
+                          on what they themselves said, and the log refuses
+                          anything else even if this offered it. */}
+                            {message.mine ? (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-7"
+                                      onClick={() => startEdit(message)}
+                                    >
+                                      <Pencil className="size-3.5" aria-hidden />
+                                      <span className="sr-only">{t("edit.action")}</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">{t("edit.action")}</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-7 text-destructive"
+                                      onClick={() => setRemoving(message.id)}
+                                    >
+                                      <Trash2 className="size-3.5" aria-hidden />
+                                      <span className="sr-only">{t("remove.action")}</span>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">{t("remove.action")}</TooltipContent>
+                                </Tooltip>
+                              </>
+                            ) : null}
+                          </TooltipProvider>
+                        </div>
+                      </div>
+                    )}
+                    {reactions.length > 0 ? (
+                      <div
+                        className={cn("flex flex-wrap gap-1 px-1", message.mine && "justify-end")}
+                      >
+                        {reactions.map(([emoji, sides]) => {
+                          const count = Number(sides.mine) + Number(sides.theirs);
+                          return (
+                            <button
+                              key={emoji}
+                              type="button"
+                              aria-pressed={sides.mine}
+                              aria-label={t("reactions.chip", { emoji, count })}
+                              disabled={actions.react.isPending}
+                              onClick={() => toggleReaction(message, emoji)}
+                              className={cn(
+                                "flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors",
+                                sides.mine
+                                  ? "border-primary/40 bg-primary/10"
+                                  : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                              )}
+                            >
+                              <span className="text-sm leading-none">{emoji}</span>
+                              {/* Both of you, or one of you: only the first is
+                                worth a number, and the label says it either
+                                way. */}
+                              {count > 1 ? <span className="tabular-nums">{count}</span> : null}
+                            </button>
+                          );
+                        })}
+                        {/* A second way in, where the reader's eye already is:
+                            adding to a row of reactions is a different gesture
+                            from acting on the message, and sending them up to
+                            the bar for it makes it the same one. */}
+                        <ReactionPicker
+                          className={cn(
+                            "size-6",
+                            tapped === message.id
+                              ? ""
+                              : cn(
+                                  "hidden sm:inline-flex",
+                                  "sm:opacity-0 sm:transition-opacity",
+                                  "sm:group-hover/message:opacity-100",
+                                  "sm:group-focus-within/message:opacity-100"
+                                )
+                          )}
+                          mine={
+                            new Set(
+                              reactions.filter(([, sides]) => sides.mine).map(([emoji]) => emoji)
+                            )
+                          }
+                          disabled={actions.react.isPending}
+                          onSelect={(emoji) => toggleReaction(message, emoji)}
+                        />
+                      </div>
+                    ) : null}
+                    {/* The clock is under the picture now, so what is left here
+                      is only what this one message has to say for itself. */}
+                    {message.editedAt || (endsRun && message.mine) ? (
+                      <span className="flex items-center gap-1 px-1 text-muted-foreground text-xs">
+                        {message.editedAt ? <span>{t("edited")}</span> : null}
+                        {endsRun && message.mine ? <Receipt state={message.receipt} /> : null}
+                      </span>
+                    ) : null}
                   </div>
-                  {endsRun ? (
-                    <span className="flex items-center gap-1 px-1 text-muted-foreground text-xs">
-                      <RelativeTime date={message.at} />
-                      {message.mine ? <Receipt state={message.receipt} /> : null}
-                    </span>
-                  ) : null}
                 </div>
-              </div>
+              </Fragment>
             );
           })
         )}
       </div>
+      {/* What the composer is about, when it is about something. Above the
+          field rather than inside it, so the words being typed are never
+          mixed up with the message they answer or replace. */}
+      {replyTo || editing ? (
+        <div className="flex shrink-0 items-center gap-2 border-t px-3 pt-2 text-muted-foreground text-xs">
+          {editing ? (
+            <Pencil className="size-3 shrink-0" aria-hidden />
+          ) : (
+            <Reply className="size-3 shrink-0" aria-hidden />
+          )}
+          <span className="min-w-0 flex-1 truncate">
+            {editing
+              ? t("edit.editing")
+              : t("reply.replyingTo", {
+                  body: messages.find((entry) => entry.id === replyTo)?.body ?? "",
+                })}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-6 shrink-0"
+            onClick={() => (editing ? cancelEdit() : setReplyTo(null))}
+          >
+            <X className="size-3.5" aria-hidden />
+            <span className="sr-only">{t("common:cancel")}</span>
+          </Button>
+        </div>
+      ) : null}
       <form
         className="flex shrink-0 items-end gap-2 border-t p-3"
         onSubmit={(event) => {
@@ -472,6 +988,11 @@ function Thread({
           // Enter sends, because that is what a composer this shape is for;
           // Shift+Enter is the newline, and the field grows to show it.
           onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              if (editing) cancelEdit();
+              else setReplyTo(null);
+              return;
+            }
             if (event.key !== "Enter" || event.shiftKey) return;
             event.preventDefault();
             submit();
@@ -501,6 +1022,21 @@ function Thread({
           </p>
         </div>
       ) : null}
+
+      {/* Said plainly rather than promised: their client takes it off their
+          copy, and a copy is what a message on somebody's device is. */}
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => setRemoving(open ? removing : null)}
+        title={t("remove.title")}
+        description={t("remove.body")}
+        confirmLabel={t("remove.action")}
+        destructive
+        isLoading={actions.remove.isPending}
+        onConfirm={() => {
+          if (removing) actions.remove.mutate(removing, { onSettled: () => setRemoving(null) });
+        }}
+      />
     </section>
   );
 }

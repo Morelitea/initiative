@@ -105,12 +105,12 @@ describe("ConversationList", () => {
 
   it("narrows the list to a handle, without asking the server for anything", async () => {
     show();
-    expect(await screen.findByText("ada#1234")).toBeVisible();
+    expect(await screen.findByTitle("ada#1234")).toBeVisible();
 
     await userEvent.type(screen.getByRole("textbox", { name: /Search conversations/i }), "grace");
 
-    expect(screen.queryByText("ada#1234")).not.toBeInTheDocument();
-    expect(screen.getByText("grace#1234")).toBeVisible();
+    expect(screen.queryByTitle("ada#1234")).not.toBeInTheDocument();
+    expect(screen.getByTitle("grace#1234")).toBeVisible();
   });
 
   it("says so when a term matches nobody", async () => {
@@ -133,7 +133,7 @@ describe("ConversationList", () => {
       "edsger"
     );
 
-    expect(screen.getByText("edsger#1234")).toBeVisible();
+    expect(screen.getByTitle("edsger#1234")).toBeVisible();
     expect(screen.queryByText("Nobody matches.")).toBeNull();
   });
 
@@ -180,7 +180,7 @@ describe("ConversationList", () => {
 
   it("puts what else can be done about somebody on their own row", async () => {
     show();
-    const row = (await screen.findByText("ada#1234")).closest("li") as HTMLElement;
+    const row = (await screen.findByTitle("ada#1234")).closest("li") as HTMLElement;
 
     expect(within(row).getByRole("button", { name: /Actions for ada/i })).toBeInTheDocument();
   });
