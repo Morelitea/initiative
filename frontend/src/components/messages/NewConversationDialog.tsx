@@ -132,7 +132,7 @@ export const NewConversationDialog = () => {
           <TooltipContent side="top">{t("messages:newConversation.trigger")}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("messages:newConversation.title")}</DialogTitle>
           <DialogDescription>{t("messages:newConversation.description")}</DialogDescription>

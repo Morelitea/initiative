@@ -46,7 +46,7 @@ export const VersionDialog = ({
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="flex h-[80vh] max-w-2xl flex-col gap-0">
+      <DialogContent className="flex h-[80vh] flex-col gap-0 sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>{t("version.versionInformation")}</DialogTitle>
           <DialogDescription>{t("version.currentVersionAndChangelog")}</DialogDescription>

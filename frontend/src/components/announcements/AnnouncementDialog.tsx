@@ -102,7 +102,7 @@ export const AnnouncementDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 sm:max-w-2xl">
         <DialogHeader className="shrink-0 space-y-2">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="gap-1.5">
