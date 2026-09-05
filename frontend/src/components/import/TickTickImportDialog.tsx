@@ -202,7 +202,7 @@ export const TickTickImportDialog = ({ open, onOpenChange }: TickTickImportDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("ticktick.title")}</DialogTitle>
           <DialogDescription>

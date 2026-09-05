@@ -140,7 +140,7 @@ export const ICalImportDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("calendars:import.title")}</DialogTitle>
           <DialogDescription>{t("calendars:import.uploadDescription")}</DialogDescription>

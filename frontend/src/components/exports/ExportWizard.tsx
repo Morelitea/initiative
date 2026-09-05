@@ -161,7 +161,7 @@ export function ExportWizard({ scope, initiativeId, open, onOpenChange }: Export
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {scope === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
