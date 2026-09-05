@@ -12,6 +12,9 @@ import "fake-indexeddb/auto";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+/** Prekeys the stand-in account has already spent. Cleared per test. */
+const spent = vi.hoisted(() => new Set<string>());
+
 const api = vi.hoisted(() => ({
   listDevices: vi.fn(),
   readDirectory: vi.fn(),
@@ -67,6 +70,12 @@ vi.mock("./client", () => ({
     createInboundSession: async (pickle: string, identity: string, ciphertext: string) => {
       const message = JSON.parse(ciphertext);
       if (message.from !== identity) throw new Error("not this device");
+      // A prekey opens exactly one session: the real account forgets the one it
+      // just spent, so the same pre-key message cannot open a second.
+      if (message.prekey) {
+        if (spent.has(message.prekey)) throw new Error("that prekey is spent");
+        spent.add(message.prekey);
+      }
       return {
         account_pickle: `${pickle}-spent`,
         session_pickle: `session:${identity}`,
@@ -130,10 +139,12 @@ const queued = (overrides: Record<string, unknown>) => ({
   ...overrides,
 });
 
-const from = (identity: string, body: string) => JSON.stringify({ from: identity, body });
+const from = (identity: string, body: string, prekey?: string) =>
+  JSON.stringify({ from: identity, body, prekey });
 
 beforeEach(async () => {
   await forgetDevice();
+  spent.clear();
   vi.clearAllMocks();
   // A device that is already registered: the registration path has its own
   // tests, and every case here starts after it.
@@ -248,6 +259,195 @@ describe("collecting", () => {
     ]);
   });
 
+  it("reads a repeated pre-key message on the session it already opened", async () => {
+    // A sender goes on marking its messages as pre-key until it hears back on
+    // that session, so the second and third of them name a prekey the receiver
+    // has already spent. Opening a session is the one thing that cannot answer
+    // them, and reaching for it first is how a conversation used to die after
+    // exactly one message each way.
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({ id: 1, payload: from(THEIRS.identity_key, "first", "otk-1") }),
+        queued({ id: 2, payload: from(THEIRS.identity_key, "second", "otk-1") }),
+      ],
+    });
+
+    await collect();
+
+    expect(await messageLog.get("conv-1")).toEqual([
+      expect.objectContaining({ body: "first", mine: false }),
+      expect.objectContaining({ body: "second", mine: false }),
+    ]);
+    expect(api.ackQueue).toHaveBeenCalledWith({ device_id: OURS.id, message_ids: [1, 2] });
+  });
+
+  it("answers on the session a pre-key message opened rather than a second one", async () => {
+    // The reply looks a session up by the device it is with, and until the
+    // inbound path recorded that, answering somebody this device was already
+    // talking to opened a fresh session and spent another of their prekeys.
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from(THEIRS.identity_key, "hello", "otk-1") })],
+    });
+    await collect();
+    api.collectQueue.mockResolvedValue({ items: [] });
+
+    await sendText("conv-1", 7, "hello back");
+
+    expect(api.claimSessionKeys).not.toHaveBeenCalled();
+  });
+
+  it("tells the sender their message reached this device", async () => {
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from(THEIRS.identity_key, "hello", "otk-1") })],
+    });
+
+    await collect();
+
+    // One receipt naming what arrived, addressed to their devices and not to
+    // this account's own -- a receipt for yourself tells nobody anything.
+    const [, body] = api.sendMessages.mock.calls[0];
+    // And it announces nothing: the far end is woken to collect it, but a bell
+    // line naming a sender and counting what they said is not what this is.
+    expect(body.silent).toBe(true);
+    expect(
+      body.messages.map((message: { recipient_device_id: string }) => message.recipient_device_id)
+    ).toEqual([THEIRS.device_id]);
+    const [stored] = await messageLog.get("conv-1");
+    expect(JSON.parse(JSON.parse(body.messages[0].payload).body)).toEqual({
+      v: 1,
+      kind: "receipt",
+      state: "delivered",
+      ids: [stored.id],
+    });
+  });
+
+  it("says nothing about a message when receipts are switched off", async () => {
+    api.collectQueue.mockResolvedValue({
+      items: [queued({ payload: from(THEIRS.identity_key, "hello", "otk-1") })],
+    });
+
+    await collect({ receipts: false });
+
+    expect(api.sendMessages).not.toHaveBeenCalled();
+    // The message is still collected and read: the switch is about what this
+    // account reports, not about what it receives.
+    expect(await messageLog.get("conv-1")).toHaveLength(1);
+  });
+
+  it("moves a message forward when a receipt for it arrives", async () => {
+    const sent = await sendText("conv-1", 7, "hello");
+    api.sendMessages.mockClear();
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          message_type: 1,
+          payload: from(
+            THEIRS.identity_key,
+            JSON.stringify({ v: 1, kind: "receipt", state: "read", ids: [sent.id] })
+          ),
+        }),
+      ],
+    });
+
+    await collect();
+
+    const [stored] = await messageLog.get("conv-1");
+    expect(stored.receipt).toBe("read");
+    // A receipt is news, not a message: it does not join the thread.
+    expect(await messageLog.get("conv-1")).toHaveLength(1);
+  });
+
+  it("does not let a receipt fall back to an earlier state", async () => {
+    // A device that was away collects a read and a delivered together, in
+    // whichever order the queue holds them.
+    const sent = await sendText("conv-1", 7, "hello");
+    const receipt = (state: string) =>
+      from(THEIRS.identity_key, JSON.stringify({ v: 1, kind: "receipt", state, ids: [sent.id] }));
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({ id: 1, message_type: 1, payload: receipt("read") }),
+        queued({ id: 2, message_type: 1, payload: receipt("delivered") }),
+      ],
+    });
+
+    await collect();
+
+    expect((await messageLog.get("conv-1"))[0].receipt).toBe("read");
+  });
+
+  it("reports only what this look actually read", async () => {
+    // markRead runs on every change to the thread's length. Reporting the whole
+    // thread each time would say "read" again for messages answered an hour ago
+    // -- once per keystroke that lengthened it.
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({ id: 1, payload: from(THEIRS.identity_key, "first", "otk-1") }),
+        queued({ id: 2, payload: from(THEIRS.identity_key, "second", "otk-1") }),
+      ],
+    });
+    await collect({ receipts: false });
+    const log = await messageLog.get("conv-1");
+
+    await markRead("conv-1", { otherUserId: 7 });
+    const first = JSON.parse(
+      JSON.parse(api.sendMessages.mock.calls[0][1].messages[0].payload).body
+    );
+    expect(first).toEqual({
+      v: 1,
+      kind: "receipt",
+      state: "read",
+      ids: [log[0].id, log[1].id],
+    });
+
+    api.sendMessages.mockClear();
+    await markRead("conv-1", { otherUserId: 7 });
+    expect(api.sendMessages).not.toHaveBeenCalled();
+  });
+
+  it("reads a half-written envelope as the words it may always have been", async () => {
+    // An envelope missing the id it promised would be filed under `undefined`,
+    // where the next one like it looks like the same message and is dropped as
+    // a duplicate -- acknowledged away, off the server, never in the log.
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          id: 1,
+          payload: from(THEIRS.identity_key, JSON.stringify({ v: 1, kind: "text" }), "otk-1"),
+        }),
+        queued({
+          id: 2,
+          payload: from(THEIRS.identity_key, JSON.stringify({ v: 1, kind: "text" })),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    // Two messages, two entries: the queue row's id is unique per item.
+    expect(await messageLog.get("conv-1")).toHaveLength(2);
+  });
+
+  it("ignores a receipt that does not say what it is about", async () => {
+    const sent = await sendText("conv-1", 7, "hello");
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          message_type: 1,
+          payload: from(
+            THEIRS.identity_key,
+            JSON.stringify({ v: 1, kind: "receipt", state: "read" })
+          ),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    // Not a receipt it can act on, so the message keeps the state it had.
+    const stored = (await messageLog.get("conv-1")).find((m) => m.id === sent.id);
+    expect(stored?.receipt).toBeUndefined();
+  });
+
   it("leaves a message it cannot read on the server", async () => {
     api.collectQueue.mockResolvedValue({
       items: [queued({ payload: from("a-device-nobody-knows", "unreadable") })],
@@ -267,6 +467,8 @@ describe("sending", () => {
     // it opened is still there.
     await sendText("conv-1", 7, "first");
     await sendText("conv-1", 7, "second");
+    // A message somebody typed is news, and says so.
+    expect(api.sendMessages.mock.calls[0][1].silent).toBe(false);
 
     expect(api.claimSessionKeys).toHaveBeenCalledTimes(1);
     expect(api.sendMessages).toHaveBeenCalledTimes(2);

@@ -13,7 +13,7 @@
  * through the ratchet rather than posting a body.
  */
 import { createRouter } from "@tanstack/react-router";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   messageRequests: vi.fn(),
   dmPermission: vi.fn(),
   requestMessage: vi.fn(),
+  acceptMessageRequest: vi.fn(),
+  removeMessageRequest: vi.fn(),
   userProfile: vi.fn(),
 }));
 
@@ -71,6 +73,8 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   useMessageRequests: () => mocks.messageRequests(),
   useDmPermission: () => mocks.dmPermission(),
   useRequestMessage: () => ({ mutate: mocks.requestMessage, isPending: false }),
+  useAcceptMessageRequest: () => ({ mutate: mocks.acceptMessageRequest, isPending: false }),
+  useRemoveMessageRequest: () => ({ mutate: mocks.removeMessageRequest, isPending: false }),
 }));
 
 // The page resolves `?with=` to a person before it can decide anything about
@@ -117,9 +121,15 @@ const messagesPage = async () => {
   return Page;
 };
 
-const renderMessages = async () => {
+const renderMessages = async (routerSearch?: Record<string, unknown>) => {
   const Page = await messagesPage();
-  return renderPage(Page, { initialRoute: "/messages" });
+  return renderPage(Page, { initialRoute: "/messages", routerSearch });
+};
+
+/** Open the page on somebody, the way the sidebar addresses them. */
+const renderMessagesWith = async (userId: number, username: string) => {
+  mocks.userProfile.mockReturnValue(profile(userId, username));
+  return renderMessages({ with: `${username}1234` });
 };
 
 beforeEach(() => {
@@ -166,7 +176,26 @@ describe("My Messages", () => {
     await waitFor(() => expect(mocks.ensureDevice).toHaveBeenCalled());
   });
 
-  it("says so when there is nobody to message yet", async () => {
+  it("lands on the list rather than a note about where the list is", async () => {
+    // On a phone the sidebar shuts on the way here, so the page has to be able
+    // to offer the conversations itself or there is no way to pick one without
+    // opening the menu again.
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+
+    await renderMessages();
+
+    expect((await screen.findByText("alex#1234")).closest("a")).toHaveAttribute(
+      "href",
+      "/messages?with=alex1234"
+    );
+  });
+
+  it("says so when there is nobody to talk to at all", async () => {
     await renderMessages();
 
     expect(await screen.findByText(/nobody yet/i)).toBeInTheDocument();
@@ -183,11 +212,59 @@ describe("My Messages", () => {
       { id: "m1", body: "only this device has this", at: "", mine: false },
     ]);
 
-    await renderMessages();
-    await userEvent.click(await screen.findByRole("button", { name: /alex#1234/ }));
+    await renderMessagesWith(7, "alex");
 
     expect(await screen.findByText("only this device has this")).toBeInTheDocument();
     expect(mocks.logGet).toHaveBeenCalledWith("conv-1");
+  });
+
+  it("dates the end of a run rather than every message in it", async () => {
+    // A run is one person speaking once, so it wears one time: the moment they
+    // finished. Same sender is not enough to make a run — two messages an hour
+    // apart are two occasions, and the second must not wear the first's time.
+    const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "one", at: at(60), mine: false },
+      { id: "m2", body: "two", at: at(59), mine: false },
+      { id: "m3", body: "much later", at: at(3), mine: false },
+    ]);
+
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("much later");
+
+    // Two runs, so two times: the pair an hour ago and the one just now.
+    expect(screen.getAllByText(/ago$/)).toHaveLength(2);
+    expect(screen.getByText(/about 1 hour ago/)).toBeInTheDocument();
+  });
+
+  it("says how far one of your own messages got", async () => {
+    // A tick apiece: delivered means a device of theirs holds it, read means
+    // somebody looked, and nothing back yet draws neither.
+    mocks.conversations.mockResolvedValue({
+      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    });
+    mocks.messageRequests.mockReturnValue({
+      data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
+    });
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "waiting", at: "2026-09-01T00:00:00Z", mine: true },
+      { id: "m2", body: "landed", at: "2026-09-01T01:00:00Z", mine: true, receipt: "delivered" },
+      { id: "m3", body: "seen", at: "2026-09-01T02:00:00Z", mine: true, receipt: "read" },
+    ]);
+
+    await renderMessagesWith(7, "alex");
+    await screen.findByText("seen");
+
+    // Each is its own run — an hour apart — so each wears its own state.
+    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(screen.getByText("Delivered")).toBeInTheDocument();
+    expect(screen.getByText("Read")).toBeInTheDocument();
   });
 
   it("collects again when a dm frame invalidates the mailbox", async () => {
@@ -215,10 +292,14 @@ describe("My Messages", () => {
       data: { accepted: [grant(7, "alex"), grant(8, "sam")], incoming: [], outgoing: [] },
     });
 
-    await renderMessages();
-    await userEvent.click(await screen.findByRole("button", { name: /alex#1234/ }));
+    // Switching is a change of address now that the list is the sidebar's, so
+    // the draft has to survive -- or rather not survive -- a navigation.
+    mocks.userProfile.mockImplementation((handle: string) =>
+      handle === "alex1234" ? profile(7, "alex") : profile(8, "sam")
+    );
+    const { router } = await renderMessages({ with: "alex1234" });
     await userEvent.type(await screen.findByLabelText(/write a message/i), "meant for alex");
-    await userEvent.click(await screen.findByRole("button", { name: /sam#1234/ }));
+    await act(() => router.navigate({ to: "/messages", search: { with: "sam1234" } }));
 
     expect(await screen.findByLabelText(/write a message/i)).toHaveValue("");
   });
@@ -232,8 +313,7 @@ describe("My Messages", () => {
     });
     mocks.sendText.mockRejectedValue(new RecipientHasNoDeviceError());
 
-    await renderMessages();
-    await userEvent.click(await screen.findByRole("button", { name: /alex#1234/ }));
+    await renderMessagesWith(7, "alex");
     await userEvent.type(await screen.findByLabelText(/write a message/i), "hello");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
 
@@ -337,8 +417,7 @@ describe("My Messages", () => {
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
     });
 
-    await renderMessages();
-    await userEvent.click(await screen.findByRole("button", { name: /alex#1234/ }));
+    await renderMessagesWith(7, "alex");
     await userEvent.type(await screen.findByLabelText(/write a message/i), "hello");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
 

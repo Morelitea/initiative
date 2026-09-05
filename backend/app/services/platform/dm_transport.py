@@ -66,8 +66,14 @@ class DmTransportError(Exception):
 
 
 def _decode(value: str, *, expect: int | None = None) -> bytes:
+    """Read one base64 value the client published.
+
+    The ratchet writes base64 without the trailing ``=``, which is what Olm has
+    always put on the wire. Python's decoder requires it, so it is restored
+    here rather than asked of every client.
+    """
     try:
-        raw = base64.b64decode(value, validate=True)
+        raw = base64.b64decode(value + "=" * (-len(value) % 4), validate=True)
     except (binascii.Error, ValueError) as exc:
         raise DmTransportError(Messages.MALFORMED_KEY) from exc
     if expect is not None and len(raw) != expect:
@@ -78,6 +84,15 @@ def _decode(value: str, *, expect: int | None = None) -> bytes:
 
 
 def _encode(raw: bytes) -> str:
+    """Write one base64 value back, padded.
+
+    Deliberately not the mirror of `_decode`. What the client sends is written
+    by two different encoders -- keys by the ratchet library, which omits the
+    padding, and ciphertext by this crate's own helper, which keeps it -- and
+    only the ciphertext side reads a value back. That reader is strict, so the
+    padding stays on; `_decode` is the tolerant half because it is the one that
+    has to take both.
+    """
     return base64.b64encode(raw).decode("ascii")
 
 
@@ -574,9 +589,7 @@ async def send(
 
     if payloads:
         # A Core insert, deliberately: the ORM would ask for the new id back,
-        # and RETURNING re-checks the SELECT policy against a row addressed to
-        # somebody else's device -- which the sender is not entitled to read.
-        # Nothing here needs the id.
+        # and nothing here needs it.
         now = datetime.now(timezone.utc)
         await session.exec(
             insert(DmQueueItem).values(

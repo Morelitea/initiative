@@ -140,6 +140,7 @@ async def read_settings(
     return DirectMessageSettingsRead(
         dm_policy=row.dm_policy,
         age_confirmed_at=user.age_confirmed_at,
+        send_receipts=row.send_receipts,
         communities=[
             CommunityDmToggle(
                 guild_id=guild_id,
@@ -166,8 +167,9 @@ async def update_settings(
     user,
     dm_policy: DmPolicy | None = None,
     communities: list[CommunityDmToggleUpdate] | None = None,
+    send_receipts: bool | None = None,
 ) -> DirectMessageSettingsRead:
-    """Write either half, leaving the other alone.
+    """Write whichever parts were sent, leaving the rest alone.
 
     Raising the policy above ``private`` needs the age question answered — the
     DM surface asks for that itself rather than waiting on the community
@@ -205,7 +207,11 @@ async def update_settings(
 
     if dm_policy is not None:
         row.dm_policy = dm_policy
-    if dm_policy is not None or communities:
+    # Receipts are not part of who may reach this account, so they change
+    # nothing about an open channel and start no re-test below.
+    if send_receipts is not None:
+        row.send_receipts = send_receipts
+    if dm_policy is not None or communities or send_receipts is not None:
         row.updated_at = datetime.now(timezone.utc)
         session.add(row)
 

@@ -305,11 +305,25 @@ export const lastRead = {
  * collected, so if this is not written down the message is gone. Kept beside
  * the ratchet rather than in React state for the same reason.
  */
+/**
+ * How far one of your own messages has got.
+ *
+ * Only ever set on a message you sent: the other side reports it, so there is
+ * nothing to report about theirs. Absent means nothing has come back yet, which
+ * is also what it looks like when they have receipts switched off.
+ */
+export type ReceiptState = "delivered" | "read";
+
+/** Later states never fall back to earlier ones, whatever order they arrive in. */
+const reached = (state: ReceiptState | undefined): number =>
+  state === "read" ? 2 : state === "delivered" ? 1 : 0;
+
 export interface StoredMessage {
   id: string;
   body: string;
   at: string;
   mine: boolean;
+  receipt?: ReceiptState;
 }
 
 const LOG_PREFIX = "log:";
@@ -330,6 +344,34 @@ export const messageLog = {
       if (current.some((entry) => entry.id === message.id)) return undefined;
       return [...current, message];
     });
+  },
+  /**
+   * Record how far some of your own messages have got.
+   *
+   * Receipts arrive out of order -- a device that was away collects a read and
+   * a delivered in one go -- so a state only ever moves forward. Ids this log
+   * does not hold are ignored: a receipt for a message this device never had is
+   * about one of your other devices' copies.
+   */
+  markReceipts: async (
+    conversationId: string,
+    ids: string[],
+    state: ReceiptState
+  ): Promise<boolean> => {
+    if (ids.length === 0) return false;
+    const wanted = new Set(ids);
+    let changed = false;
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      const next = current.map((entry) => {
+        if (!entry.mine || !wanted.has(entry.id)) return entry;
+        if (reached(state) <= reached(entry.receipt)) return entry;
+        changed = true;
+        return { ...entry, receipt: state };
+      });
+      return changed ? next : undefined;
+    });
+    return changed;
   },
 };
 

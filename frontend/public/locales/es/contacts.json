@@ -51,14 +51,17 @@
   },
   "actions": {
     "label": "Acciones para {{handle}}",
-    "viewProfile": "Ver perfil",
     "connect": "Conectar",
+    "acceptConnection": "Aceptar conexión",
+    "connectPending": "Solicitud enviada",
     "ask": "Pedir escribir",
+    "asked": "Solicitud enviada",
     "askSent": "Solicitud enviada.",
     "ignore": "Ignorar",
     "stopIgnoring": "Dejar de ignorar",
     "removeConnection": "Eliminar conexión",
     "removeConnectionTitle": "¿Eliminar esta conexión?",
-    "removeConnectionBody": "Dejaréis de estar conectados. Si nada más os permite escribiros —una comunidad que compartáis, o que ambos estéis abiertos a mensajes—, eso también termina."
+    "removeConnectionBody": "Dejaréis de estar conectados. Si nada más os permite escribiros —una comunidad que compartáis, o que ambos estéis abiertos a mensajes—, eso también termina.",
+    "message": "Mensaje"
   }
 }

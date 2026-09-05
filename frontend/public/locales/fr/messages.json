@@ -1,11 +1,29 @@
 {
   "title": "Mes messages",
+  "backToNav": "Retour à la navigation",
   "encryptedNotice": "Chiffré de bout en bout. Seuls toi et l'autre personne pouvez les lire.",
   "empty": {
-    "title": "Aucune conversation ouverte",
-    "body": "Choisis quelqu'un à gauche ou ouvre un canal depuis Mes contacts."
+    "title": "Choisissez une conversation"
   },
   "nobodyYet": "Personne pour l'instant. Une conversation s'ouvre dès qu'une demande de message est acceptée.",
+  "requests": {
+    "heading": "Demandes",
+    "asked": "Cette personne veut démarrer une conversation.",
+    "youAsked": "Vous avez demandé. Rien n'est envoyé avant leur accord.",
+    "accept": "Accepter",
+    "decline": "Refuser",
+    "cancel": "Annuler"
+  },
+  "groups": {
+    "favorites": "Favoris",
+    "connections": "Connexions",
+    "messages": "Messages"
+  },
+  "receipt": {
+    "sent": "Envoyé",
+    "delivered": "Remis",
+    "read": "Lu"
+  },
   "startHint": "démarrer",
   "unknownAccount": "Compte inconnu",
   "noHistoryHere": "Rien encore sur cet appareil. Les messages que tu avais ailleurs y restent.",

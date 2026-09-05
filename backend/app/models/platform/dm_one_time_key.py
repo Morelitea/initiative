@@ -31,7 +31,15 @@ from sqlmodel import Field, SQLModel
 class DmOneTimeKey(SQLModel, table=True):
     __tablename__ = "dm_one_time_keys"
     __table_args__ = (
-        UniqueConstraint("device_id", "key_id", name="uq_dm_one_time_keys_device_key"),
+        # The fallback key is numbered in its own sequence on the client, so a
+        # device's fallback key id can be the same string as one of its prekey
+        # ids. They are separate namespaces here too.
+        UniqueConstraint(
+            "device_id",
+            "fallback",
+            "key_id",
+            name="uq_dm_one_time_keys_device_key",
+        ),
         # The claim reads "an unclaimed key for this device, cheapest first",
         # which is this index and its partial ordering on ``fallback``.
         Index("ix_dm_one_time_keys_device_fallback", "device_id", "fallback"),

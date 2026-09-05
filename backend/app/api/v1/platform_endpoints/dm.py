@@ -91,6 +91,7 @@ async def update_dm_settings(
             user=current_user,
             dm_policy=payload.dm_policy,
             communities=payload.communities,
+            send_receipts=payload.send_receipts,
         )
     except dm_settings_service.DirectMessageSettingsError as exc:
         raise HTTPException(

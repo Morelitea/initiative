@@ -27,9 +27,10 @@ interface ContactRowProps {
  * cells sit on the page's shared column template; the link covers all of them
  * and the star sits outside it, in the one column the link does not reach.
  *
- * The link goes to the conversation with them, because that is what a contacts
- * page is for: the row names somebody you might say something to. Their
- * profile is a click further, in the menu at the end of the row.
+ * The link goes to their profile, which is where everything you might do about
+ * somebody is gathered -- messaging them among it. Clicking a person to land on
+ * the person is what a row of people reads as; the conversation is one button
+ * further, and it is there whether or not the channel is already open.
  */
 export const ContactRow = ({
   contact,
@@ -43,8 +44,8 @@ export const ContactRow = ({
   return (
     <li className={cn(CONTACT_ROW_OUTER, "rounded-md px-2 hover:bg-muted/50")}>
       <Link
-        to="/messages"
-        search={{ with: getUrlHandle(contact) }}
+        to="/u/$handle"
+        params={{ handle: getUrlHandle(contact) }}
         className={cn(CONTACT_ROW_GRID, "py-1.5")}
       >
         <ProfileAvatar
@@ -72,7 +73,7 @@ export const ContactRow = ({
       </Link>
       <FavoriteToggle starred={starred} name={name} onToggle={() => onToggleFavorite(contact)} />
       {/* Outside the link, like the star: acting on somebody is not the same
-          gesture as opening a conversation with them. */}
+          gesture as going to look at them. */}
       <ContactActionsMenu
         user={{
           id: contact.id,

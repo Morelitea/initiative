@@ -62,6 +62,7 @@
     "menu": "Open menu",
     "search": "Search",
     "home": "Home",
+    "messages": "My Messages",
     "add": "Create",
     "addTask": "Add Task",
     "addDocument": "Add Document"
@@ -78,6 +79,6 @@
   },
   "adminDashboard": "Admin dashboard",
   "pastAnnouncements": "Past announcements",
-  "requestsWaiting_one": "{{count}} thing waiting",
-  "requestsWaiting_other": "{{count}} things waiting"
+  "requestsWaiting_one": "{{count}} waiting",
+  "requestsWaiting_other": "{{count}} waiting"
 }

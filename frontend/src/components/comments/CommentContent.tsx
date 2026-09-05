@@ -9,16 +9,12 @@ import { useCommentReferences } from "@/components/comments/CommentReferences";
 import { useGuilds } from "@/hooks/useGuilds";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
+import { remarkImageLinks, remarkLineBreaks } from "@/lib/remarkProse";
 import { referenceRef } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
-import {
-  type MentionType,
-  remarkImageLinks,
-  remarkLineBreaks,
-  remarkMentions,
-} from "./remarkCommentPlugins";
+import { type MentionType, remarkMentions } from "./remarkCommentPlugins";
 
 interface CommentContentProps {
   content: string;

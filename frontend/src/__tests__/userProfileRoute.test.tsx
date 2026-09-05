@@ -9,8 +9,10 @@
  */
 import { createRouter } from "@tanstack/react-router";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getUrlHandle } from "@/lib/userDisplay";
 import { routeTree } from "@/routeTree.gen";
 
 import { buildUserProfile } from "./factories";
@@ -18,7 +20,24 @@ import { renderPage } from "./helpers/render";
 
 const PROFILE_ROUTE_ID = "/_serverRequired/_authenticated/u/$handle";
 
-const mocks = vi.hoisted(() => ({ profile: vi.fn(), communities: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  profile: vi.fn(),
+  communities: vi.fn(),
+  dmPermission: vi.fn(),
+  connections: vi.fn(),
+  messageRequests: vi.fn(),
+  requestMessage: vi.fn(),
+}));
+
+// What one person may do about another is the server's answer, not the page's,
+// so it is the seam that decides which buttons the profile offers.
+vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useDmPermission: () => mocks.dmPermission(),
+  useConnections: () => mocks.connections(),
+  useMessageRequests: () => mocks.messageRequests(),
+  useRequestMessage: () => ({ mutate: mocks.requestMessage, isPending: false }),
+}));
 vi.mock("@/hooks/useUsers", () => ({
   useUserProfile: (handle: string | null) => mocks.profile(handle),
   // The status bubble is a control on your own profile, so it holds a mutation
@@ -69,6 +88,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   answerWith(buildUserProfile());
   mocks.communities.mockReturnValue({ data: [] });
+  mocks.dmPermission.mockReturnValue({ data: { permission: "denied" } });
+  mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
+  mocks.messageRequests.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
 });
 
 describe("a member's profile", () => {
@@ -133,6 +155,51 @@ describe("a member's profile", () => {
 
     await screen.findByRole("heading");
     expect(screen.queryByRole("img", { name: "Offline" })).not.toBeInTheDocument();
+  });
+
+  it("offers the conversation as a button where the channel is already open", async () => {
+    // A profile is where somebody lands after clicking a person, so what they
+    // came to do is a button on it rather than an item behind a menu.
+    const them = buildUserProfile();
+    answerWith(them);
+    mocks.dmPermission.mockReturnValue({ data: { permission: "open" } });
+    await renderProfile();
+
+    // Addressed by their handle, which is how My Messages resolves a person.
+    const message = await screen.findByRole("link", { name: /message/i });
+    expect(message).toHaveAttribute("href", `/messages?with=${getUrlHandle(them)}`);
+  });
+
+  it("offers to ask, where there is no channel yet", async () => {
+    const them = buildUserProfile();
+    answerWith(them);
+    mocks.dmPermission.mockReturnValue({ data: { permission: "may_request" } });
+    await renderProfile();
+
+    await userEvent.click(await screen.findByRole("button", { name: /ask to message/i }));
+    expect(mocks.requestMessage.mock.calls[0][0]).toEqual({ data: { user_id: them.id } });
+  });
+
+  it("offers to accept a connection they asked for, not a spent button", async () => {
+    // Rolled together with the ones you sent, an ask *they* sent reads back as
+    // one you sent: a disabled "Request sent" where the answer belongs.
+    const them = buildUserProfile();
+    answerWith(them);
+    mocks.connections.mockReturnValue({
+      data: { accepted: [], incoming: [{ user_id: them.id }], outgoing: [] },
+    });
+    await renderProfile();
+
+    expect(await screen.findByRole("button", { name: /accept connection/i })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /request sent/i })).toBeNull();
+  });
+
+  it("offers neither where the server says no", async () => {
+    await renderProfile();
+    await screen.findByRole("heading");
+
+    expect(screen.queryByRole("link", { name: /message/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ask to message/i })).not.toBeInTheDocument();
   });
 
   it("shelves the communities they are in where a community shelves its tools", async () => {

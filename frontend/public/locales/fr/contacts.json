@@ -51,14 +51,17 @@
   },
   "actions": {
     "label": "Actions pour {{handle}}",
-    "viewProfile": "Voir le profil",
     "connect": "Se connecter",
+    "acceptConnection": "Accepter la connexion",
+    "connectPending": "Demande envoyée",
     "ask": "Demander à écrire",
+    "asked": "Demande envoyée",
     "askSent": "Demande envoyée.",
     "ignore": "Ignorer",
     "stopIgnoring": "Ne plus ignorer",
     "removeConnection": "Supprimer la connexion",
     "removeConnectionTitle": "Supprimer cette connexion ?",
-    "removeConnectionBody": "Vous ne serez plus connectés. Si rien d'autre ne vous permet de vous écrire — une communauté commune, ou le fait que vous soyez tous deux ouverts aux messages —, cela prend fin aussi."
+    "removeConnectionBody": "Vous ne serez plus connectés. Si rien d'autre ne vous permet de vous écrire — une communauté commune, ou le fait que vous soyez tous deux ouverts aux messages —, cela prend fin aussi.",
+    "message": "Message"
   }
 }

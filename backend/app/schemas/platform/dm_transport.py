@@ -124,6 +124,12 @@ class DmOutboundMessage(BaseModel):
 
 class DmSendRequest(BaseModel):
     messages: list[DmOutboundMessage] = Field(min_length=1, max_length=64)
+    #: Deliver without a bell line. The server cannot read what it carries, so
+    #: only the sender can say that this one is not news to anybody -- a client
+    #: reporting that it collected or read something, rather than a person
+    #: saying it. The recipient's tabs are still woken, because a device that
+    #: is not told has nothing to collect.
+    silent: bool = False
 
 
 class DmSendResponse(BaseModel):

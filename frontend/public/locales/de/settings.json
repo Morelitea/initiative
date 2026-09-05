@@ -1171,6 +1171,11 @@
       "confirmAge": "Alter bestätigen",
       "saved": "Gespeichert."
     },
+    "receipts": {
+      "title": "Lesebestätigungen",
+      "label": "Anderen zeigen, wenn ihre Nachrichten dich erreichen",
+      "help": "Sie sehen, wann eine Nachricht auf einem deiner Geräte angekommen ist und wann du sie gelesen hast. Wenn du das ausschaltest, sehen sie beides nicht – genau wie bei jemandem, der die App nicht geöffnet hat. Ihre siehst du weiterhin."
+    },
     "connections": {
       "title": "Verbindungen",
       "description": "Verbindungen sind gegenseitig. Ihr bleibt in Kontakt, auch wenn ihr keine Community mehr teilt.",

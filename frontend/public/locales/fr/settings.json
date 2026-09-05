@@ -1171,6 +1171,11 @@
       "confirmAge": "Confirmer mon âge",
       "saved": "Enregistré."
     },
+    "receipts": {
+      "title": "Accusés de lecture",
+      "label": "Indiquer aux autres quand leurs messages vous parviennent",
+      "help": "Ils voient quand un message est arrivé sur l'un de vos appareils et quand vous l'avez lu. Si vous désactivez ceci, ils ne voient ni l'un ni l'autre — comme pour quelqu'un qui n'a pas ouvert l'application. Vous continuez à voir les leurs."
+    },
     "connections": {
       "title": "Connexions",
       "description": "Les connexions sont mutuelles. Vous pouvez rester en contact même si vous ne partagez plus de communauté.",

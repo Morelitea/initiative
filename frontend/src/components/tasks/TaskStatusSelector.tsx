@@ -3,13 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { toast } from "@/lib/chesterToast";
 
 type TaskStatusSelectorProps = {
@@ -82,9 +76,7 @@ export const TaskStatusSelector = ({
       disabled={isUpdatingTaskStatus}
     >
       <SelectTrigger className="w-40 border-2" style={statusTriggerStyle(task.task_status)}>
-        <SelectValue asChild>
-          <TaskStatusOption status={task.task_status} />
-        </SelectValue>
+        <TaskStatusOption status={task.task_status} />
       </SelectTrigger>
       <SelectContent>
         {sortedStatuses.map((status) => (
