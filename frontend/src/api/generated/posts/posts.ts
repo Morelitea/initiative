@@ -881,6 +881,10 @@ export const useDeletePostApiV1GGuildIdPostsPostIdDelete = <
  * the date passes: the pin simply stops counting and the post falls back into
  * the feed by its own age. Nothing sweeps the columns afterwards — a lapsed
  * pin is still the record of who pinned it and when.
+ *
+ * Sending ``pinned`` on a pin that is already live changes only the expiry —
+ * the pin keeps its original time and author. A pin that has lapsed is a new
+ * pin, so that one re-stamps.
  * @summary Set Post Pin
  */
 export const setPostPinApiV1GGuildIdPostsPostIdPinPut = (

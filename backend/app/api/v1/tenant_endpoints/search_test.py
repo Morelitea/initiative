@@ -579,13 +579,15 @@ async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
     the statement that publishes is the statement that indexes.
     """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    a.initiative.posts_enabled = True
-    session.add(a.initiative)
+    initiative = a.initiative
+    assert initiative is not None
+    initiative.posts_enabled = True
+    session.add(initiative)
     await session.commit()
 
     draft = await create_post(
         session,
-        a.initiative,
+        initiative,
         a.user,
         name="embargoed announcement",
         published_at=None,
