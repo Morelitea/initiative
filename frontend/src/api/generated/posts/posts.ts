@@ -1632,15 +1632,25 @@ export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
  * read as a whole — "the third choice" only means anything beside the other
  * two.
  *
- * Two things are refused once somebody has answered, and both protect a vote
- * already cast rather than the author's convenience:
+ * Three things are refused once somebody has answered, and each protects a
+ * vote already cast rather than the author's convenience:
  *
  * * **Changing the choices.** A ballot cast for "Tuesday" must not silently
  *   become a ballot for whatever took third place. The question, the close
  *   time and the switches below stay editable.
  * * **Switching anonymity off.** People answered on the understanding that
  *   their names were not attached, and that cannot be revoked afterwards.
- *   Turning it on is always allowed — it only ever hides more.
+ * * **Switching multiple choice off.** Somebody who ticked three answers
+ *   would otherwise be left holding three ballots on a poll that takes one,
+ *   and the roster would list one voter under several choices.
+ *
+ * Both switches can always be turned *on* — each only ever tightens what
+ * happens next, and neither rewrites an answer already given.
+ *
+ * The poll's row is locked before any of that is asked, so a first ballot
+ * cannot land between "has anybody answered?" and the write that acts on the
+ * answer — which, for an edit that replaced the choices, would cascade that
+ * ballot away.
  * @summary Set Post Poll
  */
 export const setPostPollApiV1GGuildIdPostsPostIdPollPut = (

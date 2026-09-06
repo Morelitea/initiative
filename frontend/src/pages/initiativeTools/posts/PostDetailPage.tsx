@@ -2,13 +2,13 @@ import { Link, useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
 import {
   CalendarClock,
-  ListChecks,
   Loader2,
   Pin,
   PinOff,
   SearchX,
   Settings,
   ShieldAlert,
+  Vote,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -135,10 +135,14 @@ export function PostDetailPage() {
       toast.success(t("poll.removed"));
     },
   });
-  // Answered polls keep their choices and their anonymity; the server refuses
-  // to change either, and the editor stops offering it rather than letting
-  // somebody type an edit that will be rejected.
-  const pollAnswered = (post?.poll?.total_voters ?? 0) > 0 || (post?.poll?.has_voted ?? false);
+  // Answered polls keep their choices and the two switches that can only
+  // tighten; the server refuses to change them, and the editor stops offering
+  // it rather than letting somebody type an edit that will be rejected.
+  //
+  // `is_locked`, not a count: on a poll whose results are withheld the count is
+  // `null`, so deriving the lock from it would unlock exactly the polls the
+  // server is about to refuse.
+  const pollAnswered = post?.poll?.is_locked ?? false;
 
   // An open poll editor is unsaved work too — it is saved by its own button,
   // like the body above it, so leaving the page would take it with them.
@@ -356,7 +360,7 @@ export function PostDetailPage() {
                   }
                   className="inline-flex items-center gap-2"
                 >
-                  <ListChecks className="h-4 w-4" aria-hidden />
+                  <Vote className="h-4 w-4" aria-hidden />
                   {post.poll ? t("poll.edit") : t("poll.add")}
                 </Button>
               ) : (

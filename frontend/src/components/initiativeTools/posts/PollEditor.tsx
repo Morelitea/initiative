@@ -54,6 +54,19 @@ const filledOptions = (draft: PollDraft) =>
   draft.options.map((option) => option.trim()).filter((option) => option.length > 0);
 
 /**
+ * Two choices that say the same thing, as nearly as the browser can tell.
+ *
+ * The server compares with Python's `casefold`, which is full Unicode case
+ * folding — it maps `ß` to `ss`, where JavaScript's lowercasing does not. There
+ * is no `casefold` here to match it with, so this is the close approximation:
+ * normalize, then lowercase. A pair it misses is refused by the API with
+ * `POST_POLL_DUPLICATE_CHOICE`, which the composer shows as a sentence — the
+ * point of this check is to answer the common case without a round trip, not
+ * to be the authority.
+ */
+const foldChoice = (text: string) => text.normalize("NFKC").toLocaleLowerCase();
+
+/**
  * Whether this draft is a poll yet.
  *
  * The same three rules the server holds it to, asked here so the submit button
@@ -63,7 +76,7 @@ const filledOptions = (draft: PollDraft) =>
 export const isPollDraftValid = (draft: PollDraft): boolean => {
   const options = filledOptions(draft);
   if (options.length < MIN_POLL_OPTIONS || options.length > MAX_POLL_OPTIONS) return false;
-  return new Set(options.map((option) => option.toLocaleLowerCase())).size === options.length;
+  return new Set(options.map(foldChoice)).size === options.length;
 };
 
 export const pollDraftToWrite = (draft: PollDraft): PollWrite => ({

@@ -533,5 +533,19 @@
   "POST_GRANT_CANNOT_MANAGE_MEMBERS": "El acceso compartido no puede gestionar quién más ve esta publicación",
   "POST_PIN_MANAGER_REQUIRED": "Solo los gestores de la iniciativa pueden fijar una publicación",
   "POST_PIN_EXPIRY_IN_PAST": "Elige una fecha futura para que termine la fijación",
-  "POST_BODY_TOO_LONG": "Esta publicación es demasiado larga; usa un documento"
+  "POST_BODY_TOO_LONG": "Esta publicación es demasiado larga; usa un documento",
+  "POST_ALREADY_PUBLISHED": "Esta publicación ya está publicada y no puede retenerse de nuevo.",
+  "POST_POLL_NOT_FOUND": "Esta publicación no tiene encuesta.",
+  "POST_POLL_EXISTS": "Esta publicación ya hace una pregunta.",
+  "POST_POLL_HAS_VOTES": "Ya han respondido, así que las opciones no pueden cambiar. Todavía puedes reformular la pregunta.",
+  "POST_POLL_CLOSED": "La votación de esta encuesta ha cerrado.",
+  "POST_POLL_CLOSES_IN_PAST": "Elige una fecha de cierre en el futuro.",
+  "POST_POLL_SINGLE_CHOICE": "Esta encuesta admite una sola respuesta.",
+  "POST_POLL_OPTION_UNKNOWN": "Esa opción no pertenece a esta encuesta.",
+  "POST_POLL_IS_ANONYMOUS": "Esta encuesta es anónima, no hay lista de quién ha votado.",
+  "POST_POLL_ANONYMITY_LOCKED": "Se respondió de forma anónima, así que ya no se puede desactivar.",
+  "POST_POLL_MULTIPLE_LOCKED": "Ya se ha elegido más de una respuesta, así que ya no se puede desactivar.",
+  "POST_POLL_DUPLICATE_CHOICE": "Dos opciones dicen lo mismo.",
+  "POST_POLL_RESULTS_HIDDEN": "Los resultados están ocultos hasta que respondas.",
+  "POST_POLL_NOT_PUBLISHED": "Esta publicación aún no está publicada, su encuesta no puede responderse."
 }

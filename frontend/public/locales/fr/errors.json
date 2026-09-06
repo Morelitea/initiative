@@ -533,5 +533,19 @@
   "POST_GRANT_CANNOT_MANAGE_MEMBERS": "Un accès partagé ne peut pas gérer qui d'autre voit cette publication",
   "POST_PIN_MANAGER_REQUIRED": "Seuls les gestionnaires de l'initiative peuvent épingler une publication",
   "POST_PIN_EXPIRY_IN_PAST": "Choisissez une date future pour la fin de l'épinglage",
-  "POST_BODY_TOO_LONG": "Cette publication est trop longue — utilisez plutôt un document"
+  "POST_BODY_TOO_LONG": "Cette publication est trop longue — utilisez plutôt un document",
+  "POST_ALREADY_PUBLISHED": "Cette publication est déjà en ligne et ne peut plus être retenue.",
+  "POST_POLL_NOT_FOUND": "Cette publication n'a pas de sondage.",
+  "POST_POLL_EXISTS": "Cette publication pose déjà une question.",
+  "POST_POLL_HAS_VOTES": "Des réponses ont déjà été données, les choix ne peuvent plus changer. Vous pouvez toujours reformuler la question.",
+  "POST_POLL_CLOSED": "Le vote est clôturé.",
+  "POST_POLL_CLOSES_IN_PAST": "Choisissez une date de clôture dans le futur.",
+  "POST_POLL_SINGLE_CHOICE": "Ce sondage n'accepte qu'une seule réponse.",
+  "POST_POLL_OPTION_UNKNOWN": "Ce choix n'appartient pas à ce sondage.",
+  "POST_POLL_IS_ANONYMOUS": "Ce sondage est anonyme, il n'y a pas de liste des votants.",
+  "POST_POLL_ANONYMITY_LOCKED": "Les réponses ont été données anonymement : impossible de le désactiver.",
+  "POST_POLL_MULTIPLE_LOCKED": "Plusieurs réponses ont déjà été choisies : impossible de le désactiver.",
+  "POST_POLL_DUPLICATE_CHOICE": "Deux choix disent la même chose.",
+  "POST_POLL_RESULTS_HIDDEN": "Les résultats sont masqués jusqu'à ce que vous répondiez.",
+  "POST_POLL_NOT_PUBLISHED": "Cette publication n'est pas encore en ligne, son sondage ne peut pas recevoir de réponse."
 }

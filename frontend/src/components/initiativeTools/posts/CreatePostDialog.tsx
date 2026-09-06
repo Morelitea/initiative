@@ -1,6 +1,6 @@
 import { useBlocker } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { ListChecks, Loader2 } from "lucide-react";
+import { Loader2, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -154,7 +154,7 @@ export const CreatePostDialog = ({
                 size="sm"
                 onClick={() => setPoll(emptyPollDraft())}
               >
-                <ListChecks className="size-4" aria-hidden />
+                <Vote className="size-4" aria-hidden />
                 {t("poll.add")}
               </Button>
             ) : (

@@ -747,3 +747,104 @@ async def test_the_unread_filter_skips_your_own_notices(
     ids = [item["id"] for item in response.json()["items"]]
     assert theirs.id in ids
     assert mine.id not in ids
+
+
+@pytest.mark.integration
+async def test_multiple_choice_can_be_turned_on_but_never_off(
+    client: AsyncClient, acting_user, session
+):
+    """Somebody who ticked two answers would otherwise be left holding two
+    ballots on a poll that takes one, and the roster would list them twice."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+    poll = await create_post_poll(session, post, allows_multiple=True)
+    ids = [option.id for option in poll.options]
+    voted = await client.put(
+        a.g(f"/posts/{post.id}/poll/vote"), headers=a.headers, json={"option_ids": ids}
+    )
+    assert voted.status_code == 200, voted.text
+
+    narrowed = await client.put(
+        a.g(f"/posts/{post.id}/poll"),
+        headers=a.headers,
+        json=_poll_payload(allows_multiple=False),
+    )
+    assert narrowed.status_code == 409
+    assert narrowed.json()["detail"] == "POST_POLL_MULTIPLE_LOCKED"
+
+    kept = await client.put(
+        a.g(f"/posts/{post.id}/poll"),
+        headers=a.headers,
+        json=_poll_payload(allows_multiple=True),
+    )
+    assert kept.status_code == 200, kept.text
+
+
+@pytest.mark.integration
+async def test_two_choices_that_say_the_same_thing_answer_with_a_code(
+    client: AsyncClient, acting_user, session
+):
+    """A rule somebody trips over while typing answers with something the
+    composer can put into words, not a validation error nobody can read."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+
+    response = await client.put(
+        a.g(f"/posts/{post.id}/poll"),
+        headers=a.headers,
+        json=_poll_payload(options=[{"text": "Tuesday"}, {"text": " tuesday "}]),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "POST_POLL_DUPLICATE_CHOICE"
+
+
+@pytest.mark.integration
+async def test_the_lock_is_answered_even_when_the_numbers_are_not(
+    client: AsyncClient, acting_user, session
+):
+    """An author of a hidden-results poll needs to know the question is fixed
+    before they start editing it. ``total_voters`` cannot tell them — it is the
+    withheld number — so the lock is its own answer."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+    poll = await create_post_poll(session, post, hide_results=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await client.put(
+        a.g(f"/posts/{post.id}/poll/vote"),
+        headers=b.headers,
+        json={"option_ids": [poll.options[0].id]},
+    )
+
+    seen = (await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)).json()[
+        "poll"
+    ]
+
+    assert seen["results_visible"] is False
+    assert seen["total_voters"] is None
+    assert seen["has_voted"] is False
+    assert seen["is_locked"] is True
+
+
+@pytest.mark.integration
+async def test_an_unanswered_poll_is_not_locked(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+    await create_post_poll(session, post)
+
+    seen = (await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)).json()[
+        "poll"
+    ]
+
+    assert seen["is_locked"] is False

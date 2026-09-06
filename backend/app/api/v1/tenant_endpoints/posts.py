@@ -164,11 +164,13 @@ def _validated_body(body: dict | None) -> dict:
 
 
 def _validated_poll(poll_in: PollWrite) -> PollWrite:
-    """A poll, or a 422 saying it would be born closed.
+    """A poll, or a 422 saying why it is not one.
 
-    Everything else about the payload — how many choices, how long each one is,
-    that no two say the same thing — is the schema's, because an import applies
-    the same rules. Only the clock is checked here.
+    How many choices there may be and how long each one is stay with the
+    schema — they are shape, and an import is held to the same shape. The two
+    rules here are the ones a person can trip over while typing, so each
+    answers with a code the composer can put into words rather than a
+    validation error nobody can read.
     """
     if poll_in.closes_at is not None and poll_in.closes_at <= datetime.now(
         timezone.utc
@@ -176,6 +178,12 @@ def _validated_poll(poll_in: PollWrite) -> PollWrite:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=PostMessages.POLL_CLOSES_IN_PAST,
+        )
+    choices = [option.text.strip().casefold() for option in poll_in.options]
+    if len(set(choices)) != len(choices):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=PostMessages.POLL_DUPLICATE_CHOICE,
         )
     return poll_in
 
@@ -877,32 +885,49 @@ async def set_post_poll(
     read as a whole — "the third choice" only means anything beside the other
     two.
 
-    Two things are refused once somebody has answered, and both protect a vote
-    already cast rather than the author's convenience:
+    Three things are refused once somebody has answered, and each protects a
+    vote already cast rather than the author's convenience:
 
     * **Changing the choices.** A ballot cast for "Tuesday" must not silently
       become a ballot for whatever took third place. The question, the close
       time and the switches below stay editable.
     * **Switching anonymity off.** People answered on the understanding that
       their names were not attached, and that cannot be revoked afterwards.
-      Turning it on is always allowed — it only ever hides more.
+    * **Switching multiple choice off.** Somebody who ticked three answers
+      would otherwise be left holding three ballots on a poll that takes one,
+      and the roster would list one voter under several choices.
+
+    Both switches can always be turned *on* — each only ever tightens what
+    happens next, and neither rewrites an answer already given.
+
+    The poll's row is locked before any of that is asked, so a first ballot
+    cannot land between "has anybody answered?" and the write that acts on the
+    answer — which, for an edit that replaced the choices, would cascade that
+    ballot away.
     """
     post = await resource_access.load_authorized(
         session, Tool.post, post_id, current_user, guild_context, access="write"
     )
     data = _validated_poll(poll_in)
     existing = post.poll
-    if existing is not None and await post_polls_service.has_votes(session, existing):
-        if not post_polls_service.options_match(existing, data):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=PostMessages.POLL_HAS_VOTES,
-            )
-        if existing.is_anonymous and not data.is_anonymous:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=PostMessages.POLL_ANONYMITY_LOCKED,
-            )
+    if existing is not None:
+        await post_polls_service.lock_poll(session, existing)
+        if await post_polls_service.has_votes(session, existing):
+            if not post_polls_service.options_match(existing, data):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.POLL_HAS_VOTES,
+                )
+            if existing.is_anonymous and not data.is_anonymous:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.POLL_ANONYMITY_LOCKED,
+                )
+            if existing.allows_multiple and not data.allows_multiple:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.POLL_MULTIPLE_LOCKED,
+                )
     session.add(post_polls_service.write_poll(post, data, poll=existing))
     post.updated_at = datetime.now(timezone.utc)
     session.add(post)
@@ -968,7 +993,11 @@ async def vote_on_post_poll(
             detail=PostMessages.POLL_NOT_PUBLISHED,
         )
     poll = _poll_of(post)
-    if poll.is_closed():
+    # Locks the poll and asks whether it still takes votes in one statement, by
+    # the database's clock — so the deadline cannot pass between the question
+    # and the ballot, and two of one person's ballots cannot race each other
+    # into a third answer neither of them sent.
+    if not await post_polls_service.lock_open_poll(session, poll):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PostMessages.POLL_CLOSED,
@@ -1010,7 +1039,7 @@ async def retract_post_poll_vote(
         session, Tool.post, post_id, current_user, guild_context
     )
     poll = _poll_of(post)
-    if poll.is_closed():
+    if not await post_polls_service.lock_open_poll(session, poll):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PostMessages.POLL_CLOSED,

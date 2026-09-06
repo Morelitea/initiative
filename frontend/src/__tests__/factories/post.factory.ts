@@ -113,6 +113,7 @@ export function buildPoll(overrides: Partial<PollRead> = {}): PollRead {
     has_voted: false,
     results_visible: true,
     total_voters: 0,
+    is_locked: false,
     ...overrides,
     options: options as PollOptionRead[],
   };

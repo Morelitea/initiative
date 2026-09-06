@@ -623,6 +623,12 @@ class PostMessages:
     #: Anonymity was switched off on a poll people had already answered
     #: anonymously. It can be turned on afterwards, never off.
     POLL_ANONYMITY_LOCKED = "POST_POLL_ANONYMITY_LOCKED"
+    #: Multiple choice was switched off on a poll people had already answered
+    #: with several. Like anonymity it can be turned on afterwards, never off —
+    #: otherwise a single-choice poll would list one voter under two answers.
+    POLL_MULTIPLE_LOCKED = "POST_POLL_MULTIPLE_LOCKED"
+    #: Two choices that say the same thing are one choice wearing two labels.
+    POLL_DUPLICATE_CHOICE = "POST_POLL_DUPLICATE_CHOICE"
     #: The roster was asked for while this poll's results are still withheld.
     POLL_RESULTS_HIDDEN = "POST_POLL_RESULTS_HIDDEN"
     #: A notice that is not up yet has nothing to answer.

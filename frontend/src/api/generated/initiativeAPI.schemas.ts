@@ -4400,6 +4400,7 @@ export interface PollRead {
   has_voted: boolean;
   results_visible: boolean;
   total_voters: number | null;
+  is_locked: boolean;
 }
 
 /**

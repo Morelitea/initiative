@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.models.tenant.post_poll import (
     MAX_POLL_OPTION_CHARS,
@@ -62,14 +62,6 @@ class PollWrite(SanitizedBaseModel):
     #: stands; a time that has already passed is refused rather than creating a
     #: poll nobody can answer.
     closes_at: Optional[datetime] = None
-
-    @field_validator("options")
-    @classmethod
-    def distinct_options(cls, options: List[PollOptionWrite]) -> List[PollOptionWrite]:
-        seen = {option.text.strip().casefold() for option in options}
-        if len(seen) != len(options):
-            raise ValueError("Two choices cannot say the same thing")
-        return options
 
 
 class PollVoteWrite(SanitizedBaseModel):
@@ -122,6 +114,15 @@ class PollRead(SanitizedBaseModel):
     #: a multiple-choice poll is a larger and less meaningful number. ``null``
     #: while the results are withheld.
     total_voters: Optional[int] = None
+    #: Whether anybody has answered, and so whether the choices and the two
+    #: switches that can only tighten are now fixed.
+    #:
+    #: Answered even while the results are withheld, which ``total_voters`` is
+    #: not: this is what an author needs to know before they start editing, and
+    #: it discloses only that the question has been answered — never by how
+    #: many, or by whom. Without it the editor would offer edits the server
+    #: refuses, on exactly the polls whose numbers are hidden.
+    is_locked: bool = False
 
 
 class PollVoter(GuildNameVisibility):
@@ -190,6 +191,7 @@ def serialize_poll(poll: Any) -> PollRead:
     counts: dict[int, int] = getattr(poll, "_vote_counts", None) or {}
     mine: set[int] = getattr(poll, "_my_option_ids", None) or set()
     voters: int = int(getattr(poll, "_total_voters", 0) or 0)
+    answered: bool = bool(getattr(poll, "_has_votes", voters > 0))
     closed = poll.is_closed()
     # Withheld only while there is still something to steer: once somebody has
     # answered, or the poll has closed, the numbers are theirs to see.
@@ -215,4 +217,5 @@ def serialize_poll(poll: Any) -> PollRead:
         has_voted=bool(mine),
         results_visible=visible,
         total_voters=voters if visible else None,
+        is_locked=answered,
     )

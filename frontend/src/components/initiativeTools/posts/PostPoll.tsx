@@ -1,4 +1,4 @@
-import { BarChart3, Check, Lock, Users } from "lucide-react";
+import { BarChart3, Check, Lock, Users, Vote } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -76,7 +76,10 @@ export const PostPoll = ({ post, className }: PostPollProps) => {
       aria-label={poll.question ?? t("poll.heading")}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="font-medium text-sm">{poll.question ?? t("poll.heading")}</h3>
+        <h3 className="inline-flex items-center gap-1.5 font-medium text-sm">
+          <Vote className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          {poll.question ?? t("poll.heading")}
+        </h3>
         <p className="text-muted-foreground text-xs">
           {poll.allows_multiple ? t("poll.pickSeveral") : t("poll.pickOne")}
         </p>
