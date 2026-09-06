@@ -983,6 +983,7 @@ async def update_users_me(
         "email_project_added",
         "email_overdue_tasks",
         "email_mentions",
+        "email_posts",
         "email_events",
         "email_event_reminders",
         "push_initiative_addition",
@@ -990,6 +991,7 @@ async def update_users_me(
         "push_project_added",
         "push_overdue_tasks",
         "push_mentions",
+        "push_posts",
         "push_events",
         "push_event_reminders",
     ]:

@@ -1,19 +1,21 @@
-"""Tests for the post endpoints — CRUD, the board's order, pinning, and the
-authorization gates (feature gate, role create gate, DAC levels).
+"""Tests for the post endpoints — CRUD, the board's order, pinning, scheduling,
+and the authorization gates (feature gate, role create gate, DAC levels).
 
-The post-specific concerns beyond the usual tool contract are the two things
-the board owns: what order notices come back in, and who may lift one above
-the others.
+The post-specific concerns beyond the usual tool contract are the three things
+the board owns: what order notices come back in, who may lift one above the
+others, and when a notice becomes something other people can see.
 """
 
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
+from sqlalchemy import delete as sa_delete, text
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.post import MAX_POST_TEXT_CHARS, post_excerpt
 from app.testing import create_comment, create_post, lexical_body
@@ -641,3 +643,491 @@ def test_excerpt_truncates_on_a_word_boundary():
     assert len(excerpt) <= 20
     assert excerpt.endswith("…")
     assert not excerpt.endswith("w…")
+
+
+# ---------------------------------------------------------------------------
+# Scheduling and publication
+# ---------------------------------------------------------------------------
+
+
+async def _notifications_for(
+    session: AsyncSession, user_id: int, ntype: NotificationType
+) -> list[Notification]:
+    await session.exec(text("SET search_path TO public"))
+    result = await session.exec(
+        select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type == ntype,
+        )
+    )
+    return list(result.all())
+
+
+@pytest.mark.integration
+async def test_posting_now_notifies_the_people_it_is_shared_with(
+    client: AsyncClient, acting_user, session
+):
+    """The default sharing is the whole initiative, so the whole initiative
+    hears about it — everyone except the author."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+
+    response = await client.post(
+        a.g("/posts/"),
+        headers=a.headers,
+        json={
+            "name": "Doors open at seven",
+            "initiative_id": a.initiative.id,
+            "body": lexical_body("Bring a chair."),
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["is_published"] is True
+
+    assert (
+        len(
+            await _notifications_for(
+                session, b.user.id, NotificationType.post_published
+            )
+        )
+        == 1
+    )
+    assert (
+        await _notifications_for(session, a.user.id, NotificationType.post_published)
+        == []
+    )
+
+
+@pytest.mark.integration
+async def test_a_notice_only_notifies_who_it_was_shared_with(
+    client: AsyncClient, acting_user, session
+):
+    """The fan-out follows the post's own grants, not the initiative roster.
+
+    This is the gate the whole feature hangs on: sharing a notice with one
+    person must not ring the bell of everybody who happens to be in the
+    initiative.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    named = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    bystander = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+
+    response = await client.post(
+        a.g("/posts/"),
+        headers=a.headers,
+        json={
+            "name": "Just for you",
+            "initiative_id": a.initiative.id,
+            "body": lexical_body("A word in private."),
+            "grants": [{"user_id": named.user.id, "level": "read"}],
+        },
+    )
+    assert response.status_code == 201
+
+    assert (
+        len(
+            await _notifications_for(
+                session, named.user.id, NotificationType.post_published
+            )
+        )
+        == 1
+    )
+    assert (
+        await _notifications_for(
+            session, bystander.user.id, NotificationType.post_published
+        )
+        == []
+    )
+
+
+@pytest.mark.integration
+async def test_a_scheduled_notice_is_not_published_and_notifies_nobody(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    when = datetime.now(timezone.utc) + timedelta(days=1)
+
+    response = await client.post(
+        a.g("/posts/"),
+        headers=a.headers,
+        json={
+            "name": "Tomorrow's news",
+            "initiative_id": a.initiative.id,
+            "body": lexical_body("Not yet."),
+            "scheduled_for": when.isoformat(),
+        },
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["is_published"] is False
+    assert payload["published_at"] is None
+    assert payload["scheduled_for"] is not None
+
+    assert (
+        await _notifications_for(session, b.user.id, NotificationType.post_published)
+        == []
+    )
+
+
+@pytest.mark.integration
+async def test_a_schedule_in_the_past_posts_it_now(
+    client: AsyncClient, acting_user, session
+):
+    """An instant that has already gone is somebody asking for it now — the
+    same thing an omitted schedule means, so it takes the same branch."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    when = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+    response = await client.post(
+        a.g("/posts/"),
+        headers=a.headers,
+        json={
+            "name": "Backdated",
+            "initiative_id": a.initiative.id,
+            "body": lexical_body("Now."),
+            "scheduled_for": when.isoformat(),
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["is_published"] is True
+    assert response.json()["scheduled_for"] is None
+
+
+@pytest.mark.integration
+async def test_a_draft_is_invisible_to_a_reader_but_not_to_its_author(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Not yet",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    mine = await client.get(a.g("/posts/"), headers=a.headers)
+    assert [p["id"] for p in mine.json()["items"]] == [draft.id]
+
+    theirs = await client.get(reader.g("/posts/"), headers=reader.headers)
+    assert theirs.json()["items"] == []
+    assert theirs.json()["total_count"] == 0
+
+    direct = await client.get(reader.g(f"/posts/{draft.id}"), headers=reader.headers)
+    assert direct.status_code == 404
+    assert (
+        await client.get(a.g(f"/posts/{draft.id}"), headers=a.headers)
+    ).status_code == 200
+
+
+@pytest.mark.integration
+async def test_a_draft_is_out_of_the_sidebar_counts(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    await create_post(session, a.initiative, a.user, name="Live one")
+    await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Draft one",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    counts = await client.get(
+        reader.g("/posts/counts/by-initiative"), headers=reader.headers
+    )
+    assert counts.json()["counts"][str(a.initiative.id)] == 1
+
+
+@pytest.mark.integration
+async def test_a_read_only_grantee_cannot_see_a_draft(
+    client: AsyncClient, acting_user, session
+):
+    """The draft leg is write access, not any access. Someone the notice is
+    already shared with still does not get it early."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Shared but not up",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    listing = await client.get(reader.g("/posts/"), headers=reader.headers)
+    assert [p["id"] for p in listing.json()["items"]] == []
+    assert (
+        await client.get(reader.g(f"/posts/{draft.id}"), headers=reader.headers)
+    ).status_code == 404
+
+
+@pytest.mark.integration
+async def test_an_editor_can_see_a_draft(client: AsyncClient, acting_user, session):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    editor = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Co-written",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    session.add(
+        ResourceGrant(
+            resource_type="post",
+            resource_id=draft.id,
+            user_id=editor.user.id,
+            level="write",
+            guild_id=a.guild.id,
+            initiative_id=a.initiative.id,
+        )
+    )
+    await session.commit()
+
+    listing = await client.get(editor.g("/posts/"), headers=editor.headers)
+    assert [p["id"] for p in listing.json()["items"]] == [draft.id]
+
+
+@pytest.mark.integration
+async def test_clearing_the_schedule_publishes_and_notifies(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Post it now",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    response = await client.patch(
+        a.g(f"/posts/{draft.id}"),
+        headers=a.headers,
+        json={"scheduled_for": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["is_published"] is True
+    assert (
+        len(
+            await _notifications_for(
+                session, b.user.id, NotificationType.post_published
+            )
+        )
+        == 1
+    )
+
+
+@pytest.mark.integration
+async def test_a_published_notice_cannot_be_rescheduled(
+    client: AsyncClient, acting_user, session
+):
+    """Publication is not reversible — the people it was announced to have
+    already been told."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Already up")
+
+    response = await client.patch(
+        a.g(f"/posts/{post.id}"),
+        headers=a.headers,
+        json={
+            "scheduled_for": (
+                datetime.now(timezone.utc) + timedelta(days=1)
+            ).isoformat()
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "POST_ALREADY_PUBLISHED"
+
+
+@pytest.mark.integration
+async def test_posting_an_already_posted_notice_now_is_nothing_to_do(
+    client: AsyncClient, acting_user, session
+):
+    """ "Post now" twice is a double click, not a conflict — and it must not
+    announce the notice a second time."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Twice",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    body = {"scheduled_for": None}
+
+    first = await client.patch(a.g(f"/posts/{draft.id}"), headers=a.headers, json=body)
+    second = await client.patch(a.g(f"/posts/{draft.id}"), headers=a.headers, json=body)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["is_published"] is True
+    assert (
+        len(
+            await _notifications_for(
+                session, b.user.id, NotificationType.post_published
+            )
+        )
+        == 1
+    )
+
+
+@pytest.mark.integration
+async def test_the_board_dates_a_notice_by_when_it_went_up(
+    client: AsyncClient, acting_user, session
+):
+    """A notice written last week and published today leads a notice written
+    yesterday — the board is a feed of what has been said, not of drafting."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    now = datetime.now(timezone.utc)
+    await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Written yesterday",
+        created_at=now - timedelta(days=1),
+        published_at=now - timedelta(days=1),
+    )
+    await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Written last week, up today",
+        created_at=now - timedelta(days=7),
+        published_at=now,
+    )
+
+    response = await client.get(a.g("/posts/"), headers=a.headers)
+    assert [p["name"] for p in response.json()["items"]] == [
+        "Written last week, up today",
+        "Written yesterday",
+    ]
+
+
+@pytest.mark.integration
+async def test_a_draft_is_not_exported(client: AsyncClient, acting_user, session):
+    """An export is a record of what a board has said, and a draft has said
+    nothing yet."""
+    from app.services.tenant.posts import list_post_ids_for_export
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    live = await create_post(session, a.initiative, a.user, name="Up")
+    await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Not up",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    ids = await list_post_ids_for_export(
+        session, a.user, a.guild.id, initiative_ids=[a.initiative.id]
+    )
+    assert ids == [live.id]
+
+
+@pytest.mark.integration
+async def test_setting_an_expiry_does_not_re_pin(
+    client: AsyncClient, acting_user, session
+):
+    """Putting an end date on a live pin changes the end date and nothing else.
+
+    Re-stamping ``pinned_at`` would vault a three-day-old pin over the pins
+    made since it, which is the band's ordering key.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Long-standing")
+
+    first = await client.put(
+        a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": True}
+    )
+    assert first.status_code == 200
+    pinned_at = first.json()["pinned_at"]
+
+    second = await client.put(
+        a.g(f"/posts/{post.id}/pin"),
+        headers=a.headers,
+        json={
+            "pinned": True,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        },
+    )
+    assert second.status_code == 200
+    assert second.json()["pinned_at"] == pinned_at
+    assert second.json()["pin_expires_at"] is not None
+
+
+@pytest.mark.integration
+async def test_re_pinning_a_lapsed_pin_starts_a_new_one(
+    client: AsyncClient, acting_user, session
+):
+    """A pin whose expiry has passed reads as no pin at all, so pinning again
+    is a new pin and takes today's date."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    stale = datetime.now(timezone.utc) - timedelta(days=5)
+    post = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Lapsed",
+        pinned_at=stale,
+        pinned_by=a.user.id,
+        pin_expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+
+    response = await client.put(
+        a.g(f"/posts/{post.id}/pin"), headers=a.headers, json={"pinned": True}
+    )
+    assert response.status_code == 200
+    assert response.json()["pinned_at"] != stale.isoformat()
+    assert response.json()["is_pinned"] is True
+    assert response.json()["pin_expires_at"] is None

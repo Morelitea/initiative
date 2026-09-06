@@ -31,6 +31,7 @@ type NotificationField =
   | "email_mentions"
   | "email_comment_reactions"
   | "email_direct_messages"
+  | "email_posts"
   | "email_events"
   | "email_event_reminders"
   | "push_initiative_addition"
@@ -40,6 +41,7 @@ type NotificationField =
   | "push_mentions"
   | "push_comment_reactions"
   | "push_direct_messages"
+  | "push_posts"
   | "push_events"
   | "push_event_reminders";
 
@@ -91,6 +93,7 @@ export const UserSettingsNotificationsPage = ({
   const [emailDirectMessages, setEmailDirectMessages] = useState(
     user.email_direct_messages ?? true
   );
+  const [emailPosts, setEmailPosts] = useState(user.email_posts ?? true);
   const [emailEvents, setEmailEvents] = useState(user.email_events ?? true);
   const [emailEventReminders, setEmailEventReminders] = useState(
     user.email_event_reminders ?? true
@@ -104,6 +107,7 @@ export const UserSettingsNotificationsPage = ({
   const [pushMentions, setPushMentions] = useState(user.push_mentions ?? true);
   const [pushReactions, setPushReactions] = useState(user.push_comment_reactions ?? true);
   const [pushDirectMessages, setPushDirectMessages] = useState(user.push_direct_messages ?? true);
+  const [pushPosts, setPushPosts] = useState(user.push_posts ?? true);
   const [pushEvents, setPushEvents] = useState(user.push_events ?? true);
   const [pushEventReminders, setPushEventReminders] = useState(user.push_event_reminders ?? true);
 
@@ -121,6 +125,7 @@ export const UserSettingsNotificationsPage = ({
     setEmailMentions(user.email_mentions ?? true);
     setEmailReactions(user.email_comment_reactions ?? true);
     setEmailDirectMessages(user.email_direct_messages ?? true);
+    setEmailPosts(user.email_posts ?? true);
     setEmailEvents(user.email_events ?? true);
     setEmailEventReminders(user.email_event_reminders ?? true);
     setPushInitiative(user.push_initiative_addition ?? true);
@@ -130,6 +135,7 @@ export const UserSettingsNotificationsPage = ({
     setPushMentions(user.push_mentions ?? true);
     setPushReactions(user.push_comment_reactions ?? true);
     setPushDirectMessages(user.push_direct_messages ?? true);
+    setPushPosts(user.push_posts ?? true);
     setPushEvents(user.push_events ?? true);
     setPushEventReminders(user.push_event_reminders ?? true);
     setReminderMinutes(user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES);
@@ -278,6 +284,19 @@ export const UserSettingsNotificationsPage = ({
       pushField: "push_overdue_tasks",
       pushValue: pushOverdue,
       pushSetter: setPushOverdue,
+    },
+    {
+      // One switch for every board the account can see. A post is already an
+      // occasional, deliberate thing; a setting per board would be a page of
+      // switches nobody visits.
+      label: t("notifications.categories.posts"),
+      description: t("notifications.categories.postsDescription"),
+      emailField: "email_posts",
+      emailValue: emailPosts,
+      emailSetter: setEmailPosts,
+      pushField: "push_posts",
+      pushValue: pushPosts,
+      pushSetter: setPushPosts,
     },
     {
       label: t("notifications.categories.events"),

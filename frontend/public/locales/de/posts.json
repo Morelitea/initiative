@@ -32,9 +32,22 @@
     "expiresLabel": "Anheften beenden am",
     "expiresHelp": "Optional. Danach rutscht der Beitrag nach seinem eigenen Datum zurück in den Verlauf.",
     "noExpiry": "Bis jemand ihn löst",
+    "addExpiry": "Enddatum hinzufügen",
+    "changeExpiry": "Enddatum ändern",
+    "removeExpiry": "Enddatum entfernen",
     "pinnedToast": "Beitrag angeheftet",
     "unpinnedToast": "Beitrag gelöst",
     "managerOnly": "Nur Initiativ-Manager können einen Beitrag anheften."
+  },
+  "schedule": {
+    "label": "Zeitplan",
+    "placeholder": "Sofort veröffentlichen",
+    "hint": "Leer lassen, um sofort zu veröffentlichen. Mit einer Zeit bleibt der Beitrag ein Entwurf — bis dahin sieht ihn niemand und niemand wird benachrichtigt.",
+    "submit": "Beitrag planen",
+    "scheduledFor": "Geplant für {{date}}",
+    "notPublished": "Noch nicht veröffentlicht",
+    "publishNow": "Jetzt veröffentlichen",
+    "publishedToast": "Veröffentlicht"
   },
   "filters": {
     "heading": "Filter",

@@ -52,11 +52,20 @@ class PostCreate(PostBase):
             ResourceGrantSchema(all_initiative_members=True, level="read")
         ]
     )
+    #: When the notice should go up. Omitted (or in the past) posts it now.
+    #: Until then it is a draft: only the people who could edit it see it, and
+    #: nobody is notified.
+    scheduled_for: Optional[datetime] = None
 
 
 class PostUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     body: Optional[Dict[str, Any]] = None
+    #: Move or clear a *pending* schedule. ``null`` publishes the draft now; a
+    #: new instant moves it. Meaningless once the notice is up — a published
+    #: post cannot be unpublished, because the people it was announced to have
+    #: already been told.
+    scheduled_for: Optional[datetime] = None
 
 
 class PostPinUpdate(SanitizedBaseModel):
@@ -105,6 +114,17 @@ class PostSummary(PostBase):
     #: recomputed client-side so the board and the API agree on the boundary
     #: case of an expiry that has just passed.
     is_pinned: bool = False
+    #: When the notice went up, or ``null`` while it is still a scheduled
+    #: draft. A reader only ever sees this set — a draft reaches its writers
+    #: alone.
+    published_at: Optional[datetime] = None
+    #: When it is due to go up. Set only on a draft; publishing clears nothing,
+    #: so a notice that was scheduled keeps the record of when it was meant to
+    #: land.
+    scheduled_for: Optional[datetime] = None
+    #: Whether it is live. The one-field form of ``published_at is not null``,
+    #: served so the board and the API agree at the boundary.
+    is_published: bool = True
     my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
@@ -226,6 +246,9 @@ def serialize_post_summary(
         pinned_by=post.pinned_by,
         pin_expires_at=post.pin_expires_at,
         is_pinned=post.is_pinned_now(),
+        published_at=post.published_at,
+        scheduled_for=post.scheduled_for,
+        is_published=post.is_published,
         my_permission_level=(
             compute_post_permission(post, user_id) if user_id is not None else None
         ),

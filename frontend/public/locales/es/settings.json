@@ -281,7 +281,9 @@
       "eventReminders": "Recordatorios de eventos",
       "eventRemindersDescription": "Un recordatorio antes de que comiencen los eventos a los que asistes.",
       "directMessages": "Mensajes directos",
-      "directMessagesDescription": "Alguien te envió un mensaje directo. Nunca incluye lo que dice."
+      "directMessagesDescription": "Alguien te envió un mensaje directo. Nunca incluye lo que dice.",
+      "posts": "Publicaciones",
+      "postsDescription": "Cuando se publica un aviso en un tablón que puedes ver."
     },
     "reminderLeadTime": {
       "label": "Recordarme",

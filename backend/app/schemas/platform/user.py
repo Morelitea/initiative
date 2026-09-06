@@ -501,6 +501,8 @@ class UserRead(UserBase):
     push_comment_reactions: bool = True
     email_direct_messages: bool = True
     push_direct_messages: bool = True
+    email_posts: bool = True
+    push_posts: bool = True
     email_events: bool = True
     push_events: bool = True
     email_event_reminders: bool = True
@@ -606,6 +608,8 @@ class UserSelfUpdate(SanitizedBaseModel):
     push_comment_reactions: Optional[bool] = None
     email_direct_messages: Optional[bool] = None
     push_direct_messages: Optional[bool] = None
+    email_posts: Optional[bool] = None
+    push_posts: Optional[bool] = None
     email_events: Optional[bool] = None
     push_events: Optional[bool] = None
     email_event_reminders: Optional[bool] = None

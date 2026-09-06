@@ -32,9 +32,22 @@
     "expiresLabel": "Arrêter d’épingler le",
     "expiresHelp": "Facultatif. Passée cette date, la publication retrouve sa place dans le fil selon sa propre date.",
     "noExpiry": "Jusqu’à ce que quelqu’un la désépingle",
+    "addExpiry": "Ajouter une date de fin",
+    "changeExpiry": "Modifier la date de fin",
+    "removeExpiry": "Retirer la date de fin",
     "pinnedToast": "Publication épinglée",
     "unpinnedToast": "Publication désépinglée",
     "managerOnly": "Seuls les gestionnaires de l’initiative peuvent épingler une publication."
+  },
+  "schedule": {
+    "label": "Planification",
+    "placeholder": "Publier maintenant",
+    "hint": "Laissez vide pour publier maintenant. Avec une heure, l'annonce reste un brouillon : personne ne la voit ni n'en est averti avant.",
+    "submit": "Planifier la publication",
+    "scheduledFor": "Planifiée pour le {{date}}",
+    "notPublished": "Pas encore publiée",
+    "publishNow": "Publier maintenant",
+    "publishedToast": "Publiée"
   },
   "filters": {
     "heading": "Filtres",

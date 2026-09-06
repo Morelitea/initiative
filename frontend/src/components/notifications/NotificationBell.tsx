@@ -128,6 +128,11 @@ const notificationLink = (notification: NotificationRead): string | null => {
         return entityRefRoute("document", data.document_id);
       }
       return entityRefFromData(data);
+    case "post_published":
+      if (typeof data.post_id === "number") {
+        return entityRefRoute("post", data.post_id);
+      }
+      return null;
     case "access_grant_requested":
     case "access_grant_approved":
     case "access_grant_denied":
@@ -254,6 +259,11 @@ const notificationText = (
       return t("notifications.commentOnResource", {
         commenterName: data.commenter_name ?? "Someone",
         entityName: data.entity_name ?? "an item",
+      });
+    case "post_published":
+      return t("notifications.postPublished", {
+        authorName: data.author_name ?? "Someone",
+        postName: data.post_name ?? "a post",
       });
     case "comment_reply":
       return t("notifications.commentReply", {

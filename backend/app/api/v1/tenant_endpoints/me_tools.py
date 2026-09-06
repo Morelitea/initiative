@@ -96,7 +96,10 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.post: MyToolList(
         loader_options=posts_service.list_loader_options,
         serialize=lambda row, user: serialize_post(row, user_id=user.id),
-        default_key=lambda row: row.created_at,
+        # The board's own date: when it went up, or when it is due to. A
+        # scheduled draft — which only its writers see here — sorts by the day
+        # it will land, not by the day somebody started it.
+        default_key=lambda row: row.published_at or row.scheduled_for or row.created_at,
     ),
 }
 

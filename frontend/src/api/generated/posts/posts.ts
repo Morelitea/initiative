@@ -58,7 +58,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * List posts visible to the current user (guild admins see all).
  *
  * Returns whole posts — a board shows notices, not headlines — which is why
- * it pages in twenties.
+ * it pages in twenties. A scheduled notice is here only for the people who
+ * could edit it; for everyone else the board starts when it goes up.
  * @summary List Posts
  */
 export const listPostsApiV1GGuildIdPostsGet = (
@@ -498,6 +499,10 @@ export function useGetPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiative
 }
 
 /**
+ * Read one notice.
+ *
+ * A scheduled one answers 404 unless the caller could edit it: until it goes
+ * up it is a draft, and the board it belongs to does not have it yet.
  * @summary Read Post
  */
 export const readPostApiV1GGuildIdPostsPostIdGet = (
@@ -677,7 +682,13 @@ export function useReadPostApiV1GGuildIdPostsPostIdGet<
 }
 
 /**
- * Edit a notice — its headline or its body. Requires write access.
+ * Edit a notice — its headline, its body, or a schedule not yet reached.
+ * Requires write access.
+ *
+ * ``scheduled_for`` moves a pending schedule; sending it as ``null`` publishes
+ * the draft immediately, which is how "post it now" is expressed. Sending it
+ * at all on a notice that is already up is a 409: publication is not
+ * reversible, because the people it was announced to have already been told.
  *
  * Pinning is deliberately not here: it is a different authority, and lives on
  * its own route below.

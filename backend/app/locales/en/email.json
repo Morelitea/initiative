@@ -94,6 +94,13 @@
       "body": "<strong>{{actor}}</strong> replied to your comment on <strong>{{context}}</strong>"
     }
   },
+  "post": {
+    "published": {
+      "subject": "New post: {{post}}",
+      "title": "New post",
+      "body": "<strong>{{actor}}</strong> posted <strong>{{post}}</strong>."
+    }
+  },
   "event": {
     "invitation": {
       "subject": "You're invited: {{event}}",

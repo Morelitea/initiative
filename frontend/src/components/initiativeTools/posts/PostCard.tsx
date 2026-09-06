@@ -1,15 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { MessageSquare, Pin, PinOff } from "lucide-react";
+import { CalendarClock, MessageSquare, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { type PostRead, ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useSetPostPin } from "@/hooks/usePosts";
+import { useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
 import { toast } from "@/lib/chesterToast";
+import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,10 @@ interface PostCardProps {
  * The whole body is rendered, not a preview: a board is for reading, and a
  * notice that needs a click to be read is a notice nobody reads. The headline
  * links to the post's own page, which is where its comments and reactions live.
+ *
+ * A card only reaches a reader who may see the notice, so a scheduled one is
+ * on the board of the people who wrote it and nobody else. It says so, and
+ * offers the one thing there is to do about it: put it up now.
  */
 export const PostCard = ({ post, canPin = false, className }: PostCardProps) => {
   const { t } = useTranslation(["posts", "common"]);
@@ -37,7 +43,12 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
       toast.success(updated.is_pinned ? t("pin.pinnedToast") : t("pin.unpinnedToast")),
   });
 
-  const pinnedUntil = post.is_pinned && post.pin_expires_at ? post.pin_expires_at : null;
+  // Clearing the schedule is what publishes: the same call the author would
+  // make by editing, so there is no second route for "now".
+  const publishNow = useUpdatePost(post.id, {
+    onSuccess: () => toast.success(t("schedule.publishedToast")),
+  });
+
   const detailRoute = gp(toolDetailRoute(Tool.post, post.initiative_id, post.id));
 
   return (
@@ -47,18 +58,31 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
         // of its own, so this is what the body sits on.
         "bg-card",
         post.is_pinned && "border-primary/40 bg-primary/[0.03]",
+        // A draft reads as provisional rather than as another notice on the
+        // board: it is the only card here nobody else can see.
+        !post.is_published && "border-dashed",
         className
       )}
     >
       <CardHeader className="gap-2 pb-3">
-        {post.is_pinned && (
-          <div className="flex items-center gap-1.5 text-primary text-xs">
-            <Pin className="h-3.5 w-3.5" aria-hidden />
-            <span>
-              {pinnedUntil
-                ? t("pin.pinnedUntil", { date: new Date(pinnedUntil).toLocaleDateString() })
-                : t("pin.pinnedBanner")}
+        <PinnedBanner post={post} canPin={canPin} />
+        {!post.is_published && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarClock className="h-3.5 w-3.5" aria-hidden />
+              {post.scheduled_for
+                ? t("schedule.scheduledFor", { date: formatDateTime(post.scheduled_for) })
+                : t("schedule.notPublished")}
             </span>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-xs"
+              disabled={publishNow.isPending}
+              onClick={() => publishNow.mutate({ scheduled_for: null })}
+            >
+              {t("schedule.publishNow")}
+            </Button>
           </div>
         )}
         <div className="flex items-start justify-between gap-2">

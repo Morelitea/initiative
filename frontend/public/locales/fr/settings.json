@@ -281,7 +281,9 @@
       "eventReminders": "Rappels d'événements",
       "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez.",
       "directMessages": "Messages directs",
-      "directMessagesDescription": "Quelqu'un t'a envoyé un message direct. N'inclut jamais son contenu."
+      "directMessagesDescription": "Quelqu'un t'a envoyé un message direct. N'inclut jamais son contenu.",
+      "posts": "Publications",
+      "postsDescription": "Quand une annonce paraît sur un tableau que vous pouvez voir."
     },
     "reminderLeadTime": {
       "label": "Me rappeler",

@@ -281,7 +281,9 @@
       "eventReminders": "Event reminders",
       "eventRemindersDescription": "A reminder before events you’re attending begin.",
       "directMessages": "Direct messages",
-      "directMessagesDescription": "Someone sent you a direct message. Never includes what it says."
+      "directMessagesDescription": "Someone sent you a direct message. Never includes what it says.",
+      "posts": "Posts",
+      "postsDescription": "When a notice goes up on a board you can see."
     },
     "reminderLeadTime": {
       "label": "Remind me",

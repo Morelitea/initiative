@@ -281,7 +281,9 @@
       "eventReminders": "Terminerinnerungen",
       "eventRemindersDescription": "Eine Erinnerung, bevor Termine beginnen, an denen du teilnimmst.",
       "directMessages": "Direktnachrichten",
-      "directMessagesDescription": "Jemand hat dir eine Direktnachricht gesendet. Enthält nie deren Inhalt."
+      "directMessagesDescription": "Jemand hat dir eine Direktnachricht gesendet. Enthält nie deren Inhalt.",
+      "posts": "Beiträge",
+      "postsDescription": "Wenn ein Beitrag auf einer für dich sichtbaren Pinnwand erscheint."
     },
     "reminderLeadTime": {
       "label": "Erinnere mich",

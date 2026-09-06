@@ -21,7 +21,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.post import Post, pin_is_live
+from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.tenant import tags as tags_service
@@ -56,6 +56,10 @@ def board_order() -> list:
     and ordering on the raw column would sort it above every post that was
     never pinned at all — putting it back at the top of the board by the very
     expiry that was supposed to take it down.
+
+    The feed is dated by :func:`board_time`, not by when the row was written: a
+    notice scheduled for Friday belongs at the top of Friday's board, not
+    wherever the moment somebody drafted it would put it.
     """
     from sqlalchemy import case, desc
 
@@ -63,9 +67,54 @@ def board_order() -> list:
     return [
         desc(case((live, 1), else_=0)),
         case((live, Post.pinned_at), else_=None).desc().nullslast(),
-        Post.created_at.desc(),
+        board_time().desc(),
         Post.id.desc(),
     ]
+
+
+def visibility_clause(
+    user_id: int, *, guild_id: int | None, initiative_id: int | None = None
+) -> Any:
+    """The WHERE leg hiding notices that have not gone up yet.
+
+    A scheduled post is a draft: it is live for nobody until the publication
+    sweep stamps it, and until then only the people who could edit it — its
+    author, anyone it is shared with at write or owner, a guild admin — have
+    any business seeing it. Everyone else's board, counts and search results
+    are as if it did not exist.
+
+    Written as one clause so every surface that lists posts appends the same
+    rule. The draft leg is the DAC machinery's own
+    :func:`permissions.writable_scope_clause` rather than a restatement of who
+    may edit a post, and it takes the same ``initiative_id`` the read leg does
+    so both agree on whether the question is scoped to one initiative.
+    """
+    from sqlalchemy import or_
+
+    return or_(
+        is_published_clause(),
+        permissions_service.writable_scope_clause(
+            Tool.post,
+            Post.id,
+            user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+        ),
+    )
+
+
+def audience_user_ids(post: Post, *, exclude: int | None = None) -> set[int]:
+    """Who a notice was shared with — the people to tell about it.
+
+    Defers to :func:`permissions.audience_user_ids` so the fan-out and the
+    per-request check read one another's answer: a post shared with three
+    people notifies three people, and a board of a hundred members is not
+    interrupted because somebody posted to a subset of it.
+    """
+    audience = permissions_service.audience_user_ids(post)
+    if exclude is not None:
+        audience.discard(exclude)
+    return audience
 
 
 async def attach_reactions(session: AsyncSession, *posts: Post) -> None:
@@ -146,14 +195,20 @@ async def list_post_ids_for_export(
     *,
     initiative_ids: list[int],
 ) -> list[int]:
-    """Ids of every post the user may export in the given initiatives — DAC-visible
-    to the user, feature-flag respected. Deterministic order for stable backup
-    output."""
+    """Ids of every post the user may export in the given initiatives — published,
+    DAC-visible to the user, feature-flag respected. Deterministic order for
+    stable backup output."""
     if not initiative_ids:
         return []
     conditions = [
         Post.initiative_id.in_(initiative_ids),
         Initiative.posts_enabled == True,  # noqa: E712
+        # An export is a record of what a board has said, and a draft has not
+        # been said yet — it is in no board, no count and no search result, so
+        # it is in no export either. A backup therefore does not carry drafts;
+        # that is the trade for one rule that cannot leak an unposted notice to
+        # whoever happens to run the export.
+        is_published_clause(),
         permissions_service.dac_scope_clause(
             Tool.post, Post.id, current_user.id, guild_id=guild_id
         ),

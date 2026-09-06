@@ -9,6 +9,7 @@ import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreatePost } from "@/hooks/usePosts";
+import { fromLocalDateTimeInput } from "@/lib/formatDate";
 import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import type { DialogProps } from "@/types/dialog";
 
@@ -51,12 +53,16 @@ export const CreatePostDialog = ({
   const [name, setName] = useState("");
   const [body, setBody] = useState<SerializedEditorState | null>(null);
   const [grants, setGrants] = useState<ResourceGrantSchema[]>([...DEFAULT_GRANTS]);
+  // Empty means "post it now", which is what most notices are. A value here
+  // holds the notice back: nobody sees it and nobody is told until then.
+  const [scheduledFor, setScheduledFor] = useState("");
 
   useEffect(() => {
     if (!open) {
       setName("");
       setBody(null);
       setGrants([...DEFAULT_GRANTS]);
+      setScheduledFor("");
     }
   }, [open]);
 
@@ -73,7 +79,8 @@ export const CreatePostDialog = ({
   // that navigate, and navigating away closes the dialog with the whole
   // unwritten post inside it. Ask first — but only while there is something to
   // lose, and never once the post has been created.
-  const isDirty = open && !create.isPending && (name.trim().length > 0 || body !== null);
+  const isDirty =
+    open && !create.isPending && (name.trim().length > 0 || body !== null || scheduledFor !== "");
   const blocker = useBlocker({ shouldBlockFn: () => isDirty, withResolver: true });
 
   return (
@@ -111,6 +118,18 @@ export const CreatePostDialog = ({
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="create-post-schedule">{t("schedule.label")}</Label>
+            <DateTimePicker
+              id="create-post-schedule"
+              includeTime
+              value={scheduledFor}
+              placeholder={t("schedule.placeholder")}
+              onChange={setScheduledFor}
+            />
+            <p className="text-muted-foreground text-xs">{t("schedule.hint")}</p>
+          </div>
+
           <CreateAccessSection initiativeId={initiativeId} grants={grants} onChange={setGrants} />
         </div>
 
@@ -126,11 +145,16 @@ export const CreatePostDialog = ({
                 initiative_id: initiativeId,
                 body: (body ?? {}) as unknown as Record<string, unknown>,
                 grants,
+                scheduled_for: fromLocalDateTimeInput(scheduledFor),
               })
             }
           >
             {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {create.isPending ? t("creating") : t("createPost")}
+            {create.isPending
+              ? t("creating")
+              : scheduledFor
+                ? t("schedule.submit")
+                : t("createPost")}
           </Button>
         </DialogFooter>
       </DialogContent>

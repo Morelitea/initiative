@@ -1338,6 +1338,9 @@ async def create_post(
         "created_by": creator.id,
         "name": name or f"Post {datetime.now(timezone.utc).timestamp()}",
         "body": body if body is not None else lexical_body("Notice body."),
+        # Live by default, like a notice posted rather than scheduled. Pass
+        # ``published_at=None`` with a ``scheduled_for`` to build a draft.
+        "published_at": datetime.now(timezone.utc),
     }
 
     data = {**defaults, **overrides}

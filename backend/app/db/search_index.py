@@ -390,7 +390,11 @@ def _when_clause(table: str, source: SearchSource) -> str:
     if source.dac_id:
         watched.append(source.dac_id)
     watched.extend(FLAG_COLUMNS.values())
-    watched.append("deleted_at")
+    # The two columns that decide whether a row is indexed at all. Watching
+    # ``published_at`` is what makes the publication worker's stamp index the
+    # notice: no trigger fires on the passage of time, but the write that
+    # records the publication is a write like any other.
+    watched.extend(("deleted_at", "published_at"))
     columns = SQLModel.metadata.tables[table].columns
     present = [c for c in dict.fromkeys(watched) if c in columns]
     return " OR ".join(f"OLD.{c} IS DISTINCT FROM NEW.{c}" for c in present)
@@ -502,10 +506,14 @@ BEGIN
     END IF;
 
     -- A delete, or a soft delete, leaves the entity with no rows: trash is
-    -- browsed through the trash surface, not found by searching.
+    -- browsed through the trash surface, not found by searching. So does a row
+    -- that has not been published yet — a scheduled notice is a draft, and a
+    -- draft is not something the people it will go to can find.
     IF TG_OP = 'DELETE'
        OR (to_jsonb(v_row) ? 'deleted_at'
-           AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL) THEN
+           AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL)
+       OR (to_jsonb(v_row) ? 'published_at'
+           AND to_jsonb(v_row) ->> 'published_at' IS NULL) THEN
         EXECUTE format(
             'DELETE FROM %I.search_entries WHERE entity_type = $1 AND entity_id = $2',
             TG_TABLE_SCHEMA
@@ -569,10 +577,20 @@ $dep$;
 
 
 def _live_clause(table: str, row: str) -> str:
-    """Restricts to rows that have an entry at all — trash is browsed through
-    the trash surface, not found by searching."""
+    """Restricts to rows that have an entry at all.
+
+    Trash is browsed through the trash surface, not found by searching; and a
+    row whose publication has not happened yet is a draft, which the people it
+    is destined for must not be able to find. Both mirror the same two tests in
+    the trigger function, so the sweep and the triggers index the same set.
+    """
     columns = SQLModel.metadata.tables[table].columns
-    return f" AND {row}.deleted_at IS NULL" if "deleted_at" in columns else ""
+    parts = []
+    if "deleted_at" in columns:
+        parts.append(f" AND {row}.deleted_at IS NULL")
+    if "published_at" in columns:
+        parts.append(f" AND {row}.published_at IS NOT NULL")
+    return "".join(parts)
 
 
 def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:

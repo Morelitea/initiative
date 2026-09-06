@@ -1,17 +1,19 @@
 import { Link, useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { Loader2, Pin, PinOff, SearchX, Settings, ShieldAlert } from "lucide-react";
+import { CalendarClock, Loader2, Pin, PinOff, SearchX, Settings, ShieldAlert } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
+import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
@@ -20,6 +22,7 @@ import { usePost, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
+import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
@@ -145,16 +148,7 @@ export function PostDetailPage() {
           ) : (
             <Skeleton className="h-9 w-64" />
           )}
-          {post?.is_pinned && (
-            <p className="flex items-center gap-1.5 text-primary text-xs">
-              <Pin className="h-3.5 w-3.5" aria-hidden />
-              {post.pin_expires_at
-                ? t("pin.pinnedUntil", {
-                    date: new Date(post.pin_expires_at).toLocaleDateString(),
-                  })
-                : t("pin.pinnedBanner")}
-            </p>
-          )}
+          {post && <PinnedBanner post={post} canPin={canPin} />}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -187,6 +181,47 @@ export function PostDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Reaching this page at all means being able to see the notice, and a
+          draft answers 404 to everyone who cannot edit it — so this strip is
+          only ever in front of someone who can act on it. It says the state
+          and offers the two things there are to do: move the time, or put it
+          up now. */}
+      {post && !post.is_published && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed p-3">
+          <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
+            <CalendarClock className="h-4 w-4" aria-hidden />
+            {post.scheduled_for
+              ? t("schedule.scheduledFor", { date: formatDateTime(post.scheduled_for) })
+              : t("schedule.notPublished")}
+          </p>
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <DateTimePicker
+                id="post-schedule"
+                includeTime
+                value={toLocalDateTimeInput(post.scheduled_for)}
+                placeholder={t("schedule.placeholder")}
+                // Only a real instant moves the schedule. Clearing the field
+                // does nothing: publishing cannot be undone, and emptying a
+                // date box to retype it must not announce the notice to
+                // everybody. "Post now" is the way to publish, and it says so.
+                onChange={(value) => {
+                  const when = fromLocalDateTimeInput(value);
+                  if (when) update.mutate({ scheduled_for: when });
+                }}
+              />
+              <Button
+                size="sm"
+                disabled={update.isPending}
+                onClick={() => update.mutate({ scheduled_for: null })}
+              >
+                {t("schedule.publishNow")}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {post ? (
         <div className="space-y-3">

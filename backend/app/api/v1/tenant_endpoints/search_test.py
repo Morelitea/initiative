@@ -9,11 +9,21 @@ route to the thing found — hold.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from app.models.platform.guild import GuildRole
-from app.testing import Actor, create_comment, create_document, create_tag, create_task
+from app.services.tenant.post_publication import publish_due_posts
+from app.testing import (
+    Actor,
+    create_comment,
+    create_document,
+    create_post,
+    create_tag,
+    create_task,
+    route_session_to_guild,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -556,3 +566,37 @@ async def test_recent_stops_at_the_same_gate_the_search_does(
 
     assert await _recent(client, a, types="task") != []
     assert await _recent(client, b, types="task") == []
+
+
+async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A draft is not something the people it is destined for can find.
+
+    The index is maintained by triggers and no trigger fires on the passage of
+    time — but the write that records the publication is a write like any
+    other, and ``published_at`` is one of the columns the trigger watches. So
+    the statement that publishes is the statement that indexes.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a.initiative.posts_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="embargoed announcement",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+
+    assert (await _search(client, a, q="embargoed"))["items"] == []
+
+    await route_session_to_guild(session, a.guild.id)
+    await publish_due_posts(session, now=datetime.now(timezone.utc))
+    await session.commit()
+
+    body = await _search(client, a, q="embargoed")
+    assert [h["entity_id"] for h in body["items"]] == [draft.id]
