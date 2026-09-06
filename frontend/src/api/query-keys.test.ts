@@ -6,6 +6,7 @@ import {
   invalidateAllTasks,
   invalidateGuildMembers,
   invalidateNotifications,
+  patchCachedPost,
   resetGuildScopedQueries,
   setInvalidationGuild,
 } from "@/api/query-keys";
@@ -142,5 +143,75 @@ describe("query-keys guild scoping", () => {
       expect(version()).toBe(true);
       expect(recents()).toBe(true);
     });
+  });
+});
+
+/**
+ * Read state and ballots are written into the cache rather than refetched:
+ * invalidating for either would refetch the board mid-scroll, moving rows
+ * under the cursor and — with the unread filter on — deleting the one being
+ * read. That only works if the patch reaches every shape a post is cached in,
+ * and the board is the one that is easy to miss: it scrolls rather than pages,
+ * so its cache is an infinite query's `{ pages: [...] }` and not a single page
+ * of items.
+ */
+describe("patchCachedPost", () => {
+  beforeEach(() => {
+    queryClient.clear();
+    setInvalidationGuild(null);
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    setInvalidationGuild(null);
+  });
+
+  const markRead = (post: Record<string, unknown>) => ({ ...post, is_read: true });
+
+  it("patches a post inside an infinite feed's pages", () => {
+    const key = ["/api/v1/g/5/posts/", { initiative_id: 1 }];
+    queryClient.setQueryData(key, {
+      pageParams: [1, 2],
+      pages: [
+        { items: [{ id: 1, is_read: false }], page: 1 },
+        { items: [{ id: 2, is_read: false }], page: 2 },
+      ],
+    });
+
+    patchCachedPost(2, markRead);
+
+    const data = queryClient.getQueryData(key) as {
+      pages: { items: { id: number; is_read: boolean }[] }[];
+    };
+    expect(data.pages[1].items[0].is_read).toBe(true);
+    expect(data.pages[0].items[0].is_read).toBe(false);
+  });
+
+  it("leaves untouched pages identical, so their cards do not re-render", () => {
+    const key = ["/api/v1/g/5/posts/"];
+    const untouched = { items: [{ id: 1, is_read: false }], page: 1 };
+    queryClient.setQueryData(key, {
+      pageParams: [1, 2],
+      pages: [untouched, { items: [{ id: 2, is_read: false }], page: 2 }],
+    });
+
+    patchCachedPost(2, markRead);
+
+    const data = queryClient.getQueryData(key) as { pages: unknown[] };
+    expect(data.pages[0]).toBe(untouched);
+  });
+
+  it("still patches a single page of items and a single post", () => {
+    const listKey = ["/api/v1/g/5/posts/"];
+    const postKey = ["/api/v1/g/5/posts/7"];
+    queryClient.setQueryData(listKey, { items: [{ id: 7, is_read: false }] });
+    queryClient.setQueryData(postKey, { id: 7, is_read: false });
+
+    patchCachedPost(7, markRead);
+
+    expect(
+      (queryClient.getQueryData(listKey) as { items: { is_read: boolean }[] }).items[0].is_read
+    ).toBe(true);
+    expect((queryClient.getQueryData(postKey) as { is_read: boolean }).is_read).toBe(true);
   });
 });

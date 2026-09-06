@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,6 +43,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
+from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.calendar_event import CalendarEvent
@@ -1374,6 +1376,46 @@ async def create_post(
         await session.commit()
 
     return post
+
+
+async def create_post_poll(
+    session: AsyncSession,
+    post: Post,
+    *,
+    options: list[str] | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> PostPoll:
+    """Give a test post a question. Two choices by default — the shortest poll
+    that is still a poll — in the order they are given."""
+    await route_session_to_guild(session, post.guild_id)
+
+    defaults: dict[str, Any] = {
+        "post_id": post.id,
+        "question": "Which night works?",
+    }
+    poll = PostPoll(**{**defaults, **overrides})
+    poll.options = [
+        PostPollOption(position=index, text=text)
+        for index, text in enumerate(options or ["Tuesday", "Thursday"])
+    ]
+    session.add(poll)
+
+    if commit:
+        await session.commit()
+        # Re-read with the options attached: a plain refresh expires them, and
+        # a test that then touched ``poll.options`` would lazy-load inside the
+        # async session.
+        poll = (
+            await session.exec(
+                select(PostPoll)
+                .where(PostPoll.id == poll.id)
+                .options(selectinload(PostPoll.options))
+                .execution_options(populate_existing=True)
+            )
+        ).one()
+
+    return poll
 
 
 async def create_calendar_event(

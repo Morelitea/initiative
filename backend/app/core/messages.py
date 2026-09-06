@@ -602,6 +602,31 @@ class PostMessages:
     #: A schedule was sent for a notice that is already up. Publication is not
     #: reversible — the people it was announced to have already been told.
     ALREADY_PUBLISHED = "POST_ALREADY_PUBLISHED"
+    #: A poll was asked for on a notice that does not have one.
+    POLL_NOT_FOUND = "POST_POLL_NOT_FOUND"
+    #: A notice already has its question; a second one would have to be a
+    #: second notice.
+    POLL_EXISTS = "POST_POLL_EXISTS"
+    #: The choices were rewritten after somebody had already answered. A ballot
+    #: cast for one option must not become a ballot for whatever replaced it.
+    POLL_HAS_VOTES = "POST_POLL_HAS_VOTES"
+    #: Voting has stopped.
+    POLL_CLOSED = "POST_POLL_CLOSED"
+    #: A close time that has already passed would make a poll nobody can answer.
+    POLL_CLOSES_IN_PAST = "POST_POLL_CLOSES_IN_PAST"
+    #: More than one choice on a poll that takes one.
+    POLL_SINGLE_CHOICE = "POST_POLL_SINGLE_CHOICE"
+    #: A ballot named a choice that is not on this poll.
+    POLL_OPTION_UNKNOWN = "POST_POLL_OPTION_UNKNOWN"
+    #: The roster was asked for on an anonymous poll, which has none by design.
+    POLL_IS_ANONYMOUS = "POST_POLL_IS_ANONYMOUS"
+    #: Anonymity was switched off on a poll people had already answered
+    #: anonymously. It can be turned on afterwards, never off.
+    POLL_ANONYMITY_LOCKED = "POST_POLL_ANONYMITY_LOCKED"
+    #: The roster was asked for while this poll's results are still withheld.
+    POLL_RESULTS_HIDDEN = "POST_POLL_RESULTS_HIDDEN"
+    #: A notice that is not up yet has nothing to answer.
+    POLL_NOT_PUBLISHED = "POST_POLL_NOT_PUBLISHED"
 
 
 class MarketplaceMessages:

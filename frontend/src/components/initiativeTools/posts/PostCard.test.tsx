@@ -146,7 +146,9 @@ describe("PostCard", () => {
   // Being on screen is what marks a notice read, so the only control here is
   // the way back — and it belongs only on a notice that has one.
   it("offers to mark a read notice unread", async () => {
-    renderPage(cardPage({ post: buildPost({ is_read: true }) }));
+    // Somebody else's — see the pair at the end of this file for why an
+    // author is never offered it on their own.
+    renderPage(cardPage({ post: buildPost({ is_read: true, created_by: 999 }) }));
 
     expect(await screen.findByRole("button", { name: /mark unread/i })).toBeInTheDocument();
   });
@@ -187,5 +189,22 @@ describe("PostCard", () => {
 
     expect(screen.queryByText(/scheduled for/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /post now/i })).not.toBeInTheDocument();
+  });
+
+  // A notice you wrote is read by you and carries no receipt — the server
+  // refuses to record one for an author — so there is nothing to put back.
+  it("offers no mark-unread on a notice the reader wrote", async () => {
+    const post = buildPost({ is_read: true, created_by: 1 });
+    renderPage(cardPage({ post }));
+
+    await screen.findByText(post.name);
+    expect(screen.queryByRole("button", { name: /mark unread/i })).not.toBeInTheDocument();
+  });
+
+  it("still offers it on somebody else's notice", async () => {
+    const post = buildPost({ is_read: true, created_by: 999 });
+    renderPage(cardPage({ post }));
+
+    expect(await screen.findByRole("button", { name: /mark unread/i })).toBeInTheDocument();
   });
 });

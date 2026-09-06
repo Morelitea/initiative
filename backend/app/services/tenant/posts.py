@@ -25,6 +25,7 @@ from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
+from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.post_read import PostRead
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
@@ -41,6 +42,9 @@ def list_loader_options() -> list:
         # the headline the way a comment shows its author — so the profile
         # comes with the row rather than costing a query per card.
         selectinload(Post.creator),
+        # The question it asks, if it asks one. A board renders its polls, so
+        # the options come with the row rather than costing a query per card.
+        selectinload(Post.poll).selectinload(PostPoll.options),
         tags_service.TOOL_TAG_LINKS[Tool.post].load_options(),
     ]
 
@@ -132,10 +136,18 @@ def unread_clause(user_id: int):
     flag to keep in step with anything. A notice nobody has opened has no rows
     here at all, which is what keeps the table the size of what has been read
     instead of posts x members.
-    """
-    from sqlalchemy import exists
 
-    return ~exists().where(PostRead.post_id == Post.id, PostRead.user_id == user_id)
+    Your own notices are never among them. There is no receipt for a notice you
+    wrote — the roster is about who it reached, and its author is not somebody
+    it had to reach — so without this leg every notice you ever posted would sit
+    in your unread filter forever.
+    """
+    from sqlalchemy import and_, exists
+
+    return and_(
+        Post.created_by != user_id,
+        ~exists().where(PostRead.post_id == Post.id, PostRead.user_id == user_id),
+    )
 
 
 async def annotate_read_state(
@@ -146,6 +158,14 @@ async def annotate_read_state(
     A plain attribute, the way the comment count is: the posts table has no
     relationship to the receipts, and a board of twenty must not become twenty
     queries.
+
+    A notice you wrote reads as read, and always has no receipt behind it:
+    :func:`mark_read` refuses to record one for an author, because the roster
+    counts who a notice reached and its author is not somebody it had to reach.
+    Reporting that absence as "unread" would leave your own board permanently
+    full of your own notices — and, worse, have the reader tracker keep offering
+    receipts the server keeps declining, so the count on the card would drift up
+    past what the roster behind it lists.
     """
     ids = [post.id for post in rows if post.id is not None]
     if not ids:
@@ -160,7 +180,8 @@ async def annotate_read_state(
         ).all()
     )
     for post in rows:
-        object.__setattr__(post, "is_read", post.id in read_ids)
+        mine = post.created_by == user_id
+        object.__setattr__(post, "is_read", mine or post.id in read_ids)
 
 
 def current_readers(post: Post, reader_ids: Iterable[int]) -> set[int]:

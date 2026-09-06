@@ -3,6 +3,10 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-qu
 import type {
   InitiativeGroupedCountsResponse,
   ListPostsApiV1GGuildIdPostsGetParams,
+  PollRead,
+  PollVoters,
+  PollVoteWrite,
+  PollWrite,
   PostCreate,
   PostListResponse,
   PostPinUpdate,
@@ -16,19 +20,25 @@ import type {
 import {
   createPostApiV1GGuildIdPostsPost,
   deletePostApiV1GGuildIdPostsPostIdDelete,
+  deletePostPollApiV1GGuildIdPostsPostIdPollDelete,
   getGetPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiativeGetQueryKey,
+  getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryKey,
   getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey,
   getListPostsApiV1GGuildIdPostsGetQueryKey,
   getPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiativeGet,
   getReadPostApiV1GGuildIdPostsPostIdGetQueryKey,
+  listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet,
   listPostReadersApiV1GGuildIdPostsPostIdReadsGet,
   listPostsApiV1GGuildIdPostsGet,
   markPostsReadApiV1GGuildIdPostsReadPost,
   markPostUnreadApiV1GGuildIdPostsPostIdReadDelete,
   readPostApiV1GGuildIdPostsPostIdGet,
+  retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete,
   setPostGrantsApiV1GGuildIdPostsPostIdGrantsPut,
   setPostPinApiV1GGuildIdPostsPostIdPinPut,
+  setPostPollApiV1GGuildIdPostsPostIdPollPut,
   updatePostApiV1GGuildIdPostsPostIdPatch,
+  voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut,
 } from "@/api/generated/posts/posts";
 import { invalidateAllPosts, invalidatePost, patchCachedPost } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -241,6 +251,160 @@ export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
       },
       onError: (...args) => {
         setCachedReadState(args[1], true);
+        options?.onError?.(...args);
+      },
+    }
+  );
+
+// ── Polls ───────────────────────────────────────────────────────────────────
+
+/**
+ * Who chose what on a notice's poll.
+ *
+ * Fetched when somebody asks, like the read roster: the tallies are already on
+ * the card, and the names behind them are a click.
+ */
+export const usePostPollVoters = (postId: number, options?: QueryOpts<PollVoters>) => {
+  const guildId = useActiveGuildId();
+  return useQuery<PollVoters>({
+    queryKey: getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryKey(guildId, postId),
+    queryFn: () => listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet(guildId, postId),
+    ...options,
+  });
+};
+
+/**
+ * Write the whole post back into every cache that holds it.
+ *
+ * Every poll route answers with the notice a read would return, so seeding is
+ * enough and nothing has to refetch. Deliberately NOT an invalidation: a vote
+ * does not change the board's order, and refetching the feed for one would
+ * move rows under the cursor mid-scroll.
+ */
+const seedCachedPost = (post: PostRead) =>
+  patchCachedPost(post.id, () => post as unknown as Record<string, unknown>);
+
+/**
+ * This ballot, applied to the poll on screen.
+ *
+ * Derivable in full: the ids that changed move their own tally by one, and the
+ * voter count moves only when somebody goes from having answered to not, or
+ * back. The one case it cannot answer is a poll whose numbers are still hidden
+ * — there is nothing on the client to add one to — so it records the ballot
+ * and leaves the reveal to the response.
+ */
+const applyBallot = (poll: PollRead, optionIds: number[]): PollRead => {
+  const after = new Set(optionIds);
+  const hadVoted = poll.options.some((option) => option.voted_by_me);
+  const hasVoted = after.size > 0;
+  const options = poll.options.map((option) => {
+    const now = after.has(option.id);
+    if (now === option.voted_by_me) return option;
+    const count = option.vote_count;
+    return {
+      ...option,
+      voted_by_me: now,
+      vote_count: typeof count === "number" ? Math.max(0, count + (now ? 1 : -1)) : count,
+    };
+  });
+  if (!poll.results_visible) {
+    return { ...poll, options, has_voted: hasVoted };
+  }
+  const total = poll.total_voters ?? 0;
+  const delta = hasVoted === hadVoted ? 0 : hasVoted ? 1 : -1;
+  return { ...poll, options, has_voted: hasVoted, total_voters: total + delta };
+};
+
+const setCachedBallot = (postId: number, optionIds: number[]) =>
+  patchCachedPost(postId, (post) => {
+    const poll = post.poll as PollRead | null | undefined;
+    if (!poll) return post;
+    return { ...post, poll: applyBallot(poll, optionIds) };
+  });
+
+/**
+ * Give a notice its question, or rewrite the one it has.
+ *
+ * Invalidates rather than seeding: writing a poll is an edit of the notice, so
+ * the surfaces that count or excerpt it are stale too.
+ */
+export const useSetPostPoll = (postId: number, options?: MutationOpts<PostRead, PollWrite>) =>
+  useGuildMutation<PostRead, PollWrite>(
+    {
+      mutationFn: (guildId, data) =>
+        setPostPollApiV1GGuildIdPostsPostIdPollPut(guildId, postId, data),
+      invalidate: () => invalidatePostAndList(postId),
+      errorKey: "posts:error",
+    },
+    options
+  );
+
+export const useDeletePostPoll = (postId: number, options?: MutationOpts<PostRead, void>) =>
+  useGuildMutation<PostRead, void>(
+    {
+      mutationFn: (guildId) => deletePostPollApiV1GGuildIdPostsPostIdPollDelete(guildId, postId),
+      invalidate: () => invalidatePostAndList(postId),
+      errorKey: "posts:error",
+    },
+    options
+  );
+
+/**
+ * Answer a notice's question.
+ *
+ * Optimistic for the reason marking read is: nothing behind this refetches the
+ * board, so the card has to answer the click immediately or look broken. The
+ * response then replaces the guess with the server's own count, which is what
+ * settles a tally two people moved at once.
+ */
+export const useVoteOnPostPoll = (
+  postId: number,
+  options?: MutationOpts<PostRead, PollVoteWrite>
+) =>
+  useGuildMutation<PostRead, PollVoteWrite>(
+    {
+      mutationFn: (guildId, data) =>
+        voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut(guildId, postId, data),
+      errorKey: "posts:error",
+    },
+    {
+      ...options,
+      onMutate: (...args) => {
+        setCachedBallot(postId, args[0].option_ids ?? []);
+        return options?.onMutate?.(...args);
+      },
+      onSuccess: (...args) => {
+        seedCachedPost(args[0]);
+        options?.onSuccess?.(...args);
+      },
+      // Put the board back the way it was. The cached copy is the only record
+      // of the previous ballot, so it is re-read rather than remembered.
+      onError: (...args) => {
+        invalidatePost(postId);
+        options?.onError?.(...args);
+      },
+    }
+  );
+
+export const useRetractPostPollVote = (postId: number, options?: MutationOpts<PostRead, void>) =>
+  useGuildMutation<PostRead, void>(
+    {
+      mutationFn: (guildId) =>
+        retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete(guildId, postId),
+      errorKey: "posts:error",
+    },
+    {
+      ...options,
+      onMutate: (...args) => {
+        setCachedBallot(postId, []);
+        return options?.onMutate?.(...args);
+      },
+      onSuccess: (...args) => {
+        seedCachedPost(args[0]);
+        options?.onSuccess?.(...args);
+      },
+      onError: (...args) => {
+        invalidatePost(postId);
         options?.onError?.(...args);
       },
     }

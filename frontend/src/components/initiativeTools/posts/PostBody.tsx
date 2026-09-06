@@ -2,6 +2,7 @@ import type { SerializedEditorState } from "lexical";
 import { lazy, Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { hasBody } from "@/lib/posts";
 import { cn } from "@/lib/utils";
 
 // The editor is the largest thing in the bundle and a board is often the first
@@ -16,8 +17,6 @@ interface PostBodyProps {
   className?: string;
 }
 
-const isEmpty = (body: Record<string, unknown>) => !body || Object.keys(body).length === 0;
-
 /**
  * A post's body, rendered read-only.
  *
@@ -27,7 +26,7 @@ const isEmpty = (body: Record<string, unknown>) => !body || Object.keys(body).le
  * notice about a task keeps showing that task's *current* column.
  */
 export const PostBody = ({ body, className }: PostBodyProps) => {
-  if (isEmpty(body)) return null;
+  if (!hasBody(body)) return null;
   return (
     <div className={cn("text-sm", className)}>
       <Suspense fallback={<Skeleton className="h-16 w-full" />}>

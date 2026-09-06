@@ -10,6 +10,12 @@ board — "this is what matters here right now" — not about the notice, so
 carrying it across would put an imported post above the posts already on
 somebody else's board.
 
+A poll crosses as the **question**, never the answers. A ballot is one person
+in one community saying something, and the ids naming them mean nothing in the
+guild a backup is restored into — the same reason the sharing is not carried.
+So does its close time, for the reason the pin is dropped: it said when the
+question stopped mattering on the board it came from.
+
 A notice that has not gone up is not exported at all — see
 ``posts.list_post_ids_for_export``. An export is a record of what a board has
 said, and a scheduled draft has said nothing yet.
@@ -99,4 +105,21 @@ def _envelope(post: Post) -> dict[str, Any]:
         "tags": sorted(
             link.tag.name for link in post.tag_links or [] if link.tag is not None
         ),
+        "poll": _poll_envelope(post),
+    }
+
+
+def _poll_envelope(post: Post) -> dict[str, Any] | None:
+    poll = getattr(post, "poll", None)
+    if poll is None:
+        return None
+    return {
+        "question": poll.question,
+        "options": [
+            option.text
+            for option in sorted(poll.options or [], key=lambda o: (o.position, o.id))
+        ],
+        "allows_multiple": poll.allows_multiple,
+        "is_anonymous": poll.is_anonymous,
+        "hide_results": poll.hide_results,
     }

@@ -422,6 +422,28 @@ export const invalidateAllPosts = () => invalidateGuildPrefix("/api/v1/posts");
 
 export const invalidatePost = (postId: number) => invalidateGuildExact([`/api/v1/posts/${postId}`]);
 
+type CachedPost = Record<string, unknown>;
+type CachedPage = { items?: CachedPost[] };
+
+/**
+ * One page of posts, with this post rewritten. Returns the SAME object when
+ * the page does not hold it, so the caches that do not change keep their
+ * identity and the cards on them do not re-render.
+ */
+const patchPostPage = (
+  page: unknown,
+  postId: number,
+  update: (post: CachedPost) => CachedPost
+): unknown => {
+  const asList = page as CachedPage;
+  if (!Array.isArray(asList.items)) return page;
+  if (!asList.items.some((item) => item.id === postId)) return page;
+  return {
+    ...asList,
+    items: asList.items.map((item) => (item.id === postId ? update(item) : item)),
+  };
+};
+
 /**
  * Rewrite one post wherever it is already cached, without refetching.
  *
@@ -429,24 +451,30 @@ export const invalidatePost = (postId: number) => invalidateGuildExact([`/api/v1
  * the board mid-scroll — moving rows under the cursor, and with the unread
  * filter on, deleting the one being read. The server is already told; this is
  * only the copy on screen catching up.
+ *
+ * Three shapes hold a post, and the board is the one that is easy to miss: it
+ * scrolls rather than pages, so its cache is an infinite query's
+ * `{ pages: [...] }` rather than a single page of items. Patching only the
+ * other two would leave every optimistic update invisible on the surface it
+ * was made from.
  */
-export const patchCachedPost = (
-  postId: number,
-  update: (post: Record<string, unknown>) => Record<string, unknown>
-) => {
+export const patchCachedPost = (postId: number, update: (post: CachedPost) => CachedPost) => {
   queryClient.setQueriesData<unknown>(
     { predicate: (q) => guildKey(q.queryKey[0])?.startsWith("/api/v1/posts") ?? false },
     (data: unknown) => {
       if (!data || typeof data !== "object") return data;
-      const asList = data as { items?: Record<string, unknown>[] };
-      if (Array.isArray(asList.items)) {
-        if (!asList.items.some((item) => item.id === postId)) return data;
-        return {
-          ...asList,
-          items: asList.items.map((item) => (item.id === postId ? update(item) : item)),
-        };
+
+      const asInfinite = data as { pages?: unknown[] };
+      if (Array.isArray(asInfinite.pages)) {
+        const pages = asInfinite.pages.map((page) => patchPostPage(page, postId, update));
+        if (pages.every((page, index) => page === asInfinite.pages?.[index])) return data;
+        return { ...asInfinite, pages };
       }
-      const asPost = data as Record<string, unknown>;
+
+      const patched = patchPostPage(data, postId, update);
+      if (patched !== data) return patched;
+
+      const asPost = data as CachedPost;
       return asPost.id === postId ? update(asPost) : data;
     }
   );

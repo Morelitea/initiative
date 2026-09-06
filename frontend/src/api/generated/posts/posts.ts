@@ -24,6 +24,9 @@ import type {
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
   ListPostsApiV1GGuildIdPostsGetParams,
+  PollVoteWrite,
+  PollVoters,
+  PollWrite,
   PostCreate,
   PostListResponse,
   PostPinUpdate,
@@ -1609,6 +1612,590 @@ export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryOptions(
+    guildId,
+    postId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Give a notice its question, or rewrite the one it has.
+ *
+ * Write access, the same as the body: a poll is part of what the notice says.
+ * One route rather than a create and an update, because a poll is written and
+ * read as a whole — "the third choice" only means anything beside the other
+ * two.
+ *
+ * Two things are refused once somebody has answered, and both protect a vote
+ * already cast rather than the author's convenience:
+ *
+ * * **Changing the choices.** A ballot cast for "Tuesday" must not silently
+ *   become a ballot for whatever took third place. The question, the close
+ *   time and the switches below stay editable.
+ * * **Switching anonymity off.** People answered on the understanding that
+ *   their names were not attached, and that cannot be revoked afterwards.
+ *   Turning it on is always allowed — it only ever hides more.
+ * @summary Set Post Poll
+ */
+export const setPostPollApiV1GGuildIdPostsPostIdPollPut = (
+  guildId: number,
+  postId: number,
+  pollWrite: BodyType<PollWrite>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostRead>(
+    {
+      url: `/api/v1/g/${guildId}/posts/${postId}/poll`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: pollWrite,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetPostPollApiV1GGuildIdPostsPostIdPollPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPostPollApiV1GGuildIdPostsPostIdPollPut>>,
+    TError,
+    { guildId: number; postId: number; data: BodyType<PollWrite> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPostPollApiV1GGuildIdPostsPostIdPollPut>>,
+  TError,
+  { guildId: number; postId: number; data: BodyType<PollWrite> },
+  TContext
+> => {
+  const mutationKey = ["setPostPollApiV1GGuildIdPostsPostIdPollPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPostPollApiV1GGuildIdPostsPostIdPollPut>>,
+    { guildId: number; postId: number; data: BodyType<PollWrite> }
+  > = (props) => {
+    const { guildId, postId, data } = props ?? {};
+
+    return setPostPollApiV1GGuildIdPostsPostIdPollPut(guildId, postId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetPostPollApiV1GGuildIdPostsPostIdPollPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPostPollApiV1GGuildIdPostsPostIdPollPut>>
+>;
+export type SetPostPollApiV1GGuildIdPostsPostIdPollPutMutationBody = BodyType<PollWrite>;
+export type SetPostPollApiV1GGuildIdPostsPostIdPollPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Post Poll
+ */
+export const useSetPostPollApiV1GGuildIdPostsPostIdPollPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setPostPollApiV1GGuildIdPostsPostIdPollPut>>,
+      TError,
+      { guildId: number; postId: number; data: BodyType<PollWrite> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setPostPollApiV1GGuildIdPostsPostIdPollPut>>,
+  TError,
+  { guildId: number; postId: number; data: BodyType<PollWrite> },
+  TContext
+> => {
+  return useMutation(
+    getSetPostPollApiV1GGuildIdPostsPostIdPollPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Take the question off a notice.
+ *
+ * Write access, and it takes the answers with it — which is why it is a
+ * deliberate act on its own route rather than a side effect of an edit. The
+ * notice itself stays; only the question goes.
+ * @summary Delete Post Poll
+ */
+export const deletePostPollApiV1GGuildIdPostsPostIdPollDelete = (
+  guildId: number,
+  postId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostRead>(
+    { url: `/api/v1/g/${guildId}/posts/${postId}/poll`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeletePostPollApiV1GGuildIdPostsPostIdPollDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePostPollApiV1GGuildIdPostsPostIdPollDelete>>,
+    TError,
+    { guildId: number; postId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePostPollApiV1GGuildIdPostsPostIdPollDelete>>,
+  TError,
+  { guildId: number; postId: number },
+  TContext
+> => {
+  const mutationKey = ["deletePostPollApiV1GGuildIdPostsPostIdPollDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePostPollApiV1GGuildIdPostsPostIdPollDelete>>,
+    { guildId: number; postId: number }
+  > = (props) => {
+    const { guildId, postId } = props ?? {};
+
+    return deletePostPollApiV1GGuildIdPostsPostIdPollDelete(guildId, postId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePostPollApiV1GGuildIdPostsPostIdPollDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePostPollApiV1GGuildIdPostsPostIdPollDelete>>
+>;
+
+export type DeletePostPollApiV1GGuildIdPostsPostIdPollDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete Post Poll
+ */
+export const useDeletePostPollApiV1GGuildIdPostsPostIdPollDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deletePostPollApiV1GGuildIdPostsPostIdPollDelete>>,
+      TError,
+      { guildId: number; postId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deletePostPollApiV1GGuildIdPostsPostIdPollDelete>>,
+  TError,
+  { guildId: number; postId: number },
+  TContext
+> => {
+  return useMutation(
+    getDeletePostPollApiV1GGuildIdPostsPostIdPollDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Answer a notice's question.
+ *
+ * Read access — answering is a reader's gesture, like reacting, not an edit
+ * of the notice. A PUT rather than a POST because a ballot is replaced rather
+ * than added to: sending it again is changing your mind, and sending it twice
+ * leaves the same answer.
+ *
+ * Answers the whole post, so a card that has just voted re-renders from one
+ * response with the new tallies in it.
+ * @summary Vote On Post Poll
+ */
+export const voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut = (
+  guildId: number,
+  postId: number,
+  pollVoteWrite: BodyType<PollVoteWrite>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostRead>(
+    {
+      url: `/api/v1/g/${guildId}/posts/${postId}/poll/vote`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: pollVoteWrite,
+      signal,
+    },
+    options
+  );
+};
+
+export const getVoteOnPostPollApiV1GGuildIdPostsPostIdPollVotePutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut>>,
+    TError,
+    { guildId: number; postId: number; data: BodyType<PollVoteWrite> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut>>,
+  TError,
+  { guildId: number; postId: number; data: BodyType<PollVoteWrite> },
+  TContext
+> => {
+  const mutationKey = ["voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut>>,
+    { guildId: number; postId: number; data: BodyType<PollVoteWrite> }
+  > = (props) => {
+    const { guildId, postId, data } = props ?? {};
+
+    return voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut(guildId, postId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VoteOnPostPollApiV1GGuildIdPostsPostIdPollVotePutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut>>
+>;
+export type VoteOnPostPollApiV1GGuildIdPostsPostIdPollVotePutMutationBody = BodyType<PollVoteWrite>;
+export type VoteOnPostPollApiV1GGuildIdPostsPostIdPollVotePutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Vote On Post Poll
+ */
+export const useVoteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut>>,
+      TError,
+      { guildId: number; postId: number; data: BodyType<PollVoteWrite> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut>>,
+  TError,
+  { guildId: number; postId: number; data: BodyType<PollVoteWrite> },
+  TContext
+> => {
+  return useMutation(
+    getVoteOnPostPollApiV1GGuildIdPostsPostIdPollVotePutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Take back this reader's answer.
+ *
+ * Allowed while the poll is open, for the same reason changing it is: until
+ * voting stops, an answer is what somebody currently thinks. Silent when
+ * there was none.
+ * @summary Retract Post Poll Vote
+ */
+export const retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete = (
+  guildId: number,
+  postId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostRead>(
+    { url: `/api/v1/g/${guildId}/posts/${postId}/poll/vote`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRetractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete>>,
+    TError,
+    { guildId: number; postId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete>>,
+  TError,
+  { guildId: number; postId: number },
+  TContext
+> => {
+  const mutationKey = ["retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete>>,
+    { guildId: number; postId: number }
+  > = (props) => {
+    const { guildId, postId } = props ?? {};
+
+    return retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete(
+      guildId,
+      postId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RetractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete>>
+>;
+
+export type RetractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Retract Post Poll Vote
+ */
+export const useRetractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete>>,
+      TError,
+      { guildId: number; postId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof retractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDelete>>,
+  TError,
+  { guildId: number; postId: number },
+  TContext
+> => {
+  return useMutation(
+    getRetractPostPollVoteApiV1GGuildIdPostsPostIdPollVoteDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Who chose what, and who has not answered.
+ *
+ * Offered to anyone who can read the notice, like its read roster: the people
+ * named are the people it went to, who already know of each other through the
+ * initiative they share.
+ *
+ * Refused in the two cases where the poll itself says not to — an anonymous
+ * poll, which has no roster by design, and one whose results are still
+ * withheld from this reader.
+ * @summary List Post Poll Voters
+ */
+export const listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet = (
+  guildId: number,
+  postId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PollVoters>(
+    { url: `/api/v1/g/${guildId}/posts/${postId}/poll/voters`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryKey = (
+  guildId: number,
+  postId: number
+) => {
+  return [`/api/v1/g/${guildId}/posts/${postId}/poll/voters`] as const;
+};
+
+export const getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryKey(guildId, postId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>
+  > = ({ signal }) =>
+    listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet(
+      guildId,
+      postId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && postId !== null && postId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>
+>;
+export type ListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet<
+  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet<
+  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet<
+  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Post Poll Voters
+ */
+
+export function useListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet<
+  TData = Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryOptions(
     guildId,
     postId,
     options

@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field, model_validator
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
 from app.schemas.tenant.comment import CommentAuthor
+from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
 from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
@@ -58,6 +59,10 @@ class PostCreate(PostBase):
     #: Until then it is a draft: only the people who could edit it see it, and
     #: nobody is notified.
     scheduled_for: Optional[datetime] = None
+    #: The question the notice asks, if it asks one. Written with the post
+    #: rather than added afterwards, so a notice and its question are one
+    #: submission and there is no window where the poll failed to attach.
+    poll: Optional[PollWrite] = None
 
 
 class PostUpdate(SanitizedBaseModel):
@@ -159,6 +164,12 @@ class PostRead(PostSummary):
     #: renders its notices rather than a table of headlines — which is why that
     #: list pages small.
     body: Dict[str, Any] = Field(default_factory=dict)
+    #: The question this notice asks, if it asks one — tallies, this reader's
+    #: own ballot and all. Carried with the post rather than fetched per card:
+    #: a board renders its polls, and five cards must not be five more requests.
+    #: Absent from :class:`PostSummary` on purpose — a one-line surface shows a
+    #: notice, not a ballot paper.
+    poll: Optional[PollRead] = None
 
 
 #: How many notices one "I have seen these" request may carry. A page of the
@@ -358,4 +369,9 @@ def serialize_post_summary(
 
 def serialize_post(post: "Post", *, user_id: Optional[int] = None) -> PostRead:
     summary = serialize_post_summary(post, user_id=user_id)
-    return PostRead(**summary.model_dump(), body=post.body or {})
+    poll = getattr(post, "poll", None)
+    return PostRead(
+        **summary.model_dump(),
+        body=post.body or {},
+        poll=serialize_poll(poll) if poll is not None else None,
+    )

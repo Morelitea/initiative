@@ -61,6 +61,7 @@ from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard, DashboardTag
 from app.models.tenant.post import Post, PostTag
 from app.models.tenant.post_read import PostRead
+from app.models.tenant.post_poll import PostPoll, PostPollOption, PostPollVote
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -180,6 +181,9 @@ __all__ = [
     "Post",
     "PostTag",
     "PostRead",
+    "PostPoll",
+    "PostPollOption",
+    "PostPollVote",
     "Counter",
     "CounterGroup",
     "Upload",

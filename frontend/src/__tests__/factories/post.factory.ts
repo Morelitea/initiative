@@ -1,9 +1,11 @@
-import type { PostRead } from "@/api/generated/initiativeAPI.schemas";
+import type { PollOptionRead, PollRead, PostRead } from "@/api/generated/initiativeAPI.schemas";
 
 let counter = 0;
+let optionCounter = 100;
 
 export function resetCounter(): void {
   counter = 0;
+  optionCounter = 100;
 }
 
 /**
@@ -83,6 +85,47 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     reactions: [],
     tags: [],
     grants: [],
+    // Most notices ask nothing, which is what makes a poll worth noticing.
+    poll: null,
+    ...overrides,
+  };
+}
+
+/**
+ * The question a notice asks.
+ *
+ * Two choices, nobody answered, open — the state a poll is in the moment it is
+ * written. Option ids run from 101 so a test can tell them apart from post ids
+ * at a glance.
+ */
+export function buildPoll(overrides: Partial<PollRead> = {}): PollRead {
+  const options = (overrides.options ?? ["Tuesday", "Thursday"].map(buildPollOption)) as
+    | PollOptionRead[]
+    | string[];
+  return {
+    id: 1,
+    question: "Which night works?",
+    allows_multiple: false,
+    is_anonymous: false,
+    hide_results: false,
+    closes_at: null,
+    is_closed: false,
+    has_voted: false,
+    results_visible: true,
+    total_voters: 0,
+    ...overrides,
+    options: options as PollOptionRead[],
+  };
+}
+
+export function buildPollOption(text: string, overrides: Partial<PollOptionRead> = {}) {
+  optionCounter++;
+  return {
+    id: optionCounter,
+    text,
+    position: optionCounter - 101,
+    vote_count: 0,
+    voted_by_me: false,
     ...overrides,
   };
 }

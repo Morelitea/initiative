@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { type PostRead, ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
+import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { useAuth } from "@/hooks/useAuth";
 import { useMarkReadOnScreen, usePostReadTracker } from "@/hooks/usePostReadTracker";
 import { useMarkPostUnread, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
 import { toast } from "@/lib/chesterToast";
@@ -59,6 +61,13 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
   const publishNow = useUpdatePost(post.id, {
     onSuccess: () => toast.success(t("schedule.publishedToast")),
   });
+
+  const { user } = useAuth();
+  // A notice you wrote is read by you and has no receipt behind it — the
+  // server refuses to record one, because the roster counts who a notice
+  // reached and its author is not somebody it had to reach. So there is
+  // nothing here to put back to unread.
+  const isMine = user?.id === post.created_by;
 
   const { suppress } = usePostReadTracker();
   const cardRef = useMarkReadOnScreen(post.id, post.is_read);
@@ -157,6 +166,9 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <PostBody body={post.body} />
+        {/* The question, under what was said about it — a poll is the thing a
+            notice is asking, and asking before saying reads as a form. */}
+        {post.poll && <PostPoll post={post} />}
         {post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {post.tags.map((tag) => (
@@ -201,9 +213,9 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
               {t("read.readBy", { count: post.read_count })}
             </Button>
           )}
-          {/* Only once it has been read — on an unread notice this button
-              would be a no-op wearing a label. */}
-          {post.is_read && (
+          {/* Only once it has been read, and never on your own notice — in
+              either case the button would be a no-op wearing a label. */}
+          {post.is_read && !isMine && (
             <Button
               variant="ghost"
               size="sm"
