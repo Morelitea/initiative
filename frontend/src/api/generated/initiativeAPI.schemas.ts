@@ -6129,6 +6129,7 @@ export interface WebhookSubscriptionUpdate {
 export type WidgetType = (typeof WidgetType)[keyof typeof WidgetType];
 
 export const WidgetType = {
+  board: "board",
   chart: "chart",
   funnel: "funnel",
   gantt: "gantt",

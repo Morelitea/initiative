@@ -214,6 +214,40 @@ WIDGET_SPECS: dict[str, WidgetSpec] = {
         sources=frozenset({"task_counts"}),
         options={"tone": _option("accent", "positive", "warning")},
     ),
+    # Tasks in columns. Display only, like every widget: a card cannot be
+    # dragged from one column to the next, because a dashboard reads and never
+    # writes — moving work is a project view's job.
+    "board": WidgetSpec(
+        min_w=4,
+        min_h=4,
+        default_w=12,
+        default_h=6,
+        sources=frozenset({"tasks"}),
+        options={
+            # What a column stands for. "property" columns by the custom
+            # property the binding names, which is how a board groups by
+            # something this build has never heard of — a team's own field.
+            "group": _option(
+                "status",
+                "status_category",
+                "assignee",
+                "priority",
+                "project",
+                "tag",
+                "property",
+            ),
+            # The order cards sit in within a column. Not the author's manual
+            # order: that is a position inside one project's board, and a
+            # binding spanning several has no single one to honour.
+            "sort": _option("due", "priority", "created", "updated", "title"),
+            # How much of a task a card carries.
+            "cards": _option("standard", "compact", "detailed"),
+            # Mark cards that need attention, in the negative tone.
+            "highlight": _option("overdue", "off"),
+            # Which column comes first.
+            "columns": _option("natural", "largest", "label"),
+        },
+    ),
     # A plain read-only table. Display only, like every widget: no row actions,
     # no inline editing — that is a project view's job, not a dashboard's.
     "table": WidgetSpec(

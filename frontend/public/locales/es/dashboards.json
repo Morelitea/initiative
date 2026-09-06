@@ -152,7 +152,8 @@
     "appNotInstalled": "Esta aplicación no está instalada en esta comunidad.",
     "appParamPlaceholder": "Elige…",
     "appParamNeedsSibling": "Elige primero el valor de arriba.",
-    "appParamListHint": "Separa los valores con comas."
+    "appParamListHint": "Separa los valores con comas.",
+    "all_property": "Sin propiedad"
   },
   "picker": {
     "title": "Añadir un widget",
@@ -288,7 +289,9 @@
     "progress": "Progreso",
     "stage": "Etapa",
     "label": "Etiqueta",
-    "column": "Columna"
+    "column": "Columna",
+    "card": "Tarjeta",
+    "due": "Vence"
   },
   "bindingParam": {
     "project": "Proyecto",
@@ -302,7 +305,8 @@
     "source_id": "Fuente de datos de la app",
     "bucket": "Agrupar los recuentos por",
     "day_field": "Contar cada tarea en su",
-    "window_days": "Ventana temporal (días)"
+    "window_days": "Ventana temporal (días)",
+    "property": "Propiedad"
   },
   "paramValue": {
     "status_category": "Categoría de estado",
