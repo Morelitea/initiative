@@ -1647,10 +1647,9 @@ export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
  * Both switches can always be turned *on* — each only ever tightens what
  * happens next, and neither rewrites an answer already given.
  *
- * The poll's row is locked before any of that is asked, so a first ballot
- * cannot land between "has anybody answered?" and the write that acts on the
- * answer — which, for an edit that replaced the choices, would cascade that
- * ballot away.
+ * The poll's row is taken before any of that is asked and held until the edit
+ * commits, so "has anybody answered?" and the write that acts on the answer
+ * are one step.
  * @summary Set Post Poll
  */
 export const setPostPollApiV1GGuildIdPostsPostIdPollPut = (
