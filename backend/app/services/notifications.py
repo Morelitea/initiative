@@ -15,6 +15,7 @@ from app.core.email_i18n import email_t, translate
 from app.db.session import SYSTEM_SATISFIED, AdminSessionLocal, set_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
+from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
@@ -1209,7 +1210,7 @@ def _format_event_when(event: CalendarEvent, recipient: User) -> str:
     return local.strftime("%a, %b %-d, %Y at %-I:%M %p %Z")
 
 
-async def _deliver_event_notification(
+async def _deliver_notification(
     session: AsyncSession,
     *,
     recipient: User,
@@ -1223,7 +1224,7 @@ async def _deliver_event_notification(
     push_title: str,
     push_body: str,
 ) -> None:
-    """Shared 3-tier delivery for calendar-event notifications.
+    """Shared 3-tier delivery: in-app, then email and push.
 
     In-app is always created; email/push are gated by the caller's resolved
     preference flags. Mirrors the task/comment notifiers' structure.
@@ -1248,10 +1249,12 @@ async def _deliver_event_notification(
             )
         except email_service.EmailNotConfiguredError:
             logger.warning(
-                "SMTP not configured; skipping event email for %s", recipient.email
+                "SMTP not configured; skipping %s email for %s",
+                notification_type.value,
+                recipient.email,
             )
         except RuntimeError as exc:  # pragma: no cover
-            logger.error("Failed to send event email: %s", exc)
+            logger.error("Failed to send %s email: %s", notification_type.value, exc)
     if push_enabled:
         try:
             await push_notifications.send_push_to_user(
@@ -1299,7 +1302,7 @@ async def notify_event_invitation(
     organizer_name = handle_of(organizer)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
-    await _deliver_event_notification(
+    await _deliver_notification(
         session,
         recipient=attendee,
         notification_type=NotificationType.event_invitation,
@@ -1338,7 +1341,7 @@ async def notify_event_updated(
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
     key = "event.rescheduled" if time_changed else "event.updated"
-    await _deliver_event_notification(
+    await _deliver_notification(
         session,
         recipient=attendee,
         notification_type=NotificationType.event_updated,
@@ -1373,7 +1376,7 @@ async def notify_event_cancelled(
     canceller_name = handle_of(canceller)
     when = _format_event_when(event, attendee)
     locale = _recipient_locale(attendee)
-    await _deliver_event_notification(
+    await _deliver_notification(
         session,
         recipient=attendee,
         notification_type=NotificationType.event_cancelled,
@@ -1413,7 +1416,7 @@ async def notify_event_rsvp(
         rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
     )
     locale = _recipient_locale(organizer)
-    await _deliver_event_notification(
+    await _deliver_notification(
         session,
         recipient=organizer,
         notification_type=NotificationType.event_rsvp,
@@ -1457,7 +1460,7 @@ async def notify_event_reminder(
     """Send a scheduled lead-time reminder for an upcoming event."""
     when = _format_event_when(event, recipient)
     locale = _recipient_locale(recipient)
-    await _deliver_event_notification(
+    await _deliver_notification(
         session,
         recipient=recipient,
         notification_type=NotificationType.event_reminder,
@@ -1471,6 +1474,55 @@ async def notify_event_reminder(
         email_body=email_t("event.reminder.body", locale, event=event.title, when=when),
         push_title=_nt("event.reminder.title", locale),
         push_body=_nt("event.reminder.body", locale, event=event.title, when=when),
+    )
+
+
+async def notify_post_published(
+    session: AsyncSession,
+    *,
+    recipient: User,
+    post_id: int,
+    post_name: str,
+    excerpt: str,
+    author_name: str,
+    author_id: int,
+    guild_id: int,
+) -> None:
+    """Tell one person a notice has gone up on a board they can see.
+
+    Takes the post's fields rather than the row: the scheduled path calls this
+    from a sweep that commits between recipients, and a detached row would have
+    to be re-fetched for each one.
+    """
+    if recipient.id == author_id:
+        return
+    target_path = _tool_target_path(Tool.post.value, post_id)
+    locale = _recipient_locale(recipient)
+    await _deliver_notification(
+        session,
+        recipient=recipient,
+        notification_type=NotificationType.post_published,
+        data={
+            "post_id": post_id,
+            "post_name": post_name,
+            "excerpt": excerpt,
+            "author_name": author_name,
+            "author_id": author_id,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
+        email_enabled=recipient.email_posts is not False,
+        push_enabled=recipient.push_posts is not False,
+        email_subject=email_t(
+            "post.published.subject", locale, post=post_name, escape=False
+        ),
+        email_headline=email_t("post.published.title", locale),
+        email_body=email_t(
+            "post.published.body", locale, actor=author_name, post=post_name
+        ),
+        push_title=_nt("post.published.title", locale),
+        push_body=_nt("post.published.body", locale, actor=author_name, post=post_name),
     )
 
 

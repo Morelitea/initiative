@@ -58,6 +58,11 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     pinned_by: null,
     pin_expires_at: null,
     is_pinned: false,
+    // Live by default, like a notice posted rather than scheduled. Pass
+    // `is_published: false` with a `scheduled_for` to build a draft.
+    published_at: "2026-01-15T00:00:00.000Z",
+    scheduled_for: null,
+    is_published: true,
     my_permission_level: "owner",
     comments_enabled: true,
     comment_count: 0,

@@ -280,7 +280,14 @@ export function Plugins({
 
         <LegacyNodesPlugin />
         <MentionsPlugin initiativeId={initiativeId ?? undefined} />
-        {supportsEntityMentions && <SmartChipRefsPlugin />}
+        {/* Not gated on `supportsEntityMentions`: that flag says whether this
+            editor lets you INSERT a reference, and reading one is a different
+            question. A read-only view renders chips too, and a chip with
+            nothing reported to the scope shows "no longer available" instead of
+            its reading — which is what the post feed did. Reporting nothing
+            costs nothing, so an editor with no chips pays for this in an empty
+            array. */}
+        <SmartChipRefsPlugin />
         {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}
         <WikilinksPlugin
           initiativeId={initiativeId}

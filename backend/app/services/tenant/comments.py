@@ -264,6 +264,17 @@ async def _get_tool_context(
         .where(target.model.id == entity_id)  # type: ignore[attr-defined]
         .options(selectinload(target.model.initiative))  # type: ignore[attr-defined]
     )
+    if target.tool in permissions_service.READ_VISIBLE:
+        # This tool has something between "shared with me" and "I can see it",
+        # and answering it asks whether the caller could edit the row — which
+        # reads its sharing and its initiative's roster. Loaded only for the
+        # tools that ask, so the other six pay nothing.
+        stmt = stmt.options(
+            selectinload(target.model.grants),  # type: ignore[attr-defined]
+            selectinload(target.model.initiative).selectinload(  # type: ignore[attr-defined]
+                Initiative.memberships
+            ),
+        )
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
         return None
@@ -351,6 +362,14 @@ async def _ensure_parent_access(
         if not getattr(ctx.resource, "comments_enabled", True):
             raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
         anchor_tool, anchor_model, anchor_row = target.tool, target.model, ctx.resource
+        # A parent that has not gone up yet has no thread to join: a scheduled
+        # post is a draft, and reading or writing its comments would say it
+        # exists. Asked before the sharing decision below, because the answer
+        # for anyone who could edit it is the ordinary one.
+        if permissions_service.hidden_from_reader(
+            target.tool, ctx.resource, cast(int, user.id)
+        ):
+            raise CommentNotFoundError(target.not_found)
 
     guild_id = anchor_row.guild_id
     if permissions_service.request_bypasses_dac(guild_id, access=access):

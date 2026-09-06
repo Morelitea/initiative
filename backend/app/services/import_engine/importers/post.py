@@ -1,12 +1,14 @@
 """``initiative-post`` importer: one bulletin-board notice with its tags.
 
-The pin is not carried by the envelope and so is not restored — a pin belongs
-to the board it was made on, not to the notice. An imported post arrives in
-the feed by its own date like anything else somebody just wrote.
+Neither the pin nor the schedule is carried by the envelope, for the same
+reason: both said what this notice meant on the board it came from. An imported
+post arrives live, in the feed by its own date, like anything else somebody
+just wrote.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel
@@ -74,6 +76,11 @@ class PostImporter:
             initiative_id=target_initiative.id,
             guild_id=guild_id,
             created_by=importer.id,
+            # A restored notice is live on arrival. The schedule is not carried
+            # for the same reason the pin is not: it said when this notice
+            # mattered on the board it came from, and re-running it here would
+            # hide an import until a date that has nothing to do with this one.
+            published_at=datetime.now(timezone.utc),
         )
         session.add(post)
         await session.flush()

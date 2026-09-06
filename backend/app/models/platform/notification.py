@@ -20,6 +20,8 @@ class NotificationType(str, Enum):
     comment_on_resource = "comment_on_resource"
     comment_reply = "comment_reply"
     comment_reaction = "comment_reaction"
+    #: A notice went up on a bulletin board the recipient can see.
+    post_published = "post_published"
     access_grant_requested = "access_grant_requested"
     access_grant_approved = "access_grant_approved"
     access_grant_denied = "access_grant_denied"

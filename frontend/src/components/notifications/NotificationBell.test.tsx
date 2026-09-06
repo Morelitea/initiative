@@ -125,6 +125,26 @@ describe("NotificationBell export notifications", () => {
     expect(screen.queryByText(/new notification/i)).not.toBeInTheDocument();
   });
 
+  it("names who posted and what, not the generic fallback", async () => {
+    mockInbox([
+      buildNotification({
+        type: "post_published" as NotificationType,
+        data: {
+          guild_id: 1,
+          post_id: 12,
+          post_name: "Doors open at seven",
+          author_name: "alex#1234",
+          author_id: 7,
+        },
+      }),
+    ]);
+    renderWithProviders(<NotificationBell />);
+
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText(/alex#1234 posted Doors open at seven/i)).toBeInTheDocument();
+    expect(screen.queryByText(/new notification/i)).not.toBeInTheDocument();
+  });
+
   it("says who knocked and how it was answered, not the generic fallback", async () => {
     mockInbox([
       buildNotification({

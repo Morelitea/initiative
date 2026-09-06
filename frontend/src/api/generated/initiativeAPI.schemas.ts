@@ -4065,6 +4065,7 @@ export const NotificationType = {
   comment_on_resource: "comment_on_resource",
   comment_reply: "comment_reply",
   comment_reaction: "comment_reaction",
+  post_published: "post_published",
   access_grant_requested: "access_grant_requested",
   access_grant_approved: "access_grant_approved",
   access_grant_denied: "access_grant_denied",
@@ -4363,6 +4364,7 @@ export interface PostCreate {
   body?: PostCreateBody;
   tag_ids?: number[] | null;
   grants?: ResourceGrantSchema[];
+  scheduled_for?: string | null;
 }
 
 export type PostReadBody = { [key: string]: unknown };
@@ -4384,6 +4386,9 @@ export interface PostRead {
   pinned_by: number | null;
   pin_expires_at: string | null;
   is_pinned: boolean;
+  published_at: string | null;
+  scheduled_for: string | null;
+  is_published: boolean;
   my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
@@ -4416,6 +4421,7 @@ export type PostUpdateBody = { [key: string]: unknown } | null;
 export interface PostUpdate {
   name?: string | null;
   body?: PostUpdateBody;
+  scheduled_for?: string | null;
 }
 
 /**
@@ -5838,6 +5844,8 @@ export interface UserRead {
   push_comment_reactions: boolean;
   email_direct_messages: boolean;
   push_direct_messages: boolean;
+  email_posts: boolean;
+  push_posts: boolean;
   email_events: boolean;
   push_events: boolean;
   email_event_reminders: boolean;
@@ -5888,6 +5896,8 @@ export interface UserSelfUpdate {
   push_comment_reactions?: boolean | null;
   email_direct_messages?: boolean | null;
   push_direct_messages?: boolean | null;
+  email_posts?: boolean | null;
+  push_posts?: boolean | null;
   email_events?: boolean | null;
   push_events?: boolean | null;
   email_event_reminders?: boolean | null;

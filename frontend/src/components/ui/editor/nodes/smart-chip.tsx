@@ -77,7 +77,14 @@ export function SmartChip({ chipKind, entityId, fallback }: SmartChipProps) {
           // pointer events, and the card is what explains why this one is dim.
           aria-disabled={!reachable}
           className={cn(
-            "mx-0.5 inline-flex items-center rounded px-1.5 py-0.5 align-baseline font-medium text-xs",
+            // Sized in `em`, not a fixed step. A chip is a word in somebody's
+            // sentence, so it belongs to whatever that sentence is set in —
+            // dropped into a heading, a `text-xs` chip reads as a footnote
+            // stuck to the title. 0.85em is what `text-xs` came to inside body
+            // text, so ordinary prose looks exactly as it did and everything
+            // else now scales with what it sits in — padding and margin
+            // included, or the box tightens around the text as it grows.
+            "mx-[0.15em] inline-flex items-center rounded-[0.25em] px-[0.4em] py-[0.15em] align-baseline font-medium text-[0.85em]",
             display.className,
             reachable ? "cursor-pointer hover:brightness-95" : "cursor-default"
           )}

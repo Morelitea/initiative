@@ -46,6 +46,19 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     A pin is live while ``pinned_at`` is set and the expiry is unset or still
     in the future — ``pin_is_live`` renders that one rule for SQL, and
     ``is_pinned_now`` answers it in Python for a row already loaded.
+
+    **Publication is two columns: an intention and a fact.** ``scheduled_for``
+    is when the author asked for it to go up; ``published_at`` is when it
+    actually did. A notice posted now is written with ``published_at`` already
+    set and no schedule. A scheduled one is written with neither, and the
+    publication sweep stamps ``published_at`` when its time comes.
+
+    Splitting them is what makes every other surface simple. "Is this live?" is
+    ``published_at IS NOT NULL`` and nothing has to compare a stored time to
+    the clock; the sweep claims a due post by writing a column that was NULL,
+    so a claim is atomic and can only happen once; and because the stamp is a
+    real write to the row, the search index — which cannot fire on the passage
+    of time — is refreshed by the same statement that publishes.
     """
 
     __tablename__ = "posts"
@@ -75,6 +88,18 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     pin_expires_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    # When the author asked for it to go up. NULL on a notice posted straight
+    # away — there was nothing to schedule.
+    scheduled_for: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
+    )
+    # When it went up. NULL means it has not yet: only people who can write it
+    # can see it, and it is in no board, count, or search index.
+    published_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
     )
     created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
@@ -107,6 +132,12 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
+    @property
+    def is_published(self) -> bool:
+        """Whether this notice is live — the Python side of
+        :func:`is_published_clause`."""
+        return self.published_at is not None
+
     def is_pinned_now(self, now: Optional[datetime] = None) -> bool:
         """Whether this row's pin is live — the Python side of
         :func:`pin_is_live`, for a post already loaded."""
@@ -134,6 +165,29 @@ def pin_is_live():
             Post.pin_expires_at > func.now(),
         ),
     )
+
+
+def is_published_clause():
+    """The SQL predicate for "this notice is live".
+
+    One column test, because publishing is recorded as a fact rather than
+    inferred by comparing a schedule to the clock. Every board, count and
+    listing appends this, so none of them can disagree with the sweep about
+    which notices exist yet.
+    """
+    return Post.published_at.is_not(None)
+
+
+def board_time():
+    """The instant a board sorts a post by.
+
+    Its publication for a live notice; for a draft — which only its writers
+    see — the time it is due, so a scheduled notice previews where it will
+    land. ``created_at`` is the floor for a draft with no schedule at all.
+    """
+    from sqlalchemy import func
+
+    return func.coalesce(Post.published_at, Post.scheduled_for, Post.created_at)
 
 
 class PostTag(SQLModel, table=True):

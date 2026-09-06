@@ -599,6 +599,9 @@ class PostMessages:
     PIN_EXPIRY_IN_PAST = "POST_PIN_EXPIRY_IN_PAST"
     #: More words than a notice is for. A board is read, not studied.
     BODY_TOO_LONG = "POST_BODY_TOO_LONG"
+    #: A schedule was sent for a notice that is already up. Publication is not
+    #: reversible — the people it was announced to have already been told.
+    ALREADY_PUBLISHED = "POST_ALREADY_PUBLISHED"
 
 
 class MarketplaceMessages:

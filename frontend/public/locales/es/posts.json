@@ -32,9 +32,22 @@
     "expiresLabel": "Dejar de fijar el",
     "expiresHelp": "Opcional. Cuando pase esa fecha, la publicación vuelve al listado por su propia fecha.",
     "noExpiry": "Hasta que alguien la desfije",
+    "addExpiry": "Añadir fecha de fin",
+    "changeExpiry": "Cambiar fecha de fin",
+    "removeExpiry": "Quitar fecha de fin",
     "pinnedToast": "Publicación fijada",
     "unpinnedToast": "Publicación desfijada",
     "managerOnly": "Solo los gestores de la iniciativa pueden fijar una publicación."
+  },
+  "schedule": {
+    "label": "Programación",
+    "placeholder": "Publicar ahora",
+    "hint": "Déjalo vacío para publicar ahora. Si eliges una hora, la publicación queda como borrador: nadie la ve ni recibe aviso hasta entonces.",
+    "submit": "Programar publicación",
+    "scheduledFor": "Programada para {{date}}",
+    "notPublished": "Aún sin publicar",
+    "publishNow": "Publicar ahora",
+    "publishedToast": "Publicada"
   },
   "filters": {
     "heading": "Filtros",

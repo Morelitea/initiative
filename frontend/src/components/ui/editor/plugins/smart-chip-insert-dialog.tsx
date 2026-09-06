@@ -1,6 +1,6 @@
 import type { LexicalEditor } from "lexical";
 import { $insertNodes } from "lexical";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -8,10 +8,15 @@ import type {
   SearchSuggestion,
   SmartChipKind,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
-import { Input } from "@/components/ui/input";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuildRecentSuggestions, useGuildSearchSuggest } from "@/hooks/useSearch";
 import { hitIcon } from "@/lib/searchResults";
@@ -46,9 +51,21 @@ export function SmartChipInsertDialog({
   onClose,
 }: SmartChipInsertDialogProps) {
   const { t } = useTranslation(["documents", "search"]);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const factsRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query, 200);
   const [chosen, setChosen] = useState<SearchSuggestion | null>(null);
+
+  // `autoFocus` alone loses this race. Whatever opened the dialog hands focus
+  // back as it goes — the toolbar's select restores its trigger, the `/` menu
+  // returns to the editor — and that happens after the dialog has mounted, so
+  // the caret lands anywhere but here. Taking it on the next frame is after
+  // both, which is the whole trick.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => (searchRef.current ?? factsRef.current)?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [chosen]);
 
   const types: SearchEntityType[] = chipKind ? [chipEntityType(chipKind)] : CHIP_ENTITY_TYPES;
   // A chip points at work inside this document's own initiative, so a document
@@ -108,7 +125,10 @@ export function SmartChipInsertDialog({
           <span className="truncate">{chosen.title}</span>
         </div>
         <p className="text-muted-foreground text-xs">{t("smartChips.whichFact")}</p>
-        <Command shouldFilter={false}>
+        {/* Nothing to type here — two or three fixed choices — so the list
+            itself takes focus, which is what lets the arrows and Enter reach
+            it. Without that this step is mouse-only. */}
+        <Command ref={factsRef} shouldFilter={false} tabIndex={-1} className="border outline-none">
           <CommandList>
             <CommandGroup>
               {chipKindsFor(chosen.entity_type).map((kind) => {
@@ -145,14 +165,18 @@ export function SmartChipInsertDialog({
 
   return (
     <div className="space-y-2">
-      <Input
-        autoFocus
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder={t("smartChips.searchPlaceholder")}
-        aria-label={t("smartChips.searchPlaceholder")}
-      />
-      <Command shouldFilter={false}>
+      {/* The field lives INSIDE the Command, which is what makes the list
+          navigable: cmdk moves the highlight and answers Enter only for the
+          input it owns. A search box beside a Command looks identical and
+          leaves every suggestion mouse-only. */}
+      <Command shouldFilter={false} className="border">
+        <CommandInput
+          ref={searchRef}
+          value={query}
+          onValueChange={setQuery}
+          placeholder={t("smartChips.searchPlaceholder")}
+          aria-label={t("smartChips.searchPlaceholder")}
+        />
         <CommandList>
           {shown.length ? (
             <CommandGroup heading={searched ? undefined : t("smartChips.recent")}>

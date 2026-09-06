@@ -169,6 +169,17 @@ def authorize(
             require_owner=require_owner,
             guild_role=guild_role,
         )
+        # Last, and only for somebody the sharing already admitted: a row that
+        # exists before it is anybody's to read — a post that has not gone up.
+        # Answering 404 here rather than 403 is the point; to a reader the
+        # notice does not exist yet.
+        if user is not None and permissions_service.hidden_from_reader(
+            cfg.dac_kind, row, user.id, guild_role=guild_role
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=cfg.not_found_msg,
+            )
 
 
 async def load_authorized(

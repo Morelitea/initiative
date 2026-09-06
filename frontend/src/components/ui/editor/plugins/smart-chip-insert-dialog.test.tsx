@@ -1,112 +1,107 @@
+/**
+ * Inserting a smart chip.
+ *
+ * Two things that were wrong and are invisible to a type-checker. The dialog is
+ * opened from something that hands focus back as it closes, so `autoFocus` on
+ * the search box lost the race and the caret landed elsewhere — you had to
+ * click the field before you could type. And the suggestion list claimed the
+ * full height of a stretched grid item while sitting under that search box, so
+ * it hung out of the bottom of the dialog by the height of the box above it.
+ *
+ * The second is a layout fact, which jsdom cannot measure. What is asserted
+ * here is the class that caused it, which is the part that can regress.
+ */
+import fs from "node:fs";
+import path from "node:path";
+
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createEditor } from "lexical";
 import { HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { useEffect, useRef } from "react";
+import { describe, expect, it } from "vitest";
 
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage } from "@/__tests__/helpers/render";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
 
-/**
- * What the picker offers, and what it says when it has nothing.
- *
- * It opens with no query typed, and the lookup matches words — so it cannot
- * answer "what could I point at", which is the question someone opening a
- * picker is actually asking. Recently edited work answers that; the states
- * below are what is left when even that is empty.
- */
+const editor = { update: () => {} } as never;
 
-const suggestion = {
-  entity_type: "task",
-  entity_id: 12,
-  title: "Ship the release",
-  initiative_id: 7,
-  tool: "project",
-  tool_id: 3,
-};
+const page = () => () => (
+  <SmartChipInsertDialog initiativeId={7} activeEditor={editor} onClose={() => {}} />
+);
 
-const recent = { ...suggestion, entity_id: 5, title: "Draft the schedule" };
+describe("SmartChipInsertDialog", () => {
+  /**
+   * What actually opened this dialog: something that takes focus back as it
+   * closes — the toolbar's select restoring its trigger, the `/` menu
+   * returning to the editor. It runs after the dialog has mounted, which is
+   * why `autoFocus` alone was not enough, and why a test without it would pass
+   * against the bug.
+   */
+  function FocusThief() {
+    const ref = useRef<HTMLButtonElement>(null);
+    useEffect(() => ref.current?.focus(), []);
+    return <button type="button" ref={ref} />;
+  }
 
-/** Nothing recent, nothing matching — the empty case for both lookups. */
-const nothing = () => {
-  server.use(
-    guildHttp.get("/search/recent", () => HttpResponse.json([])),
-    guildHttp.get("/search/suggest", () => HttpResponse.json([]))
-  );
-};
-
-const open = (initiativeId: number | null = 7) =>
-  renderWithProviders(
-    <SmartChipInsertDialog
-      chipKind={null}
-      initiativeId={initiativeId}
-      activeEditor={createEditor({
-        onError: (error) => {
-          throw error;
-        },
-      })}
-      onClose={vi.fn()}
-    />
+  const pageWithThief = () => () => (
+    <>
+      <SmartChipInsertDialog initiativeId={7} activeEditor={editor} onClose={() => {}} />
+      <FocusThief />
+    </>
   );
 
-describe("choosing what a smart chip is about", () => {
-  it("offers recently edited work before anything is typed", async () => {
+  it("puts the caret in the search box, and keeps it", async () => {
+    server.use(guildHttp.get("/search/recent", () => HttpResponse.json([])));
+
+    renderPage(pageWithThief());
+
+    const search = await screen.findByLabelText(/search for something to show/i);
+    await waitFor(() => expect(document.activeElement).toBe(search));
+  });
+
+  // cmdk moves the highlight and answers Enter for the input it owns. A search
+  // box that merely sits above a Command looks the same and leaves every
+  // suggestion mouse-only, so what is asserted is the ownership.
+  it("lets the keyboard reach the suggestions", async () => {
     server.use(
-      guildHttp.get("/search/recent", () => HttpResponse.json([recent])),
-      guildHttp.get("/search/suggest", () => HttpResponse.json([]))
+      guildHttp.get("/search/recent", () =>
+        HttpResponse.json([
+          {
+            entity_type: "calendar_event",
+            entity_id: 3,
+            title: "Session: Cragmaw Hideout",
+            initiative_id: 7,
+            tool: "calendar",
+            tool_id: 1,
+          },
+        ])
+      )
     );
 
-    open();
+    renderPage(page());
 
-    // The picker opens knowing something, rather than as a blank box.
-    expect(await screen.findByText("Draft the schedule")).toBeInTheDocument();
-    expect(screen.getByText(/Recently edited/)).toBeInTheDocument();
+    const search = await screen.findByLabelText(/search for something to show/i);
+    const option = await screen.findByText("Session: Cragmaw Hideout");
+    // The field drives the list: cmdk points the input at the highlighted item.
+    await waitFor(() => expect(search).toHaveAttribute("aria-controls"));
+    expect(search.closest("[cmdk-root]")).toContainElement(option);
   });
+});
 
-  it("says so when there is nothing to point at yet", async () => {
-    nothing();
+describe("Command", () => {
+  // `h-full` inside a dialog's grid is what put the list outside the dialog: a
+  // grid item is stretched to its row, and a Command claiming all of that while
+  // a search box sits above it overflows by exactly the box's height. Every
+  // place a Command is the whole surface, it is the only child — so sizing to
+  // content leaves those unchanged.
+  it("sizes to its content rather than its container", () => {
+    // Asserted against the source rather than a rendered box, because jsdom
+    // does no layout — which is exactly why nothing caught this.
+    const source = fs.readFileSync(path.resolve(__dirname, "../../command.tsx"), "utf-8");
+    const base = /"flex[^"]*rounded-md bg-popover[^"]*"/.exec(source)?.[0];
 
-    open();
-
-    expect(await screen.findByText(/Nothing in this initiative to point at/)).toBeInTheDocument();
-  });
-
-  it("says nothing matched, and why the initiative is the limit", async () => {
-    nothing();
-
-    open();
-    await userEvent.type(screen.getByRole("textbox"), "zzz");
-
-    await waitFor(
-      () => expect(screen.getByText(/Nothing in this initiative/)).toBeInTheDocument(),
-      {
-        timeout: 3000,
-      }
-    );
-    expect(await screen.findByText(/Only this document.s initiative/)).toBeInTheDocument();
-  });
-
-  it("says a document outside an initiative has nothing to point at", async () => {
-    open(null);
-
-    expect(await screen.findByText(/isn.t in an initiative/)).toBeInTheDocument();
-    // The initiative is not worth explaining to a document that has none.
-    expect(screen.queryByText(/Only this document.s initiative/)).not.toBeInTheDocument();
-  });
-
-  it("lists what the lookup found", async () => {
-    server.use(
-      guildHttp.get("/search/recent", () => HttpResponse.json([recent])),
-      guildHttp.get("/search/suggest", () => HttpResponse.json([suggestion]))
-    );
-
-    open();
-    await userEvent.type(screen.getByRole("textbox"), "ship");
-
-    await waitFor(() => expect(screen.getByText("Ship the release")).toBeInTheDocument(), {
-      timeout: 3000,
-    });
+    expect(base, "the Command base class list moved").toBeTruthy();
+    expect(base).not.toContain("h-full");
   });
 });

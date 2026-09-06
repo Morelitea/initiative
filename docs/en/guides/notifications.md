@@ -32,6 +32,7 @@ Bell notifications arrive **as they happen** — a mention lands the moment it's
 | **Reactions** | Somebody reacts to one of your comments (also a summary). |
 | **New project in initiative** | A project appears in one of your initiatives. |
 | **Overdue tasks** | A daily nudge about what's past due, at a time you choose. |
+| **Posts** | A notice goes up on a board you can see. Only the people it was shared with hear about it. |
 | **Events** | You're invited to something, or something you're attending changes. |
 | **Event reminders** | Shortly before an event you're going to. |
 | **Direct messages** | Somebody messaged you. You're told who and how many — never what it says, because nothing outside your own devices could tell you that. |

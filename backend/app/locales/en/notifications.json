@@ -68,6 +68,12 @@
       "body_other": "{{count}} new reactions to your posts, including {{emoji}} from {{actor}}"
     }
   },
+  "post": {
+    "published": {
+      "title": "New post",
+      "body": "{{actor}} posted {{post}}"
+    }
+  },
   "event": {
     "invitation": {
       "title": "New event invitation",

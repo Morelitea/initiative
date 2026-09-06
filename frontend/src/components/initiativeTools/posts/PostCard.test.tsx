@@ -1,12 +1,14 @@
 /**
  * One notice on the board.
  *
- * Two things are load-bearing. A pinned post says so, and says *until when*
+ * Three things are load-bearing. A pinned post says so, and says *until when*
  * when the pin has an end — a notice about a date that stops shouting is the
- * whole point of the expiry. And the pin control is offered on the reader's
+ * whole point of the expiry. The pin control is offered on the reader's
  * authority over the initiative, not on their access to the post: an author
  * with owner-level access to their own notice still cannot lift it above
- * everyone else's, which is the rule the server enforces.
+ * everyone else's, which is the rule the server enforces. And a scheduled
+ * notice says it is not up yet, because the card is otherwise indistinguishable
+ * from one that is.
  */
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -124,5 +126,28 @@ describe("PostCard", () => {
     renderPage(cardPage({ post, canPin: true }));
 
     expect(await screen.findByRole("button", { name: /unpin/i })).toBeInTheDocument();
+  });
+
+  // A card only reaches somebody who may see the notice, so a draft is on the
+  // board of whoever wrote it and nobody else. It has to say so — otherwise it
+  // reads as posted, and the author thinks a thing was announced that was not.
+  it("says a scheduled notice is not up yet, and when it will be", async () => {
+    const post = buildPost({
+      is_published: false,
+      published_at: null,
+      scheduled_for: "2026-03-01T09:00:00.000Z",
+    });
+    renderPage(cardPage({ post }));
+
+    expect(await screen.findByText(/scheduled for/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /post now/i })).toBeInTheDocument();
+  });
+
+  it("says nothing about scheduling on a notice that is up", async () => {
+    renderPage(cardPage({ post: buildPost() }));
+    await screen.findByTestId("post-body");
+
+    expect(screen.queryByText(/scheduled for/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /post now/i })).not.toBeInTheDocument();
   });
 });

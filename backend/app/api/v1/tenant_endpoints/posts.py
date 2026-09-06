@@ -19,6 +19,13 @@ Two things here are the board's own rather than the generic tool shape:
   authority, not write access on the post, so ``PUT /{id}/pin`` asks for guild
   admin or an initiative manager rather than the post's own DAC. Its author
   can edit and delete it either way.
+* **Publication.** A post with a ``scheduled_for`` in the future is a draft: it
+  is reachable only by the people who could edit it, appears in no board, count
+  or search result, and nobody has been told about it. The publication worker
+  (``services/tenant/post_publication.py``) stamps ``published_at`` when its
+  time comes and announces it then. Posting without a schedule stamps it here
+  and announces before the commit, so the notice and the notices about it land
+  together.
 """
 
 from datetime import datetime, timezone
@@ -58,6 +65,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import comments as comments_service
+from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import search as search_service
@@ -139,6 +147,52 @@ def _validated_body(body: dict | None) -> dict:
     return clean
 
 
+def _may_edit(post: Post, user: User, guild_context: GuildContext) -> bool:
+    """Whether this caller could change the post — which is also who may see it
+    before it goes up.
+
+    The row-shaped form of ``permissions.writable_scope_clause``, leg for leg:
+    the same bypass check, then a grant at write or owner. Written this way
+    rather than through ``compute_post_permission`` so this route and the
+    board's own listing cannot disagree about which drafts exist — that one
+    also caps at read while a community is frozen, which would hide a draft
+    from its author rather than merely stop them editing it.
+    """
+    if permissions_service.request_bypasses_dac(
+        guild_context.guild_id,
+        initiative_id=post.initiative_id,
+        access="write",
+    ):
+        return True
+    level = permissions_service.effective_level(
+        permissions_service.DAC_RESOURCES[Tool.post], post, user.id
+    )
+    return level in ("write", "owner")
+
+
+async def _announce(
+    session: RLSSessionDep,
+    post: Post,
+    author: User,
+    guild_context: GuildContext,
+) -> None:
+    """Tell the notice's audience it is up.
+
+    Needs the sharing and the initiative roster loaded, which the row written a
+    moment ago does not have — so it is re-read through the post loader before
+    the fan-out reads its grants. The session does not autoflush, so the write
+    that made it publishable has to reach the database first: without that the
+    re-read would replace the pending row with the one still on disk.
+    """
+    await session.flush()
+    hydrated = await posts_service.get_post(session, post.id, populate_existing=True)
+    if hydrated is None:  # pragma: no cover — written in this transaction
+        return
+    await post_publication.announce_post(
+        session, hydrated, author=author, guild_id=guild_context.guild_id
+    )
+
+
 async def _refetch_post(session: RLSSessionDep, post_id: int) -> Post:
     post = await posts_service.get_post(session, post_id, populate_existing=True)
     if not post:
@@ -189,7 +243,8 @@ async def list_posts(
     """List posts visible to the current user (guild admins see all).
 
     Returns whole posts — a board shows notices, not headlines — which is why
-    it pages in twenties.
+    it pages in twenties. A scheduled notice is here only for the people who
+    could edit it; for everyone else the board starts when it goes up.
     """
     conditions = [Post.guild_id == guild_context.guild_id]
 
@@ -215,6 +270,13 @@ async def list_posts(
         permissions_service.listing_scope_clause(
             Tool.post,
             Post.id,
+            current_user.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=initiative_id,
+        )
+    )
+    conditions.append(
+        posts_service.visibility_clause(
             current_user.id,
             guild_id=guild_context.guild_id,
             initiative_id=initiative_id,
@@ -283,6 +345,9 @@ async def get_post_counts_by_initiative(
             current_user.id,
             guild_id=guild_context.guild_id,
         ),
+        posts_service.visibility_clause(
+            current_user.id, guild_id=guild_context.guild_id
+        ),
     ]
 
     statement = (
@@ -304,9 +369,19 @@ async def read_post(
     guild_context: GuildContextDep,
     include_deleted: IncludeDeletedDep = False,
 ) -> PostRead:
+    """Read one notice.
+
+    A scheduled one answers 404 unless the caller could edit it: until it goes
+    up it is a draft, and the board it belongs to does not have it yet.
+    """
     post = await resource_access.load_authorized(
         session, Tool.post, post_id, current_user, guild_context
     )
+    if not post.is_published and not _may_edit(post, current_user, guild_context):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=PostMessages.NOT_FOUND,
+        )
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
     await posts_service.attach_reactions(session, post)
     return serialize_post(post, user_id=current_user.id)
@@ -329,12 +404,23 @@ async def create_post(
         )
     await _check_create_permission(session, initiative, current_user, guild_context)
 
+    now = datetime.now(timezone.utc)
+    # A schedule in the past is somebody asking for it now, which is what an
+    # omitted one means too — so both take the same branch rather than one of
+    # them being an error.
+    scheduled = (
+        post_in.scheduled_for
+        if post_in.scheduled_for is not None and post_in.scheduled_for > now
+        else None
+    )
     post = Post(
         guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
         created_by=current_user.id,
         name=post_in.name.strip(),
         body=_validated_body(post_in.body),
+        scheduled_for=scheduled,
+        published_at=None if scheduled else now,
     )
     session.add(post)
     await session.flush()
@@ -372,6 +458,9 @@ async def create_post(
             tag_ids=post_in.tag_ids,
         )
 
+    if post.published_at is not None:
+        await _announce(session, post, current_user, guild_context)
+
     await session.commit()
     hydrated = await _refetch_post(session, post.id)
     return serialize_post(hydrated, user_id=current_user.id)
@@ -385,7 +474,13 @@ async def update_post(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> PostRead:
-    """Edit a notice — its headline or its body. Requires write access.
+    """Edit a notice — its headline, its body, or a schedule not yet reached.
+    Requires write access.
+
+    ``scheduled_for`` moves a pending schedule; sending it as ``null`` publishes
+    the draft immediately, which is how "post it now" is expressed. Sending it
+    at all on a notice that is already up is a 409: publication is not
+    reversible, because the people it was announced to have already been told.
 
     Pinning is deliberately not here: it is a different authority, and lives on
     its own route below.
@@ -399,6 +494,8 @@ async def update_post(
         access="write",
     )
     updated = False
+    publish_now = False
+    now = datetime.now(timezone.utc)
     update_data = post_in.model_dump(exclude_unset=True)
 
     if "name" in update_data and update_data["name"] is not None:
@@ -407,10 +504,32 @@ async def update_post(
     if "body" in update_data and update_data["body"] is not None:
         post.body = _validated_body(update_data["body"])
         updated = True
+    if "scheduled_for" in update_data:
+        when = update_data["scheduled_for"]
+        if post.published_at is not None:
+            # Already up. "Post it now" (a null) is simply nothing left to do;
+            # holding it back again is refused, because the people it was
+            # announced to have already been told.
+            if when is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.ALREADY_PUBLISHED,
+                )
+        elif when is not None and when > now:
+            post.scheduled_for = when
+            updated = True
+        else:
+            # Cleared, or moved to a moment that has passed: it goes up now.
+            post.scheduled_for = None
+            post.published_at = now
+            publish_now = True
+            updated = True
 
     if updated:
-        post.updated_at = datetime.now(timezone.utc)
+        post.updated_at = now
         session.add(post)
+        if publish_now:
+            await _announce(session, post, current_user, guild_context)
         await session.commit()
 
     hydrated = await _refetch_post(session, post.id)
@@ -436,6 +555,10 @@ async def set_post_pin(
     the date passes: the pin simply stops counting and the post falls back into
     the feed by its own age. Nothing sweeps the columns afterwards — a lapsed
     pin is still the record of who pinned it and when.
+
+    Sending ``pinned`` on a pin that is already live changes only the expiry —
+    the pin keeps its original time and author. A pin that has lapsed is a new
+    pin, so that one re-stamps.
     """
     post = await resource_access.load_authorized(
         session, Tool.post, post_id, current_user, guild_context
@@ -457,8 +580,12 @@ async def set_post_pin(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=PostMessages.PIN_EXPIRY_IN_PAST,
             )
-        post.pinned_at = now
-        post.pinned_by = current_user.id
+        # Pinning something already pinned is a change to the expiry, not a new
+        # pin: keep who pinned it and when, so putting an end date on a
+        # three-day-old pin does not vault it over the pins made since.
+        if not post.is_pinned_now(now):
+            post.pinned_at = now
+            post.pinned_by = current_user.id
         post.pin_expires_at = pin_in.expires_at
     else:
         post.pinned_at = None

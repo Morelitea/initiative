@@ -45,6 +45,11 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.comment_on_resource: "comments",
     NotificationType.comment_reply: "comments",
     NotificationType.direct_message: "messages",
+    # Its own channel rather than one of the above. A post is a category of
+    # its own — nothing already here describes it, and filing it under
+    # initiative news would mean muting one to mute the other. A channel is
+    # what the Android app offers a user to mute, so this is what it costs.
+    NotificationType.post_published: "posts",
     # A reaction is comment news, so it rides the channel the installed app
     # already registers for comments — same reasoning as the join requests
     # above: a new channel id would mean a native release.

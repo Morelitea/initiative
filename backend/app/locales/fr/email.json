@@ -94,6 +94,13 @@
       "body": "<strong>{{actor}}</strong> a répondu à votre commentaire sur <strong>{{context}}</strong>"
     }
   },
+  "post": {
+    "published": {
+      "subject": "Nouvelle publication : {{post}}",
+      "title": "Nouvelle publication",
+      "body": "<strong>{{actor}}</strong> a publié <strong>{{post}}</strong>."
+    }
+  },
   "event": {
     "invitation": {
       "subject": "Vous êtes invité(e) : {{event}}",

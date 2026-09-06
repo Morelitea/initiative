@@ -10,6 +10,10 @@ board — "this is what matters here right now" — not about the notice, so
 carrying it across would put an imported post above the posts already on
 somebody else's board.
 
+A notice that has not gone up is not exported at all — see
+``posts.list_post_ids_for_export``. An export is a record of what a board has
+said, and a scheduled draft has said nothing yet.
+
 Access rule: READ on the post (exporting is a formatted read), enforced by the
 ``get_post_for_export`` seam at both count and build time, under the caller's
 RLS session.

@@ -11,6 +11,15 @@ target kinds, and the recent-view entity types. Their values are written out
 literally here rather than derived from the enums — a migration records what
 was true at this revision, and a later enum change must be a later migration.
 
+``public.fn_recent_views_set_guild_id`` gains a ``post`` arm for the same
+reason, and is the one that bites hardest if forgotten: it is a **plpgsql**
+CASE, which RAISES when nothing matches, where the SQL CASE beside it would
+merely be NULL. A recentable type with no arm makes every view of it fail with
+``CaseNotFoundError``. The function lives in ``public`` and is shared by every
+guild schema, so it is replaced once rather than per schema. It also gains an
+``ELSE`` that names the offending type, so the next omission says what is wrong
+instead of "CASE statement is missing ELSE part" from inside an INSERT.
+
 RLS policies, table grants and the ``created_by`` trigger are NOT written
 here: provisioning renders those from the live ``guild_template`` and the
 registries, and the boot backfill re-applies them to every guild whose stamp
@@ -72,15 +81,20 @@ _PERMISSION_KEYS_BEFORE = tuple(
 _REACTION_TARGETS_AFTER = ("comment", "post")
 _REACTION_TARGETS_BEFORE = ("comment",)
 
-_RECENT_TYPES_AFTER = (
-    "calendar",
-    "counter_group",
-    "dashboard",
-    "document",
-    "post",
-    "project",
-    "queue",
+#: (entity_type, table) for every recentable tool, in the order the function
+#: has always listed them. The CHECK vocabulary below is the same set, sorted.
+_RECENT_TABLES_AFTER = (
+    ("project", "projects"),
+    ("document", "documents"),
+    ("queue", "queues"),
+    ("counter_group", "counter_groups"),
+    ("calendar", "calendars"),
+    ("dashboard", "dashboards"),
+    ("post", "posts"),
 )
+_RECENT_TABLES_BEFORE = _RECENT_TABLES_AFTER[:-1]
+
+_RECENT_TYPES_AFTER = tuple(sorted(etype for etype, _ in _RECENT_TABLES_AFTER))
 _RECENT_TYPES_BEFORE = tuple(t for t in _RECENT_TYPES_AFTER if t != "post")
 
 #: Asks the next boot to rebuild this guild's search triggers and re-sweep its
@@ -127,6 +141,44 @@ def _swap_reaction_target_check(targets) -> None:
     )
 
 
+def _recent_views_trigger_fn(entity_tables, *, with_else: bool) -> str:
+    """``public.fn_recent_views_set_guild_id`` with one CASE arm per recentable
+    entity type — the trigger denormalizes ``guild_id`` from the entity's own
+    table, and a type with no arm makes every INSERT for it fail."""
+    arms = "\n".join(
+        f"""                    WHEN '{etype}' THEN
+                        SELECT guild_id INTO NEW.guild_id FROM {table}
+                        WHERE id = NEW.entity_id;"""
+        for etype, table in entity_tables
+    )
+    fallback = (
+        """
+                    ELSE
+                        RAISE EXCEPTION
+                            'fn_recent_views_set_guild_id has no arm for entity_type %',
+                            NEW.entity_type;"""
+        if with_else
+        else ""
+    )
+    return f"""
+        CREATE OR REPLACE FUNCTION public.fn_recent_views_set_guild_id() RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.guild_id IS NULL OR (TG_OP = 'UPDATE' AND (
+                OLD.entity_type IS DISTINCT FROM NEW.entity_type
+                OR OLD.entity_id IS DISTINCT FROM NEW.entity_id
+            )) THEN
+                CASE NEW.entity_type
+{arms}{fallback}
+                END CASE;
+            END IF;
+            RETURN NEW;
+        END;
+        $$
+    """
+
+
 def _swap_recent_check(types) -> None:
     op.execute(
         "ALTER TABLE recent_views DROP CONSTRAINT IF EXISTS ck_recent_views_entity_type"
@@ -138,6 +190,8 @@ def _swap_recent_check(types) -> None:
 
 
 def upgrade() -> None:
+    # Shared by every guild schema, so it is rewritten once.
+    op.execute(_recent_views_trigger_fn(_RECENT_TABLES_AFTER, with_else=True))
     run_for_each_guild_schema(op.get_bind(), _apply_upgrade)
 
 
@@ -247,19 +301,73 @@ def _apply_upgrade() -> None:
 
 def downgrade() -> None:
     run_for_each_guild_schema(op.get_bind(), _apply_downgrade)
+    op.execute(_recent_views_trigger_fn(_RECENT_TABLES_BEFORE, with_else=False))
+
+
+#: Tables the downgrade has to clear post rows out of. Each carries FORCE ROW
+#: LEVEL SECURITY, which binds the table's owner — the role a migration runs as
+#: — and the policies key on request GUCs a migration has no value for. Without
+#: lifting it the DELETEs below match nothing and the CHECK narrowing that
+#: follows fails on the rows they were meant to remove.
+_CLEANUP_TABLES = (
+    "comments",
+    "reactions",
+    "recent_views",
+    "search_entries",
+    "initiative_role_permissions",
+)
+
+
+#: Drops every rendered policy that mentions a post, wherever it lives.
+#:
+#: The initiative-member policies reach a post directly (``recent_views``), or
+#: through ``comments.post_id`` (``reactions`` and the comment tables), and
+#: Postgres will not drop a table or column a policy depends on. Discovered
+#: from the catalog rather than listed, because a list is the thing that drifts
+#: — which is how this migration shipped without its trigger arm.
+#:
+#: The next boot undoes it: the provisioning stamp no longer matches, so the
+#: backfill re-renders every policy from the registry. Until then those tables
+#: are deny-all, which is the right way for a half-applied downgrade to fail.
+_DROP_POST_POLICIES = """
+DO $$
+DECLARE r record;
+BEGIN
+    FOR r IN
+        SELECT c.relname, p.polname
+        FROM pg_policy p
+        JOIN pg_class c ON c.oid = p.polrelid
+        WHERE c.relnamespace = current_schema()::regnamespace
+          AND (coalesce(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%posts%'
+               OR coalesce(pg_get_expr(p.polqual, p.polrelid), '') LIKE '%post_id%'
+               OR coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') LIKE '%posts%'
+               OR coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') LIKE '%post_id%')
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.polname, r.relname);
+    END LOOP;
+END $$;
+"""
 
 
 def _apply_downgrade() -> None:
+    op.execute(_DROP_POST_POLICIES)
+
     # Rows that name a post have no place in the narrower vocabularies, and a
     # CHECK cannot be narrowed around them.
-    op.execute("DELETE FROM comments WHERE post_id IS NOT NULL")
-    op.execute("DELETE FROM reactions WHERE target_type = 'post'")
-    op.execute("DELETE FROM recent_views WHERE entity_type = 'post'")
-    op.execute("DELETE FROM search_entries WHERE entity_type = 'post'")
-    op.execute(
-        "DELETE FROM initiative_role_permissions WHERE permission_key IN "
-        "('create_posts', 'posts_enabled')"
-    )
+    for table in _CLEANUP_TABLES:
+        op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
+    try:
+        op.execute("DELETE FROM comments WHERE post_id IS NOT NULL")
+        op.execute("DELETE FROM reactions WHERE target_type = 'post'")
+        op.execute("DELETE FROM recent_views WHERE entity_type = 'post'")
+        op.execute("DELETE FROM search_entries WHERE entity_type = 'post'")
+        op.execute(
+            "DELETE FROM initiative_role_permissions WHERE permission_key IN "
+            "('create_posts', 'posts_enabled')"
+        )
+    finally:
+        for table in _CLEANUP_TABLES:
+            op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
     _swap_recent_check(_RECENT_TYPES_BEFORE)
     _swap_reaction_target_check(_REACTION_TARGETS_BEFORE)

@@ -247,6 +247,7 @@
     "mentionDocument": "{{mentionedBy}} te mencionó en {{documentTitle}}.",
     "commentOnTask": "{{commenterName}} comentó en {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} comentó en {{entityName}}.",
+    "postPublished": "{{authorName}} publicó {{postName}}.",
     "commentReply": "{{replierName}} respondió a tu comentario en {{contextTitle}}.",
     "commentReaction": "{{reactorName}} reaccionó {{emoji}} a tu comentario en {{contextTitle}}.",
     "directMessage": "{{senderName}} te envió un mensaje.",

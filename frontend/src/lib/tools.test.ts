@@ -34,6 +34,7 @@ import {
   toolCreateLabelKey,
   toolCreatePermission,
   toolDetailRoute,
+  toolKebabSingular,
   toolListRoute,
   toolNavLabelKey,
   toolParamName,
@@ -305,6 +306,21 @@ describe("tool surfaces", () => {
         TOOL_TAB_VIEWS.get(tool),
         `missing InitiativeDetailPage tab view for ${tool}`
       ).toBeTruthy();
+    }
+  });
+});
+
+describe("tool surfaces", () => {
+  it("every tool resolves through /go", async () => {
+    // `toolRefRoute` mints `/go/<kebab singular>/<id>` for every tool, so a
+    // tool the resolver does not know sends its links to the guild home
+    // instead — which is how a notification about a post landed nowhere.
+    const { isEntityRefType } = await import("@/lib/entityResolver");
+    for (const tool of TOOLS) {
+      expect(
+        isEntityRefType(toolKebabSingular(tool)),
+        `entityResolver cannot address a ${tool}`
+      ).toBe(true);
     }
   });
 });

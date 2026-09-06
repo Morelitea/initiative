@@ -32,9 +32,22 @@
     "expiresLabel": "Stop pinning on",
     "expiresHelp": "Optional. The post drops back into the feed by its own date when this passes.",
     "noExpiry": "Until someone unpins it",
+    "addExpiry": "Add an end date",
+    "changeExpiry": "Change end date",
+    "removeExpiry": "Remove end date",
     "pinnedToast": "Post pinned",
     "unpinnedToast": "Post unpinned",
     "managerOnly": "Only initiative managers can pin a post."
+  },
+  "schedule": {
+    "label": "Schedule",
+    "placeholder": "Post it now",
+    "hint": "Leave this empty to post now. Set a time and the notice stays a draft — nobody sees it and nobody is told until then.",
+    "submit": "Schedule Post",
+    "scheduledFor": "Scheduled for {{date}}",
+    "notPublished": "Not posted yet",
+    "publishNow": "Post now",
+    "publishedToast": "Posted"
   },
   "filters": {
     "heading": "Filters",

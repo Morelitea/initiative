@@ -36,6 +36,7 @@ public class NotificationChannelManager {
     public static final String CHANNEL_EVENT_REMINDER = "event_reminder";
     public static final String CHANNEL_ACCESS_GRANTS = "access_grants";
     public static final String CHANNEL_MESSAGES = "messages";
+    public static final String CHANNEL_POSTS = "posts";
     public static final String CHANNEL_DEFAULT = "default";
 
     /**
@@ -157,7 +158,16 @@ public class NotificationChannelManager {
             NotificationManager.IMPORTANCE_HIGH
         );
 
-        // 12. Default Channel (fallback)
+        // 12. Posts Channel
+        createChannel(
+            notificationManager,
+            CHANNEL_POSTS,
+            "Posts",
+            "Notices posted to a board you can see",
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+
+        // 13. Default Channel (fallback)
         createChannel(
             notificationManager,
             CHANNEL_DEFAULT,
