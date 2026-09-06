@@ -419,6 +419,7 @@
   "status": {
     "empty": "Say what you're up to",
     "edit": "Your status",
+    "set": "Set status",
     "help": "An emoji, a line, or both. Everyone who opens your profile sees it.",
     "placeholder": "What are you up to?",
     "emojiPlaceholder": "Emoji",

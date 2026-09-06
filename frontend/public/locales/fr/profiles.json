@@ -419,6 +419,7 @@
   "status": {
     "empty": "Dites ce que vous faites",
     "edit": "Votre statut",
+    "set": "Définir le statut",
     "help": "Un emoji, une ligne, ou les deux. Toute personne qui ouvre votre profil le voit.",
     "placeholder": "Vous faites quoi ?",
     "emojiPlaceholder": "Emoji",

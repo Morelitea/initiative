@@ -26,11 +26,11 @@
     "myContacts": "My Contacts",
     "myMessages": "My Messages",
     "myStats": "My Stats",
-    "userSettings": "User Settings",
+    "mySettings": "My Settings",
     "guildSettings": "Community Settings",
     "allInitiatives": "All Initiatives",
     "platformSettings": "Platform Settings",
-    "adminDashboard": "Admin dashboard"
+    "adminDashboard": "Admin Dashboard"
   },
   "shortcutHint": "Search",
   "shortcutTooltip": "Quick search ({{shortcut}})",

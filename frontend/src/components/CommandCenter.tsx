@@ -252,7 +252,7 @@ export function CommandCenter() {
       { label: t("pages.myContacts"), path: "/contacts", icon: Users },
       { label: t("pages.myMessages"), path: "/messages", icon: MessageSquare },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
-      { label: t("pages.userSettings"), path: "/profile", icon: UserCog },
+      { label: t("pages.mySettings"), path: "/profile", icon: UserCog },
       {
         label: t("pages.allInitiatives"),
         path: getGuildPath("/"),
