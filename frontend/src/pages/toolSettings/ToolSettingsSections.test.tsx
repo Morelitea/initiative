@@ -14,6 +14,7 @@ import {
 } from "@/components/tools/settings/ToolSettingsContext";
 
 import { ToolSettingsAccessPage } from "./ToolSettingsAccessPage";
+import { ToolSettingsAdvancedPage } from "./ToolSettingsAdvancedPage";
 import { ToolSettingsDetailsPage } from "./ToolSettingsDetailsPage";
 
 const ADDED_TAG = buildTagSummary({ id: 99, name: "Added tag" });
@@ -134,6 +135,25 @@ describe("ToolSettingsDetailsPage comments switch", () => {
     await userEvent.click(toggle);
 
     await waitFor(() => expect(toggle).toBeChecked());
+  });
+});
+
+describe("ToolSettingsAdvancedPage", () => {
+  it("offers deletion to the owner", async () => {
+    resetFactories();
+    renderSection(ToolSettingsAdvancedPage, buildEntity());
+
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("says so rather than rendering a blank page when it holds nothing", async () => {
+    resetFactories();
+    // Deletion is the owner's alone and this tool declares no extras, so the
+    // tab bar hides the link — but the address is still typeable.
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "read" }));
+
+    expect(await screen.findByText("Permission required")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 });
 

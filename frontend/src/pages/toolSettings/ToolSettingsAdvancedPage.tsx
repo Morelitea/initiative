@@ -2,7 +2,10 @@
  * `/settings/advanced` — the tool's own extra operations, and deletion.
  *
  * Deleting is the owner's alone, so the danger card is absent for everyone
- * else however they reached the address.
+ * else however they reached the address — and when that leaves the section
+ * with nothing at all, it says so rather than rendering a blank page. The tab
+ * bar hides the link on the same condition; this is the answer for the address
+ * someone typed or bookmarked.
  */
 
 import { useRouter } from "@tanstack/react-router";
@@ -11,6 +14,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
+import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -25,6 +29,8 @@ export const ToolSettingsAdvancedPage = () => {
   const { tool, entity, isOwner, remove, advancedExtra } = useToolSettings();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const hasAnything = Boolean(advancedExtra) || isOwner;
 
   const handleDelete = () => {
     remove.mutate(entity.id, {
@@ -43,6 +49,10 @@ export const ToolSettingsAdvancedPage = () => {
       },
     });
   };
+
+  if (!hasAnything) {
+    return <ToolSettingsPermissionRequired />;
+  }
 
   return (
     <div className="space-y-6">
