@@ -140,12 +140,21 @@ export const SidebarUserFooter = ({
                       </span>
                       {user ? (
                         <span className="flex w-full min-w-0 items-center gap-1 pt-0.5 font-normal text-muted-foreground text-xs leading-tight">
-                          {user.custom_status.emoji ? (
-                            <span aria-hidden="true">{user.custom_status.emoji}</span>
-                          ) : null}
-                          <span className="truncate">
-                            {user.custom_status.text || t("profiles:status.empty")}
-                          </span>
+                          {/* An emoji on its own is a status. The invitation is
+                              for somebody who has said nothing at all — either
+                              half standing alone is still something said. */}
+                          {isStatusEmpty(user.custom_status) ? (
+                            <span className="truncate">{t("profiles:status.empty")}</span>
+                          ) : (
+                            <>
+                              {user.custom_status.emoji ? (
+                                <span aria-hidden="true">{user.custom_status.emoji}</span>
+                              ) : null}
+                              {user.custom_status.text ? (
+                                <span className="truncate">{user.custom_status.text}</span>
+                              ) : null}
+                            </>
+                          )}
                         </span>
                       ) : null}
                     </div>

@@ -57,6 +57,14 @@ describe("SidebarUserFooter", () => {
     expect(row).toHaveTextContent("Planting things");
   });
 
+  it("takes an emoji on its own as a status", async () => {
+    renderFooter({ custom_status: { emoji: "🌱", text: null } });
+
+    const row = await screen.findByRole("button", { name: /Admin User/ });
+    expect(row).toHaveTextContent("🌱");
+    expect(row).not.toHaveTextContent("Say what you're up to");
+  });
+
   it("invites a status that has not been set", async () => {
     renderFooter({ custom_status: { emoji: null, text: null } });
 
