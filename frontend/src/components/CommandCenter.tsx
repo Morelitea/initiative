@@ -7,9 +7,7 @@ import {
   LayoutGrid,
   ListTodo,
   MessageSquare,
-  PenLine,
   Plus,
-  ScrollText,
   Search,
   Settings,
   ShieldCheck,
@@ -20,7 +18,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -54,7 +51,7 @@ import {
   searchHitPath,
 } from "@/lib/searchResults";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
-import { entityRefRoute, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
+import { entityRefRoute, TOOL_ICONS } from "@/lib/tools";
 import {
   getAvatarSrc,
   getInitialsForUser,
@@ -85,14 +82,6 @@ export function CommandCenter() {
   const { activeGuild, activeGuildId } = useGuilds();
   const globalCreate = useGlobalCreateAccess();
   const getGuildPath = useGuildPath();
-  /** The guild home showing one tool — the cross-initiative browse surface. */
-  const guildBrowsePath = useCallback(
-    (tool: Tool) => {
-      const target = toolGuildBrowseTarget(tool);
-      return `${getGuildPath(target.to)}?tool=${target.search.tool}`;
-    },
-    [getGuildPath]
-  );
 
   // Switch into "guild-wide title search" mode once the debounced query is at
   // least 2 characters. Single-character queries fire too noisily and rarely
@@ -258,25 +247,12 @@ export function CommandCenter() {
   const pages = useMemo(() => {
     const items = [
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
-      { label: t("pages.tasksICreated"), path: "/created-tasks", icon: PenLine },
       { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
       { label: t("pages.myTools"), path: "/my-tools", icon: LayoutGrid },
       { label: t("pages.myContacts"), path: "/contacts", icon: Users },
       { label: t("pages.myMessages"), path: "/messages", icon: MessageSquare },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
       { label: t("pages.userSettings"), path: "/profile", icon: UserCog },
-      // Tools are browsed across initiatives on the guild home, which names
-      // the one it is showing in its search — there is no guild-wide list page.
-      {
-        label: t("pages.allProjects"),
-        path: guildBrowsePath(Tool.project),
-        icon: ListTodo,
-      },
-      {
-        label: t("pages.allDocuments"),
-        path: guildBrowsePath(Tool.document),
-        icon: ScrollText,
-      },
       {
         label: t("pages.allInitiatives"),
         path: getGuildPath("/"),
@@ -309,7 +285,7 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, guildBrowsePath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
+  }, [t, getGuildPath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
 
   const handleSelect = (path: string) => {
     setOpen(false);

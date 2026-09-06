@@ -21,7 +21,6 @@
   },
   "pages": {
     "myTasks": "My Tasks",
-    "tasksICreated": "Tasks I Created",
     "myCalendar": "My Calendar",
     "myTools": "My Tools",
     "myContacts": "My Contacts",
@@ -29,8 +28,6 @@
     "myStats": "My Stats",
     "userSettings": "User Settings",
     "guildSettings": "Community Settings",
-    "allProjects": "All Projects",
-    "allDocuments": "All Documents",
     "allInitiatives": "All Initiatives",
     "platformSettings": "Platform Settings",
     "adminDashboard": "Admin dashboard"

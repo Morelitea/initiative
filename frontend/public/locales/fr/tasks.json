@@ -149,15 +149,6 @@
     "typeEvents": "Événements",
     "typeTasks": "Tâches"
   },
-  "createdTasks": {
-    "title": "Tâches que j'ai créées",
-    "subtitle": "Les tâches que vous avez créées dans tous vos communautés.",
-    "addTask": "Ajouter une tâche",
-    "empty": "Vous n'avez pas encore créé de tâches.",
-    "loadError": "Impossible de charger vos tâches créées.",
-    "groupByDate": "Date",
-    "groupByGuild": "Communauté"
-  },
   "tagTasks": {
     "loadError": "Impossible de charger les tâches."
   },

@@ -149,15 +149,6 @@
     "typeEvents": "Events",
     "typeTasks": "Tasks"
   },
-  "createdTasks": {
-    "title": "Tasks I Created",
-    "subtitle": "Tasks you've created across all your communities.",
-    "addTask": "Add Task",
-    "empty": "You haven't created any tasks yet.",
-    "loadError": "Unable to load your created tasks.",
-    "groupByDate": "Date",
-    "groupByGuild": "Community"
-  },
   "tagTasks": {
     "loadError": "Unable to load tasks."
   },

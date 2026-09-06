@@ -7,7 +7,6 @@ import {
   type TaskStatusRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -36,7 +35,6 @@ interface GlobalTaskColumnsOptions {
     Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
   t: TranslateFn;
-  showAssignees?: boolean;
   /**
    * Focus-summary pinning. Both are omitted on views that have no focus
    * section, which drops the column entirely rather than showing a dead one.
@@ -53,7 +51,6 @@ export function globalTaskColumns({
   fetchProjectStatuses,
   projectStatusCache,
   t,
-  showAssignees = false,
   isPinned,
   togglePin,
 }: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
@@ -210,9 +207,6 @@ export function globalTaskColumns({
               <TaskDescriptionHoverCard task={task} />
             </div>
             <div className="space-y-1 text-muted-foreground text-xs">
-              {showAssignees && task.assignees?.length > 0 ? (
-                <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-              ) : null}
               {recurrenceSummary ? <p>{recurrenceSummary}</p> : null}
             </div>
             <TaskChecklistProgress
