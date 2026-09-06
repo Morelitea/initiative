@@ -87,5 +87,12 @@
   "days": {
     "today": "Today",
     "yesterday": "Yesterday"
+  },
+  "historyRequest": {
+    "title": "One of your devices is asking for your messages",
+    "body": "{{device}} signed in and has no history of its own. Send it this device's messages? Check the code below is the one it is showing you.",
+    "unknownDevice": "A device",
+    "approve": "Send my messages",
+    "decline": "Not now"
   }
 }

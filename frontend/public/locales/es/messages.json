@@ -87,5 +87,12 @@
   "days": {
     "today": "Hoy",
     "yesterday": "Ayer"
+  },
+  "historyRequest": {
+    "title": "Uno de tus dispositivos pide tus mensajes",
+    "body": "{{device}} ha iniciado sesión y no tiene historial propio. ¿Enviarle los mensajes de este dispositivo? Comprueba que el código de abajo es el que te está mostrando.",
+    "unknownDevice": "Un dispositivo",
+    "approve": "Enviar mis mensajes",
+    "decline": "Ahora no"
   }
 }

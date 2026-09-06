@@ -606,7 +606,12 @@ async def send(
             )
         )
     await session.flush()
-    return len(payloads), other_id if delivers else None
+    # Their id only where something was actually written for them. An account's
+    # own devices talk to each other through a conversation -- it is the only
+    # channel there is -- and the other party has no part in that and is not
+    # woken for it.
+    reached = any(not mine for _message, _raw, mine in payloads)
+    return len(payloads), other_id if delivers and reached else None
 
 
 async def collect(

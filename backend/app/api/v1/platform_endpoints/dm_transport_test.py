@@ -301,6 +301,45 @@ async def _conversation_with_devices(client, session, a, b):
     return created.json()["id"], a_device, b_device
 
 
+async def test_a_send_to_your_own_devices_leaves_the_other_party_alone(
+    client, session, acting_user
+):
+    """Two devices of one account talk through a conversation because it is the
+    only channel there is. The other member has no part in that."""
+    from sqlmodel import select as sqlmodel_select
+
+    from app.models.platform.notification import Notification
+
+    a = await acting_user()
+    b = await acting_user()
+    conversation_id, _a_device, _b_device = await _conversation_with_devices(
+        client, session, a, b
+    )
+    second = await _register(client, a, seed=120)
+
+    sent = await client.post(
+        f"/api/v1/me/dm/conversations/{conversation_id}/messages",
+        json={
+            "messages": [
+                {
+                    "recipient_device_id": second,
+                    "message_type": 1,
+                    "payload": base64.b64encode(b"history").decode(),
+                }
+            ]
+        },
+        headers=a.headers,
+    )
+    assert sent.status_code == 200, sent.text
+
+    lines = (
+        await session.exec(
+            sqlmodel_select(Notification).where(Notification.user_id == b.user.id)
+        )
+    ).all()
+    assert lines == []
+
+
 async def test_a_silent_send_leaves_no_bell_line(client, session, acting_user):
     """A client reporting that it collected or read something is not a person
     saying anything, so it rolls into nobody's notifications."""

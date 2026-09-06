@@ -87,5 +87,12 @@
   "days": {
     "today": "Aujourd'hui",
     "yesterday": "Hier"
+  },
+  "historyRequest": {
+    "title": "Un de tes appareils demande tes messages",
+    "body": "{{device}} vient de se connecter et n'a aucun historique. Lui envoyer les messages de cet appareil ? Vérifie que le code ci-dessous est celui qu'il t'affiche.",
+    "unknownDevice": "Un appareil",
+    "approve": "Envoyer mes messages",
+    "decline": "Pas maintenant"
   }
 }

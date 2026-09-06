@@ -29,10 +29,16 @@ import { ratchet } from "./client";
 import {
   accountPickle,
   allSessions,
+  approvedDevices,
   deviceClaim,
   forgetDevice,
+  type HistoryProgress,
+  type HistoryRequest,
+  historyAsked,
+  historyProgress,
   lastRead,
   messageLog,
+  pendingHistoryRequest,
   type ReceiptState,
   type SessionOrigin,
   type StoredMessage,
@@ -362,13 +368,39 @@ type Envelope =
   | { v: 1; kind: "receipt"; state: ReceiptState; ids: string[] }
   | { v: 1; kind: "reaction"; targetId: string; emoji: string; on: boolean }
   | { v: 1; kind: "edit"; targetId: string; at: string; body: string; rev: number }
-  | { v: 1; kind: "remove"; targetId: string };
+  | { v: 1; kind: "remove"; targetId: string }
+  // Between this account's own devices only. A device that has just been
+  // registered holds no history and cannot derive any: it asks, and a device
+  // that already has it answers if the person holding it agrees.
+  | { v: 1; kind: "history-request"; requestId: string; deviceId: string; fingerprint: string }
+  | {
+      v: 1;
+      kind: "history";
+      requestId: string;
+      seq: number;
+      last: boolean;
+      conversationId: string;
+      messages: StoredMessage[];
+    }
+  | { v: 1; kind: "history-declined"; requestId: string };
 
 /** A name for one message, known to both sides and to nobody else. */
 const newMessageId = (): string =>
   typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Every kind this version understands, so it can tell a later one from a broken one. */
+const KNOWN_KINDS: ReadonlySet<string> = new Set<Envelope["kind"]>([
+  "text",
+  "receipt",
+  "reaction",
+  "edit",
+  "remove",
+  "history-request",
+  "history",
+  "history-declined",
+]);
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -383,7 +415,7 @@ const isStringArray = (value: unknown): value is string[] =>
  * read as the plain body it may always have been, under the queue row's own id,
  * which is unique per item and cannot collide.
  */
-function unpack(plaintext: string, fallbackId: string): Envelope {
+function unpack(plaintext: string, fallbackId: string): Envelope | null {
   const asBody: Envelope = { v: 1, kind: "text", id: fallbackId, at: "", body: plaintext };
   let parsed: Record<string, unknown>;
   try {
@@ -444,6 +476,45 @@ function unpack(plaintext: string, fallbackId: string): Envelope {
   ) {
     return { v: 1, kind: "receipt", state: parsed.state, ids: parsed.ids };
   }
+  if (
+    parsed.kind === "history-request" &&
+    typeof parsed.requestId === "string" &&
+    typeof parsed.deviceId === "string" &&
+    typeof parsed.fingerprint === "string"
+  ) {
+    return {
+      v: 1,
+      kind: "history-request",
+      requestId: parsed.requestId,
+      deviceId: parsed.deviceId,
+      fingerprint: parsed.fingerprint,
+    };
+  }
+  if (
+    parsed.kind === "history" &&
+    typeof parsed.requestId === "string" &&
+    typeof parsed.seq === "number" &&
+    typeof parsed.conversationId === "string" &&
+    Array.isArray(parsed.messages)
+  ) {
+    return {
+      v: 1,
+      kind: "history",
+      requestId: parsed.requestId,
+      seq: parsed.seq,
+      last: parsed.last === true,
+      conversationId: parsed.conversationId,
+      messages: parsed.messages as StoredMessage[],
+    };
+  }
+  if (parsed.kind === "history-declined" && typeof parsed.requestId === "string") {
+    return { v: 1, kind: "history-declined", requestId: parsed.requestId };
+  }
+  // A kind this version does not know is from a later one, and is not for it to
+  // guess at: printing the protocol into somebody's thread is the one outcome
+  // worse than ignoring it. A kind it *does* know, arriving half-written, is a
+  // different thing and still reads as the words it may always have been.
+  if (typeof parsed.kind === "string" && !KNOWN_KINDS.has(parsed.kind)) return null;
   return asBody;
 }
 
@@ -772,6 +843,232 @@ async function readWithHeldSession(item: {
   return null;
 }
 
+/** How many messages of one conversation ride in a single envelope. */
+const HISTORY_CHUNK = 40;
+
+/**
+ * Hand one envelope to one device of this account's own.
+ *
+ * Sync traffic is between two devices of the same person, so it needs no
+ * recipient and gets no notification. It still has to ride inside a
+ * conversation, because that is the only channel the server offers — but the
+ * conversation it rides in is a carrier and nothing more: the envelope names
+ * the conversation it is *about*, so history for one somebody can no longer be
+ * written to still reaches the device that asked for it.
+ */
+async function sendToOwnDevice(
+  carrierId: string,
+  deviceId: string,
+  identityKey: string,
+  envelope: Envelope
+): Promise<boolean> {
+  const destination: Destination = { id: deviceId, identityKey, origin: "self" };
+  let sessionId = await establishedSession(deviceId);
+  if (!sessionId) {
+    const claimed = await claimOwnSessionKeys({ device_id: await ensureDevice() });
+    const key = claimed.devices.find((device) => device.device_id === deviceId)?.one_time_key;
+    if (!key) return false;
+    sessionId = await openOutboundSession(carrierId, destination, key.public_key);
+  }
+  const encrypted = await withSession(sessionId, async (pickle) => {
+    const out = await ratchet.encrypt(pickle, JSON.stringify(envelope));
+    return { next: out.session_pickle, value: out };
+  });
+  if (encrypted === null) return false;
+  await sendMessages(carrierId, {
+    messages: [
+      {
+        recipient_device_id: deviceId,
+        message_type: encrypted.message_type,
+        payload: encrypted.ciphertext,
+      },
+    ],
+    // Nothing here is addressed to the other party, and nothing about it is
+    // theirs to be told.
+    silent: true,
+  });
+  return true;
+}
+
+/** A conversation any own-device traffic can travel inside. */
+async function carrierConversation(): Promise<string | null> {
+  const conversations = await listConversations();
+  return conversations.conversations[0]?.id ?? null;
+}
+
+/**
+ * Ask this account's other devices for the history this one cannot derive.
+ *
+ * Asked once per device: the answer is a person's decision, and a device that
+ * asks again every time it starts is a device training somebody to say yes
+ * without reading.
+ */
+export async function requestHistory(): Promise<boolean> {
+  if (await historyAsked.get()) return false;
+  const { id: mine, devices } = await ensureDeviceContext();
+  const me = devices.find((device) => device.id === mine);
+  if (!me || devices.length < 2) return false;
+  const carrier = await carrierConversation();
+  if (carrier === null) return false;
+
+  const requestId = newMessageId();
+  let asked = false;
+  for (const device of devices) {
+    if (device.id === mine) continue;
+    const sent = await sendToOwnDevice(carrier, device.id, device.identity_key, {
+      v: 1,
+      kind: "history-request",
+      requestId,
+      deviceId: mine,
+      fingerprint: me.fingerprint_key,
+    });
+    asked = asked || sent;
+  }
+  // Asked once it is on its way, not once it is answered: the queue holds it
+  // until the far device wakes, and a device that asks on every collection is
+  // one raising the same dialog over and over until somebody stops reading it.
+  if (asked) await historyAsked.set();
+  return asked;
+}
+
+/**
+ * Write down a request to answer, unless this device has answered for that one
+ * already.
+ *
+ * The fingerprint in the request is a convenience for the person comparing two
+ * screens; what is checked is the directory's own entry for that device id. A
+ * request that disagrees with it is not a device to ask about.
+ */
+async function noteHistoryRequest(
+  envelope: Extract<Envelope, { kind: "history-request" }>,
+  ourDevices: DmDeviceRead[]
+): Promise<void> {
+  const device = ourDevices.find((entry) => entry.id === envelope.deviceId);
+  if (!device || device.fingerprint_key !== envelope.fingerprint) return;
+  await pendingHistoryRequest.set({
+    requestId: envelope.requestId,
+    deviceId: device.id,
+    label: device.label,
+    fingerprint: device.fingerprint_key,
+    at: new Date().toISOString(),
+  });
+}
+
+/**
+ * The request waiting on this device, if the person has not answered it.
+ *
+ * A device already approved is not asked about again — that is what approving a
+ * device rather than a request means — so its request is not returned here and
+ * is served instead.
+ */
+export async function historyRequestToAnswer(): Promise<HistoryRequest | undefined> {
+  const pending = await pendingHistoryRequest.get();
+  if (!pending) return undefined;
+  if (await approvedDevices.holds(pending.deviceId, pending.fingerprint)) return undefined;
+  return pending;
+}
+
+/** Say yes or no to the device waiting on an answer. */
+export async function answerHistoryRequest(approve: boolean): Promise<void> {
+  const pending = await pendingHistoryRequest.get();
+  if (!pending) return;
+  if (approve) {
+    await approvedDevices.approve(pending.deviceId, pending.fingerprint);
+    return;
+  }
+  await pendingHistoryRequest.clear();
+  const carrier = await carrierConversation();
+  const { devices } = await ensureDeviceContext();
+  const device = devices.find((entry) => entry.id === pending.deviceId);
+  if (carrier === null || !device) return;
+  await sendToOwnDevice(carrier, device.id, device.identity_key, {
+    v: 1,
+    kind: "history-declined",
+    requestId: pending.requestId,
+  });
+}
+
+/**
+ * Send this device's history to one that has been approved for it.
+ *
+ * Resumable from this side, which is the side that stops: a tab closed
+ * mid-transfer picks up at the conversation it had reached, and what was
+ * already sent is waiting in the queue for the far device whether or not this
+ * one comes back.
+ */
+export async function serveHistory(): Promise<void> {
+  const pending = await pendingHistoryRequest.get();
+  if (!pending) return;
+  if (!(await approvedDevices.holds(pending.deviceId, pending.fingerprint))) return;
+
+  const { devices } = await ensureDeviceContext();
+  const device = devices.find((entry) => entry.id === pending.deviceId);
+  const carrier = await carrierConversation();
+  if (!device || carrier === null || device.fingerprint_key !== pending.fingerprint) {
+    // The device it was approved for is gone, or is not the one it was
+    // approved as. Neither is a thing to keep trying.
+    await pendingHistoryRequest.clear();
+    return;
+  }
+
+  const held = await historyProgress.get(device.id);
+  const progress: HistoryProgress =
+    held?.requestId === pending.requestId
+      ? held
+      : { requestId: pending.requestId, done: [], seq: 0 };
+  const conversations = await listConversations();
+
+  for (const conversation of conversations.conversations) {
+    if (progress.done.includes(conversation.id)) continue;
+    const messages = await messageLog.get(conversation.id);
+    // Newest first: a transfer that runs out of room leaves the oldest behind
+    // rather than a random half.
+    const chunks: StoredMessage[][] = [];
+    for (let index = messages.length; index > 0; index -= HISTORY_CHUNK) {
+      chunks.push(messages.slice(Math.max(0, index - HISTORY_CHUNK), index));
+    }
+    if (chunks.length === 0) chunks.push([]);
+    for (const chunk of chunks) {
+      progress.seq += 1;
+      const sent = await sendToOwnDevice(carrier, device.id, device.identity_key, {
+        v: 1,
+        kind: "history",
+        requestId: pending.requestId,
+        seq: progress.seq,
+        last: false,
+        conversationId: conversation.id,
+        messages: chunk,
+      });
+      if (!sent) return;
+      await historyProgress.set(device.id, progress);
+    }
+    progress.done.push(conversation.id);
+    await historyProgress.set(device.id, progress);
+  }
+
+  progress.seq += 1;
+  await sendToOwnDevice(carrier, device.id, device.identity_key, {
+    v: 1,
+    kind: "history",
+    requestId: pending.requestId,
+    seq: progress.seq,
+    last: true,
+    conversationId: conversations.conversations[0]?.id ?? "",
+    messages: [],
+  });
+  await historyProgress.set(device.id, progress);
+  await pendingHistoryRequest.clear();
+}
+
+/** Serve an approved request, without letting a failure stop a collection. */
+async function serveApprovedHistory(): Promise<void> {
+  try {
+    await serveHistory();
+  } catch {
+    // Resumable from where it stopped; the next collection carries on.
+  }
+}
+
 /**
  * Collect everything waiting for this device, decrypt it, and acknowledge.
  *
@@ -780,8 +1077,22 @@ async function readWithHeldSession(item: {
  */
 export async function collect({ receipts = true }: { receipts?: boolean } = {}): Promise<string[]> {
   const { id: device, devices: ourDevices } = await ensureDeviceContext();
+  // Before the queue is read, and before the early return below it: a device
+  // that has just arrived has nothing waiting, and asking is the whole reason
+  // it has nothing.
+  try {
+    await requestHistory();
+  } catch {
+    // The next collection asks again.
+  }
   const queue = await collectQueue({ device_id: device });
-  if (queue.items.length === 0) return [];
+  if (queue.items.length === 0) {
+    // An empty queue is not an idle device: a request approved a moment ago has
+    // a transfer to run, and it was noted by an earlier collection rather than
+    // this one.
+    await serveApprovedHistory();
+    return [];
+  }
 
   if (!(await accountPickle.get())) throw new Error("this device has no key store");
 
@@ -862,6 +1173,12 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
       const envelope = unpack(plaintext, String(item.id));
+      if (envelope === null) {
+        // Understood well enough to know it is not for this version. Taken off
+        // the server rather than left to be tried again on every collection.
+        collected.push(item.id);
+        continue;
+      }
 
       // Acting on a message already said rather than saying one. Which side
       // an envelope arrived on is the whole of the authorization: one that
@@ -894,6 +1211,33 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
                   item.created_at
                 );
         if (moved) touched.add(item.conversation_id);
+        collected.push(item.id);
+        continue;
+      }
+
+      // Between this account's own devices, and only its own: which side an
+      // envelope arrived on is the whole of the authorization here too. A
+      // history envelope over the other party's session is somebody trying to
+      // write into a thread from the outside, and is dropped.
+      if (
+        envelope.kind === "history-request" ||
+        envelope.kind === "history" ||
+        envelope.kind === "history-declined"
+      ) {
+        if (mine) {
+          if (envelope.kind === "history-request") {
+            await noteHistoryRequest(envelope, ourDevices);
+          } else if (envelope.kind === "history") {
+            if ((await messageLog.merge(envelope.conversationId, envelope.messages)) > 0) {
+              touched.add(envelope.conversationId);
+            }
+            if (envelope.last) await historyAsked.set();
+          } else {
+            // Answered, and the answer was no. Asking again is a person's
+            // decision, not something to retry into.
+            await historyAsked.set();
+          }
+        }
         collected.push(item.id);
         continue;
       }
@@ -938,6 +1282,10 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
   if (collected.length > 0) {
     await ackQueue({ device_id: device, message_ids: collected });
   }
+
+  // After the acknowledgement, so a request that arrived in this batch is
+  // served in it rather than a collection later.
+  await serveApprovedHistory();
 
   // After the acknowledgement, and never in its way: a receipt is a courtesy
   // and the queue row it is about is already safely on this device.

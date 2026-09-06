@@ -372,6 +372,42 @@ export type Side = "mine" | "theirs";
 
 const LOG_PREFIX = "log:";
 
+/**
+ * One message, as two devices each remember it.
+ *
+ * Neither copy is authoritative: each device saw whatever reached it, so every
+ * field takes whichever answer is further along rather than whichever arrived
+ * later. A removal is never undone, an edit is ordered by its revision and not
+ * by a clock two devices set independently, and a reaction is a union because
+ * both halves are somebody having reacted.
+ */
+function mergeMessages(held: StoredMessage, incoming: StoredMessage): StoredMessage {
+  const merged: StoredMessage = { ...held };
+  if ((incoming.rev ?? 0) > (held.rev ?? 0)) {
+    merged.body = incoming.body;
+    merged.rev = incoming.rev;
+    merged.editedAt = incoming.editedAt;
+  }
+  if (incoming.removedAt && !held.removedAt) {
+    merged.removedAt = incoming.removedAt;
+    merged.body = incoming.body;
+  }
+  if (incoming.receipt === "read" || (incoming.receipt && !held.receipt)) {
+    merged.receipt = incoming.receipt;
+  }
+  if (incoming.reactions) {
+    const reactions = { ...(held.reactions ?? {}) };
+    for (const [emoji, sides] of Object.entries(incoming.reactions)) {
+      const mine = reactions[emoji]?.mine || sides.mine;
+      const theirs = reactions[emoji]?.theirs || sides.theirs;
+      if (mine || theirs) reactions[emoji] = { mine, theirs };
+    }
+    merged.reactions = reactions;
+  }
+  if (!merged.replyTo && incoming.replyTo) merged.replyTo = incoming.replyTo;
+  return merged;
+}
+
 export const messageLog = {
   get: async (conversationId: string): Promise<StoredMessage[]> =>
     (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [],
@@ -388,6 +424,42 @@ export const messageLog = {
       if (current.some((entry) => entry.id === message.id)) return undefined;
       return [...current, message];
     });
+  },
+  /**
+   * Fold another device's copy of this conversation into this one.
+   *
+   * Both devices hold the same thread under the same ids, so this is a merge by
+   * id rather than an import: what is already here stays, and each field takes
+   * the answer that is further along. One transaction for the whole batch,
+   * because a live message and a second tab can both land while a transfer is
+   * running.
+   *
+   * Returns how many entries this device did not already have, which is the
+   * only part worth telling anybody about.
+   */
+  merge: async (conversationId: string, incoming: StoredMessage[]): Promise<number> => {
+    let added = 0;
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      const byId = new Map(current.map((entry) => [entry.id, entry]));
+      added = 0;
+      for (const message of incoming) {
+        const held = byId.get(message.id);
+        if (!held) {
+          byId.set(message.id, message);
+          added += 1;
+          continue;
+        }
+        byId.set(message.id, mergeMessages(held, message));
+      }
+      if (added === 0 && incoming.every((message) => byId.get(message.id) === message)) {
+        return undefined;
+      }
+      // By the sender's clock: what orders a thread is when each message was
+      // written, not the order two devices happened to exchange them in.
+      return [...byId.values()].sort((left, right) => left.at.localeCompare(right.at));
+    });
+    return added;
   },
   /**
    * Record how far some of your own messages have got.
@@ -529,6 +601,75 @@ export const messageLog = {
     });
     return changed;
   },
+};
+
+/**
+ * The devices this one has agreed to send its history to.
+ *
+ * Kept against the fingerprint each had when it was approved, so an entry in
+ * the directory whose key has changed since is a different device wearing a
+ * familiar name and is asked about again. A device id belongs to one
+ * registration — signing out withdraws it — so an approval cannot outlive the
+ * device that earned it.
+ */
+export const approvedDevices = {
+  all: async (): Promise<Record<string, string>> =>
+    (await read<Record<string, string>>("history-approved")) ?? {},
+  holds: async (deviceId: string, fingerprint: string): Promise<boolean> =>
+    (await read<Record<string, string>>("history-approved"))?.[deviceId] === fingerprint,
+  approve: async (deviceId: string, fingerprint: string): Promise<void> => {
+    await update<Record<string, string>>("history-approved", (existing) => ({
+      ...(existing ?? {}),
+      [deviceId]: fingerprint,
+    }));
+  },
+};
+
+/**
+ * A request this device has been asked to answer, and has not yet.
+ *
+ * One at a time: a second device asking while the first is waiting replaces it,
+ * because a queue of these is a queue of dialogs nobody reads.
+ */
+export interface HistoryRequest {
+  requestId: string;
+  deviceId: string;
+  label: string | null;
+  fingerprint: string;
+  at: string;
+}
+
+export const pendingHistoryRequest = {
+  get: () => read<HistoryRequest>("history-pending"),
+  set: (request: HistoryRequest) => write("history-pending", request),
+  clear: () => write("history-pending", undefined),
+};
+
+/**
+ * How far this device has got sending its history to another.
+ *
+ * Sender-side, because the sender is what stops: a tab closed mid-transfer is
+ * the failure this is for, and the queue holds what was already sent until the
+ * far device collects it. Keyed by request, so an answer to an older request
+ * cannot advance a newer one.
+ */
+export interface HistoryProgress {
+  requestId: string;
+  /** Conversations already sent in full. */
+  done: string[];
+  seq: number;
+}
+
+export const historyProgress = {
+  get: (deviceId: string) => read<HistoryProgress>("history-progress:" + deviceId),
+  set: (deviceId: string, progress: HistoryProgress) =>
+    write("history-progress:" + deviceId, progress),
+};
+
+/** Whether this device has already asked the account's others for its history. */
+export const historyAsked = {
+  get: async (): Promise<boolean> => (await read<boolean>("history-asked")) === true,
+  set: () => write("history-asked", true),
 };
 
 /** Which device of theirs we already hold a session with, per session id. */
