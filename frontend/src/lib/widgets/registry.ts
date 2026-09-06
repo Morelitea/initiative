@@ -13,6 +13,7 @@
  * two and fails on drift.
  */
 
+import boardSource from "./builtins/board.widget.js?raw";
 import chartSource from "./builtins/chart.widget.js?raw";
 import funnelSource from "./builtins/funnel.widget.js?raw";
 import ganttSource from "./builtins/gantt.widget.js?raw";
@@ -35,6 +36,7 @@ export const BUILTIN_WIDGETS: Record<string, string> = {
   progress: progressSource,
   heatmap: heatmapSource,
   table: tableSource,
+  board: boardSource,
 };
 
 export const BUILTIN_WIDGET_TYPES = Object.keys(BUILTIN_WIDGETS);

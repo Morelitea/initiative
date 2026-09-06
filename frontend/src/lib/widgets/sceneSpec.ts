@@ -73,6 +73,10 @@ export const SCENE_LIMITS = {
   /** `table` shape. */
   maxColumns: 32,
   maxRows: 10_000,
+  /** `board` shape — columns across, and cards counted across the whole board
+   *  rather than per column, since a card costs the same wherever it sits. */
+  maxBoardColumns: 32,
+  maxCards: 10_000,
   /** `funnel` stages. */
   maxStages: 32,
 } as const;
@@ -337,6 +341,47 @@ export interface TableNode {
   rows: Record<string, TableCell>[];
 }
 
+/** One card on a board — a work item reduced to what a column can show.
+ *
+ *  `date` is epoch milliseconds and the renderer formats it, like every other
+ *  timestamp here; `tone` colours the card's edge, which is how an overdue card
+ *  reads as late without the widget naming a colour. */
+export interface BoardCard {
+  title: string;
+  /** Short labels under the title — an assignee, a tag, a priority. */
+  chips?: string[];
+  /** A date to show on the card. */
+  date?: number;
+  /** 0..1, drawn as a hairline across the card's foot — the share of this
+   *  card's own checklist that is finished. */
+  progress?: number;
+  /** A short read-out at the card's right ("3/8"). Text, so a widget says what
+   *  its own denominator means rather than every renderer guessing. */
+  caption?: string;
+  tone?: Tone;
+}
+
+/** A column, and the cards in it.
+ *
+ *  `total` is the column's real size when `cards` is a leading slice of it, so
+ *  a column that draws twenty of two hundred can still say two hundred. */
+export interface BoardColumn {
+  label: string;
+  cards: BoardCard[];
+  total?: number;
+  /** A read-out beside the count — what the column adds up to. */
+  caption?: string;
+  tone?: Tone;
+}
+
+/** Rows dealt into columns — the board shape. What a column *stands for* is the
+ *  widget's decision and arrives already made: this draws columns of cards and
+ *  knows nothing about statuses or assignees. */
+export interface BoardNode {
+  kind: "board";
+  columns: BoardColumn[];
+}
+
 export interface TextNode {
   kind: "text";
   text: string;
@@ -371,6 +416,7 @@ export type SceneNode =
   | ProgressNode
   | MatrixNode
   | TableNode
+  | BoardNode
   | TextNode
   | EmptyNode
   | StackNode;
@@ -383,6 +429,7 @@ export const SCENE_NODE_KINDS = [
   "progress",
   "matrix",
   "table",
+  "board",
   "text",
   "empty",
   "stack",

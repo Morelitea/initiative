@@ -6,7 +6,7 @@ icon: lucide/chart-line
 
 A **dashboard** is one screen that answers "how are we doing?" — without anybody having to open five things and do sums in their head first.
 
-It's a canvas of tiles — charts, single big numbers, timelines — each reading from your own data. Open tasks by status. Progress against a deadline. What's on this week. A counter's current value.
+It's a canvas of tiles — charts, single big numbers, timelines, boards — each reading from your own data. Open tasks by status. Progress against a deadline. What's on this week. A counter's current value.
 
 Whatever the person who keeps asking the question actually needs to see, so that they stop asking.
 
@@ -38,6 +38,14 @@ Usually faster than starting from a blank canvas, and often better, because some
 
 !!! tip "Steal a layout, then change it"
     A marketplace dashboard becomes an ordinary dashboard of yours the second you add it. Rename it, rearrange it, delete the tiles you don't like. Nothing phones home and nobody's feelings are hurt.
+
+### Boards
+
+One of the tiles is a **board**: your tasks dealt into columns, and you say what a column stands for. A status. The people on the work, so everyone gets a column and you can see who is carrying what. Priority, project, tag — or one of your initiative's own properties, which is how you end up with a board columned by "Squad" or "Sprint" or whatever your group actually argues about.
+
+A value that exists and has nothing in it still gets its column. An empty **Blocked** is information.
+
+Like everything else here it only displays. There's nothing to drag a card onto — moving work between states is still a project's job.
 
 ### Widgets from the marketplace
 

@@ -20,6 +20,7 @@ import { useCounterGroup } from "@/hooks/useCounters";
 import { useDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
+import { useProperties } from "@/hooks/useProperties";
 import { useTags } from "@/hooks/useTags";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -54,6 +55,7 @@ export function useBindingLabels(
   const needsDocument = scoped && binding.document_id != null;
   const needsMembers = scoped && fields.has("assignee_ids");
   const needsTags = scoped && fields.has("tag_ids");
+  const needsProperties = scoped && binding.property_id != null;
 
   const projects = useProjects(undefined, { enabled: needsProjects });
   const calendars = useCalendarsList({ initiative_id: initiativeId }, { enabled: needsCalendars });
@@ -61,6 +63,7 @@ export function useBindingLabels(
   const document = useDocument(needsDocument ? (binding.document_id ?? null) : null);
   const initiative = useInitiative(needsMembers ? (initiativeId ?? null) : null);
   const tags = useTags({ enabled: needsTags });
+  const properties = useProperties({ initiativeId, enabled: needsProperties });
 
   return useMemo<EntityLabels>(() => {
     if (!scoped) return EMPTY_LABELS;
@@ -73,6 +76,7 @@ export function useBindingLabels(
       document: new Map(),
       member: new Map(),
       tag: new Map(),
+      property: new Map(),
       // Nothing may be called unresolvable while a lookup that could still
       // resolve it is in flight.
       ready: ![
@@ -82,6 +86,7 @@ export function useBindingLabels(
         needsDocument && document.isLoading,
         needsMembers && initiative.isLoading,
         needsTags && tags.isLoading,
+        needsProperties && properties.isLoading,
       ].some(Boolean),
     };
 
@@ -104,6 +109,9 @@ export function useBindingLabels(
       labels.member.set(member.user.id, getUserDisplayName(member.user));
     }
     for (const tag of tags.data ?? []) labels.tag.set(tag.id, tag.name);
+    for (const property of properties.data ?? []) {
+      if (property.initiative_id === initiativeId) labels.property.set(property.id, property.name);
+    }
 
     return labels;
   }, [
@@ -115,6 +123,7 @@ export function useBindingLabels(
     needsDocument,
     needsMembers,
     needsTags,
+    needsProperties,
     projects.data,
     projects.isLoading,
     calendars.data,
@@ -127,5 +136,7 @@ export function useBindingLabels(
     initiative.isLoading,
     tags.data,
     tags.isLoading,
+    properties.data,
+    properties.isLoading,
   ]);
 }

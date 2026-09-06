@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { SceneNode } from "@/lib/widgets/sceneSpec";
 import { toneTextClass } from "@/lib/widgets/tone";
 
+import { BoardNode } from "./BoardNode";
 import { FunnelNode } from "./FunnelNode";
 import { MatrixNode } from "./MatrixNode";
 import { MetricNode } from "./MetricNode";
@@ -93,6 +94,8 @@ export const SceneRenderer = memo(function SceneRenderer({ node }: SceneNodeProp
       return <MatrixNode node={node} />;
     case "table":
       return <TableNode node={node} />;
+    case "board":
+      return <BoardNode node={node} />;
     case "text":
       return <TextNode node={node} />;
     case "empty":

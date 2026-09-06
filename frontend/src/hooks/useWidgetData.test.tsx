@@ -22,6 +22,7 @@ vi.mock("@/hooks/useCalendarEntries", () => ({ useCalendarEntries: () => idle })
 vi.mock("@/hooks/useCalendars", () => ({ useCalendarsList: () => idle }));
 vi.mock("@/hooks/useCounters", () => ({ useCounterGroup: () => idle }));
 vi.mock("@/hooks/useDocuments", () => ({ useDocument: () => idle }));
+vi.mock("@/hooks/useProperties", () => ({ useProperties: () => idle }));
 // Mocked like every other sibling: this file is about how a task binding
 // becomes a request, and the app hooks reach for guild context a bare
 // renderHook has no provider for.

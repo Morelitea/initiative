@@ -28,6 +28,7 @@ import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroup } from "@/hooks/useCounters";
 import { useDocument } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
+import { useProperties } from "@/hooks/useProperties";
 import { useTasks } from "@/hooks/useTasks";
 import { expandConditions, readConditions } from "@/lib/widgets/conditions";
 import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
@@ -44,6 +45,7 @@ import {
   normalizeProjects,
   normalizeSheetRange,
   normalizeTasks,
+  propertyDomain,
 } from "@/lib/widgets/normalize";
 
 /** A normalized definition binding. Everything past `source` is the fetcher's
@@ -60,6 +62,10 @@ export interface WidgetBinding {
   counter_id?: number | null;
   calendar_id?: number | null;
   document_id?: number | null;
+  /** Which of the initiative's custom properties a board deals its columns
+   *  from. Read by the `board` widget alone; every other widget bound to the
+   *  same rows ignores it. */
+  property_id?: number | null;
   sheet?: string | null;
   range?: string | null;
   bucket?: CountBucket | null;
@@ -210,6 +216,13 @@ export function useWidgetData(
   const documentQuery = useDocument(
     scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
   );
+  // Only the *definitions*, and only when a binding names one: a property's
+  // values ride on the task rows already fetched, so this is here for the name
+  // and for what the property could say that nobody has said yet.
+  const propertiesQuery = useProperties({
+    initiativeId,
+    enabled: scoped && source === "tasks" && binding.property_id != null,
+  });
 
   // The app palette is one request per guild, shared by every app widget on the
   // canvas. It is what turns a binding's `app_uid` into an install id and tells
@@ -235,6 +248,7 @@ export function useWidgetData(
     }
     if (source === "counter" || source === "counter_group") void counterGroupQuery.refetch();
     if (source === "sheet_range") void documentQuery.refetch();
+    if (source === "tasks" && binding.property_id != null) void propertiesQuery.refetch();
     if (isApp) void appQuery.refetch();
   }, [
     source,
@@ -245,6 +259,8 @@ export function useWidgetData(
     calendarsQuery.refetch,
     counterGroupQuery.refetch,
     documentQuery.refetch,
+    propertiesQuery.refetch,
+    binding.property_id,
     appQuery.refetch,
   ]);
 
@@ -289,8 +305,19 @@ export function useWidgetData(
     switch (source) {
       case "tasks": {
         const rows = normalizeTasks(tasksQuery.data?.items ?? []);
+        // A property this viewer cannot resolve is simply absent, exactly like
+        // every other id a binding names: the rows still draw, and the widget
+        // says it has nothing to column by.
+        const definition = binding.property_id
+          ? (propertiesQuery.data ?? []).find((candidate) => candidate.id === binding.property_id)
+          : undefined;
         return {
-          data: { source, rows, meta: taskMeta },
+          data: {
+            source,
+            rows,
+            ...(definition ? { property: propertyDomain(definition) } : {}),
+            meta: taskMeta,
+          },
           isLoading: tasksQuery.isLoading,
           isUnbound: false,
           isRestricted: false,
@@ -505,8 +532,10 @@ export function useWidgetData(
     binding.counter_group_id,
     binding.counter_id,
     binding.document_id,
+    binding.property_id,
     binding.range,
     binding.sheet,
+    propertiesQuery.data,
     tasksQuery.data,
     tasksQuery.isLoading,
     projectsQuery.data,

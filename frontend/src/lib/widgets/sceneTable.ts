@@ -183,6 +183,29 @@ export function sceneToTables(node: SceneNode, t: SceneTableT): TableScene[] {
         ),
       ];
 
+    case "board":
+      // One row per card, with its column beside it — the reading a board makes
+      // you do with your eyes, done in the table instead. Column order is kept,
+      // so the two carry the same story in the same sequence.
+      return [
+        table(
+          [
+            { key: "column", label: t("dashboards:tableView.column") },
+            { key: "card", label: t("dashboards:tableView.card") },
+            { key: "chips", label: t("dashboards:tableView.label") },
+            { key: "date", label: t("dashboards:tableView.due"), align: "end", format: "date" },
+          ],
+          node.columns.flatMap((column) =>
+            column.cards.map((card) => ({
+              column: column.label,
+              card: card.title,
+              chips: card.chips?.length ? card.chips.join(", ") : null,
+              date: card.date ?? null,
+            }))
+          )
+        ),
+      ];
+
     case "text":
       return [
         table([{ key: "text", label: t("dashboards:tableView.label") }], [{ text: node.text }]),

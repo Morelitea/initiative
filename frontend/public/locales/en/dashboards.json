@@ -152,7 +152,8 @@
     "appNotInstalled": "This app is not installed in this community.",
     "appParamPlaceholder": "Choose…",
     "appParamNeedsSibling": "Choose the value above first.",
-    "appParamListHint": "Separate values with commas."
+    "appParamListHint": "Separate values with commas.",
+    "all_property": "No property"
   },
   "picker": {
     "title": "Add a widget",
@@ -278,7 +279,9 @@
     "progress": "Progress",
     "stage": "Stage",
     "label": "Label",
-    "column": "Column"
+    "column": "Column",
+    "card": "Card",
+    "due": "Due"
   },
   "filterOp": {
     "eq": "is",
@@ -302,7 +305,8 @@
     "source_id": "App data source",
     "bucket": "Group counts by",
     "day_field": "Count each task on its",
-    "window_days": "Time window (days)"
+    "window_days": "Time window (days)",
+    "property": "Property"
   },
   "paramValue": {
     "status_category": "Status category",

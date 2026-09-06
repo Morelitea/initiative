@@ -55,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Anyone is its own group on My Contacts, under the communities.** Being open to anyone cannot be listed — it would be everybody here — so the group holds the part of it that means something: the people you are already messaging who no community you are in accounts for.
 
+- **A board widget for dashboards.** Tasks dealt into columns, and you choose what a column stands for: a status, the people on the work, priority, project, tag — or one of your initiative's own properties, so a board can be columned by a field we have never heard of. A value that exists and has nothing in it still gets its column, because a state nobody is in is usually the one worth seeing. Cards carry who is on the work, the due date and the checklist; anything past its date reads red and its column says how many. Read-only like every widget on a dashboard — a card is a card, not a handle, and moving work between states is still a project view's job.
+
 ### Changed
 
 - **My Projects and My Documents are one page: My Tools.** Two pages that were the same table for one tool each are now one. Pick a tool at the top and see everything of that kind that reaches you, across every community you're in, rather than one community at a time. A tool you have nothing of anywhere gets no tab, so the page never opens onto an empty table. A toggle switches the whole view between everything that reaches you and only what you made, and the tool, the search, the order, the page and the communities you're filtering to all ride in the address — so any view of it is a link you can send.

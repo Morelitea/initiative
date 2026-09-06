@@ -15,6 +15,8 @@
  */
 
 import {
+  type BoardCard,
+  type BoardColumn,
   type MatrixCell,
   NUMBER_FORMATS,
   type NumberFormat,
@@ -255,6 +257,37 @@ const parseRow = (raw: unknown, columns: TableColumn[]): Record<string, TableCel
   return row;
 };
 
+const parseCard = (raw: unknown, budget: CardBudget): BoardCard => {
+  if (++budget.cards > SCENE_LIMITS.maxCards) fail(SceneErrorCode.TOO_LARGE);
+  if (!isPlainObject(raw)) fail(SceneErrorCode.NODE_INVALID);
+  return compact({
+    title: text(raw.title),
+    chips:
+      raw.chips === undefined || raw.chips === null
+        ? undefined
+        : arrayOf(raw.chips, SCENE_LIMITS.maxColumns).map(text),
+    date: optNum(raw.date),
+    progress: optNum(raw.progress),
+    caption: optText(raw.caption),
+    tone: optTone(raw.tone),
+  });
+};
+
+/** A column and its cards. Cards draw from one budget shared by the whole
+ *  board rather than a cap per column, for the same reason lanes do: a card
+ *  costs the same drawing wherever it sits, so only the total is worth
+ *  bounding. */
+const parseBoardColumn = (raw: unknown, budget: CardBudget): BoardColumn => {
+  if (!isPlainObject(raw)) fail(SceneErrorCode.NODE_INVALID);
+  return compact({
+    label: text(raw.label),
+    cards: asList(raw.cards).map((card) => parseCard(card, budget)),
+    total: optNum(raw.total),
+    caption: optText(raw.caption),
+    tone: optTone(raw.tone),
+  });
+};
+
 // --- nodes -----------------------------------------------------------------
 
 interface Budget {
@@ -263,6 +296,10 @@ interface Budget {
 
 interface LaneBudget {
   lanes: number;
+}
+
+interface CardBudget {
+  cards: number;
 }
 
 const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
@@ -362,6 +399,16 @@ const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
         kind: "table" as const,
         columns,
         rows: arrayOf(node.rows, SCENE_LIMITS.maxRows).map((row) => parseRow(row, columns)),
+      });
+    }
+
+    case "board": {
+      const cards: CardBudget = { cards: 0 };
+      return compact({
+        kind: "board" as const,
+        columns: arrayOf(node.columns, SCENE_LIMITS.maxBoardColumns).map((column) =>
+          parseBoardColumn(column, cards)
+        ),
       });
     }
 

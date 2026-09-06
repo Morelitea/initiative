@@ -152,7 +152,8 @@
     "appNotInstalled": "Diese App ist in dieser Community nicht installiert.",
     "appParamPlaceholder": "Wählen…",
     "appParamNeedsSibling": "Wähle zuerst den Wert darüber.",
-    "appParamListHint": "Werte durch Kommas trennen."
+    "appParamListHint": "Werte durch Kommas trennen.",
+    "all_property": "Keine Eigenschaft"
   },
   "picker": {
     "title": "Widget hinzufügen",
@@ -288,7 +289,9 @@
     "progress": "Fortschritt",
     "stage": "Stufe",
     "label": "Bezeichnung",
-    "column": "Spalte"
+    "column": "Spalte",
+    "card": "Karte",
+    "due": "Fällig"
   },
   "bindingParam": {
     "project": "Projekt",
@@ -302,7 +305,8 @@
     "source_id": "App-Datenquelle",
     "bucket": "Zählungen gruppieren nach",
     "day_field": "Jede Aufgabe zählen am",
-    "window_days": "Zeitfenster (Tage)"
+    "window_days": "Zeitfenster (Tage)",
+    "property": "Eigenschaft"
   },
   "paramValue": {
     "status_category": "Statuskategorie",

@@ -152,7 +152,8 @@
     "appNotInstalled": "Cette application n'est pas installée dans cette communauté.",
     "appParamPlaceholder": "Choisir…",
     "appParamNeedsSibling": "Choisissez d'abord la valeur ci-dessus.",
-    "appParamListHint": "Séparez les valeurs par des virgules."
+    "appParamListHint": "Séparez les valeurs par des virgules.",
+    "all_property": "Aucune propriété"
   },
   "picker": {
     "title": "Ajouter un widget",
@@ -288,7 +289,9 @@
     "progress": "Avancement",
     "stage": "Étape",
     "label": "Libellé",
-    "column": "Colonne"
+    "column": "Colonne",
+    "card": "Carte",
+    "due": "Échéance"
   },
   "bindingParam": {
     "project": "Projet",
@@ -302,7 +305,8 @@
     "source_id": "Source de données de l'application",
     "bucket": "Grouper les comptages par",
     "day_field": "Compter chaque tâche à sa",
-    "window_days": "Fenêtre temporelle (jours)"
+    "window_days": "Fenêtre temporelle (jours)",
+    "property": "Propriété"
   },
   "paramValue": {
     "status_category": "Catégorie de statut",
