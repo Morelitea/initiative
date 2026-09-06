@@ -23,7 +23,6 @@ import { Route as ServerRequiredAuthenticatedIndexRouteImport } from './routes/_
 import { Route as ServerRequiredAuthenticatedAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/announcements'
 import { Route as ServerRequiredAuthenticatedCommunitiesRouteImport } from './routes/_serverRequired/_authenticated/communities'
 import { Route as ServerRequiredAuthenticatedContactsRouteImport } from './routes/_serverRequired/_authenticated/contacts'
-import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
 import { Route as ServerRequiredAuthenticatedMarketplaceRouteImport } from './routes/_serverRequired/_authenticated/marketplace'
@@ -229,12 +228,6 @@ const ServerRequiredAuthenticatedContactsRoute =
   ServerRequiredAuthenticatedContactsRouteImport.update({
     id: '/contacts',
     path: '/contacts',
-    getParentRoute: () => ServerRequiredAuthenticatedRoute,
-  } as any)
-const ServerRequiredAuthenticatedCreatedTasksRoute =
-  ServerRequiredAuthenticatedCreatedTasksRouteImport.update({
-    id: '/created-tasks',
-    path: '/created-tasks',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedDocumentsRoute =
@@ -1210,7 +1203,6 @@ export interface FileRoutesByFullPath {
   '/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
   '/contacts': typeof ServerRequiredAuthenticatedContactsRoute
-  '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
   '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
@@ -1355,7 +1347,6 @@ export interface FileRoutesByTo {
   '/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
   '/contacts': typeof ServerRequiredAuthenticatedContactsRoute
-  '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
   '/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
@@ -1487,7 +1478,6 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/announcements': typeof ServerRequiredAuthenticatedAnnouncementsRoute
   '/_serverRequired/_authenticated/communities': typeof ServerRequiredAuthenticatedCommunitiesRoute
   '/_serverRequired/_authenticated/contacts': typeof ServerRequiredAuthenticatedContactsRoute
-  '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
   '/_serverRequired/_authenticated/marketplace': typeof ServerRequiredAuthenticatedMarketplaceRoute
@@ -1635,7 +1625,6 @@ export interface FileRouteTypes {
     | '/announcements'
     | '/communities'
     | '/contacts'
-    | '/created-tasks'
     | '/documents'
     | '/initiatives'
     | '/marketplace'
@@ -1780,7 +1769,6 @@ export interface FileRouteTypes {
     | '/announcements'
     | '/communities'
     | '/contacts'
-    | '/created-tasks'
     | '/documents'
     | '/initiatives'
     | '/marketplace'
@@ -1911,7 +1899,6 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/announcements'
     | '/_serverRequired/_authenticated/communities'
     | '/_serverRequired/_authenticated/contacts'
-    | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
     | '/_serverRequired/_authenticated/marketplace'
@@ -2149,13 +2136,6 @@ declare module '@tanstack/react-router' {
       path: '/contacts'
       fullPath: '/contacts'
       preLoaderRoute: typeof ServerRequiredAuthenticatedContactsRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedRoute
-    }
-    '/_serverRequired/_authenticated/created-tasks': {
-      id: '/_serverRequired/_authenticated/created-tasks'
-      path: '/created-tasks'
-      fullPath: '/created-tasks'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedCreatedTasksRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/documents': {
@@ -3606,7 +3586,6 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedAnnouncementsRoute: typeof ServerRequiredAuthenticatedAnnouncementsRoute
   ServerRequiredAuthenticatedCommunitiesRoute: typeof ServerRequiredAuthenticatedCommunitiesRoute
   ServerRequiredAuthenticatedContactsRoute: typeof ServerRequiredAuthenticatedContactsRoute
-  ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
   ServerRequiredAuthenticatedMarketplaceRoute: typeof ServerRequiredAuthenticatedMarketplaceRoute
@@ -3632,8 +3611,6 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedCommunitiesRoute,
     ServerRequiredAuthenticatedContactsRoute:
       ServerRequiredAuthenticatedContactsRoute,
-    ServerRequiredAuthenticatedCreatedTasksRoute:
-      ServerRequiredAuthenticatedCreatedTasksRoute,
     ServerRequiredAuthenticatedDocumentsRoute:
       ServerRequiredAuthenticatedDocumentsRoute,
     ServerRequiredAuthenticatedInitiativesRoute:

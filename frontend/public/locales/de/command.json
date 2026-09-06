@@ -21,7 +21,6 @@
   },
   "pages": {
     "myTasks": "Meine Aufgaben",
-    "tasksICreated": "Meine erstellten Aufgaben",
     "myCalendar": "Mein Kalender",
     "myTools": "Meine Werkzeuge",
     "myContacts": "Meine Kontakte",
@@ -29,8 +28,6 @@
     "myStats": "Meine Statistiken",
     "userSettings": "Benutzereinstellungen",
     "guildSettings": "Community-Einstellungen",
-    "allProjects": "Alle Projekte",
-    "allDocuments": "Alle Dokumente",
     "allInitiatives": "Alle Initiativen",
     "platformSettings": "Plattformeinstellungen",
     "adminDashboard": "Admin-Dashboard"

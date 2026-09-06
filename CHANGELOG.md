@@ -71,6 +71,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A reaction shows its number only when there is one worth showing.** One person behind an emoji is what the emoji already says, so the chip is just the emoji until a second person joins it. The count is still spoken to a screen reader either way.
 
+- **Tasks I Created is gone.** My Tasks already answers the question it answered, and answers it better: the toggle at the top of My Tools has the same reach across every community you're in, and a task you made is a task you can find by its project. The page, its sidebar entry and its place in the command palette are all removed.
+
+- **The command palette lists pages, not tools.** *All Projects* and *All Documents* were two tools singled out of the eight, sending you to the community home with that tool picked — which is what the community home opens on anyway. Type a project or a document's name and the palette still finds the thing itself.
+
 - **The comment switch says what it does, and sits where you'd look for it.** Turning comments off on a project, document, board, queue, calendar or dashboard used to mean opening *Advanced* and answering yes to *Disable comments*. It is now *Comments* on the *Details* tab, on to begin with, and switching it off switches comments off. Nothing already posted is deleted either way — it is all there again the moment comments come back.
 
 ### Fixed

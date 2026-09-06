@@ -16,9 +16,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import {
-  getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey,
   getListMyTasksApiV1MeTasksGetQueryKey,
-  listMyCreatedTasksApiV1MeTasksCreatedGet,
   listMyTasksApiV1MeTasksGet,
 } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
@@ -94,23 +92,8 @@ const SORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
   Object.entries(SORT_FIELD_MAP).map(([columnId, field]) => [field, columnId])
 );
 
-export type MyTasksView = "assigned" | "created";
-
-interface UseGlobalTasksTableOptions {
-  view: MyTasksView;
-  storageKeyPrefix: string;
-}
-
-export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTableOptions) {
+export function useGlobalTasksTable() {
   const { t } = useTranslation(["tasks", "dates", "common"]);
-  // Cross-guild aggregates: /me/tasks (assigned) vs /me/tasks/created (created).
-  const isCreated = view === "created";
-  const listMyTasks = isCreated
-    ? listMyCreatedTasksApiV1MeTasksCreatedGet
-    : listMyTasksApiV1MeTasksGet;
-  const getMyTasksQueryKey = isCreated
-    ? getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey
-    : getListMyTasksApiV1MeTasksGetQueryKey;
   const { activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
   const router = useRouter();
@@ -118,7 +101,7 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
 
-  const storageKey = `initiative-${storageKeyPrefix}-filters`;
+  const storageKey = "initiative-my-tasks-filters";
 
   const projectStatusCache = useRef<Map<number, { statuses: TaskStatusRead[]; complete: boolean }>>(
     new Map()
@@ -282,8 +265,8 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   ]);
 
   const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: getMyTasksQueryKey(tasksParams),
-    queryFn: () => listMyTasks(tasksParams),
+    queryKey: getListMyTasksApiV1MeTasksGetQueryKey(tasksParams),
+    queryFn: () => listMyTasksApiV1MeTasksGet(tasksParams),
     placeholderData: keepPreviousData,
     // Nothing is worth asking for until the saved filters and sort are in
     // hand: a request built on the defaults would be thrown away the moment
@@ -301,12 +284,12 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
       };
 
       void localQueryClient.prefetchQuery({
-        queryKey: getMyTasksQueryKey(prefetchParams),
-        queryFn: () => listMyTasks(prefetchParams),
+        queryKey: getListMyTasksApiV1MeTasksGetQueryKey(prefetchParams),
+        queryFn: () => listMyTasksApiV1MeTasksGet(prefetchParams),
         staleTime: 30_000,
       });
     },
-    [tasksParams, localQueryClient, getMyTasksQueryKey, listMyTasks]
+    [tasksParams, localQueryClient]
   );
 
   // --- Status mutation ---
@@ -424,8 +407,8 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   );
 
   // --- Display tasks ---
-  // Archived/template projects are excluded server-side by both global
-  // scopes, so the rows come back ready to render.
+  // Archived/template projects are excluded server-side, so the rows come
+  // back ready to render.
   const displayTasks = tasks;
 
   // --- Derived loading / error states ---

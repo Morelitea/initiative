@@ -4,7 +4,6 @@ import {
   ChartColumn,
   LayoutGrid,
   MessageSquare,
-  PenLine,
   SquareCheckBig,
   Users,
 } from "lucide-react";
@@ -50,7 +49,6 @@ export const HomeSidebarContent = () => {
 
   const navItems = [
     { to: "/", label: t("myTasks"), icon: SquareCheckBig, exact: true },
-    { to: "/created-tasks", label: t("tasksICreated"), icon: PenLine },
     { to: "/my-calendar", label: t("myCalendar"), icon: CalendarDays },
     { to: "/my-tools", label: t("myTools"), icon: LayoutGrid },
     { to: "/contacts", label: t("myContacts"), icon: Users },
