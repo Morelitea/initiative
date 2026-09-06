@@ -81,5 +81,7 @@
   "adminDashboard": "Panel de administración",
   "pastAnnouncements": "Anuncios anteriores",
   "requestsWaiting_one": "{{count}} pendiente",
-  "requestsWaiting_other": "{{count}} pendientes"
+  "requestsWaiting_other": "{{count}} pendientes",
+  "posts": "Publicaciones",
+  "createPost": "Nueva publicación"
 }

@@ -39,21 +39,17 @@ from app.services.permissions import (
     has_project_write_access,
     require_access,
 )
-from app.testing import factories
+from app.testing.factories import TOOL_FACTORIES
 
 # The tools whose rows are gated on initiative membership as well as on grants
 # (``scope_gate``); the rest are guild-level and skip that leg.
 SCOPE_GATED = [t for t, r in DAC_RESOURCES.items() if r.scope_gate]
 ALL_TOOLS = list(DAC_RESOURCES)
 
-_TOOL_FACTORIES = {
-    Tool.project: "create_project",
-    Tool.document: "create_document",
-    Tool.queue: "create_queue",
-    Tool.counter_group: "create_counter_group",
-    Tool.calendar: "create_calendar",
-    Tool.dashboard: "create_dashboard",
-}
+# The canonical per-tool factory registry rather than a copy of it: that one
+# is checked against the Tool enum at import time, so a new tool cannot reach
+# these parametrized cases without a factory behind it.
+_TOOL_FACTORIES = TOOL_FACTORIES
 
 
 # ── Building a real world ────────────────────────────────────────────────────
@@ -130,7 +126,7 @@ async def build_world(session, acting_user, tool: Tool) -> World:
     )
     admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
 
-    factory = getattr(factories, _TOOL_FACTORIES[tool])
+    factory = _TOOL_FACTORIES[tool]
     row = await factory(session, initiative, owner.user)
     return World(session, tool, guild, initiative, row, owner, co_member, admin)
 

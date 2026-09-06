@@ -2,7 +2,7 @@
  * The My Tools page's data: one tool at a time, across every community the
  * reader belongs to.
  *
- * Six `/me/*` lists and one counts call. The lists are the guild-wide ones with
+ * One `/me/*` list per tool, and one counts call. The lists are the guild-wide ones with
  * the guild boundary taken off — same rows, same filters, merged server-side —
  * so the rows they produce go through the same `lib/toolRows` builder the
  * community front page uses.
@@ -16,6 +16,7 @@ import type {
   CounterGroupListResponse,
   DashboardListResponse,
   MyToolCountsResponse,
+  PostListResponse,
   QueueListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -23,10 +24,12 @@ import {
   getGetMyToolCountsApiV1MeToolsCountsGetQueryKey,
   getListMyCounterGroupsApiV1MeCounterGroupsGetQueryKey,
   getListMyDashboardsApiV1MeDashboardsGetQueryKey,
+  getListMyPostsApiV1MePostsGetQueryKey,
   getListMyQueuesApiV1MeQueuesGetQueryKey,
   getMyToolCountsApiV1MeToolsCountsGet,
   listMyCounterGroupsApiV1MeCounterGroupsGet,
   listMyDashboardsApiV1MeDashboardsGet,
+  listMyPostsApiV1MePostsGet,
   listMyQueuesApiV1MeQueuesGet,
 } from "@/api/generated/my-tools/my-tools";
 import { useMyCalendars } from "@/hooks/useCalendars";
@@ -91,6 +94,13 @@ export const useMyDashboards = (
     ...options,
   });
 
+export const useMyPosts = (params?: MyToolListParams, options?: QueryOpts<PostListResponse>) =>
+  useQuery<PostListResponse>({
+    queryKey: getListMyPostsApiV1MePostsGetQueryKey(params),
+    queryFn: () => listMyPostsApiV1MePostsGet(params),
+    ...options,
+  });
+
 /** How the My Tools table is narrowed and ordered. */
 export interface MyToolQuery {
   /** Communities to keep, or none for all of them. */
@@ -132,6 +142,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
   const counterGroups = useMyCounterGroups(params, only(Tool.counter_group));
   const calendars = useMyCalendars(params, only(Tool.calendar));
   const dashboards = useMyDashboards(params, only(Tool.dashboard));
+  const posts = useMyPosts(params, only(Tool.post));
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the cross-guild query that lists it.
@@ -142,6 +153,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
     [Tool.counter_group]: counterGroups,
     [Tool.calendar]: calendars,
     [Tool.dashboard]: dashboards,
+    [Tool.post]: posts,
   }[tool];
 
   const rows = useMemo<ToolRow[]>(() => {
@@ -152,6 +164,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
       [Tool.counter_group]: counterGroups.data,
       [Tool.calendar]: calendars.data,
       [Tool.dashboard]: dashboards.data,
+      [Tool.post]: posts.data,
     };
     // Every row across communities carries its own guild id, so there is no
     // community for a fallback to stand in for.
@@ -165,6 +178,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
     counterGroups.data,
     calendars.data,
     dashboards.data,
+    posts.data,
   ]);
 
   return {

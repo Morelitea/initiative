@@ -1664,6 +1664,7 @@ export interface CommentCreate {
   counter_group_id?: number | null;
   calendar_id?: number | null;
   dashboard_id?: number | null;
+  post_id?: number | null;
   parent_comment_id?: number | null;
 }
 
@@ -1698,6 +1699,7 @@ export interface CommentRead {
   counter_group_id: number | null;
   calendar_id: number | null;
   dashboard_id: number | null;
+  post_id: number | null;
   parent_comment_id: number | null;
   created_at: string;
   updated_at: string | null;
@@ -2598,12 +2600,14 @@ export interface InitiativeMemberRead {
   can_view_counter_groups: boolean;
   can_view_calendars: boolean;
   can_view_dashboards: boolean;
+  can_view_posts: boolean;
   can_create_projects: boolean;
   can_create_documents: boolean;
   can_create_queues: boolean;
   can_create_counter_groups: boolean;
   can_create_calendars: boolean;
   can_create_dashboards: boolean;
+  can_create_posts: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -2618,6 +2622,7 @@ export interface InitiativeRead {
   counter_groups_enabled: boolean;
   calendars_enabled: boolean;
   dashboards_enabled: boolean;
+  posts_enabled: boolean;
   name: string;
   description: string | null;
   color: string | null;
@@ -2797,6 +2802,7 @@ export const EntityType = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
+  post: "post",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -3591,6 +3597,7 @@ export interface InitiativeCreate {
   counter_groups_enabled?: boolean;
   calendars_enabled?: boolean;
   dashboards_enabled?: boolean;
+  posts_enabled?: boolean;
   name: string;
   description?: string | null;
   color?: string | null;
@@ -3743,6 +3750,8 @@ export const PermissionKey = {
   create_calendars: "create_calendars",
   dashboards_enabled: "dashboards_enabled",
   create_dashboards: "create_dashboards",
+  posts_enabled: "posts_enabled",
+  create_posts: "create_posts",
 } as const;
 
 /**
@@ -3811,6 +3820,7 @@ export interface InitiativeUpdate {
   counter_groups_enabled?: boolean | null;
   calendars_enabled?: boolean | null;
   dashboards_enabled?: boolean | null;
+  posts_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
   color?: string | null;
@@ -4223,6 +4233,7 @@ export const Tool = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
+  post: "post",
 } as const;
 
 /**
@@ -4338,6 +4349,73 @@ export interface PlatformGuildStorageUpdate {
  */
 export interface PlatformRoleUpdate {
   role: UserRole;
+}
+
+export type PostCreateBody = { [key: string]: unknown };
+
+export interface PostCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  initiative_id: number;
+  body?: PostCreateBody;
+  tag_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
+}
+
+export type PostReadBody = { [key: string]: unknown };
+
+export interface PostRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  excerpt: string;
+  pinned_at: string | null;
+  pinned_by: number | null;
+  pin_expires_at: string | null;
+  is_pinned: boolean;
+  my_permission_level: string | null;
+  comments_disabled: boolean;
+  comment_count: number;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  reactions: ReactionGroup[];
+  body: PostReadBody;
+}
+
+export interface PostListResponse {
+  items: PostRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+/**
+ * Pin or unpin one post. ``pinned`` false clears the expiry with it —
+ * an expiry belongs to a pin, and keeping a stale one around would silently
+ * apply to the next pin.
+ */
+export interface PostPinUpdate {
+  pinned?: boolean;
+  expires_at?: string | null;
+}
+
+export type PostUpdateBody = { [key: string]: unknown } | null;
+
+export interface PostUpdate {
+  name?: string | null;
+  body?: PostUpdateBody;
 }
 
 /**
@@ -4766,6 +4844,7 @@ export type ReactionTarget = (typeof ReactionTarget)[keyof typeof ReactionTarget
 
 export const ReactionTarget = {
   comment: "comment",
+  post: "post",
 } as const;
 
 /**
@@ -4811,6 +4890,7 @@ export const RecentEntityType = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
+  post: "post",
 } as const;
 
 /**
@@ -4954,6 +5034,7 @@ export const SearchEntityType = {
   counter_group: "counter_group",
   dashboard: "dashboard",
   document: "document",
+  post: "post",
   project: "project",
   queue: "queue",
   queue_item: "queue_item",
@@ -5198,6 +5279,7 @@ export const TagTarget = {
   counter_group: "counter_group",
   calendar: "calendar",
   dashboard: "dashboard",
+  post: "post",
   task: "task",
   queue_item: "queue_item",
   calendar_event: "calendar_event",
@@ -6432,6 +6514,7 @@ export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   counter_group_id?: number | null;
   calendar_id?: number | null;
   dashboard_id?: number | null;
+  post_id?: number | null;
 };
 
 export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
@@ -6937,6 +7020,39 @@ export type ReadDashboardApiV1GGuildIdDashboardsDashboardIdGetParams = {
   include_deleted?: boolean;
 };
 
+export type ListPostsApiV1GGuildIdPostsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * Case-insensitive substring match on name.
+   */
+  search?: string | null;
+  /**
+   * Order by one of: name, initiative, updated_at. Omit for the board order — live pins first, then newest first.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Posts per page. Small by default: a board renders each post's body, so a page is that many editors to mount.
+   * @minimum 1
+   * @maximum 50
+   */
+  page_size?: number;
+};
+
+export type ReadPostApiV1GGuildIdPostsPostIdGetParams = {
+  /**
+   * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
+   */
+  include_deleted?: boolean;
+};
+
 export type ReadAppDataApiV1GGuildIdAppsAppIdEndpointsEndpointIdGetParams = {
   /**
    * The dashboard the widget sits on. Its own gates decide whether this caller may see anything here at all.
@@ -7027,7 +7143,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -7055,7 +7171,7 @@ export type SearchGuildApiV1GGuildIdSearchGetParams = {
 
 export type RecentGuildApiV1GGuildIdSearchRecentGetParams = {
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -7079,7 +7195,7 @@ export type SuggestGuildApiV1GGuildIdSearchSuggestGetParams = {
    */
   q: string;
   /**
-   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
+   * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, post, project, queue, queue_item, tag, task); naming a type reaches it explicitly.
    */
   types?: SearchEntityType[] | null;
   /**
@@ -7291,6 +7407,29 @@ export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
   /**
    * @minimum 0
    * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListMyPostsApiV1MePostsGetParams = {
+  guild_ids?: number[] | null;
+  search?: string | null;
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 0
+   * @maximum 50
    */
   page_size?: number;
 };

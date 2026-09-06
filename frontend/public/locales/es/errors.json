@@ -523,5 +523,15 @@
   "DM_MESSAGE_TOO_LARGE": "Ese mensaje es demasiado largo para enviarlo.",
   "DM_RECIPIENT_QUEUE_FULL": "Esa cuenta tiene demasiados mensajes sin entregar. Inténtalo de nuevo cuando abra la aplicación.",
   "CONTACT_GRANT_NO_REQUEST": "No hay ninguna solicitud de esa cuenta que aceptar.",
-  "CONTACT_GRANT_CANNOT_GRANT_SELF": "No puedes conectarte con tu propia cuenta."
+  "CONTACT_GRANT_CANNOT_GRANT_SELF": "No puedes conectarte con tu propia cuenta.",
+  "POST_NOT_FOUND": "Publicación no encontrada",
+  "POST_CREATE_PERMISSION_REQUIRED": "No tienes permiso para publicar aquí",
+  "POSTS_NOT_ENABLED": "Las publicaciones no están habilitadas en esta iniciativa",
+  "POST_PERMISSION_REQUIRED": "No tienes acceso a esta publicación",
+  "POST_OWNER_REQUIRED": "Solo el propietario de la publicación puede hacer eso",
+  "POST_WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a esta publicación",
+  "POST_GRANT_CANNOT_MANAGE_MEMBERS": "El acceso compartido no puede gestionar quién más ve esta publicación",
+  "POST_PIN_MANAGER_REQUIRED": "Solo los gestores de la iniciativa pueden fijar una publicación",
+  "POST_PIN_EXPIRY_IN_PAST": "Elige una fecha futura para que termine la fijación",
+  "POST_BODY_TOO_LONG": "Esta publicación es demasiado larga; usa un documento"
 }

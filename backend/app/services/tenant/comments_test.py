@@ -19,17 +19,13 @@ from app.services.tenant.comments import (
     _ensure_parent_access,
     _load_parent,
 )
+from app.testing.factories import TOOL_FACTORIES
 from app.testing import (
-    create_calendar,
     create_comment,
-    create_counter_group,
-    create_dashboard,
-    create_document,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_project,
-    create_queue,
     create_task,
     create_user,
 )
@@ -107,14 +103,10 @@ async def test_document_comment_access_honors_grant(session: AsyncSession):
         set_active_grant(None, None)
 
 
-_TOOL_FACTORIES = {
-    Tool.project: create_project,
-    Tool.document: create_document,
-    Tool.queue: create_queue,
-    Tool.counter_group: create_counter_group,
-    Tool.calendar: create_calendar,
-    Tool.dashboard: create_dashboard,
-}
+# The canonical per-tool factory registry rather than a copy of it: that one
+# is checked against the Tool enum at import time, so a new tool cannot reach
+# these parametrized cases without a factory behind it.
+_TOOL_FACTORIES = TOOL_FACTORIES
 
 
 @pytest.mark.database

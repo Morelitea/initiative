@@ -106,6 +106,8 @@
     "resource_calendar_one": "calendario",
     "resource_calendar_other": "calendarios",
     "resource_dashboard_one": "panel",
-    "resource_dashboard_other": "paneles"
+    "resource_dashboard_other": "paneles",
+    "resource_post_one": "publicación",
+    "resource_post_other": "publicaciones"
   }
 }

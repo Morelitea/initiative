@@ -24,8 +24,10 @@ import type {
   HTTPValidationError,
   ListMyCounterGroupsApiV1MeCounterGroupsGetParams,
   ListMyDashboardsApiV1MeDashboardsGetParams,
+  ListMyPostsApiV1MePostsGetParams,
   ListMyQueuesApiV1MeQueuesGetParams,
   MyToolCountsResponse,
+  PostListResponse,
   QueueListResponse,
 } from "../initiativeAPI.schemas";
 
@@ -488,6 +490,143 @@ export function useListMyCounterGroupsApiV1MeCounterGroupsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListMyCounterGroupsApiV1MeCounterGroupsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Posts that reach the caller across every guild they belong to.
+ *
+ * Paged small like the board itself: these carry their bodies, and a body is
+ * an editor the client mounts.
+ * @summary List My Posts
+ */
+export const listMyPostsApiV1MePostsGet = (
+  params?: ListMyPostsApiV1MePostsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostListResponse>(
+    { url: `/api/v1/me/posts`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListMyPostsApiV1MePostsGetQueryKey = (
+  params?: ListMyPostsApiV1MePostsGetParams
+) => {
+  return [`/api/v1/me/posts`, ...(params ? [params] : [])] as const;
+};
+
+export const getListMyPostsApiV1MePostsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyPostsApiV1MePostsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyPostsApiV1MePostsGetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>> = ({
+    signal,
+  }) => listMyPostsApiV1MePostsGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyPostsApiV1MePostsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>
+>;
+export type ListMyPostsApiV1MePostsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyPostsApiV1MePostsGet<
+  TData = Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListMyPostsApiV1MePostsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyPostsApiV1MePostsGet<
+  TData = Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyPostsApiV1MePostsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyPostsApiV1MePostsGet<
+  TData = Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyPostsApiV1MePostsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Posts
+ */
+
+export function useListMyPostsApiV1MePostsGet<
+  TData = Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListMyPostsApiV1MePostsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyPostsApiV1MePostsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyPostsApiV1MePostsGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

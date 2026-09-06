@@ -62,15 +62,21 @@ import { InsertImageDialog } from "@/components/ui/editor/plugins/images-plugin"
 import { InsertLayoutDialog } from "@/components/ui/editor/plugins/layout-plugin";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
 import { InsertTableDialog } from "@/components/ui/editor/plugins/table-plugin";
+import type { EditorVariant } from "@/components/ui/editor/variant";
 
 export function ToolbarOverflowMenu({
   initiativeId = null,
   supportsSmartChips = false,
+  variant = "document",
 }: {
   initiativeId?: number | null;
   /** See `Plugins.supportsEntityMentions` — chips are offered where `#` is. */
   supportsSmartChips?: boolean;
+  /** Which surface this menu is on. See `EditorVariant`: a post drops the
+   *  typesetting controls a notice never needs. */
+  variant?: EditorVariant;
 }) {
+  const rich = variant === "document";
   const { activeEditor, showModal } = useToolbarContext();
   const { t } = useTranslation("documents");
 
@@ -213,65 +219,73 @@ export function ToolbarOverflowMenu({
             <CodeIcon className="mr-2 size-4" />
             {t("editor.inlineCode")}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript")}
-          >
-            <SubscriptIcon className="mr-2 size-4" />
-            {t("editor.subscript")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript")}
-          >
-            <SuperscriptIcon className="mr-2 size-4" />
-            {t("editor.superscript")}
-          </DropdownMenuItem>
+          {rich && (
+            <>
+              <DropdownMenuItem
+                onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "subscript")}
+              >
+                <SubscriptIcon className="mr-2 size-4" />
+                {t("editor.subscript")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "superscript")}
+              >
+                <SuperscriptIcon className="mr-2 size-4" />
+                {t("editor.superscript")}
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuItem onClick={clearFormatting}>
             <RemoveFormattingIcon className="mr-2 size-4" />
             {t("editor.clearFormatting")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
-        <DropdownMenuSeparator />
+        {rich && (
+          <>
+            <DropdownMenuSeparator />
 
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <PaletteIcon className="mr-2 size-4" />
-            {t("editor.textColor")}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              {TEXT_COLORS.map((color) => (
-                <DropdownMenuItem key={color.value} onClick={() => applyTextColor(color.value)}>
-                  <div
-                    className="mr-2 size-4 rounded border"
-                    style={{ backgroundColor: color.value || "transparent" }}
-                  />
-                  {color.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PaletteIcon className="mr-2 size-4" />
+                {t("editor.textColor")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  {TEXT_COLORS.map((color) => (
+                    <DropdownMenuItem key={color.value} onClick={() => applyTextColor(color.value)}>
+                      <div
+                        className="mr-2 size-4 rounded border"
+                        style={{ backgroundColor: color.value || "transparent" }}
+                      />
+                      {color.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
 
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <PaintBucketIcon className="mr-2 size-4" />
-            {t("editor.background")}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuSubContent>
-              {BG_COLORS.map((color) => (
-                <DropdownMenuItem key={color.value} onClick={() => applyBgColor(color.value)}>
-                  <div
-                    className="mr-2 size-4 rounded border"
-                    style={{ backgroundColor: color.value || "transparent" }}
-                  />
-                  {color.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuPortal>
-        </DropdownMenuSub>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PaintBucketIcon className="mr-2 size-4" />
+                {t("editor.background")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  {BG_COLORS.map((color) => (
+                    <DropdownMenuItem key={color.value} onClick={() => applyBgColor(color.value)}>
+                      <div
+                        className="mr-2 size-4 rounded border"
+                        style={{ backgroundColor: color.value || "transparent" }}
+                      />
+                      {color.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          </>
+        )}
 
         <DropdownMenuSeparator />
 
@@ -329,12 +343,16 @@ export function ToolbarOverflowMenu({
 
         <DropdownMenuLabel>{t("editor.insert")}</DropdownMenuLabel>
         <DropdownMenuGroup>
-          <DropdownMenuItem
-            onClick={() => activeEditor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)}
-          >
-            <MinusIcon className="mr-2 size-4" />
-            {t("editor.horizontalRule")}
-          </DropdownMenuItem>
+          {rich && (
+            <DropdownMenuItem
+              onClick={() =>
+                activeEditor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)
+              }
+            >
+              <MinusIcon className="mr-2 size-4" />
+              {t("editor.horizontalRule")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() =>
               showModal(t("editor.insertImage"), (onClose) => (
@@ -371,16 +389,18 @@ export function ToolbarOverflowMenu({
             <TableIcon className="mr-2 size-4" />
             {t("editor.table")}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() =>
-              showModal(t("editor.insertColumnsLayout"), (onClose) => (
-                <InsertLayoutDialog activeEditor={activeEditor} onClose={onClose} />
-              ))
-            }
-          >
-            <Columns3Icon className="mr-2 size-4" />
-            {t("editor.columnsLayout")}
-          </DropdownMenuItem>
+          {rich && (
+            <DropdownMenuItem
+              onClick={() =>
+                showModal(t("editor.insertColumnsLayout"), (onClose) => (
+                  <InsertLayoutDialog activeEditor={activeEditor} onClose={onClose} />
+                ))
+              }
+            >
+              <Columns3Icon className="mr-2 size-4" />
+              {t("editor.columnsLayout")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() => activeEditor.dispatchCommand(INSERT_EMBED_COMMAND, "youtube-video")}
           >

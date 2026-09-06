@@ -12,7 +12,8 @@
     "counterGroups": "Grupos de contadores",
     "calendars": "Calendarios",
     "dashboards": "Paneles",
-    "results": "Resultados"
+    "results": "Resultados",
+    "posts": "Publicaciones"
   },
   "actions": {
     "addTask": "Agregar tarea",

@@ -107,7 +107,8 @@
     "queues": "Queues",
     "calendars": "Calendar",
     "dashboards": "Dashboards",
-    "counterGroups": "Counters"
+    "counterGroups": "Counters",
+    "posts": "Posts"
   },
   "settings": {
     "title": "Initiative settings",
@@ -235,7 +236,8 @@
       "queues": "Queues",
       "calendars": "Events",
       "dashboards": "Dashboards",
-      "counterGroups": "Counters"
+      "counterGroups": "Counters",
+      "posts": "Posts"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -249,7 +251,9 @@
       "viewDashboards": "View Dashboards",
       "createDashboards": "Create Dashboards",
       "viewCounterGroups": "View Counters",
-      "createCounterGroups": "Create Counters"
+      "createCounterGroups": "Create Counters",
+      "viewPosts": "View Posts",
+      "createPosts": "Create Posts"
     },
     "handleColumn": "Handle"
   },
@@ -262,5 +266,7 @@
   "dashboardsFeature": "Dashboards",
   "dashboardsFeatureDescription": "Build a canvas of charts, KPIs, and timelines that displays existing work — a dashboard never edits the data it shows.",
   "counterGroupsFeature": "Counters",
-  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges."
+  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
+  "postsFeature": "Posts",
+  "postsFeatureDescription": "A bulletin board for the initiative — notices everyone can read, comment on and react to, with the important ones pinned to the top."
 }

@@ -523,5 +523,15 @@
   "DM_MESSAGE_TOO_LARGE": "Ce message est trop long pour être envoyé.",
   "DM_RECIPIENT_QUEUE_FULL": "Ce compte a trop de messages non distribués. Réessaie une fois l'application ouverte.",
   "CONTACT_GRANT_NO_REQUEST": "Aucune demande de ce compte à accepter.",
-  "CONTACT_GRANT_CANNOT_GRANT_SELF": "Vous ne pouvez pas vous connecter à votre propre compte."
+  "CONTACT_GRANT_CANNOT_GRANT_SELF": "Vous ne pouvez pas vous connecter à votre propre compte.",
+  "POST_NOT_FOUND": "Publication introuvable",
+  "POST_CREATE_PERMISSION_REQUIRED": "Vous n'avez pas la permission de publier ici",
+  "POSTS_NOT_ENABLED": "Les publications ne sont pas activées pour cette initiative",
+  "POST_PERMISSION_REQUIRED": "Vous n'avez pas accès à cette publication",
+  "POST_OWNER_REQUIRED": "Seul le propriétaire de la publication peut faire cela",
+  "POST_WRITE_ACCESS_REQUIRED": "Vous avez besoin d'un accès en écriture à cette publication",
+  "POST_GRANT_CANNOT_MANAGE_MEMBERS": "Un accès partagé ne peut pas gérer qui d'autre voit cette publication",
+  "POST_PIN_MANAGER_REQUIRED": "Seuls les gestionnaires de l'initiative peuvent épingler une publication",
+  "POST_PIN_EXPIRY_IN_PAST": "Choisissez une date future pour la fin de l'épinglage",
+  "POST_BODY_TOO_LONG": "Cette publication est trop longue — utilisez plutôt un document"
 }

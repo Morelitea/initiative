@@ -28,6 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ReactionMessages
 from app.core.reactions import ReactionTarget
+from app.core.tools import Tool
 from app.models.tenant.comment import Comment
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
@@ -119,9 +120,53 @@ async def _resolve_comment(
     )
 
 
+async def _resolve_post(
+    session: AsyncSession,
+    target_id: int,
+    user: User,
+    guild_id: int,
+    access: str,
+) -> TargetContext:
+    """A post is reachable exactly as the post itself is.
+
+    Reacting is a **read**-level gesture, not a write: a notice everyone on the
+    board can see is a notice everyone can react to, the same way anyone who
+    can read a comment thread can react in it. So the requested ``access`` is
+    not passed through — the resource gate is asked for read either way.
+    """
+    from app.core.messages import PostMessages
+    from app.services import notifications
+    from app.services import permissions as permissions_service
+    from app.services.tenant import posts as posts_service
+
+    post = await posts_service.get_post(session, target_id)
+    if post is None:
+        raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
+    if post.initiative is not None and not post.initiative.posts_enabled:
+        raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
+    try:
+        permissions_service.require_access(
+            permissions_service.DAC_RESOURCES[Tool.post],
+            post,
+            user,
+            access="read",
+        )
+    except Exception as exc:  # the DAC engine raises its own HTTP error type
+        raise ReactionPermissionError(PostMessages.PERMISSION_REQUIRED) from exc
+
+    return TargetContext(
+        target=ReactionTarget.post,
+        target_id=cast(int, post.id),
+        title=post.name,
+        target_path=notifications.tool_target_path(Tool.post.value, post.id),
+        author_id=post.created_by,
+    )
+
+
 #: Every reactable kind -> how to load and authorize it. The single wiring point.
 TARGET_RESOLVERS: dict[ReactionTarget, Resolver] = {
     ReactionTarget.comment: _resolve_comment,
+    ReactionTarget.post: _resolve_post,
 }
 
 

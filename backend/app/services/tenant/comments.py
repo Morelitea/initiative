@@ -18,9 +18,9 @@ import logging
 from dataclasses import dataclass
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Optional, Set, cast
+from typing import Any, Optional, Set, cast
 
-from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,6 +30,7 @@ from app.core.messages import (
     CommentMessages,
     CounterMessages,
     DashboardMessages,
+    PostMessages,
     QueueMessages,
 )
 from app.core.tools import Tool
@@ -37,6 +38,7 @@ from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.post import Post
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
@@ -124,6 +126,12 @@ TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
         CommentMessages.TARGET_NOT_FOUND,
         DashboardMessages.FEATURE_DISABLED,
     ),
+    Tool.post: CommentTarget(
+        Tool.post,
+        Post,
+        CommentMessages.TARGET_NOT_FOUND,
+        PostMessages.FEATURE_DISABLED,
+    ),
 }
 
 _TARGETS_BY_COLUMN: dict[str, CommentTarget] = {
@@ -133,6 +141,41 @@ _TARGETS_BY_COLUMN: dict[str, CommentTarget] = {
 #: Every comment-parent column, task first — the single-parent rule and the
 #: create/list surfaces all read this tuple.
 COMMENT_PARENT_COLUMNS: tuple[str, ...] = ("task_id", *_TARGETS_BY_COLUMN)
+
+
+async def annotate_comment_counts(
+    session: AsyncSession,
+    rows: Sequence[Any],
+    *,
+    column: str,
+) -> None:
+    """Set ``comment_count`` on each row from one grouped query.
+
+    ``column`` is the comment-parent column these rows are the parent of —
+    ``post_id`` for posts, ``queue_id`` for queues, and so on; every member of
+    :data:`COMMENT_PARENT_COLUMNS` works. One statement for the whole page,
+    rather than a count per row, because a board asks this about twenty posts
+    at once.
+
+    Trashed comments are excluded by the soft-delete filter, so a thread that
+    was cleared out reads as empty rather than as history.
+    """
+    if column not in COMMENT_PARENT_COLUMNS:
+        raise KeyError(f"{column} is not a comment parent")
+    ids = [row.id for row in rows if getattr(row, "id", None) is not None]
+    if not ids:
+        return
+    parent = getattr(Comment, column)
+    result = await session.exec(
+        select(parent, func.count(Comment.id))
+        .where(parent.in_(tuple(ids)))
+        .group_by(parent)
+    )
+    counts = dict(result.all())
+    for row in rows:
+        # ``object.__setattr__`` because these are SQLModel rows and the field
+        # is not a column — it rides along for serialization only.
+        object.__setattr__(row, "comment_count", counts.get(row.id, 0))
 
 
 @dataclass
@@ -535,6 +578,7 @@ async def create_comment(
     counter_group_id: Optional[int] = None,
     calendar_id: Optional[int] = None,
     dashboard_id: Optional[int] = None,
+    post_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
 ) -> Comment:
     parent_comment = None
@@ -552,6 +596,7 @@ async def create_comment(
             "counter_group_id": counter_group_id,
             "calendar_id": calendar_id,
             "dashboard_id": dashboard_id,
+            "post_id": post_id,
         }
     )
     ctx = await _resolved_parent(
@@ -784,6 +829,7 @@ async def list_comments(
     counter_group_id: Optional[int] = None,
     calendar_id: Optional[int] = None,
     dashboard_id: Optional[int] = None,
+    post_id: Optional[int] = None,
 ) -> Sequence[Comment]:
     column, entity_id = _single_target(
         {
@@ -794,6 +840,7 @@ async def list_comments(
             "counter_group_id": counter_group_id,
             "calendar_id": calendar_id,
             "dashboard_id": dashboard_id,
+            "post_id": post_id,
         }
     )
     ctx = await _resolved_parent(

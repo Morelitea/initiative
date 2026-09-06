@@ -21,6 +21,7 @@ import {
   invalidateAllDashboards,
   invalidateAllDocuments,
   invalidateAllInitiatives,
+  invalidateAllPosts,
   invalidateAllProjects,
   invalidateAllQueues,
   invalidateAllTags,
@@ -78,6 +79,7 @@ const ENTITY_INVALIDATORS: Record<EntityType, () => unknown> = {
   calendar_event: invalidateAllCalendarEvents,
   counter_group: invalidateAllCounterGroups,
   counter: invalidateAllCounterGroups,
+  post: invalidateAllPosts,
   dashboard: invalidateAllDashboards,
 };
 

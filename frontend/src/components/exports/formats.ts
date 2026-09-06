@@ -63,6 +63,11 @@ export function documentSelectionFormats(types: DocumentReadDocumentType[]): Exp
 // above / DOCUMENT_TYPE_FORMATS). The registry drift test holds this table to
 // NON_EXPORTABLE_TOOLS's bulkExport flags.
 export const TOOL_EXPORT_FORMATS: Partial<Record<Tool, ExportFormatOption[]>> = {
+  [Tool.post]: [
+    // The importable envelope, and only that: a notice has no report shape,
+    // so the backend offers no rendered format for one either.
+    { format: "json", labelKey: "export.formatJson" },
+  ],
   [Tool.project]: [
     // The importable JSON backup, then the task-table report formats.
     { format: "json", labelKey: "export.formatJson" },

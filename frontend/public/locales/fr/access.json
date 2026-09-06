@@ -106,6 +106,8 @@
     "resource_calendar_one": "calendrier",
     "resource_calendar_other": "calendriers",
     "resource_dashboard_one": "tableau de bord",
-    "resource_dashboard_other": "tableaux de bord"
+    "resource_dashboard_other": "tableaux de bord",
+    "resource_post_one": "publication",
+    "resource_post_other": "publications"
   }
 }

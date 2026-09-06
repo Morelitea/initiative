@@ -81,5 +81,7 @@
   "adminDashboard": "Admin dashboard",
   "pastAnnouncements": "Past announcements",
   "requestsWaiting_one": "{{count}} waiting",
-  "requestsWaiting_other": "{{count}} waiting"
+  "requestsWaiting_other": "{{count}} waiting",
+  "posts": "Posts",
+  "createPost": "New Post"
 }

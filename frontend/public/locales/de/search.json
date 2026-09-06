@@ -33,7 +33,8 @@
     "calendar_event": "Termin",
     "dashboard": "Dashboard",
     "tag": "Tag",
-    "comment": "Kommentar"
+    "comment": "Kommentar",
+    "post": "Beitrag"
   },
   "switchHint": "Tab zum Wechseln",
   "closeMatches": "Nichts passt genau zu „{{query}}“. Das hier kommt am nächsten.",

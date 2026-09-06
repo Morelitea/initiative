@@ -13,6 +13,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.config import settings
+from app.core.tools import TOGGLEABLE_TOOLS
 from app.models.platform.guild import GuildRole
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import worker as export_worker
@@ -1896,11 +1897,14 @@ async def test_document_envelope_carries_tags_and_properties(
 
 
 async def _all_tools_enabled(session, initiative):
-    """Queues/counter groups/events are toggleable (off by default) — flip the
-    initiative's master switches so the aggregate enumeration includes them."""
-    initiative.queues_enabled = True
-    initiative.counter_groups_enabled = True
-    initiative.calendars_enabled = True
+    """Every non-core tool is off by default — flip each initiative master
+    switch so the aggregate enumeration includes them.
+
+    Derived from the enum rather than listed, so a new toggleable tool is
+    switched on here the day it exists instead of quietly sitting out the
+    backup tests."""
+    for tool in TOGGLEABLE_TOOLS:
+        setattr(initiative, tool.view_permission, True)
     session.add(initiative)
     await session.commit()
 
@@ -1912,6 +1916,7 @@ async def _populate_initiative(session, a, initiative):
         create_calendar_event,
         create_counter_group,
         create_document,
+        create_post,
         create_project,
         create_queue,
     )
@@ -1924,6 +1929,7 @@ async def _populate_initiative(session, a, initiative):
     await create_counter_group(session, initiative, a.user, name="Party Gold")
     calendar = await create_calendar(session, initiative, a.user, name="Raid Nights")
     await create_calendar_event(session, calendar, a.user, title="Session Zero")
+    await create_post(session, initiative, a.user, name="Session moved")
 
 
 async def _rendered_zip(client, a, monkeypatch, role_session, resp):
@@ -1977,6 +1983,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
         "queue": "included",
         "counter_group": "included",
         "calendar": "included",
+        "post": "included",
     }
 
     # Every manifest entry is in the archive, and vice versa (minus manifest).
@@ -1993,6 +2000,7 @@ async def test_initiative_backup_zip_layout_and_manifest(
         "initiative-queue",
         "initiative-counter-group",
         "initiative-calendar",
+        "initiative-post",
     }
 
     # Spot-check envelopes round-trip through the archive paths.
@@ -2481,13 +2489,14 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         "queue": 1,
         "counter_group": 1,
         "calendar": 1,
+        "post": 1,
     }
     assert not any(t["disabled"] for t in body["tools"].values())
     assert body["uploads_count"] == 1
     assert body["uploads_bytes"] == len(payload)
     assert body["uploads_approximate"] is True
-    # entities (7) + tasks (1) + uploads MiB (0)
-    assert body["estimated_rows"] == 8
+    # entities (8) + tasks (1) + uploads MiB (0)
+    assert body["estimated_rows"] == 9
     assert body["max_rows"] == settings.EXPORT_MAX_BACKUP_ROWS
     assert body["max_upload_bytes"] == settings.EXPORT_MAX_BACKUP_UPLOAD_BYTES
 

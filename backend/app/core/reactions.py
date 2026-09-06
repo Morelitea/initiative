@@ -2,7 +2,7 @@
 
 A reaction is deliberately NOT a comment feature: the row names its target by
 ``(target_type, target_id)``, the same polymorphic shape ``recent_views`` and
-``search_entries`` use, so the next thing worth reacting to (a feed post, say)
+``search_entries`` use, so the next thing worth reacting to
 joins by adding one member here plus the table it resolves through.
 
 This module is dependency-free (no models, no SQLAlchemy) so ``app.db``'s
@@ -19,6 +19,7 @@ class ReactionTarget(str, Enum):
     ``reactions.target_type`` and appears in the API path."""
 
     comment = "comment"
+    post = "post"
 
     @property
     def table(self) -> str:
@@ -30,6 +31,7 @@ class ReactionTarget(str, Enum):
 #: renderer and the service resolve the same table for a given kind.
 _TARGET_TABLES: dict[ReactionTarget, str] = {
     ReactionTarget.comment: "comments",
+    ReactionTarget.post: "posts",
 }
 
 #: Every target kind, in enum order — the CHECK constraint's vocabulary.

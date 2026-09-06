@@ -81,5 +81,7 @@
   "adminDashboard": "Tableau de bord admin",
   "pastAnnouncements": "Annonces passées",
   "requestsWaiting_one": "{{count}} en attente",
-  "requestsWaiting_other": "{{count}} en attente"
+  "requestsWaiting_other": "{{count}} en attente",
+  "posts": "Publications",
+  "createPost": "Nouvelle publication"
 }

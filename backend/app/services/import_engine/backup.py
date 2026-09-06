@@ -56,7 +56,7 @@ from app.services.import_engine.contract import ImportEngineError
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
-_TOOL_ORDER = ("project", "document", "queue", "counter_group", "calendar")
+_TOOL_ORDER = ("project", "document", "queue", "counter_group", "calendar", "post")
 
 # Refresh the routed session's authorization context this often (see the
 # export backup adapter's identical constant).

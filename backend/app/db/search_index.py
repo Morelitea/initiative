@@ -129,6 +129,18 @@ def _with_words(expr: str) -> str:
     return f"{expr} || ' ' || regexp_replace({expr}, '[^[:alnum:]]+', ' ', 'g')"
 
 
+def _post_text(row: str) -> str:
+    """A post's searchable text: every word in its Lexical body.
+
+    The same recursive ``text`` path a native document uses — a text node, a
+    mention, and a smart chip's label all keep their words in a field of that
+    name — read from ``body`` rather than ``content``, which is what a post
+    calls the column. A post whose body is only a picture indexes on its
+    headline alone, which is what there is to index.
+    """
+    return _json_text(row, "strict $.**.text", column="body")
+
+
 def _document_text(row: str) -> str:
     """A document's searchable text, by what kind of document it is.
 
@@ -246,6 +258,9 @@ TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
         "body": ("content", "document_type", "original_filename"),
         "body_sql": _document_text,
     },
+    # A post's text is what it says, not a summary of it: the headline is the
+    # title and the Lexical body is the body. There is no `description`.
+    Tool.post: {"body": ("body",), "body_sql": _post_text},
 }
 
 #: table -> how its rows are indexed.

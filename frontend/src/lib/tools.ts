@@ -37,6 +37,7 @@ import {
   LayoutDashboard,
   ListTodo,
   type LucideIcon,
+  Megaphone,
   ScrollText,
 } from "lucide-react";
 
@@ -58,6 +59,7 @@ export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.counter_group]: Gauge,
   [Tool.calendar]: CalendarDays,
   [Tool.dashboard]: LayoutDashboard,
+  [Tool.post]: Megaphone,
 };
 
 /** Every tool, in canonical enum order. */
@@ -115,6 +117,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
   Tool.calendar,
   Tool.dashboard,
   Tool.document,
+  Tool.post,
   Tool.queue,
   Tool.counter_group,
   Tool.project,

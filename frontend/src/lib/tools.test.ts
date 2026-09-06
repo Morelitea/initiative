@@ -309,6 +309,36 @@ describe("tool surfaces", () => {
   });
 });
 
+describe("tool surfaces are wired, not just typed", () => {
+  // Both of these shipped broken because the shape they fill is keyed by Tool
+  // but every key was optional: the guild home's table asked for posts, got a
+  // response, and mapped it through a record that never mentioned them —
+  // "No results", with nothing for the compiler to object to. The types are
+  // required now; these pin the sources that fill them.
+
+  it("the guild-home row builder handles every tool", async () => {
+    const { buildToolRows } = await import("@/lib/toolRows");
+    const empty = Object.fromEntries(TOOLS.map((tool) => [tool, undefined])) as Parameters<
+      typeof buildToolRows
+    >[1];
+    for (const tool of TOOLS) {
+      // A tool missing its `case` falls out of the switch and returns
+      // undefined, which is what an empty table looked like.
+      expect(
+        buildToolRows(tool, empty, ((key: string) => key) as never, 1),
+        `buildToolRows has no case for ${tool}`
+      ).toEqual([]);
+    }
+  });
+
+  it("the sidebar asks for a count per tool", async () => {
+    const source = await import("@/components/AppSidebar?raw").then((m) => m.default as string);
+    for (const tool of TOOLS) {
+      expect(source, `AppSidebar never fills counts[${tool}]`).toContain(`[Tool.${tool}]:`);
+    }
+  });
+});
+
 describe("tool exports", () => {
   it("every bulk-export tool has a format source, and only those", async () => {
     const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(

@@ -22,6 +22,7 @@ import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDashboardsList } from "@/hooks/useDashboards";
 import { useDocumentsList } from "@/hooks/useDocuments";
+import { usePostsList } from "@/hooks/usePosts";
 import { useProjects } from "@/hooks/useProjects";
 import { useQueuesList } from "@/hooks/useQueues";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
@@ -148,6 +149,23 @@ export const TOOL_PALETTE: Record<Tool, ToolPaletteSource> = {
         keywords: [dashboard.description ?? ""],
         icon: null,
         path: toolDetailRoute(Tool.dashboard, dashboard.initiative_id, dashboard.id),
+      }));
+    },
+  },
+  [Tool.post]: {
+    useHeading: () => useGroupHeading(Tool.post),
+    useItems: ({ enabled }) => {
+      // A page rather than the usual 100: posts carry their bodies, so a
+      // hundred of them is a hundred editor states pulled in to fill a
+      // dropdown. The palette matches on headline and excerpt, both of which
+      // the first page already has.
+      const query = usePostsList({ page_size: 25 }, { enabled, staleTime: 60_000 });
+      return (query.data?.items ?? []).map((post) => ({
+        id: post.id,
+        label: post.name,
+        keywords: [post.excerpt],
+        icon: null,
+        path: toolDetailRoute(Tool.post, post.initiative_id, post.id),
       }));
     },
   },

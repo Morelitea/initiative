@@ -107,7 +107,8 @@
     "queues": "Abläufe (Queues)",
     "calendars": "Kalender",
     "dashboards": "Dashboards",
-    "counterGroups": "Zähler"
+    "counterGroups": "Zähler",
+    "posts": "Beiträge"
   },
   "settings": {
     "title": "Initiative-Einstellungen",
@@ -235,7 +236,8 @@
       "queues": "Abläufe (Queues)",
       "calendars": "Termine",
       "dashboards": "Dashboards",
-      "counterGroups": "Zähler"
+      "counterGroups": "Zähler",
+      "posts": "Beiträge"
     },
     "permissions": {
       "viewDocuments": "Dokumente anzeigen",
@@ -249,7 +251,9 @@
       "viewDashboards": "Dashboards anzeigen",
       "createDashboards": "Dashboards erstellen",
       "viewCounterGroups": "Zähler anzeigen",
-      "createCounterGroups": "Zähler erstellen"
+      "createCounterGroups": "Zähler erstellen",
+      "viewPosts": "Beiträge anzeigen",
+      "createPosts": "Beiträge erstellen"
     },
     "handleColumn": "Handle"
   },
@@ -262,5 +266,7 @@
   "dashboardsFeature": "Dashboards",
   "dashboardsFeatureDescription": "Baue eine Arbeitsfläche aus Diagrammen, Kennzahlen und Zeitleisten, die bestehende Arbeit anzeigt – ein Dashboard bearbeitet die dargestellten Daten nie.",
   "counterGroupsFeature": "Zähler",
-  "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)"
+  "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
+  "postsFeature": "Beiträge",
+  "postsFeatureDescription": "Ein schwarzes Brett für die Initiative – Mitteilungen, die alle lesen, kommentieren und mit Reaktionen versehen können, wobei die wichtigsten oben angeheftet werden."
 }

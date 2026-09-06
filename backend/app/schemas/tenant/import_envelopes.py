@@ -1,7 +1,7 @@
 """Import-side pydantic mirrors of the export envelopes.
 
 Each model parses the dict shape its export adapter emits (see
-``services/export/adapters/{document,queue,counter_group,calendar}.py``)
+``services/export/adapters/{document,queue,counter_group,calendar,post}.py``)
 with ``extra="ignore"``: informational export fields (queue member/document/
 task display text, event ids and timestamps, linked document titles) parse
 and drop — they reference guild-local state an import cannot rebind.
@@ -115,6 +115,40 @@ class CounterGroupEnvelope(_EnvelopeBase):
     name: str
     description: Optional[str] = None
     counters: list[CounterEnvelopeItem] = []
+
+
+class PostEnvelope(_EnvelopeBase):
+    """One bulletin-board notice: its headline, its Lexical body, its tags.
+
+    The pin is deliberately not carried. A pin says "this matters on this
+    board right now", which is a fact about the board it was pinned to, not
+    about the notice — an import that restored it would put a stranger's
+    notice at the top of somebody else's board.
+
+    The body's ceiling is enforced here rather than left to the column: an
+    import is a write like any other, and one that skipped the limit would
+    store a post the endpoints would refuse to accept or to save again. The
+    headline is not — it is display text, so the importer trims it and says
+    so rather than failing a whole restore over a long title.
+    """
+
+    type: Literal["initiative-post"]
+    name: str
+    body: dict[str, Any] = {}
+    tags: list[str] = []
+
+    @model_validator(mode="after")
+    def _body_within_limits(self) -> "PostEnvelope":
+        # The same rule the endpoints apply, not a second copy of it: an
+        # envelope that checked only the character count let a large, low-text
+        # Lexical structure through, which a normal write would then refuse.
+        # Imported here because the schema module is dependency-light on
+        # purpose, and this is the one place it needs the post rules.
+        from app.schemas.tenant.post import post_body_too_long
+
+        if post_body_too_long(self.body):
+            raise ValueError("post body exceeds the limits a post is held to")
+        return self
 
 
 class EventEnvelopeAttendee(SanitizedBaseModel):

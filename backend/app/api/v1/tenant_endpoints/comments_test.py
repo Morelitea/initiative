@@ -8,25 +8,15 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
-    create_calendar,
-    create_counter_group,
-    create_dashboard,
-    create_document,
-    create_project,
-    create_queue,
     create_task,
 )
 from app.testing.schema_harness import route_session_to_guild
 
-# One factory per tool, uniform (session, initiative, creator) shape.
-TOOL_FACTORIES = {
-    Tool.project: create_project,
-    Tool.document: create_document,
-    Tool.queue: create_queue,
-    Tool.counter_group: create_counter_group,
-    Tool.calendar: create_calendar,
-    Tool.dashboard: create_dashboard,
-}
+# One factory per tool, uniform (session, initiative, creator) shape. The
+# canonical registry rather than a copy of it: that one is checked against the
+# Tool enum at import time, so a new tool cannot reach these parametrized cases
+# without a factory behind it.
+from app.testing.factories import TOOL_FACTORIES  # noqa: E402
 
 
 async def _tool_entity(session, tool: Tool, initiative, creator):
