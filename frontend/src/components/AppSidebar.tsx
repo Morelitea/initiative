@@ -641,10 +641,8 @@ export const AppSidebar = () => {
 
         <SidebarUserFooter
           user={user}
-          isGuildAdmin={isGuildAdmin}
           canManagePlatformConfig={showPlatformSettings}
           canAccessAdminDashboard={showAdminDashboard}
-          activeGuildId={activeGuildId}
           currentVersion={currentVersion}
           latestVersion={latestVersion ?? null}
           hasUpdate={Boolean(hasUpdate)}

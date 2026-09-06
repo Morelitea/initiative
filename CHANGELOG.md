@@ -69,6 +69,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The account row at the foot of the sidebar is one line.** The status used to sit under your name in a bubble of its own with a presence dot beside it, and the pair cost the sidebar a whole extra row. The picture carries the dot now, the way it does everywhere else you appear, and the status reads as a line under your name. The menu that row opens leads with the banner and picture you wear and the handle you go by, with the thought bubble over the banner — still what you click to change it. Under that, *Set status* and how you appear, named by the state you are in. The theme moved in as well, and *Admin Dashboard* and *Platform Settings* now sit in a section of their own. *My Stats* and *Community Settings* left the menu, both already reachable from the sidebar itself.
+
+- **User Settings is My Settings.** It sits among *My Profile* and *My Tasks*, and it was the only one of them naming you in the third person. Renamed in the account menu, in the command centre and on the page itself.
+
 - **My Projects and My Documents are one page: My Tools.** Two pages that were the same table for one tool each are now one. Pick a tool at the top and see everything of that kind that reaches you, across every community you're in, rather than one community at a time. A tool you have nothing of anywhere gets no tab, so the page never opens onto an empty table. A toggle switches the whole view between everything that reaches you and only what you made, and the tool, the search, the order, the page and the communities you're filtering to all ride in the address — so any view of it is a link you can send.
 
 - **The age question is the whole of My Contacts until it is answered.** An account that has not answered can reach nobody and nobody can reach it, so a table and a search field over it were furniture for a list that could only ever be empty. Answering now refreshes what it opened rather than needing a reload.
