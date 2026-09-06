@@ -140,5 +140,10 @@
   "pagination": {
     "perPage": "Por página:",
     "rangeOf": "{{start}}–{{end}} de {{total}}"
+  },
+  "timeline": {
+    "label": "Ir a un mes",
+    "jumpedTo": "Desde {{period}}",
+    "backToLatest": "Volver a lo más reciente"
   }
 }

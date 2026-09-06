@@ -49,7 +49,7 @@ from app.core.messages import InitiativeMessages, PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.post import Post
+from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
@@ -75,6 +75,7 @@ from app.schemas.tenant.post_poll import (
     serialize_poll,
 )
 from app.schemas.tenant.recent_view import RecentViewWrite
+from app.schemas.tenant.timeline import TimelineResponse
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
@@ -85,6 +86,7 @@ from app.services.tenant import posts as posts_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant import timeline as timeline_service
 from app.services.tenant import tool_listing
 
 #: How many notices a board hands over at once. A post carries its body and
@@ -262,66 +264,32 @@ async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -
     return post
 
 
-# ---------------------------------------------------------------------------
-# CRUD
-# ---------------------------------------------------------------------------
-
-
-@router.get("/", response_model=PostListResponse)
-async def list_posts(
+async def _board_scope(
     session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(
-        default=None,
-        description=(
-            "Full-text match over the notice — its headline and its body. Reads "
-            "the same index the search page does, so the board's filter and a "
-            "search agree about what matches."
-        ),
-    ),
-    sort_by: Optional[str] = Query(
-        default=None,
-        description=(
-            "Order by one of: name, initiative, updated_at. Omit for the board "
-            "order — live pins first, then newest first."
-        ),
-    ),
-    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
-    unread: bool = Query(
-        default=False,
-        description="Only notices this reader has not read yet.",
-    ),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(
-        default=BOARD_PAGE_SIZE,
-        ge=1,
-        le=MAX_BOARD_PAGE_SIZE,
-        description=(
-            "Posts per page. Small by default: a board renders each post's "
-            "body, so a page is that many editors to mount."
-        ),
-    ),
-) -> PostListResponse:
-    """List posts visible to the current user (guild admins see all).
+    current_user: User,
+    guild_context: GuildContext,
+    *,
+    initiative_id: Optional[int],
+    search: Optional[str] = None,
+    unread: bool = False,
+) -> list | None:
+    """Which notices this reader may see on a board — the whole rule, once.
 
-    Returns whole posts — a board shows notices, not headlines — which is why
-    it pages in fives. A scheduled notice is here only for the people who
-    could edit it; for everyone else the board starts when it goes up.
+    The feed and the timeline rail beside it are two views of one set, and a
+    rail that counted a different set would offer months with nothing in them
+    (or, worse, hide months that do). So the four gates are built here and both
+    routes take them: the guild, the feature switch, sharing, and publication.
+
+    ``None`` means the initiative exists but has its board turned off — the
+    caller answers with its own empty shape rather than being handed conditions
+    that would match nothing.
     """
     conditions = [Post.guild_id == guild_context.guild_id]
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.posts_enabled:
-            return PostListResponse(
-                items=[],
-                total_count=0,
-                page=page,
-                page_size=page_size,
-                has_next=False,
-            )
+            return None
         conditions.append(Post.initiative_id == initiative_id)
     else:
         conditions.append(
@@ -354,6 +322,89 @@ async def list_posts(
     if unread:
         conditions.append(posts_service.unread_clause(current_user.id))
 
+    return conditions
+
+
+# ---------------------------------------------------------------------------
+# CRUD
+# ---------------------------------------------------------------------------
+
+
+@router.get("/", response_model=PostListResponse)
+async def list_posts(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    search: Optional[str] = Query(
+        default=None,
+        description=(
+            "Full-text match over the notice — its headline and its body. Reads "
+            "the same index the search page does, so the board's filter and a "
+            "search agree about what matches."
+        ),
+    ),
+    sort_by: Optional[str] = Query(
+        default=None,
+        description=(
+            "Order by one of: name, initiative, updated_at. Omit for the board "
+            "order — live pins first, then newest first."
+        ),
+    ),
+    sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    unread: bool = Query(
+        default=False,
+        description="Only notices this reader has not read yet.",
+    ),
+    until: Optional[datetime] = Query(
+        default=None,
+        description=(
+            "Start the board at this instant and go back — inclusive, and "
+            "measured by the same date the feed is ordered by. This is how a "
+            "timeline jumps to a month without paging through everything "
+            "since. An anchored board is strictly chronological: the pinned "
+            "band steps aside, because a pin says what matters now rather "
+            "than what mattered then."
+        ),
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=BOARD_PAGE_SIZE,
+        ge=1,
+        le=MAX_BOARD_PAGE_SIZE,
+        description=(
+            "Posts per page. Small by default: a board renders each post's "
+            "body, so a page is that many editors to mount."
+        ),
+    ),
+) -> PostListResponse:
+    """List posts visible to the current user (guild admins see all).
+
+    Returns whole posts — a board shows notices, not headlines — which is why
+    it pages in fives. A scheduled notice is here only for the people who
+    could edit it; for everyone else the board starts when it goes up.
+    """
+    scope = await _board_scope(
+        session,
+        current_user,
+        guild_context,
+        initiative_id=initiative_id,
+        search=search,
+        unread=unread,
+    )
+    if scope is None:
+        return PostListResponse(
+            items=[],
+            total_count=0,
+            page=page,
+            page_size=page_size,
+            has_next=False,
+        )
+    conditions = list(scope)
+
+    if until is not None:
+        conditions.append(posts_service.anchored_clause(until))
+
     count_subq = select(Post.id).where(*conditions).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))
@@ -366,7 +417,7 @@ async def list_posts(
             Post,
             sort_by,
             sort_dir,
-            default=posts_service.board_order(),
+            default=posts_service.board_order(anchored=until is not None),
         )
         .offset((page - 1) * page_size)
         .limit(page_size)
@@ -395,6 +446,51 @@ async def list_posts(
 
 
 # Declared before /{post_id} so the literal path wins the match.
+@router.get("/timeline", response_model=TimelineResponse)
+async def get_post_timeline(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+    unread: bool = Query(default=False),
+    tz: Optional[str] = Query(
+        default=None,
+        description=(
+            "IANA zone the month boundaries are cut in, e.g. Pacific/Auckland. "
+            "A month is a boundary in somebody's day, so a reader gets their "
+            "own. Defaults to UTC."
+        ),
+    ),
+) -> TimelineResponse:
+    """The months this board has notices in, newest first.
+
+    What the timeline rail is drawn from: one row per month, how many notices
+    fall in it, and the instant to jump to. It takes the SAME filters the feed
+    does, because the rail is a picture of the feed as it currently stands —
+    with the unread filter on, a month that is fully read has nothing to offer
+    and should not be a stop on the rail.
+
+    Scoped through :func:`_board_scope`, the same gates the list applies, so
+    the rail can never show a month whose notices the reader cannot open.
+    """
+    scope = await _board_scope(
+        session,
+        current_user,
+        guild_context,
+        initiative_id=initiative_id,
+        search=search,
+        unread=unread,
+    )
+    if scope is None:
+        return TimelineResponse()
+    return TimelineResponse(
+        buckets=await timeline_service.month_buckets(
+            session, date_expr=board_time(), conditions=scope, tz=tz
+        )
+    )
+
+
 @router.get("/counts/by-initiative", response_model=InitiativeGroupedCountsResponse)
 async def get_post_counts_by_initiative(
     session: RLSSessionDep,

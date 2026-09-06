@@ -5812,6 +5812,19 @@ export interface TickTickParseResult {
 }
 
 /**
+ * One period on the rail.
+ */
+export interface TimelineBucket {
+  period: string;
+  count: number;
+  anchor: string;
+}
+
+export interface TimelineResponse {
+  buckets: TimelineBucket[];
+}
+
+/**
  * Mapping of Todoist section names to task_status_id
  */
 export type TodoistImportRequestSectionMapping = { [key: string]: number };
@@ -7201,6 +7214,10 @@ export type ListPostsApiV1GGuildIdPostsGetParams = {
    */
   unread?: boolean;
   /**
+   * Start the board at this instant and go back — inclusive, and measured by the same date the feed is ordered by. This is how a timeline jumps to a month without paging through everything since. An anchored board is strictly chronological: the pinned band steps aside, because a pin says what matters now rather than what mattered then.
+   */
+  until?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -7210,6 +7227,16 @@ export type ListPostsApiV1GGuildIdPostsGetParams = {
    * @maximum 50
    */
   page_size?: number;
+};
+
+export type GetPostTimelineApiV1GGuildIdPostsTimelineGetParams = {
+  initiative_id?: number | null;
+  search?: string | null;
+  unread?: boolean;
+  /**
+   * IANA zone the month boundaries are cut in, e.g. Pacific/Auckland. A month is a boundary in somebody's day, so a reader gets their own. Defaults to UTC.
+   */
+  tz?: string | null;
 };
 
 export type ReadPostApiV1GGuildIdPostsPostIdGetParams = {

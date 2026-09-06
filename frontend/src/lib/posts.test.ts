@@ -18,6 +18,8 @@ import {
   MAX_POLL_OPTIONS,
   MAX_POST_TEXT_CHARS,
   MIN_POLL_OPTIONS,
+  postBoardTime,
+  postPeriod,
 } from "@/lib/posts";
 
 const SCHEMA = path.resolve(__dirname, "../../../backend/app/schemas/tenant/post.py");
@@ -60,5 +62,64 @@ describe("hasBody", () => {
 
   it("accepts a real editor state", () => {
     expect(hasBody({ root: { children: [] } })).toBe(true);
+  });
+});
+
+describe("postBoardTime", () => {
+  const created = "2026-01-01T00:00:00.000Z";
+  const scheduled = "2026-02-01T00:00:00.000Z";
+  const published = "2026-03-01T00:00:00.000Z";
+
+  it("dates a live notice by when it went up", () => {
+    expect(
+      postBoardTime({ published_at: published, scheduled_for: scheduled, created_at: created })
+    ).toBe(published);
+  });
+
+  it("dates a draft by when it is due, so it previews where it will land", () => {
+    expect(
+      postBoardTime({ published_at: null, scheduled_for: scheduled, created_at: created })
+    ).toBe(scheduled);
+  });
+
+  it("falls back to when it was written", () => {
+    expect(postBoardTime({ published_at: null, scheduled_for: null, created_at: created })).toBe(
+      created
+    );
+  });
+
+  // The timeline groups by this and the server orders by its own board_time().
+  // If the two disagree about which instant dates a notice, the rail offers
+  // months the feed then puts somewhere else.
+  it("uses the same precedence the server's board_time() does", () => {
+    const model = fs.readFileSync(
+      path.resolve(__dirname, "../../../backend/app/models/tenant/post.py"),
+      "utf-8"
+    );
+    const coalesce = /func\.coalesce\(\s*([^)]+)\)/.exec(model)?.[1] ?? "";
+    const columns = coalesce
+      .split(",")
+      .map((part) => part.trim().replace(/^Post\./, ""))
+      .filter(Boolean);
+
+    expect(columns).toEqual(["published_at", "scheduled_for", "created_at"]);
+  });
+});
+
+describe("postPeriod", () => {
+  it("groups a notice by the month it falls in", () => {
+    // Built from local parts so the expectation holds in any zone the suite
+    // runs in — the same reason the helper reads local getters.
+    const local = new Date(2026, 2, 15, 9, 0);
+    expect(postPeriod({ published_at: local.toISOString(), created_at: local.toISOString() })).toBe(
+      "2026-03"
+    );
+  });
+
+  it("pads a single-digit month, so periods sort as strings", () => {
+    const local = new Date(2026, 0, 5, 9, 0);
+    expect(postPeriod({ published_at: local.toISOString(), created_at: local.toISOString() })).toBe(
+      "2026-01"
+    );
   });
 });

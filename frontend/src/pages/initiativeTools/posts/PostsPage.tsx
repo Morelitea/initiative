@@ -10,6 +10,7 @@ import { PostCard } from "@/components/initiativeTools/posts/PostCard";
 import { PostsFilterBar, type ReadFilter } from "@/components/initiativeTools/posts/PostsFilterBar";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { TimelineRail } from "@/components/timeline/TimelineRail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
@@ -17,8 +18,10 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { PostReadTrackerProvider } from "@/hooks/usePostReadTracker";
-import { usePostsFeed } from "@/hooks/usePosts";
+import { usePostsFeed, usePostsTimeline } from "@/hooks/usePosts";
+import { formatPeriod, formatPeriodYear } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
+import { postPeriod } from "@/lib/posts";
 import { toolDetailRoute } from "@/lib/tools";
 
 /**
@@ -83,10 +86,25 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useDebouncedValue(searchQuery, 300);
 
-  const postsQuery = usePostsFeed({
+  // Where the board has been jumped to, if anywhere. Setting it re-anchors the
+  // feed: a new query key, so the reader lands at the top of that month rather
+  // than paging through everything since.
+  const [anchor, setAnchor] = useState<{ period: string; at: string } | null>(null);
+
+  const filters = {
     initiative_id: fixedInitiativeId,
     ...(search.trim() ? { search: search.trim() } : {}),
     ...(readFilter === "unread" ? { unread: true } : {}),
+  };
+
+  const postsQuery = usePostsFeed({ ...filters, ...(anchor ? { until: anchor.at } : {}) });
+
+  // The rail is drawn from the same filters WITHOUT the anchor: it is the map,
+  // and a map that only showed where you already are would be no use for
+  // going anywhere else.
+  const timelineQuery = usePostsTimeline({
+    ...filters,
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.post, {
@@ -121,6 +139,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setReadFilter("all");
+    setAnchor(null);
   }, []);
 
   // The page itself scrolls, not a box inside it, so the virtualizer measures
@@ -147,8 +166,10 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
     setListOffset(
       list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
     );
-    // The filter panel opens and closes above the list, which moves it.
-  }, [getScrollElement, filtersOpen]);
+    // The filter panel opens and closes above the list, and the "showing from"
+    // line appears with a jump — both move it, and an offset measured before
+    // either would leave the virtualizer's model shifted by their height.
+  }, [getScrollElement, filtersOpen, anchor]);
 
   const virtualizer = useVirtualizer({
     count: posts.length,
@@ -180,6 +201,35 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
     observer.observe(element);
     return () => observer.disconnect();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  // The month at the top of the view, so the rail can mark where the reader
+  // actually is rather than only where they last jumped.
+  const activePeriod = useMemo(() => {
+    const first = virtualItems[0];
+    const post = first ? posts[first.index] : posts[0];
+    return post ? postPeriod(post) : null;
+  }, [virtualItems, posts]);
+
+  /**
+   * Jump to a month — glide if it is already loaded, re-anchor if it is not.
+   *
+   * The two paths land the same way, which is the point: the month's first
+   * notice at the top of the view. Gliding is only possible for what is
+   * already in the cache, and paging forward to reach a month a year back
+   * would be dozens of requests and every notice in between mounting an
+   * editor — so anything not loaded re-queries from that instant instead.
+   */
+  const jumpTo = useCallback(
+    (stop: { period: string; anchor: string }) => {
+      const loaded = posts.findIndex((post) => postPeriod(post) === stop.period);
+      if (loaded >= 0) {
+        virtualizer.scrollToIndex(loaded, { align: "start" });
+        return;
+      }
+      setAnchor({ period: stop.period, at: stop.anchor });
+    },
+    [posts, virtualizer]
+  );
 
   const renderCard = useCallback(
     (index: number) => <PostCard key={posts[index].id} post={posts[index]} canPin={canPin} />,
@@ -235,19 +285,47 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
             {/* No flex `gap` here: the spacing lives inside each measured
                 element (see CARD_GAP), so what the virtualizer measures is
                 what the list actually occupies. */}
-            <div ref={listRef} className="mx-auto flex w-full max-w-3xl flex-col">
-              <div style={{ height: paddingTop }} />
-              {virtualItems.map((item) => (
-                <div
-                  key={posts[item.index].id}
-                  data-index={item.index}
-                  ref={virtualizer.measureElement}
-                  className={CARD_GAP}
+            {anchor && (
+              <div className="mx-auto flex w-full max-w-3xl items-center gap-2 text-muted-foreground text-sm">
+                <span>
+                  {t("common:timeline.jumpedTo", { period: formatPeriod(anchor.period) })}
+                </span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-sm"
+                  onClick={() => setAnchor(null)}
                 >
-                  {renderCard(item.index)}
-                </div>
-              ))}
-              <div style={{ height: paddingBottom }} />
+                  {t("common:timeline.backToLatest")}
+                </Button>
+              </div>
+            )}
+            {/* The rail rides alongside the feed and stays put while it
+                scrolls, so a jump is always one reach away rather than
+                something to scroll back to. */}
+            <div className="mx-auto flex w-full max-w-3xl gap-2">
+              <div ref={listRef} className="flex min-w-0 flex-1 flex-col">
+                <div style={{ height: paddingTop }} />
+                {virtualItems.map((item) => (
+                  <div
+                    key={posts[item.index].id}
+                    data-index={item.index}
+                    ref={virtualizer.measureElement}
+                    className={CARD_GAP}
+                  >
+                    {renderCard(item.index)}
+                  </div>
+                ))}
+                <div style={{ height: paddingBottom }} />
+              </div>
+              <TimelineRail
+                className="sticky top-16 h-[60vh] self-start"
+                stops={timelineQuery.data?.buckets ?? []}
+                activePeriod={anchor?.period ?? activePeriod}
+                onPick={jumpTo}
+                formatLabel={(stop) => formatPeriod(stop.period)}
+                formatGroup={(stop) => formatPeriodYear(stop.period)}
+              />
             </div>
             <div ref={sentinelRef} className="h-px" aria-hidden />
             {isFetchingNextPage && (

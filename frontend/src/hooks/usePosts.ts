@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import type {
+  GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
   InitiativeGroupedCountsResponse,
   ListPostsApiV1GGuildIdPostsGetParams,
   PollRead,
@@ -16,16 +17,19 @@ import type {
   PostReadReceipt,
   PostUpdate,
   ResourceGrantSchema,
+  TimelineResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createPostApiV1GGuildIdPostsPost,
   deletePostApiV1GGuildIdPostsPostIdDelete,
   deletePostPollApiV1GGuildIdPostsPostIdPollDelete,
   getGetPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiativeGetQueryKey,
+  getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryKey,
   getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryKey,
   getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey,
   getListPostsApiV1GGuildIdPostsGetQueryKey,
   getPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiativeGet,
+  getPostTimelineApiV1GGuildIdPostsTimelineGet,
   getReadPostApiV1GGuildIdPostsPostIdGetQueryKey,
   listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet,
   listPostReadersApiV1GGuildIdPostsPostIdReadsGet,
@@ -112,6 +116,26 @@ export const usePostReaders = (postId: number, options?: QueryOpts<PostReaders>)
   return useQuery<PostReaders>({
     queryKey: getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey(guildId, postId),
     queryFn: () => listPostReadersApiV1GGuildIdPostsPostIdReadsGet(guildId, postId),
+    ...options,
+  });
+};
+
+/**
+ * The months this board has notices in — what the timeline rail is drawn from.
+ *
+ * Takes the same filters the feed does, because the rail is a picture of the
+ * feed as it currently stands: with the unread filter on, a month that is
+ * fully read is not a stop worth offering. The reader's own zone goes with it,
+ * since a month is a boundary in somebody's day.
+ */
+export const usePostsTimeline = (
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: QueryOpts<TimelineResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<TimelineResponse>({
+    queryKey: getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryKey(guildId, params),
+    queryFn: () => getPostTimelineApiV1GGuildIdPostsTimelineGet(guildId, params),
     ...options,
   });
 };
