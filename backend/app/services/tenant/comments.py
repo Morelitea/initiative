@@ -6,8 +6,8 @@ the enum — plus the task, the one content-level extra (it anchors to its
 project for access). Reading a thread takes read access on the parent, posting
 takes write access, exactly as it always has for tasks and documents.
 
-Every tool entity also carries its own switch, ``comments_disabled``: while it
-is set, that entity's thread is neither readable nor postable and the UI shows
+Every tool entity also carries its own switch, ``comments_enabled``: while it
+is off, that entity's thread is neither readable nor postable and the UI shows
 none of it. Tasks have no switch — a task's thread belongs to the task, not to
 the project's tool surface.
 """
@@ -348,7 +348,7 @@ async def _ensure_parent_access(
             and not getattr(initiative, target.tool.view_permission)
         ):
             raise CommentPermissionError(target.feature_disabled)
-        if getattr(ctx.resource, "comments_disabled", False):
+        if not getattr(ctx.resource, "comments_enabled", True):
             raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
         anchor_tool, anchor_model, anchor_row = target.tool, target.model, ctx.resource
 

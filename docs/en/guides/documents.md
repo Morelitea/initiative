@@ -125,7 +125,7 @@ Every comment gets a row of **reactions** and a button to add one — a way to a
 Anyone who can reply can react. The author gets told — as a periodic summary, not one ping per thumbs-up, because that would be unbearable — and only if they've left that switch on under [Notifications](notifications.md).
 
 !!! tip "Turning comments off"
-    Every tool — documents, projects, queues, counters, calendars, dashboards — has a **Disable comments** switch under **Settings → Advanced**. It takes the thread off that item's page; nothing is deleted, and it all comes back if you switch it on again.
+    Every tool — documents, projects, posts, queues, counters, calendars, dashboards — has a **Comments** switch under **Settings → Details**, on to begin with. Switch it off and the thread comes off that item's page; nothing is deleted, and it all comes back if you switch it on again.
 
     Tasks are unaffected. A task keeps its own comments whatever its project says.
 

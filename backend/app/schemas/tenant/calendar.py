@@ -62,10 +62,10 @@ class CalendarSummary(CalendarBase):
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
-    # Advanced setting: when true this entity's comment thread is off — the
-    # UI renders none and the API refuses to read or post one. Tasks are
-    # unaffected; their thread belongs to the task, not to the tool.
-    comments_disabled: bool = False
+    # When false this entity's comment thread is off — the UI renders none
+    # and the API refuses to read or post one. Tasks are unaffected; their
+    # thread belongs to the task, not to the tool.
+    comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
     # The full sharing state — every resource_grants row for this calendar.
     # Exposed on the summary so the calendar list panel can manage sharing
@@ -108,7 +108,7 @@ def serialize_calendar_summary(
             if user_id is not None
             else None
         ),
-        comments_disabled=calendar.comments_disabled,
+        comments_enabled=calendar.comments_enabled,
         tags=tag_summaries(getattr(calendar, "tag_links", None)),
         grants=serialize_grants(calendar),
     )

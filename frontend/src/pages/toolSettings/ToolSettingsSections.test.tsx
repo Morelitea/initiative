@@ -46,7 +46,7 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   my_permission_level: "owner",
   tags: [],
   grants: [],
-  comments_disabled: false,
+  comments_enabled: true,
   ...overrides,
 });
 
@@ -103,22 +103,23 @@ describe("ToolSettingsDetailsPage tags", () => {
   });
 });
 
-describe("ToolSettingsAdvancedPage comments switch", () => {
+describe("ToolSettingsDetailsPage comments switch", () => {
   it("turns comments off and keeps the new state", async () => {
     resetFactories();
     server.use(
       guildHttp.put("/tools/:tool/:toolId/comments", () =>
-        HttpResponse.json({ comments_disabled: true })
+        HttpResponse.json({ comments_enabled: false })
       )
     );
-    renderSection(ToolSettingsAdvancedPage, buildEntity());
+    renderSection(ToolSettingsDetailsPage, buildEntity());
 
-    const toggle = await screen.findByRole("switch", { name: "Disable comments" });
-    expect(toggle).not.toBeChecked();
+    // Stated the way it is labelled: on means comments happen.
+    const toggle = await screen.findByRole("switch", { name: "Enable comments" });
+    expect(toggle).toBeChecked();
 
     await userEvent.click(toggle);
 
-    await waitFor(() => expect(toggle).toBeChecked());
+    await waitFor(() => expect(toggle).not.toBeChecked());
   });
 
   it("puts the switch back when the write fails", async () => {
@@ -128,12 +129,31 @@ describe("ToolSettingsAdvancedPage comments switch", () => {
         HttpResponse.json({ detail: "NOPE" }, { status: 500 })
       )
     );
-    renderSection(ToolSettingsAdvancedPage, buildEntity());
+    renderSection(ToolSettingsDetailsPage, buildEntity());
 
-    const toggle = await screen.findByRole("switch", { name: "Disable comments" });
+    const toggle = await screen.findByRole("switch", { name: "Enable comments" });
     await userEvent.click(toggle);
 
-    await waitFor(() => expect(toggle).not.toBeChecked());
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+});
+
+describe("ToolSettingsAdvancedPage", () => {
+  it("offers deletion to the owner", async () => {
+    resetFactories();
+    renderSection(ToolSettingsAdvancedPage, buildEntity());
+
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("says so rather than rendering a blank page when it holds nothing", async () => {
+    resetFactories();
+    // Deletion is the owner's alone and this tool declares no extras, so the
+    // tab bar hides the link — but the address is still typeable.
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "read" }));
+
+    expect(await screen.findByText("Permission required")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 });
 

@@ -59,7 +59,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     pin_expires_at: null,
     is_pinned: false,
     my_permission_level: "owner",
-    comments_disabled: false,
+    comments_enabled: true,
     comment_count: 0,
     reactions: [],
     tags: [],

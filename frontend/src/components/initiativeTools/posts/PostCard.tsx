@@ -108,7 +108,7 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
               "0", which reads as an absence. Both land on the post, because the
               thread lives there. A post with comments turned off says neither —
               there is nothing to join. */}
-          {!post.comments_disabled && (
+          {post.comments_enabled && (
             <Link
               to={detailRoute}
               className="inline-flex items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground hover:underline"

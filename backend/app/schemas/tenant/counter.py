@@ -167,10 +167,10 @@ class CounterGroupSummary(CounterGroupBase):
     created_by: int
     counter_count: int = 0
     my_permission_level: Optional[str] = None
-    # Advanced setting: when true this entity's comment thread is off — the
-    # UI renders none and the API refuses to read or post one. Tasks are
-    # unaffected; their thread belongs to the task, not to the tool.
-    comments_disabled: bool = False
+    # When false this entity's comment thread is off — the UI renders none
+    # and the API refuses to read or post one. Tasks are unaffected; their
+    # thread belongs to the task, not to the tool.
+    comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
@@ -261,7 +261,7 @@ def serialize_counter_group_summary(
         my_permission_level=my_permission_level,
         created_at=group.created_at,
         updated_at=group.updated_at,
-        comments_disabled=group.comments_disabled,
+        comments_enabled=group.comments_enabled,
         tags=tag_summaries(getattr(group, "tag_links", None)),
         grants=serialize_grants(group),
     )

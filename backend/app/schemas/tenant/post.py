@@ -106,9 +106,9 @@ class PostSummary(PostBase):
     #: case of an expiry that has just passed.
     is_pinned: bool = False
     my_permission_level: Optional[str] = None
-    # Advanced setting: when true this entity's comment thread is off — the
-    # UI renders none and the API refuses to read or post one.
-    comments_disabled: bool = False
+    # When false this entity's comment thread is off — the UI renders none
+    # and the API refuses to read or post one.
+    comments_enabled: bool = True
     #: How many comments the post has. Served with the board so a reader can
     #: see there is a conversation without opening the post to find out — and
     #: so an empty thread can invite the first one.
@@ -229,7 +229,7 @@ def serialize_post_summary(
         my_permission_level=(
             compute_post_permission(post, user_id) if user_id is not None else None
         ),
-        comments_disabled=post.comments_disabled,
+        comments_enabled=post.comments_enabled,
         comment_count=getattr(post, "comment_count", 0),
         tags=tag_summaries(getattr(post, "tag_links", None)),
         grants=serialize_grants(post),

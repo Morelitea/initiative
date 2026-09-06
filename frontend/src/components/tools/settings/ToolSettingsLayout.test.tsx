@@ -15,6 +15,7 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   my_permission_level: "owner",
   tags: [],
   grants: [],
+  comments_enabled: true,
   ...overrides,
 });
 
@@ -89,6 +90,15 @@ describe("ToolSettingsLayout", () => {
 
     expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Access" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the advanced tab out of the bar when it would hold nothing", async () => {
+    // Advanced is a tool's extra operations plus deletion. A reader of a tool
+    // that declares neither has no advanced section to visit.
+    renderLayout({ entity: buildEntity({ my_permission_level: "read" }) });
+
+    expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Advanced" })).not.toBeInTheDocument();
   });
 
   it("gives a tool's own section a route beside the shared ones", async () => {

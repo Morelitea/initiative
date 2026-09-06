@@ -313,7 +313,7 @@ const createFallbackSummary = (
   projects: [],
   is_template: false,
   comment_count: 0,
-  comments_disabled: false,
+  comments_enabled: true,
   grants: [],
   tags: [],
   properties: [],

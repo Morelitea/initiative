@@ -98,10 +98,10 @@ class DocumentSummary(DocumentBase):
     initiative: Optional[InitiativeRead] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
-    # Advanced setting: when true this entity's comment thread is off — the
-    # UI renders none and the API refuses to read or post one. Tasks are
-    # unaffected; their thread belongs to the task, not to the tool.
-    comments_disabled: bool = False
+    # When false this entity's comment thread is off — the UI renders none
+    # and the API refuses to read or post one. Tasks are unaffected; their
+    # thread belongs to the task, not to the tool.
+    comments_enabled: bool = True
     # The full sharing state — every resource_grants row for this document.
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
@@ -231,7 +231,7 @@ def serialize_document_summary(
         initiative=initiative,
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
-        comments_disabled=document.comments_disabled,
+        comments_enabled=document.comments_enabled,
         grants=serialize_grants(document),
         tags=tag_summaries(getattr(document, "tag_links", None)),
         properties=_serialize_document_properties(document),

@@ -71,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A reaction shows its number only when there is one worth showing.** One person behind an emoji is what the emoji already says, so the chip is just the emoji until a second person joins it. The count is still spoken to a screen reader either way.
 
+- **The comment switch says what it does, and sits where you'd look for it.** Turning comments off on a project, document, board, queue, calendar or dashboard used to mean opening *Advanced* and answering yes to *Disable comments*. It is now *Comments* on the *Details* tab, on to begin with, and switching it off switches comments off. Nothing already posted is deleted either way — it is all there again the moment comments come back.
+
 ### Fixed
 
 - **Pages are centred again.** A page holding something that would not wrap — a toolbar, a table's widest row — stretched the column it sits in, so the content spilled out of the right-hand side of a page area that was itself still centred. Introduced with the scroll fix above, and the same root cause: a box sized to its content where it should have been sized to its container.

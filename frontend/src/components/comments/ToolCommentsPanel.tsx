@@ -4,7 +4,7 @@
  *
  * It takes the ENTITY, not a pile of fields pulled out of it: every tool's read
  * schema carries the same three facts a thread needs — its id, the initiative
- * it lives in, and whether its comments are switched off (`comments_disabled`,
+ * it lives in, and whether its comments are switched on (`comments_enabled`,
  * which `tools_test.py` holds every tool to). Deriving them here means a tool
  * page says which tool and which row, and a seventh tool needs no new wiring at
  * all.
@@ -43,7 +43,7 @@ export const ToolCommentsPanel = ({
   const { t } = useTranslation("comments");
 
   const entityId = entity.id;
-  const disabled = entity.comments_disabled ?? false;
+  const enabled = entity.comments_enabled ?? true;
   // A guild-level entity (an app-installed calendar) belongs to no initiative;
   // 0 is what the mention lookups read as "no initiative to search".
   const initiativeId = entity.initiative_id ?? 0;
@@ -55,13 +55,13 @@ export const ToolCommentsPanel = ({
   }, [tool, entityId]);
 
   const commentsQuery = useComments(params, {
-    enabled: Number.isFinite(entityId) && !disabled,
+    enabled: Number.isFinite(entityId) && enabled,
   });
   // Write the new row straight into this thread's cache as well as
   // invalidating, so the comment appears under the box the moment it posts.
   const cache = useCommentsCache(params);
 
-  if (disabled) return null;
+  if (!enabled) return null;
 
   return (
     <div className="space-y-2">
