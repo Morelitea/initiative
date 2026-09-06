@@ -27,6 +27,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
 import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
 const Editor = lazy(() =>
   import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
@@ -239,11 +240,12 @@ export function PostDetailPage() {
               supportsEntityMentions
               variant="post"
               maxLength={MAX_POST_TEXT_CHARS}
-              // A post's editor draws no frame of its own. Reading it, that is
-              // right — the notice is the page. Writing it, the bounds of what
-              // you are editing have to be visible, so the page asks for them
-              // — on `bg-card`, the surface a notice sits on everywhere else.
-              className={canEdit ? "rounded-lg border bg-card" : undefined}
+              // A notice sits on a card wherever it is read — on the board,
+              // and here. Reading it, the padding comes from this box, because
+              // the editor's own is the little it needs between cards in a
+              // feed; writing it, the editor already reserves room for the
+              // toolbar and the caret at the end.
+              className={cn("rounded-lg border bg-card", !canEdit && "py-2")}
             />
           </Suspense>
           {canEdit && draft !== null && (
