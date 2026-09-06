@@ -44,7 +44,12 @@ import {
   updatePostApiV1GGuildIdPostsPostIdPatch,
   voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut,
 } from "@/api/generated/posts/posts";
-import { invalidateAllPosts, invalidatePost, patchCachedPost } from "@/api/query-keys";
+import {
+  invalidateAllPosts,
+  invalidatePost,
+  invalidatePostTimeline,
+  patchCachedPost,
+} from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
@@ -250,6 +255,14 @@ export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostRea
         for (const id of args[1].post_ids) setCachedReadState(id, false);
         options?.onError?.(...args);
       },
+      // Only when something actually became read. Reading is a one-way move
+      // per notice, so this fires at most once per notice rather than once per
+      // batch — which is what keeps a scroll from refetching the rail every
+      // second and a half.
+      onSuccess: (...args) => {
+        if (args[0].marked > 0) void invalidatePostTimeline();
+        options?.onSuccess?.(...args);
+      },
     }
   );
 
@@ -276,6 +289,12 @@ export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
       onError: (...args) => {
         setCachedReadState(args[1], true);
         options?.onError?.(...args);
+      },
+      // A deliberate click, and it puts a month back on the rail under the
+      // unread filter.
+      onSuccess: (...args) => {
+        void invalidatePostTimeline();
+        options?.onSuccess?.(...args);
       },
     }
   );

@@ -113,6 +113,19 @@ describe("TimelineRail", () => {
   // its own width lands on that feed — which is exactly what a year label
   // positioned `right-full` did. The one deliberate exception is the drag
   // bubble, a transient readout that is meant to float clear of the rail.
+  // The rail is a drag surface with real buttons inside it. A tap on a button
+  // fires the button's own click AND bubbles through the rail's pointerup, so
+  // without a guard one activation runs a consumer's callback twice — harmless
+  // for a board that just scrolls, not for whatever reuses this next.
+  it("picks once for one tap on a stop", async () => {
+    const onPick = vi.fn();
+    renderRail({ onPick });
+
+    await userEvent.click(screen.getByRole("button", { name: "Month 2026-03" }));
+
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps its labels inside its own width", () => {
     const source = fs
       .readFileSync(path.resolve(__dirname, "./TimelineRail.tsx"), "utf-8")

@@ -280,3 +280,45 @@ async def test_anchoring_keeps_the_other_filters(
     )
 
     assert [p["name"] for p in response.json()["items"]] == ["feb"]
+
+
+@pytest.mark.integration
+async def test_a_zone_that_is_not_one_is_refused(
+    client: AsyncClient, acting_user, session
+):
+    """Left to the database an unknown zone is an error of its own, which
+    surfaces as a 500. A request that is simply wrong should say so."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _board(session, a)
+
+    response = await client.get(
+        a.g("/posts/timeline"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "tz": "Not/AZone"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "UNKNOWN_TIMEZONE"
+
+
+@pytest.mark.integration
+async def test_a_lifted_pin_is_still_in_its_own_month(
+    client: AsyncClient, acting_user, session
+):
+    """The board lifts a pin to the top, but the rail counts it where it was
+    written — otherwise pinning a notice would empty its month from the rail
+    and add a phantom to whichever month is current."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    made = await _board(session, a)
+    await client.put(
+        a.g(f"/posts/{made['jan'].id}/pin"), headers=a.headers, json={"pinned": True}
+    )
+
+    response = await client.get(
+        a.g("/posts/timeline"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id},
+    )
+
+    buckets = {b["period"]: b["count"] for b in response.json()["buckets"]}
+    assert buckets == {"2026-03": 1, "2026-02": 1, "2026-01": 1}

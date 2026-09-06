@@ -15,6 +15,7 @@ tools.
 
 from collections.abc import Sequence
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,6 +26,23 @@ from app.schemas.tenant.timeline import TimelineBucket
 #: boundary, so they are cut in the reader's day rather than in UTC — but a
 #: caller that says nothing gets the one zone that needs no guessing.
 DEFAULT_TIMEZONE = "UTC"
+
+
+def resolve_zone(tz: str | None) -> str:
+    """The zone to cut months in, or a ``ValueError`` naming a bad one.
+
+    Checked here rather than left to the database. Postgres answers an unknown
+    zone with an error of its own, which surfaces as a 500 — a request that is
+    simply wrong should say so, and it should say so the same way for every
+    tool that asks for a timeline.
+    """
+    if not tz:
+        return DEFAULT_TIMEZONE
+    try:
+        ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError(tz) from exc
+    return tz
 
 
 async def month_buckets(
@@ -49,7 +67,7 @@ async def month_buckets(
     end. It is what a jump asks for, and taking it from the data means the
     client never has to work out when a month ends somewhere else.
     """
-    zone = tz or DEFAULT_TIMEZONE
+    zone = resolve_zone(tz)
     # ``timezone(zone, ts)`` renders the instant as local wall time, which is
     # what a month boundary is drawn against.
     local = func.timezone(zone, date_expr)

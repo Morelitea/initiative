@@ -422,6 +422,17 @@ export const invalidateAllPosts = () => invalidateGuildPrefix("/api/v1/posts");
 
 export const invalidatePost = (postId: number) => invalidateGuildExact([`/api/v1/posts/${postId}`]);
 
+/**
+ * The board's timeline rail only.
+ *
+ * Read state is patched into the post caches rather than refetched, because
+ * refetching the feed mid-scroll moves rows under the cursor. The rail is a
+ * separate, cheap aggregate — and with the unread filter on it is *made of*
+ * read state, so leaving it alone would show months that have since emptied.
+ * This refreshes that one query and nothing else.
+ */
+export const invalidatePostTimeline = () => invalidateGuildPrefix("/api/v1/posts/timeline");
+
 type CachedPost = Record<string, unknown>;
 type CachedPage = { items?: CachedPost[] };
 

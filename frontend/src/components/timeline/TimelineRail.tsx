@@ -74,7 +74,9 @@ export function TimelineRail<T extends TimelineStop>({
   // The stop under the finger mid-drag, and where on the rail the finger is.
   // Separate from `activePeriod`, which is where the feed actually is: during a
   // drag the bubble runs ahead of it.
-  const [dragging, setDragging] = useState<{ stop: T; offset: number } | null>(null);
+  const [dragging, setDragging] = useState<{ stop: T; offset: number; moved: boolean } | null>(
+    null
+  );
 
   const busiest = useMemo(
     () => stops.reduce((most, stop) => Math.max(most, stop.count), 1),
@@ -96,7 +98,7 @@ export function TimelineRail<T extends TimelineStop>({
   );
 
   const track = useCallback(
-    (event: React.PointerEvent) => {
+    (event: React.PointerEvent, moved: boolean) => {
       const rail = railRef.current;
       const stop = stopAt(event.clientY);
       if (!rail || !stop) return;
@@ -104,7 +106,7 @@ export function TimelineRail<T extends TimelineStop>({
       // Clamped to the rail, so a drag that runs off the end leaves the bubble
       // at the end rather than sliding away up the page with the finger.
       const offset = Math.min(Math.max(event.clientY - box.top, 0), box.height);
-      setDragging({ stop, offset });
+      setDragging((current) => ({ stop, offset, moved: moved || (current?.moved ?? false) }));
     },
     [stopAt]
   );
@@ -125,15 +127,22 @@ export function TimelineRail<T extends TimelineStop>({
       onPointerDown={(event) => {
         // Capture, so the drag keeps tracking once the finger leaves the rail.
         event.currentTarget.setPointerCapture(event.pointerId);
-        track(event);
+        track(event, false);
       }}
       onPointerMove={(event) => {
-        if (dragging) track(event);
+        if (dragging) track(event, true);
       }}
       onPointerUp={(event) => {
         const stop = stopAt(event.clientY);
+        // A press that never moved is a click, and the stop under it is a real
+        // button whose own handler is about to fire — picking here as well
+        // would run the caller's callback twice for one activation. A press on
+        // the rail's own space has no button to fall through to, so it is
+        // picked here.
+        const wasDrag = dragging?.moved ?? false;
+        const onButton = (event.target as Element | null)?.closest("button") != null;
         setDragging(null);
-        if (stop) onPick(stop);
+        if (stop && (wasDrag || !onButton)) onPick(stop);
       }}
       onPointerCancel={() => setDragging(null)}
     >

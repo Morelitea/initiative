@@ -45,7 +45,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import InitiativeMessages, PostMessages
+from app.core.messages import CommonMessages, InitiativeMessages, PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
@@ -474,6 +474,14 @@ async def get_post_timeline(
     Scoped through :func:`_board_scope`, the same gates the list applies, so
     the rail can never show a month whose notices the reader cannot open.
     """
+    try:
+        zone = timeline_service.resolve_zone(tz)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=CommonMessages.UNKNOWN_TIMEZONE,
+        ) from exc
+
     scope = await _board_scope(
         session,
         current_user,
@@ -486,7 +494,7 @@ async def get_post_timeline(
         return TimelineResponse()
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(
-            session, date_expr=board_time(), conditions=scope, tz=tz
+            session, date_expr=board_time(), conditions=scope, tz=zone
         )
     )
 

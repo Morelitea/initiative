@@ -202,13 +202,19 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
     return () => observer.disconnect();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-  // The month at the top of the view, so the rail can mark where the reader
-  // actually is rather than only where they last jumped.
+  // The month at the top of the view, so the rail marks where the reader
+  // actually is rather than where they last jumped from.
+  //
+  // The first VIRTUAL item is not it: the list keeps a few cards mounted above
+  // the window on purpose, so around a month boundary that card is one the
+  // reader has already scrolled past. The first card whose bottom edge is still
+  // below the scroll position is the one they are looking at.
   const activePeriod = useMemo(() => {
-    const first = virtualItems[0];
-    const post = first ? posts[first.index] : posts[0];
+    const top = virtualizer.scrollOffset ?? 0;
+    const visible = virtualItems.find((item) => item.end > top) ?? virtualItems[0];
+    const post = visible ? posts[visible.index] : posts[0];
     return post ? postPeriod(post) : null;
-  }, [virtualItems, posts]);
+  }, [virtualItems, virtualizer.scrollOffset, posts]);
 
   /**
    * Jump to a month — glide if it is already loaded, re-anchor if it is not.
@@ -221,14 +227,23 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
    */
   const jumpTo = useCallback(
     (stop: { period: string; anchor: string }) => {
-      const loaded = posts.findIndex((post) => postPeriod(post) === stop.period);
+      const loaded = posts.findIndex(
+        (post) =>
+          postPeriod(post) === stop.period &&
+          // A pinned notice is lifted out of its month to the top of the feed,
+          // so finding one says nothing about whether its month is loaded —
+          // gliding to it would show one raised card where a month was asked
+          // for. Only the chronological body counts. An anchored board has no
+          // lifted band, so there every notice is in its own place.
+          !(anchor === null && post.is_pinned)
+      );
       if (loaded >= 0) {
         virtualizer.scrollToIndex(loaded, { align: "start" });
         return;
       }
       setAnchor({ period: stop.period, at: stop.anchor });
     },
-    [posts, virtualizer]
+    [posts, virtualizer, anchor]
   );
 
   const renderCard = useCallback(
@@ -321,7 +336,9 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
               <TimelineRail
                 className="sticky top-16 h-[60vh] self-start"
                 stops={timelineQuery.data?.buckets ?? []}
-                activePeriod={anchor?.period ?? activePeriod}
+                // Where the reader IS, which after a glide is not where the
+                // board was anchored. The banner above says the other half.
+                activePeriod={activePeriod}
                 onPick={jumpTo}
                 formatLabel={(stop) => formatPeriod(stop.period)}
                 formatGroup={(stop) => formatPeriodYear(stop.period)}
