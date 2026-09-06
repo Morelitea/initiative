@@ -241,8 +241,9 @@ export function PostDetailPage() {
               maxLength={MAX_POST_TEXT_CHARS}
               // A post's editor draws no frame of its own. Reading it, that is
               // right — the notice is the page. Writing it, the bounds of what
-              // you are editing have to be visible, so the page asks for them.
-              className={canEdit ? "rounded-lg border bg-background" : undefined}
+              // you are editing have to be visible, so the page asks for them
+              // — on `bg-card`, the surface a notice sits on everywhere else.
+              className={canEdit ? "rounded-lg border bg-card" : undefined}
             />
           </Suspense>
           {canEdit && draft !== null && (

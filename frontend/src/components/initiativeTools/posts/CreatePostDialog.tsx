@@ -114,7 +114,9 @@ export const CreatePostDialog = ({
 
           <div className="space-y-2">
             <Label htmlFor="create-post-body">{t("body")}</Label>
-            <div id="create-post-body" className="rounded-md border">
+            {/* `bg-card`, like the board: what you are writing should look
+                like what you are about to post. */}
+            <div id="create-post-body" className="rounded-md border bg-card">
               <Suspense fallback={<Skeleton className="h-40 w-full" />}>
                 <Editor
                   onSerializedChange={setBody}
