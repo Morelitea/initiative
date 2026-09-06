@@ -1594,3 +1594,36 @@ async def test_somebody_who_has_left_is_on_neither_side(
     assert listing.json()["items"][0]["read_count"] == 0
     assert roster["read"] == []
     assert roster["unread"] == []
+
+
+@pytest.mark.integration
+async def test_a_guild_admin_can_mark_read_without_a_grant(
+    client: AsyncClient, acting_user, session
+):
+    """A guild admin reaches every notice in their community without a grant
+    row, so the board shows them one. Refusing the receipt would leave
+    everything they read permanently unread."""
+    author = await acting_user(guild_role=GuildRole.member, initiative=True)
+    admin = await acting_user(
+        guild_role=GuildRole.admin, guild=author.guild, initiative=author.initiative
+    )
+    await _posts_enabled(session, author.initiative)
+    post = await create_post(
+        session, author.initiative, author.user, name="Admin reads"
+    )
+    await _strip_non_owner_grants(session, post, author.user.id)
+
+    # The board shows it to them — the real request names its initiative,
+    # which is the scope where a guild admin's authority answers.
+    board = {"initiative_id": author.initiative.id}
+    listing = await client.get(admin.g("/posts/"), headers=admin.headers, params=board)
+    assert [p["id"] for p in listing.json()["items"]] == [post.id]
+
+    # ...so marking it read has to work.
+    marked = await client.post(
+        admin.g("/posts/read"), headers=admin.headers, json={"post_ids": [post.id]}
+    )
+    assert marked.json()["marked"] == 1
+
+    after = await client.get(admin.g("/posts/"), headers=admin.headers, params=board)
+    assert [p["is_read"] for p in after.json()["items"]] == [True]

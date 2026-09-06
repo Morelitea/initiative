@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 
 from sqlalchemy.orm import selectinload
+from sqlalchemy import false
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -266,22 +267,36 @@ async def mark_read(
 
     A receipt is only recorded for a notice this reader can actually see, and
     only from somebody other than its author: the ids narrow through the same
-    sharing and publication conditions the board's own list applies, so what
-    can be marked read is exactly what could be read.
+    conditions the board's own list applies, so what can be marked read is
+    exactly what could be read.
+
+    "Can see" has to include the two standings that reach a notice without a
+    grant — a guild admin, and Full access in the notice's initiative — or
+    somebody who reads a board perfectly well would leave every notice on it
+    permanently unread. The ids may span initiatives, so the second is asked
+    per row rather than once for the request.
     """
+    from sqlalchemy import or_
     from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from app.core.role_context import override_sharing_initiatives
 
     if not post_ids:
         return 0
     now = datetime.now(timezone.utc)
+    full_access = override_sharing_initiatives()
+    reachable = or_(
+        permissions_service.dac_scope_clause(
+            Tool.post, Post.id, user_id, guild_id=guild_id
+        ),
+        Post.initiative_id.in_(tuple(full_access)) if full_access else false(),
+    )
     readable = (
         await session.exec(
             select(Post.id).where(
                 Post.id.in_(tuple(post_ids)),
                 Post.created_by != user_id,
-                permissions_service.granted_scope_clause(
-                    Tool.post, Post.id, user_id, guild_id=guild_id
-                ),
+                reachable,
                 visibility_clause(user_id, guild_id=guild_id),
             )
         )
