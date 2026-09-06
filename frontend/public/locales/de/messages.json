@@ -87,5 +87,12 @@
   "days": {
     "today": "Heute",
     "yesterday": "Gestern"
+  },
+  "historyRequest": {
+    "title": "Eines deiner Geräte fragt nach deinen Nachrichten",
+    "body": "{{device}} hat sich angemeldet und hat keinen eigenen Verlauf. Die Nachrichten dieses Geräts senden? Prüfe, ob der Code unten derselbe ist, den es dir anzeigt.",
+    "unknownDevice": "Ein Gerät",
+    "approve": "Meine Nachrichten senden",
+    "decline": "Jetzt nicht"
   }
 }

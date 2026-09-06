@@ -390,6 +390,54 @@ export const messageLog = {
     });
   },
   /**
+   * Add the messages of this conversation that this device does not have.
+   *
+   * Only the ones it is missing. An entry already here is left exactly as it
+   * is: this device has held that message since it arrived, so it has also had
+   * every edit, reaction and receipt that followed — a second copy of it from
+   * somewhere else has nothing to add and no way to be newer.
+   *
+   * One transaction for the whole batch, because a live message and a second
+   * tab can both land while a transfer is running.
+   *
+   * Returns how many entries were new, which is the only part worth reporting.
+   */
+  merge: async (conversationId: string, incoming: StoredMessage[]): Promise<number> => {
+    let added = 0;
+    await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
+      const current = existing ?? [];
+      const held = new Set(current.map((entry) => entry.id));
+      const missing = incoming.filter((message) => !held.has(message.id));
+      added = missing.length;
+      if (added === 0) return undefined;
+      // By the sender's clock: what orders a thread is when each message was
+      // written, not the order two devices happened to exchange them in.
+      return [...current, ...missing].sort((left, right) => left.at.localeCompare(right.at));
+    });
+    return added;
+  },
+  /**
+   * Every conversation this device has a thread for.
+   *
+   * Read from the store rather than from the server's list: a conversation
+   * somebody left is gone from that list and its messages are still here, and
+   * they are as much this device's history as any other.
+   */
+  conversations: async (): Promise<string[]> => {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(STORE, "readonly").objectStore(STORE).getAllKeys();
+      request.onsuccess = () =>
+        resolve(
+          (request.result as IDBValidKey[])
+            .filter((key): key is string => typeof key === "string")
+            .filter((key) => key.startsWith(LOG_PREFIX))
+            .map((key) => key.slice(LOG_PREFIX.length))
+        );
+      request.onerror = () => reject(request.error);
+    });
+  },
+  /**
    * Record how far some of your own messages have got.
    *
    * Receipts arrive out of order -- a device that was away collects a read and
@@ -529,6 +577,84 @@ export const messageLog = {
     });
     return changed;
   },
+};
+
+/**
+ * The devices this one has agreed to send its history to.
+ *
+ * Kept against the fingerprint each had when it was approved, so an entry in
+ * the directory whose key has changed since is a different device wearing a
+ * familiar name and is asked about again. A device id belongs to one
+ * registration — signing out withdraws it — so an approval cannot outlive the
+ * device that earned it.
+ */
+export const approvedDevices = {
+  all: async (): Promise<Record<string, string>> =>
+    (await read<Record<string, string>>("history-approved")) ?? {},
+  holds: async (deviceId: string, fingerprint: string): Promise<boolean> =>
+    (await read<Record<string, string>>("history-approved"))?.[deviceId] === fingerprint,
+  approve: async (deviceId: string, fingerprint: string): Promise<void> => {
+    await update<Record<string, string>>("history-approved", (existing) => ({
+      ...(existing ?? {}),
+      [deviceId]: fingerprint,
+    }));
+  },
+};
+
+/**
+ * A request this device has been asked to answer, and has not yet.
+ *
+ * One at a time: a second device asking while the first is waiting replaces it,
+ * because a queue of these is a queue of dialogs nobody reads.
+ */
+export interface HistoryRequest {
+  requestId: string;
+  deviceId: string;
+  label: string | null;
+  fingerprint: string;
+  at: string;
+}
+
+export const pendingHistoryRequest = {
+  get: () => read<HistoryRequest>("history-pending"),
+  set: (request: HistoryRequest) => write("history-pending", request),
+  clear: () => write("history-pending", undefined),
+};
+
+/**
+ * How far this device has got sending its history to another.
+ *
+ * Sender-side, because the sender is what stops: a tab closed mid-transfer is
+ * the failure this is for, and the queue holds what was already sent until the
+ * far device collects it. Keyed by request, so an answer to an older request
+ * cannot advance a newer one.
+ */
+export interface HistoryProgress {
+  requestId: string;
+  /** Conversations already sent in full. */
+  done: string[];
+  seq: number;
+}
+
+export const historyProgress = {
+  get: (deviceId: string) => read<HistoryProgress>("history-progress:" + deviceId),
+  set: (deviceId: string, progress: HistoryProgress) =>
+    write("history-progress:" + deviceId, progress),
+};
+
+/**
+ * The request this device sent for its own history, while it is outstanding.
+ *
+ * Asked once, and answered once: `"closed"` records that the question has been
+ * settled — by a transfer finishing, or by a device saying no — and is what
+ * tells later arrivals they answer nothing that was asked.
+ */
+export type HistoryAsk = { requestId: string } | "closed";
+
+export const historyAsk = {
+  get: () => read<HistoryAsk>("history-ask"),
+  open: (requestId: string) => write("history-ask", { requestId }),
+  close: () => write("history-ask", "closed"),
 };
 
 /** Which device of theirs we already hold a session with, per session id. */

@@ -21,8 +21,10 @@ import {
 } from "@/api/generated/direct-messages/direct-messages";
 import type { StoredMessage } from "@/crypto/messaging";
 import {
+  answerHistoryRequest,
   collect,
   ensureDevice,
+  historyRequestToAnswer,
   markRead,
   messageLog,
   registeredDevice,
@@ -49,6 +51,8 @@ export const messageKeys = {
   // Keyed on the conversations it counts, so a new one is a new question
   // rather than a stale answer waiting for something to invalidate it.
   unread: (conversationIds: string[]) => ["dm", "unread", conversationIds.join(",")] as const,
+  /** The family a socket frame invalidates, which is everything read locally. */
+  all: ["dm"] as const,
 };
 
 /** Register this browser's device, once, before anything else can work. */
@@ -214,6 +218,31 @@ export function useCollectMessagesWhereRegistered() {
  * more than one surface draws it -- the sidebar item, and the logo above the
  * whole rail, which is the only mark visible from inside a community.
  */
+/**
+ * A device of this account's waiting to be sent its history.
+ *
+ * Read from this device's own store rather than an endpoint, like the threads:
+ * the request arrived as an encrypted envelope and the server never saw what
+ * it was. Keyed under `["dm", …]`, so collecting one refreshes this.
+ */
+export function useHistoryRequest() {
+  return useQuery({
+    queryKey: ["dm", "history-request"],
+    queryFn: () => historyRequestToAnswer().then((request) => request ?? null),
+    staleTime: 0,
+  });
+}
+
+export function useAnswerHistoryRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (approve: boolean) => answerHistoryRequest(approve),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.all });
+    },
+  });
+}
+
 export function useMessagesWaiting(): number {
   const pending = usePendingContactRequests();
   const conversations = useConversations();
