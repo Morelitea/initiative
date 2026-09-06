@@ -105,6 +105,8 @@ import {
   collect,
   ensureDevice,
   forgetMessagesOnThisDevice,
+  HISTORY_ASK_NOTICE_MS,
+  historyAskWaiting,
   historyRequestToAnswer,
   markRead,
   RecipientHasNoDeviceError,
@@ -634,6 +636,67 @@ describe("history between this account's own devices", () => {
     expect(asks[0]).toMatchObject({ deviceId: OURS.id, fingerprint: "fp" });
   });
 
+  it("does not ask when this device already has the messages", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await messageLog.append("conv-1", {
+      id: "m1",
+      at: "2026-09-01T00:00:00Z",
+      body: "already here",
+      mine: false,
+    });
+
+    await collect({ receipts: false });
+
+    // Every device of the account runs this. One that asks for what it is
+    // sitting on leaves two screens each asking the other, each showing a
+    // different code, and nothing to compare either against.
+    expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toEqual([]);
+    // And settled, rather than reconsidered on every collection.
+    expect(await historyAsk.get()).toBe("closed");
+  });
+
+  it("shows this device's own code while it waits to be answered", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+
+    await collect({ receipts: false });
+
+    // The same key the deciding screen draws its pictures from, so the two can
+    // be held side by side.
+    const waiting = await historyAskWaiting();
+    expect(waiting).toMatchObject({ fingerprint: "fp" });
+    // And when it will stop saying so, which is what takes the notice down on
+    // a tab nobody touches in the meantime.
+    expect(waiting?.expiresAt).toBeGreaterThan(Date.now());
+  });
+
+  it("asks again after a first attempt that never got out", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    // The other device has no prekey to open a session with, so the first
+    // request cannot be sent -- and a message from the other party lands in the
+    // same collection, which is what used to be taken as proof this device had
+    // its history all along.
+    api.claimOwnSessionKeys.mockResolvedValueOnce({ user_id: 1, devices: [] });
+    api.collectQueue.mockResolvedValueOnce({
+      items: [queued({ payload: from("theirs", "arrived in between") })],
+    });
+
+    await collect({ receipts: false });
+    expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toEqual([]);
+    expect(await messageLog.get("conv-1")).toHaveLength(1);
+
+    await collect({ receipts: false });
+
+    // What a device arrived with is what decides this, and that does not change
+    // because something arrived afterwards.
+    expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toHaveLength(1);
+  });
+
   it("does not ask when it is the only device on the account", async () => {
     await forgetDevice();
     await deviceId.set(OURS.id);
@@ -643,6 +706,61 @@ describe("history between this account's own devices", () => {
     await collect({ receipts: false });
 
     expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toEqual([]);
+  });
+
+  it("stops saying it is waiting once the notice has had its day", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+    expect(await historyAskWaiting()).toMatchObject({ fingerprint: "fp" });
+
+    const aDayLater = Date.now() + HISTORY_ASK_NOTICE_MS + 1;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(aDayLater);
+
+    // The notice gives up; the question does not. Nothing expires a queued
+    // request, so an answer that arrives next week still has an open ask to
+    // land in -- what stops is telling somebody to go and do a thing they have
+    // had a day to do.
+    expect(await historyAskWaiting()).toBeUndefined();
+    expect(await historyAsk.get()).toMatchObject({ fingerprint: "fp" });
+    clock.mockRestore();
+  });
+
+  it("still takes the history a late answer brings", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+    const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + HISTORY_ASK_NOTICE_MS * 7);
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          payload: fromOwnDevice(
+            {
+              v: 1,
+              kind: "history",
+              requestId: asked?.requestId,
+              seq: 1,
+              last: true,
+              conversationId: "conv-1",
+              messages: [
+                { id: "m0", body: "from before this device", at: "2026-08-30", mine: false },
+              ],
+            },
+            "otk-1"
+          ),
+        }),
+      ],
+    });
+
+    await collect({ receipts: false });
+
+    expect(await messageLog.get("conv-1")).toEqual([
+      expect.objectContaining({ id: "m0", body: "from before this device" }),
+    ]);
+    clock.mockRestore();
   });
 
   it("holds a request for a person to answer rather than answering it", async () => {
@@ -783,13 +901,19 @@ describe("history between this account's own devices", () => {
     expect(await historyRequestToAnswer()).toBeUndefined();
   });
 
-  /** Ask for this device's history, and answer with the id it asked under. */
+  /**
+   * Ask for this device's history, and answer with the id it asked under.
+   *
+   * Anything seeded lands after the ask, because only a device holding nothing
+   * asks -- a message that arrives while the question is outstanding is what
+   * puts something in the log of a device waiting on an answer.
+   */
   const askThenAnswer = async (chunk: Record<string, unknown>, seed?: () => Promise<void>) => {
     await forgetDevice();
     await deviceId.set(OURS.id);
     await accountPickle.set("account");
-    await seed?.();
     await collect({ receipts: false });
+    await seed?.();
     const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
     api.collectQueue.mockResolvedValue({
       items: [
@@ -1058,6 +1182,37 @@ describe("registering", () => {
     await expect(ensureDevice()).resolves.toBe("device-quick");
     expect(api.removeDevice).toHaveBeenCalledWith("device-slow");
     expect(await accountPickle.get()).toBe("pickle-quick");
+  });
+
+  it("lets a device registered into an empty browser ask for the history", async () => {
+    await forgetDevice();
+    api.registerDevice.mockResolvedValue({
+      devices: [ownDevice(OUR_PHONE), ownDevice({ id: "device-fresh", identity_key: "fresh" })],
+    });
+
+    await ensureDevice();
+
+    expect(await historyAsk.get()).toBe("eligible");
+  });
+
+  it("settles the question against the browser it registers into", async () => {
+    // A device revoked and registered again in a browser that kept its
+    // threads. It is a new device id with an old history, and it has nothing
+    // to ask anybody for.
+    await forgetDevice();
+    await messageLog.append("conv-1", {
+      id: "m1",
+      at: "2026-09-01T00:00:00Z",
+      body: "still here",
+      mine: false,
+    });
+    api.registerDevice.mockResolvedValue({
+      devices: [ownDevice(OUR_PHONE), ownDevice({ id: "device-fresh", identity_key: "fresh" })],
+    });
+
+    await ensureDevice();
+
+    expect(await historyAsk.get()).toBe("closed");
   });
 });
 

@@ -423,6 +423,19 @@ export const messageLog = {
    * somebody left is gone from that list and its messages are still here, and
    * they are as much this device's history as any other.
    */
+  /**
+   * Whether this device holds any thread at all.
+   *
+   * A conversation key can outlive the last message in it — every message in a
+   * thread can be taken back — so the messages are what is counted rather than
+   * the keys.
+   */
+  holdsAnything: async (): Promise<boolean> => {
+    for (const conversationId of await messageLog.conversations()) {
+      if ((await messageLog.get(conversationId)).length > 0) return true;
+    }
+    return false;
+  },
   conversations: async (): Promise<string[]> => {
     const db = await open();
     return new Promise((resolve, reject) => {
@@ -648,12 +661,29 @@ export const historyProgress = {
  * Asked once, and answered once: `"closed"` records that the question has been
  * settled — by a transfer finishing, or by a device saying no — and is what
  * tells later arrivals they answer nothing that was asked.
+ *
+ * This device's own fingerprint is kept alongside, so the screen that is
+ * waiting can show the code the other screen is about to ask about without a
+ * round trip to the directory to be told what it already sent. `at` is when it
+ * was asked, which is what lets the notice about it stop being shown long
+ * before the question itself stops being worth answering.
+ *
+ * `"eligible"` is a device that arrived empty and has not got its question out
+ * yet. It is written at registration rather than worked out later, because the
+ * only moment that can tell a device which arrived with nothing from one that
+ * has everything is the moment it came into being — a log with a message in it
+ * says nothing about which of the two this is.
  */
-export type HistoryAsk = { requestId: string } | "closed";
+export type HistoryAsk =
+  | { requestId: string; fingerprint?: string; at?: string }
+  | "eligible"
+  | "closed";
 
 export const historyAsk = {
   get: () => read<HistoryAsk>("history-ask"),
-  open: (requestId: string) => write("history-ask", { requestId }),
+  eligible: () => write("history-ask", "eligible"),
+  open: (requestId: string, fingerprint: string) =>
+    write("history-ask", { requestId, fingerprint, at: new Date().toISOString() }),
   close: () => write("history-ask", "closed"),
 };
 
