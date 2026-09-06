@@ -1011,7 +1011,12 @@ async def list_projects(
     archived: Optional[bool] = Query(default=None),
     template: Optional[bool] = Query(default=None),
     search: Optional[str] = Query(
-        default=None, description="Case-insensitive substring match on name."
+        default=None,
+        description=(
+            "Full-text match over the row — its name and its description. "
+            "Reads the same index the search page does, so a list's filter "
+            "box and a search agree about what matches."
+        ),
     ),
     initiative_id: Optional[int] = Query(
         default=None,

@@ -81,7 +81,16 @@ export const CreatePostDialog = ({
   // lose, and never once the post has been created.
   const isDirty =
     open && !create.isPending && (name.trim().length > 0 || body !== null || scheduledFor !== "");
-  const blocker = useBlocker({ shouldBlockFn: () => isDirty, withResolver: true });
+  // `enableBeforeUnload` is not optional in practice: the router defaults it to
+  // TRUE and never consults `shouldBlockFn` for a reload, so a mounted blocker
+  // prompts "Changes you made may not be saved" on every refresh. This dialog
+  // is rendered by the board whether it is open or not, which made that every
+  // refresh of the board.
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty,
+    enableBeforeUnload: () => isDirty,
+    withResolver: true,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,7 +114,9 @@ export const CreatePostDialog = ({
 
           <div className="space-y-2">
             <Label htmlFor="create-post-body">{t("body")}</Label>
-            <div id="create-post-body" className="rounded-md border">
+            {/* `bg-card`, like the board: what you are writing should look
+                like what you are about to post. */}
+            <div id="create-post-body" className="rounded-md border bg-card">
               <Suspense fallback={<Skeleton className="h-40 w-full" />}>
                 <Editor
                   onSerializedChange={setBody}

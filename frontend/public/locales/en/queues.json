@@ -108,7 +108,7 @@
     "show": "Show",
     "hide": "Hide",
     "searchQueues": "Search queues...",
-    "filterByName": "Filter by name",
+    "searchLabel": "Name or description",
     "status": "Status",
     "allStatuses": "All",
     "activeOnly": "Active",

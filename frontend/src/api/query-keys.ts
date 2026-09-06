@@ -422,6 +422,36 @@ export const invalidateAllPosts = () => invalidateGuildPrefix("/api/v1/posts");
 
 export const invalidatePost = (postId: number) => invalidateGuildExact([`/api/v1/posts/${postId}`]);
 
+/**
+ * Rewrite one post wherever it is already cached, without refetching.
+ *
+ * Read state changes as somebody scrolls, and invalidating for it would refetch
+ * the board mid-scroll — moving rows under the cursor, and with the unread
+ * filter on, deleting the one being read. The server is already told; this is
+ * only the copy on screen catching up.
+ */
+export const patchCachedPost = (
+  postId: number,
+  update: (post: Record<string, unknown>) => Record<string, unknown>
+) => {
+  queryClient.setQueriesData<unknown>(
+    { predicate: (q) => guildKey(q.queryKey[0])?.startsWith("/api/v1/posts") ?? false },
+    (data: unknown) => {
+      if (!data || typeof data !== "object") return data;
+      const asList = data as { items?: Record<string, unknown>[] };
+      if (Array.isArray(asList.items)) {
+        if (!asList.items.some((item) => item.id === postId)) return data;
+        return {
+          ...asList,
+          items: asList.items.map((item) => (item.id === postId ? update(item) : item)),
+        };
+      }
+      const asPost = data as Record<string, unknown>;
+      return asPost.id === postId ? update(asPost) : data;
+    }
+  );
+};
+
 // ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>

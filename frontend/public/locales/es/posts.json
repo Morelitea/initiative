@@ -49,13 +49,29 @@
     "publishNow": "Publicar ahora",
     "publishedToast": "Publicada"
   },
+  "read": {
+    "markUnread": "Marcar como no leída",
+    "markedUnread": "Marcada como no leída",
+    "unread": "Sin leer",
+    "whoRead": "Quién la ha leído",
+    "whoReadHint": "Todas las personas con las que se compartió.",
+    "readTab": "Leída {{count}}",
+    "unreadTab": "Sin leer {{count}}",
+    "nobodyYet": "Todavía no la ha leído nadie.",
+    "everyone": "Todo el mundo a quien llegó la ha leído.",
+    "readBy_one": "Leída por {{count}}",
+    "readBy_other": "Leída por {{count}}"
+  },
   "filters": {
     "heading": "Filtros",
     "show": "Mostrar",
     "hide": "Ocultar",
-    "filterByName": "Filtrar por titular",
-    "searchPosts": "Buscar publicaciones...",
-    "noMatchingPosts": "Ninguna publicación coincide con tus filtros."
+    "searchLabel": "Título o contenido",
+    "searchPosts": "Buscar en este tablón...",
+    "noMatchingPosts": "Ninguna publicación coincide con tus filtros.",
+    "readState": "Lectura",
+    "allPosts": "Todas las publicaciones",
+    "unreadOnly": "Solo sin leer"
   },
   "loading": "Cargando publicaciones...",
   "loadError": "No se pudieron cargar las publicaciones.",

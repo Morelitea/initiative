@@ -26,7 +26,7 @@
     "heading": "Filtres",
     "show": "Afficher",
     "hide": "Masquer",
-    "filterByName": "Filtrer par nom",
+    "searchLabel": "Nom ou description",
     "searchDashboards": "Rechercher des tableaux de bord...",
     "noMatchingDashboards": "Aucun tableau de bord ne correspond à vos filtres."
   },

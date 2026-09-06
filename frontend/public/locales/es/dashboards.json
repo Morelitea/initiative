@@ -26,7 +26,7 @@
     "heading": "Filtros",
     "show": "Mostrar",
     "hide": "Ocultar",
-    "filterByName": "Filtrar por nombre",
+    "searchLabel": "Nombre o descripción",
     "searchDashboards": "Buscar paneles...",
     "noMatchingDashboards": "Ningún panel coincide con tus filtros."
   },

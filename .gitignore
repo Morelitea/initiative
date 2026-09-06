@@ -66,3 +66,4 @@ docker-compose.yml
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/

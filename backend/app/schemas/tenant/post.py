@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field, model_validator
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.platform.user import GuildNameVisibility, ProfileDecorations
+from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.reaction import ReactionGroup
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.tag import TagSummary, tag_summaries
@@ -101,6 +103,10 @@ class PostSummary(PostBase):
     initiative_id: int
     guild_id: int
     created_by: int
+    #: Who wrote it, ready to draw: handle, picture, what they wear around it,
+    #: and how they are appearing. The same shape a comment's author takes, so
+    #: a person looks the same wherever the app shows them.
+    author: Optional[CommentAuthor] = None
     created_at: datetime
     updated_at: datetime
     #: The first line or so of the body as plain text. Derived on the way out,
@@ -125,6 +131,14 @@ class PostSummary(PostBase):
     #: Whether it is live. The one-field form of ``published_at is not null``,
     #: served so the board and the API agree at the boundary.
     is_published: bool = True
+    #: Whether THIS reader has read it. The board marks a notice read once it
+    #: has been on screen, so for most rows on most pages this is true; it is
+    #: served per-reader and means nothing about anybody else.
+    is_read: bool = False
+    #: How many people have read it. Everyone who can see the notice can see
+    #: this — a board is a place things are said out loud, and knowing whether
+    #: a notice landed is the point of saying it there.
+    read_count: int = 0
     my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
@@ -145,6 +159,77 @@ class PostRead(PostSummary):
     #: renders its notices rather than a table of headlines — which is why that
     #: list pages small.
     body: Dict[str, Any] = Field(default_factory=dict)
+
+
+#: How many notices one "I have seen these" request may carry. A page of the
+#: board is twenty; this leaves room for a reader who scrolled several pages
+#: before the batch flushed, and refuses a list nobody's screen produced.
+MAX_READ_MARKS = 200
+
+
+class PostReadMarks(SanitizedBaseModel):
+    """The notices a reader has just had on screen."""
+
+    post_ids: List[int] = Field(..., min_length=1, max_length=MAX_READ_MARKS)
+
+
+class PostReadReceipt(SanitizedBaseModel):
+    """How many of them were not already read. The client does not need this to
+    render anything — it is what makes the call answerable and testable."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    marked: int = 0
+
+
+class PostReader(GuildNameVisibility):
+    """One person on a notice's roster, named the way reactors are named — so a
+    guild that renders handles rather than real names does so here too."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    discriminator: int
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    #: What they have put around their picture. Carried on the person rather
+    #: than fetched per row, so the roster dresses its avatars the way every
+    #: other list of people in the app does.
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
+    #: When they read it. Absent for somebody who has not.
+    read_at: Optional[datetime] = None
+
+
+class PostReaders(SanitizedBaseModel):
+    """Who has read a notice and who it is still waiting on.
+
+    "Waiting" is the people the notice was *shared with*, not everybody in the
+    initiative: a board of a hundred where a notice went to five is not
+    ninety-five people ignoring it. The author is in neither list — writing a
+    notice is not reading it.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    read: List[PostReader] = Field(default_factory=list)
+    unread: List[PostReader] = Field(default_factory=list)
+
+
+def post_reader(profile: Any, *, read_at: Optional[datetime] = None) -> PostReader:
+    """One roster entry from a member profile. Built through the model rather
+    than copied onto it, so the guild's name-visibility rule runs."""
+    return PostReader(
+        id=profile.id,
+        username=profile.username,
+        discriminator=profile.discriminator,
+        full_name=getattr(profile, "full_name", None),
+        avatar_url=getattr(profile, "avatar_url", None),
+        profile_decorations=ProfileDecorations.model_validate(
+            getattr(profile, "profile_decorations", None) or {}
+        ),
+        read_at=read_at,
+    )
 
 
 class PostListResponse(SanitizedBaseModel):
@@ -239,6 +324,11 @@ def serialize_post_summary(
         initiative_id=post.initiative_id,
         guild_id=post.guild_id,
         created_by=post.created_by,
+        author=(
+            CommentAuthor.model_validate(post.creator)
+            if post.creator is not None
+            else None
+        ),
         created_at=post.created_at,
         updated_at=post.updated_at,
         excerpt=post_excerpt(post.body),
@@ -249,6 +339,8 @@ def serialize_post_summary(
         published_at=post.published_at,
         scheduled_for=post.scheduled_for,
         is_published=post.is_published,
+        is_read=bool(getattr(post, "is_read", False)),
+        read_count=int(getattr(post, "read_count", 0)),
         my_permission_level=(
             compute_post_permission(post, user_id) if user_id is not None else None
         ),

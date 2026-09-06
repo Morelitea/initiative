@@ -4379,6 +4379,7 @@ export interface PostRead {
   initiative_id: number;
   guild_id: number;
   created_by: number;
+  author: CommentAuthor | null;
   created_at: string;
   updated_at: string;
   excerpt: string;
@@ -4389,6 +4390,8 @@ export interface PostRead {
   published_at: string | null;
   scheduled_for: string | null;
   is_published: boolean;
+  is_read: boolean;
+  read_count: number;
   my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
@@ -4414,6 +4417,52 @@ export interface PostListResponse {
 export interface PostPinUpdate {
   pinned?: boolean;
   expires_at?: string | null;
+}
+
+/**
+ * The notices a reader has just had on screen.
+ */
+export interface PostReadMarks {
+  /**
+   * @minItems 1
+   * @maxItems 200
+   */
+  post_ids: number[];
+}
+
+/**
+ * How many of them were not already read. The client does not need this to
+ * render anything — it is what makes the call answerable and testable.
+ */
+export interface PostReadReceipt {
+  marked: number;
+}
+
+/**
+ * One person on a notice's roster, named the way reactors are named — so a
+ * guild that renders handles rather than real names does so here too.
+ */
+export interface PostReader {
+  id: number;
+  username: string;
+  discriminator: number;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  profile_decorations?: ProfileDecorationsOutput;
+  read_at?: string | null;
+}
+
+/**
+ * Who has read a notice and who it is still waiting on.
+ *
+ * "Waiting" is the people the notice was *shared with*, not everybody in the
+ * initiative: a board of a hundred where a notice went to five is not
+ * ninety-five people ignoring it. The author is in neither list — writing a
+ * notice is not reading it.
+ */
+export interface PostReaders {
+  read: PostReader[];
+  unread: PostReader[];
 }
 
 export type PostUpdateBody = { [key: string]: unknown } | null;
@@ -6405,7 +6454,7 @@ export type ListProjectsApiV1GGuildIdProjectsGetParams = {
   archived?: boolean | null;
   template?: boolean | null;
   /**
-   * Case-insensitive substring match on name.
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
   search?: string | null;
   /**
@@ -6891,7 +6940,7 @@ export type ConfirmBackupImportApiV1GGuildIdImportsJobsJobIdConfirmPostBody = {
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;
   /**
-   * Case-insensitive substring match on name.
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
   search?: string | null;
   /**
@@ -6930,7 +6979,7 @@ export type ReadQueueItemApiV1GGuildIdQueueItemsItemIdGetParams = {
 export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
   initiative_id?: number | null;
   /**
-   * Case-insensitive substring match on name.
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
   search?: string | null;
   /**
@@ -6970,7 +7019,7 @@ export type ListCalendarsApiV1GGuildIdCalendarsGetParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   /**
-   * Case-insensitive substring match on name.
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
   search?: string | null;
   /**
@@ -7002,7 +7051,7 @@ export type ReadCalendarApiV1GGuildIdCalendarsCalendarIdGetParams = {
 export type ListDashboardsApiV1GGuildIdDashboardsGetParams = {
   initiative_id?: number | null;
   /**
-   * Case-insensitive substring match on name.
+   * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
   search?: string | null;
   /**
@@ -7034,7 +7083,7 @@ export type ReadDashboardApiV1GGuildIdDashboardsDashboardIdGetParams = {
 export type ListPostsApiV1GGuildIdPostsGetParams = {
   initiative_id?: number | null;
   /**
-   * Case-insensitive substring match on name.
+   * Full-text match over the notice — its headline and its body. Reads the same index the search page does, so the board's filter and a search agree about what matches.
    */
   search?: string | null;
   /**
@@ -7045,6 +7094,10 @@ export type ListPostsApiV1GGuildIdPostsGetParams = {
    * asc (default) or desc.
    */
   sort_dir?: string | null;
+  /**
+   * Only notices this reader has not read yet.
+   */
+  unread?: boolean;
   /**
    * @minimum 1
    */

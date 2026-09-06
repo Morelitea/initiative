@@ -52,6 +52,16 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     initiative_id: 1,
     guild_id: 1,
     created_by: 1,
+    // Every real row is signed, so a test post is too.
+    author: {
+      id: 1,
+      username: `author${counter}`,
+      discriminator: 1000,
+      full_name: null,
+      avatar_url: null,
+      profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [] },
+      presence: "online",
+    },
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     pinned_at: null,
@@ -63,6 +73,10 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     published_at: "2026-01-15T00:00:00.000Z",
     scheduled_for: null,
     is_published: true,
+    // Unread by default: that is what a notice is until somebody reads it, and
+    // it is the state most cases are about.
+    is_read: false,
+    read_count: 0,
     my_permission_level: "owner",
     comments_enabled: true,
     comment_count: 0,

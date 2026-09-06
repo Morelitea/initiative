@@ -49,13 +49,29 @@
     "publishNow": "Jetzt veröffentlichen",
     "publishedToast": "Veröffentlicht"
   },
+  "read": {
+    "markUnread": "Als ungelesen markieren",
+    "markedUnread": "Als ungelesen markiert",
+    "unread": "Ungelesen",
+    "whoRead": "Wer das gelesen hat",
+    "whoReadHint": "Alle, mit denen dieser Beitrag geteilt wurde.",
+    "readTab": "Gelesen {{count}}",
+    "unreadTab": "Ungelesen {{count}}",
+    "nobodyYet": "Noch niemand hat ihn gelesen.",
+    "everyone": "Alle Empfänger haben ihn gelesen.",
+    "readBy_one": "Von {{count}} gelesen",
+    "readBy_other": "Von {{count}} gelesen"
+  },
   "filters": {
     "heading": "Filter",
     "show": "Anzeigen",
     "hide": "Ausblenden",
-    "filterByName": "Nach Überschrift filtern",
-    "searchPosts": "Beiträge suchen ...",
-    "noMatchingPosts": "Keine Beiträge entsprechen deinen Filtern."
+    "searchLabel": "Überschrift oder Inhalt",
+    "searchPosts": "Diese Pinnwand durchsuchen...",
+    "noMatchingPosts": "Keine Beiträge entsprechen deinen Filtern.",
+    "readState": "Gelesen",
+    "allPosts": "Alle Beiträge",
+    "unreadOnly": "Nur ungelesene"
   },
   "loading": "Beiträge werden geladen ...",
   "loadError": "Beiträge konnten nicht geladen werden.",

@@ -11,13 +11,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export type StatusFilter = "all" | "active" | "inactive";
+/** What a board is showing: everything, or only what is still waiting. */
+export type ReadFilter = "all" | "unread";
 
-type QueuesFilterBarProps = {
+type PostsFilterBarProps = {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  statusFilter: StatusFilter;
-  onStatusFilterChange: (value: StatusFilter) => void;
+  readFilter: ReadFilter;
+  onReadFilterChange: (value: ReadFilter) => void;
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
   /** How many filters are currently set — tells "Clear all" whether it has
@@ -27,17 +28,23 @@ type QueuesFilterBarProps = {
   onClear?: () => void;
 };
 
-export const QueuesFilterBar = ({
+/**
+ * The board's filters, in the panel every other tool list uses.
+ *
+ * The board had a bare search box beside the toolbar, which is not what the
+ * rest of the app does with filters — and it had nowhere to put a second one.
+ */
+export const PostsFilterBar = ({
   searchQuery,
   onSearchQueryChange,
-  statusFilter,
-  onStatusFilterChange,
+  readFilter,
+  onReadFilterChange,
   filtersOpen,
   onFiltersOpenChange,
   onClear,
   activeCount,
-}: QueuesFilterBarProps) => {
-  const { t } = useTranslation(["queues", "common"]);
+}: PostsFilterBarProps) => {
+  const { t } = useTranslation(["posts", "common"]);
 
   return (
     <ToolFilterPanel
@@ -49,12 +56,15 @@ export const QueuesFilterBar = ({
     >
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-full space-y-2 lg:flex-1">
-          <Label htmlFor="queue-search" className="block font-medium text-muted-foreground text-xs">
+          {/* Not "by headline": this box is backed by the search index, which
+              holds a notice's body as well as its title, so typing a word from
+              the middle of a post finds it. */}
+          <Label htmlFor="post-search" className="block font-medium text-muted-foreground text-xs">
             {t("filters.searchLabel")}
           </Label>
           <Input
-            id="queue-search"
-            placeholder={t("filters.searchQueues")}
+            id="post-search"
+            placeholder={t("filters.searchPosts")}
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             className="min-w-60"
@@ -62,22 +72,21 @@ export const QueuesFilterBar = ({
         </div>
         <div className="w-full space-y-2 sm:w-48">
           <Label
-            htmlFor="queue-status-filter"
+            htmlFor="post-read-filter"
             className="block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.status")}
+            {t("filters.readState")}
           </Label>
           <Select
-            value={statusFilter}
-            onValueChange={(value) => onStatusFilterChange(value as StatusFilter)}
+            value={readFilter}
+            onValueChange={(value) => onReadFilterChange(value as ReadFilter)}
           >
-            <SelectTrigger id="queue-status-filter">
+            <SelectTrigger id="post-read-filter">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t("filters.allStatuses")}</SelectItem>
-              <SelectItem value="active">{t("filters.activeOnly")}</SelectItem>
-              <SelectItem value="inactive">{t("filters.inactiveOnly")}</SelectItem>
+              <SelectItem value="all">{t("filters.allPosts")}</SelectItem>
+              <SelectItem value="unread">{t("filters.unreadOnly")}</SelectItem>
             </SelectContent>
           </Select>
         </div>

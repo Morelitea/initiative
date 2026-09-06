@@ -108,7 +108,7 @@
     "show": "Anzeigen",
     "hide": "Ausblenden",
     "searchQueues": "Abläufe (Queues) suchen...",
-    "filterByName": "Nach Namen filtern",
+    "searchLabel": "Name oder Beschreibung",
     "status": "Status",
     "allStatuses": "Alle",
     "activeOnly": "Aktiv",
