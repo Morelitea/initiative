@@ -1,15 +1,13 @@
 """The poll row is the lock its ballots and its edits queue on.
 
-Reading what has been answered and then acting on it is two statements, and
-between them anything can happen: a first ballot landing while an edit has just
-decided there were none would be cascaded away by that edit, and two of one
-person's ballots racing each other would merge into a third answer neither of
-them sent.
+Editing the question, casting a ballot and retracting one each decide what to
+write by reading what has already been answered, so each holds the poll's row
+for the whole of its transaction and one poll's writes proceed in turn.
 
-These cases hold the two halves of that: the lock is really taken (a second
-transaction waits for it), and whether the poll is still open is decided by the
-database's clock inside the same statement — so a deadline cannot pass between
-the question and the ballot.
+These cases hold the two properties that rests on: the lock is really taken — a
+second transaction waits for it, and a free row does not — and whether the poll
+still takes votes is decided by the database's clock in the statement that takes
+the row, rather than from whatever the caller had loaded.
 """
 
 import asyncio

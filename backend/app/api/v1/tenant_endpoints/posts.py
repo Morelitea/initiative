@@ -900,10 +900,9 @@ async def set_post_poll(
     Both switches can always be turned *on* — each only ever tightens what
     happens next, and neither rewrites an answer already given.
 
-    The poll's row is locked before any of that is asked, so a first ballot
-    cannot land between "has anybody answered?" and the write that acts on the
-    answer — which, for an edit that replaced the choices, would cascade that
-    ballot away.
+    The poll's row is taken before any of that is asked and held until the edit
+    commits, so "has anybody answered?" and the write that acts on the answer
+    are one step.
     """
     post = await resource_access.load_authorized(
         session, Tool.post, post_id, current_user, guild_context, access="write"
@@ -993,10 +992,10 @@ async def vote_on_post_poll(
             detail=PostMessages.POLL_NOT_PUBLISHED,
         )
     poll = _poll_of(post)
-    # Locks the poll and asks whether it still takes votes in one statement, by
-    # the database's clock — so the deadline cannot pass between the question
-    # and the ballot, and two of one person's ballots cannot race each other
-    # into a third answer neither of them sent.
+    # Takes the poll's row and asks whether it still takes votes in one
+    # statement, by the database's clock. The row is held until this ballot
+    # commits, so one voter's ballots are written one after another and the
+    # deadline each is measured against is the one in force when it lands.
     if not await post_polls_service.lock_open_poll(session, poll):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

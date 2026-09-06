@@ -14,16 +14,14 @@ the service clears the voter's previous rows before writing the new ones. That
 is what makes changing your mind a vote rather than a second vote, and it is
 the same statement whether the poll takes one answer or several.
 
-**A poll's row is the lock its ballots and its edits queue on.** Reading a
-ballot and then acting on what it said is two statements, and between them
-anything can happen: a first vote landing while an edit has just decided there
-were none would be cascaded away by that edit, and two of one person's ballots
-racing each other would merge into a third answer neither of them sent. So
-:func:`lock_poll` takes the poll row for the rest of the transaction, and every
-path that changes what has been answered — editing the question, casting,
-retracting — goes through it first. Whether the poll is still open is asked
-under the same lock, by the database's clock, so a deadline cannot pass between
-the check and the write.
+**A poll's row is the lock its ballots and its edits queue on.** Editing the
+question, casting a ballot and retracting one each decide what to write by
+reading what has already been answered, so each takes the poll row with
+:func:`lock_poll` first and holds it until the transaction commits. That makes
+one poll's writes a queue: each sees a settled answer, acts on it, and hands the
+row to the next. Whether the poll is still open is asked in the same statement,
+by the database's clock, so the deadline a ballot is measured against is the one
+in force when the row is taken.
 
 **Every ballot counts, and the sharing decides only who is still expected to
 answer.** A read receipt asks "who still needs to see this", so it is measured
@@ -119,10 +117,9 @@ async def annotate_poll_state(
 async def lock_poll(session: AsyncSession, poll: PostPoll) -> None:
     """Take this poll's row for the rest of the transaction.
 
-    Every path that reads what has been answered and then acts on it holds this
-    first, so the reading and the acting cannot be separated by somebody else's
-    write. One row, always the same one, so there is no order for two of these
-    to deadlock over.
+    Held by every path that reads what has been answered and then acts on it,
+    so the reading and the acting are one indivisible step. One row, always the
+    same one, so there is no order for two of these to deadlock over.
     """
     await session.exec(
         select(PostPoll.id).where(PostPoll.id == poll.id).with_for_update()
@@ -133,8 +130,8 @@ async def lock_open_poll(session: AsyncSession, poll: PostPoll) -> bool:
     """Take the row, and answer whether the poll still takes votes.
 
     One statement, so the close time is compared to the database's clock at the
-    moment the row is locked and cannot pass before the ballot lands: the lock
-    is held until this transaction commits, and the ballot is written inside it.
+    moment the row is taken, and the ballot is written inside the transaction
+    that holds it.
     """
     row = (
         await session.exec(
