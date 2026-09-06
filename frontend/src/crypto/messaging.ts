@@ -208,6 +208,17 @@ async function ensureDeviceContext(): Promise<{ id: string; devices: DmDeviceRea
       const id = await waitForRegistration(existing);
       return { id, devices: (await listDevices()).devices };
     }
+    // Whether this device may ask the account for its history is settled here,
+    // on the one fact that can settle it: what this browser held at the moment
+    // the device came into being. Worked out later — from a log that has since
+    // collected a message or two — it cannot tell a device that arrived with
+    // nothing from one that has everything, and a first attempt that failed
+    // would never get a second.
+    if (await messageLog.holdsAnything()) {
+      await historyAsk.close();
+    } else {
+      await historyAsk.eligible();
+    }
     return { id: created.id, devices: response.devices };
   } catch (error) {
     // Hand the turn back, or the next attempt waits out the stale window for
@@ -919,18 +930,28 @@ async function carrierConversation(): Promise<string | null> {
  * asks again every time it starts is a device training somebody to say yes
  * without reading.
  *
- * Only a device holding nothing asks. Every device of the account runs this,
- * and one that already has the threads would otherwise ask for what it is
- * sitting on — leaving two screens each asking the other, each showing a
- * different code, and nothing to compare either against.
+ * Only a device that arrived empty asks — recorded at registration, and read
+ * back here. Every device of the account runs this, and one that already has
+ * the threads would otherwise ask for what it is sitting on, leaving two
+ * screens each asking the other, each showing a different code, and nothing to
+ * compare either against.
+ *
+ * Eligibility survives a failed attempt. A device kept trying until one of its
+ * requests actually goes out, whatever has landed in its log in the meantime:
+ * a message collected between two attempts says nothing about whether the
+ * older ones are here.
  */
 export async function requestHistory(): Promise<boolean> {
-  if ((await historyAsk.get()) !== undefined) return false;
-  if (await messageLog.holdsAnything()) {
-    // Settled rather than reconsidered on every collection: this device has a
-    // history of its own, and that does not become untrue later.
-    await historyAsk.close();
-    return false;
+  const state = await historyAsk.get();
+  if (state !== undefined && state !== "eligible") return false;
+  if (state === undefined) {
+    // A device registered before registration started recording the answer.
+    // Its log is the only evidence left of which kind of device it is.
+    if (await messageLog.holdsAnything()) {
+      await historyAsk.close();
+      return false;
+    }
+    await historyAsk.eligible();
   }
   const { id: mine, devices } = await ensureDeviceContext();
   const me = devices.find((device) => device.id === mine);
@@ -960,16 +981,45 @@ export async function requestHistory(): Promise<boolean> {
 }
 
 /**
+ * How long the notice about an unanswered ask is worth keeping on screen.
+ *
+ * A day: long enough to cover going to fetch the other device, or leaving it
+ * until the evening, and short enough that a laptop nobody ever went and
+ * approved is not still being told about it a week later.
+ */
+export const HISTORY_ASK_NOTICE_MS = 24 * 60 * 60 * 1000;
+
+/** This device's own code, and the moment the notice about it stops. */
+export interface HistoryAskWaiting {
+  fingerprint: string;
+  /** Epoch milliseconds. */
+  expiresAt: number;
+}
+
+/**
  * This device's own code, while it is waiting to be sent its history.
  *
  * What the screen being asked about shows, so the person holding both has two
  * codes to compare rather than one to take on trust. Read locally: it is this
  * device's own key, written down when it asked.
+ *
+ * The notice gives up after a day; the question does not. Nothing expires a
+ * queued request, so a device opened next week still delivers it, still shows
+ * the dialog, and its answer still lands here — the ask stays open and the
+ * transfer arrives whether or not there was anything on screen about it. What
+ * stops after a day is telling somebody to go and do a thing they have had a
+ * day to do.
  */
-export async function historyAskWaiting(): Promise<{ fingerprint: string } | undefined> {
+export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined> {
   const ask = await historyAsk.get();
-  if (typeof ask !== "object" || !ask.fingerprint) return undefined;
-  return { fingerprint: ask.fingerprint };
+  if (typeof ask !== "object" || !ask.fingerprint || !ask.at) return undefined;
+  const asked = Date.parse(ask.at);
+  if (Number.isNaN(asked)) return undefined;
+  const expiresAt = asked + HISTORY_ASK_NOTICE_MS;
+  if (expiresAt <= Date.now()) return undefined;
+  // When it stops, so the screen showing it can take it down on its own rather
+  // than at whatever unrelated moment something next happens to ask again.
+  return { fingerprint: ask.fingerprint, expiresAt };
 }
 
 /**

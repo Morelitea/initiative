@@ -258,6 +258,11 @@ export function useHistoryAsk() {
     queryKey: messageKeys.historyAsk,
     queryFn: () => historyAskWaiting().then((ask) => ask ?? null),
     staleTime: 0,
+    // The notice gives up after a day, and a tab left open is exactly where
+    // that day runs out with nothing else happening to notice it. Asked once,
+    // when it is due, rather than polled: the answer cannot change before then.
+    refetchInterval: (query) =>
+      query.state.data ? Math.max(1_000, query.state.data.expiresAt - Date.now()) : false,
   });
 }
 

@@ -664,14 +664,26 @@ export const historyProgress = {
  *
  * This device's own fingerprint is kept alongside, so the screen that is
  * waiting can show the code the other screen is about to ask about without a
- * round trip to the directory to be told what it already sent.
+ * round trip to the directory to be told what it already sent. `at` is when it
+ * was asked, which is what lets the notice about it stop being shown long
+ * before the question itself stops being worth answering.
+ *
+ * `"eligible"` is a device that arrived empty and has not got its question out
+ * yet. It is written at registration rather than worked out later, because the
+ * only moment that can tell a device which arrived with nothing from one that
+ * has everything is the moment it came into being — a log with a message in it
+ * says nothing about which of the two this is.
  */
-export type HistoryAsk = { requestId: string; fingerprint?: string } | "closed";
+export type HistoryAsk =
+  | { requestId: string; fingerprint?: string; at?: string }
+  | "eligible"
+  | "closed";
 
 export const historyAsk = {
   get: () => read<HistoryAsk>("history-ask"),
+  eligible: () => write("history-ask", "eligible"),
   open: (requestId: string, fingerprint: string) =>
-    write("history-ask", { requestId, fingerprint }),
+    write("history-ask", { requestId, fingerprint, at: new Date().toISOString() }),
   close: () => write("history-ask", "closed"),
 };
 
