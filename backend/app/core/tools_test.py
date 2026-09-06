@@ -176,7 +176,7 @@ def test_every_tool_carries_the_comment_switch():
     for tool, target in TOOL_COMMENT_TARGETS.items():
         assert issubclass(target.model, CommentsToggleMixin), tool
         columns = {c.name for c in sa_inspect(target.model).persist_selectable.columns}
-        assert "comments_disabled" in columns, tool
+        assert "comments_enabled" in columns, tool
 
     routes = {getattr(route, "path", "") for route in app.routes}
     assert any(path.endswith("/tools/{tool}/{tool_id}/comments") for path in routes)
@@ -210,7 +210,7 @@ def test_every_tool_read_schema_reports_the_comment_switch():
             "application/json"
         ]["schema"]["$ref"]
         model = schema["components"]["schemas"][ref.rsplit("/", 1)[-1]]
-        assert "comments_disabled" in model["properties"], tool
+        assert "comments_enabled" in model["properties"], tool
 
 
 def test_tag_link_specs_carry_the_uniform_contract():

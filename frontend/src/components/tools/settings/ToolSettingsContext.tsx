@@ -24,7 +24,7 @@ export interface ToolSettingsEntity {
   my_permission_level: string | null;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
-  comments_disabled: boolean;
+  comments_enabled: boolean;
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */

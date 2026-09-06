@@ -150,7 +150,7 @@ async def recent_comments(
         # feed too.
         parent_ids = select(model.id).where(
             dac_scope_clause(tool, model.id, user_id, guild_id=guild_id),
-            model.comments_disabled.is_(False),
+            model.comments_enabled.is_(True),
         )
         if target.feature_disabled is not None:
             # The tool's master switch gates the thread, so it gates the feed

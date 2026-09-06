@@ -108,7 +108,7 @@ class ToolCommentSettings(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    comments_disabled: bool
+    comments_enabled: bool
 
 
 class CommentUpdate(CommentBase):

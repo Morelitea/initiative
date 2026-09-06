@@ -14,7 +14,6 @@ import {
 } from "@/components/tools/settings/ToolSettingsContext";
 
 import { ToolSettingsAccessPage } from "./ToolSettingsAccessPage";
-import { ToolSettingsAdvancedPage } from "./ToolSettingsAdvancedPage";
 import { ToolSettingsDetailsPage } from "./ToolSettingsDetailsPage";
 
 const ADDED_TAG = buildTagSummary({ id: 99, name: "Added tag" });
@@ -46,7 +45,7 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   my_permission_level: "owner",
   tags: [],
   grants: [],
-  comments_disabled: false,
+  comments_enabled: true,
   ...overrides,
 });
 
@@ -103,22 +102,23 @@ describe("ToolSettingsDetailsPage tags", () => {
   });
 });
 
-describe("ToolSettingsAdvancedPage comments switch", () => {
+describe("ToolSettingsDetailsPage comments switch", () => {
   it("turns comments off and keeps the new state", async () => {
     resetFactories();
     server.use(
       guildHttp.put("/tools/:tool/:toolId/comments", () =>
-        HttpResponse.json({ comments_disabled: true })
+        HttpResponse.json({ comments_enabled: false })
       )
     );
-    renderSection(ToolSettingsAdvancedPage, buildEntity());
+    renderSection(ToolSettingsDetailsPage, buildEntity());
 
-    const toggle = await screen.findByRole("switch", { name: "Disable comments" });
-    expect(toggle).not.toBeChecked();
+    // Stated the way it is labelled: on means comments happen.
+    const toggle = await screen.findByRole("switch", { name: "Enable comments" });
+    expect(toggle).toBeChecked();
 
     await userEvent.click(toggle);
 
-    await waitFor(() => expect(toggle).toBeChecked());
+    await waitFor(() => expect(toggle).not.toBeChecked());
   });
 
   it("puts the switch back when the write fails", async () => {
@@ -128,12 +128,12 @@ describe("ToolSettingsAdvancedPage comments switch", () => {
         HttpResponse.json({ detail: "NOPE" }, { status: 500 })
       )
     );
-    renderSection(ToolSettingsAdvancedPage, buildEntity());
+    renderSection(ToolSettingsDetailsPage, buildEntity());
 
-    const toggle = await screen.findByRole("switch", { name: "Disable comments" });
+    const toggle = await screen.findByRole("switch", { name: "Enable comments" });
     await userEvent.click(toggle);
 
-    await waitFor(() => expect(toggle).not.toBeChecked());
+    await waitFor(() => expect(toggle).toBeChecked());
   });
 });
 

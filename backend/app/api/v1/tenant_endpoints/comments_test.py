@@ -382,7 +382,7 @@ def _detail_path(tool: Tool, entity_id: int) -> str:
 
 @pytest.mark.integration
 class TestToolCommentSwitch:
-    """``comments_disabled`` — the advanced setting that takes a tool entity's
+    """``comments_enabled`` — the Details setting that takes a tool entity's
     thread off its page. Set through the generic
     ``PUT /tools/{tool}/{tool_id}/comments`` route, reported on the entity's own
     read, and honored by every comment surface."""
@@ -403,18 +403,18 @@ class TestToolCommentSwitch:
 
         detail = await client.get(a.g(_detail_path(tool, entity.id)), headers=a.headers)
         assert detail.status_code == 200, detail.text
-        assert detail.json()["comments_disabled"] is False
+        assert detail.json()["comments_enabled"] is True
 
         off = await client.put(
             a.g(f"/tools/{tool.value}/{entity.id}/comments"),
             headers=a.headers,
-            json={"comments_disabled": True},
+            json={"comments_enabled": False},
         )
         assert off.status_code == 200, off.text
-        assert off.json() == {"comments_disabled": True}
+        assert off.json() == {"comments_enabled": False}
 
         detail = await client.get(a.g(_detail_path(tool, entity.id)), headers=a.headers)
-        assert detail.json()["comments_disabled"] is True
+        assert detail.json()["comments_enabled"] is False
 
         listed = await client.get(
             a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
@@ -441,7 +441,7 @@ class TestToolCommentSwitch:
         on = await client.put(
             a.g(f"/tools/{tool.value}/{entity.id}/comments"),
             headers=a.headers,
-            json={"comments_disabled": False},
+            json={"comments_enabled": True},
         )
         assert on.status_code == 200
         listed = await client.get(
@@ -462,7 +462,7 @@ class TestToolCommentSwitch:
         off = await client.put(
             a.g(f"/tools/{Tool.project.value}/{project.id}/comments"),
             headers=a.headers,
-            json={"comments_disabled": True},
+            json={"comments_enabled": False},
         )
         assert off.status_code == 200, off.text
 
@@ -499,6 +499,6 @@ class TestToolCommentSwitch:
         denied = await client.put(
             a.g(f"/tools/{tool.value}/{entity.id}/comments"),
             headers=b.headers,
-            json={"comments_disabled": True},
+            json={"comments_enabled": False},
         )
         assert denied.status_code == 403, denied.text

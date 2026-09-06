@@ -15,13 +15,13 @@ import type { MutationOpts } from "@/types/mutation";
  */
 export const useSetToolComments = (
   tool: Tool,
-  options?: MutationOpts<ToolCommentSettings, { id: number; disabled: boolean }>
+  options?: MutationOpts<ToolCommentSettings, { id: number; enabled: boolean }>
 ) =>
-  useGuildMutation<ToolCommentSettings, { id: number; disabled: boolean }>(
+  useGuildMutation<ToolCommentSettings, { id: number; enabled: boolean }>(
     {
-      mutationFn: (guildId, { id, disabled }) =>
+      mutationFn: (guildId, { id, enabled }) =>
         setToolCommentSettingsApiV1GGuildIdToolsToolToolIdCommentsPut(guildId, tool, id, {
-          comments_disabled: disabled,
+          comments_enabled: enabled,
         }),
       invalidate: (_data, vars) => {
         invalidateTool(tool, vars.id);

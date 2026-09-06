@@ -1518,7 +1518,7 @@ export interface CalendarSummary {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
 }
@@ -1547,7 +1547,7 @@ export interface CalendarRead {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
 }
@@ -1980,7 +1980,7 @@ export interface CounterGroupSummary {
   created_by: number;
   counter_count: number;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   created_at: string;
   updated_at: string;
@@ -2031,7 +2031,7 @@ export interface CounterGroupRead {
   created_by: number;
   counter_count: number;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   created_at: string;
   updated_at: string;
@@ -2160,7 +2160,7 @@ export interface DashboardSummary {
   listing_uid: string | null;
   listing_version: string | null;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
 }
@@ -2193,7 +2193,7 @@ export interface DashboardRead {
   listing_uid: string | null;
   listing_version: string | null;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
   definition: DashboardReadDefinition;
@@ -2669,7 +2669,7 @@ export interface DocumentSummary {
   initiative: InitiativeRead | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
@@ -2719,7 +2719,7 @@ export interface DocumentRead {
   initiative: InitiativeRead | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
@@ -4385,7 +4385,7 @@ export interface PostRead {
   pin_expires_at: string | null;
   is_pinned: boolean;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   comment_count: number;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -4514,7 +4514,7 @@ export interface ProjectRead {
   documents: ProjectDocumentSummary[];
   task_summary: ProjectTaskSummary;
   task_statuses: TaskStatusRead[];
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   my_permission_level: string | null;
   grants: ResourceGrantSchema[];
@@ -4787,7 +4787,7 @@ export interface QueueSummary {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
 }
@@ -4817,7 +4817,7 @@ export interface QueueRead {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
-  comments_disabled: boolean;
+  comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
   items: QueueItemRead[];
@@ -5701,7 +5701,7 @@ export interface Token {
  * generic ``PUT /tools/{tool}/{tool_id}/comments`` route.
  */
 export interface ToolCommentSettings {
-  comments_disabled: boolean;
+  comments_enabled: boolean;
 }
 
 export interface TrashItem {

@@ -487,7 +487,7 @@ class TestReactionAccess:
         comment_id = created.json()["id"]
 
         await route_session_to_guild(session, project.guild_id)
-        project.comments_disabled = True
+        project.comments_enabled = False
         session.add(project)
         await session.commit()
 

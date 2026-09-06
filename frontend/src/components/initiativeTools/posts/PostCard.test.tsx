@@ -111,7 +111,7 @@ describe("PostCard", () => {
   });
 
   it("says nothing about a thread that is turned off", async () => {
-    const post = buildPost({ comments_disabled: true, comment_count: 0 });
+    const post = buildPost({ comments_enabled: false, comment_count: 0 });
     renderPage(cardPage({ post }));
     await screen.findByTestId("post-body");
 

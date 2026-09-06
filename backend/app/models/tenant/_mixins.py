@@ -119,9 +119,12 @@ class CommentsToggleMixin(SQLModel):
     """Mixin that adds the per-entity comment switch to a tool's content table.
 
     Every tool is commentable, so every tool can turn its thread off:
-    ``comments_disabled`` is the one column behind that, carrying the same name
-    and the same default (off — comments on) on all six. ``tools_test.py``
-    fails CI if a ``Tool`` member's model or read schema lacks it.
+    ``comments_enabled`` is the one column behind that, carrying the same name
+    and the same default (on) on every tool. ``tools_test.py`` fails CI if a
+    ``Tool`` member's model or read schema lacks it.
+
+    Stated positively — a switch labelled "Comments" is on when comments
+    happen, so nobody has to answer yes to mean no.
 
     The switch belongs to the tool entity, not to its children: a project with
     comments off still has task threads, because a task is its own flow rather
@@ -131,10 +134,10 @@ class CommentsToggleMixin(SQLModel):
     Column instance cannot be shared across mapped tables.
     """
 
-    comments_disabled: bool = Field(
-        default=False,
+    comments_enabled: bool = Field(
+        default=True,
         nullable=False,
-        sa_column_kwargs={"server_default": "false"},
+        sa_column_kwargs={"server_default": "true"},
     )
 
 
