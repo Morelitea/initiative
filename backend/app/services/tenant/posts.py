@@ -185,6 +185,14 @@ async def get_post_for_export(
         current_user,
         access="read",
     )
+    # A notice that has not gone up is in no export either — the same gate the
+    # read path applies, asked here because this seam resolves a caller-chosen
+    # id rather than going through ``load_authorized``.
+    if permissions_service.hidden_from_reader(Tool.post, post, current_user.id):
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=PostMessages.NOT_FOUND,
+        )
     return post
 
 

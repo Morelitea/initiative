@@ -657,11 +657,13 @@ def test_the_audience_is_exactly_who_the_access_check_would_admit():
     # Everyone the audience names can in fact reach it...
     for user_id in audience:
         assert effective_level(resource, row, user_id) is not None
-    # ...and everyone it leaves out cannot.
+    # ...and every MEMBER it leaves out cannot. (A grant naming somebody who is
+    # no longer in the initiative passes this check and still fails RLS, which
+    # is why the audience is narrowed to the roster — see the case below.)
     for member in everyone:
         if member.user_id not in audience:
             assert effective_level(resource, row, member.user_id) is None
-    assert audience == {1, 2, 99}
+    assert audience == {1, 2}
 
 
 def test_an_all_members_grant_reaches_every_member():
@@ -675,3 +677,22 @@ def test_a_resource_shared_with_nobody_has_no_audience():
     falling back to the roster."""
     row = _Row(grants=[], memberships=[_Membership(1), _Membership(2)])
     assert audience_user_ids(row) == set()
+
+
+def test_a_named_grant_does_not_outlive_the_membership():
+    """A grant survives the membership it was written for — leaving an
+    initiative sweeps no grants — and RLS answers the leftover with 404. An
+    audience built on the grant alone would carry a headline and an excerpt to
+    somebody who can no longer open the thing they name.
+    """
+    row = _Row(
+        grants=[_Grant(user_id=1), _Grant(user_id=2)],
+        memberships=[_Membership(1)],
+    )
+
+    assert audience_user_ids(row) == {1}
+
+
+def test_an_all_members_grant_names_the_roster_as_it_is_now():
+    row = _Row(grants=[_Grant(all_members=True)], memberships=[_Membership(4)])
+    assert audience_user_ids(row) == {4}

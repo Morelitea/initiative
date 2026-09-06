@@ -18,6 +18,7 @@ Postgres, with the sync initiative-scope check beside its SQL counterpart in
 
 from dataclasses import dataclass
 from enum import Enum
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
@@ -493,6 +494,14 @@ def audience_user_ids(row: Any) -> set[int]:
     it. What this answers is who a thing was shared WITH, which is the only
     honest audience for telling people something exists.
 
+    Every recipient is checked against the initiative's current roster,
+    including one named directly. A grant outlives the membership it was
+    written for — leaving an initiative does not sweep them — and RLS answers
+    the leftover with 404, so a notification built on the grant alone would
+    carry a headline and an excerpt to somebody who can no longer open the
+    thing they name. The roster is what the database enforces, so it is what
+    this counts.
+
     Initiative-scoped resources only. On a guild-level row an all-members grant
     means the guild's members, and there is no loaded collection here that
     names them.
@@ -502,6 +511,7 @@ def audience_user_ids(row: Any) -> set[int]:
     memberships = (
         getattr(initiative, "memberships", None) if initiative is not None else None
     ) or []
+    members = {m.user_id for m in memberships}
     audience: set[int] = set()
     for g in grants:
         if g.user_id is not None:
@@ -509,8 +519,70 @@ def audience_user_ids(row: Any) -> set[int]:
         elif g.role_id is not None:
             audience.update(m.user_id for m in memberships if m.role_id == g.role_id)
         elif getattr(g, "all_initiative_members", False):
-            audience.update(m.user_id for m in memberships)
-    return audience
+            audience.update(members)
+    return audience & members
+
+
+#: What a row needs, beyond being shared with you, before it is anybody's to
+#: read. A tool absent from here has nothing between "shared with me" and "I
+#: can see it"; a post has its publication, and until then it is a draft.
+READ_VISIBLE: dict[Tool, Callable[[Any], bool]] = {
+    Tool.post: lambda row: getattr(row, "published_at", None) is not None,
+}
+
+
+def may_write(
+    resource: DacResource,
+    row: Any,
+    user_id: int,
+    *,
+    guild_id: int | None,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Whether this caller could change the row.
+
+    The row-shaped form of :func:`writable_scope_clause`, leg for leg: the same
+    bypass check, then a grant at :data:`WRITE_LEVELS`. Deliberately not
+    :func:`compute_permission`, which caps at read while a community is frozen
+    — that answers "may I edit this right now", and the question here is
+    whether the row is this person's at all.
+    """
+    if request_bypasses_dac(
+        guild_id,
+        initiative_id=getattr(row, "initiative_id", None),
+        access="write",
+        guild_role=guild_role,
+    ):
+        return True
+    level = effective_level(resource, row, user_id)
+    return level in {lvl.value for lvl in WRITE_LEVELS}
+
+
+def hidden_from_reader(
+    kind: Tool,
+    row: Any,
+    user_id: int,
+    *,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Whether this row exists but is not yet this caller's to see.
+
+    One question asked at every seam that resolves a single row by id —
+    reading it, exporting it, commenting on it, reacting to it — so a draft
+    cannot leak through whichever of them nobody thought about. Applied AFTER
+    the sharing decision, so the answer to "does this exist" is unchanged for
+    somebody who was never going to reach it either way.
+    """
+    visible = READ_VISIBLE.get(kind)
+    if visible is None or visible(row):
+        return False
+    return not may_write(
+        DAC_RESOURCES[kind],
+        row,
+        user_id,
+        guild_id=getattr(row, "guild_id", None),
+        guild_role=guild_role,
+    )
 
 
 async def replace_resource_grants(

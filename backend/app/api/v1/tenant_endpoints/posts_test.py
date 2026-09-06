@@ -9,6 +9,7 @@ others, and when a notice becomes something other people can see.
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import delete as sa_delete, text
 from sqlmodel import select
@@ -16,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.post import MAX_POST_TEXT_CHARS, post_excerpt
 from app.testing import create_comment, create_post, lexical_body
@@ -1131,3 +1133,97 @@ async def test_re_pinning_a_lapsed_pin_starts_a_new_one(
     assert response.json()["pinned_at"] != stale.isoformat()
     assert response.json()["is_pinned"] is True
     assert response.json()["pin_expires_at"] is None
+
+
+# ---------------------------------------------------------------------------
+# A draft is not reachable by any door
+# ---------------------------------------------------------------------------
+
+
+async def _draft_for(session, actor, author) -> "Post":
+    await _posts_enabled(session, actor.initiative)
+    return await create_post(
+        session,
+        actor.initiative,
+        author,
+        name="Embargoed",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+
+@pytest.mark.integration
+async def test_a_draft_cannot_be_exported(client: AsyncClient, acting_user, session):
+    """The export seam resolves an id the caller chose, so it asks the same
+    question the board does rather than only read access."""
+    from app.services.tenant.posts import get_post_for_export
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    draft = await _draft_for(session, a, a.user)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await get_post_for_export(session, reader.user, a.guild.id, post_id=draft.id)
+    assert excinfo.value.status_code == 404
+
+
+@pytest.mark.integration
+async def test_a_draft_has_no_comment_thread(client: AsyncClient, acting_user, session):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    draft = await _draft_for(session, a, a.user)
+
+    listed = await client.get(
+        reader.g("/comments/"), headers=reader.headers, params={"post_id": draft.id}
+    )
+    posted = await client.post(
+        reader.g("/comments/"),
+        headers=reader.headers,
+        json={"content": "Seen it", "post_id": draft.id},
+    )
+    assert listed.status_code == 404
+    assert posted.status_code == 404
+
+
+@pytest.mark.integration
+async def test_a_draft_cannot_be_reacted_to(client: AsyncClient, acting_user, session):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    draft = await _draft_for(session, a, a.user)
+
+    response = await client.put(
+        reader.g(f"/reactions/post/{draft.id}"),
+        headers=reader.headers,
+        json={"emoji": "👍"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_its_author_still_reaches_a_draft_everywhere(
+    client: AsyncClient, acting_user, session
+):
+    """The gate is "not yours to read yet", not "gone" — whoever could edit it
+    keeps every door."""
+    from app.services.tenant.posts import get_post_for_export
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    draft = await _draft_for(session, a, a.user)
+
+    assert (
+        await client.get(a.g(f"/posts/{draft.id}"), headers=a.headers)
+    ).status_code == 200
+    assert (
+        await client.put(
+            a.g(f"/reactions/post/{draft.id}"),
+            headers=a.headers,
+            json={"emoji": "👍"},
+        )
+    ).status_code == 200
+    assert await get_post_for_export(session, a.user, a.guild.id, post_id=draft.id)

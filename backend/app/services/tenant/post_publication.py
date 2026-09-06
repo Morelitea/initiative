@@ -14,7 +14,11 @@ Two ways in, one fan-out:
 * **Scheduled** — the row is written with neither column resolved, and
   :func:`publish_due_posts` stamps it when its time comes. The stamp is an
   ``UPDATE … WHERE published_at IS NULL … RETURNING``, so a row is claimed by
-  exactly one worker however many are running.
+  exactly one worker however many are running, and it is **committed before
+  anything is sent**. Email and push leave the building; a rollback cannot
+  call them back. Committing the claim first means a crash mid-announce costs
+  some notifications, where the other order would send the whole board a
+  second set on the next pass.
 
 Publishing is also what puts a notice into the search index. The index is
 maintained by triggers, and no trigger fires on the passage of time — but the
@@ -94,7 +98,8 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
     """Publish every scheduled notice whose time has come, in one guild.
 
     The session is already routed into that guild's schema. Returns the ids
-    published, which is what the tests assert on.
+    published, which is what the tests assert on. Commits: the claim has to be
+    durable before anything leaves for an inbox or a device.
 
     Trashed drafts are left alone: a notice somebody threw away must not go up
     on schedule. Restoring it puts it back in scope, and the next pass sends it.
@@ -115,6 +120,12 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
     post_ids = [row[0] for row in claimed]
     if not post_ids:
         return []
+
+    # The claim is durable before a single email or push goes out. Sending
+    # first would mean a failure anywhere below rolls ``published_at`` back
+    # while the messages stay sent, and the next pass — seeing NULL again —
+    # announces the same notices to the same people.
+    await session.commit()
 
     posts = (
         (

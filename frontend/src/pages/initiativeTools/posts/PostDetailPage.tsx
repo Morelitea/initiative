@@ -74,6 +74,13 @@ export function PostDetailPage() {
       toast.success(t("detailsUpdated"));
     },
   });
+  // Scheduling gets its OWN mutation, because the one above declares the body
+  // saved. Sharing it would let "post now" clear a draft it never sent: the
+  // Save button disappears, both navigation guards stand down, and the
+  // half-written notice still sitting in the editor leaves with the page.
+  const reschedule = useUpdatePost(parsedId, {
+    onSuccess: () => toast.success(t("detailsUpdated")),
+  });
   const setPin = useSetPostPin(parsedId, {
     onSuccess: (updated) =>
       toast.success(updated.is_pinned ? t("pin.pinnedToast") : t("pin.unpinnedToast")),
@@ -208,13 +215,13 @@ export function PostDetailPage() {
                 // everybody. "Post now" is the way to publish, and it says so.
                 onChange={(value) => {
                   const when = fromLocalDateTimeInput(value);
-                  if (when) update.mutate({ scheduled_for: when });
+                  if (when) reschedule.mutate({ scheduled_for: when });
                 }}
               />
               <Button
                 size="sm"
-                disabled={update.isPending}
-                onClick={() => update.mutate({ scheduled_for: null })}
+                disabled={reschedule.isPending}
+                onClick={() => reschedule.mutate({ scheduled_for: null })}
               >
                 {t("schedule.publishNow")}
               </Button>

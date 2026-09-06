@@ -144,6 +144,10 @@ async def _resolve_post(
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     if post.initiative is not None and not post.initiative.posts_enabled:
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
+    # A notice that has not gone up has nothing to react to, and saying
+    # otherwise would say it exists.
+    if permissions_service.hidden_from_reader(Tool.post, post, cast(int, user.id)):
+        raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     try:
         permissions_service.require_access(
             permissions_service.DAC_RESOURCES[Tool.post],
