@@ -20,8 +20,9 @@ reading what has already been answered, so each takes the poll row with
 :func:`lock_poll` first and holds it until the transaction commits. That makes
 one poll's writes a queue: each sees a settled answer, acts on it, and hands the
 row to the next. Whether the poll is still open is asked in the same statement,
-by the database's clock, so the deadline a ballot is measured against is the one
-in force when the row is taken.
+against the wall clock at the moment the row is taken — so a ballot is measured
+by the deadline in force when it is about to be written, rather than by when its
+request arrived.
 
 **Every ballot counts, and the sharing decides only who is still expected to
 answer.** A read receipt asks "who still needs to see this", so it is measured
@@ -129,9 +130,11 @@ async def lock_poll(session: AsyncSession, poll: PostPoll) -> None:
 async def lock_open_poll(session: AsyncSession, poll: PostPoll) -> bool:
     """Take the row, and answer whether the poll still takes votes.
 
-    One statement, so the close time is compared to the database's clock at the
-    moment the row is taken, and the ballot is written inside the transaction
-    that holds it.
+    One statement, so the close time is read as the row is taken — against the
+    wall clock at that moment (see :func:`poll_is_open`), not the instant this
+    request's transaction began, which is before it loaded the post and before
+    it waited its turn for the row. The ballot is then written inside the
+    transaction still holding it.
     """
     row = (
         await session.exec(

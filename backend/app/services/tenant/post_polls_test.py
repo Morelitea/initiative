@@ -113,3 +113,43 @@ async def test_a_poll_with_no_deadline_always_takes_votes(session: AsyncSession)
     assert await post_polls_service.lock_open_poll(session, poll) is True
 
     await session.rollback()
+
+
+async def test_the_deadline_is_the_wall_clock_not_the_transactions_start(
+    session: AsyncSession,
+):
+    """A ballot is measured by the deadline in force as it is about to be
+    written, not by when its request arrived.
+
+    Postgres fixes ``now()`` at the start of a transaction, and a ballot's
+    transaction starts before it has loaded the post, authorized it, and waited
+    its turn for the poll's row. This sets a deadline that passes *during* one
+    transaction and asks the gate afterwards: read against the transaction's own
+    beginning the poll is still open, and against the wall clock it is not.
+    """
+    _guild_id, poll = await _poll(session)
+    await session.commit()
+
+    # Inside one transaction: a deadline a moment away, then wait past it.
+    await session.exec(
+        text(
+            "UPDATE post_polls SET closes_at = clock_timestamp() + interval '150 milliseconds' "
+            "WHERE id = :i"
+        ).bindparams(i=poll.id)
+    )
+    await asyncio.sleep(0.5)
+
+    # `now()` here is this transaction's start — earlier than the deadline that
+    # was just written, so a transaction-time comparison would still say open.
+    still_open_by_transaction_time = (
+        await session.exec(
+            text("SELECT closes_at > now() FROM post_polls WHERE id = :i").bindparams(
+                i=poll.id
+            )
+        )
+    ).one()
+    assert still_open_by_transaction_time[0] is True
+
+    assert await post_polls_service.lock_open_poll(session, poll) is False
+
+    await session.rollback()

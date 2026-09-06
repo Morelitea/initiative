@@ -993,9 +993,9 @@ async def vote_on_post_poll(
         )
     poll = _poll_of(post)
     # Takes the poll's row and asks whether it still takes votes in one
-    # statement, by the database's clock. The row is held until this ballot
-    # commits, so one voter's ballots are written one after another and the
-    # deadline each is measured against is the one in force when it lands.
+    # statement, against the wall clock at that moment. The row is held until
+    # this ballot commits, so one voter's ballots are written one after another
+    # and each is measured by the deadline in force as it lands.
     if not await post_polls_service.lock_open_poll(session, poll):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

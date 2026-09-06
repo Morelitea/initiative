@@ -210,10 +210,22 @@ def poll_is_open():
 
     Written once so the vote endpoint and anything that lists open polls cannot
     disagree about the boundary case of a close time that has just passed.
+
+    ``clock_timestamp()``, not ``now()``. Postgres fixes ``now()`` at the start
+    of the transaction, and a ballot's transaction starts well before it reaches
+    this predicate — it has a post to load and authorize first, and then a row
+    to wait its turn for. Measuring against the transaction's own beginning
+    would judge the deadline by when the request arrived rather than by when it
+    is about to write. The wall clock is what a deadline means.
+
+    The cost is that this is not stable across a statement, so it belongs on a
+    write gate deciding one row and not in a listing, where two rows either side
+    of the instant would make an inconsistent page. ``pin_is_live`` is the
+    listing case and keeps ``now()`` for exactly that reason.
     """
     from sqlalchemy import func, or_
 
     return or_(
         PostPoll.closes_at.is_(None),
-        PostPoll.closes_at > func.now(),
+        PostPoll.closes_at > func.clock_timestamp(),
     )
