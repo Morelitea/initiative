@@ -105,6 +105,7 @@ import {
   collect,
   ensureDevice,
   forgetMessagesOnThisDevice,
+  historyAskWaiting,
   historyRequestToAnswer,
   markRead,
   RecipientHasNoDeviceError,
@@ -634,6 +635,39 @@ describe("history between this account's own devices", () => {
     expect(asks[0]).toMatchObject({ deviceId: OURS.id, fingerprint: "fp" });
   });
 
+  it("does not ask when this device already has the messages", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await messageLog.append("conv-1", {
+      id: "m1",
+      at: "2026-09-01T00:00:00Z",
+      body: "already here",
+      mine: false,
+    });
+
+    await collect({ receipts: false });
+
+    // Every device of the account runs this. One that asks for what it is
+    // sitting on leaves two screens each asking the other, each showing a
+    // different code, and nothing to compare either against.
+    expect(sentEnvelopes().filter((e) => e.kind === "history-request")).toEqual([]);
+    // And settled, rather than reconsidered on every collection.
+    expect(await historyAsk.get()).toBe("closed");
+  });
+
+  it("shows this device's own code while it waits to be answered", async () => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+
+    await collect({ receipts: false });
+
+    // The same key the deciding screen draws its pictures from, so the two can
+    // be held side by side.
+    expect(await historyAskWaiting()).toEqual({ fingerprint: "fp" });
+  });
+
   it("does not ask when it is the only device on the account", async () => {
     await forgetDevice();
     await deviceId.set(OURS.id);
@@ -783,13 +817,19 @@ describe("history between this account's own devices", () => {
     expect(await historyRequestToAnswer()).toBeUndefined();
   });
 
-  /** Ask for this device's history, and answer with the id it asked under. */
+  /**
+   * Ask for this device's history, and answer with the id it asked under.
+   *
+   * Anything seeded lands after the ask, because only a device holding nothing
+   * asks -- a message that arrives while the question is outstanding is what
+   * puts something in the log of a device waiting on an answer.
+   */
   const askThenAnswer = async (chunk: Record<string, unknown>, seed?: () => Promise<void>) => {
     await forgetDevice();
     await deviceId.set(OURS.id);
     await accountPickle.set("account");
-    await seed?.();
     await collect({ receipts: false });
+    await seed?.();
     const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
     api.collectQueue.mockResolvedValue({
       items: [

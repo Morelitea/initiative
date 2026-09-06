@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
 import { AgeUnansweredPanel } from "@/components/contacts/UnreachableEmptyState";
 import { ConversationList } from "@/components/messages/ConversationList";
+import { HistoryAskNotice } from "@/components/messages/HistoryAskNotice";
 import { HistoryRequestPanel } from "@/components/messages/HistoryRequestPanel";
 import { MessageContent } from "@/components/messages/MessageContent";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
@@ -224,6 +225,9 @@ export function MyMessagesPage() {
           whoever is on screen — and because a device waiting on an answer is
           waiting on a person who has to see it to give one. */}
       <HistoryRequestPanel />
+
+      {/* The other side of the same comparison, on the device that asked. */}
+      <HistoryAskNotice />
 
       {/* Who there is to talk to lives in the sidebar, which drills into this
           route -- so the page is only ever the one conversation. That is what

@@ -24,6 +24,7 @@ import {
   answerHistoryRequest,
   collect,
   ensureDevice,
+  historyAskWaiting,
   historyRequestToAnswer,
   markRead,
   messageLog,
@@ -51,6 +52,10 @@ export const messageKeys = {
   // Keyed on the conversations it counts, so a new one is a new question
   // rather than a stale answer waiting for something to invalidate it.
   unread: (conversationIds: string[]) => ["dm", "unread", conversationIds.join(",")] as const,
+  /** Another device asking this one for history, read out of the local store. */
+  historyRequest: ["dm", "history-request"] as const,
+  /** This device's own outstanding ask, and the code it is showing for it. */
+  historyAsk: ["dm", "history-ask"] as const,
   /** The family a socket frame invalidates, which is everything read locally. */
   all: ["dm"] as const,
 };
@@ -156,8 +161,8 @@ export function useStartConversation() {
  * the frame re-runs the collection. An effect would have needed its own
  * subscription to the same signal.
  *
- * It never invalidates its own key — only the threads and the conversation
- * list — so a collection cannot re-trigger itself.
+ * It never invalidates its own key — only the threads, the conversation list
+ * and the two history panels — so a collection cannot re-trigger itself.
  */
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
@@ -172,6 +177,15 @@ export function useCollectMessages(enabled: boolean) {
           queryKey: messageKeys.thread(conversationId),
         });
       }
+      // Always, and after the collection rather than with it: a request from
+      // another device arrives inside this call and is written to this
+      // device's own store, which no frame and no other query knows to look at
+      // again. The socket frame that started this collection invalidated the
+      // panel a round trip *before* the request landed, so without this the
+      // dialog waits for a reload — which is the one thing somebody who has
+      // just signed in elsewhere is not doing.
+      void queryClient.invalidateQueries({ queryKey: messageKeys.historyRequest });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
       if (touched.length > 0) {
         void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
         void queryClient.invalidateQueries({ queryKey: ["dm", "unread"] });
@@ -227,8 +241,22 @@ export function useCollectMessagesWhereRegistered() {
  */
 export function useHistoryRequest() {
   return useQuery({
-    queryKey: ["dm", "history-request"],
+    queryKey: messageKeys.historyRequest,
     queryFn: () => historyRequestToAnswer().then((request) => request ?? null),
+    staleTime: 0,
+  });
+}
+
+/**
+ * This device waiting on an answer to its own ask, and the code it shows for it.
+ *
+ * The pair of the panel above: one screen decides, the other is being decided
+ * about, and both draw the same key so a person can compare them.
+ */
+export function useHistoryAsk() {
+  return useQuery({
+    queryKey: messageKeys.historyAsk,
+    queryFn: () => historyAskWaiting().then((ask) => ask ?? null),
     staleTime: 0,
   });
 }

@@ -44,6 +44,9 @@ const mocks = vi.hoisted(() => ({
   removeMessageRequest: vi.fn(),
   userProfile: vi.fn(),
   dmSettings: vi.fn(),
+  historyRequest: vi.fn(),
+  historyAsk: vi.fn(),
+  answerHistoryRequest: vi.fn(),
 }));
 
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
@@ -78,6 +81,12 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   // same local log the thread does.
   unreadIn: (id: string) => mocks.unreadIn(id),
   markRead: (id: string) => mocks.markRead(id),
+  // Both sides of a history transfer read this device's own store, not an
+  // endpoint: the request arrived as an encrypted envelope and the server
+  // never saw what it was.
+  historyRequestToAnswer: () => mocks.historyRequest(),
+  historyAskWaiting: () => mocks.historyAsk(),
+  answerHistoryRequest: (approve: boolean) => mocks.answerHistoryRequest(approve),
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
@@ -178,6 +187,9 @@ beforeEach(() => {
     data: { dm_policy: "community", communities: [], age_confirmed_at: "2020-01-01T00:00:00Z" },
     isSuccess: true,
   });
+  mocks.historyRequest.mockResolvedValue(undefined);
+  mocks.historyAsk.mockResolvedValue(undefined);
+  mocks.answerHistoryRequest.mockResolvedValue(undefined);
 });
 
 /** The person a `?with=` handle resolves to. */
@@ -559,6 +571,47 @@ describe("My Messages", () => {
     await queryClient.invalidateQueries({ queryKey: ["dm"] });
 
     await waitFor(() => expect(mocks.collect).toHaveBeenCalledTimes(2));
+  });
+
+  it("puts a device's request on screen as soon as a collection finds it", async () => {
+    // The request is written to this device's store *by* the collection, and
+    // the frame that started the collection invalidated the panel a round trip
+    // earlier. Nothing else would look again, so without the collection saying
+    // so the dialog waits for a reload -- which is the one thing somebody who
+    // has just signed in on another device is not about to do.
+    mocks.collect.mockImplementation(async () => {
+      await Promise.resolve();
+      mocks.historyRequest.mockResolvedValue({
+        requestId: "r1",
+        deviceId: "device-2",
+        label: "A laptop",
+        fingerprint: "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=",
+        at: "2026-09-06T00:00:00Z",
+      });
+      return [];
+    });
+
+    await renderMessages();
+
+    expect(
+      await screen.findByRole("heading", { name: /asking for your messages/i })
+    ).toBeInTheDocument();
+    // And what it asks somebody to compare is pictures, not a line of base64.
+    expect(await screen.findByRole("list", { name: /device code/i })).toBeInTheDocument();
+  });
+
+  it("shows the waiting device the code it will be asked about", async () => {
+    // The other half of the comparison: two screens each drawing the same key,
+    // rather than one screen showing a code nobody can check it against.
+    mocks.historyAsk.mockResolvedValue({
+      fingerprint: "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=",
+    });
+
+    await renderMessages();
+
+    expect(
+      await screen.findByRole("heading", { name: /waiting for your messages/i })
+    ).toBeInTheDocument();
   });
 
   it("does not carry a half-written message into another conversation", async () => {

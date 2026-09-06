@@ -918,9 +918,20 @@ async function carrierConversation(): Promise<string | null> {
  * Asked once per device: the answer is a person's decision, and a device that
  * asks again every time it starts is a device training somebody to say yes
  * without reading.
+ *
+ * Only a device holding nothing asks. Every device of the account runs this,
+ * and one that already has the threads would otherwise ask for what it is
+ * sitting on — leaving two screens each asking the other, each showing a
+ * different code, and nothing to compare either against.
  */
 export async function requestHistory(): Promise<boolean> {
   if ((await historyAsk.get()) !== undefined) return false;
+  if (await messageLog.holdsAnything()) {
+    // Settled rather than reconsidered on every collection: this device has a
+    // history of its own, and that does not become untrue later.
+    await historyAsk.close();
+    return false;
+  }
   const { id: mine, devices } = await ensureDeviceContext();
   const me = devices.find((device) => device.id === mine);
   if (!me || devices.length < 2) return false;
@@ -944,8 +955,21 @@ export async function requestHistory(): Promise<boolean> {
   // queue holds it until the far device wakes, and a device that asks on every
   // collection raises the same dialog until somebody stops reading it. The id
   // is what an answer is matched against.
-  if (asked) await historyAsk.open(requestId);
+  if (asked) await historyAsk.open(requestId, me.fingerprint_key);
   return asked;
+}
+
+/**
+ * This device's own code, while it is waiting to be sent its history.
+ *
+ * What the screen being asked about shows, so the person holding both has two
+ * codes to compare rather than one to take on trust. Read locally: it is this
+ * device's own key, written down when it asked.
+ */
+export async function historyAskWaiting(): Promise<{ fingerprint: string } | undefined> {
+  const ask = await historyAsk.get();
+  if (typeof ask !== "object" || !ask.fingerprint) return undefined;
+  return { fingerprint: ask.fingerprint };
 }
 
 /**

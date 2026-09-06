@@ -423,6 +423,19 @@ export const messageLog = {
    * somebody left is gone from that list and its messages are still here, and
    * they are as much this device's history as any other.
    */
+  /**
+   * Whether this device holds any thread at all.
+   *
+   * A conversation key can outlive the last message in it — every message in a
+   * thread can be taken back — so the messages are what is counted rather than
+   * the keys.
+   */
+  holdsAnything: async (): Promise<boolean> => {
+    for (const conversationId of await messageLog.conversations()) {
+      if ((await messageLog.get(conversationId)).length > 0) return true;
+    }
+    return false;
+  },
   conversations: async (): Promise<string[]> => {
     const db = await open();
     return new Promise((resolve, reject) => {
@@ -648,12 +661,17 @@ export const historyProgress = {
  * Asked once, and answered once: `"closed"` records that the question has been
  * settled — by a transfer finishing, or by a device saying no — and is what
  * tells later arrivals they answer nothing that was asked.
+ *
+ * This device's own fingerprint is kept alongside, so the screen that is
+ * waiting can show the code the other screen is about to ask about without a
+ * round trip to the directory to be told what it already sent.
  */
-export type HistoryAsk = { requestId: string } | "closed";
+export type HistoryAsk = { requestId: string; fingerprint?: string } | "closed";
 
 export const historyAsk = {
   get: () => read<HistoryAsk>("history-ask"),
-  open: (requestId: string) => write("history-ask", { requestId }),
+  open: (requestId: string, fingerprint: string) =>
+    write("history-ask", { requestId, fingerprint }),
   close: () => write("history-ask", "closed"),
 };
 
