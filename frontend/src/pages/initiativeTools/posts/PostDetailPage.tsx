@@ -11,10 +11,13 @@ import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
@@ -152,6 +155,28 @@ export function PostDetailPage() {
           ) : (
             <Skeleton className="h-9 w-64" />
           )}
+          {/* Signed, the way the board signs it. A notice is somebody saying
+              something, and its own page is the last place that should be
+              left off. Under the headline here rather than above it, because
+              on a page the title comes first and the byline answers it. */}
+          {post?.author ? (
+            <div className="flex min-w-0 items-center gap-2 pt-1">
+              <ProfileAvatar
+                user={post.author}
+                decorations={post.author.profile_decorations}
+                presence={post.author.presence}
+                className="size-7 shrink-0"
+              />
+              <UserHandle user={post.author} className="text-sm" nameClassName="min-w-0 truncate" />
+              <span aria-hidden className="text-muted-foreground text-xs">
+                ·
+              </span>
+              <RelativeTime
+                date={post.published_at ?? post.created_at}
+                className="text-muted-foreground text-xs"
+              />
+            </div>
+          ) : null}
           {post && <PinnedBanner post={post} canPin={canPin} />}
         </div>
 
