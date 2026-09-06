@@ -178,7 +178,7 @@ def authorize(
         ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=cfg.not_found_msg or "NOT_FOUND",
+                detail=cfg.not_found_msg,
             )
 
 

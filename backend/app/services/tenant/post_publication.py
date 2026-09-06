@@ -18,7 +18,12 @@ Two ways in, one fan-out:
   anything is sent**. Email and push leave the building; a rollback cannot
   call them back. Committing the claim first means a crash mid-announce costs
   some notifications, where the other order would send the whole board a
-  second set on the next pass.
+  second set on the next pass. The fan-out isolates each recipient so that
+  cost is bounded by an actual crash rather than by one bad address — which is
+  already better than every other notifier in the app, all of which fan out
+  inline before their own commit. Making delivery exactly-once needs a
+  per-recipient ledger, and that is a bar to raise everywhere at once rather
+  than for one tool.
 
 Publishing is also what puts a notice into the search index. The index is
 maintained by triggers, and no trigger fires on the passage of time — but the
@@ -60,7 +65,8 @@ async def announce_post(
     author: User,
     guild_id: int,
 ) -> int:
-    """Tell everyone the notice was shared with that it is up. Returns how many.
+    """Tell everyone the notice was shared with that it is up. Returns how many
+    were actually told.
 
     The audience is the post's own sharing — :func:`posts.audience_user_ids`,
     which resolves the same grant rows the per-request check reads. A notice
@@ -80,18 +86,29 @@ async def announce_post(
     recipients = await accounts_service.load_all(
         sorted(recipient_ids), excluding_ignorers_of=author.id
     )
+    delivered = 0
     for recipient in recipients:
-        await notifications_service.notify_post_published(
-            session,
-            recipient=recipient,
-            post_id=post.id,
-            post_name=post.name,
-            excerpt=excerpt,
-            author_name=author_name,
-            author_id=author.id,
-            guild_id=guild_id,
-        )
-    return len(recipients)
+        # One recipient at a time, and one recipient's failure costs only
+        # theirs. By here the publication is already committed, so an exception
+        # raised out of this loop would leave the notice up and unclaimable
+        # with the rest of the board never told — a whole audience lost to one
+        # bad address.
+        try:
+            await notifications_service.notify_post_published(
+                session,
+                recipient=recipient,
+                post_id=post.id,
+                post_name=post.name,
+                excerpt=excerpt,
+                author_name=author_name,
+                author_id=author.id,
+                guild_id=guild_id,
+            )
+        except Exception:
+            logger.exception("Could not tell %s about post %s", recipient.id, post.id)
+            continue
+        delivered += 1
+    return delivered
 
 
 async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int]:

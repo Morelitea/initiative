@@ -8,6 +8,7 @@ the ones it was shared with.
 from datetime import datetime, timedelta, timezone
 
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import text
@@ -17,6 +18,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.services import notifications as notifications_service
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
     create_guild,
@@ -213,7 +215,6 @@ async def test_a_failed_announcement_does_not_re_publish(session: AsyncSession):
     the whole board a second set on the next one.
     """
     import app.services.tenant.post_publication as publication
-    from unittest.mock import patch
 
     author, reader, initiative, _ = await _board(session)
     post_id = await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
@@ -234,3 +235,38 @@ async def test_a_failed_announcement_does_not_re_publish(session: AsyncSession):
 
 async def _explode(*_args, **_kwargs):
     raise RuntimeError("the network went away mid-announcement")
+
+
+async def test_one_bad_recipient_does_not_cost_the_rest(session: AsyncSession):
+    """The publication is committed by the time the fan-out runs, so an
+    exception escaping it would leave the notice up, unclaimable, and the rest
+    of the board never told."""
+    import app.services.tenant.post_publication as publication
+
+    author, reader, initiative, guild = await _board(session)
+    reader_id = reader.id
+    second = await create_user(session)
+    second_id = second.id
+    await create_guild_membership(session, user=second, guild=guild)
+    await create_initiative_member(session, initiative, second)
+    await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
+
+    real = notifications_service.notify_post_published
+    seen: list[int] = []
+
+    async def _flaky(session_, *, recipient, **kw):
+        seen.append(recipient.id)
+        if recipient.id == min(reader_id, second_id):
+            raise RuntimeError("that address bounced")
+        return await real(session_, recipient=recipient, **kw)
+
+    with patch.object(
+        publication.notifications_service, "notify_post_published", _flaky
+    ):
+        await route_session_to_guild(session, initiative.guild_id)
+        await publish_due_posts(session, now=datetime.now(timezone.utc))
+    await session.commit()
+
+    # Both were attempted, and the one that worked still got told.
+    assert sorted(seen) == sorted([reader_id, second_id])
+    assert len(await _notifications(session, max(reader_id, second_id))) == 1
