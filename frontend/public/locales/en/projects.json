@@ -38,7 +38,7 @@
     "heading": "Filters",
     "show": "Show filters",
     "hide": "Hide filters",
-    "filterByName": "Filter by name",
+    "searchLabel": "Name or description",
     "searchProjects": "Search projects",
     "selectedInitiative": "Selected initiative",
     "filterByTag": "Filter by tag",

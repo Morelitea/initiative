@@ -11,10 +11,11 @@ Two things here are the board's own rather than the generic tool shape:
   shows a board can disagree about it. Passing ``sort_by`` opts out into the
   ordinary tool sort, which is what the guild-wide table needs.
 * **Page size.** A board renders its notices, bodies and all, so the list
-  returns whole posts and pages in twenties rather than the hundreds every
-  other tool list takes. Each body is a Lexical state the client mounts an
-  editor for, and that is the cost this cap is protecting; it is a starting
-  number to be tuned against real boards, not a considered limit.
+  returns whole posts and pages in fives rather than the hundreds every other
+  tool list takes. Each body is a Lexical state the client mounts an editor
+  for, and that is the cost this cap protects: the board scrolls on rather
+  than paging, so a page is what it fetches ahead, not what somebody has to
+  look at.
 * **Pinning.** Lifting a notice above everyone else's is initiative management
   authority, not write access on the post, so ``PUT /{id}/pin`` asks for guild
   admin or an initiative manager rather than the post's own DAC. Its author
@@ -53,11 +54,15 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.post import (
     PostCreate,
+    PostReadMarks,
+    PostReadReceipt,
+    PostReaders,
     PostListResponse,
     PostPinUpdate,
     PostRead,
     PostUpdate,
     post_body_too_long,
+    post_reader,
     serialize_post,
 )
 from app.schemas.tenant.recent_view import RecentViewWrite
@@ -74,9 +79,10 @@ from app.services.tenant import tool_listing
 
 #: How many notices a board hands over at once. A post carries its body and
 #: the client mounts an editor per body, so this is deliberately far below the
-#: 100 every other tool list defaults to. A starting number, to be tuned once
-#: there are real boards to measure.
-BOARD_PAGE_SIZE = 20
+#: 100 every other tool list defaults to — and small enough that the board can
+#: fetch the next one as somebody reaches the bottom rather than making them
+#: ask. The ceiling below is for the surfaces that page rather than scroll.
+BOARD_PAGE_SIZE = 5
 MAX_BOARD_PAGE_SIZE = 50
 
 router = APIRouter()
@@ -204,6 +210,7 @@ async def _refetch_post(session: RLSSessionDep, post_id: int) -> Post:
     # all.
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
     await posts_service.attach_reactions(session, post)
+    await posts_service.annotate_read_counts(session, [post])
     return post
 
 
@@ -219,7 +226,12 @@ async def list_posts(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(
-        default=None, description="Case-insensitive substring match on name."
+        default=None,
+        description=(
+            "Full-text match over the notice — its headline and its body. Reads "
+            "the same index the search page does, so the board's filter and a "
+            "search agree about what matches."
+        ),
     ),
     sort_by: Optional[str] = Query(
         default=None,
@@ -229,6 +241,10 @@ async def list_posts(
         ),
     ),
     sort_dir: Optional[str] = Query(default=None, description="asc (default) or desc."),
+    unread: bool = Query(
+        default=False,
+        description="Only notices this reader has not read yet.",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(
         default=BOARD_PAGE_SIZE,
@@ -243,7 +259,7 @@ async def list_posts(
     """List posts visible to the current user (guild admins see all).
 
     Returns whole posts — a board shows notices, not headlines — which is why
-    it pages in twenties. A scheduled notice is here only for the people who
+    it pages in fives. A scheduled notice is here only for the people who
     could edit it; for everyone else the board starts when it goes up.
     """
     conditions = [Post.guild_id == guild_context.guild_id]
@@ -287,6 +303,9 @@ async def list_posts(
     if name_match is not None:
         conditions.append(name_match)
 
+    if unread:
+        conditions.append(posts_service.unread_clause(current_user.id))
+
     count_subq = select(Post.id).where(*conditions).subquery()
     total_count = (
         await session.exec(select(func.count()).select_from(count_subq))
@@ -310,6 +329,8 @@ async def list_posts(
     # rather than forty times.
     await comments_service.annotate_comment_counts(session, posts, column="post_id")
     await posts_service.attach_reactions(session, *posts)
+    await posts_service.annotate_read_state(session, posts, user_id=current_user.id)
+    await posts_service.annotate_read_counts(session, posts)
 
     items = [serialize_post(p, user_id=current_user.id) for p in posts]
     has_next = page * page_size < total_count
@@ -384,6 +405,8 @@ async def read_post(
         )
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
     await posts_service.attach_reactions(session, post)
+    await posts_service.annotate_read_state(session, [post], user_id=current_user.id)
+    await posts_service.annotate_read_counts(session, [post])
     return serialize_post(post, user_id=current_user.id)
 
 
@@ -699,4 +722,87 @@ async def clear_post_view(
         user_id=current_user.id,
         entity_type="post",
         entity_id=post_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Read receipts
+# ---------------------------------------------------------------------------
+
+
+@router.post("/read", status_code=status.HTTP_200_OK, response_model=PostReadReceipt)
+async def mark_posts_read(
+    body: PostReadMarks,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostReadReceipt:
+    """Record that the caller has read these notices.
+
+    A batch, because the board marks a notice read once it has been on screen
+    and a page is twenty of them — one request per card would be twenty
+    requests per scroll. Idempotent: sending the same page again inserts
+    nothing and answers the same way.
+
+    The ids are what the client saw, so they are not trusted as a list of
+    things the caller may mark: the statement is scoped by RLS, and an id this
+    reader cannot reach simply does not become a row.
+    """
+    marked = await posts_service.mark_read(
+        session,
+        body.post_ids,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
+    await session.commit()
+    return PostReadReceipt(marked=marked)
+
+
+@router.delete("/{post_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_post_unread(
+    post_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Put one notice back to unread for the caller.
+
+    Read access, not write: this is the reader's own state, and it says nothing
+    about the notice. Silent when there was no receipt — asking for a state a
+    thing is already in is not an error.
+    """
+    await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context
+    )
+    await posts_service.mark_unread(session, post_id, user_id=current_user.id)
+    await session.commit()
+
+
+@router.get("/{post_id}/reads", response_model=PostReaders)
+async def list_post_readers(
+    post_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostReaders:
+    """Who has read this notice, and who it is still waiting on.
+
+    Offered to anyone who can read the post rather than only its author: a
+    board is where things are said out loud, and whether a notice landed is the
+    point of saying it there. What it discloses is bounded by the sharing —
+    the roster is the people the notice went to, who already know of each other
+    through the initiative they share.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context
+    )
+    receipts, waiting_ids = await posts_service.list_readers(session, post)
+    waiting = await posts_service.load_member_profiles(session, waiting_ids)
+    return PostReaders(
+        read=[
+            post_reader(receipt.reader, read_at=receipt.read_at)
+            for receipt in receipts
+            if receipt.reader is not None
+        ],
+        unread=[post_reader(profile) for profile in waiting],
     )

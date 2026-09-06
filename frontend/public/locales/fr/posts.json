@@ -49,13 +49,29 @@
     "publishNow": "Publier maintenant",
     "publishedToast": "Publiée"
   },
+  "read": {
+    "markUnread": "Marquer comme non lue",
+    "markedUnread": "Marquée comme non lue",
+    "unread": "Non lue",
+    "whoRead": "Qui l'a lue",
+    "whoReadHint": "Toutes les personnes avec qui elle a été partagée.",
+    "readTab": "Lue {{count}}",
+    "unreadTab": "Non lue {{count}}",
+    "nobodyYet": "Personne ne l'a encore lue.",
+    "everyone": "Tous les destinataires l'ont lue.",
+    "readBy_one": "Lue par {{count}}",
+    "readBy_other": "Lue par {{count}}"
+  },
   "filters": {
     "heading": "Filtres",
     "show": "Afficher",
     "hide": "Masquer",
-    "filterByName": "Filtrer par titre",
-    "searchPosts": "Rechercher des publications...",
-    "noMatchingPosts": "Aucune publication ne correspond à vos filtres."
+    "searchLabel": "Titre ou contenu",
+    "searchPosts": "Rechercher dans ce tableau...",
+    "noMatchingPosts": "Aucune publication ne correspond à vos filtres.",
+    "readState": "Lecture",
+    "allPosts": "Toutes les publications",
+    "unreadOnly": "Non lues seulement"
   },
   "loading": "Chargement des publications...",
   "loadError": "Échec du chargement des publications.",

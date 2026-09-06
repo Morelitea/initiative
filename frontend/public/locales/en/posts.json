@@ -49,13 +49,29 @@
     "publishNow": "Post now",
     "publishedToast": "Posted"
   },
+  "read": {
+    "markUnread": "Mark unread",
+    "markedUnread": "Marked unread",
+    "unread": "Unread",
+    "whoRead": "Who has read this",
+    "whoReadHint": "Everyone this notice was shared with.",
+    "readTab": "Read {{count}}",
+    "unreadTab": "Unread {{count}}",
+    "nobodyYet": "Nobody has read it yet.",
+    "everyone": "Everyone it went to has read it.",
+    "readBy_one": "Read by {{count}}",
+    "readBy_other": "Read by {{count}}"
+  },
   "filters": {
     "heading": "Filters",
     "show": "Show",
     "hide": "Hide",
-    "filterByName": "Filter by headline",
-    "searchPosts": "Search posts...",
-    "noMatchingPosts": "No posts match your filters."
+    "searchLabel": "Headline or content",
+    "searchPosts": "Search this board...",
+    "noMatchingPosts": "No posts match your filters.",
+    "readState": "Read",
+    "allPosts": "All posts",
+    "unreadOnly": "Unread only"
   },
   "loading": "Loading posts...",
   "loadError": "Failed to load posts.",

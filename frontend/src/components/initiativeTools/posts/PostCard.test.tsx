@@ -143,6 +143,44 @@ describe("PostCard", () => {
     expect(screen.getByRole("button", { name: /post now/i })).toBeInTheDocument();
   });
 
+  // Being on screen is what marks a notice read, so the only control here is
+  // the way back — and it belongs only on a notice that has one.
+  it("offers to mark a read notice unread", async () => {
+    renderPage(cardPage({ post: buildPost({ is_read: true }) }));
+
+    expect(await screen.findByRole("button", { name: /mark unread/i })).toBeInTheDocument();
+  });
+
+  it("offers nothing to mark on a notice still unread", async () => {
+    renderPage(cardPage({ post: buildPost({ is_read: false }) }));
+    await screen.findByTestId("post-body");
+
+    expect(screen.queryByRole("button", { name: /mark unread/i })).not.toBeInTheDocument();
+  });
+
+  // Whether a notice landed is the point of putting it on a board, so the
+  // count is on the card rather than behind the post's own page.
+  // A board that shows only what was said makes every notice read as the app's
+  // own announcement. A notice is somebody saying something.
+  it("signs the notice with whoever wrote it", async () => {
+    renderPage(cardPage({ post: buildPost() }));
+
+    expect(await screen.findByText(/author/)).toBeInTheDocument();
+  });
+
+  it("says how many have read it", async () => {
+    renderPage(cardPage({ post: buildPost({ read_count: 12 }) }));
+
+    expect(await screen.findByRole("button", { name: /read by 12/i })).toBeInTheDocument();
+  });
+
+  it("says nothing about a notice nobody has read", async () => {
+    renderPage(cardPage({ post: buildPost({ read_count: 0 }) }));
+    await screen.findByTestId("post-body");
+
+    expect(screen.queryByRole("button", { name: /read by/i })).not.toBeInTheDocument();
+  });
+
   it("says nothing about scheduling on a notice that is up", async () => {
     renderPage(cardPage({ post: buildPost() }));
     await screen.findByTestId("post-body");

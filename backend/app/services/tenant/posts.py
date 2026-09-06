@@ -12,6 +12,8 @@ list endpoint, the export, and anything else that renders a board cannot
 disagree about what "the top" means.
 """
 
+from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from sqlalchemy.orm import selectinload
@@ -22,6 +24,7 @@ from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
+from app.models.tenant.post_read import PostRead
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.tenant import tags as tags_service
@@ -33,6 +36,10 @@ def list_loader_options() -> list:
     return [
         selectinload(Post.grants).selectinload(ResourceGrant.role),
         selectinload(Post.initiative).selectinload(Initiative.memberships),
+        # Who wrote it. A notice is signed — the board shows the person above
+        # the headline the way a comment shows its author — so the profile
+        # comes with the row rather than costing a query per card.
+        selectinload(Post.creator),
         tags_service.TOOL_TAG_LINKS[Tool.post].load_options(),
     ]
 
@@ -115,6 +122,174 @@ def audience_user_ids(post: Post, *, exclude: int | None = None) -> set[int]:
     if exclude is not None:
         audience.discard(exclude)
     return audience
+
+
+def unread_clause(user_id: int):
+    """The WHERE leg for "notices this reader has not read".
+
+    Unread is the absence of a receipt, so this is a NOT EXISTS rather than a
+    flag to keep in step with anything. A notice nobody has opened has no rows
+    here at all, which is what keeps the table the size of what has been read
+    instead of posts x members.
+    """
+    from sqlalchemy import exists
+
+    return ~exists().where(PostRead.post_id == Post.id, PostRead.user_id == user_id)
+
+
+async def annotate_read_state(
+    session: AsyncSession, rows: Sequence[Post], *, user_id: int
+) -> None:
+    """Stamp ``is_read`` on each post for this reader, in one query.
+
+    A plain attribute, the way the comment count is: the posts table has no
+    relationship to the receipts, and a board of twenty must not become twenty
+    queries.
+    """
+    ids = [post.id for post in rows if post.id is not None]
+    if not ids:
+        return
+    read_ids = set(
+        (
+            await session.exec(
+                select(PostRead.post_id).where(
+                    PostRead.post_id.in_(ids), PostRead.user_id == user_id
+                )
+            )
+        ).all()
+    )
+    for post in rows:
+        object.__setattr__(post, "is_read", post.id in read_ids)
+
+
+async def annotate_read_counts(session: AsyncSession, rows: Sequence[Post]) -> None:
+    """Stamp ``read_count`` on each post — how many people have read it.
+
+    One grouped query for the page, the way the comment count is done: a board
+    of five must not become five more queries, and the number is on every card.
+    """
+    from sqlalchemy import func
+
+    ids = [post.id for post in rows if post.id is not None]
+    if not ids:
+        return
+    counts = dict(
+        (
+            await session.exec(
+                select(PostRead.post_id, func.count())
+                .where(PostRead.post_id.in_(ids))
+                .group_by(PostRead.post_id)
+            )
+        ).all()
+    )
+    for post in rows:
+        object.__setattr__(post, "read_count", counts.get(post.id, 0))
+
+
+async def list_readers(
+    session: AsyncSession, post: Post
+) -> tuple[list[Any], list[int]]:
+    """Who has read this notice, and who it is still waiting on.
+
+    The people it is waiting on are the ones it was **shared with** —
+    :func:`audience_user_ids`, the same set the publication notified — minus
+    whoever has read it. That is the only honest denominator: a board of a
+    hundred where a notice went to five is not ninety-five people ignoring it.
+
+    Returns the reader rows (newest first, carrying their profile) and the ids
+    of everyone still to read it; the endpoint resolves those ids to people.
+    """
+    receipts = (
+        (
+            await session.exec(
+                select(PostRead)
+                .where(PostRead.post_id == post.id)
+                .options(selectinload(PostRead.reader))
+                .order_by(PostRead.read_at.desc())
+            )
+        )
+        .unique()
+        .all()
+    )
+    read_ids = {receipt.user_id for receipt in receipts}
+    # The author is in neither list: they wrote it, which is not reading it,
+    # and they were not notified about it either.
+    waiting = audience_user_ids(post, exclude=post.created_by) - read_ids
+    return list(receipts), sorted(waiting)
+
+
+async def load_member_profiles(
+    session: AsyncSession, user_ids: Sequence[int]
+) -> list[Any]:
+    """The people behind a set of ids, for a roster. Ordered by handle so the
+    list reads the same on every request."""
+    from app.models.platform.user_profile_view import MemberProfile
+
+    if not user_ids:
+        return []
+    rows = (
+        await session.exec(
+            select(MemberProfile)
+            .where(MemberProfile.id.in_(tuple(user_ids)))
+            .order_by(MemberProfile.username.asc())
+        )
+    ).all()
+    return list(rows)
+
+
+async def mark_read(
+    session: AsyncSession, post_ids: Sequence[int], *, user_id: int, guild_id: int
+) -> int:
+    """Record that this reader has seen these notices. Returns how many were new.
+
+    An upsert on the composite key, so the board sending the same page twice —
+    which it will, every time somebody scrolls back up — costs one statement and
+    changes nothing. The first read time is kept rather than refreshed: when
+    somebody read a notice is a fact, and looking at it again does not make it
+    newer.
+
+    RLS decides which of the given ids are actually this reader's to mark; ids
+    they cannot reach fail the policy's WITH CHECK and are simply not inserted,
+    so a hand-made list of every id in the guild marks nothing it should not.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    if not post_ids:
+        return 0
+    now = datetime.now(timezone.utc)
+    readable = (
+        await session.exec(select(Post.id).where(Post.id.in_(tuple(post_ids))))
+    ).all()
+    if not readable:
+        return 0
+    statement = (
+        pg_insert(PostRead)
+        .values(
+            [
+                {"post_id": post_id, "user_id": user_id, "read_at": now}
+                for post_id in readable
+            ]
+        )
+        .on_conflict_do_nothing(index_elements=["post_id", "user_id"])
+        .returning(PostRead.post_id)
+    )
+    inserted = (await session.exec(statement)).all()
+    return len(inserted)
+
+
+async def mark_unread(session: AsyncSession, post_id: int, *, user_id: int) -> None:
+    """Take this reader's receipt off one notice.
+
+    A delete, because unread is the absence of a row. Silent when there was
+    none: asking for a state a thing is already in is not an error.
+    """
+    from sqlalchemy import delete as sa_delete
+
+    await session.exec(
+        sa_delete(PostRead).where(
+            PostRead.post_id == post_id, PostRead.user_id == user_id
+        )
+    )
 
 
 async def attach_reactions(session: AsyncSession, *posts: Post) -> None:

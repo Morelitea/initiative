@@ -95,19 +95,15 @@ export function PostDetailPage() {
   // A body full of links, mentions and smart chips is a body full of things
   // that navigate — and an explicit Save means a click on one would otherwise
   // take the unsaved edit with it. Ask first.
-  const blocker = useBlocker({ shouldBlockFn: () => isDirty, withResolver: true });
-
-  // The same question for a reload or a closed tab, which the router never
-  // sees.
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
+  // The same question for a reload or a closed tab. `enableBeforeUnload` is
+  // what asks it — and what stops it being asked when there is nothing to
+  // lose, since the router defaults it to true and never consults
+  // `shouldBlockFn` for an unload.
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty,
+    enableBeforeUnload: () => isDirty,
+    withResolver: true,
+  });
 
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">{t("notFound")}</p>;

@@ -275,11 +275,17 @@ export function Plugins({
         </div>
 
         <TablePlugin hasCellMerge hasCellBackgroundColor />
-        <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />
-        <TabIndentationPlugin />
+        {/* Everything from here to the picker below is an editing affordance —
+            a drag handle, a typeahead, a hover menu. None of it renders any of
+            the document, and a read-only view mounts one of these per card on
+            a board. Left mounted it was the largest thing a post cost to
+            scroll past. What is NOT gated is what a reader needs: the nodes
+            themselves, the chip scope, wikilinks, link sanitizing. */}
+        {!readOnly && <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />}
+        {!readOnly && <TabIndentationPlugin />}
 
         <LegacyNodesPlugin />
-        <MentionsPlugin initiativeId={initiativeId ?? undefined} />
+        {!readOnly && <MentionsPlugin initiativeId={initiativeId ?? undefined} />}
         {/* Not gated on `supportsEntityMentions`: that flag says whether this
             editor lets you INSERT a reference, and reading one is a different
             question. A read-only view renders chips too, and a chip with
@@ -288,52 +294,58 @@ export function Plugins({
             costs nothing, so an editor with no chips pays for this in an empty
             array. */}
         <SmartChipRefsPlugin />
-        {supportsEntityMentions && <EntityMentionsPlugin initiativeId={initiativeId} />}
+        {supportsEntityMentions && !readOnly && (
+          <EntityMentionsPlugin initiativeId={initiativeId} />
+        )}
         <WikilinksPlugin
           initiativeId={initiativeId}
           onNavigate={onWikilinkNavigate}
           onCreateThing={onCreateReferencedThing}
         />
-        <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
+        {!readOnly && <DraggableBlockPlugin anchorElem={floatingAnchorElem} />}
 
-        <AutoEmbedPlugin />
+        {/* Turns a pasted URL into an embed. The embed NODES render without
+            it; this is the conversion, which only an editor does. */}
+        {!readOnly && <AutoEmbedPlugin />}
         <TwitterPlugin />
         <YouTubePlugin />
 
-        <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
+        {!readOnly && <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />}
 
-        <TabFocusPlugin />
+        {!readOnly && <TabFocusPlugin />}
 
-        <ComponentPickerMenuPlugin
-          baseOptions={[
-            ParagraphPickerPlugin(),
-            HeadingPickerPlugin({ n: 1 }),
-            HeadingPickerPlugin({ n: 2 }),
-            HeadingPickerPlugin({ n: 3 }),
-            TablePickerPlugin(),
-            CheckListPickerPlugin(),
-            NumberedListPickerPlugin(),
-            BulletedListPickerPlugin(),
-            QuotePickerPlugin(),
-            CodePickerPlugin(),
-            DividerPickerPlugin(),
-            EmbedsPickerPlugin({ embed: "tweet" }),
-            EmbedsPickerPlugin({ embed: "youtube-video" }),
-            ImagePickerPlugin(),
-            // Live chips, offered where `#` is: prose only.
-            ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
-            ColumnsLayoutPickerPlugin(),
-            AlignmentPickerPlugin({ alignment: "left" }),
-            AlignmentPickerPlugin({ alignment: "center" }),
-            AlignmentPickerPlugin({ alignment: "right" }),
-            AlignmentPickerPlugin({ alignment: "justify" }),
-          ]}
-          dynamicOptionsFn={DynamicTablePickerPlugin}
-        />
+        {!readOnly && (
+          <ComponentPickerMenuPlugin
+            baseOptions={[
+              ParagraphPickerPlugin(),
+              HeadingPickerPlugin({ n: 1 }),
+              HeadingPickerPlugin({ n: 2 }),
+              HeadingPickerPlugin({ n: 3 }),
+              TablePickerPlugin(),
+              CheckListPickerPlugin(),
+              NumberedListPickerPlugin(),
+              BulletedListPickerPlugin(),
+              QuotePickerPlugin(),
+              CodePickerPlugin(),
+              DividerPickerPlugin(),
+              EmbedsPickerPlugin({ embed: "tweet" }),
+              EmbedsPickerPlugin({ embed: "youtube-video" }),
+              ImagePickerPlugin(),
+              // Live chips, offered where `#` is: prose only.
+              ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
+              ColumnsLayoutPickerPlugin(),
+              AlignmentPickerPlugin({ alignment: "left" }),
+              AlignmentPickerPlugin({ alignment: "center" }),
+              AlignmentPickerPlugin({ alignment: "right" }),
+              AlignmentPickerPlugin({ alignment: "justify" }),
+            ]}
+            dynamicOptionsFn={DynamicTablePickerPlugin}
+          />
+        )}
 
         {!readOnly && <ContextMenuPlugin />}
         {!readOnly && <DragDropPastePlugin />}
-        <EmojiPickerPlugin />
+        {!readOnly && <EmojiPickerPlugin />}
 
         <LinkSanitizePlugin />
         <FloatingLinkEditorPlugin

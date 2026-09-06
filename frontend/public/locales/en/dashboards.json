@@ -26,7 +26,7 @@
     "heading": "Filters",
     "show": "Show",
     "hide": "Hide",
-    "filterByName": "Filter by name",
+    "searchLabel": "Name or description",
     "searchDashboards": "Search dashboards...",
     "noMatchingDashboards": "No dashboards match your filters."
   },

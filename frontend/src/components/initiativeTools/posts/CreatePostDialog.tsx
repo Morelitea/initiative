@@ -81,7 +81,16 @@ export const CreatePostDialog = ({
   // lose, and never once the post has been created.
   const isDirty =
     open && !create.isPending && (name.trim().length > 0 || body !== null || scheduledFor !== "");
-  const blocker = useBlocker({ shouldBlockFn: () => isDirty, withResolver: true });
+  // `enableBeforeUnload` is not optional in practice: the router defaults it to
+  // TRUE and never consults `shouldBlockFn` for a reload, so a mounted blocker
+  // prompts "Changes you made may not be saved" on every refresh. This dialog
+  // is rendered by the board whether it is open or not, which made that every
+  // refresh of the board.
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty,
+    enableBeforeUnload: () => isDirty,
+    withResolver: true,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

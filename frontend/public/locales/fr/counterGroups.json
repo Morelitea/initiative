@@ -100,7 +100,7 @@
     "show": "Afficher",
     "hide": "Masquer",
     "searchGroups": "Rechercher des groupes de compteurs...",
-    "filterByName": "Filtrer par nom",
+    "searchLabel": "Nom ou description",
     "noMatchingGroups": "Aucun groupe de compteurs ne correspond à vos filtres."
   },
   "tags": "Étiquettes"

@@ -290,6 +290,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "guild_app_subjects",
         "guild_app_user_connections",
         "guild_app_user_delegations",
+        "post_reads",
         "project_favorites",
         "project_orders",
         "recent_views",

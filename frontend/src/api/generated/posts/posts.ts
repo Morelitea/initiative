@@ -28,6 +28,9 @@ import type {
   PostListResponse,
   PostPinUpdate,
   PostRead,
+  PostReadMarks,
+  PostReadReceipt,
+  PostReaders,
   PostUpdate,
   ReadPostApiV1GGuildIdPostsPostIdGetParams,
   RecentViewWrite,
@@ -58,7 +61,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * List posts visible to the current user (guild admins see all).
  *
  * Returns whole posts — a board shows notices, not headlines — which is why
- * it pages in twenties. A scheduled notice is here only for the people who
+ * it pages in fives. A scheduled notice is here only for the people who
  * could edit it; for everyone else the board starts when it goes up.
  * @summary List Posts
  */
@@ -1246,3 +1249,374 @@ export const useClearPostViewApiV1GGuildIdPostsPostIdViewDelete = <
     queryClient
   );
 };
+/**
+ * Record that the caller has read these notices.
+ *
+ * A batch, because the board marks a notice read once it has been on screen
+ * and a page is twenty of them — one request per card would be twenty
+ * requests per scroll. Idempotent: sending the same page again inserts
+ * nothing and answers the same way.
+ *
+ * The ids are what the client saw, so they are not trusted as a list of
+ * things the caller may mark: the statement is scoped by RLS, and an id this
+ * reader cannot reach simply does not become a row.
+ * @summary Mark Posts Read
+ */
+export const markPostsReadApiV1GGuildIdPostsReadPost = (
+  guildId: number,
+  postReadMarks: BodyType<PostReadMarks>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostReadReceipt>(
+    {
+      url: `/api/v1/g/${guildId}/posts/read`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: postReadMarks,
+      signal,
+    },
+    options
+  );
+};
+
+export const getMarkPostsReadApiV1GGuildIdPostsReadPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markPostsReadApiV1GGuildIdPostsReadPost>>,
+    TError,
+    { guildId: number; data: BodyType<PostReadMarks> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markPostsReadApiV1GGuildIdPostsReadPost>>,
+  TError,
+  { guildId: number; data: BodyType<PostReadMarks> },
+  TContext
+> => {
+  const mutationKey = ["markPostsReadApiV1GGuildIdPostsReadPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markPostsReadApiV1GGuildIdPostsReadPost>>,
+    { guildId: number; data: BodyType<PostReadMarks> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return markPostsReadApiV1GGuildIdPostsReadPost(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkPostsReadApiV1GGuildIdPostsReadPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markPostsReadApiV1GGuildIdPostsReadPost>>
+>;
+export type MarkPostsReadApiV1GGuildIdPostsReadPostMutationBody = BodyType<PostReadMarks>;
+export type MarkPostsReadApiV1GGuildIdPostsReadPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Mark Posts Read
+ */
+export const useMarkPostsReadApiV1GGuildIdPostsReadPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markPostsReadApiV1GGuildIdPostsReadPost>>,
+      TError,
+      { guildId: number; data: BodyType<PostReadMarks> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof markPostsReadApiV1GGuildIdPostsReadPost>>,
+  TError,
+  { guildId: number; data: BodyType<PostReadMarks> },
+  TContext
+> => {
+  return useMutation(
+    getMarkPostsReadApiV1GGuildIdPostsReadPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Put one notice back to unread for the caller.
+ *
+ * Read access, not write: this is the reader's own state, and it says nothing
+ * about the notice. Silent when there was no receipt — asking for a state a
+ * thing is already in is not an error.
+ * @summary Mark Post Unread
+ */
+export const markPostUnreadApiV1GGuildIdPostsPostIdReadDelete = (
+  guildId: number,
+  postId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/posts/${postId}/read`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getMarkPostUnreadApiV1GGuildIdPostsPostIdReadDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markPostUnreadApiV1GGuildIdPostsPostIdReadDelete>>,
+    TError,
+    { guildId: number; postId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markPostUnreadApiV1GGuildIdPostsPostIdReadDelete>>,
+  TError,
+  { guildId: number; postId: number },
+  TContext
+> => {
+  const mutationKey = ["markPostUnreadApiV1GGuildIdPostsPostIdReadDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markPostUnreadApiV1GGuildIdPostsPostIdReadDelete>>,
+    { guildId: number; postId: number }
+  > = (props) => {
+    const { guildId, postId } = props ?? {};
+
+    return markPostUnreadApiV1GGuildIdPostsPostIdReadDelete(guildId, postId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkPostUnreadApiV1GGuildIdPostsPostIdReadDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markPostUnreadApiV1GGuildIdPostsPostIdReadDelete>>
+>;
+
+export type MarkPostUnreadApiV1GGuildIdPostsPostIdReadDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Mark Post Unread
+ */
+export const useMarkPostUnreadApiV1GGuildIdPostsPostIdReadDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markPostUnreadApiV1GGuildIdPostsPostIdReadDelete>>,
+      TError,
+      { guildId: number; postId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof markPostUnreadApiV1GGuildIdPostsPostIdReadDelete>>,
+  TError,
+  { guildId: number; postId: number },
+  TContext
+> => {
+  return useMutation(
+    getMarkPostUnreadApiV1GGuildIdPostsPostIdReadDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Who has read this notice, and who it is still waiting on.
+ *
+ * Offered to anyone who can read the post rather than only its author: a
+ * board is where things are said out loud, and whether a notice landed is the
+ * point of saying it there. What it discloses is bounded by the sharing —
+ * the roster is the people the notice went to, who already know of each other
+ * through the initiative they share.
+ * @summary List Post Readers
+ */
+export const listPostReadersApiV1GGuildIdPostsPostIdReadsGet = (
+  guildId: number,
+  postId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostReaders>(
+    { url: `/api/v1/g/${guildId}/posts/${postId}/reads`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey = (
+  guildId: number,
+  postId: number
+) => {
+  return [`/api/v1/g/${guildId}/posts/${postId}/reads`] as const;
+};
+
+export const getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey(guildId, postId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>
+  > = ({ signal }) =>
+    listPostReadersApiV1GGuildIdPostsPostIdReadsGet(guildId, postId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && postId !== null && postId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>
+>;
+export type ListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
+  TData = Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
+  TData = Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
+  TData = Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Post Readers
+ */
+
+export function useListPostReadersApiV1GGuildIdPostsPostIdReadsGet<
+  TData = Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  postId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPostReadersApiV1GGuildIdPostsPostIdReadsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryOptions(
+    guildId,
+    postId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

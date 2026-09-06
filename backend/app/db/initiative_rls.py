@@ -413,6 +413,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "dashboard_tags": via("dashboards", "dashboard_id"),
     # One hop -> posts
     "post_tags": via("posts", "post_id"),
+    "post_reads": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),

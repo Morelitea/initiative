@@ -1,15 +1,21 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, MessageSquare, Pin, PinOff } from "lucide-react";
+import { CalendarClock, Eye, MailOpen, MessageSquare, Pin, PinOff } from "lucide-react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type PostRead, ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
+import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
+import { RelativeTime } from "@/components/ui/relative-time";
+import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { useMarkReadOnScreen, usePostReadTracker } from "@/hooks/usePostReadTracker";
+import { useMarkPostUnread, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
 import { toast } from "@/lib/chesterToast";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -34,8 +40,13 @@ interface PostCardProps {
  * A card only reaches a reader who may see the notice, so a scheduled one is
  * on the board of the people who wrote it and nobody else. It says so, and
  * offers the one thing there is to do about it: put it up now.
+ *
+ * Being on screen is what marks a notice read — a board is read by scrolling,
+ * and asking somebody to click each one would be asking them to do the app's
+ * bookkeeping. Marking it unread again puts it back and stops this card
+ * counting it while they are still looking at it.
  */
-export const PostCard = ({ post, canPin = false, className }: PostCardProps) => {
+const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
   const { t } = useTranslation(["posts", "common"]);
   const gp = useGuildPath();
   const setPin = useSetPostPin(post.id, {
@@ -49,10 +60,18 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
     onSuccess: () => toast.success(t("schedule.publishedToast")),
   });
 
+  const { suppress } = usePostReadTracker();
+  const cardRef = useMarkReadOnScreen(post.id, post.is_read);
+  const markUnread = useMarkPostUnread({
+    onSuccess: () => toast.success(t("read.markedUnread")),
+  });
+  const [readersOpen, setReadersOpen] = useState(false);
+
   const detailRoute = gp(toolDetailRoute(Tool.post, post.initiative_id, post.id));
 
   return (
     <Card
+      ref={cardRef}
       className={cn(
         // The card is the post's surface — the editor inside it draws no box
         // of its own, so this is what the body sits on.
@@ -61,6 +80,9 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
         // A draft reads as provisional rather than as another notice on the
         // board: it is the only card here nobody else can see.
         !post.is_published && "border-dashed",
+        // Unread reads as "there is something here", which is a weight the
+        // card carries rather than a badge it wears.
+        !post.is_read && "border-primary/30 shadow-sm",
         className
       )}
     >
@@ -85,6 +107,30 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
             </Button>
           </div>
         )}
+        {/* Signed, above the headline. A notice is somebody saying something,
+            and a board that shows only what was said makes every notice read
+            as the app's own announcement. */}
+        {post.author ? (
+          <div className="flex min-w-0 items-center gap-2">
+            <ProfileAvatar
+              user={post.author}
+              decorations={post.author.profile_decorations}
+              presence={post.author.presence}
+              className="size-8 shrink-0"
+            />
+            <div className="min-w-0">
+              <UserHandle
+                user={post.author}
+                className="font-medium text-sm"
+                nameClassName="min-w-0 truncate"
+              />
+              <RelativeTime
+                date={post.published_at ?? post.created_at}
+                className="block text-muted-foreground text-xs"
+              />
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-lg leading-tight">
             <Link to={detailRoute} className="hover:underline">
@@ -141,8 +187,54 @@ export const PostCard = ({ post, canPin = false, className }: PostCardProps) => 
               {post.comment_count > 0 ? t("comments", { count: post.comment_count }) : t("beFirst")}
             </Link>
           )}
+          {/* Whether it landed, which is the point of saying it out loud.
+              Offered to every reader, not just the author: they are all on the
+              roster it opens, and they all put something on this board. */}
+          {post.read_count > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto gap-1.5 px-2 py-1 text-muted-foreground text-xs"
+              onClick={() => setReadersOpen(true)}
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden />
+              {t("read.readBy", { count: post.read_count })}
+            </Button>
+          )}
+          {/* Only once it has been read — on an unread notice this button
+              would be a no-op wearing a label. */}
+          {post.is_read && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-auto gap-1.5 px-2 py-1 text-muted-foreground text-xs"
+              disabled={markUnread.isPending}
+              onClick={() => {
+                // Stop this card counting it again: it is still on screen, and
+                // without this the observer would undo the click a beat later.
+                suppress(post.id);
+                markUnread.mutate(post.id);
+              }}
+            >
+              <MailOpen className="h-3.5 w-3.5" aria-hidden />
+              {t("read.markUnread")}
+            </Button>
+          )}
         </div>
       </CardContent>
+
+      <PostReadersDialog open={readersOpen} onOpenChange={setReadersOpen} postId={post.id} />
     </Card>
   );
 };
+
+/**
+ * Memoized, and that is load-bearing on a board rather than a micro-optimism.
+ *
+ * Reading marks notices read as you scroll, and each batch rewrites the cached
+ * page — a new array holding the *same* row objects for everything it did not
+ * touch. Without this, one row changing re-renders every mounted card, and
+ * every card is a Lexical editor. With it, only the row that actually changed
+ * re-renders.
+ */
+export const PostCard = memo(PostCardInner);

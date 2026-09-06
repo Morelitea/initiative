@@ -140,22 +140,23 @@ async def test_list_carries_bodies_and_read_matches(
 
 
 @pytest.mark.integration
-async def test_board_pages_in_twenties_by_default(
+async def test_board_pages_in_fives_by_default(
     client: AsyncClient, acting_user, session
 ):
     """The default page is small on purpose: each row is a body the client
-    mounts an editor for."""
+    mounts an editor for, and the board fetches the next page as somebody
+    reaches the bottom rather than making them ask."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
-    for i in range(22):
+    for i in range(7):
         await create_post(session, a.initiative, a.user, name=f"Notice {i}")
 
     listing = await client.get(a.g("/posts/"), headers=a.headers)
     assert listing.status_code == 200
     payload = listing.json()
-    assert payload["page_size"] == 20
-    assert len(payload["items"]) == 20
-    assert payload["total_count"] == 22
+    assert payload["page_size"] == 5
+    assert len(payload["items"]) == 5
+    assert payload["total_count"] == 7
     assert payload["has_next"] is True
 
 
@@ -1227,3 +1228,270 @@ async def test_its_author_still_reaches_a_draft_everywhere(
         )
     ).status_code == 200
     assert await get_post_for_export(session, a.user, a.guild.id, post_id=draft.id)
+
+
+# ---------------------------------------------------------------------------
+# Read receipts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_a_notice_starts_unread_and_stays_read(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Read me")
+
+    before = await client.get(a.g("/posts/"), headers=a.headers)
+    assert [p["is_read"] for p in before.json()["items"]] == [False]
+
+    marked = await client.post(
+        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+    )
+    assert marked.status_code == 200
+    assert marked.json()["marked"] == 1
+
+    after = await client.get(a.g("/posts/"), headers=a.headers)
+    assert [p["is_read"] for p in after.json()["items"]] == [True]
+
+
+@pytest.mark.integration
+async def test_marking_the_same_page_again_changes_nothing(
+    client: AsyncClient, acting_user, session
+):
+    """The board sends what is on screen, and scrolling back up sends it again.
+    That has to be free."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Seen twice")
+    body = {"post_ids": [post.id]}
+
+    first = await client.post(a.g("/posts/read"), headers=a.headers, json=body)
+    second = await client.post(a.g("/posts/read"), headers=a.headers, json=body)
+
+    assert first.json()["marked"] == 1
+    assert second.json()["marked"] == 0
+
+
+@pytest.mark.integration
+async def test_reading_is_one_persons_business(
+    client: AsyncClient, acting_user, session
+):
+    """A receipt says this reader saw it, and nothing about anybody else."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Mine only")
+
+    await client.post(
+        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+    )
+
+    mine = await client.get(a.g("/posts/"), headers=a.headers)
+    theirs = await client.get(b.g("/posts/"), headers=b.headers)
+    assert [p["is_read"] for p in mine.json()["items"]] == [True]
+    assert [p["is_read"] for p in theirs.json()["items"]] == [False]
+
+
+@pytest.mark.integration
+async def test_marking_unread_puts_it_back(client: AsyncClient, acting_user, session):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Again please")
+    await client.post(
+        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+    )
+
+    response = await client.delete(a.g(f"/posts/{post.id}/read"), headers=a.headers)
+    assert response.status_code == 204
+
+    listed = await client.get(a.g("/posts/"), headers=a.headers)
+    assert [p["is_read"] for p in listed.json()["items"]] == [False]
+
+
+@pytest.mark.integration
+async def test_marking_unread_twice_is_not_an_error(
+    client: AsyncClient, acting_user, session
+):
+    """Asking for a state a thing is already in is not a failure."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Never read")
+
+    response = await client.delete(a.g(f"/posts/{post.id}/read"), headers=a.headers)
+    assert response.status_code == 204
+
+
+@pytest.mark.integration
+async def test_the_unread_filter_shows_only_what_is_left(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    read = await create_post(session, a.initiative, a.user, name="Done with this")
+    await create_post(session, a.initiative, a.user, name="Still to read")
+    await client.post(
+        a.g("/posts/read"), headers=a.headers, json={"post_ids": [read.id]}
+    )
+
+    response = await client.get(
+        a.g("/posts/"), headers=a.headers, params={"unread": "true"}
+    )
+    assert [p["name"] for p in response.json()["items"]] == ["Still to read"]
+    assert response.json()["total_count"] == 1
+
+
+@pytest.mark.integration
+async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
+    client: AsyncClient, acting_user, session
+):
+    """The ids are what a client says it saw, not a list of things it may
+    touch: RLS decides, so a hand-made list marks nothing it should not."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Not theirs")
+
+    response = await client.post(
+        outsider.g("/posts/read"),
+        headers=outsider.headers,
+        json={"post_ids": [post.id]},
+    )
+    assert response.status_code == 200
+    assert response.json()["marked"] == 0
+
+
+@pytest.mark.integration
+async def test_a_draft_is_not_in_the_unread_list(
+    client: AsyncClient, acting_user, session
+):
+    """Unread means "not read yet", not "does not exist yet" — a scheduled
+    notice is nobody's to read, so it is not waiting for them either."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Not up yet",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    response = await client.get(
+        reader.g("/posts/"), headers=reader.headers, params={"unread": "true"}
+    )
+    assert response.json()["items"] == []
+
+
+@pytest.mark.integration
+async def test_a_notice_counts_its_readers(client: AsyncClient, acting_user, session):
+    """Everyone who can see the notice can see whether it landed — that is the
+    point of saying something out loud."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Did it land")
+
+    await client.post(
+        b.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
+    )
+
+    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    assert [p["read_count"] for p in listing.json()["items"]] == [1]
+
+
+@pytest.mark.integration
+async def test_the_roster_says_who_read_it_and_who_has_not(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    waiting = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Roster")
+    await client.post(
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
+    )
+
+    response = await client.get(a.g(f"/posts/{post.id}/reads"), headers=a.headers)
+    assert response.status_code == 200
+    body = response.json()
+
+    assert [row["id"] for row in body["read"]] == [reader.user.id]
+    assert body["read"][0]["read_at"] is not None
+    assert [row["id"] for row in body["unread"]] == [waiting.user.id]
+
+
+@pytest.mark.integration
+async def test_the_roster_waits_only_on_who_it_was_shared_with(
+    client: AsyncClient, acting_user, session
+):
+    """A board of a hundred where a notice went to one is not ninety-nine
+    people ignoring it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    named = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+
+    created = await client.post(
+        a.g("/posts/"),
+        headers=a.headers,
+        json={
+            "name": "Just for you",
+            "initiative_id": a.initiative.id,
+            "body": lexical_body("A word."),
+            "grants": [{"user_id": named.user.id, "level": "read"}],
+        },
+    )
+    post_id = created.json()["id"]
+
+    body = (await client.get(a.g(f"/posts/{post_id}/reads"), headers=a.headers)).json()
+    assert [row["id"] for row in body["unread"]] == [named.user.id]
+
+
+@pytest.mark.integration
+async def test_the_author_is_on_neither_list(client: AsyncClient, acting_user, session):
+    """Writing a notice is not reading it, and they were not told about it
+    either."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Mine")
+
+    body = (await client.get(a.g(f"/posts/{post.id}/reads"), headers=a.headers)).json()
+    assert body["read"] == []
+    assert body["unread"] == []
+
+
+@pytest.mark.integration
+async def test_a_notice_is_signed(client: AsyncClient, acting_user, session):
+    """A board shows who said it, the way a comment does — handle, picture and
+    what they wear around it, carried with the row rather than fetched per
+    card."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    await create_post(session, a.initiative, a.user, name="Signed")
+
+    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    author = listing.json()["items"][0]["author"]
+
+    assert author["id"] == a.user.id
+    assert author["username"] == a.user.username
+    assert "profile_decorations" in author
+    assert "presence" in author
