@@ -34,7 +34,7 @@ import {
   forgetDevice,
   type HistoryProgress,
   type HistoryRequest,
-  historyAsked,
+  historyAsk,
   historyProgress,
   lastRead,
   messageLog,
@@ -402,6 +402,18 @@ const KNOWN_KINDS: ReadonlySet<string> = new Set<Envelope["kind"]>([
   "history-declined",
 ]);
 
+/** One entry of a thread, with the two fields everything else is hung off. */
+const isStoredMessage = (value: unknown): value is StoredMessage => {
+  if (typeof value !== "object" || value === null) return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.id === "string" &&
+    typeof entry.at === "string" &&
+    typeof entry.body === "string" &&
+    typeof entry.mine === "boolean"
+  );
+};
+
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
 
@@ -504,7 +516,11 @@ function unpack(plaintext: string, fallbackId: string): Envelope | null {
       seq: parsed.seq,
       last: parsed.last === true,
       conversationId: parsed.conversationId,
-      messages: parsed.messages as StoredMessage[],
+      // Each entry is checked before it is believed, to the same standard as
+      // every other kind here: one without the two fields a thread is read by
+      // would be filed under `undefined`, where the next like it looks like the
+      // same message.
+      messages: parsed.messages.filter(isStoredMessage),
     };
   }
   if (parsed.kind === "history-declined" && typeof parsed.requestId === "string") {
@@ -904,7 +920,7 @@ async function carrierConversation(): Promise<string | null> {
  * without reading.
  */
 export async function requestHistory(): Promise<boolean> {
-  if (await historyAsked.get()) return false;
+  if ((await historyAsk.get()) !== undefined) return false;
   const { id: mine, devices } = await ensureDeviceContext();
   const me = devices.find((device) => device.id === mine);
   if (!me || devices.length < 2) return false;
@@ -924,10 +940,11 @@ export async function requestHistory(): Promise<boolean> {
     });
     asked = asked || sent;
   }
-  // Asked once it is on its way, not once it is answered: the queue holds it
-  // until the far device wakes, and a device that asks on every collection is
-  // one raising the same dialog over and over until somebody stops reading it.
-  if (asked) await historyAsked.set();
+  // Written down once it is on its way rather than once it is answered: the
+  // queue holds it until the far device wakes, and a device that asks on every
+  // collection raises the same dialog until somebody stops reading it. The id
+  // is what an answer is matched against.
+  if (asked) await historyAsk.open(requestId);
   return asked;
 }
 
@@ -1016,11 +1033,13 @@ export async function serveHistory(): Promise<void> {
     held?.requestId === pending.requestId
       ? held
       : { requestId: pending.requestId, done: [], seq: 0 };
-  const conversations = await listConversations();
+  // What this device holds, not what the server still lists: a conversation
+  // somebody left is off that list and its messages are still here.
+  const conversations = await messageLog.conversations();
 
-  for (const conversation of conversations.conversations) {
-    if (progress.done.includes(conversation.id)) continue;
-    const messages = await messageLog.get(conversation.id);
+  for (const conversationId of conversations) {
+    if (progress.done.includes(conversationId)) continue;
+    const messages = await messageLog.get(conversationId);
     // Newest first: a transfer that runs out of room leaves the oldest behind
     // rather than a random half.
     const chunks: StoredMessage[][] = [];
@@ -1036,13 +1055,13 @@ export async function serveHistory(): Promise<void> {
         requestId: pending.requestId,
         seq: progress.seq,
         last: false,
-        conversationId: conversation.id,
+        conversationId,
         messages: chunk,
       });
       if (!sent) return;
       await historyProgress.set(device.id, progress);
     }
-    progress.done.push(conversation.id);
+    progress.done.push(conversationId);
     await historyProgress.set(device.id, progress);
   }
 
@@ -1053,7 +1072,7 @@ export async function serveHistory(): Promise<void> {
     requestId: pending.requestId,
     seq: progress.seq,
     last: true,
-    conversationId: conversations.conversations[0]?.id ?? "",
+    conversationId: conversations[0] ?? "",
     messages: [],
   });
   await historyProgress.set(device.id, progress);
@@ -1215,27 +1234,29 @@ export async function collect({ receipts = true }: { receipts?: boolean } = {}):
         continue;
       }
 
-      // Between this account's own devices, and only its own: which side an
-      // envelope arrived on is the whole of the authorization here too. A
-      // history envelope over the other party's session is somebody trying to
-      // write into a thread from the outside, and is dropped.
+      // Between this account's own devices, and only its own: these travel on
+      // a session this device opened with another of its own, and are read
+      // only there. An answer is also matched to the question this device
+      // asked, so what arrives is what it went looking for.
       if (
         envelope.kind === "history-request" ||
         envelope.kind === "history" ||
         envelope.kind === "history-declined"
       ) {
         if (mine) {
+          const ask = await historyAsk.get();
+          const answers = typeof ask === "object" && ask.requestId === envelope.requestId;
           if (envelope.kind === "history-request") {
             await noteHistoryRequest(envelope, ourDevices);
-          } else if (envelope.kind === "history") {
+          } else if (envelope.kind === "history" && answers) {
             if ((await messageLog.merge(envelope.conversationId, envelope.messages)) > 0) {
               touched.add(envelope.conversationId);
             }
-            if (envelope.last) await historyAsked.set();
-          } else {
+            if (envelope.last) await historyAsk.close();
+          } else if (envelope.kind === "history-declined" && answers) {
             // Answered, and the answer was no. Asking again is a person's
-            // decision, not something to retry into.
-            await historyAsked.set();
+            // decision rather than something to retry into.
+            await historyAsk.close();
           }
         }
         collected.push(item.id);

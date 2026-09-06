@@ -119,7 +119,7 @@ import {
   deviceClaim,
   deviceId,
   forgetDevice,
-  historyAsked,
+  historyAsk,
   messageLog,
   sessionPickle,
 } from "./store";
@@ -156,9 +156,9 @@ beforeEach(async () => {
   // tests, and every case here starts after it.
   await deviceId.set(OURS.id);
   await accountPickle.set("account");
-  // A device that has already asked its account's others for its history. The
-  // asking has its own tests below; everything else here starts after it.
-  await historyAsked.set();
+  // A device whose question about its own history has been settled. The asking
+  // has its own tests below; everything else here starts after it.
+  await historyAsk.close();
   api.listDevices.mockResolvedValue({ devices: [ownDevice(OURS), ownDevice(OUR_PHONE)] });
   api.readDirectory.mockResolvedValue({ user_id: 7, devices: [THEIRS] });
   api.claimSessionKeys.mockResolvedValue({
@@ -698,9 +698,9 @@ describe("history between this account's own devices", () => {
     expect(await historyRequestToAnswer()).toBeUndefined();
   });
 
-  it("refuses a request that arrived over the other party's session", async () => {
-    // Which side an envelope came in on is the whole of the authorization.
-    // Somebody else asking for your history is not somebody else's business.
+  it("reads a request only on a session with one of its own devices", async () => {
+    // These travel between an account's own devices, on a session this device
+    // opened with another of its own. The other party's session is not one.
     api.collectQueue.mockResolvedValue({
       items: [
         queued({
@@ -783,13 +783,61 @@ describe("history between this account's own devices", () => {
     expect(await historyRequestToAnswer()).toBeUndefined();
   });
 
-  it("folds a thread it is given into the one it has", async () => {
-    await messageLog.append("conv-1", {
-      id: "m1",
-      body: "already here",
-      at: "2026-09-01",
-      mine: true,
+  /** Ask for this device's history, and answer with the id it asked under. */
+  const askThenAnswer = async (chunk: Record<string, unknown>, seed?: () => Promise<void>) => {
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await seed?.();
+    await collect({ receipts: false });
+    const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          payload: fromOwnDevice(
+            { v: 1, kind: "history", requestId: asked?.requestId, seq: 1, last: true, ...chunk },
+            "otk-1"
+          ),
+        }),
+      ],
     });
+    await collect({ receipts: false });
+  };
+
+  it("fills in what it is missing and leaves what it holds alone", async () => {
+    await askThenAnswer(
+      {
+        conversationId: "conv-1",
+        messages: [
+          { id: "m1", body: "a different account of it", at: "2026-09-01", mine: true },
+          { id: "m0", body: "from before this device", at: "2026-08-30", mine: false },
+        ],
+      },
+      () =>
+        messageLog.append("conv-1", {
+          id: "m1",
+          body: "already here",
+          at: "2026-09-01",
+          mine: true,
+        })
+    );
+
+    const thread = await messageLog.get("conv-1");
+    // In the order they were written, not the order they arrived in.
+    expect(thread.map((entry) => entry.id)).toEqual(["m0", "m1"]);
+    // This device has held m1 since it arrived, so it has had everything that
+    // happened to it since. A second copy has nothing to add.
+    expect(thread[1].body).toBe("already here");
+  });
+
+  it("takes history only as an answer to what it asked", async () => {
+    // An answer names the question. One that names nothing this device asked is
+    // not an answer to it.
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    await collect({ receipts: false });
+
     api.collectQueue.mockResolvedValue({
       items: [
         queued({
@@ -797,31 +845,94 @@ describe("history between this account's own devices", () => {
             {
               v: 1,
               kind: "history",
-              requestId: "r1",
+              requestId: "a-request-this-device-never-made",
               seq: 1,
               last: true,
               conversationId: "conv-1",
-              messages: [
-                { id: "m1", body: "already here", at: "2026-09-01", mine: true, receipt: "read" },
-                { id: "m0", body: "from before this device", at: "2026-08-30", mine: false },
-              ],
+              messages: [{ id: "m9", body: "unasked for", at: "2026-08-30", mine: false }],
             },
             "otk-1"
           ),
         }),
       ],
     });
-
     await collect({ receipts: false });
 
-    const thread = await messageLog.get("conv-1");
-    // In the order they were written, not the order they arrived in.
-    expect(thread.map((entry) => entry.id)).toEqual(["m0", "m1"]);
-    // And each field takes whichever answer is further along.
-    expect(thread[1].receipt).toBe("read");
+    expect(await messageLog.get("conv-1")).toEqual([]);
   });
 
-  it("refuses history offered over the other party's session", async () => {
+  it("takes nothing more once its question has been answered", async () => {
+    await askThenAnswer({ conversationId: "conv-1", messages: [] });
+    const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
+
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          payload: fromOwnDevice(
+            {
+              v: 1,
+              kind: "history",
+              requestId: asked?.requestId,
+              seq: 2,
+              last: true,
+              conversationId: "conv-1",
+              messages: [{ id: "late", body: "after the last one", at: "2026-08-30", mine: false }],
+            },
+            "otk-1"
+          ),
+        }),
+      ],
+    });
+    await collect({ receipts: false });
+
+    expect(await messageLog.get("conv-1")).toEqual([]);
+  });
+
+  it("drops an entry that is not a message, and keeps the rest", async () => {
+    await askThenAnswer({
+      conversationId: "conv-1",
+      messages: [
+        null,
+        { id: "good", body: "readable", at: "2026-08-30", mine: false },
+        { body: "no id", at: "2026-08-31", mine: false },
+      ],
+    });
+
+    expect((await messageLog.get("conv-1")).map((entry) => entry.id)).toEqual(["good"]);
+    // Taken off the server rather than retried on every collection.
+    expect(api.ackQueue).toHaveBeenCalled();
+  });
+
+  it("sends the thread of a conversation the server no longer lists", async () => {
+    // Leaving a conversation takes it off that list. Its messages are still
+    // here, and they are as much this device's history as any other.
+    await messageLog.append("gone", { id: "m1", body: "still ours", at: "2026-09-01", mine: true });
+    api.collectQueue.mockResolvedValue({
+      items: [
+        queued({
+          payload: fromOwnDevice(
+            {
+              v: 1,
+              kind: "history-request",
+              requestId: "r1",
+              deviceId: OUR_PHONE.id,
+              fingerprint: "fp",
+            },
+            "otk-1"
+          ),
+        }),
+      ],
+    });
+    await collect({ receipts: false });
+    await answerHistoryRequest(true);
+    api.collectQueue.mockResolvedValue({ items: [] });
+    await collect({ receipts: false });
+
+    const carried = sentEnvelopes().filter((envelope) => envelope.kind === "history");
+    expect(carried.map((chunk) => chunk.conversationId)).toContain("gone");
+  });
+
+  it("reads history only on a session with one of its own devices", async () => {
     api.collectQueue.mockResolvedValue({
       items: [
         queued({

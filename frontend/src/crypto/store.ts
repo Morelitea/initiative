@@ -372,42 +372,6 @@ export type Side = "mine" | "theirs";
 
 const LOG_PREFIX = "log:";
 
-/**
- * One message, as two devices each remember it.
- *
- * Neither copy is authoritative: each device saw whatever reached it, so every
- * field takes whichever answer is further along rather than whichever arrived
- * later. A removal is never undone, an edit is ordered by its revision and not
- * by a clock two devices set independently, and a reaction is a union because
- * both halves are somebody having reacted.
- */
-function mergeMessages(held: StoredMessage, incoming: StoredMessage): StoredMessage {
-  const merged: StoredMessage = { ...held };
-  if ((incoming.rev ?? 0) > (held.rev ?? 0)) {
-    merged.body = incoming.body;
-    merged.rev = incoming.rev;
-    merged.editedAt = incoming.editedAt;
-  }
-  if (incoming.removedAt && !held.removedAt) {
-    merged.removedAt = incoming.removedAt;
-    merged.body = incoming.body;
-  }
-  if (incoming.receipt === "read" || (incoming.receipt && !held.receipt)) {
-    merged.receipt = incoming.receipt;
-  }
-  if (incoming.reactions) {
-    const reactions = { ...(held.reactions ?? {}) };
-    for (const [emoji, sides] of Object.entries(incoming.reactions)) {
-      const mine = reactions[emoji]?.mine || sides.mine;
-      const theirs = reactions[emoji]?.theirs || sides.theirs;
-      if (mine || theirs) reactions[emoji] = { mine, theirs };
-    }
-    merged.reactions = reactions;
-  }
-  if (!merged.replyTo && incoming.replyTo) merged.replyTo = incoming.replyTo;
-  return merged;
-}
-
 export const messageLog = {
   get: async (conversationId: string): Promise<StoredMessage[]> =>
     (await read<StoredMessage[]>(LOG_PREFIX + conversationId)) ?? [],
@@ -426,40 +390,52 @@ export const messageLog = {
     });
   },
   /**
-   * Fold another device's copy of this conversation into this one.
+   * Add the messages of this conversation that this device does not have.
    *
-   * Both devices hold the same thread under the same ids, so this is a merge by
-   * id rather than an import: what is already here stays, and each field takes
-   * the answer that is further along. One transaction for the whole batch,
-   * because a live message and a second tab can both land while a transfer is
-   * running.
+   * Only the ones it is missing. An entry already here is left exactly as it
+   * is: this device has held that message since it arrived, so it has also had
+   * every edit, reaction and receipt that followed — a second copy of it from
+   * somewhere else has nothing to add and no way to be newer.
    *
-   * Returns how many entries this device did not already have, which is the
-   * only part worth telling anybody about.
+   * One transaction for the whole batch, because a live message and a second
+   * tab can both land while a transfer is running.
+   *
+   * Returns how many entries were new, which is the only part worth reporting.
    */
   merge: async (conversationId: string, incoming: StoredMessage[]): Promise<number> => {
     let added = 0;
     await update<StoredMessage[]>(LOG_PREFIX + conversationId, (existing) => {
       const current = existing ?? [];
-      const byId = new Map(current.map((entry) => [entry.id, entry]));
-      added = 0;
-      for (const message of incoming) {
-        const held = byId.get(message.id);
-        if (!held) {
-          byId.set(message.id, message);
-          added += 1;
-          continue;
-        }
-        byId.set(message.id, mergeMessages(held, message));
-      }
-      if (added === 0 && incoming.every((message) => byId.get(message.id) === message)) {
-        return undefined;
-      }
+      const held = new Set(current.map((entry) => entry.id));
+      const missing = incoming.filter((message) => !held.has(message.id));
+      added = missing.length;
+      if (added === 0) return undefined;
       // By the sender's clock: what orders a thread is when each message was
       // written, not the order two devices happened to exchange them in.
-      return [...byId.values()].sort((left, right) => left.at.localeCompare(right.at));
+      return [...current, ...missing].sort((left, right) => left.at.localeCompare(right.at));
     });
     return added;
+  },
+  /**
+   * Every conversation this device has a thread for.
+   *
+   * Read from the store rather than from the server's list: a conversation
+   * somebody left is gone from that list and its messages are still here, and
+   * they are as much this device's history as any other.
+   */
+  conversations: async (): Promise<string[]> => {
+    const db = await open();
+    return new Promise((resolve, reject) => {
+      const request = db.transaction(STORE, "readonly").objectStore(STORE).getAllKeys();
+      request.onsuccess = () =>
+        resolve(
+          (request.result as IDBValidKey[])
+            .filter((key): key is string => typeof key === "string")
+            .filter((key) => key.startsWith(LOG_PREFIX))
+            .map((key) => key.slice(LOG_PREFIX.length))
+        );
+      request.onerror = () => reject(request.error);
+    });
   },
   /**
    * Record how far some of your own messages have got.
@@ -666,10 +642,19 @@ export const historyProgress = {
     write("history-progress:" + deviceId, progress),
 };
 
-/** Whether this device has already asked the account's others for its history. */
-export const historyAsked = {
-  get: async (): Promise<boolean> => (await read<boolean>("history-asked")) === true,
-  set: () => write("history-asked", true),
+/**
+ * The request this device sent for its own history, while it is outstanding.
+ *
+ * Asked once, and answered once: `"closed"` records that the question has been
+ * settled — by a transfer finishing, or by a device saying no — and is what
+ * tells later arrivals they answer nothing that was asked.
+ */
+export type HistoryAsk = { requestId: string } | "closed";
+
+export const historyAsk = {
+  get: () => read<HistoryAsk>("history-ask"),
+  open: (requestId: string) => write("history-ask", { requestId }),
+  close: () => write("history-ask", "closed"),
 };
 
 /** Which device of theirs we already hold a session with, per session id. */

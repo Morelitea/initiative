@@ -7,11 +7,10 @@ import { useAnswerHistoryRequest, useHistoryRequest } from "@/hooks/useMyMessage
 /**
  * Another of your devices, asking to be sent the messages it cannot derive.
  *
- * Signing in as somebody is enough to receive their new messages and
- * deliberately not enough to receive their old ones, so this is the one thing
- * standing between an account and its past. It shows the asking device's
- * fingerprint rather than only its name: a name is whatever a browser reported,
- * and the number is what the other screen is showing at the same moment.
+ * History moves between devices only when a person says so, and this is where
+ * they say it. The asking device's fingerprint is shown as well as its name:
+ * the name is whatever its browser reported, and the number is what the other
+ * screen is showing at the same moment, so the two can be compared.
  */
 export const HistoryRequestPanel = () => {
   const { t } = useTranslation("messages");
