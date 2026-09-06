@@ -131,6 +131,21 @@ def via_queue_item(fk: str = "queue_item_id") -> InitiativePath:
     )
 
 
+def via_post_poll(fk: str = "poll_id") -> InitiativePath:
+    """Two hops: ``table.<fk> -> post_polls -> posts.initiative_id``."""
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"EXISTS (SELECT 1 FROM post_polls pp JOIN posts po ON po.id = pp.post_id "
+            f"WHERE pp.id = {t}.{fk} "
+            f"AND {_access('po.initiative_id', w)})"
+        ),
+        initiative_expr=lambda r: (
+            f"(SELECT po.initiative_id FROM post_polls pp "  # noqa: S608
+            f"JOIN posts po ON po.id = pp.post_id WHERE pp.id = {r}.{fk})"
+        ),
+    )
+
+
 def via_event_calendar(fk: str = "calendar_event_id") -> InitiativePath:
     """Two hops: ``table.<fk> -> calendar_events -> calendars.initiative_id``."""
     return InitiativePath(
@@ -414,6 +429,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # One hop -> posts
     "post_tags": via("posts", "post_id"),
     "post_reads": via("posts", "post_id"),
+    "post_polls": via("posts", "post_id"),
     # Two hops -> tasks -> projects
     "subtasks": via_task_project("task_id"),
     "task_assignees": via_task_project("task_id"),
@@ -422,6 +438,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "queue_item_documents": via_queue_item("queue_item_id"),
     "queue_item_tags": via_queue_item("queue_item_id"),
     "queue_item_tasks": via_queue_item("queue_item_id"),
+    # Two hops -> post_polls -> posts
+    "post_poll_options": via_post_poll("poll_id"),
+    "post_poll_votes": via_post_poll("poll_id"),
     # Two hops -> calendar_events -> calendars
     "calendar_event_attendees": via_event_calendar("calendar_event_id"),
     "calendar_event_documents": via_event_calendar("calendar_event_id"),
@@ -547,6 +566,24 @@ def reactions_report_on_their_target() -> ReportsAs:
     )
 
 
+def poll_options_report_on_their_post() -> ReportsAs:
+    """A poll option is a facet of the notice that asks the question.
+
+    Its own id resolves to no route — there is no ``/poll-options/{id}`` to
+    re-read — where the post already has one, and re-reading the post carries
+    the whole poll back. The poll itself reports the same way through its own
+    ``post_id``; this is the one hop further out.
+    """
+    return ReportsAs(
+        resource_types=frozenset({"posts"}),
+        id_expr=lambda r: (
+            f"(SELECT post_polls.post_id FROM post_polls "  # noqa: S608
+            f"WHERE post_polls.id = {r}.poll_id)"
+        ),
+        facet="poll",
+    )
+
+
 def _role_initiative(r: str) -> str:
     """The initiative a row's ``initiative_role_id`` belongs to."""
     return (
@@ -591,6 +628,11 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "recent_views": Silent("one member's own viewing state"),
     "search_entries": Silent("derived index, rebuilt from the content it mirrors"),
     "project_orders": Silent("one member's own ordering state"),
+    # A vote row names the person who cast it, and an event carries the actor
+    # that wrote it. A poll may be anonymous, so it emits nothing at all rather
+    # than emitting only for the polls that are not — one rule, no way to get
+    # the flag wrong. Results reach a reader through the post's own reads.
+    "post_poll_votes": Silent("a vote names its voter; a poll may be anonymous"),
     "project_favorites": Silent("one member's own pinning state"),
     "task_assignment_digest_items": Silent("internal digest bookkeeping"),
     "reaction_digest_items": Silent("internal digest bookkeeping"),
@@ -652,6 +694,8 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
         reports_as=reports_as("documents", "document_id", "versions")
     ),
     "resource_grants": Emit(reports_as=grants_report_on_their_resource()),
+    "post_polls": Emit(reports_as=reports_as("posts", "post_id", "poll")),
+    "post_poll_options": Emit(reports_as=poll_options_report_on_their_post()),
     "reactions": Emit(reports_as=reactions_report_on_their_target()),
 }
 

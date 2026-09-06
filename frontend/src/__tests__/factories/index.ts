@@ -38,7 +38,7 @@ export {
   buildNotification,
   resetCounter as resetNotificationCounter,
 } from "./notification.factory";
-export { buildLexicalBody, buildPost } from "./post.factory";
+export { buildLexicalBody, buildPoll, buildPollOption, buildPost } from "./post.factory";
 export {
   buildDefaultTaskStatuses,
   buildProject,

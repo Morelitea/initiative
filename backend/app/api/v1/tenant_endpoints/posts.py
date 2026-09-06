@@ -50,6 +50,7 @@ from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.post import Post
+from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
 from app.schemas.tenant.post import (
@@ -65,11 +66,20 @@ from app.schemas.tenant.post import (
     post_reader,
     serialize_post,
 )
+from app.schemas.tenant.post_poll import (
+    PollVoteWrite,
+    PollVoters,
+    PollOptionVoters,
+    PollWrite,
+    poll_voter,
+    serialize_poll,
+)
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import comments as comments_service
+from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
 from app.services.tenant import recent_views as recent_views_service
@@ -153,6 +163,43 @@ def _validated_body(body: dict | None) -> dict:
     return clean
 
 
+def _validated_poll(poll_in: PollWrite) -> PollWrite:
+    """A poll, or a 422 saying why it is not one.
+
+    How many choices there may be and how long each one is stay with the
+    schema — they are shape, and an import is held to the same shape. The two
+    rules here are the ones a person can trip over while typing, so each
+    answers with a code the composer can put into words rather than a
+    validation error nobody can read.
+    """
+    if poll_in.closes_at is not None and poll_in.closes_at <= datetime.now(
+        timezone.utc
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=PostMessages.POLL_CLOSES_IN_PAST,
+        )
+    choices = [option.text.strip().casefold() for option in poll_in.options]
+    if len(set(choices)) != len(choices):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=PostMessages.POLL_DUPLICATE_CHOICE,
+        )
+    return poll_in
+
+
+def _poll_of(post: Post) -> PostPoll:
+    """This notice's poll, or a 404. A post without one is not an error until
+    somebody asks for the poll specifically."""
+    poll = post.poll
+    if poll is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=PostMessages.POLL_NOT_FOUND,
+        )
+    return poll
+
+
 def _may_edit(post: Post, user: User, guild_context: GuildContext) -> bool:
     """Whether this caller could change the post — which is also who may see it
     before it goes up.
@@ -199,18 +246,19 @@ async def _announce(
     )
 
 
-async def _refetch_post(session: RLSSessionDep, post_id: int) -> Post:
+async def _refetch_post(session: RLSSessionDep, post_id: int, *, user_id: int) -> Post:
     post = await posts_service.get_post(session, post_id, populate_existing=True)
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=PostMessages.NOT_FOUND,
         )
-    # Every write answers with the row a read would return — count, chips and
-    # all.
+    # Every write answers with the row a read would return — count, chips,
+    # tallies and all.
     await comments_service.annotate_comment_counts(session, [post], column="post_id")
     await posts_service.attach_reactions(session, post)
     await posts_service.annotate_read_counts(session, [post])
+    await post_polls_service.annotate_poll_state(session, [post], user_id=user_id)
     return post
 
 
@@ -331,6 +379,9 @@ async def list_posts(
     await posts_service.attach_reactions(session, *posts)
     await posts_service.annotate_read_state(session, posts, user_id=current_user.id)
     await posts_service.annotate_read_counts(session, posts)
+    await post_polls_service.annotate_poll_state(
+        session, posts, user_id=current_user.id
+    )
 
     items = [serialize_post(p, user_id=current_user.id) for p in posts]
     has_next = page * page_size < total_count
@@ -407,6 +458,9 @@ async def read_post(
     await posts_service.attach_reactions(session, post)
     await posts_service.annotate_read_state(session, [post], user_id=current_user.id)
     await posts_service.annotate_read_counts(session, [post])
+    await post_polls_service.annotate_poll_state(
+        session, [post], user_id=current_user.id
+    )
     return serialize_post(post, user_id=current_user.id)
 
 
@@ -481,11 +535,14 @@ async def create_post(
             tag_ids=post_in.tag_ids,
         )
 
+    if post_in.poll is not None:
+        session.add(post_polls_service.write_poll(post, _validated_poll(post_in.poll)))
+
     if post.published_at is not None:
         await _announce(session, post, current_user, guild_context)
 
     await session.commit()
-    hydrated = await _refetch_post(session, post.id)
+    hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
 
 
@@ -555,7 +612,7 @@ async def update_post(
             await _announce(session, post, current_user, guild_context)
         await session.commit()
 
-    hydrated = await _refetch_post(session, post.id)
+    hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
 
 
@@ -619,7 +676,7 @@ async def set_post_pin(
     session.add(post)
     await session.commit()
 
-    hydrated = await _refetch_post(session, post.id)
+    hydrated = await _refetch_post(session, post.id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
 
 
@@ -673,7 +730,7 @@ async def set_post_grants(
     await resource_access.set_resource_grants(
         session, Tool.post, post_id, current_user, guild_context, grants
     )
-    hydrated = await _refetch_post(session, post_id)
+    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
     return serialize_post(hydrated, user_id=current_user.id)
 
 
@@ -805,4 +862,239 @@ async def list_post_readers(
             if receipt.reader is not None
         ],
         unread=[post_reader(profile) for profile in waiting],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Polls
+# ---------------------------------------------------------------------------
+
+
+@router.put("/{post_id}/poll", response_model=PostRead)
+async def set_post_poll(
+    post_id: int,
+    poll_in: PollWrite,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostRead:
+    """Give a notice its question, or rewrite the one it has.
+
+    Write access, the same as the body: a poll is part of what the notice says.
+    One route rather than a create and an update, because a poll is written and
+    read as a whole — "the third choice" only means anything beside the other
+    two.
+
+    Three things are refused once somebody has answered, and each protects a
+    vote already cast rather than the author's convenience:
+
+    * **Changing the choices.** A ballot cast for "Tuesday" must not silently
+      become a ballot for whatever took third place. The question, the close
+      time and the switches below stay editable.
+    * **Switching anonymity off.** People answered on the understanding that
+      their names were not attached, and that cannot be revoked afterwards.
+    * **Switching multiple choice off.** Somebody who ticked three answers
+      would otherwise be left holding three ballots on a poll that takes one,
+      and the roster would list one voter under several choices.
+
+    Both switches can always be turned *on* — each only ever tightens what
+    happens next, and neither rewrites an answer already given.
+
+    The poll's row is taken before any of that is asked and held until the edit
+    commits, so "has anybody answered?" and the write that acts on the answer
+    are one step.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context, access="write"
+    )
+    data = _validated_poll(poll_in)
+    existing = post.poll
+    if existing is not None:
+        await post_polls_service.lock_poll(session, existing)
+        if await post_polls_service.has_votes(session, existing):
+            if not post_polls_service.options_match(existing, data):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.POLL_HAS_VOTES,
+                )
+            if existing.is_anonymous and not data.is_anonymous:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.POLL_ANONYMITY_LOCKED,
+                )
+            if existing.allows_multiple and not data.allows_multiple:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=PostMessages.POLL_MULTIPLE_LOCKED,
+                )
+    session.add(post_polls_service.write_poll(post, data, poll=existing))
+    post.updated_at = datetime.now(timezone.utc)
+    session.add(post)
+    await session.commit()
+
+    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id)
+
+
+@router.delete("/{post_id}/poll", response_model=PostRead)
+async def delete_post_poll(
+    post_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostRead:
+    """Take the question off a notice.
+
+    Write access, and it takes the answers with it — which is why it is a
+    deliberate act on its own route rather than a side effect of an edit. The
+    notice itself stays; only the question goes.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context, access="write"
+    )
+    poll = _poll_of(post)
+    await session.delete(poll)
+    post.poll = None
+    post.updated_at = datetime.now(timezone.utc)
+    session.add(post)
+    await session.commit()
+
+    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id)
+
+
+@router.put("/{post_id}/poll/vote", response_model=PostRead)
+async def vote_on_post_poll(
+    post_id: int,
+    vote_in: PollVoteWrite,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostRead:
+    """Answer a notice's question.
+
+    Read access — answering is a reader's gesture, like reacting, not an edit
+    of the notice. A PUT rather than a POST because a ballot is replaced rather
+    than added to: sending it again is changing your mind, and sending it twice
+    leaves the same answer.
+
+    Answers the whole post, so a card that has just voted re-renders from one
+    response with the new tallies in it.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context
+    )
+    if not post.is_published:
+        # A draft reaches only the people who could edit it, and a question
+        # nobody has been asked yet has no answers to collect.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=PostMessages.POLL_NOT_PUBLISHED,
+        )
+    poll = _poll_of(post)
+    # Takes the poll's row and asks whether it still takes votes in one
+    # statement, against the wall clock at that moment. The row is held until
+    # this ballot commits, so one voter's ballots are written one after another
+    # and each is measured by the deadline in force as it lands.
+    if not await post_polls_service.lock_open_poll(session, poll):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=PostMessages.POLL_CLOSED,
+        )
+    if not poll.allows_multiple and len(vote_in.option_ids) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=PostMessages.POLL_SINGLE_CHOICE,
+        )
+    known = {option.id for option in poll.options or []}
+    if not set(vote_in.option_ids) <= known:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=PostMessages.POLL_OPTION_UNKNOWN,
+        )
+    await post_polls_service.cast_vote(
+        session, poll, user_id=current_user.id, option_ids=vote_in.option_ids
+    )
+    await session.commit()
+
+    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id)
+
+
+@router.delete("/{post_id}/poll/vote", response_model=PostRead)
+async def retract_post_poll_vote(
+    post_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PostRead:
+    """Take back this reader's answer.
+
+    Allowed while the poll is open, for the same reason changing it is: until
+    voting stops, an answer is what somebody currently thinks. Silent when
+    there was none.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context
+    )
+    poll = _poll_of(post)
+    if not await post_polls_service.lock_open_poll(session, poll):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=PostMessages.POLL_CLOSED,
+        )
+    await post_polls_service.retract_vote(session, poll, user_id=current_user.id)
+    await session.commit()
+
+    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
+    return serialize_post(hydrated, user_id=current_user.id)
+
+
+@router.get("/{post_id}/poll/voters", response_model=PollVoters)
+async def list_post_poll_voters(
+    post_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> PollVoters:
+    """Who chose what, and who has not answered.
+
+    Offered to anyone who can read the notice, like its read roster: the people
+    named are the people it went to, who already know of each other through the
+    initiative they share.
+
+    Refused in the two cases where the poll itself says not to — an anonymous
+    poll, which has no roster by design, and one whose results are still
+    withheld from this reader.
+    """
+    post = await resource_access.load_authorized(
+        session, Tool.post, post_id, current_user, guild_context
+    )
+    poll = _poll_of(post)
+    if poll.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=PostMessages.POLL_IS_ANONYMOUS,
+        )
+    await post_polls_service.annotate_poll_state(
+        session, [post], user_id=current_user.id
+    )
+    if not serialize_poll(poll).results_visible:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=PostMessages.POLL_RESULTS_HIDDEN,
+        )
+    by_option, waiting_ids = await post_polls_service.list_voters(session, post, poll)
+    waiting = await posts_service.load_member_profiles(session, waiting_ids)
+    return PollVoters(
+        options=[
+            PollOptionVoters(
+                option_id=option.id,
+                voters=[
+                    poll_voter(profile) for profile in by_option.get(option.id, [])
+                ],
+            )
+            for option in sorted(poll.options or [], key=lambda o: (o.position, o.id))
+        ],
+        not_voted=[poll_voter(profile) for profile in waiting],
     )

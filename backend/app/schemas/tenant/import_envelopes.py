@@ -117,8 +117,52 @@ class CounterGroupEnvelope(_EnvelopeBase):
     counters: list[CounterEnvelopeItem] = []
 
 
+class PostPollEnvelope(SanitizedBaseModel):
+    """The question a notice asks, as a backup carries it.
+
+    The **choices** cross; the **answers** do not. A ballot is one person in
+    one community saying something, and the ids naming them mean nothing in the
+    guild this is restored into — the same reason the sharing is not carried
+    either. So an imported poll arrives open and unanswered, which is what a
+    question somebody has just asked is.
+
+    ``closes_at`` is dropped for the reason the pin and the schedule are: it
+    said when this question stopped mattering on the board it came from.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    question: Optional[str] = None
+    options: list[str] = []
+    allows_multiple: bool = False
+    is_anonymous: bool = False
+    hide_results: bool = False
+
+    @model_validator(mode="after")
+    def _options_within_limits(self) -> "PostPollEnvelope":
+        # The same bounds the endpoints hold a poll to. An import is a write
+        # like any other, and one that skipped them would store a question the
+        # app would refuse to accept or to save again.
+        from app.models.tenant.post_poll import (
+            MAX_POLL_OPTION_CHARS,
+            MAX_POLL_OPTIONS,
+            MIN_POLL_OPTIONS,
+        )
+
+        cleaned = [option.strip() for option in self.options]
+        if not MIN_POLL_OPTIONS <= len(cleaned) <= MAX_POLL_OPTIONS:
+            raise ValueError("poll has more or fewer choices than a poll may have")
+        if any(not option or len(option) > MAX_POLL_OPTION_CHARS for option in cleaned):
+            raise ValueError("a poll choice is empty or longer than one may be")
+        if len({option.casefold() for option in cleaned}) != len(cleaned):
+            raise ValueError("two poll choices say the same thing")
+        self.options = cleaned
+        return self
+
+
 class PostEnvelope(_EnvelopeBase):
-    """One bulletin-board notice: its headline, its Lexical body, its tags.
+    """One bulletin-board notice: its headline, its Lexical body, its tags,
+    and the question it asks.
 
     The pin is deliberately not carried. A pin says "this matters on this
     board right now", which is a fact about the board it was pinned to, not
@@ -136,6 +180,7 @@ class PostEnvelope(_EnvelopeBase):
     name: str
     body: dict[str, Any] = {}
     tags: list[str] = []
+    poll: Optional[PostPollEnvelope] = None
 
     @model_validator(mode="after")
     def _body_within_limits(self) -> "PostEnvelope":

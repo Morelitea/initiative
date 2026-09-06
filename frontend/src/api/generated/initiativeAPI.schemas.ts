@@ -4352,6 +4352,106 @@ export interface PlatformRoleUpdate {
   role: UserRole;
 }
 
+export interface PollOptionRead {
+  id: number;
+  text: string;
+  position: number;
+  vote_count: number | null;
+  voted_by_me: boolean;
+}
+
+/**
+ * One person on a poll's roster, named the way readers and reactors are.
+ */
+export interface PollVoter {
+  id: number;
+  username: string;
+  discriminator: number;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  profile_decorations?: ProfileDecorationsOutput;
+}
+
+export interface PollOptionVoters {
+  option_id: number;
+  voters: PollVoter[];
+}
+
+/**
+ * One answer, as the author typed it.
+ */
+export interface PollOptionWrite {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  text: string;
+}
+
+export interface PollRead {
+  id: number;
+  question: string | null;
+  allows_multiple: boolean;
+  is_anonymous: boolean;
+  hide_results: boolean;
+  closes_at: string | null;
+  is_closed: boolean;
+  options: PollOptionRead[];
+  has_voted: boolean;
+  results_visible: boolean;
+  total_voters: number | null;
+  is_locked: boolean;
+}
+
+/**
+ * A ballot. One id on a single-choice poll, any number on a multiple one;
+ * an empty list is a retraction, which the DELETE route also expresses.
+ */
+export interface PollVoteWrite {
+  /** @maxItems 10 */
+  option_ids?: number[];
+}
+
+/**
+ * Who chose what, and who has not answered.
+ *
+ * "Not answered" is the people the notice was **shared with**, the same
+ * denominator the read roster uses — a board of a hundred where a notice went
+ * to five is not ninety-five people ignoring the question. Unlike that roster
+ * the author is included: writing a notice is not reading it, but writing a
+ * question does not stop you answering it.
+ *
+ * Served only for a poll that is not anonymous, and only once the results are
+ * visible to the caller.
+ */
+export interface PollVoters {
+  options: PollOptionVoters[];
+  not_voted: PollVoter[];
+}
+
+/**
+ * A whole poll, sent as one thing.
+ *
+ * Options are a list rather than individually addressable rows: a poll is
+ * written and read as a unit, and "the third choice" only means anything in
+ * the context of the other two. Sending it again replaces it — which the
+ * service refuses once anybody has voted on a different set of options,
+ * because a ballot cast for "Tuesday" must not silently become a ballot for
+ * whatever took third place.
+ */
+export interface PollWrite {
+  question?: string | null;
+  /**
+   * @minItems 2
+   * @maxItems 10
+   */
+  options: PollOptionWrite[];
+  allows_multiple?: boolean;
+  is_anonymous?: boolean;
+  hide_results?: boolean;
+  closes_at?: string | null;
+}
+
 export type PostCreateBody = { [key: string]: unknown };
 
 export interface PostCreate {
@@ -4365,6 +4465,7 @@ export interface PostCreate {
   tag_ids?: number[] | null;
   grants?: ResourceGrantSchema[];
   scheduled_for?: string | null;
+  poll?: PollWrite | null;
 }
 
 export type PostReadBody = { [key: string]: unknown };
@@ -4399,6 +4500,7 @@ export interface PostRead {
   grants: ResourceGrantSchema[];
   reactions: ReactionGroup[];
   body: PostReadBody;
+  poll: PollRead | null;
 }
 
 export interface PostListResponse {

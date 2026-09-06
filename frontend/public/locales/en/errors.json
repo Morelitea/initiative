@@ -533,5 +533,19 @@
   "POST_GRANT_CANNOT_MANAGE_MEMBERS": "Shared access cannot manage who else can see this post",
   "POST_PIN_MANAGER_REQUIRED": "Only initiative managers can pin a post",
   "POST_PIN_EXPIRY_IN_PAST": "Choose a date in the future for the pin to end",
-  "POST_BODY_TOO_LONG": "This post is too long — try a document instead"
+  "POST_BODY_TOO_LONG": "This post is too long — try a document instead",
+  "POST_ALREADY_PUBLISHED": "This notice is already up — it can't be held back again.",
+  "POST_POLL_NOT_FOUND": "This notice doesn't have a poll.",
+  "POST_POLL_EXISTS": "This notice already asks a question.",
+  "POST_POLL_HAS_VOTES": "People have already answered, so the choices can't change. You can still reword the question.",
+  "POST_POLL_CLOSED": "Voting on this poll has closed.",
+  "POST_POLL_CLOSES_IN_PAST": "Pick a closing time in the future.",
+  "POST_POLL_SINGLE_CHOICE": "This poll takes one answer.",
+  "POST_POLL_OPTION_UNKNOWN": "That choice isn't on this poll.",
+  "POST_POLL_IS_ANONYMOUS": "This poll is anonymous, so there is no list of who voted.",
+  "POST_POLL_ANONYMITY_LOCKED": "People answered anonymously, so that can't be switched off now.",
+  "POST_POLL_MULTIPLE_LOCKED": "People have already picked more than one answer, so that can't be switched off now.",
+  "POST_POLL_DUPLICATE_CHOICE": "Two choices say the same thing.",
+  "POST_POLL_RESULTS_HIDDEN": "The results are hidden until you answer.",
+  "POST_POLL_NOT_PUBLISHED": "This notice isn't up yet, so its poll can't be answered."
 }

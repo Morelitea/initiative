@@ -338,6 +338,8 @@ NOT_SEARCHABLE: dict[str, str] = {
     "document_file_versions": "history of a document already indexed",
     "document_links": "derived wikilink graph",
     "subtasks": "checklist lines, reached from the task",
+    "post_polls": "the question a notice asks, reached from the notice",
+    "post_poll_options": "a poll's choices, reached from the notice",
     "initiatives": "structural; discovery is the join surface, not search",
     "event_reminder_dispatches": "scheduler bookkeeping",
     "task_assignment_digest_items": "scheduler bookkeeping",

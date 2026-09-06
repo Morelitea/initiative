@@ -291,6 +291,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "guild_app_user_connections",
         "guild_app_user_delegations",
         "post_reads",
+        # A ballot: ``user_id`` is the voter, which is both the author of the
+        # row and its whole content.
+        "post_poll_votes",
         "project_favorites",
         "project_orders",
         "recent_views",

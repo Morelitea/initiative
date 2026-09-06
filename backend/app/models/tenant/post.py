@@ -14,6 +14,7 @@ from app.models.tenant._mixins import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
+    from app.models.tenant.post_poll import PostPoll
     from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.tag import Tag
     from app.models.platform.user_profile_view import MemberProfile
@@ -130,6 +131,13 @@ class Post(CommentsToggleMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     tag_links: List["PostTag"] = Relationship(
         back_populates="post",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    # The question this notice asks, if it asks one. At most one — a notice
+    # that needs two questions is two notices — so the relationship is
+    # singular and the uniqueness is a key on the child table.
+    poll: Optional["PostPoll"] = Relationship(
+        back_populates="post",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False},
     )
 
     @property

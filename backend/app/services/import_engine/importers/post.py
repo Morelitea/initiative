@@ -1,9 +1,11 @@
-"""``initiative-post`` importer: one bulletin-board notice with its tags.
+"""``initiative-post`` importer: one bulletin-board notice with its tags and
+the question it asks.
 
 Neither the pin nor the schedule is carried by the envelope, for the same
 reason: both said what this notice meant on the board it came from. An imported
 post arrives live, in the feed by its own date, like anything else somebody
-just wrote.
+just wrote — and its poll arrives open and unanswered, for the same reason the
+sharing is not carried: the people who answered it are not the people here.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.post import Post, PostTag
+from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import PostEnvelope
 from app.services.import_engine.common import ensure_tag, unique_name
@@ -97,6 +100,21 @@ class PostImporter:
             )
         )
 
+        if env.poll is not None:
+            session.add(
+                PostPoll(
+                    post_id=post.id,
+                    question=(env.poll.question or "").strip() or None,
+                    allows_multiple=env.poll.allows_multiple,
+                    is_anonymous=env.poll.is_anonymous,
+                    hide_results=env.poll.hide_results,
+                    options=[
+                        PostPollOption(position=index, text=text)
+                        for index, text in enumerate(env.poll.options)
+                    ],
+                )
+            )
+
         tags_created = 0
         tags_matched = 0
         for tag_name in env.tags:
@@ -113,7 +131,11 @@ class PostImporter:
         return EnvelopeImportResult(
             entity_id=post.id,
             entity_title=post.name,
-            created={"posts": 1, "tags": tags_created},
+            created={
+                "posts": 1,
+                "tags": tags_created,
+                **({"polls": 1} if env.poll is not None else {}),
+            },
             matched={"tags": tags_matched},
             warnings=warnings,
         )

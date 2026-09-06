@@ -1,12 +1,19 @@
 import { useBlocker } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { Loader2 } from "lucide-react";
+import { Loader2, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PostRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
+import {
+  emptyPollDraft,
+  isPollDraftValid,
+  type PollDraft,
+  PollEditor,
+  pollDraftToWrite,
+} from "@/components/initiativeTools/posts/PollEditor";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -56,6 +63,10 @@ export const CreatePostDialog = ({
   // Empty means "post it now", which is what most notices are. A value here
   // holds the notice back: nobody sees it and nobody is told until then.
   const [scheduledFor, setScheduledFor] = useState("");
+  // Null means the notice asks nothing, which is what most notices do. The
+  // section below is opened by a button rather than always shown, so the
+  // common case is not a form somebody has to scroll past.
+  const [poll, setPoll] = useState<PollDraft | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +74,7 @@ export const CreatePostDialog = ({
       setBody(null);
       setGrants([...DEFAULT_GRANTS]);
       setScheduledFor("");
+      setPoll(null);
     }
   }, [open]);
 
@@ -73,14 +85,19 @@ export const CreatePostDialog = ({
     },
   });
 
-  const canSubmit = name.trim().length > 0 && !create.isPending;
+  // A half-written poll blocks the post rather than being quietly dropped:
+  // somebody who started one meant to ask something.
+  const canSubmit =
+    name.trim().length > 0 && !create.isPending && (poll === null || isPollDraftValid(poll));
 
   // A composer full of links, mentions and chips is a composer full of things
   // that navigate, and navigating away closes the dialog with the whole
   // unwritten post inside it. Ask first — but only while there is something to
   // lose, and never once the post has been created.
   const isDirty =
-    open && !create.isPending && (name.trim().length > 0 || body !== null || scheduledFor !== "");
+    open &&
+    !create.isPending &&
+    (name.trim().length > 0 || body !== null || scheduledFor !== "" || poll !== null);
   // `enableBeforeUnload` is not optional in practice: the router defaults it to
   // TRUE and never consults `shouldBlockFn` for a reload, so a mounted blocker
   // prompts "Changes you made may not be saved" on every refresh. This dialog
@@ -130,6 +147,27 @@ export const CreatePostDialog = ({
           </div>
 
           <div className="space-y-2">
+            {poll === null ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPoll(emptyPollDraft())}
+              >
+                <Vote className="size-4" aria-hidden />
+                {t("poll.add")}
+              </Button>
+            ) : (
+              <PollEditor
+                idPrefix="create-post-poll"
+                value={poll}
+                onChange={setPoll}
+                onRemove={() => setPoll(null)}
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="create-post-schedule">{t("schedule.label")}</Label>
             <DateTimePicker
               id="create-post-schedule"
@@ -157,6 +195,7 @@ export const CreatePostDialog = ({
                 body: (body ?? {}) as unknown as Record<string, unknown>,
                 grants,
                 scheduled_for: fromLocalDateTimeInput(scheduledFor),
+                poll: poll ? pollDraftToWrite(poll) : null,
               })
             }
           >

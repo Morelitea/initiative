@@ -1,12 +1,30 @@
 import { Link, useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { CalendarClock, Loader2, Pin, PinOff, SearchX, Settings, ShieldAlert } from "lucide-react";
+import {
+  CalendarClock,
+  Loader2,
+  Pin,
+  PinOff,
+  SearchX,
+  Settings,
+  ShieldAlert,
+  Vote,
+} from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
+import {
+  emptyPollDraft,
+  isPollDraftValid,
+  type PollDraft,
+  PollEditor,
+  pollDraftFromRead,
+  pollDraftToWrite,
+} from "@/components/initiativeTools/posts/PollEditor";
+import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -21,14 +39,20 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { usePost, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
+import {
+  useDeletePostPoll,
+  usePost,
+  useSetPostPin,
+  useSetPostPoll,
+  useUpdatePost,
+} from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
-import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
+import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +118,35 @@ export function PostDetailPage() {
   // saved explicitly — a notice is not a collaborative document, and nobody
   // wants a half-written correction broadcast as they type it.
   const [draft, setDraft] = useState<SerializedEditorState | null>(null);
-  const isDirty = canEdit && draft !== null;
+
+  // The poll is edited in place rather than on the settings page: it is part
+  // of what the notice says, and what it says is written here. Null means the
+  // editor is closed, not that the notice has no question.
+  const [pollDraft, setPollDraft] = useState<PollDraft | null>(null);
+  const savePoll = useSetPostPoll(parsedId, {
+    onSuccess: () => {
+      setPollDraft(null);
+      toast.success(t("poll.saved"));
+    },
+  });
+  const removePoll = useDeletePostPoll(parsedId, {
+    onSuccess: () => {
+      setPollDraft(null);
+      toast.success(t("poll.removed"));
+    },
+  });
+  // Answered polls keep their choices and the two switches that can only
+  // tighten; the server refuses to change them, and the editor stops offering
+  // it rather than letting somebody type an edit that will be rejected.
+  //
+  // `is_locked`, not a count: on a poll whose results are withheld the count is
+  // `null`, so deriving the lock from it would unlock exactly the polls the
+  // server is about to refuse.
+  const pollAnswered = post?.poll?.is_locked ?? false;
+
+  // An open poll editor is unsaved work too — it is saved by its own button,
+  // like the body above it, so leaving the page would take it with them.
+  const isDirty = canEdit && (draft !== null || pollDraft !== null);
 
   // A body full of links, mentions and smart chips is a body full of things
   // that navigate — and an explicit Save means a click on one would otherwise
@@ -257,7 +309,13 @@ export function PostDetailPage() {
           <Suspense fallback={<Skeleton className="h-40 w-full" />}>
             <Editor
               key={post.id}
-              editorSerializedState={post.body as unknown as SerializedEditorState}
+              // An empty object is not an empty editor state — Lexical refuses
+              // one whose root has no children, and a notice that is only a
+              // headline and a poll stores exactly that. Passing nothing lets
+              // the editor build its own empty document.
+              editorSerializedState={
+                hasBody(post.body) ? (post.body as unknown as SerializedEditorState) : undefined
+              }
               onSerializedChange={setDraft}
               readOnly={!canEdit}
               showToolbar={canEdit}
@@ -283,6 +341,53 @@ export function PostDetailPage() {
                 {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {update.isPending ? t("saving") : t("common:save")}
               </Button>
+            </div>
+          )}
+          {/* The question, under what was said about it. Every reader sees
+              it; only somebody who may edit the notice can change it, and
+              they do that in the editor below rather than in place — a poll
+              being answered and a poll being rewritten are different
+              things on the same rows. */}
+          {post.poll && pollDraft === null && <PostPoll post={post} />}
+          {canEdit && (
+            <div className="space-y-2">
+              {pollDraft === null ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPollDraft(post.poll ? pollDraftFromRead(post.poll) : emptyPollDraft())
+                  }
+                  className="inline-flex items-center gap-2"
+                >
+                  <Vote className="h-4 w-4" aria-hidden />
+                  {post.poll ? t("poll.edit") : t("poll.add")}
+                </Button>
+              ) : (
+                <>
+                  <PollEditor
+                    idPrefix="post-poll"
+                    value={pollDraft}
+                    onChange={setPollDraft}
+                    choicesLocked={pollAnswered}
+                    anonymityLocked={pollAnswered && (post.poll?.is_anonymous ?? false)}
+                    onRemove={post.poll ? () => removePoll.mutate() : undefined}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setPollDraft(null)}>
+                      {t("common:cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={savePoll.isPending || !isPollDraftValid(pollDraft)}
+                      onClick={() => savePoll.mutate(pollDraftToWrite(pollDraft))}
+                    >
+                      {savePoll.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {savePoll.isPending ? t("saving") : t("common:save")}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
           {/* Reacting is a read-level gesture — anyone who can see the

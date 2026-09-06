@@ -1311,17 +1311,24 @@ async def test_reading_is_one_persons_business(
 
 @pytest.mark.integration
 async def test_marking_unread_puts_it_back(client: AsyncClient, acting_user, session):
+    """Somebody ELSE's notice: there is no receipt on your own to take off, and
+    a notice you wrote reads as read whatever you do to it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
     post = await create_post(session, a.initiative, a.user, name="Again please")
     await client.post(
-        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
     )
 
-    response = await client.delete(a.g(f"/posts/{post.id}/read"), headers=a.headers)
+    response = await client.delete(
+        reader.g(f"/posts/{post.id}/read"), headers=reader.headers
+    )
     assert response.status_code == 204
 
-    listed = await client.get(a.g("/posts/"), headers=a.headers)
+    listed = await client.get(reader.g("/posts/"), headers=reader.headers)
     assert [p["is_read"] for p in listed.json()["items"]] == [False]
 
 
