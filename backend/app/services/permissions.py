@@ -567,11 +567,10 @@ def hidden_from_reader(
 ) -> bool:
     """Whether this row exists but is not yet this caller's to see.
 
-    One question asked at every seam that resolves a single row by id —
-    reading it, exporting it, commenting on it, reacting to it — so a draft
-    cannot leak through whichever of them nobody thought about. Applied AFTER
-    the sharing decision, so the answer to "does this exist" is unchanged for
-    somebody who was never going to reach it either way.
+    Asked at every seam that resolves a single row by id — reading it,
+    exporting it, commenting on it, reacting to it — so all of them answer the
+    same way. Applied after the sharing decision, so it narrows what somebody
+    already reaches rather than widening it.
     """
     visible = READ_VISIBLE.get(kind)
     if visible is None or visible(row):

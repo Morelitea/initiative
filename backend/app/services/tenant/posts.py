@@ -12,7 +12,7 @@ list endpoint, the export, and anything else that renders a board cannot
 disagree about what "the top" means.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -162,28 +162,45 @@ async def annotate_read_state(
         object.__setattr__(post, "is_read", post.id in read_ids)
 
 
+def current_readers(post: Post, reader_ids: Iterable[int]) -> set[int]:
+    """Of the people who have read this notice, the ones it is still for.
+
+    Sharing changes after a notice goes up: somebody who read it can leave the
+    initiative or lose their grant, and their receipt stays behind. The roster
+    and the count both answer against the audience as it is NOW, so the two
+    sides of the roster are drawn from one set — otherwise "Read 3, Unread 1"
+    could describe four people and a board of five.
+
+    Its author is not among them. Writing a notice is not reading it, and the
+    roster says so on the other side too.
+    """
+    audience = audience_user_ids(post, exclude=post.created_by)
+    return {user_id for user_id in reader_ids if user_id in audience}
+
+
 async def annotate_read_counts(session: AsyncSession, rows: Sequence[Post]) -> None:
     """Stamp ``read_count`` on each post — how many people have read it.
 
-    One grouped query for the page, the way the comment count is done: a board
-    of five must not become five more queries, and the number is on every card.
+    One query for the page, the way the comment count is done: a board of five
+    must not become five more. It returns the readers rather than a count per
+    post, because the number shown is the readers the notice is still FOR (see
+    :func:`current_readers`) and that is a per-post question no GROUP BY can
+    answer. Bounded by the page, which is five.
     """
-    from sqlalchemy import func
-
     ids = [post.id for post in rows if post.id is not None]
     if not ids:
         return
-    counts = dict(
-        (
-            await session.exec(
-                select(PostRead.post_id, func.count())
-                .where(PostRead.post_id.in_(ids))
-                .group_by(PostRead.post_id)
-            )
-        ).all()
-    )
+    pairs = (
+        await session.exec(
+            select(PostRead.post_id, PostRead.user_id).where(PostRead.post_id.in_(ids))
+        )
+    ).all()
+    by_post: dict[int, set[int]] = {}
+    for post_id, user_id in pairs:
+        by_post.setdefault(post_id, set()).add(user_id)
     for post in rows:
-        object.__setattr__(post, "read_count", counts.get(post.id, 0))
+        readers = current_readers(post, by_post.get(post.id, set()))
+        object.__setattr__(post, "read_count", len(readers))
 
 
 async def list_readers(
@@ -191,10 +208,11 @@ async def list_readers(
 ) -> tuple[list[Any], list[int]]:
     """Who has read this notice, and who it is still waiting on.
 
-    The people it is waiting on are the ones it was **shared with** —
-    :func:`audience_user_ids`, the same set the publication notified — minus
-    whoever has read it. That is the only honest denominator: a board of a
-    hundred where a notice went to five is not ninety-five people ignoring it.
+    Both sides are drawn from the notice's current audience —
+    :func:`audience_user_ids`, the same set the publication notified. That is
+    the only honest denominator: a board of a hundred where a notice went to
+    five is not ninety-five people ignoring it, and somebody who has since left
+    is on neither side rather than only on one.
 
     Returns the reader rows (newest first, carrying their profile) and the ids
     of everyone still to read it; the endpoint resolves those ids to people.
@@ -211,11 +229,9 @@ async def list_readers(
         .unique()
         .all()
     )
-    read_ids = {receipt.user_id for receipt in receipts}
-    # The author is in neither list: they wrote it, which is not reading it,
-    # and they were not notified about it either.
+    read_ids = current_readers(post, (receipt.user_id for receipt in receipts))
     waiting = audience_user_ids(post, exclude=post.created_by) - read_ids
-    return list(receipts), sorted(waiting)
+    return [r for r in receipts if r.user_id in read_ids], sorted(waiting)
 
 
 async def load_member_profiles(
@@ -248,9 +264,10 @@ async def mark_read(
     somebody read a notice is a fact, and looking at it again does not make it
     newer.
 
-    RLS decides which of the given ids are actually this reader's to mark; ids
-    they cannot reach fail the policy's WITH CHECK and are simply not inserted,
-    so a hand-made list of every id in the guild marks nothing it should not.
+    A receipt is only recorded for a notice this reader can actually see, and
+    only from somebody other than its author: the ids narrow through the same
+    sharing and publication conditions the board's own list applies, so what
+    can be marked read is exactly what could be read.
     """
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -258,7 +275,16 @@ async def mark_read(
         return 0
     now = datetime.now(timezone.utc)
     readable = (
-        await session.exec(select(Post.id).where(Post.id.in_(tuple(post_ids))))
+        await session.exec(
+            select(Post.id).where(
+                Post.id.in_(tuple(post_ids)),
+                Post.created_by != user_id,
+                permissions_service.granted_scope_clause(
+                    Tool.post, Post.id, user_id, guild_id=guild_id
+                ),
+                visibility_clause(user_id, guild_id=guild_id),
+            )
+        )
     ).all()
     if not readable:
         return 0
@@ -388,9 +414,8 @@ async def list_post_ids_for_export(
         Initiative.posts_enabled == True,  # noqa: E712
         # An export is a record of what a board has said, and a draft has not
         # been said yet — it is in no board, no count and no search result, so
-        # it is in no export either. A backup therefore does not carry drafts;
-        # that is the trade for one rule that cannot leak an unposted notice to
-        # whoever happens to run the export.
+        # it is in no export either. A backup therefore does not carry drafts,
+        # which is the trade this one rule makes.
         is_published_clause(),
         permissions_service.dac_scope_clause(
             Tool.post, Post.id, current_user.id, guild_id=guild_id

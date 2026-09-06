@@ -1241,18 +1241,21 @@ async def test_a_notice_starts_unread_and_stays_read(
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
     post = await create_post(session, a.initiative, a.user, name="Read me")
 
-    before = await client.get(a.g("/posts/"), headers=a.headers)
+    before = await client.get(reader.g("/posts/"), headers=reader.headers)
     assert [p["is_read"] for p in before.json()["items"]] == [False]
 
     marked = await client.post(
-        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
     )
     assert marked.status_code == 200
     assert marked.json()["marked"] == 1
 
-    after = await client.get(a.g("/posts/"), headers=a.headers)
+    after = await client.get(reader.g("/posts/"), headers=reader.headers)
     assert [p["is_read"] for p in after.json()["items"]] == [True]
 
 
@@ -1264,11 +1267,18 @@ async def test_marking_the_same_page_again_changes_nothing(
     That has to be free."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
     post = await create_post(session, a.initiative, a.user, name="Seen twice")
     body = {"post_ids": [post.id]}
 
-    first = await client.post(a.g("/posts/read"), headers=a.headers, json=body)
-    second = await client.post(a.g("/posts/read"), headers=a.headers, json=body)
+    first = await client.post(
+        reader.g("/posts/read"), headers=reader.headers, json=body
+    )
+    second = await client.post(
+        reader.g("/posts/read"), headers=reader.headers, json=body
+    )
 
     assert first.json()["marked"] == 1
     assert second.json()["marked"] == 0
@@ -1284,16 +1294,19 @@ async def test_reading_is_one_persons_business(
         guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
     )
     await _posts_enabled(session, a.initiative)
+    c = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
     post = await create_post(session, a.initiative, a.user, name="Mine only")
 
     await client.post(
-        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+        b.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
     )
 
-    mine = await client.get(a.g("/posts/"), headers=a.headers)
     theirs = await client.get(b.g("/posts/"), headers=b.headers)
-    assert [p["is_read"] for p in mine.json()["items"]] == [True]
-    assert [p["is_read"] for p in theirs.json()["items"]] == [False]
+    others = await client.get(c.g("/posts/"), headers=c.headers)
+    assert [p["is_read"] for p in theirs.json()["items"]] == [True]
+    assert [p["is_read"] for p in others.json()["items"]] == [False]
 
 
 @pytest.mark.integration
@@ -1330,15 +1343,18 @@ async def test_the_unread_filter_shows_only_what_is_left(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
     await _posts_enabled(session, a.initiative)
     read = await create_post(session, a.initiative, a.user, name="Done with this")
     await create_post(session, a.initiative, a.user, name="Still to read")
     await client.post(
-        a.g("/posts/read"), headers=a.headers, json={"post_ids": [read.id]}
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [read.id]}
     )
 
     response = await client.get(
-        a.g("/posts/"), headers=a.headers, params={"unread": "true"}
+        reader.g("/posts/"), headers=reader.headers, params={"unread": "true"}
     )
     assert [p["name"] for p in response.json()["items"]] == ["Still to read"]
     assert response.json()["total_count"] == 1
@@ -1348,16 +1364,23 @@ async def test_the_unread_filter_shows_only_what_is_left(
 async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
     client: AsyncClient, acting_user, session
 ):
-    """The ids are what a client says it saw, not a list of things it may
-    touch: RLS decides, so a hand-made list marks nothing it should not."""
+    """A receipt is only recorded for a notice the caller can see.
+
+    The reader here is IN the initiative, so membership alone would admit
+    them — which is the point: what may be marked read is what the board would
+    have shown them, not what the schema allows them to name.
+    """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user, name="Not theirs")
+    await _strip_non_owner_grants(session, post, a.user.id)
 
     response = await client.post(
-        outsider.g("/posts/read"),
-        headers=outsider.headers,
+        member.g("/posts/read"),
+        headers=member.headers,
         json={"post_ids": [post.id]},
     )
     assert response.status_code == 200
@@ -1495,3 +1518,79 @@ async def test_a_notice_is_signed(client: AsyncClient, acting_user, session):
     assert author["username"] == a.user.username
     assert "profile_decorations" in author
     assert "presence" in author
+
+
+@pytest.mark.integration
+async def test_a_draft_cannot_be_marked_read(client: AsyncClient, acting_user, session):
+    """A notice nobody can read yet is not one anybody has read."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    draft = await create_post(
+        session,
+        a.initiative,
+        a.user,
+        name="Not up yet",
+        published_at=None,
+        scheduled_for=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+
+    response = await client.post(
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [draft.id]}
+    )
+    assert response.json()["marked"] == 0
+
+
+@pytest.mark.integration
+async def test_writing_a_notice_is_not_reading_it(
+    client: AsyncClient, acting_user, session
+):
+    """An author's own notice is on their own board, so the card reports it
+    read like any other. It must not count: the roster leaves them off the
+    waiting side, and a count that included them would contradict it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Mine to write")
+
+    marked = await client.post(
+        a.g("/posts/read"), headers=a.headers, json={"post_ids": [post.id]}
+    )
+    assert marked.json()["marked"] == 0
+
+    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    assert listing.json()["items"][0]["read_count"] == 0
+
+
+@pytest.mark.integration
+async def test_somebody_who_has_left_is_on_neither_side(
+    client: AsyncClient, acting_user, session
+):
+    """Sharing changes after a notice goes up, and a receipt stays behind.
+
+    Both sides of the roster answer against the audience as it is NOW, so a
+    former recipient is off both — otherwise "Read 1, Unread 0" would describe
+    somebody the notice is no longer for.
+    """
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user, name="Shared, then not")
+    await client.post(
+        reader.g("/posts/read"), headers=reader.headers, json={"post_ids": [post.id]}
+    )
+
+    # The sharing goes; the receipt does not.
+    await _strip_non_owner_grants(session, post, a.user.id)
+
+    listing = await client.get(a.g("/posts/"), headers=a.headers)
+    roster = (
+        await client.get(a.g(f"/posts/{post.id}/reads"), headers=a.headers)
+    ).json()
+
+    assert listing.json()["items"][0]["read_count"] == 0
+    assert roster["read"] == []
+    assert roster["unread"] == []

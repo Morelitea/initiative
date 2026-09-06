@@ -744,9 +744,9 @@ async def mark_posts_read(
     requests per scroll. Idempotent: sending the same page again inserts
     nothing and answers the same way.
 
-    The ids are what the client saw, so they are not trusted as a list of
-    things the caller may mark: the statement is scoped by RLS, and an id this
-    reader cannot reach simply does not become a row.
+    A receipt is recorded for the notices among these the caller can see, and
+    the service applies the board's own sharing and publication conditions to
+    decide which those are.
     """
     marked = await posts_service.mark_read(
         session,
