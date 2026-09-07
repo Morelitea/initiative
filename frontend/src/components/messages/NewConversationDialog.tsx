@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +8,8 @@ import type {
   ContactRead,
   DirectMessagePermissionRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
+import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
 import { UserHandle } from "@/components/UserHandle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -22,13 +24,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
-import { useContactSections, useMoreCommunityContacts } from "@/hooks/useContacts";
+import {
+  useContactSections,
+  useFavoriteContacts,
+  useMoreCommunityContacts,
+  useToggleFavoriteContact,
+} from "@/hooks/useContacts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { parseHandle, useDmPermissions, useRequestConnection } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getInitials } from "@/lib/initials";
-import { getUrlHandle } from "@/lib/userDisplay";
+import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 /** How long typing settles before the roster follows it. */
@@ -40,9 +47,13 @@ const SEARCH_SETTLES_MS = 250;
  * The conversation list can only offer people it already has — the ones who
  * agreed to hear from you. Everybody else is reached from here, and there are
  * exactly two ways to name them, which is why they share one field. Typing
- * narrows the communities you are in, the way My Contacts does. Typing a whole
- * handle, number included, also offers a connection: that is the one shape
- * that reaches an account no roster of yours will ever list.
+ * narrows the people you starred and the communities you are in. Typing a
+ * whole handle, number included, also offers a connection: that is the one
+ * shape that reaches an account no roster of yours will ever list.
+ *
+ * This is what My Contacts used to be, minus the browsing: that page listed
+ * everyone you shared a community with, and the only thing anybody did from a
+ * row was reach for one of them.
  *
  * Picking somebody navigates rather than acting. A row is not a promise that a
  * channel exists — most of the people it lists have never agreed to anything —
@@ -104,7 +115,18 @@ export const NewConversationDialog = () => {
     );
   };
 
-  const anybody = groups.some((group) => group.items.length > 0);
+  // Whether there is anybody at all to offer -- favourites included, since a
+  // reader who shares no community with anyone may still have starred people.
+  const starred = useFavoriteContacts(settled, { enabled: open });
+  const starredPeople = useMemo(() => starred.data?.items ?? [], [starred.data]);
+  const starredIds = useMemo(
+    () => new Set(starredPeople.map((person) => person.id)),
+    [starredPeople]
+  );
+  const anybody = groups.some((group) => group.items.length > 0) || starredPeople.length > 0;
+
+  const setFavorite = useToggleFavoriteContact();
+  const toggleFavorite = (person: ContactRead) => setFavorite(person.id, starredIds.has(person.id));
 
   return (
     <Dialog
@@ -174,7 +196,7 @@ export const NewConversationDialog = () => {
         ) : null}
 
         <div className="-mx-2 max-h-80 overflow-y-auto px-2">
-          {sections.isLoading ? (
+          {sections.isLoading || starred.isLoading ? (
             <p className="py-2 text-muted-foreground text-sm">{t("messages:loading")}</p>
           ) : !anybody ? (
             <p className="py-2 text-muted-foreground text-sm">
@@ -184,6 +206,12 @@ export const NewConversationDialog = () => {
             </p>
           ) : (
             <div className="space-y-3">
+              <FavoriteRoster
+                items={starredPeople}
+                answers={answers}
+                onPick={pick}
+                onToggleFavorite={toggleFavorite}
+              />
               {groups
                 .filter((group) => group.items.length > 0)
                 .map((group) => (
@@ -197,7 +225,9 @@ export const NewConversationDialog = () => {
                     section={group}
                     search={settled}
                     answers={answers}
+                    starred={starredIds}
                     onPick={pick}
+                    onToggleFavorite={toggleFavorite}
                   />
                 ))}
             </div>
@@ -224,12 +254,16 @@ const CommunityRoster = ({
   section,
   search,
   answers,
+  starred,
   onPick,
+  onToggleFavorite,
 }: {
   section: ContactGuildSection;
   search: string;
   answers: Record<string, DirectMessagePermissionRead>;
+  starred: Set<number>;
   onPick: (person: ContactRead) => void;
+  onToggleFavorite: (person: ContactRead) => void;
 }) => {
   const { t } = useTranslation(["messages", "contacts"]);
   const [wantsMore, setWantsMore] = useState(false);
@@ -265,42 +299,15 @@ const CommunityRoster = ({
       <ul>
         {[...section.items, ...extra].map((person) => {
           const answer = answerFor(person.id);
-          // Every refusal collapses into one word server-side, so a row built
-          // from it cannot say which refusal it is -- and does not try. It
-          // simply stops being a way in.
-          const denied = answer?.permission === "denied";
           return (
-            <li key={person.id}>
-              <button
-                type="button"
-                disabled={denied}
-                onClick={() => onPick(person)}
-                className={cn(
-                  "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
-                  denied ? "cursor-default opacity-60" : "hover:bg-accent"
-                )}
-              >
-                <ProfileAvatar
-                  user={person}
-                  decorations={person.profile_decorations}
-                  presence={person.presence}
-                  className="size-6"
-                />
-                <UserHandle
-                  user={person}
-                  className="min-w-0 flex-1"
-                  nameClassName="min-w-0 truncate"
-                  numberClassName="shrink-0"
-                />
-                <span className="shrink-0 text-muted-foreground text-xs">
-                  {denied
-                    ? t("messages:newConversation.unreachable")
-                    : answer?.permission === "may_request"
-                      ? t("contacts:actions.ask")
-                      : null}
-                </span>
-              </button>
-            </li>
+            <PickerPerson
+              key={person.id}
+              person={person}
+              answer={answer}
+              starred={starred.has(person.id)}
+              onPick={onPick}
+              onToggleFavorite={onToggleFavorite}
+            />
           );
         })}
       </ul>
@@ -315,6 +322,139 @@ const CommunityRoster = ({
           {t("messages:newConversation.showMore")}
         </Button>
       ) : null}
+    </section>
+  );
+};
+
+/**
+ * One person, offered.
+ *
+ * Every refusal collapses into one word server-side, so a row built from it
+ * cannot say which refusal it is -- and does not try. It simply stops being a
+ * way in.
+ */
+const PickerPerson = ({
+  person,
+  answer,
+  starred,
+  onPick,
+  onToggleFavorite,
+}: {
+  person: ContactRead;
+  answer: DirectMessagePermissionRead | undefined;
+  starred: boolean;
+  onPick: (person: ContactRead) => void;
+  onToggleFavorite: (person: ContactRead) => void;
+}) => {
+  const { t } = useTranslation(["messages", "contacts"]);
+  const denied = answer?.permission === "denied";
+
+  return (
+    <li className="flex items-center gap-1">
+      <button
+        type="button"
+        disabled={denied}
+        onClick={() => onPick(person)}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
+          denied ? "cursor-default opacity-60" : "hover:bg-accent"
+        )}
+      >
+        <ProfileAvatar
+          user={person}
+          decorations={person.profile_decorations}
+          presence={person.presence}
+          className="size-6"
+        />
+        <UserHandle
+          user={person}
+          className="min-w-0 flex-1"
+          nameClassName="min-w-0 truncate"
+          numberClassName="shrink-0"
+        />
+        <span className="shrink-0 text-muted-foreground text-xs">
+          {denied
+            ? t("messages:newConversation.unreachable")
+            : answer?.permission === "may_request"
+              ? t("contacts:actions.ask")
+              : null}
+        </span>
+      </button>
+      {/* Outside the button, and outside its `disabled`. For somebody you
+          share no community with, this dialog is the only place they appear
+          at all -- so if the way in is shut, everything else you might do
+          about them has to still be open: unstar them, go and look at them,
+          connect, ignore. */}
+      <FavoriteToggle
+        starred={starred}
+        name={getUserDisplayName(person)}
+        onToggle={() => onToggleFavorite(person)}
+      />
+      <ContactActionsMenu
+        user={{
+          id: person.id,
+          username: person.username,
+          discriminator: person.discriminator,
+        }}
+        className="size-8 shrink-0"
+        permission={answer ?? null}
+        // The row is the way in and the star is beside it. Everything else
+        // the menu holds -- the profile above all -- is only here.
+        omit={["message", "ask", "favorite"]}
+      />
+    </li>
+  );
+};
+
+/**
+ * The people this reader starred, above the communities.
+ *
+ * Starring is the one list that is not a slice of anything: a favourite may be
+ * somebody you share no community with, so no roster below will ever hold
+ * them. Without this they would be reachable only by typing their handle from
+ * memory -- and somebody who starred a person is exactly somebody who expects
+ * to find them again.
+ *
+ * A favourite you *do* share a community with appears twice, here and there.
+ * That is what a shortcut is; carving them out of the rosters would leave the
+ * paged ones with holes in them.
+ */
+const FavoriteRoster = ({
+  items,
+  answers,
+  onPick,
+  onToggleFavorite,
+}: {
+  items: ContactRead[];
+  answers: Record<string, DirectMessagePermissionRead>;
+  onPick: (person: ContactRead) => void;
+  onToggleFavorite: (person: ContactRead) => void;
+}) => {
+  const { t } = useTranslation("messages");
+  const own = useDmPermissions(useMemo(() => items.map((person) => person.id), [items]));
+
+  if (items.length === 0) return null;
+
+  return (
+    <section>
+      <h3 className="flex items-center gap-1.5 py-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-500" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">{t("newConversation.favorites")}</span>
+      </h3>
+      <ul>
+        {items.map((person) => (
+          <PickerPerson
+            key={person.id}
+            person={person}
+            // The dialog's own question covers whoever is also in a roster;
+            // the rest are this section's to ask about.
+            answer={answers[String(person.id)] ?? own.data?.permissions?.[String(person.id)]}
+            starred
+            onPick={onPick}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
+      </ul>
     </section>
   );
 };

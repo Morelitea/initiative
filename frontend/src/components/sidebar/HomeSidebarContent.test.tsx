@@ -58,7 +58,7 @@ describe("the home sidebar", () => {
   it("shows the navigation away from My Messages", async () => {
     setup("/");
 
-    expect(await screen.findByText("My Contacts")).toBeInTheDocument();
+    expect(await screen.findByText("My Tasks")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /back to navigation/i })).toBeNull();
   });
 
@@ -76,7 +76,7 @@ describe("the home sidebar", () => {
     setup("/messages");
 
     expect(await screen.findByRole("button", { name: /back to navigation/i })).toBeInTheDocument();
-    expect(screen.queryByText("My Contacts")).toBeNull();
+    expect(screen.queryByText("My Tasks")).toBeNull();
   });
 
   it("drills back in when My Messages is picked again", async () => {
@@ -85,7 +85,7 @@ describe("the home sidebar", () => {
     setup("/messages");
 
     await userEvent.click(await screen.findByRole("button", { name: /back to navigation/i }));
-    expect(await screen.findByText("My Contacts")).toBeInTheDocument();
+    expect(await screen.findByText("My Tasks")).toBeInTheDocument();
 
     await userEvent.click(screen.getByText("My Messages"));
 

@@ -15,16 +15,18 @@ import { toast } from "@/lib/chesterToast";
 /**
  * Somebody you were sent here to talk to, and cannot yet.
  *
- * My Contacts links every row straight at this page, which means most people it
- * lists arrive with no channel open — a contact is somebody you *share a
- * community with*, not somebody who has agreed to hear from you. So the
- * destination is not an error: it is where the asking happens, and the panel's
- * whole job is to offer the one gesture that leads somewhere.
+ * The new-conversation picker and a community's roster both link straight at
+ * this page, which means most people they list arrive with no channel open —
+ * sharing a community with somebody is not the same as their having agreed to
+ * hear from you. So the destination is not an error: it is where the asking
+ * happens, and the panel's whole job is to offer the one gesture that leads
+ * somewhere.
  *
  * That gesture is only ever about messages. A connection is a different
- * agreement between two accounts, made and unmade on My Contacts, and it does
- * not belong on a page about a conversation — even though accepting one happens
- * to open a channel as well.
+ * agreement between two accounts — made by handle, answered in the requests
+ * section, unmade from the actions menu — and it does not belong on a page
+ * about a conversation, even though accepting one happens to open a channel as
+ * well.
  *
  * Which gesture to offer comes from ``dm_permission`` and the pending list,
  * never from a guess about why. The server collapses every refusal into

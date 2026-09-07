@@ -1,12 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import {
-  CalendarDays,
-  ChartColumn,
-  LayoutGrid,
-  MessageSquare,
-  SquareCheckBig,
-  Users,
-} from "lucide-react";
+import { CalendarDays, ChartColumn, LayoutGrid, MessageSquare, SquareCheckBig } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -51,7 +44,6 @@ export const HomeSidebarContent = () => {
     { to: "/", label: t("myTasks"), icon: SquareCheckBig, exact: true },
     { to: "/my-calendar", label: t("myCalendar"), icon: CalendarDays },
     { to: "/my-tools", label: t("myTools"), icon: LayoutGrid },
-    { to: "/contacts", label: t("myContacts"), icon: Users },
     {
       to: "/messages",
       label: t("myMessages"),

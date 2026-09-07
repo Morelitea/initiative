@@ -91,7 +91,7 @@ const readCollapsed = (): Record<string, boolean> => {
  * be the list rather than an apology for not being one. One component, so the
  * two cannot drift.
  *
- * Four sections, folded the way My Contacts folds its communities: people
+ * Four sections, each folded away and remembered: people
  * waiting on an answer, people you starred, people you are connected to, and
  * everyone else you can reach. Unread comes first and takes precedence over
  * the rest — somebody has said something and nothing else on the list is
@@ -155,10 +155,9 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
   /**
    * Everything waiting on an answer, either way round and of either kind.
    *
-   * Connection requests are here rather than only on My Contacts: to the
-   * person reading it both kinds are the same question — somebody wants to be
-   * able to talk and it has not started yet — and the mark that brought them
-   * here never said which sort it was. Theirs first: those are the ones only
+   * Both kinds together: to the person reading it they are the same question
+   * — somebody wants to be able to talk and it has not started yet — and the
+   * mark that brought them here never said which sort it was. Theirs first: those are the ones only
    * you can move. Yours are listed so an ask you sent does not look like it
    * never happened.
    */
@@ -200,8 +199,8 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
     acceptConnection.isPending ||
     declineConnection.isPending;
 
-  // The two lists the sections are cut from. Both are reads My Contacts
-  // already makes, so a reader who has been there pays nothing for them here.
+  // The two lists the sections are cut from. Both are cached reads the
+  // actions menu and the picker make too, so most readers already hold them.
   const favorites = useFavoriteContacts("");
   const starred = useMemo(
     () => new Set((favorites.data?.items ?? []).map((contact) => contact.id)),

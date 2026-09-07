@@ -22,9 +22,9 @@ type PostReadersDialogProps = DialogProps & {
 /**
  * One person on the roster.
  *
- * The same row My Contacts uses, so somebody wearing a frame wears it here
- * too — a list of people should look like every other list of people in the
- * app, not like a list this one screen invented.
+ * The same row the connections and requests lists use, so somebody wearing a
+ * frame wears it here too — a list of people should look like every other
+ * list of people in the app, not like a list this one screen invented.
  */
 /**
  * The scrolling roster.

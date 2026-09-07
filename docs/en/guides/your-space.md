@@ -33,41 +33,27 @@ Two switches sit above the table:
 
 The tool, the search, the order, the page and the communities you picked all live in the address bar. So whatever you're looking at is a link, which is a considerably nicer thing to send somebody than "open My Tools and click around a bit".
 
-## My Contacts
-
-The people you can actually talk to, on one page, so you don't have to remember which community you know somebody from.
-
-It's built in sections:
-
-- **Your connections** — people you've mutually agreed to stay in touch with.
-- **People outside your communities** you've agreed to message.
-- **Each of your communities**, in the order you dragged them onto the rail, collapsible.
-
-Each community section lists the members who **can message you and who you can message** — not simply everyone in the room. A community you're the only member of is left out entirely, since there'd be nobody to list.
-
-!!! info "If it starts out empty, that's expected"
-    New accounts begin on the **Private** message setting, which means nobody can even ask to message you yet — so your community sections will be empty at first.
-
-    Nothing's broken. The page says so, and offers the one setting that fills it. See [Who can reach you](messages.md#who-can-reach-you).
-
-It reads as one big table: the same columns — person, name, and which communities you have in common — run down every section, so somebody who's in three of your communities lines up with themselves. Hover the little community icons on a row for the full list.
-
-- **Star anyone** to keep them at the top, including people you share no community with. Starring is completely private and tells them absolutely nothing, which is the correct design for a feature like this.
-- **One search box** covers the whole page. Each community keeps its own member list, so a search visits them one at a time and tells you while it's working.
-- Each section **pages on its own**, twenty at a time, without shoving the others around.
-- **Waiting requests** — connection or message, either direction — sit at the top, so you don't have to go rummaging in Settings to answer one.
-
-Opening a row takes you to [that person's profile](../account/profile-and-preferences.md#your-profile-page). The actions menu on a row lets you act on somebody right where you found them: **connect**, **ask to message**, **ignore**, or remove a connection. See [Messages](messages.md).
-
-!!! screenshot "My Contacts"
-    **Show:** the contacts page with the connections section, a community section, waiting requests above, and the shared-community icons on a row.
-
-    Save as `en/images/your-space/my-contacts.png`, then replace this box with:
-    `![My Contacts](../images/your-space/my-contacts.png)`
-
 ## My Messages
 
 Your private conversations — one to one, end-to-end encrypted, and the only page here whose contents live on your device rather than on the server.
+
+Beside them is everyone you can reach. Unread first, then the people you starred, then your connections, then everybody else — each group folds away and stays folded. **Requests waiting on you** sit above the lot, connection or message, either direction, so answering one doesn't mean going rummaging in Settings.
+
+Star anyone to keep them near the top. It's completely private and tells them absolutely nothing, which is the correct design for a feature like this.
+
+Nobody in the list yet, or somebody missing from it? The **+** goes and finds them:
+
+- **The people you starred**, first, including anyone you share no community with.
+- **Each of your communities**, searchable, twenty at a time with a *Show more* under each.
+- **A whole handle, number included** (`sam#1234`) — the one way to reach an account no list of yours will ever show, because they've kept themselves to themselves.
+
+Somebody who takes no messages is shown like anybody else and simply offers nothing to click. They're there, and they're not reachable, and the row says both.
+
+!!! screenshot "My Messages"
+    **Show:** the conversation list with a request waiting above it, a folded group, and the new-conversation picker open over the top.
+
+    Save as `en/images/your-space/my-messages.png`, then replace this box with:
+    `![My Messages](../images/your-space/my-messages.png)`
 
 See [Messages](messages.md) for who can reach you, connections, and what happens to your history when you sign out.
 

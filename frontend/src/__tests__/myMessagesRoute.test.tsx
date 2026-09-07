@@ -753,8 +753,8 @@ describe("My Messages", () => {
 
   it("offers nothing to ask for when the server says no", async () => {
     // Every refusal collapses into one word, so the panel cannot tell them
-    // apart and does not pretend to — and a connection is My Contacts' business
-    // rather than this page's.
+    // apart and does not pretend to — and connecting belongs to the picker and
+    // the actions menu rather than to this page.
     mocks.userProfile.mockReturnValue(profile(9, "bram"));
 
     const Page = await messagesPage();
