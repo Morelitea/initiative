@@ -2,7 +2,11 @@ import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRoleRead, PermissionKey } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  InitiativeRead,
+  InitiativeRoleRead,
+  PermissionKey,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   Accordion,
   AccordionContent,
@@ -23,9 +27,27 @@ import {
   useInitiativeRoles,
   useUpdateRole,
 } from "@/hooks/useInitiativeRoles";
+import { isToolEnabled, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+
+/**
+ * The tools this initiative has turned off, by view permission key.
+ *
+ * A permission switch on this screen grants nothing while the initiative's
+ * master switch is off, and the screen used to say nothing about that — the
+ * mirror of the details screen never mentioning roles. Naming the off ones
+ * here lets each group carry the caveat.
+ */
+const disabledToolPermissionKeys = (initiative: InitiativeRead | null): Set<PermissionKey> =>
+  new Set(
+    initiative
+      ? TOGGLEABLE_TOOLS.filter((tool) => !isToolEnabled(tool, initiative)).map(toolViewPermission)
+      : []
+  );
 
 interface InitiativeSettingsRolesTabProps {
   initiativeId: number;
+  /** The initiative, so a group can say when its tool is turned off. */
+  initiative: InitiativeRead | null;
   canManageMembers: boolean;
   // "Full access" (override_share_restrictions) is guild-admin-settable only —
   // a stricter gate than canManageMembers (which also includes PM managers), so
@@ -43,6 +65,7 @@ const PermissionGroupSection = ({
   canManageMembers,
   isPending,
   onToggle,
+  toolIsOff,
   t,
 }: {
   group: PermissionGroup;
@@ -51,10 +74,17 @@ const PermissionGroupSection = ({
   canManageMembers: boolean;
   isPending: boolean;
   onToggle: (role: InitiativeRoleRead, key: PermissionKey, enabled: boolean) => void;
+  /** The initiative has this group's tool turned off, so nothing here applies. */
+  toolIsOff?: boolean;
   t: (key: never) => string;
 }) => (
   <div>
     <h4 className="mb-2 font-medium text-muted-foreground text-sm">{t(group.labelKey as never)}</h4>
+    {toolIsOff && (
+      <p className="mb-2 text-amber-600 text-xs dark:text-amber-500">
+        {t("settings.toolAudience.toolTurnedOff" as never)}
+      </p>
+    )}
     <div className="space-y-3">
       {group.keys.map((key) => (
         <div key={key} className="flex items-center justify-between">
@@ -72,6 +102,7 @@ const PermissionGroupSection = ({
 
 export const InitiativeSettingsRolesTab = ({
   initiativeId,
+  initiative,
   canManageMembers,
   isGuildAdmin,
   onOpenCreateRoleDialog,
@@ -80,6 +111,7 @@ export const InitiativeSettingsRolesTab = ({
 }: InitiativeSettingsRolesTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
+  const disabledKeys = disabledToolPermissionKeys(initiative);
   const rolesQuery = useInitiativeRoles(initiativeId || null);
   const updateRoleMutation = useUpdateRole(initiativeId);
   const deleteRoleMutation = useDeleteRole(initiativeId);
@@ -211,6 +243,7 @@ export const InitiativeSettingsRolesTab = ({
                                 canManageMembers={canManageMembers}
                                 isPending={updateRoleMutation.isPending}
                                 onToggle={handleTogglePermission}
+                                toolIsOff={group.keys.some((key) => disabledKeys.has(key))}
                                 t={t as unknown as (key: never) => string}
                               />
                             ))}

@@ -26,6 +26,7 @@ export {
   buildInitiativeDirectoryEntry,
   buildInitiativeJoinRequest,
   buildInitiativeMember,
+  buildInitiativeRole,
   resetCounter as resetInitiativeCounter,
 } from "./initiative.factory";
 export {

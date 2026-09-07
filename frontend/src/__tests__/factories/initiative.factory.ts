@@ -3,7 +3,10 @@ import type {
   InitiativeJoinRequestRead,
   InitiativeMemberRead,
   InitiativeRead,
+  InitiativeRoleRead,
+  PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
+import { CORE_TOOLS, TOOLS, toolCreatePermission, toolViewPermission } from "@/lib/tools";
 
 import { buildUserPublic, buildUserSummary } from "./user.factory";
 
@@ -51,6 +54,38 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     updated_at: "2026-01-15T00:00:00.000Z",
     members: [],
     ...overrides,
+  };
+}
+
+/**
+ * A role with a complete permission map, the way the API answers: every key
+ * has a value, viewing a core tool on and everything else off. Pass
+ * `permissions` to override individual keys.
+ */
+export function buildInitiativeRole(
+  overrides: Partial<InitiativeRoleRead> = {}
+): InitiativeRoleRead {
+  counter++;
+  // Derived from the registry, like the backend's DEFAULT_PERMISSION_VALUES:
+  // viewing a core (always-on) tool is on, everything else is off.
+  const defaults = Object.fromEntries(
+    TOOLS.flatMap((tool) => [
+      [toolViewPermission(tool), CORE_TOOLS.has(tool)],
+      [toolCreatePermission(tool), false],
+    ])
+  ) as Record<PermissionKey, boolean>;
+  const { permissions, ...rest } = overrides;
+  return {
+    id: counter,
+    name: `role_${counter}`,
+    display_name: `Role ${counter}`,
+    is_builtin: false,
+    is_manager: false,
+    override_share_restrictions: false,
+    position: counter,
+    permissions: { ...defaults, ...permissions },
+    member_count: 0,
+    ...rest,
   };
 }
 

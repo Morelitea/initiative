@@ -255,7 +255,25 @@
       "viewPosts": "Ver publicaciones",
       "createPosts": "Crear publicaciones"
     },
-    "handleColumn": "Identificador"
+    "handleColumn": "Identificador",
+    "toolAudience": {
+      "visibleTo": "Visible para {{roles}}, además de los responsables.",
+      "managersOnly": "Solo los responsables pueden verlo. Ningún otro rol lo ha recibido.",
+      "grantToEveryone": "Dárselo a todo el mundo",
+      "manageRoles": "Gestionar roles",
+      "granted": "Todo el mundo en esta iniciativa ya puede ver {{tool}}.",
+      "enableTitle": "Activar {{tool}}",
+      "enableDescription": "Activar una herramienta se la ofrece a la iniciativa. Quién puede verla de verdad es un permiso por rol, así que decídelo aquí en lugar de hacerlo después en la pantalla de Roles.",
+      "everyoneLabel": "Todo el mundo en esta iniciativa",
+      "everyoneDescription": "Todos los roles pueden verla. Quién puede crear en ella sigue siendo un permiso aparte en la pantalla de Roles.",
+      "managersLabel": "Solo responsables, por ahora",
+      "managersDescription": "Nadie más la verá hasta que concedas el permiso en la pantalla de Roles.",
+      "enableConfirm": "Activarla",
+      "disableTitle": "Desactivar {{tool}}",
+      "disableDescription": "Esto oculta {{tool}} y todo su contenido a todo el mundo en esta iniciativa, responsables incluidos. No se borra nada: al volver a activarla, todo regresa.",
+      "disableConfirm": "Desactivarla",
+      "toolTurnedOff": "Esta herramienta está desactivada para la iniciativa, así que estos permisos no conceden nada hasta que se vuelva a activar."
+    }
   },
   "advancedTools": "Herramientas avanzadas",
   "advancedToolsDescription": "Habilita herramientas opcionales para esta iniciativa.",
