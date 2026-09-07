@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
+from app.models.platform.user import UserStatus
 from app.services.tenant import ownership as ownership_service
 from app.testing import (
     TOOL_FACTORIES,
@@ -96,3 +97,47 @@ async def test_ownership_transfers_between_guild_admins(
     )
     assert response.status_code == 200, response.text
     assert response.json()["total"] >= 1, response.text
+
+
+async def test_content_cannot_be_handed_outside_the_guild(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The roster view is a column boundary, not a row one: it publishes those
+    nine columns for every account. What confines the recipient to this guild
+    is the membership row the check joins to — scoped to the current guild by
+    that table's own policy, and named again by the query. An admin of some
+    other guild is refused exactly like a stranger.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    elsewhere = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    assert elsewhere.guild.id != admin.guild.id
+    await _released_project(session, admin)
+
+    response = await client.post(
+        f"/api/v1/g/{admin.guild.id}/users/unowned-content/claim",
+        headers=admin.headers,
+        json={"new_owner_id": elsewhere.user.id},
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "OWNER_MUST_BE_GUILD_ADMIN"
+
+
+async def test_content_cannot_be_handed_to_a_suspended_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``status`` is the one thing the roster view supplies that the
+    membership row cannot, and it is why the check reads the view at all."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    frozen = await acting_user(guild_role=GuildRole.admin, guild=admin.guild)
+    frozen.user.status = UserStatus.suspended
+    session.add(frozen.user)
+    await session.commit()
+    await _released_project(session, admin)
+
+    response = await client.post(
+        f"/api/v1/g/{admin.guild.id}/users/unowned-content/claim",
+        headers=admin.headers,
+        json={"new_owner_id": frozen.user.id},
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "OWNER_MUST_BE_GUILD_ADMIN"
