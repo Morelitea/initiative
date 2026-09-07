@@ -52,6 +52,24 @@ else
     fail "promote.sh no longer has the unversioned 'hotfix/\$DATE' branch"
 fi
 
+# Every generated API file embeds the VERSION in its header, so any mode that
+# bumps the version has to restamp them. CI's "Check Generated Types" job
+# filters on backend/ and orval config, so a bump touching neither skips the
+# job and the stale headers ship green.
+body_of() {
+    awk -v fn="$1" '$0 ~ "^"fn"\\(\\) \\{" {inside=1; next} inside && /^\}/ {exit} inside {print}' "$PROMOTE"
+}
+for fn in do_release do_cherry_pick; do
+    body=$(body_of "$fn")
+    if [[ -z "$body" ]]; then
+        fail "could not read the body of $fn in promote.sh"
+    elif grep -q 'regenerate_api_types' <<<"$body"; then
+        pass "$fn regenerates the committed API types"
+    else
+        fail "$fn bumps the version but never calls regenerate_api_types — the generated headers would ship stale"
+    fi
+done
+
 if [[ $failures -gt 0 ]]; then
     echo "" >&2
     echo "$failures check(s) failed." >&2

@@ -385,6 +385,49 @@ check_unreleased_content() {
     info "  Changelog [Unreleased] has content"
 }
 
+# Regenerate the committed frontend API client so it matches the tree.
+#
+# Every generated file carries the VERSION in its header ("OpenAPI spec
+# version: X.Y.Z"), so a version bump alone makes all 55 of them stale — and
+# CI's "Check Generated Types" job filters on backend/ and orval config, so a
+# bump that touches neither skips the job and ships the stale headers. A bump
+# that DOES touch backend/ fails that job instead, on a drift that has nothing
+# to do with the change being shipped. Both paths need this.
+#
+# Exports the OpenAPI spec from the backend (no running server needed), then
+# runs orval + biome-format to match exactly what the CI job does (see
+# .github/workflows/ci.yml). The project formats with biome — using
+# `pnpm prettier` here produced subtle whitespace differences that failed the
+# drift check. Errors are surfaced (no `2>/dev/null` suppression) so a broken
+# regen fails the release rather than silently shipping stale types.
+#
+# $1: the version being released, or empty when no bump is happening (the
+#     regen still runs, to catch a picked schema change whose generated
+#     output was left behind on the source branch).
+regenerate_api_types() {
+    local version="${1:-}"
+
+    [[ -f frontend/package.json ]] || return 0
+    if ! command -v pnpm &>/dev/null; then
+        warn "  pnpm not found — skipping API type regeneration"
+        return 0
+    fi
+
+    dim "  Exporting OpenAPI spec and regenerating frontend types..."
+    (cd backend && .venv/bin/python scripts/export_openapi.py ../frontend/openapi.json)
+    (cd frontend && pnpm orval && pnpm format:api)
+
+    if git diff --quiet frontend/src/api/generated/; then
+        return 0
+    fi
+    git add frontend/src/api/generated/
+    if [[ -n "$version" ]]; then
+        git commit -m "regenerate API types for v$version"
+    else
+        git commit -m "regenerate API types"
+    fi
+}
+
 stamp_changelog() {
     local version="$1"
     local date="$2"
@@ -525,23 +568,7 @@ do_release() {
     git add VERSION CHANGELOG.md
     git commit -m "bump version to $new_version"
 
-    # Regenerate frontend types so the version comment stays in sync.
-    # Export OpenAPI spec from the backend (no running server needed),
-    # then run orval + biome-format to match exactly what the CI
-    # "Check Generated Types" job does (see .github/workflows/ci.yml). The
-    # project formats with biome — using `pnpm prettier` here produced
-    # subtle whitespace differences that failed the drift check.
-    # Errors are surfaced (no `2>/dev/null` suppression) so a broken regen
-    # fails the release rather than silently shipping stale types.
-    if [[ -f frontend/package.json ]] && command -v pnpm &>/dev/null; then
-        dim "  Exporting OpenAPI spec and regenerating frontend types..."
-        (cd backend && .venv/bin/python scripts/export_openapi.py ../frontend/openapi.json)
-        (cd frontend && pnpm orval && pnpm format:api)
-        if ! git diff --quiet frontend/src/api/generated/; then
-            git add frontend/src/api/generated/
-            git commit -m "regenerate API types for v$new_version"
-        fi
-    fi
+    regenerate_api_types "$new_version"
 
     git push -u origin "$branch"
     CLEANUP_BRANCH=""
@@ -817,6 +844,11 @@ do_cherry_pick() {
         stamp_released_migration
         git commit -m "bump version to $new_version"
     fi
+
+    # Same release bookkeeping the release mode does: the picked commits may
+    # carry schema changes whose generated output stayed behind, and a bump
+    # restamps the version in every generated header.
+    regenerate_api_types "$new_version"
 
     git push -u origin "$branch"
     CLEANUP_BRANCH=""
