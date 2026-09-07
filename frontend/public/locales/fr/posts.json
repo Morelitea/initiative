@@ -47,7 +47,8 @@
     "scheduledFor": "Planifiée pour le {{date}}",
     "notPublished": "Pas encore publiée",
     "publishNow": "Publier maintenant",
-    "publishedToast": "Publiée"
+    "publishedToast": "Publiée",
+    "publishesAt": "Publié le"
   },
   "read": {
     "markUnread": "Marquer comme non lue",

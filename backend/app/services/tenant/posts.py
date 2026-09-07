@@ -54,8 +54,13 @@ def post_loader_options() -> list:
     return list_loader_options()
 
 
-def board_order() -> list:
+def board_order(*, anchored: bool = False) -> list:
     """The bulletin board's order: live pins on top, then newest first.
+
+    ``anchored`` drops the pinned band. A reader who has jumped to a date is
+    reading the board as a chronology, and a pin means "this matters here right
+    now" — carrying it to the top of March would answer a question nobody
+    asked, and would put the same notice above every month they visit.
 
     ``pin_is_live()`` is what decides membership of the pinned band, so a pin
     whose expiry has passed falls back into the feed by date without anything
@@ -75,12 +80,14 @@ def board_order() -> list:
     """
     from sqlalchemy import case, desc
 
+    chronological = [board_time().desc(), Post.id.desc()]
+    if anchored:
+        return chronological
     live = pin_is_live()
     return [
         desc(case((live, 1), else_=0)),
         case((live, Post.pinned_at), else_=None).desc().nullslast(),
-        board_time().desc(),
-        Post.id.desc(),
+        *chronological,
     ]
 
 
@@ -113,6 +120,16 @@ def visibility_clause(
             initiative_id=initiative_id,
         ),
     )
+
+
+def anchored_clause(until: datetime):
+    """The WHERE leg for "start the board here and go back".
+
+    Inclusive, and measured by :func:`board_time` — the same instant the feed
+    is ordered by — so the notice a rail's anchor names is the first one the
+    page returns rather than the one just above it.
+    """
+    return board_time() <= until
 
 
 def audience_user_ids(post: Post, *, exclude: int | None = None) -> set[int]:

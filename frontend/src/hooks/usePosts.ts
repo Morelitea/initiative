@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import type {
+  GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
   InitiativeGroupedCountsResponse,
   ListPostsApiV1GGuildIdPostsGetParams,
   PollRead,
@@ -16,16 +17,19 @@ import type {
   PostReadReceipt,
   PostUpdate,
   ResourceGrantSchema,
+  TimelineResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createPostApiV1GGuildIdPostsPost,
   deletePostApiV1GGuildIdPostsPostIdDelete,
   deletePostPollApiV1GGuildIdPostsPostIdPollDelete,
   getGetPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiativeGetQueryKey,
+  getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryKey,
   getListPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGetQueryKey,
   getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey,
   getListPostsApiV1GGuildIdPostsGetQueryKey,
   getPostCountsByInitiativeApiV1GGuildIdPostsCountsByInitiativeGet,
+  getPostTimelineApiV1GGuildIdPostsTimelineGet,
   getReadPostApiV1GGuildIdPostsPostIdGetQueryKey,
   listPostPollVotersApiV1GGuildIdPostsPostIdPollVotersGet,
   listPostReadersApiV1GGuildIdPostsPostIdReadsGet,
@@ -40,7 +44,12 @@ import {
   updatePostApiV1GGuildIdPostsPostIdPatch,
   voteOnPostPollApiV1GGuildIdPostsPostIdPollVotePut,
 } from "@/api/generated/posts/posts";
-import { invalidateAllPosts, invalidatePost, patchCachedPost } from "@/api/query-keys";
+import {
+  invalidateAllPosts,
+  invalidatePost,
+  invalidatePostTimeline,
+  patchCachedPost,
+} from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { queryClient } from "@/lib/queryClient";
@@ -112,6 +121,26 @@ export const usePostReaders = (postId: number, options?: QueryOpts<PostReaders>)
   return useQuery<PostReaders>({
     queryKey: getListPostReadersApiV1GGuildIdPostsPostIdReadsGetQueryKey(guildId, postId),
     queryFn: () => listPostReadersApiV1GGuildIdPostsPostIdReadsGet(guildId, postId),
+    ...options,
+  });
+};
+
+/**
+ * The months this board has notices in — what the timeline rail is drawn from.
+ *
+ * Takes the same filters the feed does, because the rail is a picture of the
+ * feed as it currently stands: with the unread filter on, a month that is
+ * fully read is not a stop worth offering. The reader's own zone goes with it,
+ * since a month is a boundary in somebody's day.
+ */
+export const usePostsTimeline = (
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: QueryOpts<TimelineResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<TimelineResponse>({
+    queryKey: getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryKey(guildId, params),
+    queryFn: () => getPostTimelineApiV1GGuildIdPostsTimelineGet(guildId, params),
     ...options,
   });
 };
@@ -226,6 +255,14 @@ export const useMarkPostsRead = (options?: MutationOpts<PostReadReceipt, PostRea
         for (const id of args[1].post_ids) setCachedReadState(id, false);
         options?.onError?.(...args);
       },
+      // Only when something actually became read. Reading is a one-way move
+      // per notice, so this fires at most once per notice rather than once per
+      // batch — which is what keeps a scroll from refetching the rail every
+      // second and a half.
+      onSuccess: (...args) => {
+        if (args[0].marked > 0) void invalidatePostTimeline();
+        options?.onSuccess?.(...args);
+      },
     }
   );
 
@@ -252,6 +289,12 @@ export const useMarkPostUnread = (options?: MutationOpts<void, number>) =>
       onError: (...args) => {
         setCachedReadState(args[1], true);
         options?.onError?.(...args);
+      },
+      // A deliberate click, and it puts a month back on the rail under the
+      // unread filter.
+      onSuccess: (...args) => {
+        void invalidatePostTimeline();
+        options?.onSuccess?.(...args);
       },
     }
   );

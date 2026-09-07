@@ -547,5 +547,6 @@
   "POST_POLL_MULTIPLE_LOCKED": "Plusieurs réponses ont déjà été choisies : impossible de le désactiver.",
   "POST_POLL_DUPLICATE_CHOICE": "Deux choix disent la même chose.",
   "POST_POLL_RESULTS_HIDDEN": "Les résultats sont masqués jusqu'à ce que vous répondiez.",
-  "POST_POLL_NOT_PUBLISHED": "Cette publication n'est pas encore en ligne, son sondage ne peut pas recevoir de réponse."
+  "POST_POLL_NOT_PUBLISHED": "Cette publication n'est pas encore en ligne, son sondage ne peut pas recevoir de réponse.",
+  "UNKNOWN_TIMEZONE": "Ce fuseau horaire n'est pas reconnu."
 }

@@ -29,3 +29,26 @@ export const MAX_POLL_OPTION_CHARS = 200;
  */
 export const hasBody = (body: unknown): boolean =>
   Boolean(body) && typeof body === "object" && Object.keys(body as object).length > 0;
+
+/**
+ * The instant a board sorts a notice by — the client's side of the server's
+ * `board_time()`.
+ *
+ * Its publication for a live notice; for a draft, which only its writers see,
+ * the time it is due, so a scheduled notice previews where it will land. The
+ * moment it was written is the floor. Written here rather than inline so the
+ * feed, the timeline rail and anything else that groups notices by date cannot
+ * disagree with the order the server sent them in.
+ */
+export const postBoardTime = (post: {
+  published_at?: string | null;
+  scheduled_for?: string | null;
+  created_at: string;
+}): string => post.published_at ?? post.scheduled_for ?? post.created_at;
+
+/** The `YYYY-MM` a notice falls in, in the reader's own zone — the same
+ *  boundary the timeline endpoint cuts its months on. */
+export const postPeriod = (post: Parameters<typeof postBoardTime>[0]): string => {
+  const at = new Date(postBoardTime(post));
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`;
+};

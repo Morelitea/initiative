@@ -47,7 +47,8 @@
     "scheduledFor": "Scheduled for {{date}}",
     "notPublished": "Not posted yet",
     "publishNow": "Post now",
-    "publishedToast": "Posted"
+    "publishedToast": "Posted",
+    "publishesAt": "Publishes at"
   },
   "read": {
     "markUnread": "Mark unread",

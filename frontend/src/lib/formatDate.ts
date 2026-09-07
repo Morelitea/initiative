@@ -42,6 +42,32 @@ export const formatDate = (value: unknown): string => format(value, false);
 /** {@link formatDate} plus a short time (e.g. "Aug 3, 2026, 9:15 PM"). */
 export const formatDateTime = (value: unknown): string => format(value, true);
 
+// A `YYYY-MM` period, as a timeline groups by. Built as a local date on the
+// first of the month for the same reason `toDate` builds date-only values
+// locally: parsed as UTC it renders as the previous month west of Greenwich,
+// which would label a rail's ticks one month out.
+const PERIOD = /^(\d{4})-(\d{2})$/;
+
+const periodDate = (period: string): Date | null => {
+  const match = PERIOD.exec(period);
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : null;
+};
+
+/** A `YYYY-MM` period as a month and year in the browser's locale, e.g.
+ *  "March 2026". Returns the raw period if it is not one. */
+export const formatPeriod = (period: string): string => {
+  const date = periodDate(period);
+  return date
+    ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(date)
+    : period;
+};
+
+/** Just the year of a `YYYY-MM` period, for a timeline's group headings. */
+export const formatPeriodYear = (period: string): string => {
+  const date = periodDate(period);
+  return date ? new Intl.DateTimeFormat(undefined, { year: "numeric" }).format(date) : period;
+};
+
 /**
  * An ISO instant as the local wall-clock string `<input type="datetime-local">`
  * and {@link DateTimePicker} both speak (`YYYY-MM-DDTHH:mm`), or `""` when

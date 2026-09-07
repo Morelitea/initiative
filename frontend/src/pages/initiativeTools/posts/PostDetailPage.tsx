@@ -33,6 +33,7 @@ import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Label } from "@/components/ui/label";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
@@ -269,15 +270,20 @@ export function PostDetailPage() {
           and offers the two things there are to do: move the time, or put it
           up now. */}
       {post && !post.is_published && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed p-3">
-          <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
-            <CalendarClock className="h-4 w-4" aria-hidden />
-            {post.scheduled_for
-              ? t("schedule.scheduledFor", { date: formatDateTime(post.scheduled_for) })
-              : t("schedule.notPublished")}
-          </p>
-          {canEdit && (
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-dashed p-3">
+          {canEdit ? (
+            <>
+              {/* The picker holds the date, so the label only has to name it.
+                  Saying "Scheduled for Sep 9, 4:37 PM" beside a box already
+                  reading "Sep 9, 4:37 PM" is the same fact twice, and the one
+                  that can be changed is the box. */}
+              <Label
+                htmlFor="post-schedule"
+                className="inline-flex items-center gap-1.5 text-muted-foreground text-sm"
+              >
+                <CalendarClock className="h-4 w-4" aria-hidden />
+                {t("schedule.publishesAt")}
+              </Label>
               <DateTimePicker
                 id="post-schedule"
                 includeTime
@@ -294,12 +300,21 @@ export function PostDetailPage() {
               />
               <Button
                 size="sm"
+                className="ml-auto"
                 disabled={reschedule.isPending}
                 onClick={() => reschedule.mutate({ scheduled_for: null })}
               >
                 {t("schedule.publishNow")}
               </Button>
-            </div>
+            </>
+          ) : (
+            // Nothing to change, so the date is the sentence.
+            <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
+              <CalendarClock className="h-4 w-4" aria-hidden />
+              {post.scheduled_for
+                ? t("schedule.scheduledFor", { date: formatDateTime(post.scheduled_for) })
+                : t("schedule.notPublished")}
+            </p>
           )}
         </div>
       )}

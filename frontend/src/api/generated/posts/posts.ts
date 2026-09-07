@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
   HTTPValidationError,
   InitiativeGroupedCountsResponse,
   ListPostsApiV1GGuildIdPostsGetParams,
@@ -38,6 +39,7 @@ import type {
   ReadPostApiV1GGuildIdPostsPostIdGetParams,
   RecentViewWrite,
   ResourceGrantSchema,
+  TimelineResponse,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -301,6 +303,188 @@ export const useCreatePostApiV1GGuildIdPostsPost = <
 > => {
   return useMutation(getCreatePostApiV1GGuildIdPostsPostMutationOptions(options), queryClient);
 };
+/**
+ * The months this board has notices in, newest first.
+ *
+ * What the timeline rail is drawn from: one row per month, how many notices
+ * fall in it, and the instant to jump to. It takes the SAME filters the feed
+ * does, because the rail is a picture of the feed as it currently stands —
+ * with the unread filter on, a month that is fully read has nothing to offer
+ * and should not be a stop on the rail.
+ *
+ * Scoped through :func:`_board_scope`, the same gates the list applies, so
+ * the rail can never show a month whose notices the reader cannot open.
+ * @summary Get Post Timeline
+ */
+export const getPostTimelineApiV1GGuildIdPostsTimelineGet = (
+  guildId: number,
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TimelineResponse>(
+    { url: `/api/v1/g/${guildId}/posts/timeline`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryKey = (
+  guildId: number,
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams
+) => {
+  return [`/api/v1/g/${guildId}/posts/timeline`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>
+  > = ({ signal }) =>
+    getPostTimelineApiV1GGuildIdPostsTimelineGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPostTimelineApiV1GGuildIdPostsTimelineGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>
+>;
+export type GetPostTimelineApiV1GGuildIdPostsTimelineGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetPostTimelineApiV1GGuildIdPostsTimelineGet<
+  TData = Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPostTimelineApiV1GGuildIdPostsTimelineGet<
+  TData = Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPostTimelineApiV1GGuildIdPostsTimelineGet<
+  TData = Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Post Timeline
+ */
+
+export function useGetPostTimelineApiV1GGuildIdPostsTimelineGet<
+  TData = Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: GetPostTimelineApiV1GGuildIdPostsTimelineGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPostTimelineApiV1GGuildIdPostsTimelineGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPostTimelineApiV1GGuildIdPostsTimelineGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Visible-post counts grouped by initiative.
  *

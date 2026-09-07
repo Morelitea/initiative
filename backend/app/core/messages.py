@@ -5,6 +5,18 @@ maps these codes to localized user-facing messages via errors.json.
 """
 
 
+class CommonMessages:
+    """Codes that belong to no one tool.
+
+    A timeline is asked for by any tool that has a history, so the answer to
+    "that is not a zone" has to read the same wherever it comes from.
+    """
+
+    #: A time zone that is not one. Months are cut in the reader's own day, so
+    #: the zone is a real parameter rather than a formatting hint.
+    UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
+
+
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
     REGISTRATION_REQUIRES_INVITE = "REGISTRATION_REQUIRES_INVITE"
