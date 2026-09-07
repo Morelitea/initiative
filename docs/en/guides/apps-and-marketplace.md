@@ -124,6 +124,6 @@ Two things hold whatever you install:
 ## Related
 
 - [Profile & preferences](../account/profile-and-preferences.md) — wearing what a decoration pack gave you.
-- [Tools](tools.md) — the calendar, queues, counters and dashboards built into every initiative.
+- [Tools](tools.md) — the calendar, queues, counters, dashboards and boards built into every initiative.
 - [Sharing & access](../sharing/index.md) — who can see what you add.
 - [Publishing your own listings](../admin/publishing-listings.md) — for admins adding to their server's marketplace.

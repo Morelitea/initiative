@@ -69,7 +69,7 @@ Community calendars hold the community's own events and nothing else — no task
 
 ## Sharing and comments
 
-Calendars share like every other tool: **Viewer**, **Editor**, **Owner**, or open to the whole initiative, with bulk editing from the list view. Each calendar has its own comment thread, switchable off under **Settings → Advanced**.
+Calendars share like every other tool: **Viewer**, **Editor**, **Owner**, or open to the whole initiative, with bulk editing from the list view. Each calendar has its own comment thread, switchable off under **Settings → Details**.
 
 ## Related
 

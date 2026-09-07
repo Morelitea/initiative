@@ -36,7 +36,7 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
 
 -   :material-toolbox-outline: __Tools__
 
-    All six of them, and which one to reach for when.
+    All seven of them, and which one to reach for when.
 
     [:octicons-arrow-right-24: Tools](tools.md)
 
@@ -63,6 +63,12 @@ Not sure how the pieces fit together yet? [How Initiative is organized](../conce
     One screen that answers "how are we doing?"
 
     [:octicons-arrow-right-24: Dashboards](dashboards.md)
+
+-   :material-bullhorn-outline: __Posts__
+
+    A noticeboard. Announcements, polls, and who's read them.
+
+    [:octicons-arrow-right-24: Posts](posts.md)
 
 -   :material-storefront-outline: __Apps & the marketplace__
 

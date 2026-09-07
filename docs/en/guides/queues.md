@@ -55,7 +55,7 @@ Each item can carry:
 
 Queues share exactly like projects and documents: per-queue access at **Viewer**, **Editor** or **Owner**, or open to everyone in the initiative. Select several queues in the list view to change access on all of them at once.
 
-Every queue has its own comment thread, which you can switch off under **Settings → Advanced** if the queue is the kind nobody needs to discuss.
+Every queue has its own comment thread, which you can switch off under **Settings → Details** if the queue is the kind nobody needs to discuss.
 
 ## Related
 

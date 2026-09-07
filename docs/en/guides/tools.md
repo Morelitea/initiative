@@ -4,7 +4,7 @@ icon: lucide/wrench
 
 # Tools
 
-Everything that lives inside an initiative is a **tool**. There are six kinds. Two you'll use from the first day; the other four sit quietly, entirely unbothered by whether you ever open them.
+Everything that lives inside an initiative is a **tool**. There are seven kinds. Two you'll use from the first day; the rest sit quietly, entirely unbothered by whether you ever open them.
 
 <div class="grid cards" markdown>
 
@@ -44,16 +44,23 @@ Everything that lives inside an initiative is a **tool**. There are six kinds. T
 
     [:octicons-arrow-right-24: Dashboards](dashboards.md)
 
+-   :material-bullhorn-outline: __Posts__
+
+    A noticeboard. Announcements, polls, and who's read them.
+
+    [:octicons-arrow-right-24: Posts](posts.md)
+
 </div>
 
 ## Add one when you actually need it
 
-Most groups run on projects and documents for a good long while, and there is nothing wrong with that. The other four each have a fairly specific moment where you'll suddenly want them:
+Most groups run on projects and documents for a good long while, and there is nothing wrong with that. The others each have a fairly specific moment where you'll suddenly want them:
 
 - A **calendar**, when scheduling has visibly outgrown the group chat.
 - A **queue**, the second time somebody asks whose turn it is.
 - **Counters**, when a number needs to be the *same* number for everyone in the room.
 - A **dashboard**, when somebody who isn't doing the work starts asking how the work is going.
+- A **board**, the third time something important was announced in a chat and missed by four people.
 
 Switching one on is not a commitment or a lifestyle change. Switching it off later doesn't delete anything.
 
@@ -72,7 +79,7 @@ Every tool, without exception:
 
 - **Shares the same way** — Viewer, Editor, Owner, or everyone in the initiative.
 - **Takes tags**, so a tag pulls together everything on one subject regardless of what kind of thing it is. See [Tags](tags.md).
-- **Has a comment thread**, switchable off per item under **Settings → Advanced**.
+- **Has a comment thread**, switchable off per item under **Settings → Details**.
 - **Can be pointed at** with `#` from any comment or document. See [Mentions & links](mentions-and-links.md).
 - **Goes to the Trash** when deleted, not to oblivion.
 - **Turns up in [My Tools](your-space.md#my-tools)**, gathered with everything else of its kind from every community you're in.

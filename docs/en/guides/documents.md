@@ -112,7 +112,7 @@ Whiteboards autosave like everything else, and are shared, tagged and commented 
 
 Open a document's **Comments** to talk about it without touching the actual content. Reply to build a thread; edit or delete your own.
 
-To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick any project, task, document, queue, counter, calendar event or dashboard in the initiative. See [Mentions & links](mentions-and-links.md).
+To pull somebody in, type `@`. To point at a *thing* rather than a person, type `#` and pick any project, task, document, queue, counter, calendar event, dashboard or post in the initiative. See [Mentions & links](mentions-and-links.md).
 
 ### Reactions
 

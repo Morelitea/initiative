@@ -26,9 +26,9 @@ Names match loosely, so a spelling you're not confident about will still find th
 
 ## `#` — linking to a thing
 
-Type `#` and Initiative offers you everything in the initiative: projects, tasks, documents, queues, counters, calendar events, dashboards. Pick one and its name drops into your text as a link.
+Type `#` and Initiative offers you everything in the initiative: projects, tasks, documents, queues, counters, calendar events, dashboards, posts. Pick one and its name drops into your text as a link.
 
-Already know what kind of thing you want? Say so and the list narrows: `#task:`, `#queue:`, `#counter-group:`, `#calendar:`, `#dashboard:`, `#document:`, `#project:`.
+Already know what kind of thing you want? Say so and the list narrows: `#task:`, `#queue:`, `#counter-group:`, `#calendar:`, `#dashboard:`, `#document:`, `#project:`, `#post:`.
 
 You never *have* to. `#` on its own searches the lot — the prefixes are just a shortcut for when half the community has named something "Planning".
 
@@ -43,7 +43,7 @@ When that happens the picker says so, and explains that the initiative is the li
 
 ## `[[ ]]` — linking, or conjuring
 
-`[[` offers the **tools** in this initiative — projects, documents, queues, counter groups, calendars, dashboards.
+`[[` offers the **tools** in this initiative — projects, documents, queues, counter groups, calendars, dashboards, posts.
 
 The difference from `#` is what happens when nothing matches. `[[ ]]` offers to **make** the thing you just named, on the spot, without you abandoning the sentence you were halfway through.
 
