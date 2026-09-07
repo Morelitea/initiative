@@ -66,7 +66,7 @@ People are added as **members**, each with a **role** — "Director", "Cast" —
 
 ## Tools — the things that hold the work
 
-Everything inside an initiative is a **tool**. There are six kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
+Everything inside an initiative is a **tool**. There are seven kinds, and they all behave the same way: they're shared the same way, they take tags, they have comment threads, and you can point at any of them with `#` from anywhere you write.
 
 Learn how one works and you've learned how the next one works. That's the whole idea.
 
@@ -78,17 +78,18 @@ A **task** carries a description, a status, a priority, dates, the people doing 
 
 **Documents** hold the knowledge: meeting notes, a plan, a script, a budget, or a **whiteboard** for the things that are far easier drawn than described. Most kinds can be edited by several people at once, live, so there's no emailing versions around. You can upload files as documents too. See [Documents](../guides/documents.md).
 
-### The four you grow into
+### The rest, when you grow into them
 
 - **Calendar & events** — things that happen at a time.
 - **Queues** — whose turn it is.
 - **Counters** — numbers that move.
 - **Dashboards** — one screen that answers "how are we doing?"
+- **Posts** — a noticeboard, for the things that need saying rather than doing.
 
 Use none of these and nothing is missing. They aren't sitting there judging you. See [Tools](../guides/tools.md).
 
-!!! info "Six today"
-    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before. When a seventh arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool — because there's one list and everything reads from it.
+!!! info "Seven today"
+    The list of tools is a real, defined thing in the app rather than a loose category, and it has grown before — Posts is the most recent. When an eighth arrives it'll turn up here, in the roles you can hand out, and in everything else that treats a tool as a tool, because there's one list and everything reads from it.
 
 ## Apps — what other groups already built
 
