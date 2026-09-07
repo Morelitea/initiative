@@ -24,17 +24,17 @@ import { useInstalledListings } from "@/hooks/useDashboards";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useMarketplaceListings } from "@/hooks/useMarketplace";
+import { type CommunityShelf, parseCommunityShelf } from "@/lib/marketplace";
 
 const PAGE_SIZE = 24;
 /** One line per shelf, so a new kind shows its own rather than the dashboards'.
- *  Partial because not every listing kind is a shelf a guild installs from —
- *  the route keeps those off this page, and anything without a line of its own
- *  falls back to the dashboards'. */
+ *  Keyed on the shelves themselves, so adding one to `COMMUNITY_SHELVES`
+ *  without a line of its own does not compile. */
 const SUBTITLE_KEYS = {
   [ListingKind.dashboard]: "subtitle",
   [ListingKind.app]: "subtitleApps",
   [ListingKind.auto]: "subtitleAuto",
-} as const;
+} as const satisfies Record<CommunityShelf, string>;
 /** Stable keys for the loading placeholders — they never reorder, and an index
  *  key on a list that can change is the lint rule this avoids. */
 const SKELETON_KEYS = ["a", "b", "c", "d", "e", "f"];
@@ -43,13 +43,13 @@ export function MarketplaceBrowsePage() {
   const { t } = useTranslation("marketplace");
   // Which shelf: dashboards, or the apps a guild admin adds.
   //
-  // Defaulted here, not left to the route. `useSearch({ strict: false })` reads
-  // the params as they are — it does not run the route's `validateSearch` — so
-  // relying on that default would mean the filter silently disappears anywhere
-  // the page is mounted another way, and the grid would mix apps into the
-  // dashboards.
-  const search_ = useSearch({ strict: false }) as { kind?: ListingKind };
-  const kind = search_.kind ?? ListingKind.dashboard;
+  // Normalized here through the same parser the route validates with, not left
+  // to the route. `useSearch({ strict: false })` reads the params as they are —
+  // it does not run the route's `validateSearch` — so relying on that would
+  // mean the filter silently disappears anywhere the page is mounted another
+  // way, and the grid would mix apps into the dashboards.
+  const search_ = useSearch({ strict: false });
+  const kind = parseCommunityShelf(search_.kind);
   const [query, setQuery] = useState("");
   // The catalog is a network call per keystroke otherwise, and the grid keeps
   // the previous page while the next one loads.
@@ -90,9 +90,7 @@ export function MarketplaceBrowsePage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground text-sm">
-          {t(SUBTITLE_KEYS[kind as keyof typeof SUBTITLE_KEYS] ?? "subtitle")}
-        </p>
+        <p className="text-muted-foreground text-sm">{t(SUBTITLE_KEYS[kind])}</p>
       </div>
 
       <Input
