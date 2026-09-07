@@ -110,6 +110,44 @@ export const useUpdateRole = (initiativeId: number) => {
   });
 };
 
+/**
+ * Grant one tool's view permission to every role that isn't a manager.
+ *
+ * The other half of turning a tool on: the master switch makes the initiative
+ * offer the tool, this makes the roles able to see it. Manager roles are
+ * skipped because they already see everything, and the create permission is
+ * left alone — being able to read a board and being able to add to it are
+ * separate decisions, and this one only answers the first.
+ *
+ * The roles are patched one at a time (there is no bulk endpoint) but the
+ * caller sees a single mutation: one toast, one invalidation at the end.
+ */
+export const useGrantToolToRoles = (initiativeId: number) => {
+  const guildId = useActiveGuildId();
+
+  return useMutation({
+    mutationFn: async ({ tool, roles }: { tool: Tool; roles: InitiativeRoleRead[] }) => {
+      const key = toolViewPermission(tool);
+      const needsGrant = roles.filter(
+        (role) => !role.is_manager && !(role.permissions[key] ?? false)
+      );
+      for (const role of needsGrant) {
+        await updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+          guildId,
+          initiativeId,
+          role.id,
+          { permissions: { ...role.permissions, [key]: true } }
+        );
+      }
+      return needsGrant.length;
+    },
+    onSettled: () => {
+      void invalidateInitiativeRoles(initiativeId);
+      void invalidateMyPermissions(initiativeId);
+    },
+  });
+};
+
 export const useDeleteRole = (initiativeId: number) => {
   const { t } = useTranslation("initiatives");
   const guildId = useActiveGuildId();

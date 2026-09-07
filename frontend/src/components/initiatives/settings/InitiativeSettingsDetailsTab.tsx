@@ -2,7 +2,11 @@ import { Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeJoinPolicy, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  InitiativeJoinPolicy,
+  InitiativeRoleRead,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
 import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
 import { Button } from "@/components/ui/button";
@@ -33,6 +37,12 @@ interface InitiativeSettingsDetailsTabProps {
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
+  /** The initiative's roles, so each enabled tool can say who can see it. */
+  roles?: InitiativeRoleRead[];
+  /** Grant a tool's view permission to every non-manager role. */
+  onGrantToEveryone?: (tool: Tool) => void;
+  /** Send the reader to the roles screen. */
+  onManageRoles?: () => void;
 }
 
 export const InitiativeSettingsDetailsTab = ({
@@ -52,6 +62,9 @@ export const InitiativeSettingsDetailsTab = ({
   canManageMembers,
   isSaving,
   onSaveDetails,
+  roles,
+  onGrantToEveryone,
+  onManageRoles,
 }: InitiativeSettingsDetailsTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
@@ -133,6 +146,9 @@ export const InitiativeSettingsDetailsTab = ({
         values={toolSwitches}
         onToggle={onToggleTool}
         idPrefix="settings"
+        roles={roles}
+        onGrantToEveryone={onGrantToEveryone}
+        onManageRoles={onManageRoles}
       />
     </div>
   );

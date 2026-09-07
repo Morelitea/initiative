@@ -34,8 +34,17 @@ _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 #: of the database. ``app.core.encryption`` is the live encryption primitive: a
 #: migration that writes a secret must produce something the *current* app can
 #: read back, so pinning an old implementation is the broken version of this.
+#: ``app.db.role_permission_backfill`` is the shape of one INSERT and nothing
+#: else — every key and value it writes arrives from the calling migration's
+#: own literal map, so it carries no vocabulary that a later release could
+#: change underneath a past revision.
 _ALLOWED = frozenset(
-    {"app.db.guild_migrations", "app.core.config", "app.core.encryption"}
+    {
+        "app.db.guild_migrations",
+        "app.core.config",
+        "app.core.encryption",
+        "app.db.role_permission_backfill",
+    }
 )
 
 

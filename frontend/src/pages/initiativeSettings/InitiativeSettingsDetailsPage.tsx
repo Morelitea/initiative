@@ -8,6 +8,7 @@
  * server enforces (auto-join needs an open policy) resolved before the request.
  */
 
+import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,17 +19,34 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeSettingsDetailsTab } from "@/components/initiatives/settings/InitiativeSettingsDetailsTab";
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
+import {
+  type ToolAudience,
+  ToolDisableDialog,
+  ToolEnableDialog,
+} from "@/components/initiatives/ToolAudienceDialogs";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useGrantToolToRoles, useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { isToolEnabled, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import { isToolEnabled, TOGGLEABLE_TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
 export const InitiativeSettingsDetailsPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
   const { initiativeId, initiative, canManageMembers, isGuildAdmin } = useInitiativeSettings();
+
+  const guildId = useActiveGuildId();
+  const navigate = useNavigate();
+  const rolesQuery = useInitiativeRoles(initiativeId || null);
+  const roles = rolesQuery.data ?? [];
+  const grantToolToRoles = useGrantToolToRoles(initiativeId);
+
+  // The tool a confirmation dialog is currently open for, per direction.
+  const [toolToEnable, setToolToEnable] = useState<Tool | null>(null);
+  const [toolToDisable, setToolToDisable] = useState<Tool | null>(null);
 
   const [name, setName] = useState(initiative?.name ?? "");
   const [description, setDescription] = useState(initiative?.description ?? "");
@@ -94,13 +112,54 @@ export const InitiativeSettingsDetailsPage = () => {
     updateInitiative.mutate({ initiativeId, data: { auto_join: next } });
   };
 
-  // One handler for every toggleable tool's master switch — the update field
-  // is the tool's derived `{plural}_enabled` name.
+  // The switch asks before it acts, because flipping it is only half of what
+  // it looks like it does: the initiative offering a tool and a role being
+  // allowed to see it are two separate gates, and answering only the first is
+  // what left members staring at a sidebar the manager could see past. Both
+  // directions go through a dialog — on to settle the audience, off to say
+  // what it hides.
   const handleToggleTool = (tool: Tool, value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { [toolViewPermission(tool)]: value } as InitiativeUpdate,
+    if (value) setToolToEnable(tool);
+    else setToolToDisable(tool);
+  };
+
+  const setMasterSwitch = (tool: Tool, value: boolean, onSuccess?: () => void) =>
+    updateInitiative.mutate(
+      {
+        initiativeId,
+        data: { [toolViewPermission(tool)]: value } as InitiativeUpdate,
+      },
+      onSuccess ? { onSuccess } : undefined
+    );
+
+  // Granting always reports both ways. A grant that failed quietly would leave
+  // exactly the state this whole screen exists to make visible: a tool that is
+  // on and that nobody but a manager can see.
+  const grantToEveryone = (tool: Tool) =>
+    grantToolToRoles.mutate(
+      { tool, roles },
+      {
+        onSuccess: () =>
+          toast.success(
+            t("initiatives:settings.toolAudience.granted", {
+              tool: t(`initiatives:${toolCamelPlural(tool)}Feature` as never),
+            })
+          ),
+        onError: (error) =>
+          toast.error(getErrorMessage(error, "initiatives:settings.roleUpdateError")),
+      }
+    );
+
+  const handleConfirmEnable = (tool: Tool, audience: ToolAudience) => {
+    setToolToEnable(null);
+    setMasterSwitch(tool, true, () => {
+      if (audience === "everyone") grantToEveryone(tool);
     });
+  };
+
+  const handleConfirmDisable = (tool: Tool) => {
+    setToolToDisable(null);
+    setMasterSwitch(tool, false);
   };
 
   if (!canManageMembers) {
@@ -111,26 +170,50 @@ export const InitiativeSettingsDetailsPage = () => {
     return null;
   }
 
+  const isSaving = updateInitiative.isPending || grantToolToRoles.isPending;
+
   return (
-    <InitiativeSettingsDetailsTab
-      name={name}
-      setName={setName}
-      description={description}
-      setDescription={setDescription}
-      color={color}
-      setColor={setColor}
-      toolSwitches={Object.fromEntries(
-        TOGGLEABLE_TOOLS.map((tool) => [tool, Boolean(isToolEnabled(tool, initiative))])
-      )}
-      onToggleTool={handleToggleTool}
-      joinPolicy={initiative.join_policy}
-      onChangeJoinPolicy={handleChangeJoinPolicy}
-      autoJoin={initiative.auto_join}
-      onChangeAutoJoin={handleChangeAutoJoin}
-      canManageAutoJoin={isGuildAdmin}
-      canManageMembers={canManageMembers}
-      isSaving={updateInitiative.isPending}
-      onSaveDetails={handleSaveDetails}
-    />
+    <>
+      <InitiativeSettingsDetailsTab
+        name={name}
+        setName={setName}
+        description={description}
+        setDescription={setDescription}
+        color={color}
+        setColor={setColor}
+        toolSwitches={Object.fromEntries(
+          TOGGLEABLE_TOOLS.map((tool) => [tool, Boolean(isToolEnabled(tool, initiative))])
+        )}
+        onToggleTool={handleToggleTool}
+        joinPolicy={initiative.join_policy}
+        onChangeJoinPolicy={handleChangeJoinPolicy}
+        autoJoin={initiative.auto_join}
+        onChangeAutoJoin={handleChangeAutoJoin}
+        canManageAutoJoin={isGuildAdmin}
+        canManageMembers={canManageMembers}
+        isSaving={isSaving}
+        onSaveDetails={handleSaveDetails}
+        roles={roles}
+        onGrantToEveryone={grantToEveryone}
+        onManageRoles={() =>
+          navigate({
+            to: "/c/$guildId/i/$initiativeId/settings/roles",
+            params: { guildId: String(guildId), initiativeId: String(initiativeId) },
+          })
+        }
+      />
+      <ToolEnableDialog
+        tool={toolToEnable}
+        onOpenChange={(open) => !open && setToolToEnable(null)}
+        onConfirm={handleConfirmEnable}
+        isSaving={isSaving}
+      />
+      <ToolDisableDialog
+        tool={toolToDisable}
+        onOpenChange={(open) => !open && setToolToDisable(null)}
+        onConfirm={handleConfirmDisable}
+        isSaving={isSaving}
+      />
+    </>
   );
 };

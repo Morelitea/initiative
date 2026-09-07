@@ -255,7 +255,25 @@
       "viewPosts": "View Posts",
       "createPosts": "Create Posts"
     },
-    "handleColumn": "Handle"
+    "handleColumn": "Handle",
+    "toolAudience": {
+      "visibleTo": "Visible to {{roles}}, plus managers.",
+      "managersOnly": "Only managers can see this. No other role has been given it.",
+      "grantToEveryone": "Give it to everyone",
+      "manageRoles": "Manage roles",
+      "granted": "Everyone in this initiative can now see {{tool}}.",
+      "enableTitle": "Turn on {{tool}}",
+      "enableDescription": "Turning a tool on offers it to the initiative. Who can actually see it is a per-role permission, so decide it here rather than on the Roles screen afterwards.",
+      "everyoneLabel": "Everyone in this initiative",
+      "everyoneDescription": "Every role can see it. Who may create in it stays a separate permission on the Roles screen.",
+      "managersLabel": "Managers only, for now",
+      "managersDescription": "Nobody else sees it until you grant the permission on the Roles screen.",
+      "enableConfirm": "Turn it on",
+      "disableTitle": "Turn off {{tool}}",
+      "disableDescription": "This hides {{tool}} and everything in it from everyone in this initiative, managers included. Nothing is deleted — turning it back on brings it all back.",
+      "disableConfirm": "Turn it off",
+      "toolTurnedOff": "This tool is turned off for the initiative, so these permissions grant nothing until it is turned back on."
+    }
   },
   "advancedTools": "Advanced Tools",
   "advancedToolsDescription": "Enable optional tools for this initiative.",

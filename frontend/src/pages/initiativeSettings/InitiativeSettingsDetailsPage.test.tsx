@@ -7,13 +7,14 @@ import {
   buildGuild,
   buildInitiative,
   buildInitiativeMember,
+  buildInitiativeRole,
   buildUser,
   buildUserPublic,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, InitiativeRoleRead } from "@/api/generated/initiativeAPI.schemas";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -49,6 +50,38 @@ function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [n
   );
   return patches;
 }
+
+/** The initiative's roles, plus a record of every role PATCH the page sends. */
+function stubRoles(roles: InitiativeRoleRead[]) {
+  const patches: { roleId: string; body: unknown }[] = [];
+  server.use(
+    guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json(roles)),
+    guildHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
+      patches.push({ roleId: String(params.roleId), body: await request.json() });
+      return HttpResponse.json(roles[0]);
+    })
+  );
+  return patches;
+}
+
+/** The two roles most initiatives have: a manager who sees everything and an
+ *  ordinary member who sees only what its permissions say. */
+const managerRole = () =>
+  buildInitiativeRole({
+    id: 1,
+    name: "project_manager",
+    display_name: "Project Manager",
+    is_builtin: true,
+    is_manager: true,
+  });
+const memberRole = (permissions: Record<string, boolean> = {}) =>
+  buildInitiativeRole({
+    id: 2,
+    name: "member",
+    display_name: "Member",
+    is_builtin: true,
+    permissions: permissions as InitiativeRoleRead["permissions"],
+  });
 
 /** A membership that makes the signed-in user a manager of the initiative —
  *  the standing that reaches these settings without being a guild admin. */
@@ -248,6 +281,113 @@ describe("InitiativeSettingsDetailsPage", () => {
           "Auto-join is only available for initiatives anyone can join"
         )
       );
+    });
+  });
+  /**
+   * The master switch is half of what it looks like: the initiative offering a
+   * tool and a role being allowed to see it are separate gates, and the switch
+   * only ever moved the first. These cover the second being asked about,
+   * answered, and reported.
+   */
+  describe("tool switches", () => {
+    it("asks who a tool is for instead of turning it straight on", async () => {
+      const patches = stubInitiative();
+      stubRoles([managerRole(), memberRole()]);
+
+      renderDetails();
+
+      await userEvent.click(await screen.findByLabelText("Posts"));
+
+      expect(await screen.findByRole("dialog")).toHaveTextContent("Turn on Posts");
+      // Nothing is saved until the audience question is answered.
+      expect(patches).toHaveLength(0);
+    });
+
+    it("grants the tool to every ordinary role when it is for everyone", async () => {
+      const initiativePatches = stubInitiative();
+      const rolePatches = stubRoles([managerRole(), memberRole()]);
+
+      renderDetails();
+
+      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("radio", { name: /Everyone in this/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Turn it on" }));
+
+      await waitFor(() => expect(initiativePatches).toEqual([{ posts_enabled: true }]));
+      await waitFor(() => expect(rolePatches).toHaveLength(1));
+      // The member role, not the manager one — a manager already sees everything.
+      expect(rolePatches[0].roleId).toBe("2");
+      expect(
+        (rolePatches[0].body as { permissions: Record<string, boolean> }).permissions.posts_enabled
+      ).toBe(true);
+      // Reading a board and adding to it stay separate decisions.
+      expect(
+        (rolePatches[0].body as { permissions: Record<string, boolean> }).permissions.create_posts
+      ).toBe(false);
+    });
+
+    it("leaves every role alone when the tool is for managers only", async () => {
+      const initiativePatches = stubInitiative();
+      const rolePatches = stubRoles([managerRole(), memberRole()]);
+
+      renderDetails();
+
+      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("radio", { name: /Managers only/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Turn it on" }));
+
+      await waitFor(() => expect(initiativePatches).toEqual([{ posts_enabled: true }]));
+      expect(rolePatches).toHaveLength(0);
+    });
+
+    it("says who can see a tool that is already on", async () => {
+      stubInitiative({ posts_enabled: true } as Partial<InitiativeRead>);
+      stubRoles([managerRole(), memberRole({ posts_enabled: true })]);
+
+      renderDetails();
+
+      expect(await screen.findByText(/Visible to Member/)).toBeInTheDocument();
+    });
+
+    it("warns when a tool is on but no ordinary role has been given it", async () => {
+      stubInitiative({ posts_enabled: true } as Partial<InitiativeRead>);
+      stubRoles([managerRole(), memberRole()]);
+
+      renderDetails();
+
+      expect(await screen.findByText(/Only managers can see this/)).toBeInTheDocument();
+    });
+
+    it("grants it to everyone from that warning, without touching the switch", async () => {
+      const initiativePatches = stubInitiative({ posts_enabled: true } as Partial<InitiativeRead>);
+      const rolePatches = stubRoles([managerRole(), memberRole()]);
+
+      renderDetails();
+
+      await userEvent.click(
+        (await screen.findAllByRole("button", { name: "Give it to everyone" }))[0]
+      );
+
+      await waitFor(() => expect(rolePatches).toHaveLength(1));
+      expect(rolePatches[0].roleId).toBe("2");
+      expect(initiativePatches).toHaveLength(0);
+    });
+
+    it("says what turning a tool off hides before it hides it", async () => {
+      const patches = stubInitiative({ posts_enabled: true } as Partial<InitiativeRead>);
+      stubRoles([managerRole(), memberRole({ posts_enabled: true })]);
+
+      renderDetails();
+
+      await userEvent.click(await screen.findByLabelText("Posts"));
+
+      expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+        /hides Posts and everything in it from everyone/
+      );
+      expect(patches).toHaveLength(0);
+
+      await userEvent.click(screen.getByRole("button", { name: "Turn it off" }));
+      await waitFor(() => expect(patches).toEqual([{ posts_enabled: false }]));
     });
   });
 });

@@ -255,7 +255,25 @@
       "viewPosts": "Beiträge anzeigen",
       "createPosts": "Beiträge erstellen"
     },
-    "handleColumn": "Handle"
+    "handleColumn": "Handle",
+    "toolAudience": {
+      "visibleTo": "Sichtbar für {{roles}} sowie für Leitende.",
+      "managersOnly": "Nur Leitende können das sehen. Keine andere Rolle hat es erhalten.",
+      "grantToEveryone": "Allen geben",
+      "manageRoles": "Rollen verwalten",
+      "granted": "Alle in dieser Initiative können {{tool}} jetzt sehen.",
+      "enableTitle": "{{tool}} einschalten",
+      "enableDescription": "Ein Werkzeug einzuschalten bietet es der Initiative an. Wer es tatsächlich sehen kann, ist eine Berechtigung pro Rolle — entscheide das hier statt später im Rollen-Bildschirm.",
+      "everyoneLabel": "Alle in dieser Initiative",
+      "everyoneDescription": "Jede Rolle kann es sehen. Wer darin etwas anlegen darf, bleibt eine eigene Berechtigung im Rollen-Bildschirm.",
+      "managersLabel": "Vorerst nur Leitende",
+      "managersDescription": "Niemand sonst sieht es, bis du die Berechtigung im Rollen-Bildschirm erteilst.",
+      "enableConfirm": "Einschalten",
+      "disableTitle": "{{tool}} ausschalten",
+      "disableDescription": "Das verbirgt {{tool}} und alles darin vor allen in dieser Initiative, auch vor Leitenden. Nichts wird gelöscht — beim Wiedereinschalten ist alles zurück.",
+      "disableConfirm": "Ausschalten",
+      "toolTurnedOff": "Dieses Werkzeug ist für die Initiative ausgeschaltet, daher gewähren diese Berechtigungen nichts, bis es wieder eingeschaltet wird."
+    }
   },
   "advancedTools": "Erweiterte Tools",
   "advancedToolsDescription": "Aktiviere optionale Tools für diese Initiative.",
