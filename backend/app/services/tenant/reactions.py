@@ -286,7 +286,8 @@ async def toggle_reaction(
         target_id=target_id,
         user=user,
         guild_id=guild_id,
-        access="write",
+        # Reacting is answering, not editing: it takes reaching the target.
+        access="read",
     )
 
     # A toggle is one decision made of three statements — is it there, take it

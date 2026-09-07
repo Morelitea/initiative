@@ -371,22 +371,13 @@ def reactions_path() -> InitiativePath:
         ReactionTarget.post: _dac_self(Tool.post),
     }
 
-    # What a reaction takes differs by what it is on, deliberately: reacting to
-    # a notice takes read access on it, where reacting to a comment takes
-    # whatever posting in that thread takes. So the level is per leg rather
-    # than per table.
-    dac_levels: dict[ReactionTarget, Callable[[bool], bool]] = {
-        ReactionTarget.comment: lambda w: w,
-        ReactionTarget.post: lambda w: False,
-    }
-
     def build_dac(t: str, w: bool) -> str:
         return (
             "("
             + " OR ".join(
                 f"({t}.target_type = '{target.value}' AND EXISTS ("
                 f"SELECT 1 FROM {target.table} rdac WHERE rdac.id = {t}.target_id "
-                f"AND {path.predicate('rdac', dac_levels[target](w))}))"
+                f"AND {path.predicate('rdac', w)}))"
                 for target, path in dac_legs.items()
             )
             + ")"
@@ -647,43 +638,52 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
 
 
-#: Tables holding a reader's own record OF a resource rather than any part of
-#: it — a favourite, a view, a read receipt, a poll vote, a reaction, a queued
-#: digest line, a reminder already sent.
+#: Which commands ask the sharing gate at WRITE level, for the tables that
+#: deviate from the default — where every writing command does.
 #:
-#: Writing one of these is something a READER does, so their sharing leg asks
-#: at read level on every command; the endpoints behind them ask the same
-#: (favouriting a project, recording a view and marking a notice read all take
-#: read access). Every other table asks at the level its command implies, so a
-#: read-only grantee cannot change the content itself.
+#: An entry states what the table's own endpoints state, so the policy and the
+#: service ask the same question of the same row:
 #:
-#: Membership of this set is a statement about the table, not about the gate:
-#: initiative membership and the schema boundary still apply in full.
-PERSONAL_STATE_TABLES: frozenset[str] = frozenset(
-    {
-        # Reordering and favouriting a project, recording a view, marking a
-        # notice read, answering a poll and answering an invitation are all
-        # endpoints that take read access; the RSVP one says so in as many
-        # words ("RSVPing is answering an invitation, not editing the event").
-        "project_orders",
-        "project_favorites",
-        "recent_views",
-        "post_reads",
-        "post_poll_votes",
-        "calendar_event_attendees",
-    }
-)
+#: - **Nothing** for a reader's own record OF a resource — a favourite, a view,
+#:   a read receipt, a poll answer, an RSVP. Reordering and favouriting a
+#:   project, recording a view, marking a notice read, answering a poll and
+#:   answering an invitation are all endpoints that take read access; the RSVP
+#:   one says so in as many words ("RSVPing is answering an invitation, not
+#:   editing the event").
+#: - **Nothing** for comments and reactions. Responding to something is not
+#:   editing it: you may answer a notice you cannot rewrite. What gates a
+#:   response is whether you can reach the thing at all, plus the thread's own
+#:   switch — so every command here asks at read, and the switch is the
+#:   endpoint's to apply.
+#:
+#: Membership is a statement about the table, not about the gate: initiative
+#: membership and the schema boundary still apply in full.
+DAC_WRITE_COMMANDS: dict[str, frozenset[str]] = {
+    "project_orders": frozenset(),
+    "project_favorites": frozenset(),
+    "recent_views": frozenset(),
+    "post_reads": frozenset(),
+    "post_poll_votes": frozenset(),
+    "calendar_event_attendees": frozenset(),
+    "comments": frozenset(),
+    "reactions": frozenset(),
+}
 
-# Reactions are NOT here: what one takes depends on what it is on, so
-# ``reactions_path`` carries the level per target leg instead. The digest
-# queues (``task_assignment_digest_items``, ``event_reminder_dispatches``) are
-# not here either — they are written where the content is, by the assignment
-# that fills them or by the job that drains them.
+#: The default: a command that writes asks at write level.
+ALL_WRITE_COMMANDS: frozenset[str] = frozenset({"INSERT", "UPDATE", "DELETE"})
 
-assert PERSONAL_STATE_TABLES <= INITIATIVE_SCOPED_TABLES, (
-    "PERSONAL_STATE_TABLES names a table that is not initiative-scoped: "
-    f"{sorted(PERSONAL_STATE_TABLES - INITIATIVE_SCOPED_TABLES)}"
+assert DAC_WRITE_COMMANDS.keys() <= INITIATIVE_SCOPED_TABLES, (
+    "DAC_WRITE_COMMANDS names a table that is not initiative-scoped: "
+    f"{sorted(DAC_WRITE_COMMANDS.keys() - INITIATIVE_SCOPED_TABLES)}"
 )
+assert all(
+    commands <= ALL_WRITE_COMMANDS for commands in DAC_WRITE_COMMANDS.values()
+), "DAC_WRITE_COMMANDS names a command that does not write"
+
+
+def dac_asks_at_write(table: str, command: str) -> bool:
+    """Whether ``table``'s sharing leg asks at write level for ``command``."""
+    return command in DAC_WRITE_COMMANDS.get(table, ALL_WRITE_COMMANDS)
 
 
 # ---------------------------------------------------------------------------
