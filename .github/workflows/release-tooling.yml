@@ -1,0 +1,37 @@
+name: Release Tooling
+
+# The release chain is a contract split across two files: promote.sh names the
+# branch, tag-release.yml decides what to tag from that name. Nothing else runs
+# on a change to either, so a mismatch ships silently — the merge lands a bumped
+# VERSION on main with no tag and no image while all other checks pass.
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "scripts/promote.sh"
+      - "scripts/promote_test.sh"
+      - ".github/workflows/tag-release.yml"
+      - ".github/workflows/release-tooling.yml"
+  push:
+    branches: [main, dev]
+    paths:
+      - "scripts/promote.sh"
+      - "scripts/promote_test.sh"
+      - ".github/workflows/tag-release.yml"
+      - ".github/workflows/release-tooling.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  branch-contract:
+    name: Release Branch Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check promote.sh syntax
+        run: bash -n scripts/promote.sh
+
+      - name: Check release branch-name contract
+        run: ./scripts/promote_test.sh
