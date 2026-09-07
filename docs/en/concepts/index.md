@@ -15,7 +15,7 @@ graph TD
   I2["Initiative"]
   P1["Project<br/>(a task board)"]
   D1["Document"]
-  T1["Calendar · Queue<br/>Counter · Dashboard"]
+  T1["Calendar · Queue · Counter<br/>Dashboard · Posts"]
   TASK["Tasks"]
 
   G --> I1
@@ -30,7 +30,7 @@ Biggest to smallest:
 
 1. **Community** — the whole workspace for one group of people.
 2. **Initiative** — a folder inside it for one big effort.
-3. **Tools** — the six kinds of thing that hold the work, kept inside an initiative.
+3. **Tools** — the seven kinds of thing that hold the work, kept inside an initiative.
 4. **Tasks** — the individual to-dos on a project's board.
 
 !!! tip "You do not have to build all of this"

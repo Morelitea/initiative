@@ -20,7 +20,7 @@ The tasks *you* made, wherever they ended up. Useful for gently following up on 
 
 ## My Tools
 
-Every project, document, queue, counter, calendar and dashboard that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
+Every project, document, queue, counter, calendar, dashboard and board that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
 
 A tool you have none of anywhere doesn't get a tab at all. Never touched a queue? No queue tab, and no empty table sulking behind it.
 

@@ -111,7 +111,7 @@ Initiative ships a **Manager** role (think project lead) with fixed permissions,
 
 Name them after how your group actually talks about itself, not after anything Initiative expects. Nobody has ever introduced themselves at a committee meeting as a view-only contributor.
 
-Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **Counters**, **Events**, **Dashboards** — each offering **View** and **Create**. So "Volunteer" might view projects and documents but create nothing, while "Coordinator" creates everything.
+Permissions are grouped by tool — **Projects**, **Documents**, **Queues**, **Counters**, **Events**, **Dashboards**, **Posts** — each offering **View** and **Create**. So "Volunteer" might view projects and documents but create nothing, while "Coordinator" creates everything.
 
 ![Setting permissions for an initiative role](../images/initiatives/roles.png)
 

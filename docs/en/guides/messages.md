@@ -13,7 +13,7 @@ Open them from the **Initiative logo** in the top-left corner, then **My Message
 !!! info "One to one, on purpose"
     There are no group messages, and there aren't going to be — because you've already got somewhere better to have that conversation.
 
-    **Everything in Initiative has comments.** Projects, tasks, documents, queues, counters, calendars, dashboards, the lot. So the discussion about a thing lives *on* that thing, right where the next person will find it, instead of forty messages upstream of where they started reading.
+    **Everything in Initiative has comments.** Projects, tasks, documents, queues, counters, calendars, dashboards, posts, the lot. So the discussion about a thing lives *on* that thing, right where the next person will find it, instead of forty messages upstream of where they started reading.
 
     **And comments are searchable.** Half-remember somebody saying something about the venue deposit? Search it. It comes back. This is a genuinely nice feeling and we recommend it.
 
