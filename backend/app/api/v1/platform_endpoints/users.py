@@ -1350,14 +1350,17 @@ async def _require_receiving_admin(
     never widen anyone's reach. An ordinary member could end up nominal owner of
     content in an initiative they are not in, which RLS would then hide from
     them.
+
+    The caller has routed into the guild's schema, so the roster comes from
+    ``MemberProfile`` — the view a guild session reads people through.
     """
     recipient = (
         await session.exec(
-            select(User)
-            .join(GuildMembership, GuildMembership.user_id == User.id)
+            select(MemberProfile.id)
+            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
             .where(
-                User.id == new_owner_id,
-                User.status == UserStatus.active,
+                MemberProfile.id == new_owner_id,
+                MemberProfile.status == UserStatus.active,
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.role == GuildRole.admin,
             )

@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from app.db.bootstrap import (
+    LoginRole,
     bootstrap_sql,
     login_roles,
     search_operator_sql,
@@ -90,3 +91,72 @@ def test_the_stock_operator_is_not_touched():
     joined = "\n".join(search_operator_sql())
     assert "public.@@@" in joined
     assert "CREATE OPERATOR pg_catalog" not in joined
+
+
+def test_a_role_that_is_already_a_superuser_keeps_what_it_has():
+    """The provisioner's shape is applied to an existing superuser without the
+    clauses that would take privileges off it.
+
+    An install predating ``app_provisioner`` names the same role in
+    ``DATABASE_URL`` and ``DATABASE_URL_BOOTSTRAP`` — the cluster's own
+    bootstrap role, which Postgres will not let anyone demote.
+    """
+    provisioner, _app_login, _system = login_roles()
+    kept = provisioner.attributes_if_superuser.split()
+    assert kept == ["LOGIN", "CREATEROLE"]
+
+
+def test_the_printed_sql_carries_both_shapes():
+    """``--print-sql`` runs the same statements, so it needs the same settings."""
+    body = bootstrap_sql()
+    assert body.count("set_config('app._bootstrap_attrs'") == 3
+    assert body.count("set_config('app._bootstrap_attrs_superuser'") == 3
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("created_with", "attribute", "expected"),
+    [
+        # An install predating app_provisioner names one role in both
+        # DATABASE_URL and DATABASE_URL_BOOTSTRAP — the cluster's own bootstrap
+        # role, which Postgres will not let anyone demote.
+        ("SUPERUSER", "rolsuper", True),
+        # The counterpart: an ordinary role still converges on the shape, so a
+        # provisioner created with more than it needs gives it up.
+        ("BYPASSRLS", "rolbypassrls", False),
+    ],
+)
+async def test_the_provisioner_shape_on_an_existing_role(
+    created_with, attribute, expected
+):
+    """What applying the provisioner's attributes does to a role that is
+    already there, by what that role already holds."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    from app.db.bootstrap import _ensure_role
+    from conftest import RUN_ID, TEST_DATABASE_URL
+
+    # Roles are cluster-global; key the probe to this run so concurrent
+    # checkouts and xdist workers never drop each other's.
+    name = f"test_{RUN_ID}_probe_{created_with.lower()}"
+    provisioner, _app_login, _system = login_roles()
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(f'DROP ROLE IF EXISTS "{name}"'))
+            await conn.execute(text(f'CREATE ROLE "{name}" {created_with}'))
+        try:
+            async with engine.begin() as conn:
+                await _ensure_role(conn, LoginRole(name, None, provisioner.attributes))
+                held = await conn.scalar(
+                    text(f"SELECT {attribute} FROM pg_roles WHERE rolname = :n"),
+                    {"n": name},
+                )
+            assert held is expected
+        finally:
+            async with engine.begin() as conn:
+                await conn.execute(text(f'DROP ROLE IF EXISTS "{name}"'))
+    finally:
+        await engine.dispose()

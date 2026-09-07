@@ -77,6 +77,15 @@ _ADMINISTERED_ROLE_PATTERN = (
 )
 
 
+#: Clauses that take a privilege away from a role that already holds it. The
+#: bootstrap creates the logins the app needs; a role the deployment already
+#: runs as a superuser keeps the attributes it has. Postgres refuses to remove
+#: SUPERUSER from the cluster's own bootstrap role at all, and that is the role
+#: an install predating ``app_provisioner`` names in both ``DATABASE_URL`` and
+#: ``DATABASE_URL_BOOTSTRAP``.
+_DEMOTING_CLAUSES = frozenset({"NOSUPERUSER", "NOBYPASSRLS"})
+
+
 @dataclass(frozen=True)
 class LoginRole:
     """One login the bootstrap maintains, as named by its connection URL."""
@@ -84,6 +93,13 @@ class LoginRole:
     name: str
     password: str | None
     attributes: str
+
+    @property
+    def attributes_if_superuser(self) -> str:
+        """The same shape, minus the clauses that would demote the role."""
+        return " ".join(
+            word for word in self.attributes.split() if word not in _DEMOTING_CLAUSES
+        )
 
 
 @dataclass(frozen=True)
@@ -141,10 +157,15 @@ DECLARE
     role_name text := current_setting('app._bootstrap_role');
     role_attrs text := current_setting('app._bootstrap_attrs');
     role_pw text := nullif(current_setting('app._bootstrap_pw'), '');
+    already_superuser boolean;
     verb text;
 BEGIN
-    SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name)
-                THEN 'ALTER' ELSE 'CREATE' END INTO verb;
+    -- NULL when the role does not exist yet, which is what selects CREATE.
+    SELECT rolsuper INTO already_superuser FROM pg_roles WHERE rolname = role_name;
+    verb := CASE WHEN already_superuser IS NULL THEN 'CREATE' ELSE 'ALTER' END;
+    IF already_superuser THEN
+        role_attrs := current_setting('app._bootstrap_attrs_superuser');
+    END IF;
     IF role_pw IS NULL THEN
         EXECUTE format('%s ROLE %I WITH %s', verb, role_name, role_attrs);
     ELSE
@@ -251,7 +272,10 @@ _TRANSFER_STATEMENTS = """
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
 ), target AS (
+    -- Empty when the bootstrap connects as the provisioning role itself, which
+    -- makes every branch below return no rows: it already owns what it owns.
     SELECT current_setting('app._bootstrap_role') AS role
+     WHERE current_setting('app._bootstrap_role') <> current_user
 )
 SELECT format('table %I.%I', n.nspname, c.relname) AS label,
        format('ALTER TABLE %I.%I OWNER TO %I', n.nspname, c.relname, target.role) AS stmt
@@ -480,13 +504,21 @@ async def _set_local(conn, key: str, value: str) -> None:
     await conn.execute(text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value})
 
 
+async def _ensure_role(conn, role: LoginRole) -> None:
+    """Create the login, or bring an existing one to this shape."""
+    await _set_local(conn, "app._bootstrap_role", role.name)
+    await _set_local(conn, "app._bootstrap_attrs", role.attributes)
+    await _set_local(
+        conn, "app._bootstrap_attrs_superuser", role.attributes_if_superuser
+    )
+    await _set_local(conn, "app._bootstrap_pw", role.password or "")
+    await conn.execute(text(_ENSURE_ROLE))
+
+
 async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
     provisioner = roles[0]
     for role in roles:
-        await _set_local(conn, "app._bootstrap_role", role.name)
-        await _set_local(conn, "app._bootstrap_attrs", role.attributes)
-        await _set_local(conn, "app._bootstrap_pw", role.password or "")
-        await conn.execute(text(_ENSURE_ROLE))
+        await _ensure_role(conn, role)
     await _set_local(conn, "app._bootstrap_pw", "")
 
     # Everything below acts for the provisioning role.
@@ -599,6 +631,7 @@ def bootstrap_sql() -> str:
             f"-- {role.name}",
             setting("app._bootstrap_role", role.name),
             setting("app._bootstrap_attrs", role.attributes),
+            setting("app._bootstrap_attrs_superuser", role.attributes_if_superuser),
             setting("app._bootstrap_pw", role.password or ""),
             _ENSURE_ROLE.strip(),
         ]
