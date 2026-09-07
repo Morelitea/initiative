@@ -317,13 +317,13 @@ describe("InitiativeSettingsDetailsPage", () => {
       await waitFor(() => expect(rolePatches).toHaveLength(1));
       // The member role, not the manager one — a manager already sees everything.
       expect(rolePatches[0].roleId).toBe("2");
-      expect(
-        (rolePatches[0].body as { permissions: Record<string, boolean> }).permissions.posts_enabled
-      ).toBe(true);
-      // Reading a board and adding to it stay separate decisions.
-      expect(
-        (rolePatches[0].body as { permissions: Record<string, boolean> }).permissions.create_posts
-      ).toBe(false);
+      // Only the key being granted is sent, so a permission somebody else
+      // changed since the roster was read is not written back over.
+      expect((rolePatches[0].body as { permissions: Record<string, boolean> }).permissions).toEqual(
+        {
+          posts_enabled: true,
+        }
+      );
     });
 
     it("leaves every role alone when the tool is for managers only", async () => {
@@ -371,6 +371,27 @@ describe("InitiativeSettingsDetailsPage", () => {
       await waitFor(() => expect(rolePatches).toHaveLength(1));
       expect(rolePatches[0].roleId).toBe("2");
       expect(initiativePatches).toHaveLength(0);
+    });
+
+    it("does not claim a tool reached everyone when the roster could not be read", async () => {
+      const initiativePatches = stubInitiative();
+      server.use(
+        guildHttp.get("/initiatives/:id/roles", () =>
+          HttpResponse.json({ detail: "BOOM" }, { status: 500 })
+        )
+      );
+
+      renderDetails();
+
+      await userEvent.click(await screen.findByLabelText("Posts"));
+      await userEvent.click(await screen.findByRole("radio", { name: /Everyone in this/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Turn it on" }));
+
+      // The switch still moves — that half succeeded — but the grant that
+      // could not read the roster reports failure rather than success.
+      await waitFor(() => expect(initiativePatches).toEqual([{ posts_enabled: true }]));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(toast.success).not.toHaveBeenCalledWith(expect.stringContaining("can now see"));
     });
 
     it("says what turning a tool off hides before it hides it", async () => {

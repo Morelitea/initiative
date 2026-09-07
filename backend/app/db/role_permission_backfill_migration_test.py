@@ -1,25 +1,30 @@
 """Every permission key must be reachable by a backfill migration.
 
 A tool that ships adds two ``PermissionKey`` members, and every role created
-before that release keeps storing the twelve it already had. Nothing is
+before that release keeps storing the ones it already had. Nothing is
 mis-authorized — an absent row reads as its default — but the stored role no
 longer matches the role the code describes.
 
-The guard is the union of the ``_DEFAULTS`` maps across every migration that
-calls :func:`backfill_role_permissions`: if a new tool's keys are in none of
-them, the tool shipped without a backfill and this fails with the missing
-names.
+The guard is the union of the ``_ROLE_PERMISSION_DEFAULTS`` maps across every
+migration that declares one: if a new tool's keys are in none of them, the tool
+shipped without a backfill and this fails with the missing names.
+
+Each such migration states its own SQL rather than sharing a helper (a helper
+holding table names and column names would let a later edit change what a past
+revision does), so this loads the migration by path and runs the statement it
+actually carries.
 """
 
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from sqlalchemy import text
 
-from app.db.role_permission_backfill import role_permission_backfill_sql
 from app.models.tenant.initiative import (
     DEFAULT_PERMISSION_VALUES,
     PermissionKey,
@@ -27,18 +32,20 @@ from app.models.tenant.initiative import (
 from app.testing import create_guild, create_initiative, create_user
 
 VERSIONS_DIR = Path(__file__).resolve().parents[2] / "alembic" / "versions"
+DEFAULTS_NAME = "_ROLE_PERMISSION_DEFAULTS"
 
 pytestmark = pytest.mark.unit
 
 
-def _backfilled_keys() -> set[str]:
-    """The permission keys named by some migration's ``_DEFAULTS`` map."""
-    keys: set[str] = set()
-    for path in VERSIONS_DIR.glob("*.py"):
+def _backfill_migrations() -> dict[Path, set[str]]:
+    """Each migration declaring a defaults map, and the keys it names."""
+    found: dict[Path, set[str]] = {}
+    for path in sorted(VERSIONS_DIR.glob("*.py")):
         source = path.read_text()
-        if "backfill_role_permissions" not in source:
+        if DEFAULTS_NAME not in source:
             continue
         module = ast.parse(source)
+        keys: set[str] = set()
         for node in ast.walk(module):
             if not isinstance(node, ast.AnnAssign | ast.Assign):
                 continue
@@ -46,7 +53,7 @@ def _backfilled_keys() -> set[str]:
                 [node.target] if isinstance(node, ast.AnnAssign) else list(node.targets)
             )
             named = any(
-                isinstance(t, ast.Name) and t.id == "_DEFAULTS" for t in targets
+                isinstance(t, ast.Name) and t.id == DEFAULTS_NAME for t in targets
             )
             if named and isinstance(node.value, ast.Dict):
                 keys.update(
@@ -54,21 +61,36 @@ def _backfilled_keys() -> set[str]:
                     for k in node.value.keys
                     if isinstance(k, ast.Constant) and isinstance(k.value, str)
                 )
-    return keys
+        if keys:
+            found[path] = keys
+    return found
+
+
+def _load(path: Path) -> ModuleType:
+    """Import a migration by path — they are not on the import path."""
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_every_permission_key_has_a_backfill_migration() -> None:
-    missing = {key.value for key in PermissionKey} - _backfilled_keys()
+    backfilled: set[str] = set()
+    for keys in _backfill_migrations().values():
+        backfilled |= keys
+
+    missing = {key.value for key in PermissionKey} - backfilled
     assert not missing, (
         "These permission keys were added without backfilling the roles that "
-        f"predate them: {sorted(missing)}. Add a guild-scoped migration calling "
-        "app.db.role_permission_backfill.backfill_role_permissions with a "
-        "_DEFAULTS map naming them."
+        f"predate them: {sorted(missing)}. Add a guild-scoped migration that "
+        f"declares a {DEFAULTS_NAME} map naming them and runs its own INSERT — "
+        "see 20260907_0233, which is meant to be copied rather than imported."
     )
 
 
-def test_defaults_map_is_exhaustive_and_matches_the_documented_defaults() -> None:
-    """The declared defaults cover every key and agree with the model's."""
+def test_defaults_map_is_exhaustive() -> None:
+    """The model answers for every key, which is what an absent row falls to."""
     assert set(DEFAULT_PERMISSION_VALUES) == set(PermissionKey)
 
 
@@ -76,12 +98,17 @@ def test_defaults_map_is_exhaustive_and_matches_the_documented_defaults() -> Non
 async def test_backfill_writes_only_the_missing_rows(session) -> None:
     """A role stripped of a key gets it back at the documented default, and a
     row that already exists is left alone — including one an operator turned
-    off."""
+    off. Runs the statement the migration itself carries."""
+    migrations = _backfill_migrations()
+    assert migrations, "no backfill migration found to exercise"
+    path = max(migrations)
+    migration = _load(path)
+    defaults = getattr(migration, DEFAULTS_NAME)
+
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
 
-    defaults = {key.value: value for key, value in DEFAULT_PERMISSION_VALUES.items()}
     schema = f"guild_{guild.id}"
     await session.exec(text(f'SET LOCAL search_path TO "{schema}", public'))
 
@@ -113,7 +140,7 @@ async def test_backfill_writes_only_the_missing_rows(session) -> None:
         ).bindparams(pm=pm.id)
     )
 
-    await session.exec(text(role_permission_backfill_sql(defaults)))
+    await session.exec(text(migration.backfill_sql(defaults)))
 
     stored = {
         (row.initiative_role_id, row.permission_key): row.enabled

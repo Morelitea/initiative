@@ -40,8 +40,11 @@ export const InitiativeSettingsDetailsPage = () => {
 
   const guildId = useActiveGuildId();
   const navigate = useNavigate();
+  // Only once the roster has actually landed: an empty list while it loads (or
+  // after it fails) would read as "no role can see this", which is the very
+  // claim this screen exists to make trustworthy.
   const rolesQuery = useInitiativeRoles(initiativeId || null);
-  const roles = rolesQuery.data ?? [];
+  const roles = rolesQuery.isSuccess ? rolesQuery.data : undefined;
   const grantToolToRoles = useGrantToolToRoles(initiativeId);
 
   // The tool a confirmation dialog is currently open for, per direction.
@@ -137,7 +140,7 @@ export const InitiativeSettingsDetailsPage = () => {
   // on and that nobody but a manager can see.
   const grantToEveryone = (tool: Tool) =>
     grantToolToRoles.mutate(
-      { tool, roles },
+      { tool },
       {
         onSuccess: () =>
           toast.success(

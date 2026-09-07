@@ -40,11 +40,6 @@ _SQL_CALLEES = {"text", "exec_driver_sql", "execute", "executescript"}
 # Value: why the interpolation is not attacker-influenced. Provisioning / DDL /
 # admin-job layer only — the request path (endpoints, services) must stay empty.
 ALLOWED_DYNAMIC_SQL: dict[str, str] = {
-    "app/db/role_permission_backfill.py::backfill_role_permissions": (
-        "the table name is a module constant and the permission keys are "
-        "literals declared by the calling migration, shape-checked against "
-        "_PERMISSION_KEY before they reach the statement; no request data"
-    ),
     "app/db/guild_ddl.py::<module>": (
         "module-level DDL templates interpolate only the _SRC_SCHEMA constant "
         "('guild_template'); table lists are bound params"
