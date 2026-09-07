@@ -134,7 +134,7 @@
     "yjs": "^13.6.32"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.7",
+    "@biomejs/biome": "2.5.12",
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0",
     "@tailwindcss/container-queries": "^0.1.1",
