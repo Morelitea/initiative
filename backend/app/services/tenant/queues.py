@@ -19,7 +19,6 @@ from sqlmodel import select
 from app.core.messages import QueueMessages
 from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
-from app.services import permissions as permissions_service
 from app.services.permissions import (
     DAC_RESOURCES,
     compute_permission,
@@ -166,9 +165,6 @@ async def list_queue_ids_for_export(
     conditions = [
         Queue.initiative_id.in_(initiative_ids),
         Initiative.queues_enabled == True,  # noqa: E712
-        permissions_service.dac_scope_clause(
-            Tool.queue, Queue.id, current_user.id, guild_id=guild_id
-        ),
     ]
     statement = (
         select(Queue.id)
