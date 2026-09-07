@@ -134,7 +134,7 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
         # before the change — not for somebody signing up next month, and not
         # for a deployment that was never on the old behaviour.
         audience_accounts=AnnouncementAudienceAccounts.existing,
-        only_upgrading_from_below="0.65.0",
+        only_upgrading_from_below="0.66.0",
         # Only inside a community. The notice is about the community sidebar,
         # and that sidebar is not on screen when someone lands on their own
         # task list at sign-in — a notice about a thing you cannot see is just
