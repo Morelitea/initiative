@@ -50,7 +50,7 @@ export const QueuesFilterBar = ({
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-full space-y-2 lg:flex-1">
           <Label htmlFor="queue-search" className="block font-medium text-muted-foreground text-xs">
-            {t("filters.filterByName")}
+            {t("filters.searchLabel")}
           </Label>
           <Input
             id="queue-search"

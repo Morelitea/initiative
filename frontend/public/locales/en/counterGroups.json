@@ -100,7 +100,7 @@
     "show": "Show",
     "hide": "Hide",
     "searchGroups": "Search counter groups...",
-    "filterByName": "Filter by name",
+    "searchLabel": "Name or description",
     "noMatchingGroups": "No counter groups match your filters."
   },
   "tags": "Tags"

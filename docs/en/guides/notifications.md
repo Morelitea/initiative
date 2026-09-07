@@ -4,75 +4,75 @@ icon: lucide/bell
 
 # Notifications
 
-Initiative can let you know when something needs your attention — you were assigned a task, someone mentioned you, an event is coming up. You're in full control of what you're told about and where.
+Initiative can tell you when something wants your attention — a task landed on you, somebody mentioned you, an event is creeping up.
+
+What you get told about, and where, is entirely yours to decide. Nothing is being pushed into your inbox on your behalf for your own good.
 
 ## The three channels
 
-Notifications can reach you in three ways:
-
 | Channel | What it is |
 |---|---|
-| **Bell** | The in-app bell icon. It always shows your notifications, no matter your other settings. |
+| **Bell** | The in-app bell. Always on, whatever else you've set. |
 | **Email** | Messages to your inbox. |
 | **Mobile app** | Push notifications on your phone (needs the app, and permission). |
 
-The **bell** is always on. **Email** and **mobile** are yours to switch on or off, per category.
+The **bell** always works. **Email** and **mobile** are yours to switch on and off, category by category, with no minimum.
 
-Bell notifications arrive **as they happen** — a mention lands in front of you the moment it's written, rather than whenever the page next thinks to check. Marking one read updates your other open tabs at the same time, so you don't clear the same notification twice.
+Bell notifications arrive **as they happen** — a mention lands the moment it's written, not whenever the page next thinks to check. Marking one read updates your other open tabs too, so you don't clear the same thing three times.
 
 ## Choosing what you hear about
 
-Go to **User settings → Notifications**. You'll see a grid: one row per category, with an **Email** and a **Mobile App** toggle on each. Turn on only what's useful to you.
+**User settings → Notifications** gives you a grid: one row per category, with an **Email** and a **Mobile App** switch each.
 
-The categories are:
-
-| Category | You're notified when… |
+| Category | You hear about it when… |
 |---|---|
 | **Initiative invites** | You're added to a new initiative. |
-| **Task assignments** | Someone assigns you tasks (sent as one summary, not one-by-one). |
-| **Mentions** | Someone `@mentions` you or comments on your work. |
-| **Reactions** | Someone reacts to one of your comments (sent as one summary, not one-by-one). |
-| **New project in initiative** | A project is created in one of your initiatives. |
-| **Overdue tasks** | A daily reminder of what's past due, at a time you choose. |
-| **Events** | You're invited to an event, or one you're attending changes. |
-| **Event reminders** | Shortly before an event you're attending begins. |
+| **Task assignments** | Somebody assigns you tasks (one summary, not one per task). |
+| **Mentions** | Somebody `@mentions` you or comments on your work. |
+| **Reactions** | Somebody reacts to one of your comments (also a summary). |
+| **New project in initiative** | A project appears in one of your initiatives. |
+| **Overdue tasks** | A daily nudge about what's past due, at a time you choose. |
+| **Posts** | A notice goes up on a board you can see. Only the people it was shared with hear about it. |
+| **Events** | You're invited to something, or something you're attending changes. |
+| **Event reminders** | Shortly before an event you're going to. |
+| **Direct messages** | Somebody messaged you. You're told who and how many — never what it says, because nothing outside your own devices could tell you that. |
 
 ![Notification settings](../images/notifications/settings.png)
 
 ## Timing
 
-A couple of categories are about *when*, not just *whether*:
+A few of these are about *when*, not just *whether*:
 
-- **Task assignments** arrive as one summary once the dust settles: Initiative waits until nothing new has been assigned to you for a few minutes, so a batch of tasks reaches you as a single message rather than a stream. If assignments keep arriving, the summary is sent anyway within half an hour. Email and mobile follow the same schedule, so you never get the same news twice at different times.
-- **Reactions** work the same way, and for the same reason: they tend to arrive several at a time. The bell shows each one as it happens; email and mobile wait for the flurry to end and then arrive as a single summary.
-- **Overdue tasks** arrive as one **daily digest** at a time you set, in your **timezone**. Set both on the same Notifications page.
-- **Event reminders** can be set per event — at the start, or a chosen number of minutes, hours, or days before.
+- **Task assignments** arrive as one summary once the dust has settled. Initiative waits until nothing new has landed on you for a few minutes, so somebody assigning you ten things reaches you as one message rather than ten separate ones — and sends anyway within half an hour if they're still going. Email and mobile follow the same schedule, so you're never told the same news twice at different times of day.
+- **Reactions** work the same way, for the same reason: they arrive in flurries. The bell shows each one as it happens; email and mobile wait for the flurry to finish.
+- **Overdue tasks** come as one **daily digest** at a time you pick, in your **timezone**.
+- **Event reminders** are set per event — at the start, or a chosen number of minutes, hours or days before.
 
-!!! tip "Set your timezone"
-    Daily digests, due dates, and recurring-task math all use your timezone. Initiative guesses it from your browser when you sign up; if it's wrong, fix it in **User settings → Profile**.
+!!! tip "Set your timezone. Genuinely."
+    Daily digests, due dates and repeating-task maths all run on your timezone. Initiative guesses it from your browser at sign-up and is usually right.
+
+    But if your daily reminder is arriving at 4am, you have not been cursed and nothing is broken. Check **User settings → Interface**.
 
 ## Turning on mobile push
 
-To get push notifications on your phone:
-
 1. Install the mobile app and sign in.
 2. In **User settings → Notifications**, choose **Enable push notifications**.
-3. Allow notifications when your phone asks.
+3. Say yes when your phone asks.
 
-If push shows as **Blocked**, your phone's system settings are blocking the app — open your device settings, find Initiative, and allow notifications there.
+If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.
 
 ## Announcements
 
-Notifications are about *your* work. An **announcement** is about the app itself — a version that changed something, a setting that moved, a maintenance window your server's administrator wants you to plan around.
+Notifications are about *your* work. An **announcement** is about the app itself: a version that changed something, a setting that moved, a maintenance window your administrator wants you to know about.
 
-Announcements arrive as a dialog rather than in the bell, because they're the kind of thing you'd want to be stopped for. Some are a single card; one with more to say becomes a few pages you step through with **Next**. **Got it** clears it, and it doesn't come back — unless it's important enough that whoever wrote it asked for more than one acknowledgement, in which case the dialog says so.
+They arrive as a dialog rather than quietly in the bell, because they're the kind of thing genuinely worth stopping you for. Some are a single card; a longer one becomes a few pages you step through with **Next**. **Got it** clears it and it doesn't come back — unless whoever wrote it asked for more than one acknowledgement, in which case the dialog says so up front.
 
-Nothing is lost if you dismiss one in a hurry. The **info icon in the sidebar footer** opens **Past announcements**: everything you were shown, newest first, with read and unread marked and a filter for the unread ones on their own. Pictures open full size on a click.
+Dismissed one at speed and immediately regretted it? Nothing is lost. The **info icon in the sidebar footer** opens **Past announcements**: everything you've been shown, newest first, read and unread marked, with a filter for the ones you haven't read. Pictures open full size on a click.
 
-If you administer a server and want to write one, see [Announcements](../admin/announcements.md).
+Run a server and want to write one? See [Announcements](../admin/announcements.md).
 
 ## Related
 
 - [Your space](your-space.md) — where your tasks and events gather.
-- [Profile & preferences](../account/profile-and-preferences.md) — your timezone and other settings.
-- [Announcements](../admin/announcements.md) — writing them, for server administrators.
+- [Profile & preferences](../account/profile-and-preferences.md) — your timezone and everything else.
+- [Announcements](../admin/announcements.md) — writing them, for administrators.

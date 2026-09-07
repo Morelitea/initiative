@@ -1090,8 +1090,8 @@ async def test_engine_identities_flag_an_unused_temporary_grant(caplog):
     rather than trying to change it.
 
     Asserted against what the login actually holds. A database that has been
-    handed over (``create-provisioner.sql`` revokes the grant) must draw no
-    notice, and one that has not must draw one — reading the state first is
+    handed over (the bootstrap revokes the grant) must draw no notice, and
+    one that has not must draw one — reading the state first is
     what makes this a test of the report rather than of whichever database the
     developer happens to be pointed at.
     """
@@ -1114,7 +1114,7 @@ async def test_engine_identities_flag_an_unused_temporary_grant(caplog):
     if holds_temp:
         assert "PRIVILEGE DRIFT" in joined
         assert "REVOKE TEMPORARY ON DATABASE" in joined
-        assert "create-provisioner.sql" in joined
+        assert "DATABASE_URL_BOOTSTRAP" in joined
     else:
         assert "REVOKE TEMPORARY ON DATABASE" not in joined
 

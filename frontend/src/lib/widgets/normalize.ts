@@ -18,16 +18,19 @@ import type {
   CounterRead,
   DocumentRead,
   ProjectRead,
+  PropertyDefinitionRead,
+  PropertySummary,
   TaskListRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { keyOf, parseA1Range } from "@/lib/spreadsheet/coords";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import { type DisplayableUser, getUserDisplayName } from "@/lib/userDisplay";
 
 import type {
   CalendarEntryRow,
   CounterValue,
   CountRow,
   ProjectRow,
+  PropertyDomain,
   SheetRange,
   TaskRow,
   WidgetData,
@@ -52,6 +55,74 @@ const UTC_DAY = 86_400_000;
 /** Midnight UTC for a timestamp — the bucket key for day-grouped counts. */
 export const startOfUtcDay = (epoch: number): number => Math.floor(epoch / UTC_DAY) * UTC_DAY;
 
+// --- custom properties ------------------------------------------------------
+
+/** One property value as the labels a person reads.
+ *
+ * Select options resolve through the definition's own option list, so a widget
+ * groups by "Design" rather than by `design-2`; a person resolves to their
+ * display name. Everything else is its plain string form — the sandbox has no
+ * locale, so formatting a number or a date for a viewer is not something this
+ * side can honestly do. An unset value produces nothing at all, which is what
+ * keeps it out of the row entirely. */
+const propertyLabels = (summary: PropertySummary): string[] => {
+  const { type, value } = summary;
+  if (value === null || value === undefined || value === "") return [];
+
+  const optionLabel = (slug: unknown): string => {
+    const match = (summary.options ?? []).find((option) => option.value === slug);
+    return match?.label ?? String(slug);
+  };
+
+  switch (type) {
+    case "select":
+      return [optionLabel(value)];
+    case "multi_select":
+      return Array.isArray(value) ? value.map(optionLabel) : [];
+    case "user_reference": {
+      const person = typeof value === "object" ? (value as DisplayableUser) : null;
+      const name = person ? getUserDisplayName(person, "") : "";
+      return name ? [name] : [];
+    }
+    case "checkbox":
+      // The two words are the widget's to say — it carries its own strings in
+      // every language it speaks, and this side has none to lend it.
+      return [value === true ? "true" : "false"];
+    case "date":
+    case "datetime":
+      return typeof value === "string" ? [value.slice(0, type === "date" ? 10 : 16)] : [];
+    default:
+      return [String(value)];
+  }
+};
+
+/** A task's properties, by name. Empty values are absent rather than present
+ *  and blank, so a widget grouping by a property can tell "not set" from a
+ *  value that happens to read as nothing. */
+export const normalizeProperties = (
+  summaries: PropertySummary[] | null | undefined
+): Record<string, string[]> => {
+  const out: Record<string, string[]> = {};
+  for (const summary of summaries ?? []) {
+    const labels = propertyLabels(summary);
+    if (labels.length) out[summary.name] = labels;
+  }
+  return out;
+};
+
+/** What a property *could* say, from its definition rather than from what
+ *  anybody has filled in. Only the closed types have a domain to state; for the
+ *  rest the values are whatever the rows turn out to hold. */
+export const propertyDomain = (definition: PropertyDefinitionRead): PropertyDomain => ({
+  name: definition.name,
+  values:
+    definition.type === "select" || definition.type === "multi_select"
+      ? (definition.options ?? []).map((option) => option.label)
+      : definition.type === "checkbox"
+        ? ["true", "false"]
+        : [],
+});
+
 // --- per-source normalizers -------------------------------------------------
 
 export const normalizeTasks = (tasks: TaskListRead[]): TaskRow[] =>
@@ -75,6 +146,7 @@ export const normalizeTasks = (tasks: TaskListRead[]): TaskRow[] =>
     subtaskDone: task.subtask_progress?.completed ?? 0,
     subtaskTotal: task.subtask_progress?.total ?? 0,
     commentCount: task.comment_count ?? 0,
+    properties: normalizeProperties(task.properties),
   }));
 
 export const normalizeProjects = (

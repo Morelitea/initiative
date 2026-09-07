@@ -45,6 +45,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
+import { useMessagesWaiting } from "@/hooks/useMyMessages";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
@@ -523,6 +524,7 @@ const parseGuildId = (id: string | number): number =>
 export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) => {
   const { guilds, activeGuildId, switchGuild, reorderGuilds, canCreateGuilds } = useGuilds();
   const { suppressNextAutoClose, setSwipeCloseLocked } = useSidebar();
+  const messagesWaiting = useMessagesWaiting();
   const { t } = useTranslation(["guilds", "nav"]);
   const router = useRouter();
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
@@ -800,12 +802,27 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
             <Link
               to="/"
               className={cn(
-                "flex flex-col items-center rounded-2xl p-1 transition",
+                "relative flex flex-col items-center rounded-2xl p-1 transition",
                 isHomeMode && "bg-primary/10 ring-3 ring-primary/60"
               )}
               aria-label={t("nav:home")}
             >
               <LogoIcon className="h-10 w-10" aria-hidden="true" focusable="false" />
+              {/* From inside a community this is the only thing pointing home,
+                  so it carries the mark that something is waiting there. A dot
+                  carries no text, so the count it stands for is written out for
+                  anyone not looking at it. */}
+              {messagesWaiting > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 flex items-center">
+                  <span className="sr-only">
+                    {t("nav:requestsWaiting", { count: messagesWaiting })}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="size-2.5 rounded-full bg-destructive ring-2 ring-sidebar"
+                  />
+                </span>
+              ) : null}
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={12}>

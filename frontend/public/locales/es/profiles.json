@@ -419,6 +419,7 @@
   "status": {
     "empty": "Cuenta en qué andas",
     "edit": "Tu estado",
+    "set": "Poner estado",
     "help": "Un emoji, una línea o ambos. Lo ve cualquiera que abra tu perfil.",
     "placeholder": "¿En qué andas?",
     "emojiPlaceholder": "Emoji",

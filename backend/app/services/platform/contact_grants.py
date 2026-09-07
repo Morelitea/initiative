@@ -36,6 +36,9 @@ from app.models.platform.contact_grant import (
     canonical_pair,
 )
 from app.models.platform.user_ignore import UserIgnore
+from app.services.platform import contacts_stream
+from app.services.platform import presence as presence_service
+from app.services.platform import user_ignores
 from app.schemas.platform.dm import (
     ContactGrantRead,
     ContactGrantsResponse,
@@ -213,6 +216,14 @@ async def request(
         responded_at=now if state is ContactGrantState.accepted else None,
     )
     session.add(grant)
+    # The recipient hears about it unless they ignore the requester, in which
+    # case the row is stored and stays out of their sight — a frame would say
+    # what the hidden row does not.
+    if not await user_ignores.ignores(
+        session, user_id=target_id, other_user_id=actor_id
+    ):
+        contacts_stream.queue_contacts_signal(session, target_id)
+    contacts_stream.queue_contacts_signal(session, actor_id)
     await session.commit()
     await session.refresh(grant)
     return grant
@@ -245,6 +256,8 @@ async def accept(
     if kind is ContactGrantKind.connection:
         await _open_message_grant(session, actor_id, other_id, grant.requested_by)
 
+    contacts_stream.queue_contacts_signal(session, actor_id)
+    contacts_stream.queue_contacts_signal(session, other_id)
     await session.commit()
     await session.refresh(grant)
     return grant
@@ -301,6 +314,8 @@ async def remove(
     await session.flush()
     if kind is ContactGrantKind.connection:
         await _revoke_pair_if_stale(session, actor_id, other_id)
+    contacts_stream.queue_contacts_signal(session, actor_id)
+    contacts_stream.queue_contacts_signal(session, other_id)
     await session.commit()
 
 
@@ -357,13 +372,19 @@ async def revoke_stale_message_grants(
                 )
             )
         ).all()
+        touched: set[int] = set()
         for grant in grants:
             if not await _pair_still_allowed(
                 admin_session, grant.user_id_low, grant.user_id_high
             ):
                 await admin_session.delete(grant)
+                touched.update({grant.user_id_low, grant.user_id_high})
                 dropped += 1
         if dropped:
+            # Both sides of every pair that actually went — which is already
+            # the bound worth having: a community's worth of revocations costs
+            # the pairs revoked, not the size of the membership.
+            contacts_stream.queue_many(admin_session, touched)
             await admin_session.commit()
     return dropped
 
@@ -405,7 +426,8 @@ async def to_reads(
         for row in (
             await session.exec(
                 text(
-                    "SELECT id, username, discriminator, avatar_url "
+                    "SELECT id, username, discriminator, avatar_url, status, "
+                    "profile_decorations "
                     "FROM public.user_profiles WHERE id = ANY(:ids)"
                 ).bindparams(ids=list(others))
             )
@@ -425,6 +447,9 @@ async def to_reads(
             username=profile[1],
             discriminator=profile[2],
             avatar_url=profile[3],
+            status=profile[4],
+            profile_decorations=profile[5] or {},
+            presence=presence_service.online.presence_of(other),
             state=grant.state.value,
             outgoing=grant.requested_by == user_id,
             created_at=grant.created_at,

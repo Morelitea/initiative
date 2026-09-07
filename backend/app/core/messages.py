@@ -5,6 +5,18 @@ maps these codes to localized user-facing messages via errors.json.
 """
 
 
+class CommonMessages:
+    """Codes that belong to no one tool.
+
+    A timeline is asked for by any tool that has a history, so the answer to
+    "that is not a zone" has to read the same wherever it comes from.
+    """
+
+    #: A time zone that is not one. Months are cut in the reader's own day, so
+    #: the zone is a real parameter rather than a formatting hint.
+    UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
+
+
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
     REGISTRATION_REQUIRES_INVITE = "REGISTRATION_REQUIRES_INVITE"
@@ -583,6 +595,58 @@ class DashboardMessages:
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
 
 
+class PostMessages:
+    NOT_FOUND = "POST_NOT_FOUND"
+    CREATE_PERMISSION_REQUIRED = "POST_CREATE_PERMISSION_REQUIRED"
+    FEATURE_DISABLED = "POSTS_NOT_ENABLED"
+    PERMISSION_REQUIRED = "POST_PERMISSION_REQUIRED"
+    OWNER_REQUIRED = "POST_OWNER_REQUIRED"
+    WRITE_ACCESS_REQUIRED = "POST_WRITE_ACCESS_REQUIRED"
+    GRANT_CANNOT_MANAGE_MEMBERS = "POST_GRANT_CANNOT_MANAGE_MEMBERS"
+    #: Pinning lifts a notice above everyone else's, so it is initiative
+    #: management authority rather than write access on the post.
+    PIN_MANAGER_REQUIRED = "POST_PIN_MANAGER_REQUIRED"
+    #: A pin whose expiry has already passed would be a no-op that reads as a
+    #: pin — refused rather than silently ignored.
+    PIN_EXPIRY_IN_PAST = "POST_PIN_EXPIRY_IN_PAST"
+    #: More words than a notice is for. A board is read, not studied.
+    BODY_TOO_LONG = "POST_BODY_TOO_LONG"
+    #: A schedule was sent for a notice that is already up. Publication is not
+    #: reversible — the people it was announced to have already been told.
+    ALREADY_PUBLISHED = "POST_ALREADY_PUBLISHED"
+    #: A poll was asked for on a notice that does not have one.
+    POLL_NOT_FOUND = "POST_POLL_NOT_FOUND"
+    #: A notice already has its question; a second one would have to be a
+    #: second notice.
+    POLL_EXISTS = "POST_POLL_EXISTS"
+    #: The choices were rewritten after somebody had already answered. A ballot
+    #: cast for one option must not become a ballot for whatever replaced it.
+    POLL_HAS_VOTES = "POST_POLL_HAS_VOTES"
+    #: Voting has stopped.
+    POLL_CLOSED = "POST_POLL_CLOSED"
+    #: A close time that has already passed would make a poll nobody can answer.
+    POLL_CLOSES_IN_PAST = "POST_POLL_CLOSES_IN_PAST"
+    #: More than one choice on a poll that takes one.
+    POLL_SINGLE_CHOICE = "POST_POLL_SINGLE_CHOICE"
+    #: A ballot named a choice that is not on this poll.
+    POLL_OPTION_UNKNOWN = "POST_POLL_OPTION_UNKNOWN"
+    #: The roster was asked for on an anonymous poll, which has none by design.
+    POLL_IS_ANONYMOUS = "POST_POLL_IS_ANONYMOUS"
+    #: Anonymity was switched off on a poll people had already answered
+    #: anonymously. It can be turned on afterwards, never off.
+    POLL_ANONYMITY_LOCKED = "POST_POLL_ANONYMITY_LOCKED"
+    #: Multiple choice was switched off on a poll people had already answered
+    #: with several. Like anonymity it can be turned on afterwards, never off —
+    #: otherwise a single-choice poll would list one voter under two answers.
+    POLL_MULTIPLE_LOCKED = "POST_POLL_MULTIPLE_LOCKED"
+    #: Two choices that say the same thing are one choice wearing two labels.
+    POLL_DUPLICATE_CHOICE = "POST_POLL_DUPLICATE_CHOICE"
+    #: The roster was asked for while this poll's results are still withheld.
+    POLL_RESULTS_HIDDEN = "POST_POLL_RESULTS_HIDDEN"
+    #: A notice that is not up yet has nothing to answer.
+    POLL_NOT_PUBLISHED = "POST_POLL_NOT_PUBLISHED"
+
+
 class MarketplaceMessages:
     LISTING_NOT_FOUND = "MARKETPLACE_LISTING_NOT_FOUND"
     #: The listing exists but nothing about it can be installed here — withdrawn
@@ -964,6 +1028,31 @@ class DirectMessageMessages:
     CANNOT_IGNORE_SELF = "DM_CANNOT_IGNORE_SELF"
     #: A community named in a toggle write that this account is not in.
     NOT_A_MEMBER = "DM_NOT_A_MEMBER"
+
+
+class DirectMessageTransportMessages:
+    """Devices, keys, conversations and the queue."""
+
+    #: A device id that names nothing the caller owns.
+    DEVICE_NOT_FOUND = "DM_DEVICE_NOT_FOUND"
+    #: A key or payload that is not valid base64, or is the wrong length for the
+    #: curve it claims to be on.
+    MALFORMED_KEY = "DM_MALFORMED_KEY"
+    #: Two prekeys published under one name.
+    DUPLICATE_KEY_ID = "DM_DUPLICATE_KEY_ID"
+    #: A top-up that would take the device past what it may publish.
+    TOO_MANY_KEYS = "DM_TOO_MANY_KEYS"
+    #: The pair cannot open a channel right now. One code for every refusal,
+    #: the same way the permission layer answers.
+    NOT_REACHABLE = "DM_NOT_REACHABLE"
+    CANNOT_MESSAGE_SELF = "DM_CANNOT_MESSAGE_SELF"
+    CONVERSATION_NOT_FOUND = "DM_CONVERSATION_NOT_FOUND"
+    #: One message past the size a message may be. Anything larger is an
+    #: attachment, which travels out of band.
+    MESSAGE_TOO_LARGE = "DM_MESSAGE_TOO_LARGE"
+    #: The recipient is holding more undelivered ciphertext than they may.
+    #: Refused at the door rather than accepted and dropped later.
+    RECIPIENT_QUEUE_FULL = "DM_RECIPIENT_QUEUE_FULL"
 
 
 class ContactGrantMessages:

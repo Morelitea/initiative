@@ -100,7 +100,7 @@
     "show": "Mostrar",
     "hide": "Ocultar",
     "searchGroups": "Buscar grupos de contadores...",
-    "filterByName": "Filtrar por nombre",
+    "searchLabel": "Nombre o descripción",
     "noMatchingGroups": "Ningún grupo de contadores coincide con tus filtros."
   },
   "tags": "Etiquetas"

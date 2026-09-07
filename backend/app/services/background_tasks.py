@@ -40,6 +40,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_announcement_image_purge,
         IMAGE_PURGE_POLL_SECONDS,
     )
+    from app.services.tenant.post_publication import (
+        POST_PUBLISH_POLL_SECONDS,
+        process_post_publications,
+    )
     from app.services.tenant.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
     from app.services.tenant.app_updates import (
         AUTO_UPDATE_POLL_SECONDS,
@@ -113,6 +117,13 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(
             _loop_worker(
                 process_oidc_refresh_sync, OIDC_SYNC_POLL_SECONDS, "oidc-refresh-sync"
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_post_publications,
+                POST_PUBLISH_POLL_SECONDS,
+                "post-publication",
             )
         ),
         asyncio.create_task(

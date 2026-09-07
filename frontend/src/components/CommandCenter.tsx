@@ -4,21 +4,20 @@ import {
   CalendarDays,
   CheckSquare,
   FilePlus,
+  LayoutGrid,
   ListTodo,
-  PenLine,
+  MessageSquare,
   Plus,
-  ScrollText,
   Search,
   Settings,
   ShieldCheck,
   UserCog,
   Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -52,7 +51,7 @@ import {
   searchHitPath,
 } from "@/lib/searchResults";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
-import { entityRefRoute, TOOL_ICONS, toolGuildBrowseTarget } from "@/lib/tools";
+import { entityRefRoute, TOOL_ICONS } from "@/lib/tools";
 import {
   getAvatarSrc,
   getInitialsForUser,
@@ -83,14 +82,6 @@ export function CommandCenter() {
   const { activeGuild, activeGuildId } = useGuilds();
   const globalCreate = useGlobalCreateAccess();
   const getGuildPath = useGuildPath();
-  /** The guild home showing one tool — the cross-initiative browse surface. */
-  const guildBrowsePath = useCallback(
-    (tool: Tool) => {
-      const target = toolGuildBrowseTarget(tool);
-      return `${getGuildPath(target.to)}?tool=${target.search.tool}`;
-    },
-    [getGuildPath]
-  );
 
   // Switch into "guild-wide title search" mode once the debounced query is at
   // least 2 characters. Single-character queries fire too noisily and rarely
@@ -172,16 +163,22 @@ export function CommandCenter() {
   // communities while the index is per-community, so they are read from the
   // roster — the same split the results page makes.
   const scopeTypes = categoryEntityTypes(scope);
+  const isMemberScope = scopeTypes === null;
   const suggestQuery = useGuildSearchSuggest(effectiveSearch, {
-    enabled: open && !!user && isSearching && scopeTypes !== null,
+    enabled: open && !!user && isSearching && !isMemberScope,
     types: scopeTypes ?? undefined,
     staleTime: 30_000,
   });
   const membersQuery = useUserSearch({
     search: effectiveSearch,
     pageSize: PALETTE_MEMBER_LIMIT,
-    enabled: open && !!user && isSearching && scopeTypes === null,
+    enabled: open && !!user && isSearching && isMemberScope,
   });
+  // Whichever of the two the reader is on — the other is switched off, and a
+  // switched-off question keeps the answer it was last given, which belongs to
+  // the tab before this one. Only the scope being read may put rows on screen
+  // or say there are none.
+  const scopeQuery = isMemberScope ? membersQuery : suggestQuery;
   // Browsing (palette just opened): the user's own not-done tasks, most
   // recently updated — surfacing what they're actively working on. Fired once
   // on open, so the full list row is fine.
@@ -222,13 +219,25 @@ export function CommandCenter() {
   // one that isn't offered.
   const suggestions = useMemo(
     () =>
-      (suggestQuery.data ?? [])
-        .map((hit) => ({ hit, path: searchHitPath(hit) }))
-        .filter((row): row is { hit: SearchSuggestion; path: string } => row.path !== null),
-    [suggestQuery.data]
+      isMemberScope
+        ? []
+        : (suggestQuery.data ?? [])
+            .map((hit) => ({ hit, path: searchHitPath(hit) }))
+            .filter((row): row is { hit: SearchSuggestion; path: string } => row.path !== null),
+    [suggestQuery.data, isMemberScope]
   );
 
-  const members = membersQuery.data?.items ?? [];
+  const members = isMemberScope ? (membersQuery.data?.items ?? []) : [];
+  // Nothing is here, and that is this scope's own answer rather than a gap
+  // before it arrives: a tab that found nobody says so instead of leaving the
+  // rows before it standing. A question that never got an answer is a third
+  // thing again — "nobody matched" would be a claim about a community nothing
+  // has been read from.
+  const scopeIsEmpty =
+    members.length === 0 &&
+    suggestions.length === 0 &&
+    scopeQuery.isSuccess &&
+    !scopeQuery.isPlaceholderData;
 
   const isGuildAdmin = activeGuild?.role === "admin";
   const showPlatformSettings = canManagePlatformConfig(user);
@@ -238,25 +247,11 @@ export function CommandCenter() {
   const pages = useMemo(() => {
     const items = [
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
-      { label: t("pages.tasksICreated"), path: "/created-tasks", icon: PenLine },
       { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
-      { label: t("pages.myProjects"), path: "/my-projects", icon: ListTodo },
-      { label: t("pages.myDocuments"), path: "/my-documents", icon: ScrollText },
-      { label: t("pages.myContacts"), path: "/contacts", icon: Users },
+      { label: t("pages.myTools"), path: "/my-tools", icon: LayoutGrid },
+      { label: t("pages.myMessages"), path: "/messages", icon: MessageSquare },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
-      { label: t("pages.userSettings"), path: "/profile", icon: UserCog },
-      // Tools are browsed across initiatives on the guild home, which names
-      // the one it is showing in its search — there is no guild-wide list page.
-      {
-        label: t("pages.allProjects"),
-        path: guildBrowsePath(Tool.project),
-        icon: ListTodo,
-      },
-      {
-        label: t("pages.allDocuments"),
-        path: guildBrowsePath(Tool.document),
-        icon: ScrollText,
-      },
+      { label: t("pages.mySettings"), path: "/profile", icon: UserCog },
       {
         label: t("pages.allInitiatives"),
         path: getGuildPath("/"),
@@ -289,7 +284,7 @@ export function CommandCenter() {
     }
 
     return items;
-  }, [t, getGuildPath, guildBrowsePath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
+  }, [t, getGuildPath, isGuildAdmin, showAdminDashboard, showPlatformSettings]);
 
   const handleSelect = (path: string) => {
     setOpen(false);
@@ -376,6 +371,11 @@ export function CommandCenter() {
                 </CommandItem>
               );
             })}
+            {(scopeQuery.isError || scopeIsEmpty) && (
+              <div className="py-3 text-center text-muted-foreground text-sm">
+                {scopeQuery.isError ? t("search:failed.title") : t("noResults")}
+              </div>
+            )}
             {activeGuildId !== null && (
               <CommandItem
                 value="result-see-all"

@@ -68,6 +68,12 @@
       "body_other": "{{count}} new reactions to your posts, including {{emoji}} from {{actor}}"
     }
   },
+  "post": {
+    "published": {
+      "title": "New post",
+      "body": "{{actor}} posted {{post}}"
+    }
+  },
   "event": {
     "invitation": {
       "title": "New event invitation",
@@ -113,5 +119,9 @@
       "title": "Access revoked",
       "body": "Your access to {{guild}} was revoked"
     }
+  },
+  "directMessage": {
+    "title": "{{sender}} sent you a message",
+    "body": "Open Initiative to read it."
   }
 }

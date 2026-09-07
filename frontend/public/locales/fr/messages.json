@@ -1,0 +1,170 @@
+{
+  "title": "Mes messages",
+  "backToNav": "Retour à la navigation",
+  "encryptedNotice": "Chiffré de bout en bout. Seuls toi et l'autre personne pouvez les lire.",
+  "empty": {
+    "title": "Choisissez une conversation"
+  },
+  "nobodyYet": "Personne pour l'instant. Une conversation s'ouvre dès qu'une demande de message est acceptée.",
+  "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus, et ce compte n'a pas encore répondu à cette question.",
+  "requests": {
+    "heading": "Demandes",
+    "asked": "Cette personne veut démarrer une conversation.",
+    "youAsked": "Vous avez demandé. Rien n'est envoyé avant leur accord.",
+    "accept": "Accepter",
+    "decline": "Refuser",
+    "cancel": "Annuler",
+    "wantsToConnect": "Cette personne souhaite se connecter.",
+    "youAskedToConnect": "Vous avez demandé une connexion. Rien ne change tant qu'elle n'accepte pas."
+  },
+  "groups": {
+    "unread": "Non lus",
+    "favorites": "Favoris",
+    "connections": "Connexions",
+    "messages": "Messages"
+  },
+  "search": {
+    "placeholder": "Rechercher",
+    "label": "Rechercher dans les conversations",
+    "noMatches": "Personne ne correspond."
+  },
+  "newConversation": {
+    "trigger": "Démarrer une conversation",
+    "title": "Démarrer une conversation",
+    "description": "Quelqu'un d'une communauté que vous partagez, ou toute personne dont vous connaissez l'identifiant complet.",
+    "placeholder": "Rechercher des personnes, ou saisir nom#1234",
+    "hint": "Un identifiant complet, numéro compris, atteint une personne qui n'est dans aucune de vos communautés.",
+    "connect": "Se connecter avec {{handle}}",
+    "noMatches": "Personne ne correspond.",
+    "empty": "Personne à afficher. Vous ne partagez encore de communauté avec personne.",
+    "unreachable": "Injoignable",
+    "showMore": "Afficher plus",
+    "favorites": "Favoris"
+  },
+  "receipt": {
+    "sent": "Envoyé",
+    "delivered": "Remis",
+    "read": "Lu"
+  },
+  "startHint": "démarrer",
+  "unknownAccount": "Compte inconnu",
+  "noHistoryHere": "Rien encore sur cet appareil. Les messages que tu avais ailleurs y restent.",
+  "composerPlaceholder": "Écris un message",
+  "send": "Envoyer",
+  "sendFailed": "Ce message n'a pas pu être envoyé.",
+  "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
+  "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
+  "loading": "Chargement…",
+  "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application.",
+  "start": {
+    "waiting": "En attente de leur acceptation. Ensuite, vous pourrez vous écrire.",
+    "asksToMessage": "Cette personne a demandé à t'écrire. Accepte et vous pourrez discuter.",
+    "mayAsk": "Tu ne lui as pas encore écrit. Demande d'abord : elle peut accepter ou refuser, et rien n'est envoyé avant.",
+    "denied": "Tu ne peux pas lui écrire pour le moment."
+  },
+  "unreadHere_one": "{{count}} message non lu",
+  "unreadHere_other": "{{count}} messages non lus",
+  "openFailed": "Cette conversation n'a pas pu être ouverte.",
+  "tryAgain": "Réessayer",
+  "edited": "(modifié)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Répondre",
+    "replyingTo": "En réponse à « {{body}} »",
+    "missing": "Message absent de cet appareil"
+  },
+  "edit": {
+    "action": "Modifier",
+    "editing": "Modification de ce message. Échap pour arrêter."
+  },
+  "remove": {
+    "action": "Supprimer",
+    "title": "Supprimer ce message ?",
+    "body": "Il disparaît de cet appareil, et l'application de l'autre personne le retire du sien. Ce qui a déjà été lu reste lu : ceci ne peut pas le défaire."
+  },
+  "removed": "Message supprimé",
+  "days": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier"
+  },
+  "historyRequest": {
+    "title": "Un de tes appareils demande tes messages",
+    "body": "{{device}} vient de se connecter et n'a aucun historique. Lui envoyer les messages de cet appareil ? Vérifie qu'il affiche les mêmes images, dans le même ordre.",
+    "unknownDevice": "Un appareil",
+    "codeLabel": "Code de l'appareil",
+    "approve": "Envoyer mes messages",
+    "decline": "Pas maintenant"
+  },
+  "historyAsk": {
+    "title": "En attente de tes messages",
+    "body": "Cet appareil a demandé à tes autres appareils les messages que tu avais déjà. Ouvre l'un d'eux et approuve-le là-bas — voici les images qu'il t'affichera."
+  },
+  "safetyEmoji": {
+    "dog": "Chien",
+    "cat": "Chat",
+    "lion": "Lion",
+    "horse": "Cheval",
+    "unicorn": "Licorne",
+    "pig": "Cochon",
+    "elephant": "Éléphant",
+    "rabbit": "Lapin",
+    "panda": "Panda",
+    "rooster": "Coq",
+    "penguin": "Manchot",
+    "turtle": "Tortue",
+    "fish": "Poisson",
+    "octopus": "Pieuvre",
+    "butterfly": "Papillon",
+    "flower": "Fleur",
+    "tree": "Arbre",
+    "cactus": "Cactus",
+    "mushroom": "Champignon",
+    "globe": "Globe",
+    "moon": "Lune",
+    "cloud": "Nuage",
+    "fire": "Feu",
+    "banana": "Banane",
+    "apple": "Pomme",
+    "strawberry": "Fraise",
+    "corn": "Maïs",
+    "pizza": "Pizza",
+    "cake": "Gâteau",
+    "heart": "Cœur",
+    "smiley": "Smiley",
+    "robot": "Robot",
+    "hat": "Chapeau",
+    "glasses": "Lunettes",
+    "spanner": "Clé plate",
+    "santa": "Père Noël",
+    "thumbsUp": "Pouce levé",
+    "umbrella": "Parapluie",
+    "hourglass": "Sablier",
+    "clock": "Réveil",
+    "gift": "Cadeau",
+    "lightBulb": "Ampoule",
+    "book": "Livre",
+    "pencil": "Crayon",
+    "paperclip": "Trombone",
+    "scissors": "Ciseaux",
+    "lock": "Cadenas",
+    "key": "Clé",
+    "hammer": "Marteau",
+    "telephone": "Téléphone",
+    "flag": "Drapeau",
+    "train": "Train",
+    "bicycle": "Vélo",
+    "aeroplane": "Avion",
+    "rocket": "Fusée",
+    "trophy": "Trophée",
+    "ball": "Ballon",
+    "guitar": "Guitare",
+    "trumpet": "Trompette",
+    "bell": "Cloche",
+    "anchor": "Ancre",
+    "headphones": "Casque",
+    "folder": "Dossier",
+    "pin": "Punaise"
+  }
+}

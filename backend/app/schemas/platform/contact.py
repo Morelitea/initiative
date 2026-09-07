@@ -2,7 +2,7 @@
 
 A contact is a person the reader can already see — someone in one of their
 guilds, or someone they starred. ``ContactRead`` is ``UserSummary`` plus the
-two things only this page asks for, kept off the shared picker projection so
+few things only this page asks for, kept off the shared picker projection so
 every other caller of that shape is untouched.
 """
 
@@ -12,7 +12,7 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 from app.models.platform.user import Presence
-from app.schemas.platform.user import UserSummary
+from app.schemas.platform.user import ProfileDecorations, UserSummary
 
 
 class ContactRead(UserSummary):
@@ -29,6 +29,9 @@ class ContactRead(UserSummary):
 
     #: How this person appears right now, from the one roll that decides it.
     presence: Presence = Presence.offline
+    #: What they have put around their picture, so a row draws them the way
+    #: every other surface does. Public, like the profile it comes from.
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     #: The reader's *own* guilds this person is also in, in the same order the
     #: sections come in. Never names a guild the reader is not in — it is built
     #: from their own guild list. The section a row sits in is included; the

@@ -79,6 +79,12 @@ def _create_tables() -> None:
             nullable=False,
             server_default="private",
         ),
+        sa.Column(
+            "send_receipts",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.true(),
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),

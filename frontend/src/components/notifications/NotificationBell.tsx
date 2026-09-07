@@ -117,6 +117,10 @@ const notificationLink = (notification: NotificationRead): string | null => {
     }
     case "user_pending_approval":
       return "/settings";
+    case "direct_message":
+      // The page opens the conversation itself: the thread is read out of this
+      // device's own store, so there is nothing for a route param to fetch.
+      return "/messages";
     case "mention":
     case "comment_reply":
     case "comment_on_resource":
@@ -124,6 +128,11 @@ const notificationLink = (notification: NotificationRead): string | null => {
         return entityRefRoute("document", data.document_id);
       }
       return entityRefFromData(data);
+    case "post_published":
+      if (typeof data.post_id === "number") {
+        return entityRefRoute("post", data.post_id);
+      }
+      return null;
     case "access_grant_requested":
     case "access_grant_approved":
     case "access_grant_denied":
@@ -251,11 +260,25 @@ const notificationText = (
         commenterName: data.commenter_name ?? "Someone",
         entityName: data.entity_name ?? "an item",
       });
+    case "post_published":
+      return t("notifications.postPublished", {
+        authorName: data.author_name ?? "Someone",
+        postName: data.post_name ?? "a post",
+      });
     case "comment_reply":
       return t("notifications.commentReply", {
         replierName: data.replier_name ?? "Someone",
         contextTitle: data.context_title ?? "an item",
       });
+    case "direct_message": {
+      // Who and how many. There is no preview here and no way to add one --
+      // the server has no key to the message it is announcing.
+      const count = typeof data.count === "number" ? data.count : 1;
+      const senderName = data.sender_name ?? "Someone";
+      return count > 1
+        ? t("notifications.directMessageMany", { senderName, count })
+        : t("notifications.directMessage", { senderName });
+    }
     case "comment_reaction": {
       const { reactorName, emoji, others } = reactionSummary(data);
       const options = {

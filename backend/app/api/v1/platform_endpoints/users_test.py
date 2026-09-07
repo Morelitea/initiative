@@ -241,7 +241,10 @@ async def test_search_users_returns_slim_paginated_envelope(
     assert body["has_prev"] is False
     assert len(body["items"]) == 2
     assert [item["username"] for item in body["items"]] == ["aaa-caller", "bbb-other"]
-    # Slim projection: no email, no platform role, no initiative_roles.
+    # Slim projection: no email, no platform tier, no initiative_roles. What
+    # stays is what it takes to draw a person and say where they stand here —
+    # the avatar, what is worn around it, and the guild role — none of which
+    # costs a query beyond the one already run.
     summary = body["items"][0]
     assert set(summary.keys()) == {
         "id",
@@ -250,6 +253,8 @@ async def test_search_users_returns_slim_paginated_envelope(
         "full_name",
         "avatar_url",
         "status",
+        "profile_decorations",
+        "guild_role",
     }
     # This guild takes the default and shows names.
     assert summary["full_name"] == "Aaa"
@@ -2392,3 +2397,21 @@ async def test_a_pack_claiming_another_packs_decoration_is_refused(
     listed = await client.get("/api/v1/users/me/decoration-packs", headers=headers)
     installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
     assert installed == {first.uid}
+
+
+async def test_search_users_says_where_each_member_stands(client, acting_user):
+    """The roster says who runs the place.
+
+    A page listing people so somebody can reach one of them has to be able to
+    say which of them to reach about the community itself, and the role comes
+    off the join the query already makes.
+    """
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    response = await client.get(admin.g("/users/search"), headers=admin.headers)
+    assert response.status_code == 200, response.text
+
+    roles = {item["username"]: item["guild_role"] for item in response.json()["items"]}
+    assert roles[admin.user.username] == "admin"
+    assert roles[member.user.username] == "member"

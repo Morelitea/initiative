@@ -35,6 +35,7 @@ import { CommentSection } from "@/components/comments/CommentSection";
 import { Markdown } from "@/components/Markdown";
 import { normalizePropertyValue } from "@/components/properties/PropertyFields";
 import { StatusMessage } from "@/components/StatusMessage";
+import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { serializeTaskFormValue, TaskForm, type TaskFormValue } from "@/components/tasks/TaskForm";
@@ -533,21 +534,15 @@ export const TaskEditPage = () => {
 
   // Block in-app navigation while there are unsaved edits (unless a delete /
   // move / duplicate flow explicitly opted out via bypassGuardRef).
+  // Also guards full-page unloads. `enableBeforeUnload` is what asks about a
+  // reload or a closed tab, and it has to repeat the condition: the router
+  // defaults it to true and never consults `shouldBlockFn` for an unload, so
+  // without it every reload of this page prompts.
   const blocker = useBlocker({
     shouldBlockFn: () => isDirty && !bypassGuardRef.current,
+    enableBeforeUnload: () => isDirty && !bypassGuardRef.current,
     withResolver: true,
   });
-
-  // Guard full-page unloads (reload / tab close) while dirty.
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
 
   const handleBackClick = () => {
     router.history.back();
@@ -565,7 +560,7 @@ export const TaskEditPage = () => {
   }
 
   if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("edit.loadingTask")}</p>;
+    return <TaskEditSkeleton label={t("edit.loadingTask")} />;
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {

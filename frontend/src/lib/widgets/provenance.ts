@@ -59,6 +59,7 @@ export interface EntityLabels {
   document: Map<number, string>;
   member: Map<number, string>;
   tag: Map<number, string>;
+  property: Map<number, string>;
   /** False while any lookup is still in flight. Nothing may be called
    *  unresolvable until this is true. */
   ready: boolean;
@@ -72,6 +73,7 @@ export const EMPTY_LABELS: EntityLabels = {
   document: new Map(),
   member: new Map(),
   tag: new Map(),
+  property: new Map(),
   ready: false,
 };
 
@@ -90,6 +92,7 @@ const LABEL_MAPS: Record<EntityKind, keyof EntityLabels> = {
   counter_group: "counterGroup",
   counter: "counter",
   document: "document",
+  property: "property",
 };
 
 const lookup = (labels: EntityLabels, kind: EntityKind, id: number): string | undefined =>

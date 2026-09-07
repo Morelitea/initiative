@@ -1,6 +1,6 @@
 {
   "selectGuild": "Select a Community",
-  "guildSettings": "Community settings",
+  "guildSettings": "Community Settings",
   "initiatives": "Initiatives",
   "tags": "Tags",
   "favorites": "Favorites",
@@ -9,19 +9,18 @@
   "noTagsCreated": "No tags created yet",
   "myAccount": "My Account",
   "home": "Home",
-  "myProfile": "My profile",
+  "myProfile": "My Profile",
   "myTasks": "My Tasks",
-  "tasksICreated": "Tasks I Created",
-  "myProjects": "My Projects",
-  "myDocuments": "My Documents",
-  "myContacts": "My Contacts",
+  "myTools": "My Tools",
+  "myMessages": "My Messages",
   "myCalendar": "My Calendar",
   "myStats": "My Stats",
-  "userSettings": "User Settings",
+  "mySettings": "My Settings",
   "platformSettings": "Platform Settings",
   "signOut": "Sign out",
   "viewDocumentation": "View documentation",
   "newBadge": "NEW",
+  "alphaBadge": "ALPHA",
   "initiativeSettings": "Initiative Settings",
   "initiativeActions": "Initiative actions",
   "createDocument": "Create Document",
@@ -62,6 +61,7 @@
     "menu": "Open menu",
     "search": "Search",
     "home": "Home",
+    "messages": "My Messages",
     "add": "Create",
     "addTask": "Add Task",
     "addDocument": "Add Document"
@@ -76,6 +76,10 @@
     "finalizing": "Finalizing redirect…",
     "goHome": "Go back home"
   },
-  "adminDashboard": "Admin dashboard",
-  "pastAnnouncements": "Past announcements"
+  "adminDashboard": "Admin Dashboard",
+  "pastAnnouncements": "Past announcements",
+  "requestsWaiting_one": "{{count}} waiting",
+  "requestsWaiting_other": "{{count}} waiting",
+  "posts": "Posts",
+  "createPost": "New Post"
 }

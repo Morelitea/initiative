@@ -100,10 +100,10 @@ class DashboardSummary(DashboardBase):
     listing_uid: Optional[str] = None
     listing_version: Optional[str] = None
     my_permission_level: Optional[str] = None
-    # Advanced setting: when true this entity's comment thread is off — the
-    # UI renders none and the API refuses to read or post one. Tasks are
-    # unaffected; their thread belongs to the task, not to the tool.
-    comments_disabled: bool = False
+    # When false this entity's comment thread is off — the UI renders none
+    # and the API refuses to read or post one. Tasks are unaffected; their
+    # thread belongs to the task, not to the tool.
+    comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
@@ -229,7 +229,7 @@ def serialize_dashboard_summary(
             if user_id is not None
             else None
         ),
-        comments_disabled=dashboard.comments_disabled,
+        comments_enabled=dashboard.comments_enabled,
         tags=tag_summaries(getattr(dashboard, "tag_links", None)),
         grants=serialize_grants(dashboard),
     )

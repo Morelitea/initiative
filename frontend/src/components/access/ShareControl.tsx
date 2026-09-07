@@ -267,13 +267,17 @@ export const ShareControl = ({
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {/* ── Share ─────────────────────────────────────────────────────── */}
       <div className="space-y-2">
         <Label className="font-medium text-sm">{t("share.title")}</Label>
         <div
           className={cn(
-            "flex items-center gap-3 rounded-lg border px-3 py-2.5",
+            // Wraps rather than overflows: the level select is a fixed 120px
+            // and the labels are translated, so on a narrow dialog the two
+            // cannot always share a line. Wrapping puts the select underneath;
+            // not wrapping put it off the side of the screen.
+            "flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5",
             mode === "all"
               ? "border-green-200 bg-green-50 dark:border-green-900/40 dark:bg-green-950/30"
               : "bg-muted/40"
@@ -295,7 +299,7 @@ export const ShareControl = ({
               <button
                 type="button"
                 disabled={disabled}
-                className="flex min-w-0 flex-1 flex-col text-left focus:outline-none disabled:cursor-not-allowed"
+                className="flex min-w-[8rem] flex-1 flex-col text-left focus:outline-none disabled:cursor-not-allowed"
               >
                 <span className="flex items-center gap-1">
                   <span className="truncate font-medium text-sm">

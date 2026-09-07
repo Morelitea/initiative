@@ -20,6 +20,8 @@ class NotificationType(str, Enum):
     comment_on_resource = "comment_on_resource"
     comment_reply = "comment_reply"
     comment_reaction = "comment_reaction"
+    #: A notice went up on a bulletin board the recipient can see.
+    post_published = "post_published"
     access_grant_requested = "access_grant_requested"
     access_grant_approved = "access_grant_approved"
     access_grant_denied = "access_grant_denied"
@@ -41,6 +43,9 @@ class NotificationType(str, Enum):
     connection_accepted = "connection_accepted"
     message_request_received = "message_request_received"
     message_request_accepted = "message_request_accepted"
+    #: One rolled-up line per conversation with unread activity. It names the
+    #: sender and counts the messages; it never carries one.
+    direct_message = "direct_message"
 
 
 class Notification(SQLModel, table=True):

@@ -1,0 +1,141 @@
+"""``initiative-post`` importer: one bulletin-board notice with its tags and
+the question it asks.
+
+Neither the pin nor the schedule is carried by the envelope, for the same
+reason: both said what this notice meant on the board it came from. An imported
+post arrives live, in the feed by its own date, like anything else somebody
+just wrote — and its poll arrives open and unanswered, for the same reason the
+sharing is not carried: the people who answered it are not the people here.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+
+from pydantic import BaseModel
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.platform.user import User
+from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.post import Post, PostTag
+from app.models.tenant.post_poll import PostPoll, PostPollOption
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.schemas.tenant.import_envelopes import PostEnvelope
+from app.services.import_engine.common import ensure_tag, unique_name
+from app.services.import_engine.contract import EnvelopeImportResult
+from app.services.import_engine.importers._base import parse_envelope
+
+
+#: What ``posts.name`` holds, and how much of it to leave for the " (2)" that
+#: ``unique_name`` may append when the board already has this headline.
+_MAX_NAME = 255
+_NAME_SUFFIX_ROOM = 8
+
+
+class PostImporter:
+    envelope_type = "initiative-post"
+    permission = PermissionKey.create_posts
+
+    def validate(self, envelope: dict[str, Any]) -> BaseModel:
+        return parse_envelope(PostEnvelope, envelope)
+
+    def count(self, validated: BaseModel) -> int:
+        return 1
+
+    async def apply(
+        self,
+        session: AsyncSession,
+        *,
+        envelope: BaseModel,
+        target_initiative: Initiative,
+        importer: User,
+    ) -> EnvelopeImportResult:
+        env: PostEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
+        guild_id = target_initiative.guild_id
+
+        existing_names = {
+            row
+            for row in (
+                await session.exec(
+                    select(Post.name).where(Post.initiative_id == target_initiative.id)
+                )
+            ).all()
+        }
+
+        # The column holds 255. A headline over it would fail at flush and take
+        # the whole entry down with it, so it is trimmed and reported —
+        # `unique_name` may add a suffix, so trim first and leave it room.
+        warnings: list[str] = []
+        name = env.name
+        if len(name) > _MAX_NAME:
+            name = name[: _MAX_NAME - _NAME_SUFFIX_ROOM].rstrip()
+            warnings.append(f"Headline shortened to fit: {name!r}")
+
+        post = Post(
+            name=unique_name(existing_names, name),
+            body=env.body or {},
+            initiative_id=target_initiative.id,
+            guild_id=guild_id,
+            created_by=importer.id,
+            # A restored notice is live on arrival. The schedule is not carried
+            # for the same reason the pin is not: it said when this notice
+            # mattered on the board it came from, and re-running it here would
+            # hide an import until a date that has nothing to do with this one.
+            published_at=datetime.now(timezone.utc),
+        )
+        session.add(post)
+        await session.flush()
+
+        session.add(
+            ResourceGrant(
+                resource_type="post",
+                resource_id=post.id,
+                user_id=importer.id,
+                role_id=None,
+                level=ResourceAccessLevel.owner,
+                guild_id=guild_id,
+                initiative_id=target_initiative.id,
+            )
+        )
+
+        if env.poll is not None:
+            session.add(
+                PostPoll(
+                    post_id=post.id,
+                    question=(env.poll.question or "").strip() or None,
+                    allows_multiple=env.poll.allows_multiple,
+                    is_anonymous=env.poll.is_anonymous,
+                    hide_results=env.poll.hide_results,
+                    options=[
+                        PostPollOption(position=index, text=text)
+                        for index, text in enumerate(env.poll.options)
+                    ],
+                )
+            )
+
+        tags_created = 0
+        tags_matched = 0
+        for tag_name in env.tags:
+            resolved = await ensure_tag(
+                session, guild_id=guild_id, name=tag_name, color="#6b7280"
+            )
+            if resolved.created:
+                tags_created += 1
+            else:
+                tags_matched += 1
+            session.add(PostTag(post_id=post.id, tag_id=resolved.id))
+
+        await session.flush()
+        return EnvelopeImportResult(
+            entity_id=post.id,
+            entity_title=post.name,
+            created={
+                "posts": 1,
+                "tags": tags_created,
+                **({"polls": 1} if env.poll is not None else {}),
+            },
+            matched={"tags": tags_matched},
+            warnings=warnings,
+        )

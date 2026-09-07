@@ -11,6 +11,10 @@
     "title": "Sin resultados para «{{query}}»",
     "description": "Revisa la ortografía o prueba con otra palabra."
   },
+  "failed": {
+    "title": "La búsqueda no responde",
+    "description": "Algo salió mal al conectar. Inténtalo de nuevo en un momento."
+  },
   "tabs": {
     "tool": "Herramientas",
     "member": "Miembros",
@@ -29,7 +33,8 @@
     "calendar_event": "Evento",
     "dashboard": "Panel",
     "tag": "Etiqueta",
-    "comment": "Comentario"
+    "comment": "Comentario",
+    "post": "Publicación"
   },
   "switchHint": "Tab para cambiar",
   "closeMatches": "Nada coincide exactamente con «{{query}}». Esto es lo más parecido.",

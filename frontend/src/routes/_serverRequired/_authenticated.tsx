@@ -18,6 +18,7 @@ import { CreateActionProvider } from "@/components/navigation/CreateActionContex
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
+import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useCollectMessagesWhereRegistered } from "@/hooks/useMyMessages";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
@@ -46,11 +48,7 @@ import { getActiveRecentKey } from "@/lib/recentRoute";
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
  */
-const PageLoader = () => (
-  <div className="flex items-center justify-center py-20">
-    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-  </div>
-);
+const PageLoader = () => <PageSkeleton />;
 
 /**
  * Full-screen loading state shown while auth is being determined.
@@ -91,6 +89,10 @@ function AppLayout() {
   useNotificationStream();
   usePushNotifications();
   useBackButton();
+  // Mail is fetched wherever you are, so a message that arrives while you are
+  // on another page is noticed rather than waiting to be discovered. Only for a
+  // browser that has already been set up for messages — this never sets one up.
+  useCollectMessagesWhereRegistered();
 
   // No cross-tab guild convergence: each tab keeps the guild from its own URL,
   // so two tabs can sit in two different guilds at once.
@@ -218,11 +220,30 @@ function AppLayout() {
       <CommandCenter />
       <CreateTaskWizard />
       <CreateDocumentWizard />
-      <div className="flex min-h-screen flex-col bg-background">
+      {/* A real height rather than a minimum: `min-h-screen` leaves every
+          descendant sizing to its own content, so a page cannot ask for the
+          height of what it is in. Scrolling moves from the document into
+          `main` with it -- which is what lets a page keep a header or a
+          composer against an edge instead of measuring where that edge fell. */}
+      {/* `clip` rather than `hidden`: both hide what overruns, but `hidden`
+          leaves a scrollport behind -- one with no scrollbar, which a reader
+          cannot get back from and which anything at all can move. Focus moving
+          to a grown textarea, a `scrollIntoView`, a devtools panel in the flow:
+          each parks the whole app, chrome included, somewhere it cannot be
+          scrolled back from. `clip` makes it what it reads as: not a scroller. */}
+      <div className="flex h-screen flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
-        <div className="flex flex-1">
+        <div className="flex min-h-0 flex-1">
           <SidebarProvider
             defaultOpen={true}
+            // The provider's own wrapper asks for `min-h-svh`, which is a floor
+            // for a page that grows and a trap for one that does not: anything
+            // above it here -- a permission prompt, a banner -- makes the row
+            // it sits in shorter than a screen, and the wrapper refuses to
+            // follow. Everything below then measures itself against a box
+            // taller than the one on screen, and the app scrolls into space
+            // that was never there. The shell has a real height; take it.
+            className="h-full min-h-0"
             style={
               {
                 "--sidebar-width": "20rem",
@@ -231,7 +252,7 @@ function AppLayout() {
             }
           >
             <AppSidebar />
-            <div className="flex min-w-0 flex-1 flex-col md:pl-0">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
               <div
                 className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
                 style={{ paddingTop: "var(--safe-area-inset-top)" }}
@@ -255,7 +276,7 @@ function AppLayout() {
                 )}
                 <GuildAccessBanner />
               </div>
-              <div className="flex flex-1 justify-between">
+              <div className="flex min-h-0 flex-1 justify-between">
                 {/*<div
                   className="h-full w-full opacity-20 fixed"
                   style={{
@@ -265,10 +286,62 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
-                <main className="container mx-auto min-w-0 p-4 pb-24 md:p-8 md:pb-24">
-                  <Suspense fallback={<PageLoader />}>
-                    <Outlet />
-                  </Suspense>
+                {/* The app's scroller. Named twice over: the router restores
+                    this element's position across navigations rather than the
+                    window's, and pull-to-refresh asks it how far down it is.
+
+                    It spans the row and holds the page's width inside it,
+                    rather than being that width itself. A scrollbar renders at
+                    the edge of its own scrollport, so a scroller that was also
+                    `container mx-auto` put the bar in the middle of the window
+                    — floating beside the centred column instead of down the
+                    side of the app.
+
+                    `overflow-x-clip` because `overflow-y: auto` alone does not
+                    stay on one axis: with the other left `visible`, CSS
+                    computes that one to `auto` too, quietly making the shell a
+                    horizontal scroller. Anything anywhere that overran then
+                    dragged the whole app sideways. Wide content owns its own
+                    scroller here — the tool rail and every table already do —
+                    so the shell says no to the axis rather than offering a bar
+                    nothing should need. */}
+                <main
+                  data-app-scroll=""
+                  data-scroll-restoration-id="app-main"
+                  className="min-w-0 flex-1 overflow-y-auto overflow-x-clip"
+                >
+                  {/* A grid, and `min-h-full` rather than `h-full`, because
+                      this sits between the scrollport and the page and must
+                      pass a height through without capping one.
+
+                      `h-full` would fix it at the scrollport's height, and a
+                      page taller than that would spill past its own bottom
+                      padding. `min-h-full` alone grows correctly but leaves
+                      `height: auto`, and a percentage height resolves against
+                      the parent's *height* — so `h-full` on a page would
+                      silently become `auto`. Three pages depend on that chain
+                      (My Messages, a document, an app surface): each pins
+                      something to an edge and needs a real height to do it.
+
+                      A grid row is definite either way. It is at least the
+                      scrollport, grows with a long page, and gives a child's
+                      `h-full` an area to resolve against.
+
+                      `grid-cols-[minmax(0,1fr)]` is not decoration. A grid
+                      item's automatic minimum is its *content's* minimum, so a
+                      page holding anything that will not wrap — a toolbar, a
+                      table's widest row — sized the column to that instead of
+                      to the container. The container kept its max-width and
+                      stayed centred while its content spilled out of the right
+                      side of it, which reads as a page that is no longer
+                      centred. Flooring the track at 0 hands the item the
+                      container's width and lets what is inside scroll or
+                      truncate on its own terms. */}
+                  <div className="container mx-auto grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr] p-4 pb-24 md:p-8 md:pb-24">
+                    <Suspense fallback={<PageLoader />}>
+                      <Outlet />
+                    </Suspense>
+                  </div>
                 </main>
               </div>
             </div>

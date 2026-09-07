@@ -10,6 +10,7 @@ import { useMemo, useRef } from "react";
 import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { SmartChipScope } from "@/hooks/useSmartChips";
@@ -36,6 +37,13 @@ export interface EditorProps {
   initiativeId?: number | null;
   /** Whether this document is prose — see `Plugins.supportsEntityMentions`. */
   supportsEntityMentions?: boolean;
+  /** Which surface this editor is on. `post` narrows the toolbar to what
+   *  writing a notice needs — see `EditorVariant`. */
+  variant?: EditorVariant;
+  /** Characters the body may hold, shown as a remaining count. */
+  maxLength?: number;
+  /** The container already supplies the horizontal gutter — see `Plugins.compact`. */
+  compact?: boolean;
   onWikilinkNavigate?: (documentId: number) => void;
   onCreateReferencedThing?: (
     name: string,
@@ -57,6 +65,9 @@ export function Editor({
   isSynced = true,
   initiativeId = null,
   supportsEntityMentions = false,
+  variant = "document",
+  maxLength,
+  compact = false,
   onWikilinkNavigate,
   onCreateReferencedThing,
 }: EditorProps) {
@@ -102,7 +113,11 @@ export function Editor({
   return (
     <div
       className={cn(
-        "relative scroll-pb-14 overflow-y-auto rounded-lg border bg-background shadow",
+        "relative scroll-pb-14 overflow-y-auto",
+        // A document is a page: it draws itself a sheet to sit on. A post is
+        // already inside a card, and a second framed, filled box within one
+        // reads as a card inside a card.
+        variant === "document" && "rounded-lg border bg-background shadow",
         className
       )}
     >
@@ -127,6 +142,9 @@ export function Editor({
               cursorsContainerRef={cursorsContainerRef}
               initiativeId={initiativeId}
               supportsEntityMentions={supportsEntityMentions}
+              variant={variant}
+              maxLength={maxLength}
+              compact={compact}
               onWikilinkNavigate={onWikilinkNavigate}
               onCreateReferencedThing={onCreateReferencedThing}
             />

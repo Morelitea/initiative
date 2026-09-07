@@ -66,6 +66,7 @@ const tasks: WidgetSample = {
         subtaskDone: 3,
         subtaskTotal: 3,
         commentCount: 4,
+        properties: { Squad: ["Platform"], Effort: ["3"] },
       },
       {
         id: 2,
@@ -87,6 +88,7 @@ const tasks: WidgetSample = {
         subtaskDone: 5,
         subtaskTotal: 5,
         commentCount: 2,
+        properties: { Squad: ["Platform"], Effort: ["5"] },
       },
       {
         id: 3,
@@ -106,6 +108,7 @@ const tasks: WidgetSample = {
         subtaskDone: 1,
         subtaskTotal: 4,
         commentCount: 0,
+        properties: { Squad: ["Platform"] },
       },
       {
         id: 4,
@@ -126,6 +129,7 @@ const tasks: WidgetSample = {
         subtaskDone: 0,
         subtaskTotal: 0,
         commentCount: 1,
+        properties: { Squad: ["Growth"] },
       },
       {
         id: 5,
@@ -145,6 +149,7 @@ const tasks: WidgetSample = {
         subtaskDone: 2,
         subtaskTotal: 6,
         commentCount: 7,
+        properties: { Squad: ["Growth"], Effort: ["2"] },
       },
       {
         id: 6,
@@ -164,6 +169,7 @@ const tasks: WidgetSample = {
         subtaskDone: 0,
         subtaskTotal: 3,
         commentCount: 0,
+        properties: { Squad: ["Growth"] },
       },
       {
         id: 7,
@@ -183,6 +189,7 @@ const tasks: WidgetSample = {
         subtaskDone: 4,
         subtaskTotal: 4,
         commentCount: 3,
+        properties: { Squad: ["Platform", "Growth"] },
       },
       {
         id: 8,
@@ -203,6 +210,7 @@ const tasks: WidgetSample = {
         subtaskDone: 0,
         subtaskTotal: 0,
         commentCount: 0,
+        properties: {},
       },
       {
         id: 9,
@@ -222,8 +230,12 @@ const tasks: WidgetSample = {
         subtaskDone: 1,
         subtaskTotal: 2,
         commentCount: 2,
+        properties: { Squad: ["Growth"] },
       },
     ],
+    // What a binding that singled out a property hands over: its name and the
+    // values it can take. Every other widget ignores it.
+    property: { name: "Squad", values: ["Platform", "Growth", "Research"] },
   },
   empty: { source: "tasks", rows: [] },
 };
@@ -433,4 +445,5 @@ export const SOURCES_BY_WIDGET: Record<string, WidgetSource[]> = {
   progress: ["counter", "task_counts", "projects"],
   heatmap: ["task_counts"],
   table: ["tasks", "projects", "sheet_range", "calendar_entries"],
+  board: ["tasks"],
 };

@@ -4,7 +4,7 @@ icon: lucide/hard-drive
 
 # File & object storage
 
-Initiative stores uploaded files — image attachments, document files, and their versions — through a pluggable storage backend. By default everything lives on local disk, which is perfect for most deployments. If you'd rather keep uploads in S3-compatible object storage, that's a configuration change with no code change.
+Uploaded files — image attachments, document files, and their versions — go through a pluggable storage backend. By default everything lives on local disk, which is right for most deployments. Prefer S3-compatible object storage? That's a configuration change and nothing else.
 
 ## Choosing a backend
 
@@ -24,7 +24,10 @@ Both backends namespace files **per community**, mirroring the database's per-co
 - **Local:** `UPLOADS_DIR/guild_<id>/<file>`.
 - **Object storage:** objects under a `guild_<id>/` key prefix.
 
-In both cases the download URL stays the same (`/uploads/{guild_id}/{filename}`), and **every download is authorized on each request** — files are streamed back through the app only after the same community-membership and access checks as everything else. Storage location never bypasses access control. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+!!! note "Why the paths say `guild`"
+    Communities used to be called guilds. The user-facing name changed; the storage paths and internal identifiers didn't, because renaming them would move every existing file for no benefit. `guild_<id>` is a community — same thing, older name.
+
+Either way the download URL is the same (`/uploads/{guild_id}/{filename}`), and **every download is authorized on the request** — files stream back through the app only after the same community-membership and access checks as everything else. Where a file physically sits never affects who may read it. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Connecting an S3-compatible store
 

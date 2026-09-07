@@ -108,7 +108,7 @@
     "show": "Mostrar",
     "hide": "Ocultar",
     "searchQueues": "Buscar colas...",
-    "filterByName": "Filtrar por nombre",
+    "searchLabel": "Nombre o descripción",
     "status": "Estado",
     "allStatuses": "Todas",
     "activeOnly": "Activas",

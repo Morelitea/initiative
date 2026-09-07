@@ -68,6 +68,12 @@
       "body_other": "{{count}} nouvelles réactions à vos publications, dont {{emoji}} de {{actor}}"
     }
   },
+  "post": {
+    "published": {
+      "title": "Nouvelle publication",
+      "body": "{{actor}} a publié {{post}}"
+    }
+  },
   "event": {
     "invitation": {
       "title": "Nouvelle invitation à un événement",
@@ -113,5 +119,9 @@
       "title": "Accès révoqué",
       "body": "Votre accès à {{guild}} a été révoqué"
     }
+  },
+  "directMessage": {
+    "title": "{{sender}} t'a envoyé un message",
+    "body": "Ouvre Initiative pour le lire."
   }
 }

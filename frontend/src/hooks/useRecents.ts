@@ -5,6 +5,7 @@ import { recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost } from 
 import { recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost } from "@/api/generated/dashboards/dashboards";
 import { recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { recordPostViewApiV1GGuildIdPostsPostIdViewPost } from "@/api/generated/posts/posts";
 import { recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
 import { recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost } from "@/api/generated/queues/queues";
 import {
@@ -41,6 +42,7 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
   counter_group: recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost,
   calendar: recordCalendarViewApiV1GGuildIdCalendarsCalendarIdViewPost,
   dashboard: recordDashboardViewApiV1GGuildIdDashboardsDashboardIdViewPost,
+  post: recordPostViewApiV1GGuildIdPostsPostIdViewPost,
 };
 
 /**

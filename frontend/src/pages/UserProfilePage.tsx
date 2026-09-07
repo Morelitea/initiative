@@ -1,11 +1,14 @@
 import { useParams } from "@tanstack/react-router";
-import { Loader2, UserX } from "lucide-react";
+import { UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
+import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
+import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { CommunityCard } from "@/components/guilds/CommunityCard";
 import { PageBanner } from "@/components/PageBanner";
 import { StatusMessage } from "@/components/StatusMessage";
+import { ProfilePageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { TOOL_TRAY_SURFACE } from "@/components/toolBrowser/ToolRail";
 import { UserHandle } from "@/components/UserHandle";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ProfileJoined } from "@/components/user/ProfileJoined";
@@ -47,11 +50,7 @@ export const UserProfilePage = () => {
   const { data: communities } = useUserCommunities(handle);
 
   if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ProfilePageSkeleton />;
   }
 
   if (!profile) {
@@ -100,6 +99,27 @@ export const UserProfilePage = () => {
             />
             {banner ? null : <h1 className="pb-1 font-semibold text-2xl">{name}</h1>}
             <ProfileJoined joinedAt={profile.joined_at} className="ms-auto pb-1" />
+            {/* Not on your own profile: there is nothing here to do about
+                yourself. */}
+            {mine ? null : (
+              <div className="mb-1 flex items-center gap-2">
+                <ContactActionButtons
+                  user={{
+                    id: profile.id,
+                    username: profile.username,
+                    discriminator: profile.discriminator,
+                  }}
+                />
+                <ContactActionsMenu
+                  omit={["profile", "message", "connect", "ask"]}
+                  user={{
+                    id: profile.id,
+                    username: profile.username,
+                    discriminator: profile.discriminator,
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 

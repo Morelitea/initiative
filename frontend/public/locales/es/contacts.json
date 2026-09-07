@@ -1,39 +1,34 @@
 {
-  "title": "Mis contactos",
-  "subtitle": "Todas las personas con las que compartes una comunidad, y las que hayas marcado.",
-  "favorites": "Favoritos",
-  "searchPlaceholder": "Buscar contactos",
-  "searchLabel": "Buscar a todos en esta página",
-  "clearSearch": "Borrar búsqueda",
-  "loading": "Cargando tus contactos…",
-  "columns": {
-    "person": "Persona",
-    "name": "Nombre",
-    "alsoIn": "También en"
-  },
-  "peopleCount_one": "{{count}} persona",
-  "peopleCount_other": "{{count}} personas",
-  "pagerLabel": "Páginas de {{section}}",
   "favorite": "Añadir a {{name}} a favoritos",
   "unfavorite": "Quitar a {{name}} de favoritos",
-  "alsoIn": "También en {{guilds}}",
-  "searching": {
-    "title": "Buscando en todas las comunidades",
-    "description": "Cada comunidad tiene su propia lista de miembros, así que la búsqueda las visita una por una. Con listas largas tarda unos segundos."
+  "unreachable": {
+    "age": {
+      "title": "Los mensajes directos están desactivados en esta cuenta"
+    },
+    "private": {
+      "body": "Tienes la opción Privado. Aún puedes conectar con cualquiera mediante su identificador exacto, y una conexión os permite escribiros sea cual sea tu ajuste. Para que puedan encontrarte aquí, permite que tus comunidades te escriban.",
+      "open": "Permitir que mis comunidades me escriban",
+      "settings": "Ajustes de privacidad"
+    }
   },
-  "pageError": {
-    "description": "Esa página no se cargó.",
-    "retry": "Reintentar"
-  },
-  "empty": {
-    "title": "Todavía no hay nadie",
-    "description": "Únete a una comunidad y sus miembros aparecerán aquí.",
-    "favorites": "Marca a alguien con una estrella para tenerlo arriba en esta página.",
-    "guild": "Todavía no hay nadie más en esta comunidad."
-  },
-  "noMatches": {
-    "title": "Nadie con ese nombre",
-    "description": "Prueba con otro nombre o con el identificador completo.",
-    "section": "Aquí no hay coincidencias."
+  "actions": {
+    "label": "Acciones para {{handle}}",
+    "connect": "Conectar",
+    "acceptConnection": "Aceptar conexión",
+    "connectPending": "Solicitud enviada",
+    "ask": "Pedir escribir",
+    "asked": "Solicitud enviada",
+    "askSent": "Solicitud enviada.",
+    "ignore": "Ignorar",
+    "stopIgnoring": "Dejar de ignorar",
+    "removeConnection": "Eliminar conexión",
+    "removeConnectionTitle": "¿Eliminar esta conexión?",
+    "removeConnectionBody": "Dejaréis de estar conectados. Si nada más os permite escribiros —una comunidad que compartáis, o que ambos estéis abiertos a mensajes—, eso también termina.",
+    "message": "Mensaje",
+    "viewProfile": "Ver perfil",
+    "favorite": "Añadir a favoritos",
+    "unfavorite": "Quitar de favoritos",
+    "copyHandle": "Copiar identificador",
+    "handleCopied": "Identificador copiado."
   }
 }

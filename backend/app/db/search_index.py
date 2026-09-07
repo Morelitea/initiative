@@ -129,6 +129,18 @@ def _with_words(expr: str) -> str:
     return f"{expr} || ' ' || regexp_replace({expr}, '[^[:alnum:]]+', ' ', 'g')"
 
 
+def _post_text(row: str) -> str:
+    """A post's searchable text: every word in its Lexical body.
+
+    The same recursive ``text`` path a native document uses — a text node, a
+    mention, and a smart chip's label all keep their words in a field of that
+    name — read from ``body`` rather than ``content``, which is what a post
+    calls the column. A post whose body is only a picture indexes on its
+    headline alone, which is what there is to index.
+    """
+    return _json_text(row, "strict $.**.text", column="body")
+
+
 def _document_text(row: str) -> str:
     """A document's searchable text, by what kind of document it is.
 
@@ -246,6 +258,9 @@ TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
         "body": ("content", "document_type", "original_filename"),
         "body_sql": _document_text,
     },
+    # A post's text is what it says, not a summary of it: the headline is the
+    # title and the Lexical body is the body. There is no `description`.
+    Tool.post: {"body": ("body",), "body_sql": _post_text},
 }
 
 #: table -> how its rows are indexed.
@@ -323,6 +338,8 @@ NOT_SEARCHABLE: dict[str, str] = {
     "document_file_versions": "history of a document already indexed",
     "document_links": "derived wikilink graph",
     "subtasks": "checklist lines, reached from the task",
+    "post_polls": "the question a notice asks, reached from the notice",
+    "post_poll_options": "a poll's choices, reached from the notice",
     "initiatives": "structural; discovery is the join surface, not search",
     "event_reminder_dispatches": "scheduler bookkeeping",
     "task_assignment_digest_items": "scheduler bookkeeping",
@@ -375,7 +392,11 @@ def _when_clause(table: str, source: SearchSource) -> str:
     if source.dac_id:
         watched.append(source.dac_id)
     watched.extend(FLAG_COLUMNS.values())
-    watched.append("deleted_at")
+    # The two columns that decide whether a row is indexed at all. Watching
+    # ``published_at`` is what makes the publication worker's stamp index the
+    # notice: no trigger fires on the passage of time, but the write that
+    # records the publication is a write like any other.
+    watched.extend(("deleted_at", "published_at"))
     columns = SQLModel.metadata.tables[table].columns
     present = [c for c in dict.fromkeys(watched) if c in columns]
     return " OR ".join(f"OLD.{c} IS DISTINCT FROM NEW.{c}" for c in present)
@@ -487,10 +508,14 @@ BEGIN
     END IF;
 
     -- A delete, or a soft delete, leaves the entity with no rows: trash is
-    -- browsed through the trash surface, not found by searching.
+    -- browsed through the trash surface, not found by searching. So does a row
+    -- that has not been published yet — a scheduled notice is a draft, and a
+    -- draft is not something the people it will go to can find.
     IF TG_OP = 'DELETE'
        OR (to_jsonb(v_row) ? 'deleted_at'
-           AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL) THEN
+           AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL)
+       OR (to_jsonb(v_row) ? 'published_at'
+           AND to_jsonb(v_row) ->> 'published_at' IS NULL) THEN
         EXECUTE format(
             'DELETE FROM %I.search_entries WHERE entity_type = $1 AND entity_id = $2',
             TG_TABLE_SCHEMA
@@ -554,10 +579,20 @@ $dep$;
 
 
 def _live_clause(table: str, row: str) -> str:
-    """Restricts to rows that have an entry at all — trash is browsed through
-    the trash surface, not found by searching."""
+    """Restricts to rows that have an entry at all.
+
+    Trash is browsed through the trash surface, not found by searching; and a
+    row whose publication has not happened yet is a draft, which the people it
+    is destined for must not be able to find. Both mirror the same two tests in
+    the trigger function, so the sweep and the triggers index the same set.
+    """
     columns = SQLModel.metadata.tables[table].columns
-    return f" AND {row}.deleted_at IS NULL" if "deleted_at" in columns else ""
+    parts = []
+    if "deleted_at" in columns:
+        parts.append(f" AND {row}.deleted_at IS NULL")
+    if "published_at" in columns:
+        parts.append(f" AND {row}.published_at IS NOT NULL")
+    return "".join(parts)
 
 
 def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:

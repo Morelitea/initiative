@@ -419,6 +419,7 @@
   "status": {
     "empty": "Sag, was du gerade machst",
     "edit": "Dein Status",
+    "set": "Status setzen",
     "help": "Ein Emoji, eine Zeile oder beides. Alle, die dein Profil öffnen, sehen es.",
     "placeholder": "Was machst du gerade?",
     "emojiPlaceholder": "Emoji",

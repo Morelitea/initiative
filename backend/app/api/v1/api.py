@@ -36,7 +36,9 @@ from app.api.v1.tenant_endpoints import (
     initiatives,
     marketplace as guild_marketplace,
     me_ai,
+    me_tools,
     me_trash,
+    posts,
     projects,
     property_definitions,
     queues,
@@ -74,6 +76,7 @@ from app.api.v1.platform_endpoints import (
     users,
     version,
     dm,
+    dm_transport,
 )
 
 api_router = APIRouter()
@@ -90,6 +93,9 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(dm.user_router, prefix="/users", tags=["direct-messages"])
+api_router.include_router(
+    dm_transport.user_router, prefix="/users", tags=["direct-messages"]
+)
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
@@ -193,6 +199,7 @@ guild_router.include_router(calendars.router, prefix="/calendars", tags=["calend
 guild_router.include_router(
     dashboards.router, prefix="/dashboards", tags=["dashboards"]
 )
+guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #
@@ -259,6 +266,10 @@ me_router.include_router(tasks.me_router, tags=["tasks"])
 me_router.include_router(documents.me_router, tags=["documents"])
 me_router.include_router(projects.me_router, tags=["projects"])
 me_router.include_router(calendars.me_router, tags=["calendars"])
+# The My Tools page: the three tools that had no cross-guild list before it,
+# plus the tab counts. One tag, because they are one page rather than four
+# domains reaching across guilds for their own reasons.
+me_router.include_router(me_tools.me_router, tags=["my-tools"])
 me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
@@ -266,4 +277,5 @@ me_router.include_router(me_ai.me_router, tags=["ai-settings"])
 me_router.include_router(users.me_router, tags=["users"])
 me_router.include_router(contacts.me_router, tags=["contacts"])
 me_router.include_router(dm.me_router, tags=["direct-messages"])
+me_router.include_router(dm_transport.me_router, tags=["direct-messages"])
 api_router.include_router(me_router)

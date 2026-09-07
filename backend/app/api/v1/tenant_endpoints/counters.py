@@ -67,7 +67,6 @@ from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
 from app.core.tools import Tool
-from app.services.tenant import tags as tags_service
 from app.services.tenant import search as search_service
 from app.services.tenant import tool_listing
 from app.services import rls as rls_service
@@ -233,7 +232,12 @@ async def list_counter_groups(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(
-        default=None, description="Case-insensitive substring match on name."
+        default=None,
+        description=(
+            "Full-text match over the row — its name and its description. "
+            "Reads the same index the search page does, so a list's filter "
+            "box and a search agree about what matches."
+        ),
     ),
     sort_by: Optional[str] = Query(
         default=None,
@@ -289,12 +293,7 @@ async def list_counter_groups(
     stmt = (
         select(CounterGroup)
         .where(*conditions)
-        .options(
-            selectinload(CounterGroup.counters),
-            selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
-            selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
-            tags_service.TOOL_TAG_LINKS[Tool.counter_group].load_options(),
-        )
+        .options(*counters_service.list_loader_options())
     )
     stmt = (
         tool_listing.apply_tool_order(

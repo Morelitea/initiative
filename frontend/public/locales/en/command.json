@@ -12,7 +12,8 @@
     "counterGroups": "Counter Groups",
     "calendars": "Calendars",
     "dashboards": "Dashboards",
-    "results": "Results"
+    "results": "Results",
+    "posts": "Posts"
   },
   "actions": {
     "addTask": "Add Task",
@@ -20,19 +21,15 @@
   },
   "pages": {
     "myTasks": "My Tasks",
-    "tasksICreated": "Tasks I Created",
     "myCalendar": "My Calendar",
-    "myProjects": "My Projects",
-    "myDocuments": "My Documents",
-    "myContacts": "My Contacts",
+    "myTools": "My Tools",
+    "myMessages": "My Messages",
     "myStats": "My Stats",
-    "userSettings": "User Settings",
+    "mySettings": "My Settings",
     "guildSettings": "Community Settings",
-    "allProjects": "All Projects",
-    "allDocuments": "All Documents",
     "allInitiatives": "All Initiatives",
     "platformSettings": "Platform Settings",
-    "adminDashboard": "Admin dashboard"
+    "adminDashboard": "Admin Dashboard"
   },
   "shortcutHint": "Search",
   "shortcutTooltip": "Quick search ({{shortcut}})",

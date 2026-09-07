@@ -16,6 +16,7 @@ import { useCalendarCountsByInitiative } from "@/hooks/useCalendars";
 import { useCounterGroupCountsByInitiative } from "@/hooks/useCounters";
 import { useDashboardCountsByInitiative } from "@/hooks/useDashboards";
 import { useDocumentCountsByInitiative } from "@/hooks/useDocuments";
+import { usePostCountsByInitiative } from "@/hooks/usePosts";
 import { useProjectCountsByInitiative } from "@/hooks/useProjects";
 import { useQueueCountsByInitiative } from "@/hooks/useQueues";
 import { TOOLS } from "@/lib/tools";
@@ -55,6 +56,7 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
   const counterGroups = useCounterGroupCountsByInitiative(queryOptions);
   const calendars = useCalendarCountsByInitiative(queryOptions);
   const dashboards = useDashboardCountsByInitiative(queryOptions);
+  const posts = usePostCountsByInitiative(queryOptions);
 
   // Exhaustive by construction: a new Tool member fails to compile here until
   // it names the query that counts it.
@@ -65,10 +67,11 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
     [Tool.counter_group]: counterGroups,
     [Tool.calendar]: calendars,
     [Tool.dashboard]: dashboards,
+    [Tool.post]: posts,
   };
 
-  // Six small maps, read during render only — cheap enough to rebuild rather
-  // than memoize against six query results that change identity on their own.
+  // One small map per tool, read during render only — cheap enough to rebuild
+  // rather than memoize against query results that change identity on their own.
   return Object.fromEntries(
     TOOLS.map((tool) => [
       tool,

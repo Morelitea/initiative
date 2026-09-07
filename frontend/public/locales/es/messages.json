@@ -1,0 +1,170 @@
+{
+  "title": "Mis mensajes",
+  "backToNav": "Volver a la navegación",
+  "encryptedNotice": "Cifrado de extremo a extremo. Solo tú y la otra persona pueden leerlos.",
+  "empty": {
+    "title": "Elige una conversación"
+  },
+  "nobodyYet": "Todavía nadie. Una conversación se abre cuando se acepta una solicitud de mensaje.",
+  "ageLocked": "La mensajería es para personas de 13 años o más, y esta cuenta aún no ha respondido a esa pregunta.",
+  "requests": {
+    "heading": "Solicitudes",
+    "asked": "Quieren iniciar una conversación.",
+    "youAsked": "Lo pediste. No se envía nada hasta que acepten.",
+    "accept": "Aceptar",
+    "decline": "Rechazar",
+    "cancel": "Cancelar",
+    "wantsToConnect": "Quieren conectar.",
+    "youAskedToConnect": "Pediste conectar. Nada cambia hasta que acepten."
+  },
+  "groups": {
+    "unread": "Sin leer",
+    "favorites": "Favoritos",
+    "connections": "Conexiones",
+    "messages": "Mensajes"
+  },
+  "search": {
+    "placeholder": "Buscar",
+    "label": "Buscar conversaciones",
+    "noMatches": "Nadie coincide."
+  },
+  "newConversation": {
+    "trigger": "Iniciar una conversación",
+    "title": "Iniciar una conversación",
+    "description": "Alguien de una comunidad que compartes, o cualquiera cuyo identificador completo conozcas.",
+    "placeholder": "Busca personas o escribe nombre#1234",
+    "hint": "Un identificador completo, con número, alcanza a alguien que no está en ninguna de tus comunidades.",
+    "connect": "Conectar con {{handle}}",
+    "noMatches": "Nadie coincide.",
+    "empty": "Nadie que mostrar. Todavía no compartes comunidad con nadie.",
+    "unreachable": "No disponible",
+    "showMore": "Mostrar más",
+    "favorites": "Favoritos"
+  },
+  "receipt": {
+    "sent": "Enviado",
+    "delivered": "Entregado",
+    "read": "Leído"
+  },
+  "startHint": "iniciar",
+  "unknownAccount": "Cuenta desconocida",
+  "noHistoryHere": "Aún no hay nada en este dispositivo. Los mensajes que tenías en otro sitio siguen allí.",
+  "composerPlaceholder": "Escribe un mensaje",
+  "send": "Enviar",
+  "sendFailed": "No se pudo enviar ese mensaje.",
+  "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
+  "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
+  "loading": "Cargando…",
+  "unsupportedBrowser": "Los mensajes cifrados necesitan una conexión segura y un navegador capaz de ejecutarlos. Comprueba que la dirección empiece por https (o sea localhost), o prueba con la aplicación.",
+  "start": {
+    "waiting": "Esperando a que acepten. Cuando lo hagan, podréis escribiros.",
+    "asksToMessage": "Te han pedido escribirte. Acepta y podréis hablar.",
+    "mayAsk": "Todavía no les has escrito. Pídelo primero: pueden aceptar o rechazar, y no se envía nada hasta entonces.",
+    "denied": "Ahora mismo no puedes escribirles."
+  },
+  "unreadHere_one": "{{count}} mensaje sin leer",
+  "unreadHere_other": "{{count}} mensajes sin leer",
+  "openFailed": "No se pudo abrir esa conversación.",
+  "tryAgain": "Inténtalo de nuevo",
+  "edited": "(editado)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Responder",
+    "replyingTo": "Respondiendo a «{{body}}»",
+    "missing": "El mensaje no está en este dispositivo"
+  },
+  "edit": {
+    "action": "Editar",
+    "editing": "Editando este mensaje. Escape para salir."
+  },
+  "remove": {
+    "action": "Eliminar",
+    "title": "¿Eliminar este mensaje?",
+    "body": "Desaparece de este dispositivo, y la aplicación de la otra persona lo quita del suyo. Lo que ya leyeron, ya lo leyeron: esto no lo puede deshacer."
+  },
+  "removed": "Mensaje eliminado",
+  "days": {
+    "today": "Hoy",
+    "yesterday": "Ayer"
+  },
+  "historyRequest": {
+    "title": "Uno de tus dispositivos pide tus mensajes",
+    "body": "{{device}} ha iniciado sesión y no tiene historial propio. ¿Enviarle los mensajes de este dispositivo? Comprueba que muestra las mismas imágenes, en el mismo orden.",
+    "unknownDevice": "Un dispositivo",
+    "codeLabel": "Código del dispositivo",
+    "approve": "Enviar mis mensajes",
+    "decline": "Ahora no"
+  },
+  "historyAsk": {
+    "title": "Esperando tus mensajes",
+    "body": "Este dispositivo ha pedido a tus otros dispositivos los mensajes que ya tenías. Abre uno de ellos y apruébalo allí: estas son las imágenes que te mostrará."
+  },
+  "safetyEmoji": {
+    "dog": "Perro",
+    "cat": "Gato",
+    "lion": "León",
+    "horse": "Caballo",
+    "unicorn": "Unicornio",
+    "pig": "Cerdo",
+    "elephant": "Elefante",
+    "rabbit": "Conejo",
+    "panda": "Panda",
+    "rooster": "Gallo",
+    "penguin": "Pingüino",
+    "turtle": "Tortuga",
+    "fish": "Pez",
+    "octopus": "Pulpo",
+    "butterfly": "Mariposa",
+    "flower": "Flor",
+    "tree": "Árbol",
+    "cactus": "Cactus",
+    "mushroom": "Seta",
+    "globe": "Globo terráqueo",
+    "moon": "Luna",
+    "cloud": "Nube",
+    "fire": "Fuego",
+    "banana": "Plátano",
+    "apple": "Manzana",
+    "strawberry": "Fresa",
+    "corn": "Maíz",
+    "pizza": "Pizza",
+    "cake": "Pastel",
+    "heart": "Corazón",
+    "smiley": "Cara sonriente",
+    "robot": "Robot",
+    "hat": "Sombrero",
+    "glasses": "Gafas",
+    "spanner": "Llave inglesa",
+    "santa": "Papá Noel",
+    "thumbsUp": "Pulgar arriba",
+    "umbrella": "Paraguas",
+    "hourglass": "Reloj de arena",
+    "clock": "Despertador",
+    "gift": "Regalo",
+    "lightBulb": "Bombilla",
+    "book": "Libro",
+    "pencil": "Lápiz",
+    "paperclip": "Clip",
+    "scissors": "Tijeras",
+    "lock": "Candado",
+    "key": "Llave",
+    "hammer": "Martillo",
+    "telephone": "Teléfono",
+    "flag": "Bandera",
+    "train": "Tren",
+    "bicycle": "Bicicleta",
+    "aeroplane": "Avión",
+    "rocket": "Cohete",
+    "trophy": "Trofeo",
+    "ball": "Balón",
+    "guitar": "Guitarra",
+    "trumpet": "Trompeta",
+    "bell": "Campana",
+    "anchor": "Ancla",
+    "headphones": "Auriculares",
+    "folder": "Carpeta",
+    "pin": "Chincheta"
+  }
+}

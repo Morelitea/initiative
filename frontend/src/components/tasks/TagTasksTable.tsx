@@ -20,6 +20,7 @@ import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterP
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortIcon } from "@/components/SortIcon";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { DateCell } from "@/components/tasks/TaskDateCell";
 import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
@@ -546,9 +547,9 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           </div>
         ) : null}
         {isInitialLoad ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
+          <SkeletonRegion>
+            <TableSkeleton rows={8} columns={6} pagination />
+          </SkeletonRegion>
         ) : hasError ? (
           <p className="py-8 text-center text-destructive text-sm">{t("tagTasks.loadError")}</p>
         ) : (

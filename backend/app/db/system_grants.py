@@ -140,6 +140,15 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # SELECT also carries the notification fan-out: who, of a set of
     # recipients, ignores the actor (see app.services.platform.accounts).
     "user_ignores": frozenset({"SELECT", "DELETE"}),
+    # The transport. The system engine clears an erased account off all five
+    # and sweeps devices that have stopped syncing; it writes none of them.
+    # Nothing about a direct message is ever created by anything but the
+    # account's own session.
+    "dm_devices": frozenset({"SELECT", "DELETE"}),
+    "dm_one_time_keys": frozenset({"SELECT", "DELETE"}),
+    "dm_conversations": frozenset({"SELECT", "DELETE"}),
+    "dm_conversation_members": frozenset({"SELECT", "DELETE"}),
+    "dm_queue": frozenset({"SELECT", "DELETE"}),
     # operator AI connections: the request path never queries this directly —
     # the resolve step reads it via an in-process cache loaded on the system
     # engine (SELECT), and the secret-key rotation re-encrypts its key column on
@@ -171,7 +180,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
-    "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # UPDATE joined the set for the rolled-up direct-message line: the system
+    # engine already creates and reaps these rows, and a rollup rewrites one
+    # it wrote itself rather than reaching a row it could not otherwise touch.
+    "notifications": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # Authoring runs on the system engine because a draft is invisible to the
     # request path by policy — which is the point of the policy.
     "announcements": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -269,6 +281,13 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "user_dm_guild_optouts": None,
     "contact_grants": None,
     "user_ignores": None,
+    # Same: the transport is reached on the authenticated platform-tier
+    # path, never before a session is routed.
+    "dm_devices": None,
+    "dm_one_time_keys": None,
+    "dm_conversations": None,
+    "dm_conversation_members": None,
+    "dm_queue": None,
     # operator AI connections are owner-managed + system-engine-read only; the
     # bare pre-routing login role never touches them
     "platform_ai_connections": None,

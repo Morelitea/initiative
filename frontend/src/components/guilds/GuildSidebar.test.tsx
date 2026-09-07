@@ -28,6 +28,12 @@ const state = vi.hoisted(() => ({
   communityDirectory: true,
 }));
 const mintMock = vi.hoisted(() => vi.fn());
+const waiting = vi.hoisted(() => vi.fn());
+// The mark on the logo is a count, and the count is a read of its own.
+vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useMessagesWaiting: () => waiting(),
+}));
 vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({
     billing: state.billing,
@@ -43,6 +49,10 @@ vi.mock("@/api/generated/guilds/guilds", async () => {
 vi.mock("@/lib/chesterToast", () => ({
   toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
+
+beforeEach(() => {
+  waiting.mockReturnValue(0);
+});
 
 const entry = (overrides: Partial<GuildEntry> = {}): GuildEntry =>
   ({ ...buildGuild(), accessType: "member", ...overrides }) as GuildEntry;
@@ -257,5 +267,24 @@ describe("the way into the community directory", () => {
 
     expect(screen.queryByRole("link", { name: "Join a community" })).not.toBeInTheDocument();
     expect(within(panel).queryByRole("link", { name: "Join a community" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the mark on the logo", () => {
+  it("says how much is waiting in messages", async () => {
+    // Inside a community the home link is the only thing pointing at My
+    // Messages, so it is the only place the mark can be seen from there.
+    waiting.mockReturnValue(3);
+    setup([entry({ id: 1, name: "Alpha" })]);
+
+    const home = await screen.findByRole("link", { name: /home/i });
+    expect(within(home).getByText(/3/)).toBeInTheDocument();
+  });
+
+  it("marks nothing when nothing is waiting", async () => {
+    setup([entry({ id: 1, name: "Alpha" })]);
+
+    const home = await screen.findByRole("link", { name: /home/i });
+    expect(within(home).queryByText(/waiting/i)).toBeNull();
   });
 });

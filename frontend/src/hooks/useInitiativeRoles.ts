@@ -110,6 +110,63 @@ export const useUpdateRole = (initiativeId: number) => {
   });
 };
 
+/**
+ * Grant one tool's view permission to every role that isn't a manager.
+ *
+ * The other half of turning a tool on: the master switch makes the initiative
+ * offer the tool, this makes the roles able to see it. Manager roles are
+ * skipped because they already see everything, and the create permission is
+ * left alone — being able to read a board and being able to add to it are
+ * separate decisions, and this one only answers the first.
+ *
+ * Three things this is careful about, because the whole point of the feature
+ * is that a tool is never quietly visible to fewer people than was asked for:
+ *
+ * - **The roster is read here, not passed in.** A cached list that is still
+ *   loading or failed to load is an empty list, and granting to nobody must
+ *   not report success. Reading it as part of the mutation means a roster that
+ *   cannot be fetched fails the grant instead.
+ * - **Only the one key is sent.** The endpoint merges the keys it is given, so
+ *   resending a whole snapshot could write back a permission somebody else
+ *   changed since it was read.
+ * - **Every role is attempted.** One role's failure does not skip the rest;
+ *   the error is raised after the others have been tried, so a retry has less
+ *   to do and the audience line already reflects who really has it.
+ */
+export const useGrantToolToRoles = (initiativeId: number) => {
+  const guildId = useActiveGuildId();
+
+  return useMutation({
+    mutationFn: async ({ tool }: { tool: Tool }) => {
+      const key = toolViewPermission(tool);
+      const roles = await listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+        guildId,
+        initiativeId
+      );
+      const needsGrant = roles.filter(
+        (role) => !role.is_manager && !(role.permissions[key] ?? false)
+      );
+      const results = await Promise.allSettled(
+        needsGrant.map((role) =>
+          updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+            guildId,
+            initiativeId,
+            role.id,
+            { permissions: { [key]: true } }
+          )
+        )
+      );
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed) throw failed.reason;
+      return needsGrant.length;
+    },
+    onSettled: () => {
+      void invalidateInitiativeRoles(initiativeId);
+      void invalidateMyPermissions(initiativeId);
+    },
+  });
+};
+
 export const useDeleteRole = (initiativeId: number) => {
   const { t } = useTranslation("initiatives");
   const guildId = useActiveGuildId();

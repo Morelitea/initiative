@@ -258,7 +258,12 @@ async def list_queues(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(
-        default=None, description="Case-insensitive substring match on name."
+        default=None,
+        description=(
+            "Full-text match over the row — its name and its description. "
+            "Reads the same index the search page does, so a list's filter "
+            "box and a search agree about what matches."
+        ),
     ),
     sort_by: Optional[str] = Query(
         default=None,
@@ -319,14 +324,7 @@ async def list_queues(
 
     # Data query with eager loading for serialization
     stmt = (
-        select(Queue)
-        .where(*conditions)
-        .options(
-            selectinload(Queue.items),
-            selectinload(Queue.grants).selectinload(ResourceGrant.role),
-            selectinload(Queue.initiative).selectinload(Initiative.memberships),
-            tags_service.TOOL_TAG_LINKS[Tool.queue].load_options(),
-        )
+        select(Queue).where(*conditions).options(*queues_service.list_loader_options())
     )
     stmt = (
         tool_listing.apply_tool_order(

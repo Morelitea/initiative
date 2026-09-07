@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +13,7 @@ import { CountersFilterBar } from "@/components/initiativeTools/counters/Counter
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCounterGroupsList } from "@/hooks/useCounters";
@@ -119,10 +120,9 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
       />
 
       {groupsQuery.isLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("loading")}
-        </div>
+        <SkeletonRegion label={t("loading")}>
+          <CardGridSkeleton />
+        </SkeletonRegion>
       ) : groupsQuery.isError ? (
         <p className="text-destructive text-sm">{t("loadError")}</p>
       ) : groups.length > 0 ? (

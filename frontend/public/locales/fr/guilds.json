@@ -247,8 +247,11 @@
     "mentionDocument": "{{mentionedBy}} vous a mentionné dans {{documentTitle}}.",
     "commentOnTask": "{{commenterName}} a commenté sur {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} a commenté sur {{entityName}}.",
+    "postPublished": "{{authorName}} a publié {{postName}}.",
     "commentReply": "{{replierName}} a répondu à votre commentaire sur {{contextTitle}}.",
     "commentReaction": "{{reactorName}} a réagi {{emoji}} à votre commentaire sur {{contextTitle}}.",
+    "directMessage": "{{senderName}} t'a envoyé un message.",
+    "directMessageMany": "{{senderName}} t'a envoyé {{count}} messages.",
     "commentReactionMulti_one": "{{reactorName}} et 1 autre personne ont réagi {{emoji}} à votre commentaire sur {{contextTitle}}.",
     "commentReactionMulti_other": "{{reactorName}} et {{count}} autres personnes ont réagi {{emoji}} à votre commentaire sur {{contextTitle}}.",
     "accessGrantRequested": "{{requester}} a demandé un accès {{level}} à {{guild}}.",
@@ -420,5 +423,15 @@
     "description": "Si cette communauté affiche les vrais noms des personnes ou les noms d'utilisateur qu'elles ont choisis.",
     "toggleLabel": "Afficher les noms complets",
     "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un."
+  },
+  "members": {
+    "title": "Membres",
+    "person": "Membre",
+    "name": "Nom",
+    "admin": "Admin",
+    "alsoIn": "Aussi dans",
+    "actions": "Actions",
+    "failed": "Les membres de cette communauté n'ont pas pu être chargés.",
+    "searchPlaceholder": "Filtrer les membres"
   }
 }

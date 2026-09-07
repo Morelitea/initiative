@@ -175,6 +175,8 @@ async def test_search_project_members_returns_write_access_set(
         "full_name",
         "avatar_url",
         "status",
+        "profile_decorations",
+        "guild_role",
     }
 
     # The filter matches what the guild renders — the handle always.
@@ -316,7 +318,12 @@ async def test_list_projects_without_initiative_spans_them_all(
 async def test_list_projects_search_filters_by_name(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The ``search`` param does a case-insensitive substring match on name."""
+    """The ``search`` param matches a word, by prefix, through the index.
+
+    Not a substring match on the name, which is what it used to be and what
+    this said until the index took over: a partial word finds it, and a word
+    from the description would too.
+    """
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     alpha = await create_project(session, admin.initiative, admin.user, name="Alpha")
     await create_project(session, admin.initiative, admin.user, name="Beta")

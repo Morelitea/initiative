@@ -1,4 +1,10 @@
 import "@testing-library/jest-dom/vitest";
+// jsdom ships neither of these, and a browser on a secure origin has both.
+// Code that asks whether it can keep a key store here should get a browser's
+// answer rather than a gap in the test environment.
+import "fake-indexeddb/auto";
+
+import { webcrypto } from "node:crypto";
 
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
@@ -12,6 +18,12 @@ import "./helpers/i18n-test";
 // source files. Providing no-op stubs prevents "Cannot find module" errors in
 // the jsdom test environment.
 // ---------------------------------------------------------------------------
+
+// jsdom's crypto has getRandomValues and no subtle. Node's has both, and it is
+// the same Web Crypto API a browser exposes.
+if (globalThis.crypto?.subtle === undefined) {
+  Object.defineProperty(globalThis, "crypto", { value: webcrypto, configurable: true });
+}
 
 vi.mock("@capacitor/core", () => ({
   Capacitor: {

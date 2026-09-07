@@ -150,7 +150,7 @@ async def recent_comments(
         # feed too.
         parent_ids = select(model.id).where(
             dac_scope_clause(tool, model.id, user_id, guild_id=guild_id),
-            model.comments_disabled.is_(False),
+            model.comments_enabled.is_(True),
         )
         if target.feature_disabled is not None:
             # The tool's master switch gates the thread, so it gates the feed
@@ -281,6 +281,7 @@ async def list_comments(
     counter_group_id: Optional[int] = Query(default=None, gt=0),
     calendar_id: Optional[int] = Query(default=None, gt=0),
     dashboard_id: Optional[int] = Query(default=None, gt=0),
+    post_id: Optional[int] = Query(default=None, gt=0),
 ) -> List[CommentRead]:
     try:
         comments = await comments_service.list_comments(
@@ -294,6 +295,7 @@ async def list_comments(
             counter_group_id=counter_group_id,
             calendar_id=calendar_id,
             dashboard_id=dashboard_id,
+            post_id=post_id,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(

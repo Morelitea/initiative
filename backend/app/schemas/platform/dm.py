@@ -6,12 +6,14 @@ state the screen can render.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
+from app.models.platform.user import Presence, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.user import ProfileDecorations
 
 
 class CommunityDmToggle(SanitizedBaseModel):
@@ -39,6 +41,8 @@ class DirectMessageSettingsRead(SanitizedBaseModel):
     #: NULL while the account has not answered the age question, which holds
     #: the policy at ``private`` whatever it says.
     age_confirmed_at: Optional[datetime] = None
+    #: Whether this account's clients report a message as delivered and read.
+    send_receipts: bool = True
 
 
 class CommunityDmToggleUpdate(SanitizedBaseModel):
@@ -56,6 +60,7 @@ class DirectMessageSettingsUpdate(SanitizedBaseModel):
 
     dm_policy: Optional[DmPolicy] = None
     communities: Optional[List[CommunityDmToggleUpdate]] = None
+    send_receipts: Optional[bool] = None
 
 
 class IgnoredAccountRead(SanitizedBaseModel):
@@ -87,7 +92,33 @@ class DirectMessagePermissionRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: Whether a connection request would be taken. A separate answer from
+    #: ``permission``, because connecting and messaging are separate rules --
+    #: an account that takes no messages may still take a connection, and the
+    #: other way round. Without it a surface listing people can only guess,
+    #: and offer a button that is refused.
+    may_connect: bool = False
+
     permission: str
+
+
+class DirectMessagePermissionsRequest(SanitizedBaseModel):
+    """Which accounts a surface is about to draw controls for."""
+
+    user_ids: List[int] = Field(min_length=1, max_length=100)
+
+
+class DirectMessagePermissionsResponse(SanitizedBaseModel):
+    """One answer per account asked about, keyed by id as a string.
+
+    Accounts the caller may not see are simply absent rather than refused: the
+    reader is drawing a list, and a page that fails because one row is gone is
+    worse than one that offers nothing for that row.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    permissions: Dict[str, DirectMessagePermissionRead]
 
 
 class ContactGrantRead(SanitizedBaseModel):
@@ -99,6 +130,14 @@ class ContactGrantRead(SanitizedBaseModel):
     username: str
     discriminator: int
     avatar_url: Optional[str] = None
+    #: Carried so a grant renders as an ordinary contact row wherever one is
+    #: listed. No ``full_name``: a real name is a per-guild disclosure, and a
+    #: grant may name somebody the reader shares no community with.
+    status: UserStatus = UserStatus.active
+    presence: Presence = Presence.offline
+    #: What they wear around their picture, for the same reason: a grant row is
+    #: a contact row, and a person looks the same wherever they are listed.
+    profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
     state: str
     #: True when the reader is the one who asked, which is what tells a
     #: cancellable request from one waiting on them.

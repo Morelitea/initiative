@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -41,6 +42,8 @@ from app.models.platform.marketplace import (
     UID_LENGTH,
 )
 from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.post import Post
+from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.calendar_event import CalendarEvent
@@ -1275,6 +1278,146 @@ async def create_dashboard(
     return dashboard
 
 
+def lexical_body(text: str) -> dict[str, Any]:
+    """The smallest valid Lexical editor state holding one paragraph.
+
+    Spelled out here rather than in each test so a post body in a test is the
+    same shape the editor actually saves — which is what the search extractor
+    and the excerpt walk both read.
+    """
+    return {
+        "root": {
+            "type": "root",
+            "format": "",
+            "indent": 0,
+            "version": 1,
+            "direction": "ltr",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "format": "",
+                    "indent": 0,
+                    "version": 1,
+                    "direction": "ltr",
+                    "children": [
+                        {
+                            "type": "text",
+                            "text": text,
+                            "format": 0,
+                            "style": "",
+                            "mode": "normal",
+                            "detail": 0,
+                            "version": 1,
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+
+async def create_post(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    body: dict[str, Any] | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Post:
+    """Create a test post with sensible defaults.
+
+    Mirrors the create endpoint's default sharing: the author owns it and every
+    initiative member can read it, which is what posting to a board means. The
+    initiative is expected to be posts-enabled.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "created_by": creator.id,
+        "name": name or f"Post {datetime.now(timezone.utc).timestamp()}",
+        "body": body if body is not None else lexical_body("Notice body."),
+        # Live by default, like a notice posted rather than scheduled. Pass
+        # ``published_at=None`` with a ``scheduled_for`` to build a draft.
+        "published_at": datetime.now(timezone.utc),
+    }
+
+    data = {**defaults, **overrides}
+    post = Post(**data)
+    session.add(post)
+
+    if commit:
+        await session.commit()
+        await session.refresh(post)
+
+        session.add(
+            ResourceGrant(
+                resource_type="post",
+                resource_id=post.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=post.guild_id,
+                initiative_id=post.initiative_id,
+            )
+        )
+        session.add(
+            ResourceGrant(
+                resource_type="post",
+                resource_id=post.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=post.guild_id,
+                initiative_id=post.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return post
+
+
+async def create_post_poll(
+    session: AsyncSession,
+    post: Post,
+    *,
+    options: list[str] | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> PostPoll:
+    """Give a test post a question. Two choices by default — the shortest poll
+    that is still a poll — in the order they are given."""
+    await route_session_to_guild(session, post.guild_id)
+
+    defaults: dict[str, Any] = {
+        "post_id": post.id,
+        "question": "Which night works?",
+    }
+    poll = PostPoll(**{**defaults, **overrides})
+    poll.options = [
+        PostPollOption(position=index, text=text)
+        for index, text in enumerate(options or ["Tuesday", "Thursday"])
+    ]
+    session.add(poll)
+
+    if commit:
+        await session.commit()
+        # Re-read with the options attached: a plain refresh expires them, and
+        # a test that then touched ``poll.options`` would lazy-load inside the
+        # async session.
+        poll = (
+            await session.exec(
+                select(PostPoll)
+                .where(PostPoll.id == poll.id)
+                .options(selectinload(PostPoll.options))
+                .execution_options(populate_existing=True)
+            )
+        ).one()
+
+    return poll
+
+
 async def create_calendar_event(
     session: AsyncSession,
     calendar: Calendar,
@@ -1401,6 +1544,7 @@ async def create_comment(
     counter_group: CounterGroup | None = None,
     calendar: Calendar | None = None,
     dashboard: Dashboard | None = None,
+    post: Post | None = None,
     content: str = "A test comment",
     commit: bool = True,
     **overrides: Any,
@@ -1414,6 +1558,7 @@ async def create_comment(
         "counter_group_id": counter_group,
         "calendar_id": calendar,
         "dashboard_id": dashboard,
+        "post_id": post,
     }
     provided = {column: row for column, row in parents.items() if row is not None}
     if len(provided) != 1:
@@ -1754,6 +1899,7 @@ TOOL_FACTORIES: dict[Tool, Any] = {
     Tool.counter_group: create_counter_group,
     Tool.calendar: create_calendar,
     Tool.dashboard: create_dashboard,
+    Tool.post: create_post,
 }
 
 if set(TOOL_FACTORIES) != set(Tool):

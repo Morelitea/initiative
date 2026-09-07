@@ -33,27 +33,25 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.services.permissions import (
     DAC_RESOURCES,
     PROJECT_LEVEL_ORDER,
+    audience_user_ids,
     compute_permission,
     dac_scope_clause,
+    effective_level,
     effective_permission_level,
     has_project_write_access,
     require_access,
 )
-from app.testing import factories
+from app.testing.factories import TOOL_FACTORIES
 
 # The tools whose rows are gated on initiative membership as well as on grants
 # (``scope_gate``); the rest are guild-level and skip that leg.
 SCOPE_GATED = [t for t, r in DAC_RESOURCES.items() if r.scope_gate]
 ALL_TOOLS = list(DAC_RESOURCES)
 
-_TOOL_FACTORIES = {
-    Tool.project: "create_project",
-    Tool.document: "create_document",
-    Tool.queue: "create_queue",
-    Tool.counter_group: "create_counter_group",
-    Tool.calendar: "create_calendar",
-    Tool.dashboard: "create_dashboard",
-}
+# The canonical per-tool factory registry rather than a copy of it: that one
+# is checked against the Tool enum at import time, so a new tool cannot reach
+# these parametrized cases without a factory behind it.
+_TOOL_FACTORIES = TOOL_FACTORIES
 
 
 # ── Building a real world ────────────────────────────────────────────────────
@@ -130,7 +128,7 @@ async def build_world(session, acting_user, tool: Tool) -> World:
     )
     admin = await acting_user(guild_role=GuildRole.admin, guild=guild)
 
-    factory = getattr(factories, _TOOL_FACTORIES[tool])
+    factory = _TOOL_FACTORIES[tool]
     row = await factory(session, initiative, owner.user)
     return World(session, tool, guild, initiative, row, owner, co_member, admin)
 
@@ -602,3 +600,99 @@ def test_the_grants_subquery_has_one_caller():
         "these modules reach for the grants subquery directly instead of "
         f"permissions.dac_scope_clause: {offenders}"
     )
+
+
+# ---------------------------------------------------------------------------
+# The audience — who a resource's sharing reaches
+# ---------------------------------------------------------------------------
+
+
+class _Grant:
+    def __init__(self, *, level="read", user_id=None, role_id=None, all_members=False):
+        self.level = level
+        self.user_id = user_id
+        self.role_id = role_id
+        self.all_initiative_members = all_members
+
+
+class _Membership:
+    def __init__(self, user_id, role_id=None):
+        self.user_id = user_id
+        self.role_id = role_id
+
+
+class _Initiative:
+    def __init__(self, memberships):
+        self.memberships = memberships
+
+
+class _Row:
+    """The two collections both the audience and the access check read."""
+
+    def __init__(self, grants, memberships, initiative_id=1):
+        self.grants = grants
+        self.initiative = _Initiative(memberships)
+        self.initiative_id = initiative_id
+
+
+def test_the_audience_is_exactly_who_the_access_check_would_admit():
+    """The invariant the post notifier hangs on.
+
+    ``audience_user_ids`` and ``effective_level`` read the same rows and must
+    not drift: a notifier built on the first must not address anyone the second
+    would turn away, and must not miss anyone it would admit.
+    """
+    everyone = [_Membership(1, role_id=10), _Membership(2, role_id=20), _Membership(3)]
+    row = _Row(
+        grants=[
+            _Grant(user_id=1, level="owner"),
+            _Grant(role_id=20, level="write"),
+            _Grant(user_id=99),  # named, but not a member of the initiative
+        ],
+        memberships=everyone,
+    )
+
+    audience = audience_user_ids(row)
+    resource = DAC_RESOURCES[Tool.post]
+    # Everyone the audience names can in fact reach it...
+    for user_id in audience:
+        assert effective_level(resource, row, user_id) is not None
+    # ...and every MEMBER it leaves out cannot. (A grant naming somebody who is
+    # no longer in the initiative passes this check and still fails RLS, which
+    # is why the audience is narrowed to the roster — see the case below.)
+    for member in everyone:
+        if member.user_id not in audience:
+            assert effective_level(resource, row, member.user_id) is None
+    assert audience == {1, 2}
+
+
+def test_an_all_members_grant_reaches_every_member():
+    everyone = [_Membership(1), _Membership(2), _Membership(3)]
+    row = _Row(grants=[_Grant(all_members=True)], memberships=everyone)
+    assert audience_user_ids(row) == {1, 2, 3}
+
+
+def test_a_resource_shared_with_nobody_has_no_audience():
+    """Posting to a board nobody can read interrupts nobody, rather than
+    falling back to the roster."""
+    row = _Row(grants=[], memberships=[_Membership(1), _Membership(2)])
+    assert audience_user_ids(row) == set()
+
+
+def test_a_named_grant_does_not_outlive_the_membership():
+    """A grant survives the membership it was written for — leaving an
+    initiative sweeps no grants — and RLS answers the leftover with 404. An
+    audience built on the grant alone would carry a headline and an excerpt to
+    somebody who can no longer open the thing they name.
+    """
+    row = _Row(
+        grants=[_Grant(user_id=1), _Grant(user_id=2)],
+        memberships=[_Membership(1)],
+    )
+
+    assert audience_user_ids(row) == {1}
+
+
+def test_an_all_members_grant_names_the_roster_as_it_is_now():
+    row = _Row(grants=[_Grant(all_members=True)], memberships=[_Membership(4)])
+    assert audience_user_ids(row) == {4}

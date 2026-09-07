@@ -68,6 +68,12 @@
       "body_other": "{{count}} nuevas reacciones a tus publicaciones, incluida {{emoji}} de {{actor}}"
     }
   },
+  "post": {
+    "published": {
+      "title": "Nueva publicación",
+      "body": "{{actor}} publicó {{post}}"
+    }
+  },
   "event": {
     "invitation": {
       "title": "Nueva invitación a un evento",
@@ -113,5 +119,9 @@
       "title": "Acceso revocado",
       "body": "Tu acceso a {{guild}} fue revocado"
     }
+  },
+  "directMessage": {
+    "title": "{{sender}} te envió un mensaje",
+    "body": "Abre Initiative para leerlo."
   }
 }

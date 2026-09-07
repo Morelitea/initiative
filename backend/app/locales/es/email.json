@@ -71,6 +71,12 @@
     "greeting": "Hola <strong>{{name}}</strong>,",
     "buttonLabel": "Ver"
   },
+  "directMessage": {
+    "subject": "{{sender}} te envió un mensaje",
+    "title": "Tienes un mensaje nuevo",
+    "body": "<strong>{{sender}}</strong> te envió un mensaje directo. Abre Initiative para leerlo: los mensajes están cifrados, así que su contenido no puede incluirse aquí.",
+    "buttonLabel": "Abrir mensajes"
+  },
   "comment": {
     "onTask": {
       "subject": "Nuevo comentario en {{task}}",
@@ -86,6 +92,13 @@
       "subject": "Respuesta a tu comentario",
       "title": "Respuesta a tu comentario",
       "body": "<strong>{{actor}}</strong> respondió a tu comentario en <strong>{{context}}</strong>"
+    }
+  },
+  "post": {
+    "published": {
+      "subject": "Nueva publicación: {{post}}",
+      "title": "Nueva publicación",
+      "body": "<strong>{{actor}}</strong> publicó <strong>{{post}}</strong>."
     }
   },
   "event": {

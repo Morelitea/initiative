@@ -151,10 +151,19 @@ class UserGuildMember(UserPublic):
 class UserSummary(GuildNameVisibility):
     """Slim user projection for typeahead and picker surfaces.
 
-    Drops what pickers never read — platform/guild role, ``initiative_roles``
-    (an N+1 enrichment on the full roster) and timestamps — while keeping the
-    avatar so members still render with a face. The payload is bounded by
-    pagination on the endpoints that serve it, not by dropping the avatar.
+    What it keeps is what it takes to *draw* a person and say where they stand
+    in the guild being read: the handle, the avatar, what they have put around
+    it, and their guild role. A decoration is an id naming a catalog entry and
+    a role is one word, so all of it is short, and none of it costs a query
+    beyond the one already being run.
+
+    What it drops is the account's own business and anything that would cost
+    another round trip: no address, no platform tier, no ``initiative_roles``
+    (an N+1 enrichment on the full roster), no timestamps. The payload is
+    bounded by pagination on the endpoints that serve it.
+
+    ``profile_decorations`` is quoted and the model rebuilt below, because the
+    catalog shape it names is declared further down this file.
     """
 
     model_config = ConfigDict(
@@ -167,6 +176,11 @@ class UserSummary(GuildNameVisibility):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
+    profile_decorations: Optional["ProfileDecorations"] = None
+    #: ``admin`` or ``member`` in the guild this was read under. Absent where
+    #: the caller asked outside a guild, which is why it is optional rather
+    #: than defaulted to the quieter of the two.
+    guild_role: Optional[str] = None
 
 
 class UserSummaryListResponse(SanitizedBaseModel):
@@ -334,6 +348,10 @@ class ProfileDecorations(SanitizedBaseModel):
         return pairs
 
 
+# ``UserSummary`` names this shape before it is declared.
+UserSummary.model_rebuild()
+
+
 class OwnedDecoration(SanitizedBaseModel):
     """One decoration an account may wear, and where it came from.
 
@@ -481,6 +499,10 @@ class UserRead(UserBase):
     push_overdue_tasks: bool = True
     push_mentions: bool = True
     push_comment_reactions: bool = True
+    email_direct_messages: bool = True
+    push_direct_messages: bool = True
+    email_posts: bool = True
+    push_posts: bool = True
     email_events: bool = True
     push_events: bool = True
     email_event_reminders: bool = True
@@ -584,6 +606,10 @@ class UserSelfUpdate(SanitizedBaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     push_comment_reactions: Optional[bool] = None
+    email_direct_messages: Optional[bool] = None
+    push_direct_messages: Optional[bool] = None
+    email_posts: Optional[bool] = None
+    push_posts: Optional[bool] = None
     email_events: Optional[bool] = None
     push_events: Optional[bool] = None
     email_event_reminders: Optional[bool] = None

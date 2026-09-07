@@ -1,8 +1,10 @@
 import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MyAIConnectionRow } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
+import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { useMyAI } from "@/hooks/useAISettings";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +15,7 @@ const userSettingsTabs = [
   { value: "account", labelKey: "layout.tabs.account", path: "/profile/account" },
   { value: "interface", labelKey: "layout.tabs.interface", path: "/profile/interface" },
   { value: "notifications", labelKey: "layout.tabs.notifications", path: "/profile/notifications" },
+  { value: "privacy", labelKey: "layout.tabs.privacy", path: "/profile/privacy" },
   { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },
   { value: "import", labelKey: "layout.tabs.import", path: "/profile/import" },
   { value: "security", labelKey: "layout.tabs.security", path: "/profile/security" },
@@ -74,7 +77,9 @@ export const UserSettingsLayout = () => {
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       >
-        <Outlet />
+        <Suspense fallback={<SettingsPaneSkeleton />}>
+          <Outlet />
+        </Suspense>
       </SettingsTabsNav>
     </div>
   );

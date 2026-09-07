@@ -130,12 +130,23 @@ async def _broadcast_reaction(
     """Signal the target's initiative room that its reactions moved.
 
     Content-free like every other event on the bus: the room hears which
-    comment changed and refetches through the RLS + DAC gated REST path, which
+    thing changed and refetches through the RLS + DAC gated REST path, which
     is where the authorization decision stays.
     """
     from app.models.tenant.comment import Comment
+    from app.models.tenant.post import Post
     from app.services.tenant import comments as comments_service
 
+    if target is ReactionTarget.post:
+        post = (
+            await session.exec(select(Post).where(Post.id == target_id))
+        ).one_or_none()
+        if post is None:
+            return
+        await broadcast_event(
+            guild_id, post.initiative_id, "post", "reacted", {"post_id": post.id}
+        )
+        return
     if target is not ReactionTarget.comment:
         return
     comment = (

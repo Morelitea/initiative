@@ -649,6 +649,8 @@ async def test_search_initiative_members_slim_and_filtered(
         "full_name",
         "avatar_url",
         "status",
+        "profile_decorations",
+        "guild_role",
     }
 
     # Filtered by handle, which every guild has for every member.

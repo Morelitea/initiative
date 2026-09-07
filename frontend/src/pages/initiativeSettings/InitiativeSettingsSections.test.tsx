@@ -5,6 +5,7 @@
  */
 
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,7 @@ import {
   buildGuild,
   buildInitiative,
   buildInitiativeJoinRequest,
+  buildInitiativeRole,
   buildUserSummary,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
@@ -78,6 +80,32 @@ describe("initiative settings sections", () => {
     renderSection(InitiativeSettingsRolesPage, "roles");
 
     expect(await screen.findByText("Role permissions")).toBeInTheDocument();
+  });
+
+  /**
+   * A permission for a tool the initiative has switched off grants nothing —
+   * the mirror of the details screen never mentioning roles. The roles screen
+   * has to say so, or the two halves of the gate stay invisible to each other.
+   */
+  it("says on /settings/roles when a tool's permissions grant nothing yet", async () => {
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([
+          buildInitiative({ id: INITIATIVE_ID, name: "Apollo", posts_enabled: false }),
+        ])
+      ),
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([buildInitiativeRole({ display_name: "Member" })])
+      )
+    );
+
+    renderSection(InitiativeSettingsRolesPage, "roles");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Advanced Tools" }));
+
+    expect(
+      (await screen.findAllByText(/This tool is turned off for the initiative/)).length
+    ).toBeGreaterThan(0);
   });
 
   it("serves custom properties at /settings/properties", async () => {

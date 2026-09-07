@@ -1,0 +1,27 @@
+{
+  "title": "Mes outils",
+  "subtitle": "Tout ce qui vous parvient, un outil à la fois, dans toutes vos communautés.",
+  "toolRail": "Vos outils",
+  "view": {
+    "label": "Afficher",
+    "everything": "Tout",
+    "createdByMe": "Créé par moi"
+  },
+  "communities": {
+    "label": "Communautés",
+    "all": "Toutes les communautés",
+    "none": "Vous ne faites encore partie d'aucune communauté."
+  },
+  "loading": "Chargement…",
+  "loadError": "Impossible de charger cet outil. Veuillez réessayer plus tard.",
+  "empty": {
+    "title": "Rien ici pour l'instant",
+    "description": "Rien de ce type ne vous parvient dans vos communautés.",
+    "descriptionMine": "Vous n'avez encore rien créé de ce type."
+  },
+  "noTools": {
+    "title": "Rien à parcourir pour l'instant",
+    "description": "Dès que vous participez à un projet, un document ou autre chose, cela apparaît ici.",
+    "descriptionMine": "Dès que vous créez quelque chose, cela apparaît ici."
+  }
+}

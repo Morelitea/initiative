@@ -18,6 +18,7 @@ Postgres, with the sync initiative-scope check beside its SQL counterpart in
 
 from dataclasses import dataclass
 from enum import Enum
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
@@ -51,6 +52,7 @@ from app.core.messages import (
     CounterMessages,
     CalendarMessages,
     DashboardMessages,
+    PostMessages,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
@@ -138,10 +140,22 @@ def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | N
 # RLS, so stale grants in an initiative the user left are already filtered out.
 
 
-def _granted_resource_ids(resource_type: str, user_id: int):
+#: The grant levels that let somebody change a resource. ``read`` is the third.
+WRITE_LEVELS = (ResourceAccessLevel.write, ResourceAccessLevel.owner)
+
+
+def _granted_resource_ids(
+    resource_type: str,
+    user_id: int,
+    *,
+    levels: tuple[ResourceAccessLevel, ...] | None = None,
+):
     """resource_ids of ``resource_type`` the user can access via a grant — their
     own user grant, a grant to one of their initiative roles, OR an
     all-initiative-members grant on a resource in an initiative they belong to.
+
+    ``levels`` narrows to grants issued at those levels; omitted, any grant
+    counts, which is what a read listing wants.
 
     Grant rows only. :func:`dac_scope_clause` is the public entry point and
     composes this with the rest of the decision.
@@ -152,7 +166,7 @@ def _granted_resource_ids(resource_type: str, user_id: int):
     my_initiatives = select(InitiativeMember.initiative_id).where(
         InitiativeMember.user_id == user_id
     )
-    return select(ResourceGrant.resource_id).where(
+    stmt = select(ResourceGrant.resource_id).where(
         ResourceGrant.resource_type == resource_type,
         or_(
             ResourceGrant.user_id == user_id,
@@ -170,6 +184,9 @@ def _granted_resource_ids(resource_type: str, user_id: int):
             ),
         ),
     )
+    if levels is not None:
+        stmt = stmt.where(ResourceGrant.level.in_(levels))
+    return stmt
 
 
 def request_bypasses_dac(
@@ -307,6 +324,33 @@ def listing_scope_clause(
     return dac_scope_clause(tool, id_col, user_id, guild_id=guild_id, access=access)
 
 
+def writable_scope_clause(
+    tool: Tool,
+    id_col: ColumnElement[int],
+    user_id: int,
+    *,
+    guild_id: int | None,
+    initiative_id: int | None = None,
+) -> ColumnElement[bool]:
+    """:func:`listing_scope_clause` narrowed to what the reader may CHANGE.
+
+    The scope clauses above answer at ``read``, and their grant leg deliberately
+    ignores the level — every grant reaches a listing. A caller asking "which of
+    these may this person edit" needs the level to count, so this one filters
+    the grant rows to :data:`WRITE_LEVELS`.
+
+    The two branches are the same choice :func:`listing_scope_clause` makes:
+    confined to one initiative, a guild admin's authority answers; spanning
+    them, only what has been granted does.
+    """
+    if initiative_id is not None:
+        if request_bypasses_dac(guild_id, initiative_id=initiative_id, access="write"):
+            return true()
+    elif grant_satisfies(guild_id, access="write"):
+        return true()
+    return id_col.in_(_granted_resource_ids(tool, user_id, levels=WRITE_LEVELS))
+
+
 # ── Generic DAC engine (registry-driven) ─────────────────────────
 # Every DAC resource resolves access from its ``grants`` (resource_grants rows)
 # the same way — one registry row + one engine.
@@ -363,6 +407,13 @@ DAC_RESOURCES: dict[Tool, DacResource] = {
         DashboardMessages.PERMISSION_REQUIRED,
         DashboardMessages.OWNER_REQUIRED,
         DashboardMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    Tool.post: DacResource(
+        Tool.post,
+        True,
+        PostMessages.PERMISSION_REQUIRED,
+        PostMessages.OWNER_REQUIRED,
+        PostMessages.WRITE_ACCESS_REQUIRED,
     ),
 }
 
@@ -426,6 +477,111 @@ def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None
             if _LEVEL_RANK[lvl] > best_rank:
                 best_rank, best = _LEVEL_RANK[lvl], lvl
     return best
+
+
+def audience_user_ids(row: Any) -> set[int]:
+    """Every user the resource's sharing reaches, by id.
+
+    The list-shaped form of :func:`effective_level`: that one answers "may this
+    person reach it", this one answers "who are they". Both read the same two
+    eagerly-loaded collections — the resource's ``grants`` and its initiative's
+    ``memberships`` — and resolve a grant the same three ways, so a notifier
+    built on this cannot address anyone the per-row check would turn away.
+
+    Standing that comes from somewhere other than a grant is deliberately not
+    here. A guild admin reaches every resource in their community and a
+    break-glass grantee reaches one for a window; neither asked to hear about
+    it. What this answers is who a thing was shared WITH, which is the only
+    honest audience for telling people something exists.
+
+    Every recipient is checked against the initiative's current roster,
+    including one named directly. A grant outlives the membership it was
+    written for — leaving an initiative does not sweep them — and RLS answers
+    the leftover with 404, so a notification built on the grant alone would
+    carry a headline and an excerpt to somebody who can no longer open the
+    thing they name. The roster is what the database enforces, so it is what
+    this counts.
+
+    Initiative-scoped resources only. On a guild-level row an all-members grant
+    means the guild's members, and there is no loaded collection here that
+    names them.
+    """
+    grants = getattr(row, "grants", None) or []
+    initiative = getattr(row, "initiative", None)
+    memberships = (
+        getattr(initiative, "memberships", None) if initiative is not None else None
+    ) or []
+    members = {m.user_id for m in memberships}
+    audience: set[int] = set()
+    for g in grants:
+        if g.user_id is not None:
+            audience.add(g.user_id)
+        elif g.role_id is not None:
+            audience.update(m.user_id for m in memberships if m.role_id == g.role_id)
+        elif getattr(g, "all_initiative_members", False):
+            audience.update(members)
+    return audience & members
+
+
+#: What a row needs, beyond being shared with you, before it is anybody's to
+#: read. A tool absent from here has nothing between "shared with me" and "I
+#: can see it"; a post has its publication, and until then it is a draft.
+READ_VISIBLE: dict[Tool, Callable[[Any], bool]] = {
+    Tool.post: lambda row: getattr(row, "published_at", None) is not None,
+}
+
+
+def may_write(
+    resource: DacResource,
+    row: Any,
+    user_id: int,
+    *,
+    guild_id: int | None,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Whether this caller could change the row.
+
+    The row-shaped form of :func:`writable_scope_clause`, leg for leg: the same
+    bypass check, then a grant at :data:`WRITE_LEVELS`. Deliberately not
+    :func:`compute_permission`, which caps at read while a community is frozen
+    — that answers "may I edit this right now", and the question here is
+    whether the row is this person's at all.
+    """
+    if request_bypasses_dac(
+        guild_id,
+        initiative_id=getattr(row, "initiative_id", None),
+        access="write",
+        guild_role=guild_role,
+    ):
+        return True
+    level = effective_level(resource, row, user_id)
+    return level in {lvl.value for lvl in WRITE_LEVELS}
+
+
+def hidden_from_reader(
+    kind: Tool,
+    row: Any,
+    user_id: int,
+    *,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """Whether this row exists but is not yet this caller's to see.
+
+    Asked at every seam that resolves a single row by id — reading it,
+    exporting it, commenting on it, reacting to it — so all of them answer the
+    same way. Applied after the sharing decision, so it narrows what somebody
+    already reaches rather than widening it.
+    """
+    visible = READ_VISIBLE.get(kind)
+    if visible is None or visible(row):
+        return False
+    return not may_write(
+        DAC_RESOURCES[kind],
+        row,
+        user_id,
+        guild_id=getattr(row, "guild_id", None),
+        guild_role=guild_role,
+    )
 
 
 async def replace_resource_grants(
@@ -731,6 +887,14 @@ def compute_dashboard_permission(dashboard: Any, user_id: int) -> str | None:
     engine). Governs authoring the canvas only — the data each widget displays
     is authorized separately, per viewer, by that data's own tool."""
     return compute_permission(DAC_RESOURCES[Tool.dashboard], dashboard, user_id)
+
+
+def compute_post_permission(post: Any, user_id: int) -> str | None:
+    """Effective post permission string for the client (delegates to the
+    engine). Reading a post is reading the board it sits on; writing one is
+    editing that notice, which is its author's or whoever they shared it
+    with — pinning is a separate, initiative-level authority."""
+    return compute_permission(DAC_RESOURCES[Tool.post], post, user_id)
 
 
 def require_document_access(

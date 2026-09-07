@@ -203,17 +203,6 @@ export const useGlobalProjects = (
   });
 };
 
-export const usePrefetchGlobalProjects = () => {
-  const qc = useQueryClient();
-  return (params?: ListMyProjectsApiV1MeProjectsGetParams) => {
-    return qc.prefetchQuery({
-      queryKey: getListMyProjectsApiV1MeProjectsGetQueryKey(params),
-      queryFn: () => listMyProjectsApiV1MeProjectsGet(params),
-      staleTime: 30_000,
-    });
-  };
-};
-
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export const useCreateProject = (

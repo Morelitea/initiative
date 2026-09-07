@@ -100,7 +100,7 @@
     "show": "Anzeigen",
     "hide": "Ausblenden",
     "searchGroups": "Zählergruppen suchen...",
-    "filterByName": "Nach Namen filtern",
+    "searchLabel": "Name oder Beschreibung",
     "noMatchingGroups": "Keine Zählergruppen entsprechen deinen Filtern."
   },
   "tags": "Tags"

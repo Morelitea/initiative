@@ -4,19 +4,51 @@ icon: lucide/compass
 
 # Welcome to Initiative
 
-Initiative is where your group's projects, tasks, documents, and plans live together. It's made for small businesses, clubs, committees, event teams, families, and anyone else coordinating work with other people — without needing to learn project management first.
+Initiative is where your group's projects, tasks, documents and plans all live in one place.
+
+Right now they're living across a group chat, two spreadsheets, an email thread from March, and the head of whoever's been doing this the longest.
+
+We know about the spreadsheet. We know about the merged cells. We know somebody colour-coded it in 2019 and nobody now remembers what green means. It's fine. We're here now.
 
 ![The Initiative home screen](images/home/overview.png)
 
-## Start small; it grows with you
+## Start small. No, smaller than that.
 
-You can get real value on day one from a single board with tasks on it. Later, when your group needs a shared calendar, or a place to write things down, or a way to report on how the work is going, those are waiting — and until then they stay out of your way.
+Day one: make one board, put a few tasks on it. Done. That's a complete setup — a real, functioning system — and if you never touch another feature you'll still be dramatically better off than you were on Tuesday.
 
-## New here? Start at the beginning
-
-If this is your first time, **Getting started** covers creating your account, finding your way around, and joining or creating your first workspace.
+Everything else is already installed and waiting. Documents, a calendar, dashboards, the lot. None of it will bother you, email you, or pop up to ask whether you've considered optimising your workflow. It has nowhere else to be.
 
 [Start with Getting started →](getting-started/index.md){ .md-button .md-button--primary }
+
+## You cannot break this
+
+This is the thing people actually worry about, so let's clear it up first.
+
+- **Deleted something?** It's in the Trash, sulking. Go and get it.
+- **Moved a task somewhere daft?** Move it back. Nobody saw.
+- **Made an initiative you didn't need?** Archive it. It leaves your life entirely and does not write.
+- **Made a project called "test"?** Everyone does. It's still there, isn't it.
+- **Made *four* projects called "test"?** Also fine. Marginally funnier. Still fine.
+
+There is exactly one genuinely permanent button in this entire application, and it makes you type things out longhand to prove you meant it. Everything else survives being dropped down the stairs.
+
+So click things. Open menus. Drag stuff about. The worst outcome available to you today is a mildly untidy sidebar.
+
+## We say no to things
+
+Initiative is meant to help you, not to gradually become the tool with so many features that operating it is its own part-time job.
+
+So some things are left out on purpose. There are no group chats, for instance — because everything here already has **comments** on it, and they're searchable. The conversation about a thing sits on that thing, where the next person finds it without being told where to look.
+
+Whereas a group chat is where somebody pastes the thing that should have been a document, and six months later everyone is scrolling for it, and Jenny has left, and somebody is looking at the printer in a way the printer has done nothing to deserve.
+
+## Two ways to run it
+
+**Host it yourself** — open source, free, the entire product, running on whatever machine you've got going spare. A ten-year-old laptop with a broken hinge is a perfectly respectable server.
+
+**Or let us host it** (soon) — pay us and never think about a database again, which is an extremely reasonable thing to want and quietly the correct answer for most people.
+
+Same software either way. We're not keeping the good bits back for the paying customers. [Which one is you? →](self-host-or-hosted.md)
 
 ## Find what you need
 
@@ -24,7 +56,7 @@ If this is your first time, **Getting started** covers creating your account, fi
 
 -   :material-rocket-launch-outline: __Getting started__
 
-    Create an account, sign in, take the tour, and join your group.
+    Make an account, find your way around, join your group.
 
     [:octicons-arrow-right-24: Getting started](getting-started/index.md)
 
@@ -36,37 +68,37 @@ If this is your first time, **Getting started** covers creating your account, fi
 
 -   :material-book-open-variant: __Using Initiative__
 
-    Day-to-day how-to guides for projects, tasks, documents, the calendar, and more.
+    How-to guides for projects, tasks, documents, the calendar and everything else.
 
     [:octicons-arrow-right-24: How-to guides](guides/index.md)
 
 -   :material-storefront-outline: __Apps & the marketplace__
 
-    Add ready-made dashboards and apps built by other groups like yours.
+    Ready-made dashboards and apps, built by groups like yours.
 
     [:octicons-arrow-right-24: Apps & the marketplace](guides/apps-and-marketplace.md)
 
 -   :material-account-multiple-check-outline: __Sharing & access__
 
-    Decide exactly who can see and edit each project and document.
+    Decide exactly who sees and edits each project and document.
 
     [:octicons-arrow-right-24: Sharing & access](sharing/index.md)
 
 -   :material-shield-lock-outline: __Security & privacy__
 
-    What "secure" means for you, and how your group's data stays separate from everyone else's.
+    What "secure" means for you, and how your group's stuff stays yours.
 
     [:octicons-arrow-right-24: Security & privacy](security/index.md)
 
 -   :material-cog-outline: __For administrators__
 
-    Installing, configuring, and looking after your own Initiative server.
+    Installing, configuring, and looking after your own server.
 
     [:octicons-arrow-right-24: Admin guide](admin/index.md)
 
--   :material-help-circle-outline: __Frequently asked questions__
+-   :material-help-circle-outline: __FAQ__
 
-    Short answers to the things people ask most — getting in, the age question, and why an account might be shut out.
+    Quick answers to the things people ask most.
 
     [:octicons-arrow-right-24: FAQ](faq.md)
 
@@ -74,28 +106,38 @@ If this is your first time, **Getting started** covers creating your account, fi
 
 ## You choose who sees what
 
-Nothing in Initiative is visible to "everyone" by default. Your group's space is separate from every other group's; inside it, each effort is visible only to the people you add to it; and individual projects and documents can be narrowed further still.
+Nothing here is visible to "everyone" by default, and there's no buried setting you have to find to make that true. Your group's space is separate from every other group's; inside it, each effort is only visible to the people you put in it; and any project or document narrows down further still.
 
-That means a business owner can keep payroll planning away from the seasonal staff, and an event team can work on next year's programme without the volunteers seeing it — in the same workspace, with no extra setup. [How that works →](sharing/index.md)
-
-??? techspec "For the technically minded — what Initiative is, briefly"
-    Initiative is a web application you can run yourself. The interface is a single-page web app; it talks to a Python service backed by a PostgreSQL database. Each group ("community") gets its **own database schema**, so a request in one community can't address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by the app alone. There's a companion mobile app (iOS and Android) for notifications and on-the-go use. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
+Which is how the payroll planning stays away from the seasonal staff, and next year's programme away from this year's volunteers — same workspace, nothing configured, nobody wandering into a folder they were never meant to see. [How that works →](sharing/index.md)
 
 ## The tools come from people like you
 
-The thing your group needs has usually already been built by another group with the same problem. Initiative's **marketplace** lets you add ready-made dashboards and apps to your workspace in a couple of clicks — no developer, no custom build.
+Whatever your group needs, some other group has needed precisely the same thing, built it, spent three years rebuilding it by hand every January, finally snapped, and shared it.
 
-It's curated, not a free-for-all: your marketplace holds what ships with Initiative plus what the person running your server has approved. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+That's the **marketplace**: ready-made dashboards and apps, about two clicks each. It's curated rather than open season — yours holds what ships with Initiative plus whatever the person running your server approved. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+
+## Why we built this
+
+We're self-hosters. We got here the way most people do: by slowly going off the tools we relied on, as it became clearer what they were doing with the things we put into them.
+
+What tipped it was watching creative work get hoovered into training data by companies that never thought to ask. To be clear, we like AI. We use it. But being useful doesn't entitle anyone to take what somebody made and feed it to a machine — and once that's happened to something of yours, "we promise not to" stops sounding like much of a promise.
+
+So we treated it as an architecture problem rather than a policy one, because a policy lasts exactly as long as the person who wrote it stays in charge. Nobody holds standing admin access to a community's data. Reaching into another community takes a time-limited grant that leaves a record. Direct messages are encrypted well enough that no key to them exists outside the two phones talking. We locked ourselves out on purpose, and we'd do it again.
+
+Which means **we can't feed your work to a model, because there's no pipe to put it in.** The AI features that do exist are ones you point at your own stuff deliberately, and they send only what you asked — under that provider's terms, which we'll tell you to go and read rather than pretend we control. See [AI features](account/ai-features.md).
 
 ## A note on the words we use
 
-Initiative borrows a few everyday words and gives them a specific meaning. The two you'll meet first:
+Initiative takes two perfectly ordinary words and gives them specific jobs. Sorry.
 
-- A **community** is a workspace — one separate space for one group of people. Your book club and your work team would be two different communities.
-- An **initiative** is a folder for a big effort inside a community. It gathers related projects and documents in one place.
+- A **community** is a workspace — one separate space for one group of people. Your book club and your work team are two different communities.
+- An **initiative** is a folder for a big effort inside a community.
 
-There's a full [glossary](reference/glossary.md) if you ever hit a word you don't recognize.
+And yes, the app is also called Initiative. We know. The [glossary](reference/glossary.md) covers the other words we've bent to our own purposes.
+
+??? techspec "For the technically minded — what this actually is"
+    Initiative is a web application you can run yourself. A single-page web app talking to a Python service backed by PostgreSQL. Each community gets its **own database schema**, so a request in one community cannot address another community's tables at all; the finer layers inside a community — which effort, which role, which item — are enforced by the database's own row-level security rather than by application code. There's a companion mobile app for iOS and Android. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).
 
 ## Built in the open
 
-Initiative is developed publicly, and the feedback of the people using it shapes what gets built next. If something here is unclear, wrong, or missing, that's worth telling us about — the [project on GitHub](https://github.com/Morelitea/initiative) is where it happens.
+Initiative is developed in public, and what people using it say genuinely shapes what gets built next. So if something here is unclear, wrong, or conspicuously missing, tell us — [the project's on GitHub](https://github.com/Morelitea/initiative), and we do actually read it.

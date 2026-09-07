@@ -1,0 +1,170 @@
+{
+  "title": "Meine Nachrichten",
+  "backToNav": "Zurück zur Navigation",
+  "encryptedNotice": "Ende-zu-Ende-verschlüsselt. Nur du und die andere Person können sie lesen.",
+  "empty": {
+    "title": "Ein Gespräch auswählen"
+  },
+  "nobodyYet": "Noch niemand. Eine Unterhaltung öffnet sich, sobald eine Nachrichtenanfrage angenommen wurde.",
+  "ageLocked": "Nachrichten sind für Personen ab 13 Jahren, und dieses Konto hat diese Frage noch nicht beantwortet.",
+  "requests": {
+    "heading": "Anfragen",
+    "asked": "Sie möchten ein Gespräch beginnen.",
+    "youAsked": "Du hast gefragt. Bis sie annehmen, wird nichts gesendet.",
+    "accept": "Annehmen",
+    "decline": "Ablehnen",
+    "cancel": "Abbrechen",
+    "wantsToConnect": "Sie möchten sich verbinden.",
+    "youAskedToConnect": "Du hast um eine Verbindung gebeten. Es ändert sich nichts, bis sie annehmen."
+  },
+  "groups": {
+    "unread": "Ungelesen",
+    "favorites": "Favoriten",
+    "connections": "Verbindungen",
+    "messages": "Nachrichten"
+  },
+  "search": {
+    "placeholder": "Suchen",
+    "label": "Unterhaltungen durchsuchen",
+    "noMatches": "Niemand passt dazu."
+  },
+  "newConversation": {
+    "trigger": "Unterhaltung beginnen",
+    "title": "Unterhaltung beginnen",
+    "description": "Jemand aus einer gemeinsamen Community – oder jede Person, deren vollständiges Handle du kennst.",
+    "placeholder": "Personen suchen oder name#1234 eingeben",
+    "hint": "Ein vollständiges Handle mit Nummer erreicht auch Personen, mit denen du keine Community teilst.",
+    "connect": "Mit {{handle}} verbinden",
+    "noMatches": "Niemand passt dazu.",
+    "empty": "Niemand zum Anzeigen. Du teilst noch keine Community mit jemandem.",
+    "unreachable": "Nicht erreichbar",
+    "showMore": "Mehr anzeigen",
+    "favorites": "Favoriten"
+  },
+  "receipt": {
+    "sent": "Gesendet",
+    "delivered": "Zugestellt",
+    "read": "Gelesen"
+  },
+  "startHint": "starten",
+  "unknownAccount": "Unbekanntes Konto",
+  "noHistoryHere": "Auf diesem Gerät noch nichts. Nachrichten von anderswo bleiben dort.",
+  "composerPlaceholder": "Nachricht schreiben",
+  "send": "Senden",
+  "sendFailed": "Diese Nachricht konnte nicht gesendet werden.",
+  "recipientHasNoDevice": "{{name}} hat verschlüsselte Nachrichten noch nicht eingerichtet, deshalb konnte dies nicht zugestellt werden.",
+  "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
+  "loading": "Wird geladen …",
+  "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App.",
+  "start": {
+    "waiting": "Warten auf die Zusage. Danach könnt ihr euch schreiben.",
+    "asksToMessage": "Sie möchten dir schreiben. Nimm an, dann könnt ihr reden.",
+    "mayAsk": "Du hast ihnen noch nicht geschrieben. Frag zuerst — sie können annehmen oder ablehnen, und bis dahin wird nichts gesendet.",
+    "denied": "Du kannst ihnen gerade nicht schreiben."
+  },
+  "unreadHere_one": "{{count}} ungelesene Nachricht",
+  "unreadHere_other": "{{count}} ungelesene Nachrichten",
+  "openFailed": "Diese Unterhaltung konnte nicht geöffnet werden.",
+  "tryAgain": "Erneut versuchen",
+  "edited": "(bearbeitet)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Antworten",
+    "replyingTo": "Antwort auf „{{body}}“",
+    "missing": "Nachricht nicht auf diesem Gerät"
+  },
+  "edit": {
+    "action": "Bearbeiten",
+    "editing": "Diese Nachricht wird bearbeitet. Escape beendet."
+  },
+  "remove": {
+    "action": "Entfernen",
+    "title": "Diese Nachricht entfernen?",
+    "body": "Sie verschwindet von diesem Gerät, und die App der anderen Person entfernt sie dort ebenfalls. Was bereits gelesen wurde, bleibt gelesen — das lässt sich nicht zurücknehmen."
+  },
+  "removed": "Nachricht entfernt",
+  "days": {
+    "today": "Heute",
+    "yesterday": "Gestern"
+  },
+  "historyRequest": {
+    "title": "Eines deiner Geräte fragt nach deinen Nachrichten",
+    "body": "{{device}} hat sich angemeldet und hat keinen eigenen Verlauf. Die Nachrichten dieses Geräts senden? Prüfe, ob es dieselben Bilder in derselben Reihenfolge anzeigt.",
+    "unknownDevice": "Ein Gerät",
+    "codeLabel": "Gerätecode",
+    "approve": "Meine Nachrichten senden",
+    "decline": "Jetzt nicht"
+  },
+  "historyAsk": {
+    "title": "Warten auf deine Nachrichten",
+    "body": "Dieses Gerät hat deine anderen Geräte nach den Nachrichten gefragt, die du schon hattest. Öffne eines davon und bestätige es dort – das sind die Bilder, die es dir zeigen wird."
+  },
+  "safetyEmoji": {
+    "dog": "Hund",
+    "cat": "Katze",
+    "lion": "Löwe",
+    "horse": "Pferd",
+    "unicorn": "Einhorn",
+    "pig": "Schwein",
+    "elephant": "Elefant",
+    "rabbit": "Kaninchen",
+    "panda": "Panda",
+    "rooster": "Hahn",
+    "penguin": "Pinguin",
+    "turtle": "Schildkröte",
+    "fish": "Fisch",
+    "octopus": "Krake",
+    "butterfly": "Schmetterling",
+    "flower": "Blume",
+    "tree": "Baum",
+    "cactus": "Kaktus",
+    "mushroom": "Pilz",
+    "globe": "Globus",
+    "moon": "Mond",
+    "cloud": "Wolke",
+    "fire": "Feuer",
+    "banana": "Banane",
+    "apple": "Apfel",
+    "strawberry": "Erdbeere",
+    "corn": "Mais",
+    "pizza": "Pizza",
+    "cake": "Kuchen",
+    "heart": "Herz",
+    "smiley": "Smiley",
+    "robot": "Roboter",
+    "hat": "Hut",
+    "glasses": "Brille",
+    "spanner": "Schraubenschlüssel",
+    "santa": "Weihnachtsmann",
+    "thumbsUp": "Daumen hoch",
+    "umbrella": "Regenschirm",
+    "hourglass": "Sanduhr",
+    "clock": "Wecker",
+    "gift": "Geschenk",
+    "lightBulb": "Glühbirne",
+    "book": "Buch",
+    "pencil": "Bleistift",
+    "paperclip": "Büroklammer",
+    "scissors": "Schere",
+    "lock": "Schloss",
+    "key": "Schlüssel",
+    "hammer": "Hammer",
+    "telephone": "Telefon",
+    "flag": "Flagge",
+    "train": "Zug",
+    "bicycle": "Fahrrad",
+    "aeroplane": "Flugzeug",
+    "rocket": "Rakete",
+    "trophy": "Pokal",
+    "ball": "Ball",
+    "guitar": "Gitarre",
+    "trumpet": "Trompete",
+    "bell": "Glocke",
+    "anchor": "Anker",
+    "headphones": "Kopfhörer",
+    "folder": "Ordner",
+    "pin": "Stecknadel"
+  }
+}

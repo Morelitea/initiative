@@ -7,6 +7,7 @@ import {
   type AppServiceFormValues,
 } from "@/components/admin/AppServiceFormDialog";
 import { AppServiceStatusBadge } from "@/components/admin/AppServiceStatusBadge";
+import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -194,7 +195,11 @@ export const SettingsAppServicesPage = () => {
     return <p className="text-muted-foreground text-sm">{t("appServices.adminOnly")}</p>;
   }
   if (servicesQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("appServices.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("appServices.loading")}>
+        <ListSkeleton rows={3} avatar={false} rowClassName="rounded-lg border bg-card p-4" />
+      </SkeletonRegion>
+    );
   }
   if (servicesQuery.isError || !servicesQuery.data) {
     return <p className="text-destructive text-sm">{t("appServices.loadError")}</p>;

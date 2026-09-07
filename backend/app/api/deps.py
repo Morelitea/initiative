@@ -759,6 +759,7 @@ async def _apply_guild_session_context(
             user_id=current_user.id,
             guild_id=guild_context.guild_id,
             guild_role=GuildRole.admin.value,
+            platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
         )
         return session
@@ -796,6 +797,7 @@ async def _apply_guild_session_context(
             pam_guild_id=guild_context.guild_id,
             pam_read=True,
             pam_write=(access_level == AccessLevel.read_write.value),
+            platform_role=current_user.role.value,
             satisfied_providers=_satp_param(satisfied),
         )
         return session
@@ -820,6 +822,9 @@ async def _apply_guild_session_context(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
+        # Recorded, not routed with: the guild role governs inside the schema.
+        # It is what a later hop back out to ``public`` re-assumes.
+        platform_role=current_user.role.value,
         # Guild in read_only status: keep the full membership GUCs (so the
         # initiative-member and admin RLS legs evaluate normally) but assume
         # the SELECT-only guild_<id>_ro Postgres role — content writes are

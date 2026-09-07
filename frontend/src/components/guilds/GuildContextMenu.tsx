@@ -80,7 +80,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
     if (guild.id !== activeGuildId) {
       await switchGuild(guild.id);
     }
-    router.navigate({ to: "/c/$guildId/settings/users", params: { guildId: String(guild.id) } });
+    router.navigate({ to: "/c/$guildId/members", params: { guildId: String(guild.id) } });
   };
 
   const handleViewInitiatives = async () => {
@@ -132,12 +132,12 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
             <FolderOpen className="mr-2 h-4 w-4" />
             {t("viewInitiatives")}
           </ContextMenuItem>
+          <ContextMenuItem onClick={handleViewMembers}>
+            <Users className="mr-2 h-4 w-4" />
+            {t("viewMembers")}
+          </ContextMenuItem>
           {isAdmin && (
             <>
-              <ContextMenuItem onClick={handleViewMembers}>
-                <Users className="mr-2 h-4 w-4" />
-                {t("viewMembers")}
-              </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem
                 onClick={

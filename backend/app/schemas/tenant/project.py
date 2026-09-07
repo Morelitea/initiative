@@ -85,6 +85,10 @@ class ProjectRead(ProjectBase):
     # be loaded — it is set explicitly in ``_build_project_payload``.
     owner_id: Optional[int] = None
     initiative_id: int
+    #: The community this project lives in — the one fact a cross-guild list
+    #: needs to address the row, and what every other tool summary carries.
+    #: Left out of the slim picker projection, which never leaves one guild.
+    guild_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     is_archived: bool
@@ -109,10 +113,10 @@ class ProjectRead(ProjectBase):
     task_statuses: List[TaskStatusRead] = Field(
         default_factory=list, validation_alias="task_statuses_source"
     )
-    # Advanced setting: when true this entity's comment thread is off — the
-    # UI renders none and the API refuses to read or post one. Tasks are
-    # unaffected; their thread belongs to the task, not to the tool.
-    comments_disabled: bool = False
+    # When false this entity's comment thread is off — the UI renders none
+    # and the API refuses to read or post one. Tasks are unaffected; their
+    # thread belongs to the task, not to the tool.
+    comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
     # The current user's effective level on this resource (what *I* can do).
     my_permission_level: Optional[str] = None

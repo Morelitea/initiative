@@ -16,6 +16,12 @@ import type {
 import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
 import { TransferContentOwnershipDialog } from "@/components/guilds/TransferContentOwnershipDialog";
 import { UnownedContentCard } from "@/components/guilds/UnownedContentCard";
+import {
+  FormSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+  TableSkeleton,
+} from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -195,7 +201,12 @@ export const SettingsUsersPage = () => {
   }
 
   if (usersQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("users.loadingSettings")}</p>;
+    return (
+      <SkeletonRegion label={t("users.loadingSettings")} className="space-y-6">
+        <FormSkeleton fields={2} />
+        <TableSkeleton rows={6} columns={6} />
+      </SkeletonRegion>
+    );
   }
 
   if (usersQuery.isError || !usersQuery.data) {
@@ -444,7 +455,9 @@ export const SettingsUsersPage = () => {
           ) : null}
           <div className="h-px bg-border" />
           {invitesLoading ? (
-            <p className="text-muted-foreground text-sm">{t("users.loadingInvites")}</p>
+            <SkeletonRegion label={t("users.loadingInvites")}>
+              <ListSkeleton rows={2} avatar={false} />
+            </SkeletonRegion>
           ) : null}
           {invitesError ? <p className="text-destructive text-sm">{invitesError}</p> : null}
           {!invitesLoading && !inviteRows.length ? (

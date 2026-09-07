@@ -88,6 +88,7 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import my_tools as my_tools_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
@@ -426,23 +427,6 @@ async def _apply_property_filters(
     )
 
 
-def _sort_global_document_summaries(
-    items: list[DocumentSummary], sort_by: Optional[str], sort_dir: Optional[str]
-) -> list[DocumentSummary]:
-    """Order the merged cross-guild summaries, mirroring _apply_document_sort
-    (``id`` desc tiebreak applied as a separate stable pass)."""
-    items.sort(key=lambda d: d.id, reverse=True)
-    if sort_by == "name":
-        items.sort(key=lambda d: (d.name or "").lower(), reverse=sort_dir == "desc")
-    elif sort_by == "updated_at":
-        items.sort(key=lambda d: d.updated_at, reverse=sort_dir == "desc")
-    elif sort_by == "created_at":
-        items.sort(key=lambda d: d.created_at, reverse=sort_dir == "desc")
-    else:
-        items.sort(key=lambda d: d.updated_at, reverse=True)
-    return items
-
-
 async def _list_global_documents(
     session: SessionDep,
     current_user: User,
@@ -453,26 +437,34 @@ async def _list_global_documents(
     page_size: int = 20,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None,
+    created_by_me: bool = False,
 ) -> tuple[list[DocumentSummary], int]:
-    """List documents the user created across every guild they belong to.
+    """List the documents that reach the user across every guild they belong to.
 
     Visits each guild's schema in turn and merges. Per-schema ids collide, so
-    items are distinguished by (guild_id, id) via the nested initiative.
+    items are distinguished by (guild_id, id) via the nested initiative. What
+    "reach" means, and what ``created_by_me`` narrows it to, is
+    ``my_tools.scope_conditions`` — the same rules every cross-guild tool list
+    reads.
     """
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
     )
-    conditions = [Document.created_by == current_user.id]
-    name_match = search_service.tool_search_clause(Tool.document, Document.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
 
     async def _fetch(
-        guild_session: AsyncSession, _guild_id: int
+        guild_session: AsyncSession, guild_id: int
     ) -> list[DocumentSummary]:
         statement = (
             select(Document)
-            .where(*conditions)
+            .where(
+                *my_tools_service.scope_conditions(
+                    Tool.document,
+                    user_id=current_user.id,
+                    guild_id=guild_id,
+                    search=search,
+                    created_by_me=created_by_me,
+                )
+            )
             .options(
                 selectinload(Document.initiative).selectinload(Initiative.guild),
                 selectinload(Document.initiative)
@@ -509,7 +501,9 @@ async def _list_global_documents(
         ]
 
     items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    items = _sort_global_document_summaries(items, sort_by, sort_dir)
+    items = my_tools_service.sort_merged(
+        items, sort_by, sort_dir, default=lambda d: d.updated_at
+    )
     total_count = len(items)
     # One slicing rule for every page_size, including the windowed
     # page_size<=0 "fetch all" protocol (bounded response, SEC-14).
@@ -628,10 +622,15 @@ async def list_my_documents(
     page_size: int = Query(default=20, ge=0, le=100),
     sort_by: Optional[str] = Query(default=None),
     sort_dir: Optional[str] = Query(default=None),
+    created_by_me: bool = Query(
+        default=False,
+        description="Narrow to documents the caller wrote.",
+    ),
 ) -> DocumentListResponse:
-    """Documents created by the current user across every guild they belong to.
+    """Documents that reach the current user across every guild they belong to.
 
-    An optional ``guild_ids`` filter narrows to a subset of guilds.
+    An optional ``guild_ids`` filter narrows to a subset of guilds, and
+    ``created_by_me`` to the ones the caller wrote.
     """
     items, total_count = await _list_global_documents(
         session,
@@ -642,6 +641,7 @@ async def list_my_documents(
         page_size=page_size,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        created_by_me=created_by_me,
     )
     return DocumentListResponse(
         items=items,

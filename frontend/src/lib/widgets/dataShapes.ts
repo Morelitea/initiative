@@ -40,6 +40,16 @@ export interface TaskRow {
   subtaskDone: number;
   subtaskTotal: number;
   commentCount: number;
+  /** The initiative's own custom properties, by the property's name, each value
+   *  already resolved to what a person reads — an option's label rather than
+   *  its slug, a person's name rather than their id. Multi-valued properties
+   *  carry several; one nobody has set on this task is simply absent.
+   *
+   *  Labels rather than ids because a widget can only *show* them, and matching
+   *  them across rows is what grouping needs. A property whose value is a date
+   *  or a number arrives as its plain string form: the sandbox has no locale to
+   *  format one with, so anything more would be a lie about the viewer. */
+  properties: Record<string, string[]>;
 }
 
 export interface ProjectRow {
@@ -68,6 +78,32 @@ export interface ProjectsData {
   source: "projects";
   rows: ProjectRow[];
   tasks: TaskRow[];
+}
+
+/** A custom property a binding singled out: its name, and the values it can
+ *  take, in the order the initiative defined them.
+ *
+ *  The domain is here because rows cannot supply it. Grouping read off the rows
+ *  alone can only ever show the values somebody has already used — so an option
+ *  that exists and is empty silently stops existing, which for a workflow state
+ *  is the column you most needed to see. */
+export interface PropertyDomain {
+  name: string;
+  values: string[];
+}
+
+/**
+ * The `tasks` envelope.
+ *
+ * `property` is present only when the binding named one, and says which of the
+ * initiative's custom properties it named. A widget that groups by a property
+ * needs both halves: the name to read it off a row, and the domain so an
+ * unused option still gets a column.
+ */
+export interface TasksData {
+  source: "tasks";
+  rows: TaskRow[];
+  property?: PropertyDomain;
 }
 
 export interface CalendarEntryRow {
@@ -145,7 +181,7 @@ export interface DataMeta {
 }
 
 export type WidgetData = (
-  | { source: "tasks"; rows: TaskRow[] }
+  | TasksData
   | ProjectsData
   | { source: "calendar_entries"; rows: CalendarEntryRow[] }
   | { source: "task_counts"; rows: CountRow[] }

@@ -4,68 +4,88 @@ icon: lucide/user
 
 # Your space
 
-Most of Initiative is organized by community and initiative. But you also get a set of **personal views** that gather *your* things from across **every** community you belong to — so you never have to go hunting community by community. Reach them by clicking the **Initiative logo** in the **top-left corner** of the screen (it sits above your communities on the rail).
+Most of Initiative is organised by community and initiative, which is excellent right up until you belong to four of them and simply want to know what you're supposed to be doing today.
+
+That's what **your space** is for: personal views that gather *your* things from across **every** community at once. Click the **Initiative logo** in the **top-left corner**, above your communities on the rail.
 
 ## My Tasks
 
-Everything assigned to you, from every community and project, in one list. Group it **by date** or **by community**, and filter by priority, status, or community. This is the page to live in if you just want to know "what should I be doing?"
+Everything assigned to you, from every community and every project, in one list. Group it **by date** or **by community**, filter by priority, status or community.
+
+If you only ever open one page in Initiative for the rest of your life, it's this one.
 
 ## Tasks I Created
 
-The tasks *you* made, wherever they ended up. Useful for following up on things you've handed off or set in motion.
+The tasks *you* made, wherever they ended up. Useful for gently following up on the things you handed to other people, in a way that isn't nagging because you've got a list.
 
-## My Projects
+## My Tools
 
-Every project that has reached *you*, across all your communities — a fast way to jump to one without switching communities first.
+Every project, document, queue, counter, calendar, dashboard and board that's reached *you*, from every community, in one table. Pick a tool along the top and the table underneath changes. Each row says which community and which initiative it came from, so you can stop playing *which one was that in again*.
 
-"Reached you" is the same rule everywhere on these pages: work that's been shared with you directly, shared with a role you hold, or shared with everyone in an initiative you're in. It isn't "everything you could open if you went looking" — a community admin, who can reach anything in their community, still gets a list of their own work rather than the community's.
+A tool you have none of anywhere doesn't get a tab at all. Never touched a queue? No queue tab, and no empty table sulking behind it.
 
-## My Documents
+"Reached you" means the same thing everywhere in your space: shared with you, shared with a role you hold, or shared with everyone in an initiative you're in. It does **not** mean "everything you could theoretically prise open if you went looking". Even a community admin, who can reach absolutely anything in their community, gets their own work here rather than a 400-row inventory of everybody else's.
 
-The documents that are yours, gathered together, on the same rule.
+Two switches sit above the table:
 
-## My Contacts
+- **Everything / Made by me** — the second is exactly what it sounds like: things you wrote, regardless of who's been given them since.
+- **Communities** — for when you're in five and today you care about one.
 
-Everyone you share a community with, on one page — so you can find a colleague without first remembering which community you know them from.
+The tool, the search, the order, the page and the communities you picked all live in the address bar. So whatever you're looking at is a link, which is a considerably nicer thing to send somebody than "open My Tools and click around a bit".
 
-Your **favorites** sit at the top, then each of your communities in the order you dragged them into the rail, as sections you can collapse. It reads as one table: the same columns — person, name, and the communities you have in common — run down every section, so somebody who's in three of your communities lines up with themselves. Hover the small community icons on a row for the full list of what you share.
+## My Messages
 
-- **Star anyone** to keep them at the top, including people you share no community with. Starring is private and tells them nothing.
-- **One search box** covers the whole page. Each community keeps its own member list, so a search visits them one at a time and says so while it works.
-- Each section **pages on its own**, twenty at a time, without moving the ones around it.
+Your private conversations — one to one, end-to-end encrypted, and the only page here whose contents live on your device rather than on the server.
 
-Opening a row takes you to [that person's profile](../account/profile-and-preferences.md#your-profile-page).
+Beside them is everyone you can reach. Unread first, then the people you starred, then your connections, then everybody else — each group folds away and stays folded. **Requests waiting on you** sit above the lot, connection or message, either direction, so answering one doesn't mean going rummaging in Settings.
 
-!!! screenshot "My Contacts"
-    **Show:** the contacts page with a Favorites section and two community sections, and the shared-community icons on a row.
+Star anyone to keep them near the top. It's completely private and tells them absolutely nothing, which is the correct design for a feature like this.
 
-    Save as `en/images/your-space/my-contacts.png`, then replace this box with:
-    `![My Contacts](../images/your-space/my-contacts.png)`
+Nobody in the list yet, or somebody missing from it? The **+** goes and finds them:
+
+- **The people you starred**, first, including anyone you share no community with.
+- **Each of your communities**, searchable, twenty at a time with a *Show more* under each.
+- **A whole handle, number included** (`sam#1234`) — the one way to reach an account no list of yours will ever show, because they've kept themselves to themselves.
+
+Somebody who takes no messages is shown like anybody else and simply offers nothing to click. They're there, and they're not reachable, and the row says both.
+
+!!! screenshot "My Messages"
+    **Show:** the conversation list with a request waiting above it, a folded group, and the new-conversation picker open over the top.
+
+    Save as `en/images/your-space/my-messages.png`, then replace this box with:
+    `![My Messages](../images/your-space/my-messages.png)`
+
+See [Messages](messages.md) for who can reach you, connections, and what happens to your history when you sign out.
 
 ## My Calendar
 
-Your events **and** dated tasks from across every community, on one calendar — the calendars that have reached you, on the same rule as above. The single best place to see your whole schedule in one glance.
+Your events **and** your dated tasks, from every community, on one calendar.
+
+If you belong to three groups that each quietly believe their thing is the only thing happening in your week, this is the page that settles it.
 
 ## My Stats
 
 A friendly look at your own activity:
 
-- **Current streak** — consecutive days you've gotten things done.
+- **Current streak** — consecutive days you got something done.
 - **On-time rate** — how often you finish before the due date.
 - **Tasks completed** — this week and all-time.
-- **Velocity** — how much you take on versus complete each week.
+- **Velocity** — how much you take on versus how much you finish.
 - An **activity heatmap** of the past year.
 
-It's just for you — a bit of encouragement and a sense of your own rhythm, not a leaderboard.
+It's only for you. Nobody else can see it, there's no leaderboard, nobody is being ranked against anybody, and no manager is being sent a summary.
+
+It exists because watching a streak build is quite nice, and that turns out to be reason enough.
 
 ![Your personal stats](../images/your-space/my-stats.png)
 
-## Favorites
+## Favourites
 
-Star a project to add it to **Favorites** for one-click access. Your favorites are personal — starring something changes nothing for anyone else.
+Star a project to add it to **Favourites** for one-click access. Personal to you; starring something changes nothing for anybody else.
 
 ## Related
 
-- [Notifications](notifications.md) — how Initiative tells you what needs attention.
+- [Messages](messages.md) — private conversations, and who can reach you.
+- [Notifications](notifications.md) — how Initiative tells you things need doing.
 - [Search & shortcuts](search-and-shortcuts.md) — jump anywhere in seconds.
-- [Profile & preferences](../account/profile-and-preferences.md) — your own profile, and how you appear to everyone else.
+- [Profile & preferences](../account/profile-and-preferences.md) — your profile, and how you appear.

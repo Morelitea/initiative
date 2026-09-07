@@ -20,6 +20,7 @@ import type { UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAdminUsers } from "@/api/query-keys";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { SortIcon } from "@/components/SortIcon";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -252,7 +253,11 @@ export const SettingsPlatformUsersPage = () => {
   }
 
   if (usersQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("platformUsers.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("platformUsers.loading")}>
+        <TableSkeleton rows={8} columns={6} />
+      </SkeletonRegion>
+    );
   }
 
   if (usersQuery.isError || !usersQuery.data) {

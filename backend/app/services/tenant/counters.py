@@ -66,6 +66,18 @@ def require_counter_group_access(
 # ---------------------------------------------------------------------------
 
 
+def list_loader_options() -> list:
+    """Eager-load what a counter-group *list* row needs: its counters (for the
+    count), its sharing, its initiative's memberships (the DAC engine reads
+    them) and its tags."""
+    return [
+        selectinload(CounterGroup.counters),
+        selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
+        selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+        tags_service.TOOL_TAG_LINKS[Tool.counter_group].load_options(),
+    ]
+
+
 async def get_counter_group(
     session: AsyncSession,
     group_id: int,

@@ -52,6 +52,22 @@ export function setItem(key: string, value: string): void {
   void Preferences.set({ key, value });
 }
 
+/**
+ * Mirror a value into the WebView's own localStorage as well, for the one
+ * reader that runs before any of this module exists: the pre-paint script in
+ * index.html. On web, `setItem` already lands there. On native the durable
+ * copy is in Preferences and this is only a hint — the OS may clear it, and
+ * the script falls back to the system theme when it is gone.
+ */
+export function setFirstPaintHint(key: string, value: string): void {
+  if (!isNative() || !hasLocalStorage) return;
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // A hint only: the first frame falls back to the system theme.
+  }
+}
+
 export function removeItem(key: string): void {
   if (!isNative()) {
     if (hasLocalStorage) localStorage.removeItem(key);

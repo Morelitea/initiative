@@ -247,8 +247,11 @@
     "mentionDocument": "{{mentionedBy}} mentioned you in {{documentTitle}}.",
     "commentOnTask": "{{commenterName}} commented on {{taskTitle}}.",
     "commentOnResource": "{{commenterName}} commented on {{entityName}}.",
+    "postPublished": "{{authorName}} posted {{postName}}.",
     "commentReply": "{{replierName}} replied to your comment on {{contextTitle}}.",
     "commentReaction": "{{reactorName}} reacted {{emoji}} to your comment on {{contextTitle}}.",
+    "directMessage": "{{senderName}} sent you a message.",
+    "directMessageMany": "{{senderName}} sent you {{count}} messages.",
     "commentReactionMulti_one": "{{reactorName}} and 1 other reacted {{emoji}} to your comment on {{contextTitle}}.",
     "commentReactionMulti_other": "{{reactorName}} and {{count}} others reacted {{emoji}} to your comment on {{contextTitle}}.",
     "accessGrantRequested": "{{requester}} requested {{level}} access to {{guild}}.",
@@ -420,5 +423,15 @@
     "description": "Whether this community shows people's real names, or the usernames they chose.",
     "toggleLabel": "Show full names",
     "toggleHint": "Off, members appear by username. On, their full name is shown where they have entered one."
+  },
+  "members": {
+    "title": "Members",
+    "person": "Member",
+    "name": "Name",
+    "admin": "Admin",
+    "alsoIn": "Also in",
+    "actions": "Actions",
+    "failed": "This community's members could not be loaded.",
+    "searchPlaceholder": "Filter members"
   }
 }

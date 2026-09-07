@@ -12,7 +12,8 @@
     "counterGroups": "Grupos de contadores",
     "calendars": "Calendarios",
     "dashboards": "Paneles",
-    "results": "Resultados"
+    "results": "Resultados",
+    "posts": "Publicaciones"
   },
   "actions": {
     "addTask": "Agregar tarea",
@@ -20,16 +21,12 @@
   },
   "pages": {
     "myTasks": "Mis Tareas",
-    "tasksICreated": "Tareas que creé",
     "myCalendar": "Mi Calendario",
-    "myProjects": "Mis Proyectos",
-    "myDocuments": "Mis Documentos",
-    "myContacts": "Mis contactos",
+    "myTools": "Mis herramientas",
+    "myMessages": "Mis mensajes",
     "myStats": "Mis Estadísticas",
-    "userSettings": "Configuración de usuario",
+    "mySettings": "Mi configuración",
     "guildSettings": "Configuración de la comunidad",
-    "allProjects": "Todos los Proyectos",
-    "allDocuments": "Todos los Documentos",
     "allInitiatives": "Todas las Iniciativas",
     "platformSettings": "Configuración de la plataforma",
     "adminDashboard": "Panel de administración"

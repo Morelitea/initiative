@@ -37,6 +37,10 @@ import {
 } from "@/api/generated/documents/documents";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  getReadPostApiV1GGuildIdPostsPostIdGetQueryKey,
+  readPostApiV1GGuildIdPostsPostIdGet,
+} from "@/api/generated/posts/posts";
+import {
   getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
   readProjectApiV1GGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
@@ -51,9 +55,9 @@ import {
 import { eventRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
 
 /**
- * The kinds of thing `/go/{refType}/{id}` can resolve. The six tools are named
- * by their kebab singular (what `toolKebabSingular` produces), plus the two
- * child entities that carry their own ids in links.
+ * The kinds of thing `/go/{refType}/{id}` can resolve. Every tool is named by
+ * its kebab singular (what `toolKebabSingular` produces), plus the two child
+ * entities that carry their own ids in links.
  */
 export type EntityRefType =
   | "project"
@@ -62,6 +66,7 @@ export type EntityRefType =
   | "counter-group"
   | "calendar"
   | "dashboard"
+  | "post"
   | "task"
   | "event";
 
@@ -72,6 +77,7 @@ const REF_TYPES = new Set<string>([
   "counter-group",
   "calendar",
   "dashboard",
+  "post",
   "task",
   "event",
 ]);
@@ -155,6 +161,13 @@ export async function resolveEntityPath(
         // A null initiative is an app-installed calendar, which keeps a guild
         // address — not a failure to resolve.
         return toolDetailRoute(Tool.calendar, calendar.initiative_id, entityId);
+      }
+      case "post": {
+        const post = await fetch(
+          getReadPostApiV1GGuildIdPostsPostIdGetQueryKey(guildId, entityId),
+          () => readPostApiV1GGuildIdPostsPostIdGet(guildId, entityId)
+        );
+        return toolDetailRoute(Tool.post, post.initiative_id, entityId);
       }
       case "task": {
         const task = await fetch(

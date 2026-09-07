@@ -56,7 +56,7 @@ from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
 
 # Tool keys as they appear in the selector's include/formats maps.
-_TOOLS = ("project", "document", "queue", "counter_group", "calendar")
+_TOOLS = ("project", "document", "queue", "counter_group", "calendar", "post")
 
 # Report-mode format sets per tool (documents are per-type, validated below).
 _REPORT_FORMATS: dict[str, frozenset[str]] = {
@@ -219,6 +219,7 @@ async def _enumerate(
     from app.services.tenant.calendars import list_calendar_ids_for_export
     from app.services.tenant.counters import list_counter_group_ids_for_export
     from app.services.tenant.documents import list_document_ids_for_export
+    from app.services.tenant.posts import list_post_ids_for_export
     from app.services.tenant.project_export import list_project_ids_for_export
     from app.services.tenant.queues import list_queue_ids_for_export
 
@@ -234,6 +235,9 @@ async def _enumerate(
             session, user, guild_id, initiative_ids=iids
         ),
         "counter_group": lambda iids: list_counter_group_ids_for_export(
+            session, user, guild_id, initiative_ids=iids
+        ),
+        "post": lambda iids: list_post_ids_for_export(
             session, user, guild_id, initiative_ids=iids
         ),
     }
@@ -447,6 +451,7 @@ class _ScopeBuilder:
         await self._add_queues(initiative, folder)
         await self._add_counter_groups(initiative, folder)
         await self._add_calendars(initiative, folder)
+        await self._add_posts(initiative, folder)
 
     # -- per-tool chunks -----------------------------------------------------
 
@@ -653,6 +658,47 @@ class _ScopeBuilder:
                 )
             else:
                 self._append_report(item, f"{path_stem}.{fmt}", fmt, "counter_group")
+
+    async def _add_posts(self, initiative, folder: str) -> None:
+        """Every notice on this initiative's board.
+
+        JSON only — a post exports as its importable envelope, the way a
+        whiteboard document does. There is no report shape for a notice, so a
+        report-mode export leaves the board out entirely rather than dropping
+        a lone JSON file into a zip of PDFs and spreadsheets. That is also why
+        ``_REPORT_FORMATS`` has no ``post`` entry: nothing to offer.
+        """
+        if self.mode != "backup":
+            return
+        if not _included(self.params, "post"):
+            return
+        if not initiative.posts_enabled:
+            return
+        from app.services.export.adapters.post import build_post_item
+        from app.services.tenant.posts import (
+            get_post_for_export,
+            list_post_ids_for_export,
+        )
+
+        for post_id in await list_post_ids_for_export(
+            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
+        ):
+            await self._refresh_access()
+            post = await get_post_for_export(
+                self.session, self.user, self.guild_id, post_id=post_id
+            )
+            item = build_post_item(post, "json", self.now)
+            path_stem = f"{folder}/posts/{_slug(post.id, post.name)}"
+            self._append_backup(
+                item,
+                path=f"{path_stem}.initiative-post.json",
+                tool="post",
+                type="initiative-post",
+                schema_version=1,
+                entity_id=post.id,
+                title=post.name,
+                initiative_id=initiative.id,
+            )
 
     async def _add_calendars(self, initiative, folder: str) -> None:
         if not _included(self.params, "calendar"):

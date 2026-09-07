@@ -1,0 +1,170 @@
+{
+  "title": "My Messages",
+  "backToNav": "Back to navigation",
+  "encryptedNotice": "End-to-end encrypted. Only you and the other person can read these.",
+  "empty": {
+    "title": "Pick a conversation"
+  },
+  "nobodyYet": "Nobody yet. A conversation opens once a message request is accepted.",
+  "ageLocked": "Messaging is for people aged 13 and over, and this account has not answered that question yet.",
+  "requests": {
+    "heading": "Requests",
+    "asked": "They want to start a conversation.",
+    "youAsked": "You asked. Nothing is sent until they accept.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Cancel",
+    "wantsToConnect": "They want to connect.",
+    "youAskedToConnect": "You asked to connect. Nothing changes until they accept."
+  },
+  "groups": {
+    "unread": "Unread",
+    "favorites": "Favorites",
+    "connections": "Connections",
+    "messages": "Messages"
+  },
+  "search": {
+    "placeholder": "Search",
+    "label": "Search conversations",
+    "noMatches": "Nobody matches."
+  },
+  "newConversation": {
+    "trigger": "Start a conversation",
+    "title": "Start a conversation",
+    "description": "Somebody from a community you share, or anybody whose full handle you know.",
+    "placeholder": "Search people, or type name#1234",
+    "hint": "A whole handle, number included, reaches somebody in none of your communities.",
+    "connect": "Connect with {{handle}}",
+    "noMatches": "Nobody matches.",
+    "empty": "Nobody to show. You share no communities with anyone yet.",
+    "unreachable": "Not reachable",
+    "showMore": "Show more",
+    "favorites": "Favorites"
+  },
+  "receipt": {
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "read": "Read"
+  },
+  "startHint": "start",
+  "unknownAccount": "Unknown account",
+  "noHistoryHere": "Nothing on this device yet. Messages you had elsewhere stay there.",
+  "composerPlaceholder": "Write a message",
+  "send": "Send",
+  "sendFailed": "That message could not be sent.",
+  "recipientHasNoDevice": "{{name}} has not set up encrypted messages yet, so this could not be delivered.",
+  "deviceFailed": "Encrypted messages could not be set up on this device.",
+  "loading": "Loading…",
+  "unsupportedBrowser": "Encrypted messages need a secure connection and a browser that can run them. Check the address starts with https (or is localhost), or try the app.",
+  "start": {
+    "waiting": "Waiting for them to accept. You can message each other once they do.",
+    "asksToMessage": "They asked to message you. Accept, and the two of you can talk.",
+    "mayAsk": "You haven't messaged them yet. Ask first — they can accept or decline, and nothing is sent until they do.",
+    "denied": "You can't message them right now."
+  },
+  "unreadHere_one": "{{count}} unread message",
+  "unreadHere_other": "{{count}} unread messages",
+  "openFailed": "That conversation could not be opened.",
+  "tryAgain": "Try again",
+  "edited": "(edited)",
+  "reactions": {
+    "chip": "{{emoji}}, {{count}}"
+  },
+  "reply": {
+    "action": "Reply",
+    "replyingTo": "Replying to “{{body}}”",
+    "missing": "Message not on this device"
+  },
+  "edit": {
+    "action": "Edit",
+    "editing": "Editing this message. Escape to stop."
+  },
+  "remove": {
+    "action": "Remove",
+    "title": "Remove this message?",
+    "body": "It goes from this device, and their client takes it off theirs. A message they already read is a message they already read — this cannot unsay it."
+  },
+  "removed": "Message removed",
+  "days": {
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
+  "historyRequest": {
+    "title": "One of your devices is asking for your messages",
+    "body": "{{device}} signed in and has no history of its own. Send it this device's messages? Check it is showing the same pictures, in the same order.",
+    "unknownDevice": "A device",
+    "codeLabel": "Device code",
+    "approve": "Send my messages",
+    "decline": "Not now"
+  },
+  "historyAsk": {
+    "title": "Waiting for your messages",
+    "body": "This device has asked your other devices for the messages you already had. Open one of them and approve it there — these are the pictures it will show you."
+  },
+  "safetyEmoji": {
+    "dog": "Dog",
+    "cat": "Cat",
+    "lion": "Lion",
+    "horse": "Horse",
+    "unicorn": "Unicorn",
+    "pig": "Pig",
+    "elephant": "Elephant",
+    "rabbit": "Rabbit",
+    "panda": "Panda",
+    "rooster": "Rooster",
+    "penguin": "Penguin",
+    "turtle": "Turtle",
+    "fish": "Fish",
+    "octopus": "Octopus",
+    "butterfly": "Butterfly",
+    "flower": "Flower",
+    "tree": "Tree",
+    "cactus": "Cactus",
+    "mushroom": "Mushroom",
+    "globe": "Globe",
+    "moon": "Moon",
+    "cloud": "Cloud",
+    "fire": "Fire",
+    "banana": "Banana",
+    "apple": "Apple",
+    "strawberry": "Strawberry",
+    "corn": "Corn",
+    "pizza": "Pizza",
+    "cake": "Cake",
+    "heart": "Heart",
+    "smiley": "Smiley",
+    "robot": "Robot",
+    "hat": "Hat",
+    "glasses": "Glasses",
+    "spanner": "Spanner",
+    "santa": "Santa",
+    "thumbsUp": "Thumbs up",
+    "umbrella": "Umbrella",
+    "hourglass": "Hourglass",
+    "clock": "Clock",
+    "gift": "Gift",
+    "lightBulb": "Light bulb",
+    "book": "Book",
+    "pencil": "Pencil",
+    "paperclip": "Paperclip",
+    "scissors": "Scissors",
+    "lock": "Lock",
+    "key": "Key",
+    "hammer": "Hammer",
+    "telephone": "Telephone",
+    "flag": "Flag",
+    "train": "Train",
+    "bicycle": "Bicycle",
+    "aeroplane": "Aeroplane",
+    "rocket": "Rocket",
+    "trophy": "Trophy",
+    "ball": "Ball",
+    "guitar": "Guitar",
+    "trumpet": "Trumpet",
+    "bell": "Bell",
+    "anchor": "Anchor",
+    "headphones": "Headphones",
+    "folder": "Folder",
+    "pin": "Pin"
+  }
+}

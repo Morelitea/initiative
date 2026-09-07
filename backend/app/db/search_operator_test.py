@@ -7,8 +7,8 @@ the table read, and nothing else would report it.
 These assert the pieces that keep that from happening unnoticed — the objects
 exist, the guild index is built on the operator class, the query layer picks it,
 and installing the objects late still reaches indexes built without them.
-Infrastructure installs them (``scripts/create-search-operator.sql``);
-``conftest`` does that for the suite.
+Infrastructure installs them (``app.db.bootstrap``); ``conftest`` runs that
+same module for the suite.
 """
 
 from __future__ import annotations
@@ -37,8 +37,7 @@ async def test_the_match_function_is_installed_and_marked(session):
         )
     ).first()
     assert row is not None, (
-        f"public.{SEARCH_MATCH_FUNCTION} is missing — run "
-        "scripts/create-search-operator.sql"
+        f"public.{SEARCH_MATCH_FUNCTION} is missing — the bootstrap did not install it"
     )
     assert row[0] is True, "the match function is not marked LEAKPROOF"
 

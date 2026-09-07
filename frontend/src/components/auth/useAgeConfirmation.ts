@@ -2,6 +2,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import {
+  invalidateContactGrants,
+  invalidateContacts,
+  invalidateDmSettings,
+} from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -35,6 +40,12 @@ export const useAgeConfirmation = (onConfirmed?: () => void) => {
     try {
       await apiClient.post("/users/me/age-confirmation", { birthdate });
       await refreshUser();
+      // The answer is a gate rather than a preference: who may reach this
+      // account, who it may reach, and whether it has a messaging policy at
+      // all are all different now. Anything holding the old answer is dropped,
+      // so the surface that asked shows what the answer opened instead of
+      // needing a reload to notice.
+      await Promise.all([invalidateDmSettings(), invalidateContacts(), invalidateContactGrants()]);
       setBirthdate("");
       onConfirmed?.();
     } catch (err) {

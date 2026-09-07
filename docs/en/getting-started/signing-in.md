@@ -4,50 +4,54 @@ icon: lucide/log-in
 
 # Signing in
 
-Once you have an account, signing in takes a few seconds.
+Four seconds, give or take.
 
-## Sign in with email and password
+## Email and password
 
-1. Open your group's Initiative web address.
-2. Enter your **email** and **password**.
+1. Open your group's Initiative address.
+2. Type your **email** and **password**.
 3. Click **Sign in**.
 
-That's it — you land on your home screen. Initiative keeps you signed in on that device, so you won't have to log in every time.
+You land on your home screen. Initiative keeps you signed in on that device, so you aren't logging in again every single morning like it's your bank.
 
 ![Signing in with email and password](../images/getting-started/login-form.png)
 
-## Sign in with single sign-on
+## Single sign-on
 
-If your organization uses single sign-on (SSO), you'll see a button such as **Continue with Single Sign-On**. Click it, sign in with your existing work or school account, and you're in. There's no separate Initiative password to remember.
+If your work or school set this up, there's a button saying something like **Continue with Single Sign-On**. Click it, log in the way you already do everywhere else, done. No extra Initiative password to forget.
 
-## Forgot your password?
+## Forgotten your password?
 
-No problem.
+Happens to everybody. Roughly monthly. There is no shame here.
 
-1. On the sign-in screen, click **Forgot password?**
-2. Enter the email tied to your account.
-3. Check your inbox for a reset link and follow it.
-4. Choose a new password (at least 12 characters) and sign in.
+1. Click **Forgot password?** on the sign-in screen.
+2. Type the email address your account uses.
+3. Follow the reset link we send you.
+4. Pick a new password (12+ characters) and sign in.
 
-If the email doesn't arrive within a few minutes, check your spam folder. Reset links expire after a while for safety, so if yours has gone stale, just request another.
+Nothing arriving? Check spam first — it's usually spam. Reset links also go stale after a while, so if yours has been sitting in your inbox since Tuesday, just ask for another.
 
-## Using the mobile app
+## The mobile app
 
-The mobile app works a little differently the first time, because it needs to know *which* Initiative server to talk to.
+The app needs one extra step the first time, because it has to be told *which* Initiative it's talking to. There are a lot of them out there and it has no way of guessing which one is yours.
 
-1. Open the app. You'll see a **Connect to Server** screen.
-2. Enter your group's Initiative web address (the same one you use in the browser).
+1. Open the app. You'll get a **Connect to Server** screen.
+2. Type in your group's Initiative address — the same one you use in a browser.
 3. Sign in with your email and password, or single sign-on.
 
-After that, the app remembers your server and keeps you signed in.
+After that it remembers, and stays signed in.
 
-!!! tip "One account, many devices"
-    You can be signed in on your laptop and your phone at the same time. To see and manage where you're signed in, open **User settings → Security → Logged in devices**, where you can sign out a device you no longer use.
+!!! tip "One account, as many devices as you like"
+    Laptop and phone at the same time is completely fine, and so is the tablet you'd forgotten about.
+
+    To see everywhere you're currently signed in — and boot off anything you don't recognise — open **User settings → Security → Logged in devices**. Worth a glance every so often, in roughly the same spirit as testing the smoke alarm.
 
 ## Signing out
 
-Click your **name or avatar** (bottom of the sidebar) and choose **Sign out**. On a shared or public computer, always sign out when you're done.
+Click your **name or picture** at the bottom of the sidebar, then **Sign out**.
+
+On a shared or public computer, do this. Every time. The library computer does not need standing access to your PTA.
 
 ## Next
 
-Now let's get comfortable with the layout — [take the quick tour](a-quick-tour.md).
+Now let's find where everything lives — [take the quick tour](a-quick-tour.md).

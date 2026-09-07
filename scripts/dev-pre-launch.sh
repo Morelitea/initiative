@@ -80,16 +80,17 @@ done
 
 docker compose up db -d --wait
 
-# The search index is built on an operator class, which takes one superuser
-# statement per database — and the app's own role deliberately is not a
-# superuser, so it cannot install it itself. The dev database's superuser is
-# right here, so do it rather than leave every checkout to notice the boot
-# warning and run it by hand. Idempotent; a failure is not fatal, since search
-# works either way.
-if ! docker compose exec -T db psql -q -v ON_ERROR_STOP=1 \
-        -U "${POSTGRES_USER:-initiative}" -d "${POSTGRES_DB:-initiative}" \
-        -f - < backend/scripts/create-search-operator.sql > /dev/null; then
-    echo "Search operator not installed — search still works, without its index." >&2
+# The login roles and the search operator class: a deployment gets these from
+# app.db.bootstrap at startup over DATABASE_URL_BOOTSTRAP. A dev checkout's
+# .env usually does not set that, and the compose superuser is right here, so
+# apply them the same way rather than leave every checkout to hit the boot
+# warning. Idempotent; a failure is not fatal, since search works either way.
+if ! (
+    cd backend && source .venv/bin/activate &&
+    DATABASE_URL_BOOTSTRAP="postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@localhost:5432/${POSTGRES_DB:-initiative}" \
+        python -m app.db.bootstrap > /dev/null
+); then
+    echo "Database bootstrap did not complete — search may run without its index." >&2
 fi
 
 # A seed that stopped partway left rows the next one would collide with. Clear

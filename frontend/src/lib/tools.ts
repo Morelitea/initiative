@@ -37,6 +37,7 @@ import {
   LayoutDashboard,
   ListTodo,
   type LucideIcon,
+  Megaphone,
   ScrollText,
 } from "lucide-react";
 
@@ -58,6 +59,7 @@ export const TOOL_ICONS: Record<Tool, LucideIcon> = {
   [Tool.counter_group]: Gauge,
   [Tool.calendar]: CalendarDays,
   [Tool.dashboard]: LayoutDashboard,
+  [Tool.post]: Megaphone,
 };
 
 /** Every tool, in canonical enum order. */
@@ -115,6 +117,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
   Tool.calendar,
   Tool.dashboard,
   Tool.document,
+  Tool.post,
   Tool.queue,
   Tool.counter_group,
   Tool.project,
@@ -330,13 +333,13 @@ export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
  * The shape every tool's read schema shares where comments are concerned: the
  * row's id, the initiative it lives in (null for a guild-level entity), and its
  * own comment switch. `tools_test.py` holds every tool's model and read schema
- * to carrying `comments_disabled`, so a tool entity satisfies this by
+ * to carrying `comments_enabled`, so a tool entity satisfies this by
  * construction — which is what lets one panel serve all of them.
  */
 export interface ToolCommentEntity {
   id: number;
   initiative_id?: number | null;
-  comments_disabled?: boolean;
+  comments_enabled?: boolean;
 }
 
 /**

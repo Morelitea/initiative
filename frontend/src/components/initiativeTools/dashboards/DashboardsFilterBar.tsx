@@ -40,7 +40,7 @@ export const DashboardsFilterBar = ({
             htmlFor="dashboard-search"
             className="block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.filterByName")}
+            {t("filters.searchLabel")}
           </Label>
           <Input
             id="dashboard-search"

@@ -40,7 +40,7 @@ export const CountersFilterBar = ({
             htmlFor="counter-group-search"
             className="block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.filterByName")}
+            {t("filters.searchLabel")}
           </Label>
           <Input
             id="counter-group-search"

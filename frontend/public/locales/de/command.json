@@ -12,7 +12,8 @@
     "counterGroups": "Zähler",
     "calendars": "Kalender",
     "dashboards": "Dashboards",
-    "results": "Ergebnisse"
+    "results": "Ergebnisse",
+    "posts": "Beiträge"
   },
   "actions": {
     "addTask": "Aufgabe hinzufügen",
@@ -20,16 +21,12 @@
   },
   "pages": {
     "myTasks": "Meine Aufgaben",
-    "tasksICreated": "Meine erstellten Aufgaben",
     "myCalendar": "Mein Kalender",
-    "myProjects": "Meine Projekte",
-    "myDocuments": "Meine Dokumente",
-    "myContacts": "Meine Kontakte",
+    "myTools": "Meine Werkzeuge",
+    "myMessages": "Meine Nachrichten",
     "myStats": "Meine Statistiken",
-    "userSettings": "Benutzereinstellungen",
+    "mySettings": "Meine Einstellungen",
     "guildSettings": "Community-Einstellungen",
-    "allProjects": "Alle Projekte",
-    "allDocuments": "Alle Dokumente",
     "allInitiatives": "Alle Initiativen",
     "platformSettings": "Plattformeinstellungen",
     "adminDashboard": "Admin-Dashboard"

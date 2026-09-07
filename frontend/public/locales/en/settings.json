@@ -1,6 +1,6 @@
 {
   "layout": {
-    "title": "User settings",
+    "title": "My Settings",
     "subtitle": "Manage your profile, interface preferences, and notifications.",
     "tabs": {
       "profile": "Profile",
@@ -11,7 +11,8 @@
       "import": "Import",
       "security": "Security",
       "trash": "Trash",
-      "danger": "Danger Zone"
+      "danger": "Danger Zone",
+      "privacy": "Privacy"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
     "goToLogin": "Go to login"
@@ -278,7 +279,11 @@
       "events": "Events",
       "eventsDescription": "When you’re invited to an event, or one you’re attending changes.",
       "eventReminders": "Event reminders",
-      "eventRemindersDescription": "A reminder before events you’re attending begin."
+      "eventRemindersDescription": "A reminder before events you’re attending begin.",
+      "directMessages": "Direct messages",
+      "directMessagesDescription": "Someone sent you a direct message. Never includes what it says.",
+      "posts": "Posts",
+      "postsDescription": "When a notice goes up on a board you can see."
     },
     "reminderLeadTime": {
       "label": "Remind me",
@@ -1125,7 +1130,9 @@
     "ageGateHelpText": "While this is on, anyone who belongs to a listed community is asked once to confirm their age, and the answer is kept on their account. Turn it off only where you already know every account belongs to an adult.",
     "ageGateOffTitle": "Stop asking members their age?",
     "ageGateOffBody": "Turning this off asserts that every account on this deployment belongs to someone 18 or older. Nobody will be asked to confirm their age again, including people who join a listed community later.",
-    "ageGateOffConfirm": "Everyone here is 18 or older"
+    "ageGateOffConfirm": "Everyone here is 18 or older",
+    "defaultDmLabel": "Direct messages for new accounts",
+    "defaultDmHelpText": "The policy an account starts on. Read once, when the account is made — changing it opens no account that already exists and closes none either. “Private” is the shipped default; on it, people become reachable one at a time as they choose to be."
   },
   "audit": {
     "title": "Audit",
@@ -1148,5 +1155,60 @@
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
     "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle."
+  },
+  "privacy": {
+    "title": "Privacy",
+    "dm": {
+      "title": "Direct messages",
+      "description": "Who can ask to message you, outside your connections.",
+      "private": "Private",
+      "privateHint": "No one.",
+      "community": "My communities",
+      "communityHint": "People you share a community with.",
+      "public": "Anyone",
+      "publicHint": "Anyone on Initiative.",
+      "communitiesTitle": "Which communities count",
+      "communitiesHint": "All count by default.",
+      "ageLocked": "Messaging is available to people aged 13 and over. You have not told us whether you are.",
+      "confirmAge": "Confirm my age",
+      "saved": "Saved."
+    },
+    "receipts": {
+      "title": "Read receipts",
+      "label": "Tell people when their messages reach you",
+      "help": "They see when a message arrived on one of your devices and when you read it. Switch this off and they see neither — the same as somebody who has not opened the app. You still see theirs."
+    },
+    "connections": {
+      "title": "Connections",
+      "description": "Connections are mutual. You can keep in touch even if you stop sharing a community.",
+      "empty": "You have not connected with anyone yet.",
+      "add": "Connect by handle",
+      "addPlaceholder": "name#1234",
+      "addHint": "Type someone's full handle, including the number.",
+      "send": "Send request",
+      "remove": "Remove",
+      "removeTitle": "Remove this connection?",
+      "removeKeepsChannel": "You share a community, so you will still be able to message each other.",
+      "removeEndsChannel": "This will also end your message channel with them.",
+      "connected": "Connected {{date}}",
+      "sent": "Request sent."
+    },
+    "requests": {
+      "title": "Pending",
+      "empty": "Nothing waiting.",
+      "wantsToConnect": "wants to connect",
+      "askedToMessage": "asked to message you",
+      "youAskedToConnect": "you asked to connect",
+      "youAskedToMessage": "you asked to message",
+      "accept": "Accept",
+      "decline": "Decline",
+      "cancel": "Cancel"
+    },
+    "ignored": {
+      "title": "Ignored accounts",
+      "description": "You will not be notified when these accounts mention, reply to or react to you, and nothing they send you arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share, and be able to use all tools normally.",
+      "empty": "You are not ignoring anyone.",
+      "stop": "Stop ignoring"
+    }
   }
 }

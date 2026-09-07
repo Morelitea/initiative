@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from pydantic import ConfigDict
-from sqlalchemy import Column, DateTime, ForeignKey, Integer
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, text
 from sqlmodel import Enum as SQLEnum, Field, SQLModel
 
 
@@ -51,6 +51,13 @@ class UserDmSettings(SQLModel, table=True):
             nullable=False,
             server_default=DmPolicy.private.value,
         ),
+    )
+    #: Whether this account's own clients tell a sender that a message reached
+    #: a device and was read. Off is a request the *sender* never sees refused:
+    #: nothing arrives, which is what "no receipt" looks like anyway.
+    send_receipts: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=text("true")),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

@@ -12,7 +12,8 @@
     "counterGroups": "Groupes de compteurs",
     "calendars": "Calendriers",
     "dashboards": "Tableaux de bord",
-    "results": "Résultats"
+    "results": "Résultats",
+    "posts": "Publications"
   },
   "actions": {
     "addTask": "Ajouter une tâche",
@@ -20,16 +21,12 @@
   },
   "pages": {
     "myTasks": "Mes tâches",
-    "tasksICreated": "Tâches que j'ai créées",
     "myCalendar": "Mon calendrier",
-    "myProjects": "Mes projets",
-    "myDocuments": "Mes documents",
-    "myContacts": "Mes contacts",
+    "myTools": "Mes outils",
+    "myMessages": "Mes messages",
     "myStats": "Mes statistiques",
-    "userSettings": "Paramètres utilisateur",
+    "mySettings": "Mes paramètres",
     "guildSettings": "Paramètres de la communauté",
-    "allProjects": "Tous les projets",
-    "allDocuments": "Tous les documents",
     "allInitiatives": "Toutes les initiatives",
     "platformSettings": "Paramètres de la plateforme",
     "adminDashboard": "Tableau de bord admin"

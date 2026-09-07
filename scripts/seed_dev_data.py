@@ -122,6 +122,13 @@ from app.models.tenant.property import (  # noqa: E402
     PropertyType,
     TaskPropertyValue,
 )
+from app.models.tenant.post import Post, PostTag  # noqa: E402
+from app.models.tenant.post_poll import (  # noqa: E402
+    PostPoll,
+    PostPollOption,
+    PostPollVote,
+)
+from app.models.tenant.post_read import PostRead  # noqa: E402
 from app.models.tenant.recent_view import RecentView  # noqa: E402
 from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
 from app.models.tenant.task import (  # noqa: E402
@@ -171,6 +178,36 @@ def _doc(paragraphs: list[str]) -> dict:
             }
         )
     return {"root": {"children": children, "type": "root"}}
+
+
+def _chip(entity_type: str, entity_id: int, text: str) -> dict:
+    """A live smart chip, as the editor serializes one.
+
+    Only the three fields ``EntityMentionNode.importJSON`` reads. A chip shows
+    a fact ABOUT the thing it names and keeps showing the current one, so a
+    seeded notice about a task goes on reporting that task's column.
+    """
+    return {
+        "type": "entity-mention",
+        "version": 1,
+        "entityType": entity_type,
+        "entityId": entity_id,
+        "text": text,
+    }
+
+
+def _doc_mixed(parts: list) -> dict:
+    """A one-paragraph body mixing plain strings and chips."""
+    children = [
+        part if isinstance(part, dict) else {"text": part, "type": "text"}
+        for part in parts
+    ]
+    return {
+        "root": {
+            "children": [{"children": children, "type": "paragraph"}],
+            "type": "root",
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +436,12 @@ class IDTracker:
             "task_property_values": [],
             "document_property_values": [],
             "calendar_event_property_values": [],
+            "posts": [],
+            "post_tags": [],
+            "post_polls": [],
+            "post_poll_options": [],
+            "post_poll_votes": [],
+            "post_reads": [],
         }
 
     def add(self, key: str, value) -> None:
@@ -567,6 +610,7 @@ async def _create_initiative(
     counter_groups_enabled: bool = False,
     calendars_enabled: bool = False,
     dashboards_enabled: bool = False,
+    posts_enabled: bool = False,
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private,
     auto_join: bool = False,
 ) -> tuple[Initiative, InitiativeRoleModel, InitiativeRoleModel]:
@@ -586,6 +630,7 @@ async def _create_initiative(
         counter_groups_enabled=counter_groups_enabled,
         calendars_enabled=calendars_enabled,
         dashboards_enabled=dashboards_enabled,
+        posts_enabled=posts_enabled,
         join_policy=join_policy.value,
         auto_join=auto_join,
     )
@@ -2066,6 +2111,151 @@ async def _create_calendar_events(
     return events
 
 
+async def _create_posts(
+    session: AsyncSession,
+    ids: IDTracker,
+    guild: Guild,
+    all_users: dict[str, User],
+    tags: dict[str, Tag],
+    post_defs: list[dict],
+) -> dict[str, Post]:
+    """Create board notices, with their polls, receipts and pins.
+
+    Each ``post_def`` has:
+        initiative_id, name, body (Lexical dict), created_by (user name),
+        published_at / scheduled_for (a draft has the second and not the first),
+        pinned_at + pin_expires_at + pinned_by (optional),
+        comments_enabled (default True),
+        general_access (default read; ``None`` shares with named people only),
+        shared_with: list of user names given read,
+        tags: list of tag names,
+        read_by: list of user names who have read it,
+        poll: {question, options, allows_multiple, is_anonymous, hide_results,
+               closes_at, votes: {user name: [option index, ...]}}.
+
+    Dates are spread back across the year on purpose: a board with everything
+    written today has nothing for the timeline rail to scrub through, which is
+    exactly the surface a seed is for.
+    """
+    posts: dict[str, Post] = {}
+    for pd in post_defs:
+        creator = all_users[pd["created_by"]]
+        post = Post(
+            guild_id=guild.id,
+            initiative_id=pd["initiative_id"],
+            name=pd["name"],
+            body=pd.get("body") or {},
+            created_by=creator.id,
+            created_at=pd.get("created_at")
+            or pd.get("published_at")
+            or datetime.now(timezone.utc),
+            updated_at=pd.get("published_at") or datetime.now(timezone.utc),
+            published_at=pd.get("published_at"),
+            scheduled_for=pd.get("scheduled_for"),
+            pinned_at=pd.get("pinned_at"),
+            pin_expires_at=pd.get("pin_expires_at"),
+            pinned_by=(all_users[pd["pinned_by"]].id if pd.get("pinned_by") else None),
+            comments_enabled=pd.get("comments_enabled", True),
+        )
+        session.add(post)
+        await session.flush()
+        ids.add("posts", post.id)
+        posts[pd["name"]] = post
+
+        session.add(
+            ResourceGrant(
+                resource_type="post",
+                resource_id=post.id,
+                user_id=creator.id,
+                guild_id=guild.id,
+                initiative_id=post.initiative_id,
+                level=ResourceAccessLevel.owner,
+            )
+        )
+        general = pd.get("general_access", ResourceAccessLevel.read)
+        if general is not None:
+            session.add(
+                ResourceGrant(
+                    resource_type="post",
+                    resource_id=post.id,
+                    guild_id=guild.id,
+                    initiative_id=post.initiative_id,
+                    level=general,
+                    all_initiative_members=True,
+                )
+            )
+        for name in pd.get("shared_with", []):
+            session.add(
+                ResourceGrant(
+                    resource_type="post",
+                    resource_id=post.id,
+                    user_id=all_users[name].id,
+                    guild_id=guild.id,
+                    initiative_id=post.initiative_id,
+                    level=ResourceAccessLevel.read,
+                )
+            )
+
+        for tag_name in pd.get("tags", []):
+            tag = tags.get(tag_name)
+            if tag is not None:
+                session.add(PostTag(post_id=post.id, tag_id=tag.id))
+                ids.add("post_tags", (post.id, tag.id))
+
+        # Receipts. Never the author's — the roster counts who a notice
+        # reached, and its author is not somebody it had to reach.
+        for name in pd.get("read_by", []):
+            reader = all_users.get(name)
+            if reader is None or reader.id == creator.id:
+                continue
+            session.add(
+                PostRead(
+                    post_id=post.id,
+                    user_id=reader.id,
+                    read_at=pd.get("published_at") or datetime.now(timezone.utc),
+                )
+            )
+            ids.add("post_reads", (post.id, reader.id))
+
+        poll_def = pd.get("poll")
+        if not poll_def:
+            continue
+        poll = PostPoll(
+            post_id=post.id,
+            question=poll_def.get("question"),
+            allows_multiple=poll_def.get("allows_multiple", False),
+            is_anonymous=poll_def.get("is_anonymous", False),
+            hide_results=poll_def.get("hide_results", False),
+            closes_at=poll_def.get("closes_at"),
+        )
+        session.add(poll)
+        await session.flush()
+        ids.add("post_polls", poll.id)
+
+        options: list[PostPollOption] = []
+        for index, text in enumerate(poll_def["options"]):
+            option = PostPollOption(poll_id=poll.id, position=index, text=text)
+            session.add(option)
+            options.append(option)
+        await session.flush()
+        for option in options:
+            ids.add("post_poll_options", option.id)
+
+        for voter_name, choices in (poll_def.get("votes") or {}).items():
+            voter = all_users.get(voter_name)
+            if voter is None:
+                continue
+            for choice in choices:
+                option = options[choice]
+                session.add(
+                    PostPollVote(poll_id=poll.id, option_id=option.id, user_id=voter.id)
+                )
+                ids.add("post_poll_votes", (option.id, voter.id))
+
+    await session.flush()
+    return posts
+
+
 async def _create_property_definitions(
     session: AsyncSession,
     ids: IDTracker,
@@ -2505,6 +2695,7 @@ async def seed() -> None:
             counter_groups_enabled=True,
             calendars_enabled=True,
             dashboards_enabled=True,
+            posts_enabled=True,
         )
 
         # --- Initiative: Lost Mine of Phandelver ---
@@ -2522,6 +2713,7 @@ async def seed() -> None:
             counter_groups_enabled=True,
             calendars_enabled=True,
             dashboards_enabled=True,
+            posts_enabled=True,
         )
 
         # -- Projects --
@@ -4336,6 +4528,245 @@ async def seed() -> None:
                     "https://example.com/maps/lmop-overview",
                 ),
             ],
+        )
+
+        # -- Posts --
+        print("  Creating Community 1 posts...")
+        await _create_posts(
+            session,
+            ids,
+            g1,
+            all_users,
+            g1_tags,
+            [
+                # Pinned with an end date: the pin lapses on its own once the
+                # session it is about has happened.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Session 12 moved to Saturday",
+                    "body": _doc(
+                        [
+                            "The hall is double-booked on Friday, so we are "
+                            "playing Saturday instead. Same time, same place, "
+                            "same amount of Barovian drizzle.",
+                            "If Saturday does not work for you, say so in the "
+                            "comments and we will look at it again.",
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=2),
+                    "pinned_at": NOW - timedelta(days=2),
+                    "pin_expires_at": NOW + timedelta(days=5),
+                    "pinned_by": "Dungeon Master",
+                    "tags": ["quest"],
+                    "read_by": [
+                        "Thorn Ironforge",
+                        "Elara Moonwhisper",
+                        "Vex Shadowstep",
+                    ],
+                },
+                # Pinned with no end: a standing notice.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "House rules, in one place at last",
+                    "body": _doc(
+                        [
+                            "Inspiration is a d6, not advantage. Death saves "
+                            "are rolled in the open. Nobody is allowed to "
+                            "argue with the map.",
+                            "This one stays at the top so nobody has to go "
+                            "looking for it in the chat.",
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=210),
+                    "pinned_at": NOW - timedelta(days=210),
+                    "pinned_by": "Dungeon Master",
+                    "tags": ["lore"],
+                    "read_by": ["Thorn Ironforge", "Elara Moonwhisper"],
+                },
+                # A lapsed pin: still carries pinned_at, sits in the feed by
+                # its own age because the expiry has passed.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Bring dice, we have run out",
+                    "body": _doc(
+                        ["The communal dice bowl is a bowl now. Just a bowl."]
+                    ),
+                    "created_by": "Thorn Ironforge",
+                    "published_at": NOW - timedelta(days=95),
+                    "pinned_at": NOW - timedelta(days=95),
+                    "pin_expires_at": NOW - timedelta(days=60),
+                    "pinned_by": "Dungeon Master",
+                    "read_by": ["Dungeon Master", "Vex Shadowstep"],
+                },
+                # A poll mid-flight, with the results hidden until you answer.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Which night suits everyone for the finale?",
+                    "body": _doc(
+                        [
+                            "It is going to run long, so let us pick the "
+                            "night nobody has to leave early."
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=6),
+                    "tags": ["quest"],
+                    "read_by": ["Thorn Ironforge", "Elara Moonwhisper"],
+                    "poll": {
+                        "question": "Which night?",
+                        "options": ["Friday", "Saturday", "Sunday afternoon"],
+                        "hide_results": True,
+                        "closes_at": NOW + timedelta(days=3),
+                        "votes": {
+                            "Thorn Ironforge": [1],
+                            "Elara Moonwhisper": [1],
+                            "Vex Shadowstep": [0],
+                        },
+                    },
+                },
+                # A closed, anonymous, multiple-choice poll.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "What are we doing after Barovia?",
+                    "body": _doc(
+                        [
+                            "Pick as many as you would happily play. Nobody "
+                            "sees who chose what."
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=140),
+                    "read_by": [
+                        "Thorn Ironforge",
+                        "Elara Moonwhisper",
+                        "Vex Shadowstep",
+                        "Seraphina Dawnlight",
+                    ],
+                    "poll": {
+                        "question": "Next campaign",
+                        "options": [
+                            "Something with a boat",
+                            "Heist, city, no dungeons",
+                            "Whatever the DM wants",
+                        ],
+                        "allows_multiple": True,
+                        "is_anonymous": True,
+                        "closes_at": NOW - timedelta(days=120),
+                        "votes": {
+                            "Thorn Ironforge": [0, 2],
+                            "Elara Moonwhisper": [1],
+                            "Vex Shadowstep": [0],
+                            "Seraphina Dawnlight": [2],
+                        },
+                    },
+                },
+                # A live smart chip: the notice goes on reporting the task's
+                # current column long after it was written.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Where the Amber Temple prep has got to",
+                    "body": _doc_mixed(
+                        [
+                            "Current state of the big one: ",
+                            _chip(
+                                "task",
+                                g1_tasks["Find the Sunsword in the Amber Temple"].id,
+                                "Find the Sunsword in the Amber Temple",
+                            ),
+                            ". Shout if you want to help with the maps.",
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=30),
+                    "read_by": ["Thorn Ironforge"],
+                },
+                # Announcement only: no thread.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "The hall is booked through March",
+                    "body": _doc(
+                        [
+                            "Paid, confirmed, receipt filed. No action needed "
+                            "from anybody."
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=280),
+                    "comments_enabled": False,
+                    "read_by": ["Thorn Ironforge", "Vex Shadowstep"],
+                },
+                # Shared with two people rather than the initiative.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Quiet word about the Strahd reveal",
+                    "body": _doc(
+                        [
+                            "Keeping this one to the people who already know "
+                            "so the table stays surprised."
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=45),
+                    "general_access": None,
+                    "shared_with": ["Thorn Ironforge", "Elara Moonwhisper"],
+                    "read_by": ["Thorn Ironforge"],
+                },
+                # A draft: nobody sees it, nobody has been told.
+                {
+                    "initiative_id": g1_strahd.id,
+                    "name": "Session 13 prep notes",
+                    "body": _doc(
+                        [
+                            "Goes up on the morning of the session so nobody "
+                            "reads it a week early and forgets it."
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "created_at": NOW - timedelta(days=1),
+                    "scheduled_for": NOW + timedelta(days=6),
+                },
+                # The other initiative, so the board is not a one-initiative
+                # feature in the seeded data.
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "Welcome to Phandalin",
+                    "body": _doc(
+                        [
+                            "New campaign, new board. Anything that needs "
+                            "saying rather than doing goes here.",
+                            "Character sheets by Thursday, please.",
+                        ]
+                    ),
+                    "created_by": "Dungeon Master",
+                    "published_at": NOW - timedelta(days=320),
+                    "read_by": ["Thorn Ironforge", "Elara Moonwhisper"],
+                },
+                {
+                    "initiative_id": g1_lmop.id,
+                    "name": "Who is driving to the away game?",
+                    "body": _doc(["Two cars, six of us, one very long road."]),
+                    "created_by": "Thorn Ironforge",
+                    "published_at": NOW - timedelta(days=64),
+                    "read_by": ["Dungeon Master", "Elara Moonwhisper"],
+                    "poll": {
+                        "question": "Seats",
+                        "options": [
+                            "I can drive",
+                            "I need a lift",
+                            "Making my own way",
+                        ],
+                        "votes": {
+                            "Dungeon Master": [0],
+                            "Elara Moonwhisper": [1],
+                        },
+                    },
+                },
+            ],
+        )
+        await _enable_role_feature(
+            session, [g1_strahd_mem, g1_lmop_mem], "posts_enabled"
         )
 
         # ==============================================================
@@ -7558,6 +7989,12 @@ async def seed() -> None:
     print(
         f"  {len(ids.data['calendar_events'])} calendar events, "
         f"{len(ids.data['calendar_event_attendees'])} attendees"
+    )
+    print(
+        f"  {len(ids.data['posts'])} posts "
+        f"({len(ids.data['post_polls'])} polls, "
+        f"{len(ids.data['post_poll_votes'])} votes, "
+        f"{len(ids.data['post_reads'])} read receipts)"
     )
     total_property_values = (
         len(ids.data["task_property_values"])

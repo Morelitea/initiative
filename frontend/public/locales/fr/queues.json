@@ -108,7 +108,7 @@
     "show": "Afficher",
     "hide": "Masquer",
     "searchQueues": "Rechercher des files...",
-    "filterByName": "Filtrer par nom",
+    "searchLabel": "Nom ou description",
     "status": "Statut",
     "allStatuses": "Tous",
     "activeOnly": "Actif",

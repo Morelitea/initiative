@@ -46,7 +46,9 @@ export interface InitiativeSectionProps {
   access: InitiativeToolAccess;
   /** Per-tool sidebar counts. Every in-app list tool shows one — the rows all
    *  present the same way; a hand-off (embedded) tool has no list to count. */
-  counts: Partial<Record<Tool, number>>;
+  /** One count per tool. Required keys, not `Partial`: a tool left out of
+   *  this map renders a permanent 0 with nothing to catch it. */
+  counts: Record<Tool, number>;
   /** The guild's installed apps. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
   apps: GuildAppRead[];

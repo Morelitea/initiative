@@ -1,4 +1,4 @@
-import { Download, FileText, Loader2, X } from "lucide-react";
+import { Download, FileText, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +10,7 @@ import {
 } from "@/api/generated/imports/imports";
 import type { ExportJobRead, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ImportReport } from "@/components/imports/ImportReport";
+import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -95,9 +96,9 @@ export function DataJobsTable() {
 
   if (exportsQuery.isLoading || importsQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
+      <SkeletonRegion>
+        <TableSkeleton rows={3} columns={5} toolbar={false} />
+      </SkeletonRegion>
     );
   }
   if (exportsQuery.isError || importsQuery.isError) {
@@ -227,7 +228,7 @@ export function DataJobsTable() {
         </TableBody>
       </Table>
       <Dialog open={reportJob != null} onOpenChange={(open) => !open && setReportJob(null)}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("imports:table.reportTitle")}</DialogTitle>
           </DialogHeader>

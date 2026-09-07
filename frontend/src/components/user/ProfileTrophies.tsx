@@ -2,7 +2,7 @@ import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.schemas";
-import { TOOL_TRAY_SURFACE } from "@/components/guildHome/GuildToolRail";
+import { TOOL_TRAY_SURFACE } from "@/components/toolBrowser/ToolRail";
 import { decorationSrc, resolveTrophies } from "@/lib/profileDecorations";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * The same rail a community puts its tools in: a row of circles standing out
  * of a tray, each with its name printed on the tray under it, and a goo filter
  * welding the two into one silhouette — blur the shapes and push the alpha back
- * to a hard edge (https://css-tricks.com/gooey-effect/). See `GuildToolRail`,
+ * to a hard edge (https://css-tricks.com/gooey-effect/). See `ToolRail`,
  * whose circles these are the size of and whose tray this is the same surface
  * as.
  *

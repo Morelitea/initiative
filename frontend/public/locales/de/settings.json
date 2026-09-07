@@ -1,6 +1,6 @@
 {
   "layout": {
-    "title": "Benutzereinstellungen",
+    "title": "Meine Einstellungen",
     "subtitle": "Verwalte dein Profil, deine Oberflächeneinstellungen und Benachrichtigungen.",
     "tabs": {
       "profile": "Profil",
@@ -11,7 +11,8 @@
       "import": "Importieren",
       "security": "Sicherheit",
       "trash": "Papierkorb",
-      "danger": "Gefahrenzone"
+      "danger": "Gefahrenzone",
+      "privacy": "Privatsphäre"
     },
     "loginRequired": "Du musst angemeldet sein, um dein Profil zu verwalten.",
     "goToLogin": "Zur Anmeldung"
@@ -278,7 +279,11 @@
       "events": "Termine",
       "eventsDescription": "Wenn du zu einem Termin eingeladen wirst oder sich ein Termin ändert, an dem du teilnimmst.",
       "eventReminders": "Terminerinnerungen",
-      "eventRemindersDescription": "Eine Erinnerung, bevor Termine beginnen, an denen du teilnimmst."
+      "eventRemindersDescription": "Eine Erinnerung, bevor Termine beginnen, an denen du teilnimmst.",
+      "directMessages": "Direktnachrichten",
+      "directMessagesDescription": "Jemand hat dir eine Direktnachricht gesendet. Enthält nie deren Inhalt.",
+      "posts": "Beiträge",
+      "postsDescription": "Wenn ein Beitrag auf einer für dich sichtbaren Pinnwand erscheint."
     },
     "reminderLeadTime": {
       "label": "Erinnere mich",
@@ -1125,7 +1130,9 @@
     "ageGateHelpText": "Solange dies aktiv ist, wird jede Person in einer gelisteten Community einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
     "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",
     "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird erneut um eine Altersbestätigung gebeten – auch nicht bei einem späteren Beitritt zu einer gelisteten Community.",
-    "ageGateOffConfirm": "Hier sind alle mindestens 18"
+    "ageGateOffConfirm": "Hier sind alle mindestens 18",
+    "defaultDmLabel": "Direktnachrichten für neue Konten",
+    "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen."
   },
   "audit": {
     "title": "Prüfprotokoll",
@@ -1148,5 +1155,60 @@
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
     "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle."
+  },
+  "privacy": {
+    "title": "Privatsphäre",
+    "dm": {
+      "title": "Direktnachrichten",
+      "description": "Wer dich außerhalb deiner Verbindungen um eine Nachricht bitten darf.",
+      "private": "Privat",
+      "privateHint": "Niemand.",
+      "community": "Meine Communities",
+      "communityHint": "Personen, mit denen du eine Community teilst.",
+      "public": "Alle",
+      "publicHint": "Alle auf Initiative.",
+      "communitiesTitle": "Welche Communities zählen",
+      "communitiesHint": "Standardmäßig zählen alle.",
+      "ageLocked": "Nachrichten sind ab 13 Jahren verfügbar. Du hast uns noch nicht gesagt, ob du das bist.",
+      "confirmAge": "Alter bestätigen",
+      "saved": "Gespeichert."
+    },
+    "receipts": {
+      "title": "Lesebestätigungen",
+      "label": "Anderen zeigen, wenn ihre Nachrichten dich erreichen",
+      "help": "Sie sehen, wann eine Nachricht auf einem deiner Geräte angekommen ist und wann du sie gelesen hast. Wenn du das ausschaltest, sehen sie beides nicht – genau wie bei jemandem, der die App nicht geöffnet hat. Ihre siehst du weiterhin."
+    },
+    "connections": {
+      "title": "Verbindungen",
+      "description": "Verbindungen sind gegenseitig. Ihr bleibt in Kontakt, auch wenn ihr keine Community mehr teilt.",
+      "empty": "Du hast dich noch mit niemandem verbunden.",
+      "add": "Über Handle verbinden",
+      "addPlaceholder": "name#1234",
+      "addHint": "Gib das vollständige Handle inklusive Nummer ein.",
+      "send": "Anfrage senden",
+      "remove": "Entfernen",
+      "removeTitle": "Diese Verbindung entfernen?",
+      "removeKeepsChannel": "Ihr teilt eine Community, ihr könnt euch also weiterhin schreiben.",
+      "removeEndsChannel": "Damit endet auch euer Nachrichtenkanal.",
+      "connected": "Verbunden am {{date}}",
+      "sent": "Anfrage gesendet."
+    },
+    "requests": {
+      "title": "Ausstehend",
+      "empty": "Nichts offen.",
+      "wantsToConnect": "möchte sich verbinden",
+      "askedToMessage": "hat um eine Nachricht gebeten",
+      "youAskedToConnect": "du hast um Verbindung gebeten",
+      "youAskedToMessage": "du hast um eine Nachricht gebeten",
+      "accept": "Annehmen",
+      "decline": "Ablehnen",
+      "cancel": "Abbrechen"
+    },
+    "ignored": {
+      "title": "Ignorierte Konten",
+      "description": "Du wirst nicht benachrichtigt, wenn diese Konten dich erwähnen, dir antworten oder reagieren, und nichts, was sie dir senden, kommt an — Nachrichten, Nachrichtenanfragen, Verbindungsanfragen. Ihr seht weiterhin die Aktivitäten des anderen in gemeinsamen Communities und könnt alle Werkzeuge normal nutzen.",
+      "empty": "Du ignorierst niemanden.",
+      "stop": "Nicht mehr ignorieren"
+    }
   }
 }

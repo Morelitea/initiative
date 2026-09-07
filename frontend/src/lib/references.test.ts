@@ -3,15 +3,16 @@ import { describe, expect, it } from "vitest";
 import { buildInitiative } from "@/__tests__/factories";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { isCreatableFromName, linkableToolTypes } from "@/lib/references";
+import { TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
-const enabled = (overrides = {}) =>
-  buildInitiative({
-    queues_enabled: true,
-    counter_groups_enabled: true,
-    calendars_enabled: true,
-    dashboards_enabled: true,
-    ...overrides,
-  });
+// Every master switch on, derived from the registry rather than listed: a new
+// toggleable tool is switched on here the day it exists, so the "is the tools"
+// case below keeps meaning what it says.
+const allSwitchesOn = Object.fromEntries(
+  TOGGLEABLE_TOOLS.map((tool) => [toolViewPermission(tool), true])
+);
+
+const enabled = (overrides = {}) => buildInitiative({ ...allSwitchesOn, ...overrides });
 
 describe("what [[ ]] can reach", () => {
   it("is the tools, derived from the enum", () => {

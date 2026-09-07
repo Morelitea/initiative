@@ -251,7 +251,7 @@ const byDueDate = (a: TaskListRead, b: TaskListRead) => {
  * rule query would also push pinned-but-not-urgent work past the fetch window
  * whenever the rules match a lot.
  */
-export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) {
+export function useFocusSummary() {
   const [prefsRaw, setPrefs, { isLoaded }] = useViewPreference<FocusPreferences>(
     FOCUS_PREFERENCES_KEY,
     FOCUS_DEFAULTS
@@ -287,7 +287,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
   const ruleQuery = useQuery<TaskListResponse>({
     queryKey: getListMyTasksApiV1MeTasksGetQueryKey(ruleParams),
     queryFn: () => listMyTasksApiV1MeTasksGet(ruleParams),
-    enabled: enabled && isLoaded,
+    enabled: isLoaded,
     placeholderData: keepPreviousData,
   });
 
@@ -309,7 +309,7 @@ export function useFocusSummary({ enabled = true }: { enabled?: boolean } = {}) 
   const pinQuery = useQuery<TaskListResponse>({
     queryKey: getListMyTasksApiV1MeTasksGetQueryKey(pinParams),
     queryFn: () => listMyTasksApiV1MeTasksGet(pinParams),
-    enabled: enabled && isLoaded && pinnedIds.length > 0,
+    enabled: isLoaded && pinnedIds.length > 0,
     placeholderData: keepPreviousData,
   });
 

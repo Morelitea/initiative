@@ -50,6 +50,7 @@ import { useCalendarsList } from "@/hooks/useCalendars";
 import { useCounterGroup, useCounterGroupsList } from "@/hooks/useCounters";
 import { useDocumentsList } from "@/hooks/useDocuments";
 import { useProjects } from "@/hooks/useProjects";
+import { useProperties } from "@/hooks/useProperties";
 import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/appParams";
@@ -59,6 +60,7 @@ import { catalogEntry, type DefinitionWidget, isAppWidgetType } from "@/lib/widg
 import {
   type EntityKind,
   type EntityParam,
+  paramsFor,
   type SourceParam,
   sourceDescriptor,
 } from "@/lib/widgets/sources";
@@ -158,8 +160,12 @@ export function WidgetConfigDialog({
   // Which lists this source's controls need. Each is enabled only while its own
   // control is on screen, so opening the dialog for a counter widget does not
   // fetch this initiative's documents.
+  // Read from the parameters this *widget* offers, not the source's whole list:
+  // a table bound to tasks is never shown the property picker, so it must not
+  // fetch the definitions behind it either.
+  const params = widget ? paramsFor(source, widget.type) : [];
   const needs = (kind: EntityKind) =>
-    open && (descriptor?.params ?? []).some((p) => p.kind === "entity" && p.entity === kind);
+    open && params.some((p) => p.kind === "entity" && p.entity === kind);
 
   const counterGroups = useCounterGroupsList(
     { initiative_id: initiativeId },
@@ -174,6 +180,7 @@ export function WidgetConfigDialog({
     { initiative_id: initiativeId },
     { enabled: needs("calendar") }
   );
+  const properties = useProperties({ initiativeId, enabled: needs("property") });
   // The list endpoint returns group summaries; the counters themselves come
   // from the group's own read, which is also the query the widget will use.
   const selectedGroup = useCounterGroup(binding.counter_group_id ?? null, {
@@ -201,6 +208,9 @@ export function WidgetConfigDialog({
         value: String(document.id),
         label: document.name,
       })),
+      property: (properties.data ?? [])
+        .filter((property) => property.initiative_id === initiativeId)
+        .map((property) => ({ value: String(property.id), label: property.name })),
     }),
     [
       projects.data,
@@ -208,6 +218,7 @@ export function WidgetConfigDialog({
       counterGroups.data,
       selectedGroup.data,
       documents.data,
+      properties.data,
       initiativeId,
     ]
   );
@@ -363,7 +374,7 @@ export function WidgetConfigDialog({
                 slots for it are `app_uid` and `endpoint_id`, and neither is a
                 thing to type: one comes from the widget's type, the other is a
                 choice among the reads the app declares. */}
-            {(isApp ? [] : (descriptor?.params ?? [])).map((param) => (
+            {(isApp ? [] : params).map((param) => (
               <ParamControl
                 key={param.key as string}
                 param={param}

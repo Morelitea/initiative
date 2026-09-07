@@ -29,7 +29,13 @@ import type { WidgetSource } from "@/lib/widgets/dataShapes";
 /** An entity a binding can point at. The kind decides which of the canvas's
  *  already-cached list queries resolves it to a name — never a fetch of its
  *  own, so a dense canvas costs no extra requests. */
-export type EntityKind = "project" | "counter_group" | "counter" | "calendar" | "document";
+export type EntityKind =
+  | "project"
+  | "counter_group"
+  | "counter"
+  | "calendar"
+  | "document"
+  | "property";
 
 interface BaseParam {
   /** The binding key this parameter reads and writes. */
@@ -37,6 +43,14 @@ interface BaseParam {
   /** Whether a binding is unusable until this is filled. Drives
    *  {@link unboundSlots}; a listing may ship a widget with the slot empty. */
   required?: boolean;
+  /** The widgets that read this parameter, when only some of them do.
+   *
+   *  A source's parameters are usually the source's alone — every widget bound
+   *  to `tasks` is narrowed by the same project and the same filters. A few are
+   *  not: which custom property to column a board by means nothing to a table
+   *  drawing the same rows, and offering it there would be offering a control
+   *  that does nothing. Omitted means every widget. */
+  usedBy?: readonly string[];
 }
 
 /** An id pointing at another resource in this initiative. */
@@ -105,6 +119,12 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
     rowNoun: "task",
     params: [
       { kind: "entity", key: "project_id", entity: "project" },
+      // Which of the initiative's own fields a board deals its columns from.
+      // It rides on the binding rather than on the widget's display options
+      // because those are a closed set of literals decided at build time, and
+      // the whole point of a custom property is that this build never heard of
+      // it.
+      { kind: "entity", key: "property_id", entity: "property", usedBy: ["board"] },
       { kind: "filters", key: "conditions" },
     ],
   },
@@ -186,6 +206,16 @@ export const unboundSlots = (binding: WidgetBinding): string[] => {
 export const entityParams = (source: WidgetSource | string): EntityParam[] =>
   (sourceDescriptor(source)?.params ?? []).filter(
     (param): param is EntityParam => param.kind === "entity"
+  );
+
+/** The parameters to offer for one source *on one widget* — everything the
+ *  source declares, minus the few a different widget reads. */
+export const paramsFor = (
+  source: WidgetSource | string,
+  widgetType: string
+): readonly SourceParam[] =>
+  (sourceDescriptor(source)?.params ?? []).filter(
+    (param) => !param.usedBy || param.usedBy.includes(widgetType)
   );
 
 /** Whether this source takes filter conditions at all. */

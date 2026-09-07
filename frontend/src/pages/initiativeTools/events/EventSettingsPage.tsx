@@ -21,6 +21,11 @@ import {
 } from "@/components/initiativeTools/events/eventDateTime";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { AddPropertyButton, PropertyList } from "@/components/properties";
+import {
+  DetailPageSkeleton,
+  FormSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { TagPicker } from "@/components/tags";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
@@ -242,10 +247,11 @@ export function EventSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 p-8 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {t("loadingEvent")}
-      </div>
+      <SkeletonRegion label={t("loadingEvent")}>
+        <DetailPageSkeleton actions={0} description={false}>
+          <FormSkeleton fields={5} />
+        </DetailPageSkeleton>
+      </SkeletonRegion>
     );
   }
 

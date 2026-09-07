@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.schema_provisioning import guild_role_name, platform_role_name
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -61,6 +62,13 @@ async def _count_visible(session: AsyncSession, user_id: int) -> int:
     ).scalar()
     await session.rollback()
     return visible
+
+
+async def _assumed_role(session: AsyncSession) -> str:
+    """The Postgres role the session is currently wearing."""
+    role = (await session.exec(text("SELECT current_user"))).scalar()
+    await session.rollback()
+    return role
 
 
 class TestGuildSession:
@@ -189,3 +197,97 @@ class TestPlatformSession:
         assert await _update_returning(
             s, subject.id, "hashed_password", "self-chosen"
         ) == [subject.id]
+
+
+class TestReestablishedContext:
+    """A request that re-establishes its own context keeps the role it came in
+    with.
+
+    Services do this part-way through a request — coming back from a walk
+    across the caller's communities, or narrowing before a lookup — by naming
+    the user again. The tier is not theirs to re-derive, and on this table the
+    login role underneath reads every account while a ``member`` reads one, so
+    what the request may read must not widen on the way through.
+    """
+
+    @pytest.fixture
+    async def two_accounts(self, session):
+        return await create_user(session), await create_user(session)
+
+    async def test_naming_the_user_again_keeps_the_tier(
+        self, session, role_session, two_accounts
+    ):
+        member, other = two_accounts
+        s = await role_session("app_user")
+        await set_rls_context(s, user_id=member.id, platform_role="member")
+        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _count_visible(s, other.id) == 0
+
+        # The shape of every "back to the platform path" call in the services.
+        await set_rls_context(s, user_id=member.id)
+
+        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _count_visible(s, other.id) == 0
+
+    async def test_a_guild_trip_comes_back_at_the_same_tier(
+        self, session, role_session, two_accounts
+    ):
+        """The tier is recorded on the guild path too, where it does not route.
+
+        A guild request assumes ``guild_<id>``; the tier is what it re-assumes
+        when a cross-guild aggregate steps back out to ``public``.
+        """
+        member, other = two_accounts
+        guild = await create_guild(session, creator=member)
+        s = await role_session("app_user")
+        await set_rls_context(
+            s,
+            user_id=member.id,
+            guild_id=guild.id,
+            guild_role="admin",
+            platform_role="member",
+        )
+        assert await _assumed_role(s) == guild_role_name(guild.id)
+
+        await set_rls_context(s, user_id=member.id)
+
+        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _count_visible(s, other.id) == 0
+
+    async def test_it_crosses_a_transaction_boundary(
+        self, session, role_session, two_accounts
+    ):
+        """The carried tier reaches Postgres the way every other value does.
+
+        It is resolved once, into the stored parameters, and from there the
+        replay hook applies it as a transaction-local ``set_config`` at the
+        start of each transaction. Nothing is held on the connection, so the
+        role is whatever the parameters say on whichever backend the next
+        transaction lands on — which is what this commit forces.
+        """
+        member, other = two_accounts
+        s = await role_session("app_user")
+        await set_rls_context(s, user_id=member.id, platform_role="member")
+        await set_rls_context(s, user_id=member.id)
+        await s.commit()
+
+        assert await _assumed_role(s) == platform_role_name("member")
+        assert await _count_visible(s, other.id) == 0
+
+    async def test_an_unattributed_context_forgets_it(
+        self, session, role_session, two_accounts
+    ):
+        """Naming no user is how a worker says it is acting for nobody.
+
+        It clears the tier rather than leaving one for the next call to inherit,
+        so a session cannot pick up an identity it was never given.
+        """
+        member, _other = two_accounts
+        s = await role_session("app_user")
+        await set_rls_context(s, user_id=member.id, platform_role="member")
+        await set_rls_context(s)
+        assert await _assumed_role(s) == "app_user"
+
+        await set_rls_context(s, user_id=member.id)
+
+        assert await _assumed_role(s) == "app_user"

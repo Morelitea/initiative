@@ -74,3 +74,22 @@
 .md-typeset table:not([class]) {
   font-size: 0.78rem;
 }
+
+/* --- The Initiative mark ---------------------------------------------------
+   The header sits on the page background rather than a coloured bar, so the
+   mark ships in two files: primary for light, pale for dark. Two files rather
+   than a CSS filter, because an SVG loaded through <img> can't see the theme
+   class on the page.
+   ------------------------------------------------------------------------- */
+.md-logo :is(img, svg) {
+  height: 1.6rem;
+  width: auto;
+}
+
+[data-md-color-scheme="slate"] .md-logo img {
+  content: url("../images/logo-dark.svg");
+}
+
+.md-nav__title .md-logo :is(img, svg) {
+  height: 1.2rem;
+}

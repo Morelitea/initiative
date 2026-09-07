@@ -8,6 +8,7 @@ from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.models.tenant.initiative import (
+    DEFAULT_PERMISSION_VALUES,
     InitiativeJoinPolicy,
     JoinRequestStatus,
     PermissionKey,
@@ -285,9 +286,16 @@ class InitiativeJoinRequestRead(SanitizedBaseModel):
 def serialize_role(
     role: "InitiativeRoleModel", member_count: int = 0
 ) -> InitiativeRoleRead:
-    """Serialize a role model to a read schema."""
+    """Serialize a role model to a read schema.
+
+    Every permission key is answered for, not just the ones with a stored row:
+    a role created before a tool shipped has no row for it, and a caller asking
+    "who can see Posts" must not have to know that an absent key means the
+    documented default. The stored row wins wherever there is one.
+    """
     permissions = {
-        perm.permission_key: perm.enabled for perm in (role.permissions or [])
+        **DEFAULT_PERMISSION_VALUES,
+        **{perm.permission_key: perm.enabled for perm in (role.permissions or [])},
     }
     return InitiativeRoleRead(
         id=role.id,

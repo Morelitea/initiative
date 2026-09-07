@@ -70,9 +70,15 @@ export const ReactionPicker = ({
           <TooltipContent>{t("reactions.add")}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <PopoverContent className="w-fit p-0" align="start">
+      {/* Capped at the room Radix measured, so an open mobile keyboard shrinks
+          the emoji list instead of pushing the picker off screen. */}
+      <PopoverContent
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-fit flex-col overflow-hidden p-0"
+        align="start"
+        collisionPadding={8}
+      >
         {suggested.length > 0 && (
-          <div className="flex items-center gap-0.5 border-b p-1.5">
+          <div className="flex shrink-0 items-center gap-0.5 border-b p-1.5">
             {suggested.map((emoji) => (
               <button
                 key={emoji}

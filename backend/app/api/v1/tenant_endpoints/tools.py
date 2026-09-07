@@ -120,7 +120,7 @@ async def set_tool_comment_settings(
         guild_context,
         access="write",
     )
-    row.comments_disabled = settings_in.comments_disabled
+    row.comments_enabled = settings_in.comments_enabled
     row.updated_at = datetime.now(timezone.utc)
     session.add(row)
     await session.commit()
@@ -132,4 +132,4 @@ async def set_tool_comment_settings(
             guild_context.guild_id, channel, row.id, event_type, {"id": row.id}
         )
 
-    return ToolCommentSettings(comments_disabled=row.comments_disabled)
+    return ToolCommentSettings(comments_enabled=row.comments_enabled)

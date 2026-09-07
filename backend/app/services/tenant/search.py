@@ -54,7 +54,7 @@ def search_scope_clause(
 def search_match_clause(tsquery: ColumnElement) -> ColumnElement[bool]:
     """The text-match predicate, using whichever operator this install can index.
 
-    ``public.@@@`` where ``scripts/create-search-operator.sql`` has been run,
+    ``public.@@@`` where ``app.db.bootstrap`` has installed it,
     the stock ``@@`` otherwise. Both return the same rows; only the first can
     use the index. Going through this one function is what keeps a query from
     quietly picking the other.

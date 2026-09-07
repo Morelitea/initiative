@@ -13,7 +13,7 @@
  */
 
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Loader2, Search, SearchX } from "lucide-react";
+import { Search, SearchX, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +21,7 @@ import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
 import { StatusMessage } from "@/components/StatusMessage";
 import { MemberResultRow } from "@/components/search/MemberResultRow";
 import { SearchResultRow } from "@/components/search/SearchResultRow";
+import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -224,6 +225,8 @@ export function SearchPage() {
                 />
               ) : results.isLoading || outOfRange ? (
                 <Loading />
+              ) : results.isError ? (
+                <SearchFailed />
               ) : items.length === 0 ? (
                 <NoResults query={query} />
               ) : (
@@ -264,9 +267,27 @@ function settledTotal(query: ReturnType<typeof useGuildSearch>): number | undefi
 
 function Loading() {
   return (
-    <div className="flex h-40 items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-    </div>
+    <SkeletonRegion className="py-2">
+      <ListSkeleton rows={6} />
+    </SkeletonRegion>
+  );
+}
+
+/**
+ * The question never got an answer.
+ *
+ * Distinct from nothing having matched: that is something the index said, and
+ * this is the index not having been reached. Told apart so the page does not
+ * report a community as empty on the strength of a request that failed.
+ */
+function SearchFailed() {
+  const { t } = useTranslation("search");
+  return (
+    <StatusMessage
+      icon={<TriangleAlert />}
+      title={t("failed.title")}
+      description={t("failed.description")}
+    />
   );
 }
 
@@ -349,6 +370,7 @@ function MemberResults({
 }) {
   const items = members.data?.items ?? [];
   if (members.isLoading || outOfRange) return <Loading />;
+  if (members.isError) return <SearchFailed />;
   if (items.length === 0) return <NoResults query={query} />;
   return (
     <>

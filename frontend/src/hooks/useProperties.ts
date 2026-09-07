@@ -53,7 +53,7 @@ import type { MutationOpts } from "@/types/mutation";
  *   caller is a member of — used by global views (My Tasks, Documents list,
  *   events list) so property columns and filters aggregate across initiatives.
  */
-export const useProperties = (options?: { initiativeId?: number }) => {
+export const useProperties = (options?: { initiativeId?: number; enabled?: boolean }) => {
   const guildId = useActiveGuildId();
   const initiativeId = options?.initiativeId;
   const params: { initiative_id?: number } = {};
@@ -69,6 +69,7 @@ export const useProperties = (options?: { initiativeId?: number }) => {
         guildId,
         hasParams ? params : undefined
       ),
+    enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
 };

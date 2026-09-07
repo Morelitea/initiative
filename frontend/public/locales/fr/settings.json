@@ -1,6 +1,6 @@
 {
   "layout": {
-    "title": "Paramètres utilisateur",
+    "title": "Mes paramètres",
     "subtitle": "Gérez votre profil, vos préférences d'interface et vos notifications.",
     "tabs": {
       "profile": "Profil",
@@ -11,7 +11,8 @@
       "import": "Importer",
       "security": "Sécurité",
       "trash": "Corbeille",
-      "danger": "Zone de danger"
+      "danger": "Zone de danger",
+      "privacy": "Confidentialité"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
     "goToLogin": "Aller à la connexion"
@@ -278,7 +279,11 @@
       "events": "Événements",
       "eventsDescription": "Quand on vous invite à un événement ou qu'un événement auquel vous participez change.",
       "eventReminders": "Rappels d'événements",
-      "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez."
+      "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez.",
+      "directMessages": "Messages directs",
+      "directMessagesDescription": "Quelqu'un t'a envoyé un message direct. N'inclut jamais son contenu.",
+      "posts": "Publications",
+      "postsDescription": "Quand une annonce paraît sur un tableau que vous pouvez voir."
     },
     "reminderLeadTime": {
       "label": "Me rappeler",
@@ -1125,7 +1130,9 @@
     "ageGateHelpText": "Tant que ceci est actif, toute personne appartenant à une communauté référencée doit confirmer son âge une fois, et la réponse reste attachée à son compte. Ne le désactivez que là où vous savez déjà que chaque compte appartient à une personne adulte.",
     "ageGateOffTitle": "Ne plus demander l'âge des membres ?",
     "ageGateOffBody": "Désactiver ceci affirme que chaque compte de cette installation appartient à une personne de 18 ans ou plus. Plus personne ne sera invité à confirmer son âge, y compris en rejoignant plus tard une communauté référencée.",
-    "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus"
+    "ageGateOffConfirm": "Tout le monde ici a 18 ans ou plus",
+    "defaultDmLabel": "Messages privés pour les nouveaux comptes",
+    "defaultDmHelpText": "Le réglage avec lequel un compte démarre. Il est lu une seule fois, à la création du compte : le modifier n'ouvre aucun compte existant et n'en ferme aucun. « Privé » est la valeur livrée ; avec elle, chacun devient joignable au moment où il le décide."
   },
   "audit": {
     "title": "Audit",
@@ -1148,5 +1155,60 @@
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
     "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo."
+  },
+  "privacy": {
+    "title": "Confidentialité",
+    "dm": {
+      "title": "Messages directs",
+      "description": "Qui peut demander à vous écrire, en dehors de vos connexions.",
+      "private": "Privé",
+      "privateHint": "Personne.",
+      "community": "Mes communautés",
+      "communityHint": "Les personnes avec qui vous partagez une communauté.",
+      "public": "Tout le monde",
+      "publicHint": "Tout le monde sur Initiative.",
+      "communitiesTitle": "Quelles communautés comptent",
+      "communitiesHint": "Toutes comptent par défaut.",
+      "ageLocked": "La messagerie est réservée aux personnes de 13 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
+      "confirmAge": "Confirmer mon âge",
+      "saved": "Enregistré."
+    },
+    "receipts": {
+      "title": "Accusés de lecture",
+      "label": "Indiquer aux autres quand leurs messages vous parviennent",
+      "help": "Ils voient quand un message est arrivé sur l'un de vos appareils et quand vous l'avez lu. Si vous désactivez ceci, ils ne voient ni l'un ni l'autre — comme pour quelqu'un qui n'a pas ouvert l'application. Vous continuez à voir les leurs."
+    },
+    "connections": {
+      "title": "Connexions",
+      "description": "Les connexions sont mutuelles. Vous pouvez rester en contact même si vous ne partagez plus de communauté.",
+      "empty": "Vous n'avez encore aucune connexion.",
+      "add": "Se connecter par identifiant",
+      "addPlaceholder": "nom#1234",
+      "addHint": "Saisissez l'identifiant complet, numéro compris.",
+      "send": "Envoyer la demande",
+      "remove": "Retirer",
+      "removeTitle": "Retirer cette connexion ?",
+      "removeKeepsChannel": "Vous partagez une communauté, vous pourrez donc continuer à vous écrire.",
+      "removeEndsChannel": "Cela mettra aussi fin à votre canal de messages.",
+      "connected": "Connectés le {{date}}",
+      "sent": "Demande envoyée."
+    },
+    "requests": {
+      "title": "En attente",
+      "empty": "Rien en attente.",
+      "wantsToConnect": "souhaite se connecter",
+      "askedToMessage": "a demandé à vous écrire",
+      "youAskedToConnect": "vous avez demandé une connexion",
+      "youAskedToMessage": "vous avez demandé à écrire",
+      "accept": "Accepter",
+      "decline": "Refuser",
+      "cancel": "Annuler"
+    },
+    "ignored": {
+      "title": "Comptes ignorés",
+      "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
+      "empty": "Vous n'ignorez personne.",
+      "stop": "Ne plus ignorer"
+    }
   }
 }

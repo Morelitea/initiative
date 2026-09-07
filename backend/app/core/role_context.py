@@ -87,6 +87,16 @@ def set_override_sharing_initiatives(initiative_ids: Optional[FrozenSet[int]]) -
     )
 
 
+def override_sharing_initiatives() -> FrozenSet[int]:
+    """Every initiative this request holds "Full access" in.
+
+    The set behind :func:`request_overrides_sharing`, for a caller that has to
+    ask about many rows at once rather than one — a statement narrowing a list
+    cannot call a per-id predicate.
+    """
+    return _override_initiatives.get()
+
+
 def request_overrides_sharing(initiative_id: Optional[int]) -> bool:
     """Whether the request holds "Full access" in ``initiative_id`` — the
     initiative-scoped sibling of ``is_request_guild_admin``. Reads the per-request

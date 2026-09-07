@@ -153,7 +153,7 @@ export const CreateToolDialog = <TRead,>({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-screen w-full max-w-lg overflow-y-auto rounded-2xl border bg-card shadow-2xl">
+      <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t(titleKey)}</DialogTitle>
           <DialogDescription>{t(descriptionKey)}</DialogDescription>

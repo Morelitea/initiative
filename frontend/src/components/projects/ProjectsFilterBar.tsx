@@ -68,7 +68,7 @@ export const ProjectsFilterBar = ({
             htmlFor="project-search"
             className="block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.filterByName")}
+            {t("filters.searchLabel")}
           </Label>
           <Input
             id="project-search"

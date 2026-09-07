@@ -201,6 +201,32 @@ export const invalidateRecentComments = () => invalidateGuildPrefix("/api/v1/com
 
 export const invalidateNotifications = () => invalidatePersonalPrefix("/api/v1/notifications");
 
+// ── Contacts: who may reach you, and who you have agreed with ────────────────────
+
+/** The policy and its per-community toggles. */
+export const invalidateDmSettings = () => invalidatePersonalExact(["/api/v1/me/dm-settings"]);
+
+/** Connections and message requests — one channel moves both. */
+export const invalidateContactGrants = () => {
+  void invalidatePersonalPrefix("/api/v1/me/connections");
+  return invalidatePersonalPrefix("/api/v1/me/message-requests");
+};
+
+/** The accounts this person has chosen not to hear from. */
+export const invalidateIgnoredAccounts = () => invalidatePersonalPrefix("/api/v1/me/ignored");
+
+/** Everyone the reader may reach: the community sections and the starred list. */
+export const invalidateContacts = () => invalidatePersonalPrefix("/api/v1/me/contacts");
+
+/**
+ * The direct-message mailbox.
+ *
+ * Keyed on ``["dm", ...]`` rather than a path, because a thread is read out of
+ * this device's own store rather than from an endpoint — the server deletes a
+ * message once it has been collected.
+ */
+export const invalidateDirectMessages = () => queryClient.invalidateQueries({ queryKey: ["dm"] });
+
 // ── Initiatives (guild) ──────────────────────────────────────────────────────────
 
 export const invalidateAllInitiatives = () => invalidateGuildPrefix("/api/v1/initiatives");
@@ -255,6 +281,10 @@ export const invalidateStorageSettings = () =>
 // SPA's boot config, so an owner's write has to reach the config key rather
 // than a settings one.
 export const invalidateAppConfig = () => invalidatePersonalExact([`/api/v1/config`]);
+
+/** The owner's own read of the three community-wide decisions. */
+export const invalidateCommunitySettings = () =>
+  invalidatePersonalExact([`/api/v1/settings/community`]);
 
 export const invalidateOidcMappings = () =>
   invalidatePersonalPrefix("/api/v1/settings/oidc-mappings");
@@ -386,6 +416,81 @@ export const invalidateAllDashboards = () => invalidateGuildPrefix("/api/v1/dash
 export const invalidateDashboard = (dashboardId: number) =>
   invalidateGuildExact([`/api/v1/dashboards/${dashboardId}`]);
 
+// ── Posts (guild) ─────────────────────────────────────────────────────────────────
+
+export const invalidateAllPosts = () => invalidateGuildPrefix("/api/v1/posts");
+
+export const invalidatePost = (postId: number) => invalidateGuildExact([`/api/v1/posts/${postId}`]);
+
+/**
+ * The board's timeline rail only.
+ *
+ * Read state is patched into the post caches rather than refetched, because
+ * refetching the feed mid-scroll moves rows under the cursor. The rail is a
+ * separate, cheap aggregate — and with the unread filter on it is *made of*
+ * read state, so leaving it alone would show months that have since emptied.
+ * This refreshes that one query and nothing else.
+ */
+export const invalidatePostTimeline = () => invalidateGuildPrefix("/api/v1/posts/timeline");
+
+type CachedPost = Record<string, unknown>;
+type CachedPage = { items?: CachedPost[] };
+
+/**
+ * One page of posts, with this post rewritten. Returns the SAME object when
+ * the page does not hold it, so the caches that do not change keep their
+ * identity and the cards on them do not re-render.
+ */
+const patchPostPage = (
+  page: unknown,
+  postId: number,
+  update: (post: CachedPost) => CachedPost
+): unknown => {
+  const asList = page as CachedPage;
+  if (!Array.isArray(asList.items)) return page;
+  if (!asList.items.some((item) => item.id === postId)) return page;
+  return {
+    ...asList,
+    items: asList.items.map((item) => (item.id === postId ? update(item) : item)),
+  };
+};
+
+/**
+ * Rewrite one post wherever it is already cached, without refetching.
+ *
+ * Read state changes as somebody scrolls, and invalidating for it would refetch
+ * the board mid-scroll — moving rows under the cursor, and with the unread
+ * filter on, deleting the one being read. The server is already told; this is
+ * only the copy on screen catching up.
+ *
+ * Three shapes hold a post, and the board is the one that is easy to miss: it
+ * scrolls rather than pages, so its cache is an infinite query's
+ * `{ pages: [...] }` rather than a single page of items. Patching only the
+ * other two would leave every optimistic update invisible on the surface it
+ * was made from.
+ */
+export const patchCachedPost = (postId: number, update: (post: CachedPost) => CachedPost) => {
+  queryClient.setQueriesData<unknown>(
+    { predicate: (q) => guildKey(q.queryKey[0])?.startsWith("/api/v1/posts") ?? false },
+    (data: unknown) => {
+      if (!data || typeof data !== "object") return data;
+
+      const asInfinite = data as { pages?: unknown[] };
+      if (Array.isArray(asInfinite.pages)) {
+        const pages = asInfinite.pages.map((page) => patchPostPage(page, postId, update));
+        if (pages.every((page, index) => page === asInfinite.pages?.[index])) return data;
+        return { ...asInfinite, pages };
+      }
+
+      const patched = patchPostPage(data, postId, update);
+      if (patched !== data) return patched;
+
+      const asPost = data as CachedPost;
+      return asPost.id === postId ? update(asPost) : data;
+    }
+  );
+};
+
 // ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>
@@ -452,6 +557,10 @@ const TOOL_INVALIDATORS: Record<Tool, (id: number) => void> = {
   [Tool.dashboard]: (id) => {
     void invalidateDashboard(id);
     void invalidateAllDashboards();
+  },
+  [Tool.post]: (id) => {
+    void invalidatePost(id);
+    void invalidateAllPosts();
   },
 };
 

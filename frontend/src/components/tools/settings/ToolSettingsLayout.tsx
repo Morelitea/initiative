@@ -21,10 +21,12 @@
 import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
+import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import {
   type ToolMutation,
   type ToolSettingsEntity,
@@ -124,11 +126,17 @@ export const ToolSettingsLayout = ({
       label: tab.label,
       path: sectionPath(tab.value),
     })),
-    {
-      value: "advanced",
-      label: t("common:toolSettings.tabAdvanced"),
-      path: sectionPath("advanced"),
-    },
+    // Advanced holds a tool's own extra operations plus deletion, so it is
+    // offered only when this entity has one of them to offer.
+    ...(advancedExtra || isOwner
+      ? [
+          {
+            value: "advanced",
+            label: t("common:toolSettings.tabAdvanced"),
+            path: sectionPath("advanced"),
+          },
+        ]
+      : []),
   ];
 
   // The tab paths are guild-prefixed; matching happens on the sub-path, so a
@@ -178,7 +186,9 @@ export const ToolSettingsLayout = ({
           advancedExtra,
         }}
       >
-        <Outlet />
+        <Suspense fallback={<SettingsPaneSkeleton />}>
+          <Outlet />
+        </Suspense>
       </ToolSettingsProvider>
 
       {children}

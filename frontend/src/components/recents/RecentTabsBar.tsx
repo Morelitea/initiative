@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { SkeletonPillRow, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -52,7 +53,9 @@ export const RecentTabsBar = ({
     <ScrollArea className="h-12 pt-2.5">
       <div className="flex h-full items-end gap-2 px-4">
         {loading ? (
-          <p className="py-3 text-muted-foreground text-xs">{t("tabsBar.loadingRecent")}</p>
+          <SkeletonRegion label={t("tabsBar.loadingRecent")}>
+            <SkeletonPillRow count={3} pillClassName="h-9 w-36 rounded-t-md rounded-b-none" />
+          </SkeletonRegion>
         ) : (
           items?.map((item) => {
             const isActive = recentKeyMatches(activeKey ?? null, item);

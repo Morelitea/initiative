@@ -27,6 +27,7 @@ from app.core.messages import (
     CounterMessages,
     DashboardMessages,
     DocumentMessages,
+    PostMessages,
     ProjectMessages,
     QueueMessages,
 )
@@ -41,6 +42,7 @@ from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
+from app.services.tenant import posts as posts_service
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
 
@@ -111,6 +113,15 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         path_param="dashboard_id",
         not_found_msg=DashboardMessages.NOT_FOUND,
     ),
+    Tool.post: ResourceAccessConfig(
+        dac_kind=Tool.post,
+        feature_attr=Tool.post.view_permission,
+        feature_disabled_msg=PostMessages.FEATURE_DISABLED,
+        grant_cannot_manage_msg=PostMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=posts_service.get_post,
+        path_param="post_id",
+        not_found_msg=PostMessages.NOT_FOUND,
+    ),
 }
 
 # The tools whose sharing can be set through the unified *local* grant flow
@@ -158,6 +169,17 @@ def authorize(
             require_owner=require_owner,
             guild_role=guild_role,
         )
+        # Last, and only for somebody the sharing already admitted: a row that
+        # exists before it is anybody's to read — a post that has not gone up.
+        # Answering 404 here rather than 403 is the point; to a reader the
+        # notice does not exist yet.
+        if user is not None and permissions_service.hidden_from_reader(
+            cfg.dac_kind, row, user.id, guild_role=guild_role
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=cfg.not_found_msg,
+            )
 
 
 async def load_authorized(

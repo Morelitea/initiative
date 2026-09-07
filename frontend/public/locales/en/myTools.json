@@ -1,0 +1,27 @@
+{
+  "title": "My Tools",
+  "subtitle": "Everything that reaches you, one tool at a time, across every community you're in.",
+  "toolRail": "Your tools",
+  "view": {
+    "label": "Show",
+    "everything": "Everything",
+    "createdByMe": "Made by me"
+  },
+  "communities": {
+    "label": "Communities",
+    "all": "All communities",
+    "none": "You're not in any community yet."
+  },
+  "loading": "Loading…",
+  "loadError": "Failed to load this tool. Please try again later.",
+  "empty": {
+    "title": "Nothing here yet",
+    "description": "Nothing of this kind reaches you in the communities you're in.",
+    "descriptionMine": "You haven't made any of these yet."
+  },
+  "noTools": {
+    "title": "Nothing to browse yet",
+    "description": "Once you're in a project, a document, or anything else, it shows up here.",
+    "descriptionMine": "Once you make something, it shows up here."
+  }
+}

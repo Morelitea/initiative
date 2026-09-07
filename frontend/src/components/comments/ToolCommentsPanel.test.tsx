@@ -29,7 +29,7 @@ describe("ToolCommentsPanel", () => {
     renderWithProviders(
       <ToolCommentsPanel
         tool={Tool.counter_group}
-        entity={{ id: 9, initiative_id: 4, comments_disabled: false }}
+        entity={{ id: 9, initiative_id: 4, comments_enabled: true }}
       />
     );
 
@@ -43,7 +43,7 @@ describe("ToolCommentsPanel", () => {
     renderWithProviders(
       <ToolCommentsPanel
         tool={Tool.dashboard}
-        entity={{ id: 12, initiative_id: 4, comments_disabled: false }}
+        entity={{ id: 12, initiative_id: 4, comments_enabled: true }}
       />
     );
 
@@ -57,7 +57,7 @@ describe("ToolCommentsPanel", () => {
     const { container } = renderWithProviders(
       <ToolCommentsPanel
         tool={Tool.queue}
-        entity={{ id: 3, initiative_id: 4, comments_disabled: true }}
+        entity={{ id: 3, initiative_id: 4, comments_enabled: false }}
       />
     );
 
@@ -72,7 +72,7 @@ describe("ToolCommentsPanel", () => {
     renderWithProviders(
       <ToolCommentsPanel
         tool={Tool.project}
-        entity={{ id: 1, initiative_id: 4, comments_disabled: false }}
+        entity={{ id: 1, initiative_id: 4, comments_enabled: true }}
       />
     );
 

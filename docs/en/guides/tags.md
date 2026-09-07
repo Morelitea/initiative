@@ -4,33 +4,39 @@ icon: lucide/tags
 
 # Tags
 
-**Tags** are labels you stick on things to group and find them. The same tag can sit on tasks, projects, documents, and events — so a tag like `urgent`, `client-acme`, or `idea` pulls together everything related, wherever it lives.
+**Tags** are labels you stick on things so that future-you can find them again.
 
-## Adding a tag
+The same tag works across tasks, projects, documents and events — so `urgent`, `client-acme` or `idea` rounds up everything on that subject, regardless of what kind of thing each one happens to be.
 
-Wherever you see an **Add tags…** box — on a task, project, document, or event:
+## Adding one
 
-1. Start typing a tag name.
-2. Pick an existing tag from the list, or choose **Create "your-tag"** to make a new one on the spot.
+Wherever you see an **Add tags…** box:
 
-That's it. The tag is attached, and it's now available to use on other things too.
+1. Start typing a name.
+2. Pick an existing tag, or choose **Create "your-tag"** to invent one on the spot.
 
-!!! tip "Keep your tags few and meaningful"
-    A handful of clear tags you use consistently beats dozens you use once. Think about how you'll want to *find* things later, and name tags for that.
+Done. It's attached, and now available everywhere else too.
+
+!!! tip "Six good tags beat sixty bad ones"
+    A handful you actually use will serve you far better than a sprawling taxonomy invented during one enthusiastic afternoon in February and never touched again.
+
+    Name them for how you'll want to *search* later, not for how you feel about the thing right now.
 
 ## Finding things by tag
 
-- In **Table** views, **filter** by tag to narrow a busy list down to just what's labeled.
+- In **Table** views, **filter** by tag to cut a busy list down to what's labelled.
 - The **Tags** area in the sidebar lists every tag in the community.
-- Open a tag's **detail page** to see everything carrying it, split into **Tasks**, **Projects**, and **Documents**.
+- A tag's **detail page** shows everything carrying it, split into **Tasks**, **Projects** and **Documents**.
 
 ![Everything sharing a tag](../images/tags/tag-detail.png)
 
-## Managing tags
+## Managing them
 
-From a tag's detail page you can **rename** it (the change applies everywhere it's used) or **delete** it. Deleted tags go to the **Trash**, so an accidental deletion can be undone for a while.
+From a tag's detail page you can **rename** it — which updates it everywhere at once, so there's no find-and-replace and no forgotten stragglers — or **delete** it.
 
-You can also **add or remove tags on many items at once** — select several tasks and edit their tags together.
+Deleted tags go to the **Trash**, so a mis-click is fixable for a while.
+
+You can also **add or remove tags on lots of things at once**: select several tasks and edit their tags together.
 
 ## Related
 

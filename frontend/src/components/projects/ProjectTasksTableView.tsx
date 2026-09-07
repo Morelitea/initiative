@@ -35,13 +35,7 @@ import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskSta
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
@@ -482,9 +476,7 @@ const ProjectTasksTableViewComponent = ({
                 disabled={statusDisabled}
                 aria-label={t("table.statusColumn")}
               >
-                <SelectValue asChild>
-                  <TaskStatusOption status={activeStatus} />
-                </SelectValue>
+                <TaskStatusOption status={activeStatus} />
               </SelectTrigger>
               <SelectContent>
                 {taskStatuses.map((status) => (

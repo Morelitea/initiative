@@ -134,7 +134,7 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
         # before the change — not for somebody signing up next month, and not
         # for a deployment that was never on the old behaviour.
         audience_accounts=AnnouncementAudienceAccounts.existing,
-        only_upgrading_from_below="0.65.0",
+        only_upgrading_from_below="0.66.0",
         # Only inside a community. The notice is about the community sidebar,
         # and that sidebar is not on screen when someone lands on their own
         # task list at sign-in — a notice about a thing you cannot see is just
@@ -173,6 +173,87 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
                 image_alt=(
                     "The Initiatives tab of community settings, with the project "
                     "managers picker open on one initiative"
+                ),
+            ),
+        ),
+    ),
+    BuiltinAnnouncement(
+        slug="0-66-search-needs-bootstrap-connection",
+        title="Search needs one line in your compose file",
+        category=AnnouncementCategory.maintenance,
+        published_at=datetime(2026, 9, 7, tzinfo=timezone.utc),
+        # Only the people who can edit a deployment's environment, and only on
+        # a deployment that upgraded into this: a fresh install came up with
+        # the connection already wired, so there is nothing for it to add.
+        min_platform_role=UserRole.operator,
+        only_upgrading_from_below="0.66.0",
+        # Missing it costs search on every query from here on, and the log line
+        # that used to say so is the one operators were already skimming past.
+        dismissals_required=2,
+        sections=(
+            AnnouncementSection(
+                heading="What changed",
+                body=(
+                    "Initiative now creates its own database roles and installs "
+                    "the search index's match operator at startup, over a fourth "
+                    "connection, `DATABASE_URL_BOOTSTRAP`, made as the database "
+                    "owner. Nothing has to be piped between containers any more.\n\n"
+                    "An install that upgraded without that connection keeps running "
+                    "exactly as before, but it can only check those prerequisites, "
+                    "not apply them. If the search operator was never installed "
+                    "here, search goes on reading more of its index than it should, "
+                    "and the startup log goes on saying so."
+                ),
+            ),
+            AnnouncementSection(
+                starts_page=True,
+                heading="What to do",
+                body=(
+                    "Add `DATABASE_URL_BOOTSTRAP` to the backend's environment, "
+                    "pointing at this database as its owner, the way the example "
+                    "compose file does:\n\n"
+                    "```\n"
+                    "DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://<owner>:<password>@db:5432/<database>\n"
+                    "```\n\n"
+                    "Then restart. The log reports the roles and the search "
+                    "operator as applied. You can leave the line in place, or "
+                    "remove it once the stack is up: Initiative then verifies those "
+                    "prerequisites instead of applying them, and names anything "
+                    "missing.\n\n"
+                    "If your database is provisioned elsewhere, print the SQL and "
+                    "run it as the owner yourself:\n\n"
+                    "```\n"
+                    "docker compose exec -T initiative python -m app.db.bootstrap --print-sql\n"
+                    "```"
+                ),
+            ),
+        ),
+    ),
+    BuiltinAnnouncement(
+        slug="0-66-my-pages-moved",
+        title="Three sidebar pages became one",
+        category=AnnouncementCategory.info,
+        published_at=datetime(2026, 9, 7, tzinfo=timezone.utc),
+        # For the people who had those pages in their sidebar last week. A new
+        # account never saw them, and a fresh install never had them.
+        audience_accounts=AnnouncementAudienceAccounts.existing,
+        only_upgrading_from_below="0.66.0",
+        sections=(
+            AnnouncementSection(
+                heading="Where they went",
+                body=(
+                    "**My Projects** and **My Documents** are now one page, "
+                    "**My Tools**. Pick a tool at the top and see everything of "
+                    "that kind that reaches you, across every community you are "
+                    "in. A toggle narrows it to only what you made.\n\n"
+                    "**Tasks I Created** is gone. **My Tasks** already answered "
+                    "that question, and the toggle on My Tools has the same "
+                    "reach.\n\n"
+                    "**My Contacts** has folded into **My Messages**. The people "
+                    "you can reach are the conversation list, requests either way "
+                    "round sit above it, and the **+** finds anybody you have not "
+                    "messaged yet. A community's own roster now lives on its "
+                    "member count. Old links to My Contacts land on My Messages."
                 ),
             ),
         ),

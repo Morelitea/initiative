@@ -43,6 +43,7 @@
   },
   "columns": {
     "name": "Name",
+    "community": "Community",
     "initiative": "Initiative",
     "tags": "Tags",
     "updated": "Last updated",
@@ -52,7 +53,8 @@
       "queues": "Items",
       "counterGroups": "Counters",
       "calendars": "Description",
-      "dashboards": "Source"
+      "dashboards": "Source",
+      "posts": "Preview"
     }
   },
   "detail": {

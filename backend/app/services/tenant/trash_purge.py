@@ -34,6 +34,7 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.dashboard import Dashboard
+from app.models.tenant.post import Post
 from app.models.tenant.document import Document
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.initiative import Initiative
@@ -69,6 +70,7 @@ _PURGE_TOP_DOWN = (
     Calendar,
     CalendarEvent,
     Dashboard,
+    Post,
     CounterGroup,
     Counter,
 )

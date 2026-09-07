@@ -303,6 +303,28 @@ class User(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # A direct message, by the two channels every other category uses. There is
+    # no third switch for hiding who it is from: the roster already records that
+    # two accounts are talking, and what is private is what they said.
+    email_direct_messages: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_direct_messages: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    # A notice posted to a bulletin board the account can see. One pair for
+    # the board as a whole: a post is already an occasional, deliberate thing,
+    # and splitting it finer would be settings nobody uses.
+    email_posts: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_posts: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     email_events: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),

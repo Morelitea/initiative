@@ -11,6 +11,10 @@
     "title": "No results for “{{query}}”",
     "description": "Check the spelling, or try a different word."
   },
+  "failed": {
+    "title": "Search is not answering",
+    "description": "Something went wrong reaching it. Try again in a moment."
+  },
   "tabs": {
     "tool": "Tools",
     "member": "Members",
@@ -29,7 +33,8 @@
     "calendar_event": "Event",
     "dashboard": "Dashboard",
     "tag": "Tag",
-    "comment": "Comment"
+    "comment": "Comment",
+    "post": "Post"
   },
   "switchHint": "Tab to switch",
   "closeMatches": "Nothing matches “{{query}}” exactly. These are the closest.",

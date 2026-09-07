@@ -4,57 +4,57 @@ icon: lucide/user-plus
 
 # Create your account
 
-Your account is your personal identity in Initiative. You sign in with it, and it follows you across every group you belong to.
+Your account is just you. One of them, and it follows you into every group you join — so there's no separate login for the book club and the day job, and no fourth password to write on anything.
 
 ## Step 1: Open Initiative
 
-There are two common ways to arrive:
+Two ways you've probably arrived:
 
-- **You were sent an invite link.** Click it. It opens Initiative and remembers which group you're joining. This is the easiest path — after you create your account, you're taken straight into that group.
-- **You have a web address.** Someone shared the address of your group's Initiative (something like `initiative.yourteam.com`). Open it in your browser.
+- **Somebody sent you an invite link.** Click it. It already knows which group you're joining, so once you've made your account you land straight inside it. This is the easy path and we wholeheartedly recommend it.
+- **Somebody sent you a web address.** Something like `initiative.yourteam.com`. Open it in your browser.
 
 ![The Initiative sign-in screen](../images/getting-started/sign-in-screen.png)
 
-## Step 2: Choose how to sign up
+## Step 2: Pick how to sign up
 
-Look for **Create account** (or **Sign up**). You'll usually have one or two choices:
+Look for **Create account** (or **Sign up**). You'll have one or two options:
 
-- **Email and password** — the standard way. Continue with Step 3 below.
-- **Single sign-on** — if your organization set this up, you'll see a button like **Continue with Single Sign-On**. Click it and sign in with your existing work or school account. There's no separate password to create. You can skip the rest of this page.
+- **Email and password** — the normal one. Carry on to Step 3.
+- **Single sign-on** — a button saying something like **Continue with Single Sign-On**. If your work or school set this up, click it, log in the way you already do everywhere else, and you're finished. No new password. Skip the rest of this page and go and enjoy your afternoon.
 
-## Step 3: Fill in your details
+## Step 3: Fill in the boxes
 
-For an email-and-password account, you'll enter:
-
-| Field | What to put |
+| Box | What goes in it |
 |---|---|
-| **Full name** | Your name as you'd like teammates to see it. You can change it later. |
-| **Email** | A real address you can check. We send a confirmation link there. |
-| **Password** | At least **12 characters**. Longer is stronger. |
-| **Confirm password** | Type the same password again. |
+| **Full name** | How you'd like your teammates to see you. Changeable later, so please don't agonise over it. |
+| **Email** | One you can actually check — we send a confirmation link there. |
+| **Password** | At least **12 characters**. Longer is better. |
+| **Confirm password** | The same one again. Yes, really. |
 
-You may also see a quick **"I'm not a robot"** check. That's normal — it keeps automated sign-ups out.
+There may also be an **"I'm not a robot"** box. Prove yourself. We believe in you.
 
-!!! tip "Pick a strong password you don't use elsewhere"
-    A short sentence you'll remember — like four random words strung together — is both strong and easy to recall. A password manager is even better.
+!!! tip "About that password"
+    Four random words in a row is both extremely strong and genuinely memorable. It comfortably beats the one with a capital letter at the front and an exclamation mark on the end that you have been quietly reusing since 2016.
+
+    A password manager is better still, because then you don't have to remember anything at all, which is the dream.
 
 ## Step 4: Confirm your email
 
-After you sign up, one of a few things happens depending on how your group set things up:
+What happens next depends on how your group set things up:
 
-- **"Check your inbox to verify your email."** Open the email we sent and click the link. Then you can sign in. (No email after a few minutes? Check your spam folder.)
-- **"Pending approval from an administrator."** Your group reviews new sign-ups by hand. You'll be able to sign in once someone approves you.
-- **You're let straight in.** Some groups automatically approve people whose email matches the organization (for example, anyone with a `@yourteam.com` address).
+- **"Check your inbox to verify your email."** Click the link, then sign in. Nothing after a few minutes? It's in the spam folder. It's always in the spam folder.
+- **"Pending approval from an administrator."** Your group checks new sign-ups by hand. Nothing for you to do but wait for a human to click a button.
+- **You're just let straight in.** Some groups auto-approve anyone with a matching email address — everyone at `@yourteam.com`, say.
 
 ??? techspec "For the technically minded — how sign-up is gated"
-    Three independent settings control who can register, and an administrator chooses the combination:
+    Three independent settings, combined however an administrator likes:
 
-    - **Public registration** can be turned off entirely, so only people with an invite link can join.
-    - **An allow-list of email domains** can auto-approve sign-ups from trusted domains; everyone else waits for manual approval.
-    - **Email verification** confirms the address belongs to the person signing up.
+    - **Public registration** can be switched off entirely, making invite links the only way in.
+    - **An allow-list of email domains** auto-approves sign-ups from trusted domains; everyone else waits for manual approval.
+    - **Email verification** confirms the address belongs to whoever typed it.
 
-    The very first person to register on a brand-new server automatically becomes the platform **owner** (the top administrator). See [Platform roles](../admin/platform-roles.md).
+    The first person to register on a brand-new server becomes the platform **owner**. See [Platform roles](../admin/platform-roles.md).
 
 ## Next
 
-You have an account. Time to [sign in](signing-in.md).
+You have an account. Go and [sign in with it](signing-in.md).

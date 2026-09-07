@@ -26,7 +26,7 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
   const gp = useGuildPath();
   const projectCount = document.projects.length;
   // A document with comments off shows no thread anywhere, so it shows no count.
-  const commentCount = document.comments_disabled ? null : (document.comment_count ?? 0);
+  const commentCount = document.comments_enabled ? (document.comment_count ?? 0) : null;
   const isFileDocument = document.document_type === "file";
   const fileTypeLabel = isFileDocument
     ? getFileTypeLabel(document.file_content_type, document.original_filename)

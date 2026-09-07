@@ -1,5 +1,7 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
+import { Suspense } from "react";
 
+import { GuildHomeSkeleton } from "@/components/skeletons/PageSkeletons";
 import { validatePage } from "@/lib/routeSearch";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId/")({
@@ -28,7 +30,19 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
     sort: typeof search.sort === "string" ? search.sort : undefined,
     dir: search.dir === "asc" || search.dir === "desc" ? search.dir : undefined,
   }),
-  component: lazyRouteComponent(() =>
-    import("@/pages/GuildHomePage").then((m) => ({ default: m.GuildHomePage }))
-  ),
+  component: GuildHome,
 });
+
+const LazyGuildHomePage = lazyRouteComponent(() =>
+  import("@/pages/GuildHomePage").then((m) => ({ default: m.GuildHomePage }))
+);
+
+/** The front page draws its own outline while its code is on the way, rather
+ *  than the generic one the layout would otherwise show in its place. */
+function GuildHome() {
+  return (
+    <Suspense fallback={<GuildHomeSkeleton />}>
+      <LazyGuildHomePage />
+    </Suspense>
+  );
+}

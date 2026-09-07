@@ -15,7 +15,13 @@ const Command = React.forwardRef<
   <CommandPrimitive
     ref={ref}
     className={cn(
-      "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
+      // Deliberately not `h-full`. A dialog's content box is a grid, so its
+      // children are stretched to the row — and a Command that then claims all
+      // of that height while sitting under a search input hangs out of the
+      // bottom of the dialog by exactly the input's height. Where a Command IS
+      // the whole surface (`CommandDialog`, a popover) it is the only child, so
+      // sizing to content gives the same box it had before.
+      "flex w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
       className
     )}
     {...props}

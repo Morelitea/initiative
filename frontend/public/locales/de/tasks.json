@@ -149,15 +149,6 @@
     "typeEvents": "Termine",
     "typeTasks": "Aufgaben"
   },
-  "createdTasks": {
-    "title": "Meine erstellten Aufgaben",
-    "subtitle": "Aufgaben, die du über alle deine Communitys hinweg erstellt hast.",
-    "addTask": "Aufgabe hinzufügen",
-    "empty": "Du hast noch keine Aufgaben erstellt.",
-    "loadError": "Deine erstellten Aufgaben konnten nicht geladen werden.",
-    "groupByDate": "Datum",
-    "groupByGuild": "Community"
-  },
   "tagTasks": {
     "loadError": "Aufgaben konnten nicht geladen werden."
   },

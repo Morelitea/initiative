@@ -1,8 +1,9 @@
 import { Outlet, useLocation, useParams, useRouter } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
+import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInterfaceSettings } from "@/hooks/useSettings";
@@ -157,7 +158,9 @@ export const GuildSettingsLayout = () => {
         activeTab={activeTab}
         onNavigate={(path) => router.navigate({ to: path })}
       />
-      <Outlet />
+      <Suspense fallback={<SettingsPaneSkeleton />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 };

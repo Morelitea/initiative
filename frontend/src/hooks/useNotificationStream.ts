@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
-import { invalidateNotifications } from "@/api/query-keys";
+import {
+  invalidateContactGrants,
+  invalidateDirectMessages,
+  invalidateDmSettings,
+  invalidateIgnoredAccounts,
+  invalidateNotifications,
+} from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { buildApiWsUrl } from "@/lib/wsUrl";
 
@@ -149,6 +155,15 @@ export const useNotificationStream = () => {
     });
   }, []);
 
+  // Who may reach this account, and who it has agreed something with. One
+  // frame moves all three lists, because they change together: accepting a
+  // connection opens a channel, and leaving a community closes one.
+  const refreshContacts = useCallback(() => {
+    void invalidateContactGrants();
+    void invalidateIgnoredAccounts();
+    void invalidateDmSettings();
+  }, []);
+
   useEffect(
     () => () => {
       if (accountRetryTimerRef.current !== null) {
@@ -197,10 +212,12 @@ export const useNotificationStream = () => {
         authFailureCountRef.current = 0;
         setConnected(true);
         // The socket was down for some interval — anything that happened in it
-        // was never signalled, so catch up once on the way back up. Both
-        // channels, since either could have moved while we were away.
+        // was never signalled, so catch up once on the way back up. Every
+        // channel, since any of them could have moved while we were away.
         void invalidateNotifications();
         refreshAccount();
+        refreshContacts();
+        void invalidateDirectMessages();
       };
 
       websocket.onmessage = (event) => {
@@ -213,6 +230,12 @@ export const useNotificationStream = () => {
             void invalidateNotifications();
           } else if (payload.resource === "account") {
             refreshAccount();
+          } else if (payload.resource === "contacts") {
+            refreshContacts();
+          } else if (payload.resource === "dm") {
+            // A direct-message frame says only that there is something to
+            // collect. The page that owns the mailbox does the reading.
+            void invalidateDirectMessages();
           }
         } catch {
           // ignore malformed frames

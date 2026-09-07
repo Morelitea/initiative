@@ -19,6 +19,7 @@ class Tool(str, Enum):
     counter_group = "counter_group"
     calendar = "calendar"
     dashboard = "dashboard"
+    post = "post"
 
     @property
     def plural(self) -> str:

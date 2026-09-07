@@ -6,6 +6,7 @@ import {
   AIConnectionManager,
   type ConnectionMutations,
 } from "@/components/settings/AIConnectionManager";
+import { FormSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -65,7 +66,11 @@ export const SettingsAIPage = () => {
   }
 
   if (modeQuery.isLoading) {
-    return <p className="text-muted-foreground text-sm">{t("ai.loading")}</p>;
+    return (
+      <SkeletonRegion label={t("ai.loading")}>
+        <FormSkeleton fields={2} />
+      </SkeletonRegion>
+    );
   }
 
   if (modeQuery.isError || !modeQuery.data) {
